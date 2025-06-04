@@ -21,3 +21,6 @@ verify_jwt = true
 
 [functions.set-initial-password]
 verify_jwt = false
+
+[functions.gp51-data-preview]
+verify_jwt = true

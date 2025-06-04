@@ -93,6 +93,91 @@ export type Database = {
         }
         Relationships: []
       }
+      gp51_data_conflicts: {
+        Row: {
+          conflict_details: Json | null
+          conflict_type: string
+          created_at: string
+          existing_record_id: string | null
+          id: string
+          preview_id: string | null
+          resolution_status: string
+        }
+        Insert: {
+          conflict_details?: Json | null
+          conflict_type: string
+          created_at?: string
+          existing_record_id?: string | null
+          id?: string
+          preview_id?: string | null
+          resolution_status?: string
+        }
+        Update: {
+          conflict_details?: Json | null
+          conflict_type?: string
+          created_at?: string
+          existing_record_id?: string | null
+          id?: string
+          preview_id?: string | null
+          resolution_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_data_conflicts_preview_id_fkey"
+            columns: ["preview_id"]
+            isOneToOne: false
+            referencedRelation: "gp51_import_previews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gp51_import_previews: {
+        Row: {
+          conflict_flags: Json | null
+          created_at: string
+          gp51_username: string
+          id: string
+          import_eligibility: string
+          job_id: string | null
+          raw_user_data: Json | null
+          raw_vehicle_data: Json | null
+          review_status: string
+          updated_at: string
+        }
+        Insert: {
+          conflict_flags?: Json | null
+          created_at?: string
+          gp51_username: string
+          id?: string
+          import_eligibility?: string
+          job_id?: string | null
+          raw_user_data?: Json | null
+          raw_vehicle_data?: Json | null
+          review_status?: string
+          updated_at?: string
+        }
+        Update: {
+          conflict_flags?: Json | null
+          created_at?: string
+          gp51_username?: string
+          id?: string
+          import_eligibility?: string
+          job_id?: string | null
+          raw_user_data?: Json | null
+          raw_vehicle_data?: Json | null
+          review_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_import_previews_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "user_import_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gp51_sessions: {
         Row: {
           created_at: string
@@ -135,6 +220,7 @@ export type Database = {
         Row: {
           admin_gp51_username: string | null
           completed_at: string | null
+          conflicts_count: number | null
           created_at: string
           error_log: Json | null
           failed_imports: number
@@ -143,7 +229,11 @@ export type Database = {
           import_type: string
           imported_usernames: Json | null
           job_name: string
+          preview_mode: boolean | null
           processed_usernames: number
+          review_status: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: string
           successful_imports: number
           total_usernames: number
@@ -153,6 +243,7 @@ export type Database = {
         Insert: {
           admin_gp51_username?: string | null
           completed_at?: string | null
+          conflicts_count?: number | null
           created_at?: string
           error_log?: Json | null
           failed_imports?: number
@@ -161,7 +252,11 @@ export type Database = {
           import_type?: string
           imported_usernames?: Json | null
           job_name: string
+          preview_mode?: boolean | null
           processed_usernames?: number
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
           successful_imports?: number
           total_usernames?: number
@@ -171,6 +266,7 @@ export type Database = {
         Update: {
           admin_gp51_username?: string | null
           completed_at?: string | null
+          conflicts_count?: number | null
           created_at?: string
           error_log?: Json | null
           failed_imports?: number
@@ -179,7 +275,11 @@ export type Database = {
           import_type?: string
           imported_usernames?: Json | null
           job_name?: string
+          preview_mode?: boolean | null
           processed_usernames?: number
+          review_status?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: string
           successful_imports?: number
           total_usernames?: number
