@@ -69,8 +69,37 @@ export const useEnhancedVehicleData = () => {
         last_position: vehicle.last_position as unknown as VehiclePosition
       })) as Vehicle[];
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000, // Fallback refresh every 30 seconds
   });
+
+  // Set up real-time subscription for vehicle updates
+  useEffect(() => {
+    console.log('Setting up real-time subscription for vehicles...');
+    
+    const channel = supabase
+      .channel('vehicles-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'vehicles'
+        },
+        (payload) => {
+          console.log('Real-time vehicle update received:', payload);
+          // Refetch data when vehicles are updated
+          refetch();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Real-time subscription status:', status);
+      });
+
+    return () => {
+      console.log('Cleaning up real-time subscription...');
+      supabase.removeChannel(channel);
+    };
+  }, [refetch]);
 
   // Get unique users for filter options
   const userOptions = useMemo(() => {

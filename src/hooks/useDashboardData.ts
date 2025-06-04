@@ -1,161 +1,175 @@
 
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-interface FleetMetrics {
+interface DashboardStats {
   totalVehicles: number;
   activeVehicles: number;
   onlineVehicles: number;
   alertVehicles: number;
+  totalUsers: number;
+  recentImports: number;
 }
 
-interface InsightData {
-  fuelEfficiencyTrend: Array<{ date: string; efficiency: number }>;
-  maintenanceAlerts: Array<{ vehicleId: string; type: string; dueIn: string }>;
-  driverBehavior: {
-    fleetScore: number;
-    topIssues: Array<{ issue: string; percentage: number }>;
-  };
-  anomalies: Array<{ vehicleId: string; description: string; severity: string }>;
-}
-
-interface Alert {
+interface RecentAlert {
   id: string;
-  deviceName: string;
-  deviceId: string;
-  alarmType: string;
-  description: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
+  vehicle_name: string;
+  alert_type: string;
   timestamp: string;
-}
-
-interface VehiclePosition {
-  updatetime?: string;
-  lat?: number;
-  lon?: number;
-  [key: string]: any;
+  location?: string;
 }
 
 export const useDashboardData = () => {
-  const [metrics, setMetrics] = useState<FleetMetrics>({
-    totalVehicles: 0,
-    activeVehicles: 0,
-    onlineVehicles: 0,
-    alertVehicles: 0
-  });
+  const [lastUpdate, setLastUpdate] = useState(new Date());
 
-  const [insights, setInsights] = useState<InsightData>({
-    fuelEfficiencyTrend: [],
-    maintenanceAlerts: [],
-    driverBehavior: { fleetScore: 0, topIssues: [] },
-    anomalies: []
-  });
-
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchDashboardData = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // Fetch vehicles data from Supabase
+  // Fetch dashboard statistics
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: async (): Promise<DashboardStats> => {
+      // Get vehicle statistics
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
-        .select('*');
+        .select('id, is_active, last_position, status');
 
       if (vehiclesError) throw vehiclesError;
 
-      // Calculate metrics from vehicles data
+      // Get user count
+      const { data: users, error: usersError } = await supabase
+        .from('envio_users')
+        .select('id');
+
+      if (usersError) throw usersError;
+
+      // Get recent import jobs count
+      const { data: recentJobs, error: jobsError } = await supabase
+        .from('user_import_jobs')
+        .select('id')
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+
+      if (jobsError) throw jobsError;
+
       const totalVehicles = vehicles?.length || 0;
       const activeVehicles = vehicles?.filter(v => v.is_active).length || 0;
       
-      // Check online status based on last position update time (last 30 minutes)
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      // Check if vehicles are online (last update within 30 minutes)
       const onlineVehicles = vehicles?.filter(v => {
-        const lastPosition = v.last_position as VehiclePosition;
-        return lastPosition?.updatetime && 
-               new Date(lastPosition.updatetime) > thirtyMinutesAgo;
+        if (!v.last_position?.updatetime) return false;
+        return new Date(v.last_position.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
       }).length || 0;
 
-      // Check for alert vehicles (simplified - based on status)
+      // Count alert vehicles
       const alertVehicles = vehicles?.filter(v => 
         v.status?.toLowerCase().includes('alert') || 
         v.status?.toLowerCase().includes('alarm')
       ).length || 0;
 
-      setMetrics({
+      return {
         totalVehicles,
         activeVehicles,
         onlineVehicles,
-        alertVehicles
+        alertVehicles,
+        totalUsers: users?.length || 0,
+        recentImports: recentJobs?.length || 0
+      };
+    },
+    refetchInterval: 30000, // Fallback refresh every 30 seconds
+  });
+
+  // Fetch recent alerts
+  const { data: recentAlerts, isLoading: alertsLoading, refetch: refetchAlerts } = useQuery({
+    queryKey: ['recent-alerts'],
+    queryFn: async (): Promise<RecentAlert[]> => {
+      const { data: vehicles, error } = await supabase
+        .from('vehicles')
+        .select('id, device_name, status, last_position, updated_at')
+        .or('status.ilike.%alert%,status.ilike.%alarm%')
+        .order('updated_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      return vehicles?.map(vehicle => ({
+        id: vehicle.id,
+        vehicle_name: vehicle.device_name,
+        alert_type: vehicle.status || 'Unknown Alert',
+        timestamp: vehicle.updated_at,
+        location: vehicle.last_position?.lat && vehicle.last_position?.lon 
+          ? `${vehicle.last_position.lat.toFixed(6)}, ${vehicle.last_position.lon.toFixed(6)}`
+          : undefined
+      })) || [];
+    },
+    refetchInterval: 30000,
+  });
+
+  // Set up real-time subscription for dashboard updates
+  useEffect(() => {
+    console.log('Setting up real-time subscription for dashboard...');
+    
+    const channel = supabase
+      .channel('dashboard-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'vehicles'
+        },
+        (payload) => {
+          console.log('Real-time dashboard update received:', payload);
+          setLastUpdate(new Date());
+          // Refetch dashboard data when vehicles are updated
+          refetchStats();
+          refetchAlerts();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'envio_users'
+        },
+        (payload) => {
+          console.log('Real-time user update received:', payload);
+          setLastUpdate(new Date());
+          refetchStats();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Real-time dashboard subscription status:', status);
       });
 
-      // Generate mock insights data (to be replaced with real AI insights)
-      const mockInsights: InsightData = {
-        fuelEfficiencyTrend: [
-          { date: '2024-01-01', efficiency: 8.5 },
-          { date: '2024-01-02', efficiency: 8.2 },
-          { date: '2024-01-03', efficiency: 8.7 },
-          { date: '2024-01-04', efficiency: 8.4 },
-          { date: '2024-01-05', efficiency: 8.9 },
-        ],
-        maintenanceAlerts: [
-          { vehicleId: 'VH001', type: 'Oil Change', dueIn: '500km' },
-          { vehicleId: 'VH002', type: 'Brake Service', dueIn: '1200km' },
-        ],
-        driverBehavior: {
-          fleetScore: 85,
-          topIssues: [
-            { issue: 'Excessive Idling', percentage: 15 },
-            { issue: 'Hard Braking', percentage: 8 },
-          ]
-        },
-        anomalies: [
-          { vehicleId: 'VH003', description: 'Unusual route deviation', severity: 'medium' },
-          { vehicleId: 'VH004', description: 'After-hours movement', severity: 'low' },
-        ]
-      };
+    return () => {
+      console.log('Cleaning up dashboard real-time subscription...');
+      supabase.removeChannel(channel);
+    };
+  }, [refetchStats, refetchAlerts]);
 
-      setInsights(mockInsights);
-
-      // Generate mock alerts (to be replaced with real GP51 alarm data)
-      const mockAlerts: Alert[] = vehicles?.slice(0, 5).map((vehicle, index) => ({
-        id: `alert-${index}`,
-        deviceName: vehicle.device_name,
-        deviceId: vehicle.device_id,
-        alarmType: ['Speed Alert', 'Geofence', 'Engine Alert', 'Fuel Alert'][index % 4],
-        description: ['Vehicle exceeding speed limit', 'Left authorized area', 'Engine temperature high', 'Fuel level low'][index % 4],
-        severity: (['low', 'medium', 'high', 'critical'] as const)[index % 4],
-        timestamp: new Date(Date.now() - index * 3600000).toISOString()
-      })) || [];
-
-      setAlerts(mockAlerts);
-
-    } catch (err) {
-      console.error('Error fetching dashboard data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch dashboard data');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // Update timestamp every second for UI display
   useEffect(() => {
-    fetchDashboardData();
-    
-    // Set up real-time updates every 30 seconds
-    const interval = setInterval(fetchDashboardData, 30000);
-    
+    const interval = setInterval(() => {
+      setLastUpdate(new Date());
+    }, 1000);
+
     return () => clearInterval(interval);
   }, []);
 
   return {
-    metrics,
-    insights,
-    alerts,
-    isLoading,
-    error,
-    refetch: fetchDashboardData
+    stats: stats || {
+      totalVehicles: 0,
+      activeVehicles: 0,
+      onlineVehicles: 0,
+      alertVehicles: 0,
+      totalUsers: 0,
+      recentImports: 0
+    },
+    recentAlerts: recentAlerts || [],
+    isLoading: statsLoading || alertsLoading,
+    lastUpdate,
+    refetch: () => {
+      refetchStats();
+      refetchAlerts();
+    }
   };
 };
