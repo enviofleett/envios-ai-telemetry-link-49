@@ -1,15 +1,17 @@
 
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Plus, User, Mail, Calendar, Link2, Edit, Trash2 } from 'lucide-react';
+import { Search, Plus, User, Mail, Calendar, Link2, Edit, Trash2, Shield, UserCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface EnvioUser {
   id: string;
@@ -17,6 +19,9 @@ interface EnvioUser {
   email: string;
   created_at: string;
   updated_at: string;
+  user_roles: Array<{
+    role: string;
+  }>;
   gp51_sessions: Array<{
     id: string;
     username: string;
@@ -29,10 +34,13 @@ const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<EnvioUser | null>(null);
   const [formData, setFormData] = useState({ name: '', email: '' });
+  const [selectedRole, setSelectedRole] = useState<string>('user');
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
 
   const { data: usersData, isLoading } = useQuery({
     queryKey: ['envio-users'],
@@ -82,6 +90,24 @@ const UserManagement = () => {
     },
   });
 
+  const updateRoleMutation = useMutation({
+    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
+      const { error } = await supabase.functions.invoke(`user-management/${userId}/role`, {
+        body: { role }
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['envio-users'] });
+      setIsRoleDialogOpen(false);
+      setSelectedUser(null);
+      toast({ title: 'User role updated successfully' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error updating user role', description: error.message, variant: 'destructive' });
+    },
+  });
+
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
       const { error } = await supabase.functions.invoke(`user-management/${userId}`, {
@@ -115,10 +141,27 @@ const UserManagement = () => {
     }
   };
 
+  const handleUpdateRole = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedUser) {
+      updateRoleMutation.mutate({ userId: selectedUser.id, role: selectedRole });
+    }
+  };
+
   const handleEditUser = (user: EnvioUser) => {
     setSelectedUser(user);
     setFormData({ name: user.name, email: user.email });
     setIsEditDialogOpen(true);
+  };
+
+  const handleEditRole = (user: EnvioUser) => {
+    setSelectedUser(user);
+    setSelectedRole(user.user_roles?.[0]?.role || 'user');
+    setIsRoleDialogOpen(true);
+  };
+
+  const getUserRole = (user: EnvioUser) => {
+    return user.user_roles?.[0]?.role || 'user';
   };
 
   const formatDate = (dateString: string) => {
@@ -191,65 +234,83 @@ const UserManagement = () => {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredUsers.map((user) => (
-          <Card key={user.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-100 p-2 rounded-full">
-                    <User className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">{user.name}</CardTitle>
-                    <div className="flex items-center gap-1 text-sm text-gray-500">
-                      <Mail className="h-3 w-3" />
-                      {user.email}
+        {filteredUsers.map((user) => {
+          const userRole = getUserRole(user);
+          const isCurrentUser = user.id === currentUser?.id;
+          
+          return (
+            <Card key={user.id} className="hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 p-2 rounded-full">
+                      <User className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        {user.name}
+                        {userRole === 'admin' && (
+                          <Badge variant="secondary" className="text-xs">
+                            <Shield className="h-3 w-3 mr-1" />
+                            Admin
+                          </Badge>
+                        )}
+                      </CardTitle>
+                      <div className="flex items-center gap-1 text-sm text-gray-500">
+                        <Mail className="h-3 w-3" />
+                        {user.email}
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteUserMutation.mutate(user.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Calendar className="h-3 w-3" />
-                Created: {formatDate(user.created_at)}
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm font-medium">GP51 Connections:</span>
-                </div>
-                {user.gp51_sessions && user.gp51_sessions.length > 0 ? (
-                  <div className="space-y-1">
-                    {user.gp51_sessions.map((session) => (
-                      <div key={session.id} className="flex items-center justify-between">
-                        <span className="text-sm">{session.username}</span>
-                        <Badge variant={isSessionActive(session) ? 'default' : 'secondary'}>
-                          {isSessionActive(session) ? 'Active' : 'Expired'}
-                        </Badge>
-                      </div>
-                    ))}
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleEditUser(user)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleEditRole(user)}>
+                      <UserCheck className="h-4 w-4" />
+                    </Button>
+                    {!isCurrentUser && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteUserMutation.mutate(user.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
-                ) : (
-                  <div className="text-sm text-gray-500">No GP51 connections</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Calendar className="h-3 w-3" />
+                  Created: {formatDate(user.created_at)}
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Link2 className="h-4 w-4 text-gray-400" />
+                    <span className="text-sm font-medium">GP51 Connections:</span>
+                  </div>
+                  {user.gp51_sessions && user.gp51_sessions.length > 0 ? (
+                    <div className="space-y-1">
+                      {user.gp51_sessions.map((session) => (
+                        <div key={session.id} className="flex items-center justify-between">
+                          <span className="text-sm">{session.username}</span>
+                          <Badge variant={isSessionActive(session) ? 'default' : 'secondary'}>
+                            {isSessionActive(session) ? 'Active' : 'Expired'}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">No GP51 connections</div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {filteredUsers.length === 0 && (
@@ -258,6 +319,7 @@ const UserManagement = () => {
         </div>
       )}
 
+      {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -285,6 +347,32 @@ const UserManagement = () => {
             </div>
             <Button type="submit" disabled={updateUserMutation.isPending}>
               {updateUserMutation.isPending ? 'Updating...' : 'Update User'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Role Dialog */}
+      <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update User Role</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUpdateRole} className="space-y-4">
+            <div>
+              <Label htmlFor="role">Role</Label>
+              <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">User</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" disabled={updateRoleMutation.isPending}>
+              {updateRoleMutation.isPending ? 'Updating...' : 'Update Role'}
             </Button>
           </form>
         </DialogContent>

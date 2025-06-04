@@ -7,6 +7,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Helper function to check if user has admin role
+async function isUserAdmin(supabase: any, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .rpc('has_role', { _user_id: userId, _role: 'admin' });
+  return data === true;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -15,19 +22,59 @@ serve(async (req) => {
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
     const url = new URL(req.url);
     const method = req.method;
     const pathSegments = url.pathname.split('/').filter(Boolean);
 
+    // Get current user from auth header
+    const authHeader = req.headers.get('authorization');
+    let currentUserId = null;
+    
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabase.auth.getUser(token);
+      currentUserId = user?.id;
+    }
+
     if (method === 'GET') {
+      // Handle role-specific endpoints
+      if (pathSegments.includes('roles')) {
+        if (!currentUserId) {
+          return new Response(
+            JSON.stringify({ error: 'Authentication required' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const userId = pathSegments[pathSegments.length - 1];
+        
+        if (userId === 'current') {
+          // Get current user's role
+          const { data: userRole, error } = await supabase
+            .rpc('get_user_role', { _user_id: currentUserId });
+
+          if (error) {
+            return new Response(
+              JSON.stringify({ error: 'Failed to fetch user role' }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          return new Response(
+            JSON.stringify({ role: userRole || 'user' }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
       // Get all users or specific user
       const userId = pathSegments[pathSegments.length - 1];
       
       if (userId && userId !== 'user-management') {
-        // Get specific user with linked GP51 sessions
+        // Get specific user with linked GP51 sessions and role
         const { data: user, error: userError } = await supabase
           .from('envio_users')
           .select(`
@@ -37,6 +84,9 @@ serve(async (req) => {
               username,
               created_at,
               token_expires_at
+            ),
+            user_roles (
+              role
             )
           `)
           .eq('id', userId)
@@ -54,7 +104,7 @@ serve(async (req) => {
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } else {
-        // Get all users with their GP51 sessions
+        // Get all users with their GP51 sessions and roles
         const { data: users, error } = await supabase
           .from('envio_users')
           .select(`
@@ -64,6 +114,9 @@ serve(async (req) => {
               username,
               created_at,
               token_expires_at
+            ),
+            user_roles (
+              role
             )
           `)
           .order('created_at', { ascending: false });
@@ -84,12 +137,29 @@ serve(async (req) => {
     }
 
     if (method === 'POST') {
-      const { name, email } = await req.json();
+      const requestBody = await req.text();
+      
+      if (!requestBody) {
+        return new Response(
+          JSON.stringify({ error: 'Request body is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { name, email } = JSON.parse(requestBody);
 
       if (!name || !email) {
         return new Response(
           JSON.stringify({ error: 'Name and email are required' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Check if current user is admin (for creating new users)
+      if (currentUserId && !(await isUserAdmin(supabase, currentUserId))) {
+        return new Response(
+          JSON.stringify({ error: 'Admin access required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
@@ -115,7 +185,71 @@ serve(async (req) => {
 
     if (method === 'PUT') {
       const userId = pathSegments[pathSegments.length - 1];
-      const { name, email } = await req.json();
+      const requestBody = await req.text();
+      
+      if (!requestBody) {
+        return new Response(
+          JSON.stringify({ error: 'Request body is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const bodyData = JSON.parse(requestBody);
+
+      // Handle role updates
+      if (pathSegments.includes('role')) {
+        const { role } = bodyData;
+
+        if (!currentUserId) {
+          return new Response(
+            JSON.stringify({ error: 'Authentication required' }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Check if current user is admin
+        if (!(await isUserAdmin(supabase, currentUserId))) {
+          return new Response(
+            JSON.stringify({ error: 'Admin access required' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Update user role
+        const { error } = await supabase
+          .from('user_roles')
+          .upsert({ 
+            user_id: userId, 
+            role: role,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (error) {
+          console.error('Error updating user role:', error);
+          return new Response(
+            JSON.stringify({ error: error.message }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ message: 'User role updated successfully' }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Handle regular user updates
+      const { name, email } = bodyData;
+
+      // Check if current user is admin for updating other users
+      if (currentUserId !== userId && !(await isUserAdmin(supabase, currentUserId))) {
+        return new Response(
+          JSON.stringify({ error: 'Admin access required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       const { data: user, error } = await supabase
         .from('envio_users')
@@ -140,6 +274,22 @@ serve(async (req) => {
 
     if (method === 'DELETE') {
       const userId = pathSegments[pathSegments.length - 1];
+
+      // Check if current user is admin
+      if (!currentUserId || !(await isUserAdmin(supabase, currentUserId))) {
+        return new Response(
+          JSON.stringify({ error: 'Admin access required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Prevent self-deletion
+      if (currentUserId === userId) {
+        return new Response(
+          JSON.stringify({ error: 'Cannot delete your own account' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       const { error } = await supabase
         .from('envio_users')
