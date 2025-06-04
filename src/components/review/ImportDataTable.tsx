@@ -17,8 +17,9 @@ const ImportDataTable: React.FC = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
 
   const filteredData = previewData?.filter(record => {
+    const vehicleData = Array.isArray(record.raw_vehicle_data) ? record.raw_vehicle_data : [];
     const matchesSearch = record.gp51_username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         record.raw_vehicle_data?.some(vehicle => 
+                         vehicleData.some((vehicle: any) => 
                            vehicle.deviceid?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            vehicle.devicename?.toLowerCase().includes(searchTerm.toLowerCase())
                          );
@@ -96,58 +97,63 @@ const ImportDataTable: React.FC = () => {
               No import data found matching your criteria.
             </div>
           ) : (
-            filteredData.map((record) => (
-              <div key={record.id} className="border rounded-lg p-4 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <div className="font-medium">{record.gp51_username}</div>
-                    {getStatusBadge(record.review_status, record.import_eligibility)}
-                    <ConflictIndicator conflicts={record.conflict_flags} />
+            filteredData.map((record) => {
+              const vehicleData = Array.isArray(record.raw_vehicle_data) ? record.raw_vehicle_data : [];
+              const conflictFlags = Array.isArray(record.conflict_flags) ? record.conflict_flags : [];
+
+              return (
+                <div key={record.id} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <div className="font-medium">{record.gp51_username}</div>
+                      {getStatusBadge(record.review_status, record.import_eligibility)}
+                      <ConflictIndicator conflicts={conflictFlags} />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedRecord(record)}
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
+                    </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedRecord(record)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Details
-                  </Button>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                  {record.raw_vehicle_data?.slice(0, 3).map((vehicle, index) => (
-                    <div key={index} className="border rounded p-3 space-y-2">
-                      <div className="font-medium">{vehicle.devicename || vehicle.deviceid}</div>
-                      <div className="text-muted-foreground">ID: {vehicle.deviceid}</div>
-                      
-                      {vehicle.lastactivetime && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <Clock className="h-3 w-3" />
-                          {new Date(vehicle.lastactivetime * 1000).toLocaleDateString()}
-                        </div>
-                      )}
-                      
-                      {vehicle.callat && vehicle.callon && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <MapPin className="h-3 w-3" />
-                          {vehicle.callat.toFixed(4)}, {vehicle.callon.toFixed(4)}
-                        </div>
-                      )}
-                      
-                      <Badge variant="outline" className="text-xs">
-                        Status: {vehicle.status || 'Unknown'}
-                      </Badge>
-                    </div>
-                  ))}
                   
-                  {record.raw_vehicle_data?.length > 3 && (
-                    <div className="border rounded p-3 flex items-center justify-center text-muted-foreground">
-                      +{record.raw_vehicle_data.length - 3} more vehicles
-                    </div>
-                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                    {vehicleData.slice(0, 3).map((vehicle: any, index) => (
+                      <div key={index} className="border rounded p-3 space-y-2">
+                        <div className="font-medium">{vehicle.devicename || vehicle.deviceid}</div>
+                        <div className="text-muted-foreground">ID: {vehicle.deviceid}</div>
+                        
+                        {vehicle.lastactivetime && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <Clock className="h-3 w-3" />
+                            {new Date(vehicle.lastactivetime * 1000).toLocaleDateString()}
+                          </div>
+                        )}
+                        
+                        {vehicle.callat && vehicle.callon && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <MapPin className="h-3 w-3" />
+                            {vehicle.callat.toFixed(4)}, {vehicle.callon.toFixed(4)}
+                          </div>
+                        )}
+                        
+                        <Badge variant="outline" className="text-xs">
+                          Status: {vehicle.status || 'Unknown'}
+                        </Badge>
+                      </div>
+                    ))}
+                    
+                    {vehicleData.length > 3 && (
+                      <div className="border rounded p-3 flex items-center justify-center text-muted-foreground">
+                        +{vehicleData.length - 3} more vehicles
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </CardContent>

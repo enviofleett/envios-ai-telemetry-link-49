@@ -15,7 +15,7 @@ import SetPassword from "./pages/SetPassword";
 import NotFound from "./pages/NotFound";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { AuthContextProvider } from "./contexts/AuthContext";
+import { AuthProvider } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
@@ -25,7 +25,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AuthContextProvider>
+        <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/set-password" element={<SetPassword />} />
@@ -73,7 +73,7 @@ const App = () => (
             } />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </AuthContextProvider>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

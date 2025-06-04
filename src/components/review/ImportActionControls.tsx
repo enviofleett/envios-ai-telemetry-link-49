@@ -65,14 +65,19 @@ const ImportActionControls: React.FC = () => {
       return;
     }
 
-    const reportData = previewData.map(record => ({
-      gp51_username: record.gp51_username,
-      review_status: record.review_status,
-      import_eligibility: record.import_eligibility,
-      vehicle_count: record.raw_vehicle_data?.length || 0,
-      conflicts: record.conflict_flags?.length || 0,
-      created_at: record.created_at
-    }));
+    const reportData = previewData.map(record => {
+      const vehicleData = Array.isArray(record.raw_vehicle_data) ? record.raw_vehicle_data : [];
+      const conflictFlags = Array.isArray(record.conflict_flags) ? record.conflict_flags : [];
+      
+      return {
+        gp51_username: record.gp51_username,
+        review_status: record.review_status,
+        import_eligibility: record.import_eligibility,
+        vehicle_count: vehicleData.length,
+        conflicts: conflictFlags.length,
+        created_at: record.created_at
+      };
+    });
 
     const csvContent = [
       ['Username', 'Status', 'Eligibility', 'Vehicles', 'Conflicts', 'Created'],

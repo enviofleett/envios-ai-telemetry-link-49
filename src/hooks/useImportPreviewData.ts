@@ -32,7 +32,10 @@ export const useImportPreviewData = () => {
   const summary = previewData ? {
     totalRecords: previewData.length,
     totalUsers: new Set(previewData.map(r => r.gp51_username)).size,
-    totalVehicles: previewData.reduce((sum, r) => sum + (r.raw_vehicle_data?.length || 0), 0),
+    totalVehicles: previewData.reduce((sum, r) => {
+      const vehicleData = Array.isArray(r.raw_vehicle_data) ? r.raw_vehicle_data : [];
+      return sum + vehicleData.length;
+    }, 0),
     eligible: previewData.filter(r => r.import_eligibility === 'eligible').length,
     conflicts: previewData.filter(r => r.import_eligibility === 'conflict').length,
     rejected: previewData.filter(r => r.review_status === 'rejected').length,
