@@ -1,82 +1,67 @@
 
-export interface JobCompletionResult {
-  finalStatus: string;
-  summary: any;
-  completedAt: string;
-}
+import { JobProcessingContext } from './enhanced-types.ts';
 
-export async function finalizeImportJob(
+export async function completeJobWithResults(
   jobId: string,
-  processingResults: any,
-  validUsernames: string[],
-  adminUsername: string,
-  startTime: number,
-  supabase: any
-): Promise<JobCompletionResult> {
-  // Determine final status
-  const finalStatus = processingResults.failedCount === validUsernames.length ? 'failed' : 
-                     processingResults.successCount === 0 ? 'failed' : 'completed';
+  batchResult: any,
+  context: JobProcessingContext
+): Promise<void> {
+  try {
+    const { error: updateError } = await context.supabase
+      .from('user_import_jobs')
+      .update({
+        status: 'completed',
+        processed_usernames: batchResult.processedCount,
+        successful_imports: batchResult.successCount,
+        failed_imports: batchResult.failedCount,
+        total_vehicles_imported: batchResult.totalVehicles,
+        completed_at: new Date().toISOString(),
+        import_results: {
+          ...batchResult,
+          transactionStats: batchResult.transactionStats,
+          completedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
 
-  // Final job update
-  const completedAt = new Date().toISOString();
-  const { error: finalUpdateError } = await supabase
-    .from('user_import_jobs')
-    .update({
-      status: finalStatus,
-      processed_usernames: processingResults.processedCount,
-      successful_imports: processingResults.successCount,
-      failed_imports: processingResults.failedCount,
-      total_vehicles_imported: processingResults.totalVehicles,
-      import_results: processingResults.results,
-      error_log: processingResults.errorLog,
-      completed_at: completedAt,
-      updated_at: completedAt,
-      progress_percentage: 100
-    })
-    .eq('id', jobId);
+    if (updateError) {
+      console.error(`Failed to complete job ${jobId}:`, updateError);
+      throw updateError;
+    }
 
-  if (finalUpdateError) {
-    console.error('Failed to update final job status:', finalUpdateError);
+    console.log(`Job ${jobId} completed with enhanced results`);
+  } catch (error) {
+    console.error(`Error completing job ${jobId}:`, error);
+    throw error;
   }
-
-  const duration = Date.now() - startTime;
-  console.log(`=== Passwordless import completed in ${duration}ms ===`);
-  console.log(`Results: ${processingResults.successCount} successful, ${processingResults.failedCount} failed, ${processingResults.totalVehicles} vehicles`);
-
-  const summary = {
-    totalUsers: validUsernames.length,
-    processedUsers: processingResults.processedCount,
-    successfulImports: processingResults.successCount,
-    failedImports: processingResults.failedCount,
-    totalVehicles: processingResults.totalVehicles
-  };
-
-  return {
-    finalStatus,
-    summary,
-    completedAt
-  };
 }
 
-export async function handleJobError(
+export async function updateJobProgress(
   jobId: string,
-  error: any,
+  completed: number,
+  total: number,
   supabase: any
 ): Promise<void> {
-  console.error('Import process failed:', error);
-  
-  // Update job status to failed
-  await supabase
-    .from('user_import_jobs')
-    .update({
-      status: 'failed',
-      error_log: [{ 
-        error: `Import process failed: ${error.message}`, 
-        timestamp: new Date().toISOString(),
-        step: 'import_process'
-      }],
-      completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', jobId);
+  try {
+    const progress = Math.round((completed / total) * 100);
+    console.log(`Updating job ${jobId} progress: ${completed}/${total} (${progress}%)`);
+
+    const { error: updateError } = await supabase
+      .from('user_import_jobs')
+      .update({
+        processed_usernames: completed,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+
+    if (updateError) {
+      console.error(`Failed to update job ${jobId} progress:`, updateError);
+      throw updateError;
+    }
+
+  } catch (error) {
+    console.error(`Error updating job ${jobId} progress:`, error);
+    throw error;
+  }
 }
