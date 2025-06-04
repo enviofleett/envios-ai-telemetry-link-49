@@ -1,105 +1,209 @@
+import { JobProcessingContext, JobStartResult } from './enhanced-types.ts';
 
-import { EnhancedUserImportResult, JobProcessingContext } from './enhanced-types.ts';
-import { ErrorRecoveryManager } from './error-recovery.ts';
-import { MonitoringMetrics } from './monitoring-metrics.ts';
-import { DataValidator } from './data-validator.ts';
-import { createRateLimiterForJob } from './enhanced-rate-limiter.ts';
-import { ParallelProcessor, createOptimalProcessingConfig } from './parallel-processor.ts';
-import { JobStatusManager } from './job-status-manager.ts';
-import { PhaseManager } from './phase-manager.ts';
-import { processBatchOfUsers } from './batch-processor.ts';
+interface UsernameValidationResult {
+  validUsernames: string[];
+  invalidUsernames: string[];
+  validationErrors: string[];
+}
 
-export async function processUsersWithEnhancedCapabilities(
+async function initializeJobWithValidation(
   targetUsernames: string[],
-  adminToken: string,
-  jobId: string,
-  supabase: any
-): Promise<{
-  results: EnhancedUserImportResult[];
-  processedCount: number;
-  successCount: number;
-  failedCount: number;
-  totalVehicles: number;
-  errorLog: any[];
-  performanceMetrics: any;
-  consistencyReport: any;
-  healthScore: number;
-}> {
-  console.log(`=== Starting Enhanced Processing for ${targetUsernames.length} users ===`);
-  
-  // Initialize all systems
-  const errorRecovery = new ErrorRecoveryManager(supabase);
-  const monitoring = new MonitoringMetrics(jobId, targetUsernames.length);
-  const validator = new DataValidator(supabase);
-  const rateLimiter = createRateLimiterForJob(targetUsernames.length);
-  const statusManager = new JobStatusManager(supabase);
-  const phaseManager = new PhaseManager(statusManager, validator);
-  
-  const processingConfig = createOptimalProcessingConfig(targetUsernames.length);
-  const parallelProcessor = new ParallelProcessor(processingConfig);
-  
-  const context: JobProcessingContext = {
-    jobId,
-    adminToken,
-    supabase,
-    errorRecovery,
-    monitoring,
-    validator,
-    rateLimiter,
-    parallelProcessor
-  };
+  context: JobProcessingContext
+): Promise<UsernameValidationResult> {
+  const jobId = context.jobId;
+  console.log(`Initializing job ${jobId} with ${targetUsernames.length} usernames`);
 
-  // Phase 1: Pre-import validation
-  const validUsernames = await phaseManager.executePreImportValidation(jobId, targetUsernames);
+  try {
+    // Validate usernames before starting the job
+    const validationResult = context.validator.validateUsernames(targetUsernames);
 
-  // Phase 2: Parallel processing with monitoring
-  await phaseManager.executeParallelProcessing(jobId, validUsernames, processingConfig.maxConcurrency);
-
-  const batchResult = await processBatchOfUsers(
-    validUsernames,
-    context,
-    async (progress) => {
-      await statusManager.updateJobProgress(supabase, jobId, progress.completed, validUsernames.length, monitoring);
+    if (!validationResult.isValid) {
+      console.error(`Job ${jobId} failed username validation:`, validationResult.errors);
+      
+      // Mark job as failed due to validation errors
+      await markJobAsFailed(jobId, new Error(`Username validation failed: ${validationResult.errors.join(', ')}`), context.supabase);
+      
+      return {
+        validUsernames: [],
+        invalidUsernames: targetUsernames,
+        validationErrors: validationResult.errors
+      };
     }
-  );
 
-  // Phase 3: Post-import consistency check
-  const consistencyReport = await phaseManager.executeConsistencyCheck(jobId);
-  
-  // Phase 4: Finalization and reporting
-  await phaseManager.executeFinalization(jobId);
-  monitoring.finalizeMetrics();
-  
-  const performanceMetrics = monitoring.getMetrics();
-  const healthScore = monitoring.getHealthScore();
-  const alerts = monitoring.getAlerts();
+    // Persist the validated usernames to the database
+    const { error: updateError } = await context.supabase
+      .from('user_import_jobs')
+      .update({
+        status: 'processing',
+        total_usernames: targetUsernames.length,
+        processed_usernames: 0,
+        successful_imports: 0,
+        failed_imports: 0,
+        imported_usernames: targetUsernames,
+        error_log: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
 
-  // Final job update
-  await statusManager.finalizeJob(
-    jobId,
-    batchResult.successCount,
-    batchResult.failedCount,
-    validUsernames.length,
-    batchResult.totalVehicles,
-    healthScore,
-    performanceMetrics.endTime! - performanceMetrics.startTime,
-    alerts
-  );
+    if (updateError) {
+      console.error(`Failed to initialize job ${jobId}:`, updateError);
+      throw updateError;
+    }
 
-  console.log(`=== Enhanced Processing Complete ===`);
-  console.log(`Health Score: ${healthScore}%`);
-  console.log(`Alerts Generated: ${alerts.length}`);
-  console.log(`Consistency Issues: ${consistencyReport.issues.length}`);
-  
-  return {
-    results: batchResult.results,
-    processedCount: batchResult.processedCount,
-    successCount: batchResult.successCount,
-    failedCount: batchResult.failedCount,
-    totalVehicles: batchResult.totalVehicles,
-    errorLog: alerts,
-    performanceMetrics,
-    consistencyReport,
-    healthScore
-  };
+    console.log(`Job ${jobId} initialized successfully with ${targetUsernames.length} valid usernames`);
+    return {
+      validUsernames: targetUsernames,
+      invalidUsernames: [],
+      validationErrors: []
+    };
+
+  } catch (error) {
+    console.error(`Error initializing job ${jobId}:`, error);
+    throw error;
+  }
+}
+
+async function updateJobProgress(
+  jobId: string,
+  completed: number,
+  total: number,
+  supabase: any
+): Promise<void> {
+  try {
+    const progress = Math.round((completed / total) * 100);
+    console.log(`Updating job ${jobId} progress: ${completed}/${total} (${progress}%)`);
+
+    const { error: updateError } = await supabase
+      .from('user_import_jobs')
+      .update({
+        processed_usernames: completed,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+
+    if (updateError) {
+      console.error(`Failed to update job ${jobId} progress:`, updateError);
+      throw updateError;
+    }
+
+  } catch (error) {
+    console.error(`Error updating job ${jobId} progress:`, error);
+    throw error;
+  }
+}
+
+async function markJobAsFailed(
+  jobId: string,
+  error: Error,
+  supabase: any
+): Promise<void> {
+  try {
+    console.error(`Marking job ${jobId} as failed:`, error);
+
+    const { error: updateError } = await supabase
+      .from('user_import_jobs')
+      .update({
+        status: 'failed',
+        error_log: {
+          message: error.message,
+          stack: error.stack,
+          timestamp: new Date().toISOString()
+        },
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+
+    if (updateError) {
+      console.error(`Failed to mark job ${jobId} as failed:`, updateError);
+      throw updateError;
+    }
+
+  } catch (updateError) {
+    console.error(`Error marking job ${jobId} as failed:`, updateError);
+    throw updateError;
+  }
+}
+
+export async function startEnhancedImportJob(
+  targetUsernames: string[],
+  context: JobProcessingContext
+): Promise<JobStartResult> {
+  const jobId = context.jobId;
+  console.log(`Starting enhanced import job ${jobId} for ${targetUsernames.length} users`);
+
+  try {
+    // Initialize job with enhanced tracking
+    await initializeJobWithValidation(targetUsernames, context);
+
+    // Process users with transaction support
+    const { processBatchWithTransactions } = await import('./enhanced-batch-manager.ts');
+    
+    const batchResult = await processBatchWithTransactions(
+      targetUsernames,
+      context,
+      async (completed: number, total: number) => {
+        // Update job progress with enhanced statistics
+        await updateJobProgress(jobId, completed, total, context.supabase);
+      }
+    );
+
+    // Complete job with enhanced results
+    await completeJobWithResults(jobId, batchResult, context);
+
+    console.log(`Enhanced import job ${jobId} completed successfully`);
+    
+    return {
+      jobId,
+      success: true,
+      processedCount: batchResult.processedCount,
+      successCount: batchResult.successCount,
+      failedCount: batchResult.failedCount,
+      estimatedCompletion: new Date(Date.now() + (targetUsernames.length * 2000)) // Rough estimate
+    };
+
+  } catch (error) {
+    console.error(`Enhanced import job ${jobId} failed:`, error);
+    
+    // Mark job as failed with detailed error information
+    await markJobAsFailed(jobId, error, context.supabase);
+    
+    throw error;
+  }
+}
+
+async function completeJobWithResults(
+  jobId: string,
+  batchResult: any,
+  context: JobProcessingContext
+): Promise<void> {
+  try {
+    const { error: updateError } = await context.supabase
+      .from('user_import_jobs')
+      .update({
+        status: 'completed',
+        processed_usernames: batchResult.processedCount,
+        successful_imports: batchResult.successCount,
+        failed_imports: batchResult.failedCount,
+        total_vehicles_imported: batchResult.totalVehicles,
+        completed_at: new Date().toISOString(),
+        import_results: {
+          ...batchResult,
+          transactionStats: batchResult.transactionStats,
+          completedAt: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', jobId);
+
+    if (updateError) {
+      console.error(`Failed to complete job ${jobId}:`, updateError);
+      throw updateError;
+    }
+
+    console.log(`Job ${jobId} completed with enhanced results`);
+  } catch (error) {
+    console.error(`Error completing job ${jobId}:`, error);
+    throw error;
+  }
 }

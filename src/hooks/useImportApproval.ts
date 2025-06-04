@@ -29,7 +29,8 @@ export const useImportApproval = () => {
 
   const approveImportMutation = useMutation({
     mutationFn: async (previewIds: string[]) => {
-      const { error } = await supabase
+      // First, update the preview records to approved status
+      const { error: updateError } = await supabase
         .from('gp51_import_previews')
         .update({ 
           review_status: 'approved',
@@ -37,13 +38,13 @@ export const useImportApproval = () => {
         })
         .in('id', previewIds);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      // Trigger actual import for approved records
+      // Then trigger the actual import using the approved preview IDs
       const { data, error: importError } = await supabase.functions.invoke('passwordless-gp51-import', {
         body: { 
           jobName: `Approved Import - ${new Date().toISOString()}`,
-          approvedPreviewIds: previewIds
+          approvedPreviewIds: previewIds // Use the new approval workflow
         }
       });
 
