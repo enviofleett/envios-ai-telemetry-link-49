@@ -22,12 +22,35 @@ export async function processUsersWithRateLimit(
   let totalVehicles = 0;
   const errorLog: any[] = [];
 
-  for (const username of targetUsernames) {
+  // Update job to processing status with detailed tracking
+  await supabase
+    .from('user_import_jobs')
+    .update({
+      status: 'processing',
+      current_step: 'authenticating',
+      step_details: 'Starting user import process...',
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', jobId);
+
+  for (let i = 0; i < targetUsernames.length; i++) {
+    const username = targetUsernames[i];
+    
     try {
-      console.log(`Processing user ${processedCount + 1}/${targetUsernames.length}: ${username}`);
+      console.log(`Processing user ${i + 1}/${targetUsernames.length}: ${username}`);
+      
+      // Update current processing step
+      await supabase
+        .from('user_import_jobs')
+        .update({
+          current_step: 'processing_user',
+          step_details: `Processing user: ${username} (${i + 1}/${targetUsernames.length})`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', jobId);
       
       // Add delay to respect rate limits
-      if (processedCount > 0) {
+      if (i > 0) {
         await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
       }
 
@@ -39,7 +62,8 @@ export async function processUsersWithRateLimit(
         errorLog.push({
           username: username,
           error: userResult.error,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          step: 'user_import'
         });
       } else {
         successCount++;
@@ -48,8 +72,11 @@ export async function processUsersWithRateLimit(
 
       processedCount++;
 
-      // Update job progress every 5 users
-      if (processedCount % 5 === 0 || processedCount === targetUsernames.length) {
+      // Update job progress every user or every 3 users for large batches
+      const shouldUpdate = processedCount === targetUsernames.length || 
+                          processedCount % Math.min(3, Math.max(1, Math.floor(targetUsernames.length / 10))) === 0;
+      
+      if (shouldUpdate) {
         await supabase
           .from('user_import_jobs')
           .update({
@@ -57,6 +84,8 @@ export async function processUsersWithRateLimit(
             successful_imports: successCount,
             failed_imports: failedCount,
             total_vehicles_imported: totalVehicles,
+            progress_percentage: Math.round((processedCount / targetUsernames.length) * 100),
+            step_details: `Processed ${processedCount}/${targetUsernames.length} users. Success: ${successCount}, Failed: ${failedCount}`,
             updated_at: new Date().toISOString()
           })
           .eq('id', jobId);
@@ -68,11 +97,23 @@ export async function processUsersWithRateLimit(
       errorLog.push({
         username: username,
         error: error.message,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        step: 'processing_error'
       });
       processedCount++;
     }
   }
+
+  // Final status update
+  await supabase
+    .from('user_import_jobs')
+    .update({
+      current_step: 'completed',
+      step_details: `Import completed. Processed: ${processedCount}, Success: ${successCount}, Failed: ${failedCount}`,
+      progress_percentage: 100,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', jobId);
 
   return {
     results,

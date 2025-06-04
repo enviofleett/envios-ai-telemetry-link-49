@@ -11,13 +11,16 @@ export async function getMonitorListForUser(username: string, token: string): Pr
   });
 
   const result = await response.json();
+  console.log(`GP51 monitor list response for ${username}:`, result);
   
-  if (result.status !== 'success') {
-    throw new Error(`Failed to get monitor list for ${username}: ${result.cause || 'Unknown error'}`);
+  // Handle both success formats from GP51
+  if (result.status === 'success' || result.status === 'OK' || result.monitors) {
+    const monitors = result.monitors || result.data?.monitors || [];
+    console.log(`Found ${monitors.length} vehicles for ${username}`);
+    return monitors;
   }
-
-  console.log(`Found ${result.monitors?.length || 0} vehicles for ${username}`);
-  return result.monitors || [];
+  
+  throw new Error(`Failed to get monitor list for ${username}: ${result.cause || result.message || 'Unknown error'}`);
 }
 
 export async function enrichWithPositions(vehicles: GP51Vehicle[], token: string): Promise<GP51Vehicle[]> {
@@ -37,8 +40,10 @@ export async function enrichWithPositions(vehicles: GP51Vehicle[], token: string
     });
 
     const result = await response.json();
+    console.log('GP51 positions response:', result);
     
-    if (result.status === 'success' && result.positions) {
+    // Handle both success formats
+    if ((result.status === 'success' || result.status === 'OK') && result.positions) {
       const positionMap = new Map();
       result.positions.forEach((pos: any) => {
         positionMap.set(pos.deviceid, pos);

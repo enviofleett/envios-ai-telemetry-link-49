@@ -10,6 +10,7 @@ import JobsList from './extraction/JobsList';
 
 const BulkExtractionManager: React.FC = () => {
   const [jobs, setJobs] = useState<ExtractionJob[]>([]);
+  const [activeTab, setActiveTab] = useState('extraction');
   const { toast } = useToast();
 
   const loadJobs = async () => {
@@ -31,28 +32,44 @@ const BulkExtractionManager: React.FC = () => {
     }
   };
 
+  const handleJobStarted = (type: 'extraction' | 'passwordless') => {
+    loadJobs();
+    
+    if (type === 'passwordless') {
+      toast({
+        title: "Import Started",
+        description: "Passwordless import job has been started. Monitor progress below.",
+      });
+    } else {
+      toast({
+        title: "Extraction Started",
+        description: "Bulk extraction job has been started.",
+      });
+    }
+  };
+
   useEffect(() => {
     loadJobs();
   }, []);
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="extraction" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="extraction">Data Extraction</TabsTrigger>
           <TabsTrigger value="passwordless">Passwordless Import</TabsTrigger>
         </TabsList>
         
         <TabsContent value="extraction" className="space-y-6">
-          <ExtractionForm onJobStarted={loadJobs} />
+          <ExtractionForm onJobStarted={() => handleJobStarted('extraction')} />
         </TabsContent>
         
         <TabsContent value="passwordless" className="space-y-6">
-          <PasswordlessImportForm onJobStarted={loadJobs} />
+          <PasswordlessImportForm onJobStarted={() => handleJobStarted('passwordless')} />
         </TabsContent>
       </Tabs>
 
-      <JobsList jobs={jobs} />
+      <JobsList jobs={jobs} onJobsUpdate={loadJobs} />
     </div>
   );
 };
