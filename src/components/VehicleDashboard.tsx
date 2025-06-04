@@ -1,34 +1,45 @@
 
 import React, { useState, useEffect } from 'react';
-import { useStableVehicleData } from '@/hooks/useStableVehicleData';
+import { telemetryApi } from '@/services/telemetryApi';
+import { useVehicleData } from '@/hooks/useVehicleData';
 import DashboardHeader from './DashboardHeader';
-import StableVehicleGrid from './StableVehicleGrid';
+import VehicleGrid from './VehicleGrid';
 import LoadingSpinner from './LoadingSpinner';
-import ErrorBoundary from './ErrorBoundary';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
 
 const VehicleDashboard: React.FC = () => {
-  const { vehicles, isLoading, error, refetch } = useStableVehicleData();
+  const { vehicles, isLoading, fetchVehicles, fetchPositions } = useVehicleData();
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    try {
-      await refetch();
-    } catch (err) {
-      console.error('Manual refresh failed:', err);
-    } finally {
-      setIsRefreshing(false);
-    }
+    await fetchPositions();
+    setIsRefreshing(false);
   };
 
   const handleLogout = () => {
-    // Clear any stored session data
-    localStorage.removeItem('gp51-session');
+    telemetryApi.clearSession();
     window.location.reload();
   };
+
+  // Fetch initial vehicles and positions
+  useEffect(() => {
+    fetchVehicles();
+  }, []);
+
+  // Fetch positions when vehicles are loaded
+  useEffect(() => {
+    if (vehicles.length > 0) {
+      fetchPositions();
+      
+      // Set up periodic position updates every 30 seconds
+      const positionInterval = setInterval(fetchPositions, 30000);
+      
+      return () => {
+        clearInterval(positionInterval);
+      };
+    }
+  }, [vehicles.length]);
 
   // Update timestamp every second
   useEffect(() => {
@@ -41,45 +52,20 @@ const VehicleDashboard: React.FC = () => {
     };
   }, []);
 
-  // Error boundary handling
-  if (error) {
-    return (
-      <ErrorBoundary>
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 p-4">
-          <Alert className="max-w-md mx-auto mt-8">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              System temporarily unavailable. Please try refreshing the page.
-              <br />
-              <button 
-                onClick={() => window.location.reload()} 
-                className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                Refresh Page
-              </button>
-            </AlertDescription>
-          </Alert>
-        </div>
-      </ErrorBoundary>
-    );
-  }
-
   if (isLoading) {
     return <LoadingSpinner />;
   }
 
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
-        <DashboardHeader
-          lastUpdate={lastUpdate}
-          isRefreshing={isRefreshing}
-          onRefresh={handleRefresh}
-          onLogout={handleLogout}
-        />
-        <StableVehicleGrid vehicles={vehicles} />
-      </div>
-    </ErrorBoundary>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
+      <DashboardHeader
+        lastUpdate={lastUpdate}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+        onLogout={handleLogout}
+      />
+      <VehicleGrid vehicles={vehicles} />
+    </div>
   );
 };
 

@@ -1,8 +1,21 @@
 
 import React from 'react';
 import { Car } from 'lucide-react';
-import VehicleCard from './vehicles/VehicleCard';
-import { Vehicle } from '@/types/vehicle';
+import VehicleCard from './VehicleCard';
+
+interface Vehicle {
+  deviceid: string;
+  devicename: string;
+  status?: string;
+  lastPosition?: {
+    lat: number;
+    lon: number;
+    speed: number;
+    course: number;
+    updatetime: string;
+    statusText: string;
+  };
+}
 
 interface VehicleGridProps {
   vehicles: Vehicle[];
@@ -22,15 +35,7 @@ const VehicleGrid: React.FC<VehicleGridProps> = ({ vehicles }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {vehicles.map((vehicle) => (
-          <VehicleCard 
-            key={vehicle.id} 
-            vehicle={vehicle}
-            associatedUser={vehicle.envio_users?.name}
-            onViewMap={() => console.log('View map for:', vehicle.device_id)}
-            onViewHistory={() => console.log('View history for:', vehicle.device_id)}
-            onViewDetails={() => console.log('View details for:', vehicle.device_id)}
-            onSendCommand={() => console.log('Send command to:', vehicle.device_id)}
-          />
+          <VehicleCard key={vehicle.deviceid} vehicle={vehicle} />
         ))}
       </div>
 

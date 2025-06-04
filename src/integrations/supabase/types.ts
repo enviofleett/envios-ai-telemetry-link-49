@@ -178,42 +178,6 @@ export type Database = {
           },
         ]
       }
-      gp51_polling_config: {
-        Row: {
-          created_at: string
-          error_count: number
-          id: string
-          is_enabled: boolean
-          last_error: string | null
-          last_poll_time: string | null
-          last_successful_poll: string | null
-          polling_interval_seconds: number
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          error_count?: number
-          id?: string
-          is_enabled?: boolean
-          last_error?: string | null
-          last_poll_time?: string | null
-          last_successful_poll?: string | null
-          polling_interval_seconds?: number
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          error_count?: number
-          id?: string
-          is_enabled?: boolean
-          last_error?: string | null
-          last_poll_time?: string | null
-          last_successful_poll?: string | null
-          polling_interval_seconds?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
       gp51_sessions: {
         Row: {
           created_at: string
@@ -454,14 +418,6 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
         }
         Returns: boolean
-      }
-      update_polling_status: {
-        Args: {
-          p_last_poll_time: string
-          p_success: boolean
-          p_error_message?: string
-        }
-        Returns: undefined
       }
     }
     Enums: {

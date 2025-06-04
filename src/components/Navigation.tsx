@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Users, Car, BarChart3, Settings, Menu, LogOut, Shield, Database, FileCheck, Activity } from 'lucide-react';
+import { Users, Car, BarChart3, Settings, Menu, LogOut, Shield, Database, FileCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
@@ -14,12 +13,10 @@ const Navigation = () => {
 
   const navItems = [
     { href: '/', label: 'Dashboard', icon: BarChart3, adminOnly: false },
-    { href: '/dashboard', label: 'Fleet Dashboard', icon: BarChart3, adminOnly: false },
     { href: '/users', label: 'User Management', icon: Users, adminOnly: true },
     { href: '/vehicles', label: 'Vehicle Management', icon: Car, adminOnly: false },
-    { href: '/extraction', label: 'Bulk Extraction', icon: Database, adminOnly: true },
-    { href: '/import-review', label: 'Import Review', icon: FileCheck, adminOnly: true },
-    { href: '/monitoring', label: 'System Monitoring', icon: Activity, adminOnly: true },
+    { href: '/bulk-extraction', label: 'Bulk Extraction', icon: Database, adminOnly: true },
+    { href: '/data-import-review', label: 'Import Review', icon: FileCheck, adminOnly: true },
     { href: '/settings', label: 'Settings', icon: Settings, adminOnly: false },
   ];
 

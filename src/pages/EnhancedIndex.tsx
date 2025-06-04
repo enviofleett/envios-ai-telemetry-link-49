@@ -1,120 +1,76 @@
 
 import React from 'react';
-import { useDashboardData } from '@/hooks/useDashboardData';
+import { RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import FleetSummaryCards from '@/components/dashboard/FleetSummaryCards';
-import RecentAlerts from '@/components/dashboard/RecentAlerts';
 import IntelligentInsights from '@/components/dashboard/IntelligentInsights';
-import RealTimeStatus from '@/components/dashboard/RealTimeStatus';
-import PollingControls from '@/components/dashboard/PollingControls';
-import SystemHealth from '@/components/dashboard/SystemHealth';
-import Layout from '@/components/Layout';
+import RecentAlerts from '@/components/dashboard/RecentAlerts';
+import { useDashboardData } from '@/hooks/useDashboardData';
 
 const EnhancedIndex = () => {
-  const { stats, recentAlerts, isLoading, lastUpdate } = useDashboardData();
+  const { metrics, insights, alerts, isLoading, error, refetch } = useDashboardData();
 
-  // Transform recent alerts to match the expected Alert interface
-  const transformedAlerts = recentAlerts.map(alert => ({
-    id: alert.id,
-    deviceName: alert.vehicle_name,
-    deviceId: alert.id,
-    alarmType: alert.alert_type,
-    description: alert.alert_type,
-    severity: 'medium' as const,
-    timestamp: alert.timestamp,
-    location: alert.location
-  }));
-
-  // Transform stats to match FleetSummaryCards expected metrics prop
-  const fleetMetrics = {
-    totalVehicles: stats.totalVehicles,
-    activeVehicles: stats.activeVehicles,
-    onlineVehicles: stats.onlineVehicles,
-    alertVehicles: stats.alertVehicles
-  };
-
-  // Create mock insights data for IntelligentInsights component
-  const mockInsights = {
-    fuelEfficiencyTrend: [
-      { date: '2024-01-01', efficiency: 85 },
-      { date: '2024-01-02', efficiency: 87 },
-      { date: '2024-01-03', efficiency: 83 },
-      { date: '2024-01-04', efficiency: 89 },
-      { date: '2024-01-05', efficiency: 91 }
-    ],
-    maintenanceAlerts: [
-      { vehicleId: 'V001', type: 'Oil Change', dueIn: '3 days' },
-      { vehicleId: 'V002', type: 'Tire Rotation', dueIn: '1 week' }
-    ],
-    driverBehavior: {
-      fleetScore: 78,
-      topIssues: [
-        { issue: 'Hard Braking', percentage: 15 },
-        { issue: 'Speeding', percentage: 12 }
-      ]
-    },
-    anomalies: [
-      { vehicleId: 'V003', description: 'Unusual route pattern', severity: 'medium' },
-      { vehicleId: 'V004', description: 'Extended idle time', severity: 'low' }
-    ]
-  };
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="text-red-500 mb-4">Error loading dashboard data</div>
+          <Button onClick={refetch}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <Layout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Fleet Dashboard</h1>
-            <p className="text-gray-600 mt-1">
-              Real-time insights and monitoring for your intelligent fleet
-            </p>
-          </div>
-          <div className="text-sm text-gray-500">
-            Last updated: {lastUpdate.toLocaleTimeString()}
-          </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Envio Fleet Intelligence Dashboard</h1>
+          <p className="text-gray-600 mt-1">Real-time insights for your intelligent fleet management</p>
         </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={refetch}
+          disabled={isLoading}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
 
-        {/* System Health and Controls Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1">
-            <SystemHealth />
-          </div>
-          <div className="lg:col-span-1">
-            <PollingControls />
-          </div>
-          <div className="lg:col-span-1">
-            <RealTimeStatus />
-          </div>
+      {/* Fleet Summary Cards */}
+      <FleetSummaryCards metrics={metrics} isLoading={isLoading} />
+
+      {/* Intelligent Insights */}
+      <IntelligentInsights insights={insights} isLoading={isLoading} />
+
+      {/* Recent Alerts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <RecentAlerts alerts={alerts} isLoading={isLoading} />
         </div>
-
-        {/* Fleet Summary */}
-        <div className="grid grid-cols-1">
-          <FleetSummaryCards 
-            metrics={fleetMetrics}
-            isLoading={isLoading}
-          />
-        </div>
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Recent Alerts */}
-          <div className="lg:col-span-2">
-            <RecentAlerts 
-              alerts={transformedAlerts}
-              isLoading={isLoading}
-            />
-          </div>
-
-          {/* Intelligent Insights */}
-          <div className="lg:col-span-1">
-            <IntelligentInsights 
-              insights={mockInsights}
-              isLoading={isLoading}
-            />
+        <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-6 rounded-lg border border-blue-200">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+          <div className="space-y-3">
+            <Button className="w-full justify-start" variant="outline">
+              View Live Map
+            </Button>
+            <Button className="w-full justify-start" variant="outline">
+              Generate Report
+            </Button>
+            <Button className="w-full justify-start" variant="outline">
+              Manage Alerts
+            </Button>
+            <Button className="w-full justify-start" variant="outline">
+              Fleet Analytics
+            </Button>
           </div>
         </div>
       </div>
-    </Layout>
+    </div>
   );
 };
 
