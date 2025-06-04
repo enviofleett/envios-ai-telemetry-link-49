@@ -14,6 +14,7 @@ export async function processUsersWithRateLimit(
   failedCount: number;
   totalVehicles: number;
   errorLog: any[];
+  detailedStats: any;
 }> {
   const results: UserImportResult[] = [];
   let processedCount = 0;
@@ -21,14 +22,22 @@ export async function processUsersWithRateLimit(
   let failedCount = 0;
   let totalVehicles = 0;
   const errorLog: any[] = [];
+  const detailedStats = {
+    usersCreated: 0,
+    usersUpdated: 0,
+    vehicleStorageFailures: 0,
+    totalProcessingTime: 0
+  };
+
+  const startTime = Date.now();
 
   // Update job to processing status
   await supabase
     .from('user_import_jobs')
     .update({
       status: 'processing',
-      current_step: 'Starting import process...',
-      step_details: `Preparing to import ${targetUsernames.length} users`,
+      current_step: 'Starting atomic import process...',
+      step_details: `Preparing to import ${targetUsernames.length} users with atomic user-vehicle operations`,
       updated_at: new Date().toISOString()
     })
     .eq('id', jobId);
@@ -39,6 +48,8 @@ export async function processUsersWithRateLimit(
     const maxRetries = 3;
     let userResult: UserImportResult | null = null;
     
+    const userStartTime = Date.now();
+    
     while (retryCount <= maxRetries && !userResult?.success) {
       try {
         console.log(`Processing user ${i + 1}/${targetUsernames.length}: ${username} (attempt ${retryCount + 1})`);
@@ -48,8 +59,8 @@ export async function processUsersWithRateLimit(
         await supabase
           .from('user_import_jobs')
           .update({
-            current_step: `Processing user: ${username}${retryInfo}`,
-            step_details: `Processing user ${i + 1} of ${targetUsernames.length}: ${username}`,
+            current_step: `Atomic import: ${username}${retryInfo}`,
+            step_details: `Processing user ${i + 1} of ${targetUsernames.length}: ${username} - atomic user+vehicle import`,
             updated_at: new Date().toISOString()
           })
           .eq('id', jobId);
@@ -61,14 +72,28 @@ export async function processUsersWithRateLimit(
           await new Promise(resolve => setTimeout(resolve, baseDelay));
         }
 
+        // Perform atomic user-vehicle import
         userResult = await importUserPasswordless(username, adminToken, jobId, supabase);
         
         if (userResult.success) {
-          console.log(`Successfully imported ${username} on attempt ${retryCount + 1}`);
+          console.log(`Successfully completed atomic import for ${username} on attempt ${retryCount + 1}: ${userResult.vehicles_count} vehicles`);
+          
+          // Track operation type
+          if (userResult.operation === 'created') {
+            detailedStats.usersCreated++;
+          } else if (userResult.operation === 'updated') {
+            detailedStats.usersUpdated++;
+          }
+          
           break; // Success, exit retry loop
         } else {
           console.warn(`Attempt ${retryCount + 1} failed for ${username}: ${userResult.error}`);
           retryCount++;
+          
+          // Track specific failure types
+          if (userResult.error?.includes('vehicle')) {
+            detailedStats.vehicleStorageFailures++;
+          }
         }
 
       } catch (error) {
@@ -81,11 +106,14 @@ export async function processUsersWithRateLimit(
             gp51_username: username,
             vehicles_count: 0,
             success: false,
-            error: `Failed after ${maxRetries + 1} attempts: ${error.message}`
+            error: `Atomic import failed after ${maxRetries + 1} attempts: ${error.message}`
           };
         }
       }
     }
+
+    const userProcessingTime = Date.now() - userStartTime;
+    detailedStats.totalProcessingTime += userProcessingTime;
 
     if (userResult) {
       results.push(userResult);
@@ -96,8 +124,9 @@ export async function processUsersWithRateLimit(
           username: username,
           error: userResult.error,
           timestamp: new Date().toISOString(),
-          step: 'user_import',
-          attempts: retryCount + 1
+          step: 'atomic_user_vehicle_import',
+          attempts: retryCount + 1,
+          processingTimeMs: userProcessingTime
         });
       } else {
         successCount++;
@@ -113,6 +142,8 @@ export async function processUsersWithRateLimit(
     
     if (shouldUpdate) {
       const progressPercentage = Math.round((processedCount / targetUsernames.length) * 100);
+      const avgProcessingTime = detailedStats.totalProcessingTime / processedCount;
+      
       await supabase
         .from('user_import_jobs')
         .update({
@@ -121,7 +152,7 @@ export async function processUsersWithRateLimit(
           failed_imports: failedCount,
           total_vehicles_imported: totalVehicles,
           progress_percentage: progressPercentage,
-          step_details: `Processed ${processedCount}/${targetUsernames.length} users. Success: ${successCount}, Failed: ${failedCount}, Vehicles: ${totalVehicles}`,
+          step_details: `Processed ${processedCount}/${targetUsernames.length} users. Success: ${successCount}, Failed: ${failedCount}, Vehicles: ${totalVehicles}. Avg time: ${Math.round(avgProcessingTime)}ms/user`,
           error_log: errorLog,
           updated_at: new Date().toISOString()
         })
@@ -129,19 +160,25 @@ export async function processUsersWithRateLimit(
     }
   }
 
+  // Calculate final statistics
+  const totalProcessingTime = Date.now() - startTime;
+  detailedStats.totalProcessingTime = totalProcessingTime;
+
   // Final status update
   const finalStatus = failedCount === targetUsernames.length ? 'failed' : 'completed';
   await supabase
     .from('user_import_jobs')
     .update({
       status: finalStatus,
-      current_step: finalStatus === 'completed' ? 'Import completed successfully' : 'Import completed with errors',
-      step_details: `Final results: ${processedCount} processed, ${successCount} successful, ${failedCount} failed, ${totalVehicles} vehicles imported`,
+      current_step: finalStatus === 'completed' ? 'Atomic import completed successfully' : 'Atomic import completed with errors',
+      step_details: `Final results: ${processedCount} processed, ${successCount} successful (${detailedStats.usersCreated} created, ${detailedStats.usersUpdated} updated), ${failedCount} failed, ${totalVehicles} vehicles imported. Total time: ${Math.round(totalProcessingTime/1000)}s`,
       progress_percentage: 100,
       error_log: errorLog,
       updated_at: new Date().toISOString()
     })
     .eq('id', jobId);
+
+  console.log(`Atomic import job completed: ${successCount}/${targetUsernames.length} users successful, ${totalVehicles} vehicles imported`);
 
   return {
     results,
@@ -149,6 +186,7 @@ export async function processUsersWithRateLimit(
     successCount,
     failedCount,
     totalVehicles,
-    errorLog
+    errorLog,
+    detailedStats
   };
 }

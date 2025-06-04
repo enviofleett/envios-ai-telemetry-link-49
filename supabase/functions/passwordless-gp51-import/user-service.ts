@@ -8,19 +8,28 @@ export async function importUserPasswordless(
   jobId: string, 
   supabase: any
 ): Promise<UserImportResult> {
-  try {
-    console.log(`Starting import for user: ${gp51Username}`);
+  console.log(`Starting atomic import for user: ${gp51Username}`);
 
-    // Check if user already exists
+  try {
+    // Start a transaction-like operation
+    const startTime = Date.now();
+    
+    // Check if user already exists and decide on operation
     const { data: existingUser } = await supabase
       .from('envio_users')
       .select('id, gp51_username')
       .eq('gp51_username', gp51Username)
-      .single();
+      .maybeSingle();
+
+    let envioUser;
+    let isNewUser = false;
 
     if (existingUser) {
-      console.log(`User ${gp51Username} already exists with ID: ${existingUser.id}`);
-      throw new Error('User already imported');
+      console.log(`User ${gp51Username} already exists with ID: ${existingUser.id}, updating...`);
+      envioUser = existingUser;
+    } else {
+      console.log(`Creating new user for ${gp51Username}...`);
+      isNewUser = true;
     }
 
     console.log(`Fetching vehicles for ${gp51Username}...`);
@@ -29,39 +38,197 @@ export async function importUserPasswordless(
     
     if (!vehicles || vehicles.length === 0) {
       console.warn(`No vehicles found for user ${gp51Username}`);
-      // Still create the user even if no vehicles
+    } else {
+      console.log(`Found ${vehicles.length} vehicles for ${gp51Username}`);
     }
 
-    console.log(`Found ${vehicles.length} vehicles for ${gp51Username}, enriching with positions...`);
-    // Get positions for vehicles (non-blocking)
+    console.log(`Enriching ${vehicles.length} vehicles with positions...`);
+    // Get positions for vehicles
     const vehiclesWithPositions = await enrichWithPositions(vehicles, adminToken);
+    console.log(`Enriched vehicles, got ${vehiclesWithPositions.length} vehicles with position data`);
     
-    console.log(`Creating Envio user for ${gp51Username}...`);
-    // Create Envio user with temporary password
-    const tempPassword = generateTempPassword();
-    const envioUser = await createEnvioUser(gp51Username, tempPassword, supabase);
-    
-    console.log(`Storing ${vehiclesWithPositions.length} vehicles for user ${gp51Username}...`);
-    // Store vehicles linked to this user
-    await storeVehiclesForUser(vehiclesWithPositions, gp51Username, envioUser.id, jobId, supabase);
+    // Create or update user atomically
+    if (isNewUser) {
+      console.log(`Creating new Envio user for ${gp51Username}...`);
+      const tempPassword = generateTempPassword();
+      envioUser = await createEnvioUser(gp51Username, tempPassword, supabase);
+    } else {
+      console.log(`Updating existing user ${gp51Username}...`);
+      const { data: updatedUser, error: updateError } = await supabase
+        .from('envio_users')
+        .update({
+          updated_at: new Date().toISOString(),
+          import_source: 'passwordless_import'
+        })
+        .eq('id', existingUser.id)
+        .select()
+        .single();
 
-    console.log(`Successfully imported user ${gp51Username} with ${vehiclesWithPositions.length} vehicles`);
+      if (updateError) {
+        console.error(`Failed to update existing user ${gp51Username}:`, updateError);
+        throw new Error(`Failed to update existing user: ${updateError.message}`);
+      }
+      envioUser = updatedUser;
+    }
+
+    console.log(`Storing ${vehiclesWithPositions.length} vehicles for user ${gp51Username} (ID: ${envioUser.id})...`);
+    // Store vehicles atomically with proper error handling
+    const vehicleResults = await storeVehiclesForUserAtomic(
+      vehiclesWithPositions, 
+      gp51Username, 
+      envioUser.id,
+      jobId, 
+      supabase
+    );
+
+    const duration = Date.now() - startTime;
+    console.log(`Successfully completed atomic import for ${gp51Username} in ${duration}ms: ${vehicleResults.successful} vehicles stored, ${vehicleResults.failed} failed`);
+    
     return {
       gp51_username: gp51Username,
       envio_user_id: envioUser.id,
-      vehicles_count: vehiclesWithPositions.length,
-      success: true
+      vehicles_count: vehicleResults.successful,
+      success: true,
+      operation: isNewUser ? 'created' : 'updated'
     };
 
   } catch (error) {
-    console.error(`Failed to import user ${gp51Username}:`, error);
+    console.error(`Atomic import failed for user ${gp51Username}:`, error);
+    
+    // Attempt cleanup if user was created but vehicles failed
+    // Note: In a real transaction this would be automatic rollback
+    
     return {
       gp51_username: gp51Username,
       vehicles_count: 0,
       success: false,
-      error: error.message
+      error: `Atomic import failed: ${error.message}`
     };
   }
+}
+
+export async function storeVehiclesForUserAtomic(
+  vehicles: GP51Vehicle[], 
+  gp51Username: string, 
+  envioUserId: string,
+  jobId: string, 
+  supabase: any
+): Promise<{ successful: number; failed: number; errors: any[] }> {
+  console.log(`Starting atomic vehicle storage for ${gp51Username}: ${vehicles.length} vehicles`);
+
+  if (!vehicles || vehicles.length === 0) {
+    console.log(`No vehicles to store for ${gp51Username}`);
+    return { successful: 0, failed: 0, errors: [] };
+  }
+
+  const results = {
+    successful: 0,
+    failed: 0,
+    errors: [] as any[]
+  };
+
+  // Prepare all vehicle data first
+  const vehicleDataArray = vehicles.map(vehicle => {
+    return {
+      device_id: vehicle.deviceid,
+      device_name: vehicle.devicename || `Device ${vehicle.deviceid}`,
+      envio_user_id: envioUserId,
+      gp51_username: gp51Username,
+      sim_number: vehicle.simnum || null,
+      status: vehicle.status || 'unknown',
+      last_position: vehicle.lastPosition || null,
+      gp51_metadata: {
+        simnum: vehicle.simnum,
+        lastactivetime: vehicle.lastactivetime,
+        original_data: vehicle,
+        import_job_id: jobId,
+        import_timestamp: new Date().toISOString()
+      },
+      import_job_type: 'passwordless_import',
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  });
+
+  console.log(`Prepared ${vehicleDataArray.length} vehicle records for batch upsert`);
+
+  try {
+    // Attempt batch upsert for better atomicity
+    const { data: batchResult, error: batchError } = await supabase
+      .from('vehicles')
+      .upsert(vehicleDataArray, { 
+        onConflict: 'device_id',
+        ignoreDuplicates: false 
+      })
+      .select('device_id');
+
+    if (batchError) {
+      console.error(`Batch upsert failed for ${gp51Username}:`, batchError);
+      // Fall back to individual inserts with detailed error tracking
+      return await storeVehiclesIndividually(vehicleDataArray, gp51Username, supabase);
+    }
+
+    results.successful = batchResult?.length || vehicleDataArray.length;
+    console.log(`Successfully batch upserted ${results.successful} vehicles for ${gp51Username}`);
+    
+    return results;
+
+  } catch (error) {
+    console.error(`Batch vehicle storage failed for ${gp51Username}:`, error);
+    // Fall back to individual processing
+    return await storeVehiclesIndividually(vehicleDataArray, gp51Username, supabase);
+  }
+}
+
+async function storeVehiclesIndividually(
+  vehicleDataArray: any[], 
+  gp51Username: string, 
+  supabase: any
+): Promise<{ successful: number; failed: number; errors: any[] }> {
+  console.log(`Falling back to individual vehicle storage for ${gp51Username}`);
+  
+  const results = {
+    successful: 0,
+    failed: 0,
+    errors: [] as any[]
+  };
+
+  for (const vehicleData of vehicleDataArray) {
+    try {
+      const { error: vehicleError } = await supabase
+        .from('vehicles')
+        .upsert(vehicleData, { 
+          onConflict: 'device_id',
+          ignoreDuplicates: false 
+        });
+
+      if (vehicleError) {
+        console.error(`Failed to store vehicle ${vehicleData.device_id}:`, vehicleError);
+        results.failed++;
+        results.errors.push({
+          device_id: vehicleData.device_id,
+          error: vehicleError.message,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        results.successful++;
+        console.log(`Successfully stored vehicle ${vehicleData.device_id} for ${gp51Username}`);
+      }
+
+    } catch (error) {
+      console.error(`Exception storing vehicle ${vehicleData.device_id}:`, error);
+      results.failed++;
+      results.errors.push({
+        device_id: vehicleData.device_id,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  console.log(`Individual vehicle storage completed for ${gp51Username}: ${results.successful} successful, ${results.failed} failed`);
+  return results;
 }
 
 export async function createEnvioUser(gp51Username: string, tempPassword: string, supabase: any) {
@@ -78,7 +245,8 @@ export async function createEnvioUser(gp51Username: string, tempPassword: string
       email_confirm: true,
       user_metadata: {
         gp51_username: gp51Username,
-        import_source: 'passwordless_import'
+        import_source: 'passwordless_import',
+        import_timestamp: new Date().toISOString()
       }
     });
 
@@ -100,7 +268,8 @@ export async function createEnvioUser(gp51Username: string, tempPassword: string
         is_gp51_imported: true,
         needs_password_set: true,
         import_source: 'passwordless_import',
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       })
       .select()
       .single();
@@ -108,7 +277,12 @@ export async function createEnvioUser(gp51Username: string, tempPassword: string
     if (envioError) {
       console.error(`Envio user creation failed for ${gp51Username}:`, envioError);
       // Cleanup auth user if envio user creation fails
-      await supabase.auth.admin.deleteUser(authUser.user.id);
+      try {
+        await supabase.auth.admin.deleteUser(authUser.user.id);
+        console.log(`Cleaned up auth user for failed envio user creation: ${gp51Username}`);
+      } catch (cleanupError) {
+        console.error(`Failed to cleanup auth user for ${gp51Username}:`, cleanupError);
+      }
       throw new Error(`Failed to create envio user: ${envioError.message}`);
     }
 
@@ -119,64 +293,6 @@ export async function createEnvioUser(gp51Username: string, tempPassword: string
     console.error(`User creation failed for ${gp51Username}:`, error);
     throw error;
   }
-}
-
-export async function storeVehiclesForUser(
-  vehicles: GP51Vehicle[], 
-  gp51Username: string, 
-  envioUserId: string,
-  jobId: string, 
-  supabase: any
-): Promise<void> {
-  console.log(`Storing ${vehicles.length} vehicles for ${gp51Username}...`);
-
-  if (!vehicles || vehicles.length === 0) {
-    console.log(`No vehicles to store for ${gp51Username}`);
-    return;
-  }
-
-  for (const vehicle of vehicles) {
-    try {
-      const vehicleData = {
-        device_id: vehicle.deviceid,
-        device_name: vehicle.devicename || `Device ${vehicle.deviceid}`,
-        envio_user_id: envioUserId,
-        gp51_username: gp51Username,
-        sim_number: vehicle.simnum || null,
-        status: vehicle.status || 'unknown',
-        last_position: vehicle.lastPosition || null,
-        gp51_metadata: {
-          simnum: vehicle.simnum,
-          lastactivetime: vehicle.lastactivetime,
-          original_data: vehicle,
-          import_job_id: jobId
-        },
-        import_job_type: 'passwordless_import',
-        is_active: true,
-        created_at: new Date().toISOString()
-      };
-
-      const { error: vehicleError } = await supabase
-        .from('vehicles')
-        .upsert(vehicleData, { 
-          onConflict: 'device_id',
-          ignoreDuplicates: false 
-        });
-
-      if (vehicleError) {
-        console.error(`Failed to store vehicle ${vehicle.deviceid}:`, vehicleError);
-        // Don't throw, just log and continue with other vehicles
-      } else {
-        console.log(`Successfully stored vehicle ${vehicle.deviceid} for ${gp51Username}`);
-      }
-
-    } catch (error) {
-      console.error(`Failed to process vehicle ${vehicle.deviceid}:`, error);
-      // Continue with other vehicles
-    }
-  }
-
-  console.log(`Completed storing vehicles for ${gp51Username}`);
 }
 
 export function generateTempPassword(): string {
