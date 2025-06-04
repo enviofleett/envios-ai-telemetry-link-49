@@ -63,10 +63,10 @@ export const useEnhancedVehicleData = () => {
 
       if (error) throw error;
       
-      // Transform the data to match our Vehicle interface
+      // Transform the data to match our Vehicle interface with proper type handling
       return data.map(vehicle => ({
         ...vehicle,
-        last_position: vehicle.last_position as VehiclePosition
+        last_position: vehicle.last_position as unknown as VehiclePosition
       })) as Vehicle[];
     },
     refetchInterval: 30000, // Refresh every 30 seconds
