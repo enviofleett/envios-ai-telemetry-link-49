@@ -15,7 +15,7 @@ export const parseErrorLog = (errorLog: Json | null): ParsedErrorLog[] => {
 
   // If it's already an array, validate each item
   if (Array.isArray(errorLog)) {
-    return errorLog.filter(isValidErrorLog);
+    return (errorLog as any[]).filter(isValidErrorLog);
   }
   
   // If it's a string, try to parse it
