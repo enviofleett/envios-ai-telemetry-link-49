@@ -1,4 +1,6 @@
 
+import { authenticateGP51 } from './gp51-auth.ts';
+
 export async function getStoredGP51Credentials(supabase: any): Promise<{
   success: boolean;
   token?: string;
@@ -39,8 +41,11 @@ export async function getStoredGP51Credentials(supabase: any): Promise<{
       };
     }
 
-    console.log(`Token for ${session.username} has expired or is missing. Need to re-authenticate.`);
-    return { success: false, error: 'Stored GP51 credentials are expired. Please refresh connection in Admin Settings.' };
+    console.log(`Token for ${session.username} has expired or is missing. Attempting to refresh...`);
+    
+    // Attempt to refresh the token
+    const refreshResult = await refreshGP51Token(supabase, session.username);
+    return refreshResult;
 
   } catch (error) {
     console.error('Error retrieving stored GP51 credentials:', error);
@@ -48,16 +53,46 @@ export async function getStoredGP51Credentials(supabase: any): Promise<{
   }
 }
 
-export async function refreshGP51Token(supabase: any): Promise<{
+export async function refreshGP51Token(supabase: any, username?: string): Promise<{
   success: boolean;
   token?: string;
   username?: string;
   error?: string;
 }> {
-  // This would require the original password which we don't want to store
-  // For now, we'll rely on the admin manually refreshing through settings
-  return { 
-    success: false, 
-    error: 'Token refresh required. Please reconnect in Admin Settings.' 
-  };
+  try {
+    console.log('Attempting to refresh GP51 token...');
+    
+    // Get the stored admin credentials for refresh
+    const { data: adminSessions, error: adminError } = await supabase
+      .from('gp51_sessions')
+      .select('username, gp51_token')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (adminError || !adminSessions || adminSessions.length === 0) {
+      console.error('No admin credentials found for token refresh');
+      return { 
+        success: false, 
+        error: 'Token refresh failed. Please reconnect in Admin Settings.' 
+      };
+    }
+
+    const adminSession = adminSessions[0];
+    const targetUsername = username || adminSession.username;
+
+    // For security, we need the admin to re-enter credentials for refresh
+    // This is a limitation of not storing passwords
+    console.log('Token refresh requires admin re-authentication in settings');
+    return { 
+      success: false, 
+      error: 'Token expired. Please refresh connection in Admin Settings.' 
+    };
+
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    return { 
+      success: false, 
+      error: 'Token refresh failed. Please reconnect in Admin Settings.' 
+    };
+  }
 }

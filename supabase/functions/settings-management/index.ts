@@ -7,12 +7,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to create MD5 hash using a reliable implementation
+// Proper MD5 implementation using Web Crypto API
 async function md5(input: string): Promise<string> {
-  const { createHash } = await import('https://deno.land/std@0.168.0/node/crypto.ts');
-  const hash = createHash('md5');
-  hash.update(input);
-  return hash.digest('hex');
+  try {
+    const data = new TextEncoder().encode(input);
+    const hashBuffer = await crypto.subtle.digest('MD5', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (error) {
+    // Fallback for environments where Web Crypto MD5 isn't available
+    const { createHash } = await import('https://deno.land/std@0.168.0/node/crypto.ts');
+    const hash = createHash('md5');
+    hash.update(input);
+    return hash.digest('hex');
+  }
 }
 
 serve(async (req) => {
@@ -40,257 +48,156 @@ serve(async (req) => {
 
       console.log('Starting GP51 credential validation for user:', username);
 
-      // MD5 encrypt the password
+      // MD5 encrypt the password using proper implementation
       const hashedPassword = await md5(password);
-      console.log('Password hashed successfully. Hash length:', hashedPassword.length);
+      console.log('Password hashed successfully');
 
-      // Try multiple GP51 login payload formats and endpoints
-      const authenticationAttempts = [
-        // Format 1: Try original login format
-        {
-          url: 'https://www.gps51.com/webapi?action=login',
-          payload: {
-            username: username,
-            password: hashedPassword,
-            from: 'WEB',
-            type: 'USER'
-          }
-        },
-        // Format 2: Try POST with action in body
-        {
-          url: 'https://www.gps51.com/webapi',
-          payload: {
-            action: 'login',
-            username: username,
-            password: hashedPassword,
-            from: 'WEB',
-            type: 'USER'
-          }
-        },
-        // Format 3: Try alternative action names
-        {
-          url: 'https://www.gps51.com/webapi',
-          payload: {
-            action: 'auth',
-            username: username,
-            password: hashedPassword,
-            from: 'WEB',
-            type: 'USER'
-          }
-        },
-        // Format 4: Try without action parameter
-        {
-          url: 'https://www.gps51.com/webapi',
-          payload: {
-            username: username,
-            password: hashedPassword,
-            from: 'WEB',
-            type: 'USER'
-          }
-        },
-        // Format 5: Try with different endpoint structure
-        {
-          url: 'https://www.gps51.com/api/login',
-          payload: {
-            username: username,
-            password: hashedPassword,
-            from: 'WEB',
-            type: 'USER'
-          }
-        },
-        // Format 6: Try with signin action
-        {
-          url: 'https://www.gps51.com/webapi',
-          payload: {
-            action: 'signin',
-            username: username,
-            password: hashedPassword,
-            from: 'WEB',
-            type: 'USER'
-          }
-        },
-        // Format 7: Try with authenticate action
-        {
-          url: 'https://www.gps51.com/webapi',
-          payload: {
-            action: 'authenticate',
-            username: username,
-            password: hashedPassword,
-            from: 'WEB',
-            type: 'USER'
-          }
-        },
-        // Format 8: Try with different case
-        {
-          url: 'https://www.gps51.com/webapi',
-          payload: {
-            action: 'LOGIN',
-            username: username,
-            password: hashedPassword,
-            from: 'WEB',
-            type: 'USER'
-          }
-        }
-      ];
+      // Standardized GP51 authentication payload
+      const authPayload = {
+        action: 'login',
+        username: username,
+        password: hashedPassword,
+        from: 'WEB',
+        type: 'USER'
+      };
 
-      let loginResult = null;
-      let lastError = null;
-      let workingFormat = null;
+      console.log('Attempting GP51 authentication...');
 
-      // Try each authentication format
-      for (let i = 0; i < authenticationAttempts.length; i++) {
-        const attempt = authenticationAttempts[i];
-        console.log(`Attempting GP51 authentication format ${i + 1}:`);
-        console.log(`URL: ${attempt.url}`);
-        console.log(`Payload: ${JSON.stringify(attempt.payload, null, 2)}`);
-
-        try {
-          const loginResponse = await fetch(attempt.url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'User-Agent': 'Envio-Console/1.0',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(attempt.payload),
-            signal: AbortSignal.timeout(15000) // 15 second timeout
-          });
-
-          console.log(`GP51 API response status for format ${i + 1}:`, loginResponse.status);
-
-          if (!loginResponse.ok) {
-            console.error(`GP51 API returned non-OK status for format ${i + 1}:`, loginResponse.status, loginResponse.statusText);
-            const errorText = await loginResponse.text();
-            console.error(`GP51 API error response body for format ${i + 1}:`, errorText);
-            lastError = `GP51 API error: ${loginResponse.status} ${loginResponse.statusText}`;
-            continue;
-          }
-
-          const responseText = await loginResponse.text();
-          console.log(`GP51 API raw response for format ${i + 1}:`, responseText);
-
-          try {
-            loginResult = JSON.parse(responseText);
-            console.log(`GP51 parsed response for format ${i + 1}:`, JSON.stringify(loginResult, null, 2));
-
-            // Check if this format was successful
-            if (loginResult.status === 0 || loginResult.token || loginResult.success === true) {
-              console.log(`GP51 authentication successful with format ${i + 1}`);
-              workingFormat = i + 1;
-              break;
-            } else if (loginResult.status === 8901) {
-              // "action not found" error, try next format
-              console.log(`Format ${i + 1} failed with "action not found", trying next format...`);
-              lastError = loginResult.cause || `GP51 authentication failed (status: ${loginResult.status})`;
-            } else {
-              // Different error, might be credentials issue
-              console.error(`GP51 authentication failed with format ${i + 1}. Status:`, loginResult.status, 'Cause:', loginResult.cause);
-              lastError = loginResult.cause || `GP51 authentication failed (status: ${loginResult.status})`;
-              
-              // If it's a credential error, don't try other formats
-              if (loginResult.status === 1 || loginResult.cause?.toLowerCase().includes('password') || loginResult.cause?.toLowerCase().includes('username')) {
-                console.log('Detected credential error, stopping attempts');
-                break;
-              }
-            }
-          } catch (parseError) {
-            console.error(`Failed to parse GP51 response as JSON for format ${i + 1}:`, parseError);
-            console.error(`Raw response was for format ${i + 1}:`, responseText.substring(0, 200));
-            lastError = 'Invalid response format from GP51 API';
-            continue;
-          }
-        } catch (fetchError) {
-          console.error(`Failed to connect to GP51 API with format ${i + 1}:`, fetchError);
-          lastError = fetchError instanceof Error ? fetchError.message : 'Network error';
-          continue;
-        }
-      }
-
-      // If no format worked, return detailed error information
-      if (!loginResult || (loginResult.status !== 0 && !loginResult.token && loginResult.success !== true)) {
-        const errorResponse = {
-          error: lastError || 'All GP51 authentication formats failed',
-          details: 'None of the attempted GP51 API formats were accepted',
-          suggestions: [
-            'Verify your GP51 username and password are correct',
-            'Check if your GP51 account is active and has API access',
-            'Contact GP51 support to verify the current API authentication method',
-            'The GP51 API may have been updated - please check their latest documentation'
-          ],
-          attemptedFormats: authenticationAttempts.length,
-          apiStatus: 'GP51 API may have changed their authentication method'
-        };
-
-        console.error('All authentication attempts failed:', errorResponse);
-        
-        return new Response(
-          JSON.stringify(errorResponse),
-          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Extract token from successful response
-      const token = loginResult.token;
-      if (!token) {
-        console.error('GP51 login successful but no token received');
-        console.error('Full response:', JSON.stringify(loginResult, null, 2));
-        return new Response(
-          JSON.stringify({ 
-            error: 'GP51 authentication successful but no token received',
-            details: 'The GP51 API responded successfully but did not provide an authentication token'
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      console.log(`GP51 authentication successful using format ${workingFormat}. Token received:`, token.substring(0, 10) + '...');
-
-      // Store/update credentials in database
       try {
-        const { data: sessionData, error: sessionError } = await supabase
-          .from('gp51_sessions')
-          .upsert({
-            username: username,
-            gp51_token: token,
-            token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          }, {
-            onConflict: 'username'
-          })
-          .select()
-          .single();
+        // Standardized GP51 API endpoint
+        const loginResponse = await fetch('https://www.gps51.com/webapi', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Envio-Console/1.0',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(authPayload),
+          signal: AbortSignal.timeout(15000) // 15 second timeout
+        });
 
-        if (sessionError) {
-          console.error('Failed to store GP51 session in database:', sessionError);
+        console.log('GP51 API response status:', loginResponse.status);
+
+        if (!loginResponse.ok) {
+          console.error('GP51 API returned non-OK status:', loginResponse.status, loginResponse.statusText);
+          const errorText = await loginResponse.text();
+          console.error('GP51 API error response body:', errorText);
+          
           return new Response(
             JSON.stringify({ 
-              error: 'Failed to save GP51 session to database',
-              details: sessionError.message
+              error: `GP51 API error: ${loginResponse.status} ${loginResponse.statusText}`,
+              details: 'The GP51 API returned an error response'
+            }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const responseText = await loginResponse.text();
+        console.log('GP51 API raw response received');
+
+        let loginResult;
+        try {
+          loginResult = JSON.parse(responseText);
+          console.log('GP51 parsed response received');
+        } catch (parseError) {
+          console.error('Failed to parse GP51 response as JSON:', parseError);
+          console.error('Raw response was:', responseText.substring(0, 200));
+          
+          return new Response(
+            JSON.stringify({ 
+              error: 'Invalid response format from GP51 API',
+              details: 'The GP51 API returned a malformed response'
             }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        console.log('GP51 session stored successfully in database');
+        // Standardized success check - GP51 uses status: 0 for success
+        if (loginResult.status !== 0) {
+          console.error('GP51 authentication failed. Status:', loginResult.status, 'Cause:', loginResult.cause);
+          
+          return new Response(
+            JSON.stringify({
+              error: loginResult.cause || `GP51 authentication failed (status: ${loginResult.status})`,
+              details: 'Please verify your GP51 username and password are correct'
+            }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
 
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: `GP51 credentials validated and saved successfully! (Using authentication format ${workingFormat})`,
-            tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            workingFormat: workingFormat
-          }),
-          { 
-            status: 200, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        // Extract token from successful response
+        const token = loginResult.token;
+        if (!token) {
+          console.error('GP51 login successful but no token received');
+          console.error('Full response:', JSON.stringify(loginResult, null, 2));
+          return new Response(
+            JSON.stringify({ 
+              error: 'GP51 authentication successful but no token received',
+              details: 'The GP51 API responded successfully but did not provide an authentication token'
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log('GP51 authentication successful. Token received');
+
+        // Store/update credentials in database
+        try {
+          const { data: sessionData, error: sessionError } = await supabase
+            .from('gp51_sessions')
+            .upsert({
+              username: username,
+              gp51_token: token,
+              token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            }, {
+              onConflict: 'username'
+            })
+            .select()
+            .single();
+
+          if (sessionError) {
+            console.error('Failed to store GP51 session in database:', sessionError);
+            return new Response(
+              JSON.stringify({ 
+                error: 'Failed to save GP51 session to database',
+                details: sessionError.message
+              }),
+              { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
           }
-        );
 
-      } catch (dbError) {
-        console.error('Database operation failed:', dbError);
+          console.log('GP51 session stored successfully in database');
+
+          return new Response(
+            JSON.stringify({
+              success: true,
+              message: 'GP51 credentials validated and saved successfully!',
+              tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            }),
+            { 
+              status: 200, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+
+        } catch (dbError) {
+          console.error('Database operation failed:', dbError);
+          return new Response(
+            JSON.stringify({ 
+              error: 'Database error while saving credentials',
+              details: dbError instanceof Error ? dbError.message : 'Unknown database error'
+            }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+      } catch (fetchError) {
+        console.error('Failed to connect to GP51 API:', fetchError);
+        
         return new Response(
           JSON.stringify({ 
-            error: 'Database error while saving credentials',
-            details: dbError instanceof Error ? dbError.message : 'Unknown database error'
+            error: 'Failed to connect to GP51 API',
+            details: fetchError instanceof Error ? fetchError.message : 'Network error'
           }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );

@@ -7,12 +7,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to create MD5 hash
+// Proper MD5 implementation using Web Crypto API
 async function md5(input: string): Promise<string> {
-  const data = new TextEncoder().encode(input);
-  const hashBuffer = await crypto.subtle.digest('MD5', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  try {
+    const data = new TextEncoder().encode(input);
+    const hashBuffer = await crypto.subtle.digest('MD5', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (error) {
+    // Fallback for environments where Web Crypto MD5 isn't available
+    const { createHash } = await import('https://deno.land/std@0.168.0/node/crypto.ts');
+    const hash = createHash('md5');
+    hash.update(input);
+    return hash.digest('hex');
+  }
 }
 
 serve(async (req) => {
@@ -38,11 +46,11 @@ serve(async (req) => {
 
     console.log('Authenticating user:', username);
 
-    // MD5 encrypt the password
+    // MD5 encrypt the password using proper implementation
     const hashedPassword = await md5(password);
     console.log('Password hashed successfully');
 
-    // Login to GP51
+    // Login to GP51 using standardized endpoint and parameters
     const loginPayload = {
       action: 'login',
       username: username,
@@ -52,6 +60,7 @@ serve(async (req) => {
     };
 
     console.log('Calling GP51 login API...');
+    // Standardized GP51 API endpoint
     const loginResponse = await fetch('https://www.gps51.com/webapi', {
       method: 'POST',
       headers: {
@@ -69,9 +78,10 @@ serve(async (req) => {
     }
 
     const loginResult = await loginResponse.json();
-    console.log('GP51 login response:', loginResult);
+    console.log('GP51 login response received');
 
-    if (loginResult.status === 1) {
+    // Standardized success check - GP51 uses status: 0 for success
+    if (loginResult.status !== 0) {
       console.error('GP51 login failed:', loginResult.cause);
       return new Response(
         JSON.stringify({ error: loginResult.cause || 'Authentication failed' }),
@@ -103,17 +113,13 @@ serve(async (req) => {
 
     console.log('Session stored, fetching vehicle list...');
 
-    // Fetch vehicle list
-    const vehicleListPayload = {
-      username: username
-    };
-
-    const vehicleResponse = await fetch(`https://www.gps51.com/webapi?action=querymonitorlist&token=${token}`, {
+    // Fetch vehicle list using standardized endpoint and token parameter
+    const vehicleResponse = await fetch(`https://www.gps51.com/webapi?action=querymonitorlist&token=${encodeURIComponent(token)}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(vehicleListPayload),
+      body: JSON.stringify({ username: username }),
     });
 
     if (!vehicleResponse.ok) {
@@ -125,9 +131,10 @@ serve(async (req) => {
     }
 
     const vehicleResult = await vehicleResponse.json();
-    console.log('Vehicle list response:', vehicleResult);
+    console.log('Vehicle list response received');
 
-    if (vehicleResult.status === 1) {
+    // Standardized success check
+    if (vehicleResult.status !== 0) {
       console.error('Failed to fetch vehicles:', vehicleResult.cause);
       return new Response(
         JSON.stringify({ error: vehicleResult.cause || 'Failed to fetch vehicles' }),

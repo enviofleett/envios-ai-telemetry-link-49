@@ -4,17 +4,15 @@ import { GP51Vehicle } from './types.ts';
 export async function getMonitorListForUser(username: string, token: string): Promise<GP51Vehicle[]> {
   console.log(`Fetching vehicle list for ${username}...`);
 
-  // Fixed: Use correct GP51 API endpoint
-  const response = await fetch('https://www.gps51.com/webapi/querymonitorlist', {
+  // Standardized GP51 API endpoint with token as URL parameter
+  const response = await fetch(`https://www.gps51.com/webapi?action=querymonitorlist&token=${encodeURIComponent(token)}`, {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'Accept': 'application/json'
     },
     body: JSON.stringify({ 
-      username,
-      token
+      username
     })
   });
 
@@ -26,9 +24,9 @@ export async function getMonitorListForUser(username: string, token: string): Pr
   const result = await response.json();
   console.log(`GP51 monitor list response for ${username}:`, JSON.stringify(result, null, 2));
   
-  // Fixed: Handle both "success" and "OK" status responses correctly
-  if (result.status === 'success' || result.status === 'OK' || result.status === 200) {
-    const monitors = result.monitors || result.data?.monitors || result.devices || [];
+  // Standardized success check - GP51 uses status: 0 for success
+  if (result.status === 0) {
+    const monitors = result.records || result.monitors || result.data?.monitors || result.devices || [];
     console.log(`Found ${monitors.length} vehicles for ${username}`);
     return monitors;
   }
@@ -45,18 +43,16 @@ export async function enrichWithPositions(vehicles: GP51Vehicle[], token: string
   console.log(`Fetching positions for ${deviceIds.length} vehicles...`);
 
   try {
-    // Fixed: Use correct GP51 API endpoint
-    const response = await fetch('https://www.gps51.com/webapi/lastposition', {
+    // Standardized GP51 API endpoint with token as URL parameter
+    const response = await fetch(`https://www.gps51.com/webapi?action=lastposition&token=${encodeURIComponent(token)}`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${token}`
+        'Accept': 'application/json'
       },
       body: JSON.stringify({
         deviceids: deviceIds,
-        lastquerypositiontime: 0,
-        token
+        lastquerypositiontime: 0
       })
     });
 
@@ -66,10 +62,10 @@ export async function enrichWithPositions(vehicles: GP51Vehicle[], token: string
     }
 
     const result = await response.json();
-    console.log('GP51 positions response:', JSON.stringify(result, null, 2));
+    console.log('GP51 positions response received');
     
-    // Fixed: Handle both "success" and "OK" status responses correctly
-    if ((result.status === 'success' || result.status === 'OK' || result.status === 200) && result.positions) {
+    // Standardized success check - GP51 uses status: 0 for success
+    if (result.status === 0 && result.positions) {
       const positionMap = new Map();
       result.positions.forEach((pos: any) => {
         positionMap.set(pos.deviceid, pos);
