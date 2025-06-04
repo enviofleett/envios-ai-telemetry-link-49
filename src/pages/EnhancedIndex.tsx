@@ -7,6 +7,7 @@ import IntelligentInsights from '@/components/dashboard/IntelligentInsights';
 import RealTimeStatus from '@/components/dashboard/RealTimeStatus';
 import PollingControls from '@/components/dashboard/PollingControls';
 import SystemHealth from '@/components/dashboard/SystemHealth';
+import Layout from '@/components/Layout';
 
 const EnhancedIndex = () => {
   const { stats, recentAlerts, isLoading, lastUpdate } = useDashboardData();
@@ -58,60 +59,62 @@ const EnhancedIndex = () => {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Fleet Dashboard</h1>
-          <p className="text-gray-600 mt-1">
-            Real-time insights and monitoring for your intelligent fleet
-          </p>
+    <Layout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Fleet Dashboard</h1>
+            <p className="text-gray-600 mt-1">
+              Real-time insights and monitoring for your intelligent fleet
+            </p>
+          </div>
+          <div className="text-sm text-gray-500">
+            Last updated: {lastUpdate.toLocaleTimeString()}
+          </div>
         </div>
-        <div className="text-sm text-gray-500">
-          Last updated: {lastUpdate.toLocaleTimeString()}
-        </div>
-      </div>
 
-      {/* System Health and Controls Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <SystemHealth />
+        {/* System Health and Controls Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1">
+            <SystemHealth />
+          </div>
+          <div className="lg:col-span-1">
+            <PollingControls />
+          </div>
+          <div className="lg:col-span-1">
+            <RealTimeStatus />
+          </div>
         </div>
-        <div className="lg:col-span-1">
-          <PollingControls />
-        </div>
-        <div className="lg:col-span-1">
-          <RealTimeStatus />
-        </div>
-      </div>
 
-      {/* Fleet Summary */}
-      <div className="grid grid-cols-1">
-        <FleetSummaryCards 
-          metrics={fleetMetrics}
-          isLoading={isLoading}
-        />
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Alerts */}
-        <div className="lg:col-span-2">
-          <RecentAlerts 
-            alerts={transformedAlerts}
+        {/* Fleet Summary */}
+        <div className="grid grid-cols-1">
+          <FleetSummaryCards 
+            metrics={fleetMetrics}
             isLoading={isLoading}
           />
         </div>
 
-        {/* Intelligent Insights */}
-        <div className="lg:col-span-1">
-          <IntelligentInsights 
-            insights={mockInsights}
-            isLoading={isLoading}
-          />
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Recent Alerts */}
+          <div className="lg:col-span-2">
+            <RecentAlerts 
+              alerts={transformedAlerts}
+              isLoading={isLoading}
+            />
+          </div>
+
+          {/* Intelligent Insights */}
+          <div className="lg:col-span-1">
+            <IntelligentInsights 
+              insights={mockInsights}
+              isLoading={isLoading}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </Layout>
   );
 };
 
