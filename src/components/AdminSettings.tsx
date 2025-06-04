@@ -73,7 +73,7 @@ const AdminSettings = () => {
   };
 
   const getConnectionStatus = () => {
-    if (statusLoading) return { icon: null, text: 'Checking...', variant: 'secondary' };
+    if (statusLoading) return { icon: null, text: 'Checking...', variant: 'secondary' as const };
     if (gp51Status?.connected) {
       return { 
         icon: <CheckCircle className="h-4 w-4" />, 
