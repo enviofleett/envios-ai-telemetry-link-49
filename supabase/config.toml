@@ -1,1 +1,17 @@
+
 project_id = "bjkqxmvjuewshomihjqm"
+
+[functions.telemetry-auth]
+verify_jwt = false
+
+[functions.telemetry-positions]
+verify_jwt = false
+
+[functions.user-management]
+verify_jwt = true
+
+[functions.vehicle-management]
+verify_jwt = true
+
+[functions.settings-management]
+verify_jwt = true

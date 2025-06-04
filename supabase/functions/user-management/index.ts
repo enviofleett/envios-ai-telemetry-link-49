@@ -52,7 +52,7 @@ serve(async (req) => {
         const userId = pathSegments[pathSegments.length - 1];
         
         if (userId === 'current') {
-          // Get current user's role - use auth user ID directly
+          // Get current user's role using auth user ID
           const { data: userRole, error } = await supabase
             .rpc('get_user_role', { _user_id: currentUserId });
 
@@ -86,7 +86,7 @@ serve(async (req) => {
               created_at,
               token_expires_at
             ),
-            user_roles (
+            user_roles!user_roles_user_id_fkey (
               role
             )
           `)
@@ -116,7 +116,7 @@ serve(async (req) => {
               created_at,
               token_expires_at
             ),
-            user_roles (
+            user_roles!user_roles_user_id_fkey (
               role
             )
           `)
@@ -156,21 +156,21 @@ serve(async (req) => {
         );
       }
 
-      // Check if current user is admin (for creating new users)
-      if (currentUserId && !(await isUserAdmin(supabase, currentUserId))) {
+      // Check if current user is admin
+      if (!currentUserId || !(await isUserAdmin(supabase, currentUserId))) {
         return new Response(
           JSON.stringify({ error: 'Admin access required' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Create envio user record with the auth user ID if available
-      const userIdToUse = currentUserId || crypto.randomUUID();
+      // For new user creation, generate a new UUID
+      const newUserId = crypto.randomUUID();
       
       const { data: user, error } = await supabase
         .from('envio_users')
         .insert({ 
-          id: userIdToUse,
+          id: newUserId,
           name, 
           email 
         })
@@ -184,6 +184,14 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      // Create default user role
+      await supabase
+        .from('user_roles')
+        .insert({
+          user_id: newUserId,
+          role: 'user'
+        });
 
       return new Response(
         JSON.stringify({ user }),
@@ -204,7 +212,7 @@ serve(async (req) => {
 
       const bodyData = JSON.parse(requestBody);
 
-      // Handle role updates - use auth user ID for role operations
+      // Handle role updates
       if (pathSegments.includes('role')) {
         const { role } = bodyData;
 
@@ -223,25 +231,11 @@ serve(async (req) => {
           );
         }
 
-        // Get the envio user to find the corresponding auth user ID
-        const { data: envioUser } = await supabase
-          .from('envio_users')
-          .select('id, email')
-          .eq('id', userId)
-          .single();
-
-        if (!envioUser) {
-          return new Response(
-            JSON.stringify({ error: 'User not found' }),
-            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Update user role using the user ID (should be auth user ID)
+        // Update user role - userId should be the auth user ID for role operations
         const { error } = await supabase
           .from('user_roles')
           .upsert({ 
-            user_id: userId, // This should be the auth user ID
+            user_id: userId, // This should be auth user ID
             role: role,
             updated_at: new Date().toISOString()
           }, {

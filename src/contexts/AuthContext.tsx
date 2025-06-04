@@ -37,49 +37,65 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRole = async (authUserId: string) => {
     try {
-      console.log('Fetching role for auth user ID:', userId);
+      console.log('Fetching role for auth user ID:', authUserId);
       
-      // Use the auth user ID directly to get the role
-      const { data, error } = await supabase.functions.invoke('user-management/roles/current');
+      // Use the RPC function to get user role directly with auth user ID
+      const { data: roleData, error: roleError } = await supabase
+        .rpc('get_user_role', { _user_id: authUserId });
+
+      if (!roleError && roleData) {
+        console.log('Role fetched successfully:', roleData);
+        setUserRole(roleData);
+        return;
+      }
+
+      console.log('No role found or error:', roleError);
       
-      if (!error && data) {
-        console.log('Role fetched successfully:', data.role);
-        setUserRole(data.role);
-      } else {
-        console.error('Error fetching user role:', error);
+      // If no role found, ensure user has envio_users record and default role
+      const { data: authUser } = await supabase.auth.getUser();
+      if (authUser.user) {
+        // Check if envio_users record exists
+        const { data: envioUser, error: envioError } = await supabase
+          .from('envio_users')
+          .select('id')
+          .eq('id', authUserId)
+          .single();
         
-        // If no role found, ensure user has a default role
-        if (error?.message?.includes('not found') || !data?.role) {
-          console.log('No role found, setting default role and creating envio user record');
-          
-          // Create envio user record if it doesn't exist
-          const { data: envioUser, error: envioError } = await supabase
+        if (envioError && envioError.code === 'PGRST116') {
+          // Create envio_users record with auth user ID
+          console.log('Creating envio_users record for auth user:', authUserId);
+          await supabase
             .from('envio_users')
-            .select('id')
-            .eq('id', userId)
-            .single();
-          
-          if (envioError && envioError.code === 'PGRST116') {
-            // User doesn't exist in envio_users, create it
-            const { data: authUser } = await supabase.auth.getUser();
-            if (authUser.user) {
-              await supabase
-                .from('envio_users')
-                .insert({
-                  id: userId,
-                  name: authUser.user.email?.split('@')[0] || 'User',
-                  email: authUser.user.email || ''
-                });
-            }
-          }
-          
-          setUserRole('user'); // Default role
+            .insert({
+              id: authUserId,
+              name: authUser.user.email?.split('@')[0] || 'User',
+              email: authUser.user.email || ''
+            });
         }
+
+        // Ensure user_roles record exists with auth user ID
+        const { data: existingRole } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', authUserId)
+          .single();
+
+        if (!existingRole) {
+          console.log('Creating default user role for auth user:', authUserId);
+          await supabase
+            .from('user_roles')
+            .insert({
+              user_id: authUserId,
+              role: 'user'
+            });
+        }
+
+        setUserRole(existingRole?.role || 'user');
       }
     } catch (error) {
-      console.error('Error fetching user role:', error);
+      console.error('Error in fetchUserRole:', error);
       setUserRole('user'); // Default to user role
     }
   };
@@ -98,7 +114,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Defer role fetching to prevent auth state change conflicts
+          // Use auth user ID directly for role operations
           setTimeout(() => {
             fetchUserRole(session.user.id);
           }, 0);
@@ -140,10 +156,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     
     if (!error && data.user) {
-      // Create envio user record with the auth user ID
-      await supabase.functions.invoke('user-management', {
-        body: { name, email }
-      });
+      // Create envio_users record with the auth user ID
+      console.log('Creating envio_users record for new user:', data.user.id);
+      await supabase
+        .from('envio_users')
+        .insert({
+          id: data.user.id, // Use auth user ID directly
+          name,
+          email
+        });
+
+      // Create default user role with auth user ID
+      await supabase
+        .from('user_roles')
+        .insert({
+          user_id: data.user.id, // Use auth user ID directly
+          role: 'user'
+        });
     }
     
     return { error };
