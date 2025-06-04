@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Car } from 'lucide-react';
-import VehicleCard from './VehicleCard';
+import VehicleCard from './vehicles/VehicleCard';
 import { Vehicle } from '@/types/vehicle';
 
 interface VehicleGridProps {
