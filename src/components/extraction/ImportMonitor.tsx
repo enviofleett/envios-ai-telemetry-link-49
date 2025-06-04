@@ -17,12 +17,18 @@ interface ImportJob {
   successful_imports: number;
   failed_imports: number;
   total_vehicles_imported: number;
-  progress_percentage: number;
-  current_step: string;
-  step_details: string;
   created_at: string;
   updated_at: string;
-  error_log: any[];
+  completed_at?: string | null;
+  error_log?: any[];
+  import_results?: any;
+  admin_gp51_username?: string | null;
+  import_type?: string;
+  imported_usernames?: any;
+  // Optional fields that might not be in database but we calculate
+  progress_percentage?: number;
+  current_step?: string;
+  step_details?: string;
 }
 
 interface ImportMonitorProps {
@@ -47,7 +53,18 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
         .single();
 
       if (error) throw error;
-      setJob(data);
+      
+      // Calculate derived fields
+      const jobData: ImportJob = {
+        ...data,
+        progress_percentage: data.total_usernames > 0 
+          ? Math.round((data.processed_usernames / data.total_usernames) * 100) 
+          : 0,
+        current_step: getCurrentStep(data),
+        step_details: getStepDetails(data)
+      };
+      
+      setJob(jobData);
       setLastUpdate(new Date().toLocaleTimeString());
       
       if (data.status === 'completed' || data.status === 'failed') {
@@ -63,6 +80,30 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const getCurrentStep = (jobData: any): string => {
+    if (jobData.status === 'completed') return 'Import Complete';
+    if (jobData.status === 'failed') return 'Import Failed';
+    if (jobData.status === 'processing') {
+      if (jobData.processed_usernames === 0) return 'Initializing...';
+      if (jobData.processed_usernames < jobData.total_usernames) return 'Processing Users';
+      return 'Finalizing Import';
+    }
+    return 'Pending';
+  };
+
+  const getStepDetails = (jobData: any): string => {
+    if (jobData.status === 'processing') {
+      return `Processing user ${jobData.processed_usernames + 1} of ${jobData.total_usernames}`;
+    }
+    if (jobData.status === 'completed') {
+      return `Successfully imported ${jobData.successful_imports} users with ${jobData.total_vehicles_imported} vehicles`;
+    }
+    if (jobData.status === 'failed') {
+      return 'Import process encountered errors';
+    }
+    return '';
   };
 
   useEffect(() => {
@@ -83,7 +124,16 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
         },
         (payload) => {
           console.log('Job update received:', payload);
-          setJob(payload.new as ImportJob);
+          const jobData: ImportJob = {
+            ...payload.new,
+            progress_percentage: payload.new.total_usernames > 0 
+              ? Math.round((payload.new.processed_usernames / payload.new.total_usernames) * 100) 
+              : 0,
+            current_step: getCurrentStep(payload.new),
+            step_details: getStepDetails(payload.new)
+          };
+          
+          setJob(jobData);
           setLastUpdate(new Date().toLocaleTimeString());
           
           if (payload.new.status === 'completed') {
