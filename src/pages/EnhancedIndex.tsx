@@ -5,6 +5,8 @@ import FleetSummaryCards from '@/components/dashboard/FleetSummaryCards';
 import RecentAlerts from '@/components/dashboard/RecentAlerts';
 import IntelligentInsights from '@/components/dashboard/IntelligentInsights';
 import RealTimeStatus from '@/components/dashboard/RealTimeStatus';
+import PollingControls from '@/components/dashboard/PollingControls';
+import SystemHealth from '@/components/dashboard/SystemHealth';
 
 const EnhancedIndex = () => {
   const { stats, recentAlerts, isLoading, lastUpdate } = useDashboardData();
@@ -70,17 +72,25 @@ const EnhancedIndex = () => {
         </div>
       </div>
 
-      {/* Real-time Status and Fleet Summary */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      {/* System Health and Controls Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1">
+          <SystemHealth />
+        </div>
+        <div className="lg:col-span-1">
+          <PollingControls />
+        </div>
         <div className="lg:col-span-1">
           <RealTimeStatus />
         </div>
-        <div className="lg:col-span-3">
-          <FleetSummaryCards 
-            metrics={fleetMetrics}
-            isLoading={isLoading}
-          />
-        </div>
+      </div>
+
+      {/* Fleet Summary */}
+      <div className="grid grid-cols-1">
+        <FleetSummaryCards 
+          metrics={fleetMetrics}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* Main Content Grid */}

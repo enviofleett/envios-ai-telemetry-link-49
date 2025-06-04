@@ -4,20 +4,21 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import EnhancedIndex from "./pages/EnhancedIndex";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
+
+// Pages
+import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import SetPassword from "./pages/SetPassword";
+import EnhancedIndex from "./pages/EnhancedIndex";
 import EnhancedUserManagement from "./pages/EnhancedUserManagement";
-import UserManagement from "./pages/UserManagement";
-import VehicleManagement from "./pages/VehicleManagement";
 import EnhancedVehicleManagement from "./pages/EnhancedVehicleManagement";
+import Settings from "./pages/Settings";
 import BulkExtraction from "./pages/BulkExtraction";
 import DataImportReview from "./pages/DataImportReview";
-import Settings from "./pages/Settings";
-import SetPassword from "./pages/SetPassword";
+import SystemMonitoring from "./pages/SystemMonitoring";
 import NotFound from "./pages/NotFound";
-import Layout from "./components/Layout";
-import ProtectedRoute from "./components/ProtectedRoute";
-import { AuthProvider } from "./contexts/AuthContext";
 
 const queryClient = new QueryClient();
 
@@ -33,58 +34,42 @@ const App = () => (
             <Route path="/set-password" element={<SetPassword />} />
             <Route path="/" element={
               <ProtectedRoute>
-                <Layout>
-                  <EnhancedIndex />
-                </Layout>
+                <Index />
+              </ProtectedRoute>
+            } />
+            <Route path="/dashboard" element={
+              <ProtectedRoute>
+                <EnhancedIndex />
               </ProtectedRoute>
             } />
             <Route path="/users" element={
-              <ProtectedRoute requireAdmin>
-                <Layout>
-                  <EnhancedUserManagement />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/users-legacy" element={
-              <ProtectedRoute requireAdmin>
-                <Layout>
-                  <UserManagement />
-                </Layout>
+              <ProtectedRoute>
+                <EnhancedUserManagement />
               </ProtectedRoute>
             } />
             <Route path="/vehicles" element={
               <ProtectedRoute>
-                <Layout>
-                  <EnhancedVehicleManagement />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/vehicles-legacy" element={
-              <ProtectedRoute>
-                <Layout>
-                  <VehicleManagement />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/bulk-extraction" element={
-              <ProtectedRoute requireAdmin>
-                <Layout>
-                  <BulkExtraction />
-                </Layout>
-              </ProtectedRoute>
-            } />
-            <Route path="/data-import-review" element={
-              <ProtectedRoute requireAdmin>
-                <Layout>
-                  <DataImportReview />
-                </Layout>
+                <EnhancedVehicleManagement />
               </ProtectedRoute>
             } />
             <Route path="/settings" element={
               <ProtectedRoute>
-                <Layout>
-                  <Settings />
-                </Layout>
+                <Settings />
+              </ProtectedRoute>
+            } />
+            <Route path="/extraction" element={
+              <ProtectedRoute>
+                <BulkExtraction />
+              </ProtectedRoute>
+            } />
+            <Route path="/import-review" element={
+              <ProtectedRoute>
+                <DataImportReview />
+              </ProtectedRoute>
+            } />
+            <Route path="/monitoring" element={
+              <ProtectedRoute>
+                <SystemMonitoring />
               </ProtectedRoute>
             } />
             <Route path="*" element={<NotFound />} />

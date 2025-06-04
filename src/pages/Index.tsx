@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, Car, Settings, Shield } from "lucide-react";
+import { Users, Car, Settings, Shield, Activity, BarChart3 } from "lucide-react";
 import Layout from "@/components/Layout";
 
 const Index = () => {
@@ -32,6 +32,14 @@ const Index = () => {
 
   const dashboardCards = [
     {
+      title: "Fleet Dashboard",
+      description: "Real-time insights and monitoring for your fleet",
+      icon: BarChart3,
+      href: "/dashboard",
+      adminOnly: false,
+      featured: true,
+    },
+    {
       title: "User Management",
       description: "Manage Envio users and their roles",
       icon: Users,
@@ -44,6 +52,13 @@ const Index = () => {
       icon: Car,
       href: "/vehicles",
       adminOnly: false,
+    },
+    {
+      title: "System Monitoring",
+      description: "Monitor real-time data synchronization and system health",
+      icon: Activity,
+      href: "/monitoring",
+      adminOnly: true,
     },
     {
       title: "Settings",
@@ -80,7 +95,9 @@ const Index = () => {
               return (
                 <Card 
                   key={card.href} 
-                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                  className={`hover:shadow-lg transition-shadow cursor-pointer ${
+                    card.featured ? 'border-blue-200 bg-blue-50' : ''
+                  }`}
                 >
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -91,6 +108,11 @@ const Index = () => {
                           Admin
                         </Badge>
                       )}
+                      {card.featured && (
+                        <Badge variant="default" className="text-xs">
+                          Featured
+                        </Badge>
+                      )}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -98,6 +120,7 @@ const Index = () => {
                     <Button 
                       onClick={() => navigate(card.href)}
                       className="w-full"
+                      variant={card.featured ? "default" : "outline"}
                     >
                       Open
                     </Button>
@@ -118,7 +141,7 @@ const Index = () => {
             <CardContent>
               <p className="text-orange-700">
                 You have administrator privileges in the Envio console. This grants you access to 
-                user management, GP51 credential configuration, and other sensitive system settings.
+                user management, system monitoring, GP51 credential configuration, and other sensitive system settings.
               </p>
             </CardContent>
           </Card>

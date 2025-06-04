@@ -18,21 +18,34 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('Starting GP51 real-time polling...');
+    const requestBody = await req.json().catch(() => ({}));
+    console.log('GP51 polling triggered by:', requestBody.trigger || 'unknown');
 
     // Get stored GP51 credentials
     const { data: sessionData, error: sessionError } = await supabase
       .from('gp51_sessions')
-      .select('gp51_token, username')
+      .select('gp51_token, username, token_expires_at')
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
 
     if (sessionError || !sessionData?.gp51_token) {
-      console.error('No valid GP51 session found:', sessionError);
-      await updatePollingStatus(supabase, false, 'No valid GP51 session found');
-      return new Response(JSON.stringify({ error: 'No valid GP51 session' }), {
+      const errorMsg = 'No valid GP51 session found';
+      console.error(errorMsg, sessionError);
+      await updatePollingStatus(supabase, false, errorMsg);
+      return new Response(JSON.stringify({ error: errorMsg }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Check if token is expired
+    if (sessionData.token_expires_at && new Date(sessionData.token_expires_at) < new Date()) {
+      const errorMsg = 'GP51 token has expired';
+      console.error(errorMsg);
+      await updatePollingStatus(supabase, false, errorMsg);
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -45,74 +58,97 @@ serve(async (req) => {
 
     const lastQueryTime = configData?.last_successful_poll 
       ? new Date(configData.last_successful_poll).toISOString()
-      : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(); // 24 hours ago as fallback
+      : new Date(Date.now() - 60 * 60 * 1000).toISOString(); // 1 hour ago as fallback
 
-    // Call GP51 lastposition API
-    const gp51Response = await fetch('https://gp51live.com/api/lastposition', {
+    console.log('Calling GP51 lastposition API...');
+
+    // Call GP51 lastposition API using the correct endpoint
+    const gp51Response = await fetch('https://www.gps51.com/webapi?action=lastposition&token=' + encodeURIComponent(sessionData.gp51_token), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        token: sessionData.gp51_token,
+        deviceids: [], // Empty array to get all devices
         lastquerypositiontime: lastQueryTime
       })
     });
 
     if (!gp51Response.ok) {
-      console.error('GP51 API error:', gp51Response.status, gp51Response.statusText);
-      await updatePollingStatus(supabase, false, `GP51 API error: ${gp51Response.status}`);
-      return new Response(JSON.stringify({ error: 'GP51 API error' }), {
+      const errorMsg = `GP51 API HTTP error: ${gp51Response.status} ${gp51Response.statusText}`;
+      console.error(errorMsg);
+      await updatePollingStatus(supabase, false, errorMsg);
+      return new Response(JSON.stringify({ error: errorMsg }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
     const gp51Data = await gp51Response.json();
-    console.log(`Received ${gp51Data?.length || 0} vehicle updates from GP51`);
+    console.log('GP51 response status:', gp51Data.status);
 
-    if (gp51Data && Array.isArray(gp51Data) && gp51Data.length > 0) {
-      // Process each vehicle update
-      let updatedCount = 0;
-      
-      for (const vehicleData of gp51Data) {
-        try {
-          // Map GP51 data to our vehicle schema
-          const vehicleUpdate = {
-            device_id: vehicleData.deviceid,
-            device_name: vehicleData.devicename || vehicleData.deviceid,
-            status: vehicleData.strstatusen || 'Unknown',
-            last_position: {
-              lat: parseFloat(vehicleData.callat) || 0,
-              lon: parseFloat(vehicleData.callon) || 0,
-              speed: parseFloat(vehicleData.speed) || 0,
-              course: parseFloat(vehicleData.course) || 0,
-              updatetime: vehicleData.updatetime,
-              statusText: vehicleData.strstatusen || ''
-            },
-            updated_at: new Date().toISOString()
-          };
-
-          // Upsert vehicle data
-          const { error: upsertError } = await supabase
-            .from('vehicles')
-            .upsert(vehicleUpdate, {
-              onConflict: 'device_id',
-              ignoreDuplicates: false
-            });
-
-          if (upsertError) {
-            console.error('Error upserting vehicle:', vehicleData.deviceid, upsertError);
-          } else {
-            updatedCount++;
-          }
-        } catch (error) {
-          console.error('Error processing vehicle data:', vehicleData.deviceid, error);
-        }
-      }
-
-      console.log(`Successfully updated ${updatedCount} vehicles`);
+    if (gp51Data.status !== 0) {
+      const errorMsg = gp51Data.cause || 'GP51 API returned error status';
+      console.error('GP51 API error:', errorMsg);
+      await updatePollingStatus(supabase, false, errorMsg);
+      return new Response(JSON.stringify({ error: errorMsg }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
+
+    const positions = gp51Data.records || [];
+    console.log(`Received ${positions.length} position records from GP51`);
+
+    let updatedCount = 0;
+    let errorCount = 0;
+
+    // Process each vehicle position update
+    for (const position of positions) {
+      try {
+        if (!position.deviceid) {
+          console.warn('Skipping position without deviceid:', position);
+          continue;
+        }
+
+        // Map GP51 position data to our vehicle schema
+        const vehicleUpdate = {
+          last_position: {
+            lat: parseFloat(position.callat) || 0,
+            lon: parseFloat(position.callon) || 0,
+            speed: parseFloat(position.speed) || 0,
+            course: parseFloat(position.course) || 0,
+            altitude: parseFloat(position.altitude) || 0,
+            updatetime: position.updatetime,
+            statusText: position.strstatusen || '',
+            voltage: position.voltage || null,
+            gpsquality: position.gpsquality || null
+          },
+          status: position.strstatusen || 'Unknown',
+          updated_at: new Date().toISOString()
+        };
+
+        // Update vehicle by device_id
+        const { error: updateError } = await supabase
+          .from('vehicles')
+          .update(vehicleUpdate)
+          .eq('device_id', position.deviceid);
+
+        if (updateError) {
+          console.error('Error updating vehicle:', position.deviceid, updateError);
+          errorCount++;
+        } else {
+          updatedCount++;
+          console.log('Updated vehicle:', position.deviceid);
+        }
+
+      } catch (error) {
+        console.error('Error processing position for device:', position.deviceid, error);
+        errorCount++;
+      }
+    }
+
+    console.log(`Successfully updated ${updatedCount} vehicles, ${errorCount} errors`);
 
     // Update polling status as successful
     await updatePollingStatus(supabase, true);
@@ -120,7 +156,9 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        vehiclesUpdated: gp51Data?.length || 0,
+        vehiclesUpdated: updatedCount,
+        errors: errorCount,
+        totalRecords: positions.length,
         timestamp: new Date().toISOString()
       }),
       { 
@@ -158,16 +196,33 @@ serve(async (req) => {
 
 async function updatePollingStatus(supabase: any, success: boolean, errorMessage?: string) {
   try {
-    const { error } = await supabase.rpc('update_polling_status', {
+    // First try to use the RPC function
+    const { error: rpcError } = await supabase.rpc('update_polling_status', {
       p_last_poll_time: new Date().toISOString(),
       p_success: success,
       p_error_message: errorMessage || null
     });
 
-    if (error) {
-      console.error('Failed to update polling status:', error);
+    if (rpcError) {
+      console.warn('RPC update failed, trying direct update:', rpcError);
+      
+      // Fallback to direct table update
+      const { error: updateError } = await supabase
+        .from('gp51_polling_config')
+        .update({
+          last_poll_time: new Date().toISOString(),
+          last_successful_poll: success ? new Date().toISOString() : undefined,
+          error_count: success ? 0 : undefined,
+          last_error: success ? null : errorMessage,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', (await supabase.from('gp51_polling_config').select('id').single()).data?.id);
+
+      if (updateError) {
+        console.error('Failed to update polling status directly:', updateError);
+      }
     }
   } catch (error) {
-    console.error('Error calling update_polling_status:', error);
+    console.error('Error in updatePollingStatus:', error);
   }
 }
