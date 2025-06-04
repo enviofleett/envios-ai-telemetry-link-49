@@ -62,7 +62,12 @@ export const useEnhancedVehicleData = () => {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      return data as Vehicle[];
+      
+      // Transform the data to match our Vehicle interface
+      return data.map(vehicle => ({
+        ...vehicle,
+        last_position: vehicle.last_position as VehiclePosition
+      })) as Vehicle[];
     },
     refetchInterval: 30000, // Refresh every 30 seconds
   });

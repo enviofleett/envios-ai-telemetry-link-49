@@ -20,12 +20,16 @@ const EnhancedVehicleManagement = () => {
     handleVehicleAction
   } = useEnhancedVehicleData();
 
+  const handleRefresh = () => {
+    refetch();
+  };
+
   if (error) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="text-red-500 mb-4">Error loading vehicles</div>
-          <Button onClick={refetch}>Retry</Button>
+          <Button onClick={handleRefresh}>Retry</Button>
         </div>
       </div>
     );
@@ -43,7 +47,7 @@ const EnhancedVehicleManagement = () => {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={refetch}
+            onClick={handleRefresh}
             disabled={isLoading}
             className="flex items-center gap-2"
           >
