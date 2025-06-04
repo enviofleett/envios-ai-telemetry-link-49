@@ -9,6 +9,54 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      bulk_extraction_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_log: Json | null
+          extracted_data: Json | null
+          failed_accounts: number
+          id: string
+          job_name: string
+          processed_accounts: number
+          status: string
+          successful_accounts: number
+          total_accounts: number
+          total_vehicles: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          extracted_data?: Json | null
+          failed_accounts?: number
+          id?: string
+          job_name: string
+          processed_accounts?: number
+          status?: string
+          successful_accounts?: number
+          total_accounts?: number
+          total_vehicles?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          extracted_data?: Json | null
+          failed_accounts?: number
+          id?: string
+          job_name?: string
+          processed_accounts?: number
+          status?: string
+          successful_accounts?: number
+          total_accounts?: number
+          total_vehicles?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       envio_users: {
         Row: {
           created_at: string
@@ -108,6 +156,9 @@ export type Database = {
           created_at: string
           device_id: string
           device_name: string
+          extraction_job_id: string | null
+          gp51_metadata: Json | null
+          gp51_username: string | null
           id: string
           is_active: boolean | null
           last_position: Json | null
@@ -121,6 +172,9 @@ export type Database = {
           created_at?: string
           device_id: string
           device_name: string
+          extraction_job_id?: string | null
+          gp51_metadata?: Json | null
+          gp51_username?: string | null
           id?: string
           is_active?: boolean | null
           last_position?: Json | null
@@ -134,6 +188,9 @@ export type Database = {
           created_at?: string
           device_id?: string
           device_name?: string
+          extraction_job_id?: string | null
+          gp51_metadata?: Json | null
+          gp51_username?: string | null
           id?: string
           is_active?: boolean | null
           last_position?: Json | null
@@ -144,6 +201,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vehicles_extraction_job_id_fkey"
+            columns: ["extraction_job_id"]
+            isOneToOne: false
+            referencedRelation: "bulk_extraction_jobs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vehicles_session_id_fkey"
             columns: ["session_id"]

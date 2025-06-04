@@ -11,6 +11,7 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import UserManagement from "./pages/UserManagement";
 import VehicleManagement from "./pages/VehicleManagement";
+import BulkExtraction from "./pages/BulkExtraction";
 import Settings from "./pages/Settings";
 import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -49,6 +50,13 @@ const App: React.FC = () => (
               <ProtectedRoute>
                 <Layout>
                   <VehicleManagement />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/bulk-extraction" element={
+              <ProtectedRoute requireAdmin>
+                <Layout>
+                  <BulkExtraction />
                 </Layout>
               </ProtectedRoute>
             } />
