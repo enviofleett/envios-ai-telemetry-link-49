@@ -126,11 +126,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // Check for existing session
+    // Check for existing session and immediately refresh role
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('Initial session check:', session?.user?.id);
       setUser(session?.user ?? null);
       if (session?.user) {
+        // Force refresh the role to get the latest admin status
         fetchUserRole(session.user.id);
       }
       setLoading(false);
@@ -138,6 +139,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Auto-refresh role when component mounts to pick up the admin promotion
+  useEffect(() => {
+    if (user && !loading) {
+      refreshUserRole();
+    }
+  }, [user, loading]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
