@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // Pages
 import Index from "./pages/Index";
@@ -22,72 +23,97 @@ import SystemMonitoring from "./pages/SystemMonitoring";
 import NotFound from "./pages/NotFound";
 
 const App = () => {
-  // Create QueryClient inside the component to ensure proper React context
+  // Create QueryClient with stable configuration
   const [queryClient] = React.useState(() => new QueryClient({
     defaultOptions: {
       queries: {
         staleTime: 5 * 60 * 1000, // 5 minutes
         refetchOnWindowFocus: false,
+        retry: 3,
+        retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+      },
+      mutations: {
+        retry: 1,
       },
     },
   }));
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/set-password" element={<SetPassword />} />
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              } />
-              <Route path="/dashboard" element={
-                <ProtectedRoute>
-                  <EnhancedIndex />
-                </ProtectedRoute>
-              } />
-              <Route path="/users" element={
-                <ProtectedRoute>
-                  <EnhancedUserManagement />
-                </ProtectedRoute>
-              } />
-              <Route path="/vehicles" element={
-                <ProtectedRoute>
-                  <EnhancedVehicleManagement />
-                </ProtectedRoute>
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute>
-                  <Settings />
-                </ProtectedRoute>
-              } />
-              <Route path="/extraction" element={
-                <ProtectedRoute>
-                  <BulkExtraction />
-                </ProtectedRoute>
-              } />
-              <Route path="/import-review" element={
-                <ProtectedRoute>
-                  <DataImportReview />
-                </ProtectedRoute>
-              } />
-              <Route path="/monitoring" element={
-                <ProtectedRoute>
-                  <SystemMonitoring />
-                </ProtectedRoute>
-              } />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <ErrorBoundary>
+                <Routes>
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/set-password" element={<SetPassword />} />
+                  <Route path="/" element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <Index />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/dashboard" element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <EnhancedIndex />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/users" element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <EnhancedUserManagement />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/vehicles" element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <EnhancedVehicleManagement />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/settings" element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <Settings />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/extraction" element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <BulkExtraction />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/import-review" element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <DataImportReview />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/monitoring" element={
+                    <ProtectedRoute>
+                      <ErrorBoundary>
+                        <SystemMonitoring />
+                      </ErrorBoundary>
+                    </ProtectedRoute>
+                  } />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </ErrorBoundary>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 
