@@ -1,16 +1,12 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts"
+import { PasswordSetRequest } from './types.ts';
+import { validatePasswordWithGP51 } from './gp51-validator.ts';
+import { findImportedUser, updateUserPassword, updateUserFlags, storeGP51Session } from './user-service.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
-
-interface PasswordSetRequest {
-  username: string;
-  newPassword: string;
 }
 
 serve(async (req) => {
@@ -19,11 +15,6 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
     if (req.method !== 'POST') {
       return new Response(JSON.stringify({ error: 'Method not allowed' }), {
         status: 405,
@@ -45,13 +36,7 @@ serve(async (req) => {
     console.log(`Password setting attempt for user: ${username}`);
 
     // Find the imported user
-    const { data: envioUser, error: userError } = await supabase
-      .from('envio_users')
-      .select('*')
-      .eq('gp51_username', username)
-      .eq('is_gp51_imported', true)
-      .eq('needs_password_set', true)
-      .single();
+    const { envioUser, userError } = await findImportedUser(username);
 
     if (userError || !envioUser) {
       return new Response(JSON.stringify({ 
@@ -76,10 +61,7 @@ serve(async (req) => {
     }
 
     // Update user password in Supabase Auth
-    const { error: authUpdateError } = await supabase.auth.admin.updateUserById(
-      envioUser.id,
-      { password: newPassword }
-    );
+    const { authUpdateError } = await updateUserPassword(envioUser.id, newPassword);
 
     if (authUpdateError) {
       console.error('Failed to update auth password:', authUpdateError);
@@ -91,14 +73,8 @@ serve(async (req) => {
       });
     }
 
-    // Update user flags and store GP51 token
-    const { error: userUpdateError } = await supabase
-      .from('envio_users')
-      .update({
-        needs_password_set: false,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', envioUser.id);
+    // Update user flags
+    const { userUpdateError } = await updateUserFlags(envioUser.id);
 
     if (userUpdateError) {
       console.error('Failed to update user flags:', userUpdateError);
@@ -112,20 +88,7 @@ serve(async (req) => {
 
     // Store GP51 session token for future use
     if (isValidPassword.token) {
-      const tokenExpiresAt = new Date();
-      tokenExpiresAt.setHours(tokenExpiresAt.getHours() + 24); // Assume 24 hour expiry
-
-      const { error: sessionError } = await supabase
-        .from('gp51_sessions')
-        .upsert({
-          envio_user_id: envioUser.id,
-          username: username,
-          gp51_token: isValidPassword.token,
-          token_expires_at: tokenExpiresAt.toISOString(),
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'envio_user_id'
-        });
+      const { sessionError } = await storeGP51Session(envioUser.id, username, isValidPassword.token);
 
       if (sessionError) {
         console.error('Failed to store GP51 session:', sessionError);
@@ -154,64 +117,3 @@ serve(async (req) => {
     });
   }
 });
-
-async function validatePasswordWithGP51(username: string, password: string): Promise<{
-  success: boolean;
-  token?: string;
-  error?: string;
-}> {
-  try {
-    const md5Hash = await hashMD5(password);
-    
-    const authData = {
-      action: 'login',
-      username: username,
-      password: md5Hash
-    };
-
-    console.log(`Validating password for ${username} with GP51...`);
-
-    const response = await fetch('https://www.gps51.com/webapi', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(authData)
-    });
-
-    const result = await response.json();
-    
-    if (result.status === 'success' && result.token) {
-      console.log(`Password validation successful for ${username}`);
-      return {
-        success: true,
-        token: result.token
-      };
-    } else {
-      console.log(`Password validation failed for ${username}: ${result.cause || 'Unknown error'}`);
-      return {
-        success: false,
-        error: result.cause || 'GP51 authentication failed'
-      };
-    }
-
-  } catch (error) {
-    console.error(`GP51 validation error for ${username}:`, error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-async function hashMD5(text: string): Promise<string> {
-  try {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const hashBuffer = await crypto.subtle.digest('MD5', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  } catch (error) {
-    // Fallback MD5 implementation using online MD5 service as last resort
-    console.error('MD5 hashing failed, using fallback method:', error);
-    throw new Error('MD5 hashing not supported in this environment');
-  }
-}
