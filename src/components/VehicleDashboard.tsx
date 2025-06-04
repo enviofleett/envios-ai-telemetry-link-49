@@ -14,6 +14,7 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
+import { telemetryApi } from '@/services/telemetryApi';
 
 interface Vehicle {
   deviceid: string;
@@ -34,7 +35,8 @@ interface VehicleDashboardProps {
   onLogout: () => void;
 }
 
-const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles, onLogout }) => {
+const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles: initialVehicles, onLogout }) => {
+  const [vehicles, setVehicles] = useState<Vehicle[]>(initialVehicles);
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -64,12 +66,54 @@ const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles, onLogout 
     }
   };
 
+  const fetchPositions = async () => {
+    try {
+      console.log('Fetching vehicle positions...');
+      const deviceIds = vehicles.map(v => v.deviceid);
+      const result = await telemetryApi.getVehiclePositions(deviceIds);
+      
+      if (result.success && result.positions) {
+        console.log('Positions received:', result.positions);
+        
+        // Update vehicles with position data
+        setVehicles(currentVehicles => 
+          currentVehicles.map(vehicle => {
+            const position = result.positions?.find(p => p.deviceid === vehicle.deviceid);
+            if (position) {
+              return {
+                ...vehicle,
+                lastPosition: {
+                  lat: position.lat,
+                  lon: position.lon,
+                  speed: position.speed,
+                  course: position.course,
+                  updatetime: position.updatetime,
+                  statusText: position.statusText
+                }
+              };
+            }
+            return vehicle;
+          })
+        );
+        
+        setLastUpdate(new Date());
+      } else {
+        console.error('Failed to fetch positions:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching positions:', error);
+    }
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    // Simulate API call to refresh vehicle data
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setLastUpdate(new Date());
+    await fetchPositions();
     setIsRefreshing(false);
+  };
+
+  const handleLogout = () => {
+    telemetryApi.clearSession();
+    onLogout();
   };
 
   const formatTime = (date: Date) => {
@@ -81,13 +125,29 @@ const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles, onLogout 
     });
   };
 
+  // Fetch initial positions and set up periodic updates
   useEffect(() => {
-    const interval = setInterval(() => {
+    // Fetch initial positions
+    fetchPositions();
+    
+    // Set up periodic position updates every 30 seconds
+    const positionInterval = setInterval(fetchPositions, 30000);
+    
+    // Update timestamp every second
+    const timeInterval = setInterval(() => {
       setLastUpdate(new Date());
-    }, 30000); // Update every 30 seconds
+    }, 1000);
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearInterval(positionInterval);
+      clearInterval(timeInterval);
+    };
+  }, []); // Empty dependency array since vehicles come from props
+
+  // Update local state when props change
+  useEffect(() => {
+    setVehicles(initialVehicles);
+  }, [initialVehicles]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
@@ -118,7 +178,7 @@ const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles, onLogout 
                 <span>Refresh</span>
               </Button>
               <Button
-                onClick={onLogout}
+                onClick={handleLogout}
                 variant="outline"
                 size="sm"
                 className="flex items-center space-x-2 text-red-600 border-red-200 hover:bg-red-50"
@@ -138,7 +198,7 @@ const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles, onLogout 
             Fleet Overview ({vehicles.length} vehicles)
           </h2>
           <p className="text-gray-600">
-            Real-time monitoring of your vehicle fleet
+            Real-time monitoring of your vehicle fleet via GP51 Telemetry
           </p>
         </div>
 
@@ -186,6 +246,11 @@ const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles, onLogout 
                         {new Date(vehicle.lastPosition.updatetime).toLocaleString()}
                       </span>
                     </div>
+                    {vehicle.lastPosition.statusText && (
+                      <div className="text-xs text-gray-500 mt-2">
+                        Status: {vehicle.lastPosition.statusText}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-4">

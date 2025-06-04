@@ -9,7 +9,74 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      gp51_sessions: {
+        Row: {
+          created_at: string
+          gp51_token: string | null
+          id: string
+          token_expires_at: string | null
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          gp51_token?: string | null
+          id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          gp51_token?: string | null
+          id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      vehicles: {
+        Row: {
+          created_at: string
+          device_id: string
+          device_name: string
+          id: string
+          last_position: Json | null
+          session_id: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          device_id: string
+          device_name: string
+          id?: string
+          last_position?: Json | null
+          session_id?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: string
+          device_name?: string
+          id?: string
+          last_position?: Json | null
+          session_id?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "gp51_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

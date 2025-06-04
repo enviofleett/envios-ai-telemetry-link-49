@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Zap } from 'lucide-react';
+import { telemetryApi } from '@/services/telemetryApi';
 
 interface LoginFormProps {
   onLoginSuccess: (vehicles: any[]) => void;
@@ -23,23 +24,19 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
     setError('');
 
     try {
-      // Simulate API call to internal authentication endpoint
-      console.log('Authenticating with credentials:', { username, password: '***' });
+      console.log('Starting authentication with GP51 telemetry system...');
       
-      // Here we would normally call our internal API endpoint
-      // For now, we'll simulate the authentication process
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate network delay
+      const result = await telemetryApi.authenticate(username, password);
       
-      // Mock successful authentication with sample vehicles
-      const mockVehicles = [
-        { deviceid: 'VH001', devicename: 'Fleet Vehicle 001', status: 'active' },
-        { deviceid: 'VH002', devicename: 'Fleet Vehicle 002', status: 'inactive' },
-        { deviceid: 'VH003', devicename: 'Fleet Vehicle 003', status: 'active' },
-      ];
-      
-      onLoginSuccess(mockVehicles);
+      if (result.success && result.vehicles) {
+        console.log('Authentication successful, received vehicles:', result.vehicles);
+        onLoginSuccess(result.vehicles);
+      } else {
+        setError(result.error || 'Authentication failed. Please check your credentials.');
+        console.error('Authentication failed:', result.error);
+      }
     } catch (err) {
-      setError('Authentication failed. Please check your credentials.');
+      setError('Network error. Please check your connection and try again.');
       console.error('Login error:', err);
     } finally {
       setIsLoading(false);
@@ -111,7 +108,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Authenticating...
+                  Connecting to GP51...
                 </>
               ) : (
                 'Connect to Telemetry'

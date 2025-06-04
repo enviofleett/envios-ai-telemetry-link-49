@@ -1,180 +1,112 @@
 
-import { createHash } from 'crypto';
+import { supabase } from '@/integrations/supabase/client';
 
-export interface GP51LoginRequest {
-  action: string;
-  username: string;
-  password: string;
-  from: string;
-  type: string;
+interface AuthResponse {
+  success: boolean;
+  sessionId?: string;
+  vehicles?: Array<{
+    deviceid: string;
+    devicename: string;
+    status: string;
+  }>;
+  error?: string;
 }
 
-export interface GP51LoginResponse {
-  status: number;
-  cause?: string;
-  token?: string;
+interface PositionResponse {
+  success: boolean;
+  positions?: Array<{
+    deviceid: string;
+    lat: number;
+    lon: number;
+    speed: number;
+    course: number;
+    updatetime: string;
+    statusText: string;
+  }>;
+  error?: string;
 }
 
-export interface Vehicle {
-  deviceid: string;
-  devicename: string;
-  status?: string;
-}
+export class TelemetryApi {
+  private sessionId: string | null = null;
 
-export interface VehiclePosition {
-  deviceid: string;
-  callat: number;
-  callon: number;
-  updatetime: string;
-  speed: number;
-  course: number;
-  strstatusen: string;
-}
-
-export interface GP51Response<T> {
-  status: number;
-  cause?: string;
-  records?: T[];
-}
-
-class TelemetryApiService {
-  private baseUrl = 'https://www.gps51.com/webapi';
-  private token: string | null = null;
-  private username: string | null = null;
-
-  private md5Hash(text: string): string {
-    return createHash('md5').update(text).digest('hex').toLowerCase();
-  }
-
-  async authenticate(username: string, password: string): Promise<{ success: boolean; error?: string; vehicles?: Vehicle[] }> {
+  async authenticate(username: string, password: string): Promise<AuthResponse> {
     try {
-      console.log('Starting authentication process for user:', username);
+      console.log('Calling telemetry-auth function...');
       
-      const hashedPassword = this.md5Hash(password);
-      console.log('Password hashed successfully');
+      const { data, error } = await supabase.functions.invoke('telemetry-auth', {
+        body: { username, password }
+      });
 
-      const loginData: GP51LoginRequest = {
-        action: 'login',
-        username,
-        password: hashedPassword,
-        from: 'WEB',
-        type: 'USER'
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message);
+      }
+
+      if (data.error) {
+        console.error('Authentication error:', data.error);
+        return { success: false, error: data.error };
+      }
+
+      this.sessionId = data.sessionId;
+      console.log('Authentication successful, session ID:', this.sessionId);
+
+      return {
+        success: true,
+        sessionId: data.sessionId,
+        vehicles: data.vehicles
       };
-
-      const response = await fetch(`${this.baseUrl}?action=login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(loginData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result: GP51LoginResponse = await response.json();
-      console.log('GP51 login response:', result);
-
-      if (result.status === 0 && result.token) {
-        this.token = result.token;
-        this.username = username;
-        console.log('Authentication successful, token obtained');
-
-        // Immediately fetch vehicle list
-        const vehicles = await this.getVehicleList();
-        return { success: true, vehicles };
-      } else {
-        console.log('Authentication failed:', result.cause);
-        return { success: false, error: result.cause || 'Authentication failed' };
-      }
     } catch (error) {
-      console.error('Authentication error:', error);
-      return { success: false, error: 'Network error occurred' };
-    }
-  }
-
-  async getVehicleList(): Promise<Vehicle[]> {
-    if (!this.token || !this.username) {
-      throw new Error('Not authenticated');
-    }
-
-    try {
-      console.log('Fetching vehicle list...');
-      
-      const response = await fetch(`${this.baseUrl}?action=querymonitorlist&token=${this.token}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username: this.username }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result: GP51Response<Vehicle> = await response.json();
-      console.log('Vehicle list response:', result);
-
-      if (result.status === 0 && result.records) {
-        return result.records;
-      } else {
-        throw new Error(result.cause || 'Failed to fetch vehicles');
-      }
-    } catch (error) {
-      console.error('Error fetching vehicles:', error);
-      throw error;
-    }
-  }
-
-  async getLastPositions(deviceIds?: string[]): Promise<VehiclePosition[]> {
-    if (!this.token) {
-      throw new Error('Not authenticated');
-    }
-
-    try {
-      console.log('Fetching last positions...');
-      
-      const requestBody = {
-        deviceids: deviceIds || [],
-        lastquerypositiontime: ''
+      console.error('Authentication request failed:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Authentication failed' 
       };
-
-      const response = await fetch(`${this.baseUrl}?action=lastposition&token=${this.token}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result: GP51Response<VehiclePosition> = await response.json();
-      console.log('Last positions response:', result);
-
-      if (result.status === 0 && result.records) {
-        return result.records;
-      } else {
-        throw new Error(result.cause || 'Failed to fetch positions');
-      }
-    } catch (error) {
-      console.error('Error fetching positions:', error);
-      throw error;
     }
   }
 
-  isAuthenticated(): boolean {
-    return !!this.token;
+  async getVehiclePositions(deviceIds?: string[]): Promise<PositionResponse> {
+    if (!this.sessionId) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    try {
+      console.log('Calling telemetry-positions function...');
+      
+      const { data, error } = await supabase.functions.invoke('telemetry-positions', {
+        body: { sessionId: this.sessionId, deviceIds }
+      });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message);
+      }
+
+      if (data.error) {
+        console.error('Position fetch error:', data.error);
+        return { success: false, error: data.error };
+      }
+
+      console.log('Positions fetched successfully');
+      return {
+        success: true,
+        positions: data.positions
+      };
+    } catch (error) {
+      console.error('Position fetch request failed:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to fetch positions' 
+      };
+    }
   }
 
-  logout(): void {
-    this.token = null;
-    this.username = null;
+  getSessionId(): string | null {
+    return this.sessionId;
+  }
+
+  clearSession(): void {
+    this.sessionId = null;
   }
 }
 
-export const telemetryApi = new TelemetryApiService();
+export const telemetryApi = new TelemetryApi();
