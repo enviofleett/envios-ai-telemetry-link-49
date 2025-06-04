@@ -1,13 +1,11 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { RefreshCw, AlertCircle, CheckCircle, Clock, Pause, Play, X, Users, Car, Database } from 'lucide-react';
+import { RefreshCw, AlertCircle, CheckCircle, Clock, Users, Car, Database } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Json } from '@/integrations/supabase/types';
 
 interface EnhancedImportJob {
   id: string;
@@ -21,11 +19,11 @@ interface EnhancedImportJob {
   created_at: string;
   updated_at: string;
   completed_at?: string | null;
-  error_log?: any[] | null;
-  import_results?: any[] | null;
+  error_log?: Json | null;
+  import_results?: Json | null;
   admin_gp51_username?: string | null;
   import_type?: string;
-  imported_usernames?: string[] | null;
+  imported_usernames?: Json | null;
   progress_percentage?: number;
   current_step?: string;
   step_details?: string;
@@ -46,6 +44,44 @@ const ImportMonitorEnhanced: React.FC<ImportMonitorEnhancedProps> = ({ jobId, on
     currentUserRate: 0
   });
   const { toast } = useToast();
+
+  const parseErrorLog = (errorLog: Json | null): any[] => {
+    if (!errorLog) return [];
+    if (Array.isArray(errorLog)) return errorLog;
+    if (typeof errorLog === 'string') {
+      try {
+        const parsed = JSON.parse(errorLog);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const getCurrentStep = (jobData: any): string => {
+    if (jobData.status === 'completed') return 'Import Complete';
+    if (jobData.status === 'failed') return 'Import Failed';
+    if (jobData.status === 'processing') {
+      if (jobData.processed_usernames === 0) return 'Initializing...';
+      if (jobData.processed_usernames < jobData.total_usernames) return 'Processing Users';
+      return 'Finalizing Import';
+    }
+    return 'Pending';
+  };
+
+  const getStepDetails = (jobData: any): string => {
+    if (jobData.status === 'processing') {
+      return `Processing user ${jobData.processed_usernames + 1} of ${jobData.total_usernames}`;
+    }
+    if (jobData.status === 'completed') {
+      return `Successfully imported ${jobData.successful_imports} users with ${jobData.total_vehicles_imported} vehicles`;
+    }
+    if (jobData.status === 'failed') {
+      return 'Import process encountered errors';
+    }
+    return '';
+  };
 
   const loadJob = async () => {
     if (!jobId) return;
@@ -89,30 +125,6 @@ const ImportMonitorEnhanced: React.FC<ImportMonitorEnhancedProps> = ({ jobId, on
     }
   };
 
-  const getCurrentStep = (jobData: any): string => {
-    if (jobData.status === 'completed') return 'Import Complete';
-    if (jobData.status === 'failed') return 'Import Failed';
-    if (jobData.status === 'processing') {
-      if (jobData.processed_usernames === 0) return 'Initializing...';
-      if (jobData.processed_usernames < jobData.total_usernames) return 'Processing Users';
-      return 'Finalizing Import';
-    }
-    return 'Pending';
-  };
-
-  const getStepDetails = (jobData: any): string => {
-    if (jobData.status === 'processing') {
-      return `Processing user ${jobData.processed_usernames + 1} of ${jobData.total_usernames}`;
-    }
-    if (jobData.status === 'completed') {
-      return `Successfully imported ${jobData.successful_imports} users with ${jobData.total_vehicles_imported} vehicles`;
-    }
-    if (jobData.status === 'failed') {
-      return 'Import process encountered errors';
-    }
-    return '';
-  };
-
   const calculateStats = (jobData: EnhancedImportJob) => {
     if (!jobData || jobData.status !== 'processing') return;
 
@@ -154,7 +166,22 @@ const ImportMonitorEnhanced: React.FC<ImportMonitorEnhancedProps> = ({ jobId, on
           const updatedData = payload.new;
           
           const jobData: EnhancedImportJob = {
-            ...updatedData,
+            id: updatedData.id,
+            job_name: updatedData.job_name,
+            status: updatedData.status,
+            total_usernames: updatedData.total_usernames,
+            processed_usernames: updatedData.processed_usernames,
+            successful_imports: updatedData.successful_imports,
+            failed_imports: updatedData.failed_imports,
+            total_vehicles_imported: updatedData.total_vehicles_imported,
+            created_at: updatedData.created_at,
+            updated_at: updatedData.updated_at,
+            completed_at: updatedData.completed_at,
+            error_log: updatedData.error_log,
+            import_results: updatedData.import_results,
+            admin_gp51_username: updatedData.admin_gp51_username,
+            import_type: updatedData.import_type,
+            imported_usernames: updatedData.imported_usernames,
             progress_percentage: updatedData.total_usernames > 0 
               ? Math.round((updatedData.processed_usernames / updatedData.total_usernames) * 100) 
               : 0,
@@ -250,7 +277,7 @@ const ImportMonitorEnhanced: React.FC<ImportMonitorEnhancedProps> = ({ jobId, on
     }
   };
 
-  const errorLog = Array.isArray(job.error_log) ? job.error_log : [];
+  const errorLog = parseErrorLog(job.error_log);
 
   return (
     <Card>
@@ -296,7 +323,7 @@ const ImportMonitorEnhanced: React.FC<ImportMonitorEnhancedProps> = ({ jobId, on
           </div>
           <div className="text-center p-3 bg-red-50 rounded-lg border border-red-200">
             <div className="text-2xl font-bold text-red-600 flex items-center justify-center gap-1">
-              <X className="w-5 h-5" />
+              <AlertCircle className="w-5 h-5" />
               {job.failed_imports}
             </div>
             <div className="text-xs text-red-700 font-medium">Failed</div>
