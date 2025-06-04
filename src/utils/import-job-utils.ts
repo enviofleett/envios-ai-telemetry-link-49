@@ -4,15 +4,32 @@ import { ParsedErrorLog } from '@/types/import-job';
 
 export const parseErrorLog = (errorLog: Json | null): ParsedErrorLog[] => {
   if (!errorLog) return [];
-  if (Array.isArray(errorLog)) return errorLog;
+  
+  // Helper function to check if an object is a valid ParsedErrorLog
+  const isValidErrorLog = (obj: any): obj is ParsedErrorLog => {
+    return obj && 
+           typeof obj === 'object' && 
+           typeof obj.username === 'string' && 
+           typeof obj.error === 'string';
+  };
+
+  // If it's already an array, validate each item
+  if (Array.isArray(errorLog)) {
+    return errorLog.filter(isValidErrorLog);
+  }
+  
+  // If it's a string, try to parse it
   if (typeof errorLog === 'string') {
     try {
       const parsed = JSON.parse(errorLog);
-      return Array.isArray(parsed) ? parsed : [];
+      if (Array.isArray(parsed)) {
+        return parsed.filter(isValidErrorLog);
+      }
     } catch {
       return [];
     }
   }
+  
   return [];
 };
 
