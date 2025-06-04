@@ -28,8 +28,6 @@ import {
   Home,
   Car,
   Users,
-  Database,
-  Monitor,
   Settings,
   Building2
 } from 'lucide-react';
@@ -42,28 +40,13 @@ const navigationItems = [
   },
   {
     title: "Vehicle Management",
-    url: "/vehicle-management",
+    url: "/vehicles",
     icon: Car,
   },
   {
-    title: "Stable Vehicles",
-    url: "/stable-vehicle-management",
-    icon: Building2,
-  },
-  {
     title: "User Management",
-    url: "/user-management",
+    url: "/users",
     icon: Users,
-  },
-  {
-    title: "Data Import",
-    url: "/bulk-extraction",
-    icon: Database,
-  },
-  {
-    title: "System Monitor",
-    url: "/system-monitoring",
-    icon: Monitor,
   },
   {
     title: "Settings",

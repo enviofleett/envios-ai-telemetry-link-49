@@ -9,10 +9,7 @@ import { optimizedQueryClient } from "./services/optimizedQueryClient";
 import EnhancedIndex from "./pages/EnhancedIndex";
 import Auth from "./pages/Auth";
 import UserManagement from "./pages/UserManagement";
-import VehicleManagement from "./pages/VehicleManagement";
 import StableEnhancedVehicleManagement from "./pages/StableEnhancedVehicleManagement";
-import BulkExtraction from "./pages/BulkExtraction";
-import DataImportReview from "./pages/DataImportReview";
 import Settings from "./pages/Settings";
 import SetPassword from "./pages/SetPassword";
 import NotFound from "./pages/NotFound";
@@ -20,7 +17,6 @@ import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import StableErrorBoundary from "./components/StableErrorBoundary";
 import { AuthProvider } from "./contexts/AuthContext";
-import SystemMonitoringDashboard from '@/components/SystemMonitoringDashboard';
 
 function App() {
   return (
@@ -62,33 +58,6 @@ function App() {
                     </Layout>
                   </ProtectedRoute>
                 } />
-                <Route path="/vehicles-legacy" element={
-                  <ProtectedRoute>
-                    <Layout>
-                      <StableErrorBoundary>
-                        <VehicleManagement />
-                      </StableErrorBoundary>
-                    </Layout>
-                  </ProtectedRoute>
-                } />
-                <Route path="/bulk-extraction" element={
-                  <ProtectedRoute requireAdmin>
-                    <Layout>
-                      <StableErrorBoundary>
-                        <BulkExtraction />
-                      </StableErrorBoundary>
-                    </Layout>
-                  </ProtectedRoute>
-                } />
-                <Route path="/data-import-review" element={
-                  <ProtectedRoute requireAdmin>
-                    <Layout>
-                      <StableErrorBoundary>
-                        <DataImportReview />
-                      </StableErrorBoundary>
-                    </Layout>
-                  </ProtectedRoute>
-                } />
                 <Route path="/settings" element={
                   <ProtectedRoute>
                     <Layout>
@@ -98,8 +67,6 @@ function App() {
                     </Layout>
                   </ProtectedRoute>
                 } />
-                <Route path="/stable-vehicle-management" element={<StableEnhancedVehicleManagement />} />
-                <Route path="/system-monitoring" element={<SystemMonitoringDashboard />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AuthProvider>

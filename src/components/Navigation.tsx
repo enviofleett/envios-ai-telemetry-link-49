@@ -32,11 +32,8 @@ const Navigation = () => {
 
   const navigationItems = [
     { name: "Dashboard", href: "/" },
-    { name: "Vehicle Management", href: "/vehicle-management" },
-    { name: "Stable Vehicles", href: "/stable-vehicle-management" },
-    { name: "User Management", href: "/user-management" },
-    { name: "Data Import", href: "/bulk-extraction" },
-    { name: "System Monitor", href: "/system-monitoring" },
+    { name: "Vehicle Management", href: "/vehicles" },
+    { name: "User Management", href: "/users" },
     { name: "Settings", href: "/settings" },
   ];
 
