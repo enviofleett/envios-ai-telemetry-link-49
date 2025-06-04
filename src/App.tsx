@@ -1,8 +1,11 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { optimizedQueryClient } from "./services/optimizedQueryClient";
 import EnhancedIndex from "./pages/EnhancedIndex";
 import Auth from "./pages/Auth";
 import UserManagement from "./pages/UserManagement";
@@ -19,31 +22,14 @@ import StableErrorBoundary from "./components/StableErrorBoundary";
 import { AuthProvider } from "./contexts/AuthContext";
 import SystemMonitoringDashboard from '@/components/SystemMonitoringDashboard';
 
-// Enhanced QueryClient configuration for stability
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 3,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes (formerly cacheTime)
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
-    },
-    mutations: {
-      retry: 1,
-      retryDelay: 1000,
-    },
-  },
-});
-
 function App() {
   return (
     <StableErrorBoundary>
-      <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={optimizedQueryClient}>
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <ReactQueryDevtools initialIsOpen={false} />
           <BrowserRouter>
             <AuthProvider>
               <Routes>
