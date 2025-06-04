@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ExtractionJob } from '@/types/extraction';
 import { supabase } from '@/integrations/supabase/client';
 import JobCard from './JobCard';
-import ImportMonitor from './ImportMonitor';
+import ImportMonitorEnhanced from './ImportMonitorEnhanced';
 
 interface JobsListProps {
   jobs: ExtractionJob[];
@@ -103,11 +102,11 @@ const JobsList: React.FC<JobsListProps> = ({ jobs, onJobsUpdate }) => {
 
   return (
     <div className="space-y-6">
-      {/* Active Import Monitor */}
+      {/* Active Import Monitor - Using Enhanced Version */}
       {activeImportJob && (
         <div>
           <h3 className="text-lg font-semibold mb-4">Active Import Monitor</h3>
-          <ImportMonitor 
+          <ImportMonitorEnhanced 
             jobId={activeImportJob} 
             onJobComplete={() => {
               setActiveImportJob(null);
