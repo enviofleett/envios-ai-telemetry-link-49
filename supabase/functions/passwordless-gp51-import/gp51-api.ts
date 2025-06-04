@@ -1,6 +1,6 @@
 
 import { GP51Vehicle } from './types.ts';
-import { gp51RateLimiter } from '../../../src/utils/gp51-rate-limiter.ts';
+import { gp51RateLimiter } from './rate-limiter.ts';
 
 export async function getMonitorListForUser(username: string, token: string): Promise<GP51Vehicle[]> {
   console.log(`Fetching vehicle list for ${username}...`);
