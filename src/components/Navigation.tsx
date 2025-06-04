@@ -12,12 +12,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 const Navigation = () => {
-  const { logout, user } = useAuth();
+  const { signOut, user } = useAuth();
   const location = useLocation();
 
   const handleLogout = async () => {
     try {
-      await logout();
+      await signOut();
       // Redirect to login page or refresh the page
       window.location.reload();
     } catch (error) {
