@@ -7,13 +7,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to create MD5 hash using a working implementation
+// Helper function to create MD5 hash using a reliable implementation
 async function md5(input: string): Promise<string> {
-  // Import MD5 from a reliable source that works in Deno
-  const { MD5 } = await import('https://deno.land/x/crypto@v0.10.0/mod.ts');
-  const hash = new MD5();
+  // Use a pure JavaScript MD5 implementation that works in Deno
+  const { createHash } = await import('https://deno.land/std@0.168.0/node/crypto.ts');
+  const hash = createHash('md5');
   hash.update(input);
-  return hash.toString();
+  return hash.digest('hex');
 }
 
 serve(async (req) => {
