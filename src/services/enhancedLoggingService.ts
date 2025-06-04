@@ -22,33 +22,45 @@ export class EnhancedLoggingService {
   private logs: LogEntry[] = [];
   private maxLogs = 1000;
   private isEnabled = true;
+  private originalConsole: {
+    log: typeof console.log;
+    warn: typeof console.warn;
+    error: typeof console.error;
+    debug: typeof console.debug;
+  };
 
   constructor() {
+    // Store original console methods before overriding
+    this.originalConsole = {
+      log: console.log.bind(console),
+      warn: console.warn.bind(console),
+      error: console.error.bind(console),
+      debug: console.debug.bind(console)
+    };
+    
     // Initialize with console override for better debugging
     this.overrideConsole();
   }
 
   private overrideConsole(): void {
-    const originalConsole = { ...console };
-
     console.log = (...args) => {
       this.log('info', 'console', args.join(' '), { originalArgs: args });
-      originalConsole.log(...args);
+      this.originalConsole.log(...args);
     };
 
     console.warn = (...args) => {
       this.log('warn', 'console', args.join(' '), { originalArgs: args });
-      originalConsole.warn(...args);
+      this.originalConsole.warn(...args);
     };
 
     console.error = (...args) => {
       this.log('error', 'console', args.join(' '), { originalArgs: args });
-      originalConsole.error(...args);
+      this.originalConsole.error(...args);
     };
 
     console.debug = (...args) => {
       this.log('debug', 'console', args.join(' '), { originalArgs: args });
-      originalConsole.debug(...args);
+      this.originalConsole.debug(...args);
     };
   }
 
@@ -80,7 +92,7 @@ export class EnhancedLoggingService {
       this.logs = this.logs.slice(-this.maxLogs);
     }
 
-    // Also log to browser console with enhanced formatting
+    // Use original console methods to avoid recursion
     this.logToBrowserConsole(entry);
   }
 
@@ -88,14 +100,16 @@ export class EnhancedLoggingService {
     const timestamp = entry.timestamp.toISOString();
     const prefix = `[${timestamp}] [${entry.level.toUpperCase()}] [${entry.category}]`;
     
-    const consoleMethod = entry.level === 'debug' ? 'debug' :
-                         entry.level === 'info' ? 'info' :
-                         entry.level === 'warn' ? 'warn' : 'error';
+    // Use original console methods to prevent infinite recursion
+    const consoleMethod = entry.level === 'debug' ? this.originalConsole.debug :
+                         entry.level === 'info' ? this.originalConsole.log :
+                         entry.level === 'warn' ? this.originalConsole.warn : 
+                         this.originalConsole.error;
 
     if (entry.data) {
-      console[consoleMethod](`${prefix} ${entry.message}`, entry.data);
+      consoleMethod(`${prefix} ${entry.message}`, entry.data);
     } else {
-      console[consoleMethod](`${prefix} ${entry.message}`);
+      consoleMethod(`${prefix} ${entry.message}`);
     }
   }
 
