@@ -44,58 +44,115 @@ serve(async (req) => {
       const hashedPassword = await md5(password);
       console.log('Password hashed successfully. Hash length:', hashedPassword.length);
 
-      // Try multiple GP51 login payload formats
-      const loginPayloads = [
-        // Format 1: Try without action parameter
+      // Try multiple GP51 login payload formats and endpoints
+      const authenticationAttempts = [
+        // Format 1: Try original login format
         {
-          username: username,
-          password: hashedPassword,
-          from: 'WEB',
-          type: 'USER'
+          url: 'https://www.gps51.com/webapi?action=login',
+          payload: {
+            username: username,
+            password: hashedPassword,
+            from: 'WEB',
+            type: 'USER'
+          }
         },
-        // Format 2: Try with userlogin action
+        // Format 2: Try POST with action in body
         {
-          action: 'userlogin',
-          username: username,
-          password: hashedPassword,
-          from: 'WEB',
-          type: 'USER'
+          url: 'https://www.gps51.com/webapi',
+          payload: {
+            action: 'login',
+            username: username,
+            password: hashedPassword,
+            from: 'WEB',
+            type: 'USER'
+          }
         },
-        // Format 3: Try with authenticate action
+        // Format 3: Try alternative action names
         {
-          action: 'authenticate',
-          username: username,
-          password: hashedPassword,
-          from: 'WEB',
-          type: 'USER'
+          url: 'https://www.gps51.com/webapi',
+          payload: {
+            action: 'auth',
+            username: username,
+            password: hashedPassword,
+            from: 'WEB',
+            type: 'USER'
+          }
         },
-        // Format 4: Try with signin action
+        // Format 4: Try without action parameter
         {
-          action: 'signin',
-          username: username,
-          password: hashedPassword,
-          from: 'WEB',
-          type: 'USER'
+          url: 'https://www.gps51.com/webapi',
+          payload: {
+            username: username,
+            password: hashedPassword,
+            from: 'WEB',
+            type: 'USER'
+          }
+        },
+        // Format 5: Try with different endpoint structure
+        {
+          url: 'https://www.gps51.com/api/login',
+          payload: {
+            username: username,
+            password: hashedPassword,
+            from: 'WEB',
+            type: 'USER'
+          }
+        },
+        // Format 6: Try with signin action
+        {
+          url: 'https://www.gps51.com/webapi',
+          payload: {
+            action: 'signin',
+            username: username,
+            password: hashedPassword,
+            from: 'WEB',
+            type: 'USER'
+          }
+        },
+        // Format 7: Try with authenticate action
+        {
+          url: 'https://www.gps51.com/webapi',
+          payload: {
+            action: 'authenticate',
+            username: username,
+            password: hashedPassword,
+            from: 'WEB',
+            type: 'USER'
+          }
+        },
+        // Format 8: Try with different case
+        {
+          url: 'https://www.gps51.com/webapi',
+          payload: {
+            action: 'LOGIN',
+            username: username,
+            password: hashedPassword,
+            from: 'WEB',
+            type: 'USER'
+          }
         }
       ];
 
       let loginResult = null;
       let lastError = null;
+      let workingFormat = null;
 
-      // Try each payload format
-      for (let i = 0; i < loginPayloads.length; i++) {
-        const loginPayload = loginPayloads[i];
-        console.log(`Attempting GP51 login with format ${i + 1}:`, JSON.stringify(loginPayload, null, 2));
+      // Try each authentication format
+      for (let i = 0; i < authenticationAttempts.length; i++) {
+        const attempt = authenticationAttempts[i];
+        console.log(`Attempting GP51 authentication format ${i + 1}:`);
+        console.log(`URL: ${attempt.url}`);
+        console.log(`Payload: ${JSON.stringify(attempt.payload, null, 2)}`);
 
         try {
-          const loginResponse = await fetch('https://www.gps51.com/webapi', {
+          const loginResponse = await fetch(attempt.url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'User-Agent': 'Envio-Console/1.0',
               'Accept': 'application/json'
             },
-            body: JSON.stringify(loginPayload),
+            body: JSON.stringify(attempt.payload),
             signal: AbortSignal.timeout(15000) // 15 second timeout
           });
 
@@ -119,16 +176,22 @@ serve(async (req) => {
             // Check if this format was successful
             if (loginResult.status === 0 || loginResult.token || loginResult.success === true) {
               console.log(`GP51 authentication successful with format ${i + 1}`);
+              workingFormat = i + 1;
               break;
-            } else if (loginResult.status !== 8901) {
-              // Different error than "action not found", might be credentials issue
-              console.error(`GP51 authentication failed with format ${i + 1}. Status:`, loginResult.status, 'Cause:', loginResult.cause);
-              lastError = loginResult.cause || `GP51 authentication failed (status: ${loginResult.status})`;
-              break; // Don't try other formats for credential errors
-            } else {
-              // Status 8901 means "action not found", try next format
+            } else if (loginResult.status === 8901) {
+              // "action not found" error, try next format
               console.log(`Format ${i + 1} failed with "action not found", trying next format...`);
               lastError = loginResult.cause || `GP51 authentication failed (status: ${loginResult.status})`;
+            } else {
+              // Different error, might be credentials issue
+              console.error(`GP51 authentication failed with format ${i + 1}. Status:`, loginResult.status, 'Cause:', loginResult.cause);
+              lastError = loginResult.cause || `GP51 authentication failed (status: ${loginResult.status})`;
+              
+              // If it's a credential error, don't try other formats
+              if (loginResult.status === 1 || loginResult.cause?.toLowerCase().includes('password') || loginResult.cause?.toLowerCase().includes('username')) {
+                console.log('Detected credential error, stopping attempts');
+                break;
+              }
             }
           } catch (parseError) {
             console.error(`Failed to parse GP51 response as JSON for format ${i + 1}:`, parseError);
@@ -143,13 +206,25 @@ serve(async (req) => {
         }
       }
 
-      // If no format worked, return the last error
+      // If no format worked, return detailed error information
       if (!loginResult || (loginResult.status !== 0 && !loginResult.token && loginResult.success !== true)) {
+        const errorResponse = {
+          error: lastError || 'All GP51 authentication formats failed',
+          details: 'None of the attempted GP51 API formats were accepted',
+          suggestions: [
+            'Verify your GP51 username and password are correct',
+            'Check if your GP51 account is active and has API access',
+            'Contact GP51 support to verify the current API authentication method',
+            'The GP51 API may have been updated - please check their latest documentation'
+          ],
+          attemptedFormats: authenticationAttempts.length,
+          apiStatus: 'GP51 API may have changed their authentication method'
+        };
+
+        console.error('All authentication attempts failed:', errorResponse);
+        
         return new Response(
-          JSON.stringify({ 
-            error: lastError || 'All GP51 authentication formats failed',
-            details: 'Tried multiple payload formats but none were accepted by GP51 API'
-          }),
+          JSON.stringify(errorResponse),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -160,12 +235,15 @@ serve(async (req) => {
         console.error('GP51 login successful but no token received');
         console.error('Full response:', JSON.stringify(loginResult, null, 2));
         return new Response(
-          JSON.stringify({ error: 'GP51 authentication successful but no token received' }),
+          JSON.stringify({ 
+            error: 'GP51 authentication successful but no token received',
+            details: 'The GP51 API responded successfully but did not provide an authentication token'
+          }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      console.log('GP51 authentication successful. Token received:', token.substring(0, 10) + '...');
+      console.log(`GP51 authentication successful using format ${workingFormat}. Token received:`, token.substring(0, 10) + '...');
 
       // Store/update credentials in database
       try {
@@ -197,8 +275,9 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({
             success: true,
-            message: 'GP51 credentials validated and saved successfully!',
-            tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            message: `GP51 credentials validated and saved successfully! (Using authentication format ${workingFormat})`,
+            tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            workingFormat: workingFormat
           }),
           { 
             status: 200, 
