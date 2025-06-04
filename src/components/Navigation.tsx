@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Users, Car, BarChart3, Menu, X } from 'lucide-react';
+import { Users, Car, BarChart3, Settings, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
@@ -13,6 +13,7 @@ const Navigation = () => {
     { href: '/', label: 'Dashboard', icon: BarChart3 },
     { href: '/users', label: 'User Management', icon: Users },
     { href: '/vehicles', label: 'Vehicle Management', icon: Car },
+    { href: '/settings', label: 'Settings', icon: Settings },
   ];
 
   const NavContent = () => (

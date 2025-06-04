@@ -12,3 +12,6 @@ verify_jwt = false
 
 [functions.vehicle-management]
 verify_jwt = false
+
+[functions.settings-management]
+verify_jwt = false
