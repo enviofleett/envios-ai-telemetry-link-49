@@ -15,3 +15,9 @@ verify_jwt = true
 
 [functions.settings-management]
 verify_jwt = true
+
+[functions.passwordless-gp51-import]
+verify_jwt = true
+
+[functions.set-initial-password]
+verify_jwt = false

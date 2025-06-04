@@ -61,22 +61,34 @@ export type Database = {
         Row: {
           created_at: string
           email: string
+          gp51_username: string | null
           id: string
+          import_source: string | null
+          is_gp51_imported: boolean | null
           name: string
+          needs_password_set: boolean | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           email: string
+          gp51_username?: string | null
           id?: string
+          import_source?: string | null
+          is_gp51_imported?: boolean | null
           name: string
+          needs_password_set?: boolean | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           email?: string
+          gp51_username?: string | null
           id?: string
+          import_source?: string | null
+          is_gp51_imported?: boolean | null
           name?: string
+          needs_password_set?: boolean | null
           updated_at?: string
         }
         Relationships: []
@@ -119,6 +131,63 @@ export type Database = {
           },
         ]
       }
+      user_import_jobs: {
+        Row: {
+          admin_gp51_username: string | null
+          completed_at: string | null
+          created_at: string
+          error_log: Json | null
+          failed_imports: number
+          id: string
+          import_results: Json | null
+          import_type: string
+          imported_usernames: Json | null
+          job_name: string
+          processed_usernames: number
+          status: string
+          successful_imports: number
+          total_usernames: number
+          total_vehicles_imported: number
+          updated_at: string
+        }
+        Insert: {
+          admin_gp51_username?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          failed_imports?: number
+          id?: string
+          import_results?: Json | null
+          import_type?: string
+          imported_usernames?: Json | null
+          job_name: string
+          processed_usernames?: number
+          status?: string
+          successful_imports?: number
+          total_usernames?: number
+          total_vehicles_imported?: number
+          updated_at?: string
+        }
+        Update: {
+          admin_gp51_username?: string | null
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          failed_imports?: number
+          id?: string
+          import_results?: Json | null
+          import_type?: string
+          imported_usernames?: Json | null
+          job_name?: string
+          processed_usernames?: number
+          status?: string
+          successful_imports?: number
+          total_usernames?: number
+          total_vehicles_imported?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -156,10 +225,12 @@ export type Database = {
           created_at: string
           device_id: string
           device_name: string
+          envio_user_id: string | null
           extraction_job_id: string | null
           gp51_metadata: Json | null
           gp51_username: string | null
           id: string
+          import_job_type: string | null
           is_active: boolean | null
           last_position: Json | null
           notes: string | null
@@ -172,10 +243,12 @@ export type Database = {
           created_at?: string
           device_id: string
           device_name: string
+          envio_user_id?: string | null
           extraction_job_id?: string | null
           gp51_metadata?: Json | null
           gp51_username?: string | null
           id?: string
+          import_job_type?: string | null
           is_active?: boolean | null
           last_position?: Json | null
           notes?: string | null
@@ -188,10 +261,12 @@ export type Database = {
           created_at?: string
           device_id?: string
           device_name?: string
+          envio_user_id?: string | null
           extraction_job_id?: string | null
           gp51_metadata?: Json | null
           gp51_username?: string | null
           id?: string
+          import_job_type?: string | null
           is_active?: boolean | null
           last_position?: Json | null
           notes?: string | null
@@ -201,6 +276,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vehicles_envio_user_id_fkey"
+            columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vehicles_extraction_job_id_fkey"
             columns: ["extraction_job_id"]
@@ -222,6 +304,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_temp_password_hash: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
