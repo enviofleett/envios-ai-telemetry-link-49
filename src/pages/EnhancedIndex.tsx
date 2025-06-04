@@ -21,6 +21,40 @@ const EnhancedIndex = () => {
     location: alert.location
   }));
 
+  // Transform stats to match FleetSummaryCards expected metrics prop
+  const fleetMetrics = {
+    totalVehicles: stats.totalVehicles,
+    activeVehicles: stats.activeVehicles,
+    onlineVehicles: stats.onlineVehicles,
+    alertVehicles: stats.alertVehicles
+  };
+
+  // Create mock insights data for IntelligentInsights component
+  const mockInsights = {
+    fuelEfficiencyTrend: [
+      { date: '2024-01-01', efficiency: 85 },
+      { date: '2024-01-02', efficiency: 87 },
+      { date: '2024-01-03', efficiency: 83 },
+      { date: '2024-01-04', efficiency: 89 },
+      { date: '2024-01-05', efficiency: 91 }
+    ],
+    maintenanceAlerts: [
+      { vehicleId: 'V001', type: 'Oil Change', dueIn: '3 days' },
+      { vehicleId: 'V002', type: 'Tire Rotation', dueIn: '1 week' }
+    ],
+    driverBehavior: {
+      fleetScore: 78,
+      topIssues: [
+        { issue: 'Hard Braking', percentage: 15 },
+        { issue: 'Speeding', percentage: 12 }
+      ]
+    },
+    anomalies: [
+      { vehicleId: 'V003', description: 'Unusual route pattern', severity: 'medium' },
+      { vehicleId: 'V004', description: 'Extended idle time', severity: 'low' }
+    ]
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -43,7 +77,7 @@ const EnhancedIndex = () => {
         </div>
         <div className="lg:col-span-3">
           <FleetSummaryCards 
-            stats={stats}
+            metrics={fleetMetrics}
             isLoading={isLoading}
           />
         </div>
@@ -62,8 +96,8 @@ const EnhancedIndex = () => {
         {/* Intelligent Insights */}
         <div className="lg:col-span-1">
           <IntelligentInsights 
-            stats={stats}
-            recentAlerts={transformedAlerts}
+            insights={mockInsights}
+            isLoading={isLoading}
           />
         </div>
       </div>
