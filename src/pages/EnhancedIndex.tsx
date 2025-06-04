@@ -43,10 +43,7 @@ const EnhancedIndex = () => {
         </div>
         <div className="lg:col-span-3">
           <FleetSummaryCards 
-            totalVehicles={stats.totalVehicles}
-            activeVehicles={stats.activeVehicles}
-            onlineVehicles={stats.onlineVehicles}
-            alertVehicles={stats.alertVehicles}
+            stats={stats}
             isLoading={isLoading}
           />
         </div>
@@ -65,9 +62,7 @@ const EnhancedIndex = () => {
         {/* Intelligent Insights */}
         <div className="lg:col-span-1">
           <IntelligentInsights 
-            totalVehicles={stats.totalVehicles}
-            activeVehicles={stats.activeVehicles}
-            alertVehicles={stats.alertVehicles}
+            stats={stats}
             recentAlerts={transformedAlerts}
           />
         </div>
