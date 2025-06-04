@@ -1,9 +1,11 @@
 
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { PasswordlessImportJob } from './types.ts';
 import { authenticateGP51 } from './gp51-auth.ts';
 import { processUsersWithRateLimit } from './job-manager.ts';
+import { cleanupStuckJobs } from './cleanup-jobs.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,6 +43,9 @@ serve(async (req) => {
 
     console.log(`Starting passwordless import job: ${jobName} for ${targetUsernames.length} users`);
 
+    // Clean up any stuck jobs first
+    await cleanupStuckJobs(supabase);
+
     // Create import job record
     const { data: job, error: jobError } = await supabase
       .from('user_import_jobs')
@@ -63,50 +68,78 @@ serve(async (req) => {
     console.log(`Created import job ${job.id} for ${targetUsernames.length} users`);
 
     // Get admin GP51 token for data access
-    const adminToken = await authenticateGP51({ username: adminGp51Username, password: adminGp51Password });
+    try {
+      const adminToken = await authenticateGP51({ username: adminGp51Username, password: adminGp51Password });
+      console.log('Admin authentication successful, proceeding with user import...');
 
-    // Process users with rate limiting
-    const processingResults = await processUsersWithRateLimit(
-      targetUsernames,
-      adminToken,
-      job.id,
-      supabase
-    );
+      // Process users with rate limiting
+      const processingResults = await processUsersWithRateLimit(
+        targetUsernames,
+        adminToken,
+        job.id,
+        supabase
+      );
 
-    // Final job update
-    const finalStatus = processingResults.failedCount === targetUsernames.length ? 'failed' : 'completed';
-    await supabase
-      .from('user_import_jobs')
-      .update({
-        status: finalStatus,
-        processed_usernames: processingResults.processedCount,
-        successful_imports: processingResults.successCount,
-        failed_imports: processingResults.failedCount,
-        total_vehicles_imported: processingResults.totalVehicles,
-        import_results: processingResults.results,
-        error_log: processingResults.errorLog,
-        completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', job.id);
+      // Final job update
+      const finalStatus = processingResults.failedCount === targetUsernames.length ? 'failed' : 'completed';
+      await supabase
+        .from('user_import_jobs')
+        .update({
+          status: finalStatus,
+          processed_usernames: processingResults.processedCount,
+          successful_imports: processingResults.successCount,
+          failed_imports: processingResults.failedCount,
+          total_vehicles_imported: processingResults.totalVehicles,
+          import_results: processingResults.results,
+          error_log: processingResults.errorLog,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', job.id);
 
-    console.log(`Passwordless import completed. Success: ${processingResults.successCount}, Failed: ${processingResults.failedCount}, Total Vehicles: ${processingResults.totalVehicles}`);
+      console.log(`Passwordless import completed. Success: ${processingResults.successCount}, Failed: ${processingResults.failedCount}, Total Vehicles: ${processingResults.totalVehicles}`);
 
-    return new Response(JSON.stringify({
-      success: true,
-      jobId: job.id,
-      summary: {
-        totalUsers: targetUsernames.length,
-        processedUsers: processingResults.processedCount,
-        successfulImports: processingResults.successCount,
-        failedImports: processingResults.failedCount,
-        totalVehicles: processingResults.totalVehicles
-      },
-      results: processingResults.results
-    }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+      return new Response(JSON.stringify({
+        success: true,
+        jobId: job.id,
+        summary: {
+          totalUsers: targetUsernames.length,
+          processedUsers: processingResults.processedCount,
+          successfulImports: processingResults.successCount,
+          failedImports: processingResults.failedCount,
+          totalVehicles: processingResults.totalVehicles
+        },
+        results: processingResults.results
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+
+    } catch (authError) {
+      console.error('Admin authentication failed:', authError);
+      
+      // Update job status to failed
+      await supabase
+        .from('user_import_jobs')
+        .update({
+          status: 'failed',
+          error_log: [{ 
+            error: `Admin authentication failed: ${authError.message}`, 
+            timestamp: new Date().toISOString() 
+          }],
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', job.id);
+
+      return new Response(JSON.stringify({ 
+        error: 'Admin authentication failed',
+        details: authError.message,
+        jobId: job.id
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
   } catch (error) {
     console.error('Passwordless import error:', error);
@@ -119,3 +152,4 @@ serve(async (req) => {
     });
   }
 });
+
