@@ -1,100 +1,69 @@
 
-import { useState, useEffect } from 'react';
-import { telemetryApi } from '@/services/telemetryApi';
-
-interface Vehicle {
-  deviceid: string;
-  devicename: string;
-  status?: string;
-  lastPosition?: {
-    lat: number;
-    lon: number;
-    speed: number;
-    course: number;
-    updatetime: string;
-    statusText: string;
-  };
-}
+import { useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Vehicle, VehiclePosition } from '@/types/vehicle';
 
 export const useVehicleData = () => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Fetch vehicles with user information
+  const { data: vehicles = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['enhanced-vehicles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select(`
+          *,
+          envio_users (
+            name,
+            email
+          )
+        `)
+        .order('updated_at', { ascending: false });
 
-  const fetchVehicles = async () => {
-    try {
-      console.log('Fetching vehicles...');
-      const result = await telemetryApi.getVehiclePositions();
+      if (error) throw error;
       
-      if (result.success && result.positions) {
-        console.log('Vehicles received:', result.positions);
-        // Convert positions to vehicles format
-        const vehiclesData = result.positions.map(pos => ({
-          deviceid: pos.deviceid,
-          devicename: pos.deviceid, // Using deviceid as name for now
-          status: 'active',
-          lastPosition: {
-            lat: pos.lat,
-            lon: pos.lon,
-            speed: pos.speed,
-            course: pos.course,
-            updatetime: pos.updatetime,
-            statusText: pos.statusText
-          }
-        }));
-        setVehicles(vehiclesData);
-      } else {
-        console.error('Failed to fetch vehicles:', result.error);
-      }
-    } catch (error) {
-      console.error('Error fetching vehicles:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      // Transform the data to match our Vehicle interface with proper type handling
+      return data.map(vehicle => ({
+        ...vehicle,
+        last_position: vehicle.last_position as unknown as VehiclePosition
+      })) as Vehicle[];
+    },
+    refetchInterval: 30000, // Fallback refresh every 30 seconds
+  });
 
-  const fetchPositions = async () => {
-    try {
-      console.log('Fetching vehicle positions...');
-      const deviceIds = vehicles.map(v => v.deviceid);
-      if (deviceIds.length === 0) return;
-      
-      const result = await telemetryApi.getVehiclePositions(deviceIds);
-      
-      if (result.success && result.positions) {
-        console.log('Positions received:', result.positions);
-        
-        // Update vehicles with position data
-        setVehicles(currentVehicles => 
-          currentVehicles.map(vehicle => {
-            const position = result.positions?.find(p => p.deviceid === vehicle.deviceid);
-            if (position) {
-              return {
-                ...vehicle,
-                lastPosition: {
-                  lat: position.lat,
-                  lon: position.lon,
-                  speed: position.speed,
-                  course: position.course,
-                  updatetime: position.updatetime,
-                  statusText: position.statusText
-                }
-              };
-            }
-            return vehicle;
-          })
-        );
-      } else {
-        console.error('Failed to fetch positions:', result.error);
-      }
-    } catch (error) {
-      console.error('Error fetching positions:', error);
-    }
-  };
+  // Set up real-time subscription for vehicle updates
+  useEffect(() => {
+    console.log('Setting up real-time subscription for vehicles...');
+    
+    const channel = supabase
+      .channel('vehicles-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'vehicles'
+        },
+        (payload) => {
+          console.log('Real-time vehicle update received:', payload);
+          // Refetch data when vehicles are updated
+          refetch();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Real-time subscription status:', status);
+      });
+
+    return () => {
+      console.log('Cleaning up real-time subscription...');
+      supabase.removeChannel(channel);
+    };
+  }, [refetch]);
 
   return {
     vehicles,
     isLoading,
-    fetchVehicles,
-    fetchPositions
+    error,
+    refetch
   };
 };

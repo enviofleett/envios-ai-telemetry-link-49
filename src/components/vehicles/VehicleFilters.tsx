@@ -1,17 +1,10 @@
-
 import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Search, Filter, X } from 'lucide-react';
-
-interface FilterState {
-  search: string;
-  status: string;
-  user: string;
-  online: string;
-}
+import { FilterState } from '@/types/vehicle';
 
 interface VehicleFiltersProps {
   filters: FilterState;
