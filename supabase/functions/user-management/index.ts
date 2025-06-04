@@ -52,11 +52,12 @@ serve(async (req) => {
         const userId = pathSegments[pathSegments.length - 1];
         
         if (userId === 'current') {
-          // Get current user's role
+          // Get current user's role - use auth user ID directly
           const { data: userRole, error } = await supabase
             .rpc('get_user_role', { _user_id: currentUserId });
 
           if (error) {
+            console.error('Error fetching user role:', error);
             return new Response(
               JSON.stringify({ error: 'Failed to fetch user role' }),
               { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -163,9 +164,16 @@ serve(async (req) => {
         );
       }
 
+      // Create envio user record with the auth user ID if available
+      const userIdToUse = currentUserId || crypto.randomUUID();
+      
       const { data: user, error } = await supabase
         .from('envio_users')
-        .insert({ name, email })
+        .insert({ 
+          id: userIdToUse,
+          name, 
+          email 
+        })
         .select()
         .single();
 
@@ -196,7 +204,7 @@ serve(async (req) => {
 
       const bodyData = JSON.parse(requestBody);
 
-      // Handle role updates
+      // Handle role updates - use auth user ID for role operations
       if (pathSegments.includes('role')) {
         const { role } = bodyData;
 
@@ -215,11 +223,25 @@ serve(async (req) => {
           );
         }
 
-        // Update user role
+        // Get the envio user to find the corresponding auth user ID
+        const { data: envioUser } = await supabase
+          .from('envio_users')
+          .select('id, email')
+          .eq('id', userId)
+          .single();
+
+        if (!envioUser) {
+          return new Response(
+            JSON.stringify({ error: 'User not found' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Update user role using the user ID (should be auth user ID)
         const { error } = await supabase
           .from('user_roles')
           .upsert({ 
-            user_id: userId, 
+            user_id: userId, // This should be the auth user ID
             role: role,
             updated_at: new Date().toISOString()
           }, {
