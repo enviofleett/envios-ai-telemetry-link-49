@@ -1,5 +1,4 @@
 
-import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts"
 import { GP51ValidationResult } from './types.ts';
 
 export async function validatePasswordWithGP51(username: string, password: string): Promise<GP51ValidationResult> {
@@ -47,13 +46,14 @@ export async function validatePasswordWithGP51(username: string, password: strin
 
 async function hashMD5(text: string): Promise<string> {
   try {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const hashBuffer = await crypto.subtle.digest('MD5', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    // Use Deno's standard library crypto for MD5 hashing
+    const { createHash } = await import("https://deno.land/std@0.177.0/hash/mod.ts");
+    
+    const hash = createHash("md5");
+    hash.update(text);
+    return hash.toString();
   } catch (error) {
     console.error('MD5 hashing failed:', error);
-    throw new Error('MD5 hashing not supported in this environment');
+    throw new Error(`MD5 hashing failed: ${error.message}`);
   }
 }
