@@ -30,15 +30,11 @@ interface Vehicle {
   };
 }
 
-interface VehicleDashboardProps {
-  vehicles: Vehicle[];
-  onLogout: () => void;
-}
-
-const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles: initialVehicles, onLogout }) => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(initialVehicles);
+const VehicleDashboard: React.FC = () => {
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const getStatusColor = (status?: string) => {
     switch (status?.toLowerCase()) {
@@ -66,10 +62,30 @@ const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles: initialVe
     }
   };
 
+  const fetchVehicles = async () => {
+    try {
+      console.log('Fetching vehicles...');
+      const result = await telemetryApi.getVehicleList();
+      
+      if (result.success && result.vehicles) {
+        console.log('Vehicles received:', result.vehicles);
+        setVehicles(result.vehicles);
+      } else {
+        console.error('Failed to fetch vehicles:', result.error);
+      }
+    } catch (error) {
+      console.error('Error fetching vehicles:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchPositions = async () => {
     try {
       console.log('Fetching vehicle positions...');
       const deviceIds = vehicles.map(v => v.deviceid);
+      if (deviceIds.length === 0) return;
+      
       const result = await telemetryApi.getVehiclePositions(deviceIds);
       
       if (result.success && result.positions) {
@@ -113,7 +129,7 @@ const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles: initialVe
 
   const handleLogout = () => {
     telemetryApi.clearSession();
-    onLogout();
+    window.location.reload();
   };
 
   const formatTime = (date: Date) => {
@@ -125,29 +141,46 @@ const VehicleDashboard: React.FC<VehicleDashboardProps> = ({ vehicles: initialVe
     });
   };
 
-  // Fetch initial positions and set up periodic updates
+  // Fetch initial vehicles and positions
   useEffect(() => {
-    // Fetch initial positions
-    fetchPositions();
-    
-    // Set up periodic position updates every 30 seconds
-    const positionInterval = setInterval(fetchPositions, 30000);
-    
-    // Update timestamp every second
+    fetchVehicles();
+  }, []);
+
+  // Fetch positions when vehicles are loaded
+  useEffect(() => {
+    if (vehicles.length > 0) {
+      fetchPositions();
+      
+      // Set up periodic position updates every 30 seconds
+      const positionInterval = setInterval(fetchPositions, 30000);
+      
+      return () => {
+        clearInterval(positionInterval);
+      };
+    }
+  }, [vehicles.length]);
+
+  // Update timestamp every second
+  useEffect(() => {
     const timeInterval = setInterval(() => {
       setLastUpdate(new Date());
     }, 1000);
 
     return () => {
-      clearInterval(positionInterval);
       clearInterval(timeInterval);
     };
-  }, []); // Empty dependency array since vehicles come from props
+  }, []);
 
-  // Update local state when props change
-  useEffect(() => {
-    setVehicles(initialVehicles);
-  }, [initialVehicles]);
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <p className="text-gray-600">Loading vehicles...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
