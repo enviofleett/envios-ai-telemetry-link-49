@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Eye, EyeOff, CheckCircle, XCircle, Settings } from 'lucide-react';
+import { Loader2, Eye, EyeOff, CheckCircle, XCircle, Settings as SettingsIcon } from 'lucide-react';
 import { telemetryApi } from '@/services/telemetryApi';
 import { useToast } from '@/hooks/use-toast';
 import Layout from '@/components/Layout';
@@ -116,7 +116,7 @@ const Settings: React.FC = () => {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Page Header */}
         <div className="flex items-center space-x-3">
-          <Settings className="h-8 w-8 text-blue-600" />
+          <SettingsIcon className="h-8 w-8 text-blue-600" />
           <div>
             <h1 className="text-3xl font-bold text-gray-900">System Settings</h1>
             <p className="text-gray-600">Configure your Envio Console system settings</p>
