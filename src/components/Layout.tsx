@@ -1,6 +1,7 @@
 
 import React from 'react';
-import Navigation from '@/components/Navigation';
+import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from '@/components/AppSidebar';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -8,16 +9,20 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navigation />
-      <div className="md:pl-64">
-        <main className="flex-1">
-          <div className="p-4 md:p-8">
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full">
+        <AppSidebar />
+        <SidebarInset className="flex-1">
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+            <SidebarTrigger className="-ml-1" />
+            <div className="flex-1" />
+          </header>
+          <main className="flex-1 p-4 md:p-8">
             {children}
-          </div>
-        </main>
+          </main>
+        </SidebarInset>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };
 
