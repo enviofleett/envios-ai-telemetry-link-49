@@ -12,6 +12,12 @@ interface DashboardStats {
   recentImports: number;
 }
 
+interface VehiclePosition {
+  lat?: number;
+  lon?: number;
+  updatetime?: string;
+}
+
 interface RecentAlert {
   id: string;
   vehicle_name: string;
@@ -54,8 +60,9 @@ export const useDashboardData = () => {
       
       // Check if vehicles are online (last update within 30 minutes)
       const onlineVehicles = vehicles?.filter(v => {
-        if (!v.last_position?.updatetime) return false;
-        return new Date(v.last_position.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
+        const position = v.last_position as VehiclePosition | null;
+        if (!position?.updatetime) return false;
+        return new Date(position.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
       }).length || 0;
 
       // Count alert vehicles
@@ -89,15 +96,18 @@ export const useDashboardData = () => {
 
       if (error) throw error;
 
-      return vehicles?.map(vehicle => ({
-        id: vehicle.id,
-        vehicle_name: vehicle.device_name,
-        alert_type: vehicle.status || 'Unknown Alert',
-        timestamp: vehicle.updated_at,
-        location: vehicle.last_position?.lat && vehicle.last_position?.lon 
-          ? `${vehicle.last_position.lat.toFixed(6)}, ${vehicle.last_position.lon.toFixed(6)}`
-          : undefined
-      })) || [];
+      return vehicles?.map(vehicle => {
+        const position = vehicle.last_position as VehiclePosition | null;
+        return {
+          id: vehicle.id,
+          vehicle_name: vehicle.device_name,
+          alert_type: vehicle.status || 'Unknown Alert',
+          timestamp: vehicle.updated_at,
+          location: position?.lat && position?.lon 
+            ? `${position.lat.toFixed(6)}, ${position.lon.toFixed(6)}`
+            : undefined
+        };
+      }) || [];
     },
     refetchInterval: 30000,
   });

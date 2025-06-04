@@ -18,190 +18,156 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('Starting GP51 real-time polling cycle...');
+    console.log('Starting GP51 real-time polling...');
 
-    // Get polling configuration
-    const { data: config, error: configError } = await supabase
-      .from('gp51_polling_config')
-      .select('*')
+    // Get stored GP51 credentials
+    const { data: sessionData, error: sessionError } = await supabase
+      .from('gp51_sessions')
+      .select('gp51_token, username')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
-    if (configError || !config) {
-      console.error('Failed to get polling config:', configError);
-      return new Response(
-        JSON.stringify({ error: 'Polling configuration not found' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (sessionError || !sessionData?.gp51_token) {
+      console.error('No valid GP51 session found:', sessionError);
+      await updatePollingStatus(supabase, false, 'No valid GP51 session found');
+      return new Response(JSON.stringify({ error: 'No valid GP51 session' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    if (!config.is_enabled) {
-      console.log('Polling is disabled');
-      return new Response(
-        JSON.stringify({ message: 'Polling is disabled' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Get last successful poll time for incremental updates
+    const { data: configData } = await supabase
+      .from('gp51_polling_config')
+      .select('last_successful_poll')
+      .single();
+
+    const lastQueryTime = configData?.last_successful_poll 
+      ? new Date(configData.last_successful_poll).toISOString()
+      : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(); // 24 hours ago as fallback
+
+    // Call GP51 lastposition API
+    const gp51Response = await fetch('https://gp51live.com/api/lastposition', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        token: sessionData.gp51_token,
+        lastquerypositiontime: lastQueryTime
+      })
+    });
+
+    if (!gp51Response.ok) {
+      console.error('GP51 API error:', gp51Response.status, gp51Response.statusText);
+      await updatePollingStatus(supabase, false, `GP51 API error: ${gp51Response.status}`);
+      return new Response(JSON.stringify({ error: 'GP51 API error' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    const currentTime = new Date().toISOString();
-    let successCount = 0;
-    let errorCount = 0;
-    const errors: string[] = [];
+    const gp51Data = await gp51Response.json();
+    console.log(`Received ${gp51Data?.length || 0} vehicle updates from GP51`);
 
-    try {
-      // Get all active GP51 sessions with their vehicles
-      const { data: sessions, error: sessionsError } = await supabase
-        .from('gp51_sessions')
-        .select(`
-          *,
-          vehicles!vehicles_session_id_fkey (
-            id,
-            device_id,
-            device_name,
-            is_active
-          )
-        `)
-        .not('gp51_token', 'is', null)
-        .gt('token_expires_at', currentTime);
-
-      if (sessionsError) {
-        throw new Error(`Failed to fetch sessions: ${sessionsError.message}`);
-      }
-
-      console.log(`Found ${sessions?.length || 0} active GP51 sessions`);
-
-      // Process each session
-      for (const session of sessions || []) {
-        if (!session.gp51_token || new Date(session.token_expires_at) < new Date()) {
-          console.log(`Skipping expired session: ${session.username}`);
-          continue;
-        }
-
-        const activeVehicles = session.vehicles?.filter(v => v.is_active) || [];
-        if (activeVehicles.length === 0) {
-          console.log(`No active vehicles for session: ${session.username}`);
-          continue;
-        }
-
-        const deviceIds = activeVehicles.map(v => v.device_id);
-        console.log(`Polling ${deviceIds.length} vehicles for session: ${session.username}`);
-
+    if (gp51Data && Array.isArray(gp51Data) && gp51Data.length > 0) {
+      // Process each vehicle update
+      let updatedCount = 0;
+      
+      for (const vehicleData of gp51Data) {
         try {
-          // Call GP51 lastposition API
-          const lastQueryTime = config.last_successful_poll || '';
-          const positionPayload = {
-            deviceids: deviceIds,
-            lastquerypositiontime: lastQueryTime
+          // Map GP51 data to our vehicle schema
+          const vehicleUpdate = {
+            device_id: vehicleData.deviceid,
+            device_name: vehicleData.devicename || vehicleData.deviceid,
+            status: vehicleData.strstatusen || 'Unknown',
+            last_position: {
+              lat: parseFloat(vehicleData.callat) || 0,
+              lon: parseFloat(vehicleData.callon) || 0,
+              speed: parseFloat(vehicleData.speed) || 0,
+              course: parseFloat(vehicleData.course) || 0,
+              updatetime: vehicleData.updatetime,
+              statusText: vehicleData.strstatusen || ''
+            },
+            updated_at: new Date().toISOString()
           };
 
-          const gp51Response = await fetch(`https://www.gps51.com/webapi?action=lastposition&token=${session.gp51_token}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(positionPayload),
-          });
+          // Upsert vehicle data
+          const { error: upsertError } = await supabase
+            .from('vehicles')
+            .upsert(vehicleUpdate, {
+              onConflict: 'device_id',
+              ignoreDuplicates: false
+            });
 
-          if (!gp51Response.ok) {
-            throw new Error(`GP51 API returned ${gp51Response.status}`);
+          if (upsertError) {
+            console.error('Error upserting vehicle:', vehicleData.deviceid, upsertError);
+          } else {
+            updatedCount++;
           }
-
-          const gp51Result = await gp51Response.json();
-          
-          if (gp51Result.status === 1) {
-            throw new Error(`GP51 API error: ${gp51Result.cause || 'Unknown error'}`);
-          }
-
-          const positions = gp51Result.records || [];
-          console.log(`Received ${positions.length} position updates for session: ${session.username}`);
-
-          // Update vehicle positions in database
-          for (const position of positions) {
-            try {
-              const updateData = {
-                last_position: {
-                  lat: position.callat,
-                  lon: position.callon,
-                  speed: position.speed,
-                  course: position.course,
-                  updatetime: position.updatetime,
-                  statusText: position.strstatusen
-                },
-                status: position.strstatusen,
-                updated_at: new Date().toISOString()
-              };
-
-              const { error: updateError } = await supabase
-                .from('vehicles')
-                .update(updateData)
-                .eq('device_id', position.deviceid)
-                .eq('session_id', session.id);
-
-              if (updateError) {
-                console.error(`Failed to update vehicle ${position.deviceid}:`, updateError);
-                errorCount++;
-                errors.push(`Vehicle ${position.deviceid}: ${updateError.message}`);
-              } else {
-                successCount++;
-                console.log(`Updated vehicle ${position.deviceid} successfully`);
-              }
-            } catch (vehicleError) {
-              console.error(`Error processing vehicle ${position.deviceid}:`, vehicleError);
-              errorCount++;
-              errors.push(`Vehicle ${position.deviceid}: ${vehicleError.message}`);
-            }
-          }
-
-        } catch (sessionError) {
-          console.error(`Error polling session ${session.username}:`, sessionError);
-          errorCount++;
-          errors.push(`Session ${session.username}: ${sessionError.message}`);
+        } catch (error) {
+          console.error('Error processing vehicle data:', vehicleData.deviceid, error);
         }
       }
 
-      // Update polling status
-      const isSuccess = errorCount === 0;
-      const errorMessage = errors.length > 0 ? errors.join('; ') : null;
-
-      await supabase.rpc('update_polling_status', {
-        p_last_poll_time: currentTime,
-        p_success: isSuccess,
-        p_error_message: errorMessage
-      });
-
-      console.log(`Polling cycle completed. Success: ${successCount}, Errors: ${errorCount}`);
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          timestamp: currentTime,
-          sessionsProcessed: sessions?.length || 0,
-          vehiclesUpdated: successCount,
-          errors: errorCount,
-          errorDetails: errors.length > 0 ? errors : undefined
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-
-    } catch (mainError) {
-      console.error('Main polling error:', mainError);
-      
-      // Update polling status with error
-      await supabase.rpc('update_polling_status', {
-        p_last_poll_time: currentTime,
-        p_success: false,
-        p_error_message: mainError.message
-      });
-
-      throw mainError;
+      console.log(`Successfully updated ${updatedCount} vehicles`);
     }
 
+    // Update polling status as successful
+    await updatePollingStatus(supabase, true);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        vehiclesUpdated: gp51Data?.length || 0,
+        timestamp: new Date().toISOString()
+      }),
+      { 
+        status: 200, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+
   } catch (error) {
-    console.error('Critical polling error:', error);
+    console.error('GP51 polling error:', error);
+    
+    // Try to update polling status if supabase is available
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+      await updatePollingStatus(supabase, false, error.message);
+    } catch (statusError) {
+      console.error('Failed to update polling status:', statusError);
+    }
+
     return new Response(
       JSON.stringify({ 
         error: 'Internal server error',
-        details: error.message,
-        timestamp: new Date().toISOString()
+        details: error.message
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });
+
+async function updatePollingStatus(supabase: any, success: boolean, errorMessage?: string) {
+  try {
+    const { error } = await supabase.rpc('update_polling_status', {
+      p_last_poll_time: new Date().toISOString(),
+      p_success: success,
+      p_error_message: errorMessage || null
+    });
+
+    if (error) {
+      console.error('Failed to update polling status:', error);
+    }
+  } catch (error) {
+    console.error('Error calling update_polling_status:', error);
+  }
+}

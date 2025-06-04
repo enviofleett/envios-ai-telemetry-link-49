@@ -9,6 +9,18 @@ import RealTimeStatus from '@/components/dashboard/RealTimeStatus';
 const EnhancedIndex = () => {
   const { stats, recentAlerts, isLoading, lastUpdate } = useDashboardData();
 
+  // Transform recent alerts to match the expected Alert interface
+  const transformedAlerts = recentAlerts.map(alert => ({
+    id: alert.id,
+    deviceName: alert.vehicle_name,
+    deviceId: alert.id,
+    alarmType: alert.alert_type,
+    description: alert.alert_type,
+    severity: 'medium' as const,
+    timestamp: alert.timestamp,
+    location: alert.location
+  }));
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -31,7 +43,10 @@ const EnhancedIndex = () => {
         </div>
         <div className="lg:col-span-3">
           <FleetSummaryCards 
-            stats={stats}
+            totalVehicles={stats.totalVehicles}
+            activeVehicles={stats.activeVehicles}
+            onlineVehicles={stats.onlineVehicles}
+            alertVehicles={stats.alertVehicles}
             isLoading={isLoading}
           />
         </div>
@@ -42,7 +57,7 @@ const EnhancedIndex = () => {
         {/* Recent Alerts */}
         <div className="lg:col-span-2">
           <RecentAlerts 
-            alerts={recentAlerts}
+            alerts={transformedAlerts}
             isLoading={isLoading}
           />
         </div>
@@ -50,8 +65,10 @@ const EnhancedIndex = () => {
         {/* Intelligent Insights */}
         <div className="lg:col-span-1">
           <IntelligentInsights 
-            stats={stats}
-            alerts={recentAlerts}
+            totalVehicles={stats.totalVehicles}
+            activeVehicles={stats.activeVehicles}
+            alertVehicles={stats.alertVehicles}
+            recentAlerts={transformedAlerts}
           />
         </div>
       </div>
