@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,6 +17,7 @@ import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import StableErrorBoundary from "./components/StableErrorBoundary";
 import { AuthProvider } from "./contexts/AuthContext";
+import SystemMonitoringDashboard from '@/components/SystemMonitoringDashboard';
 
 // Enhanced QueryClient configuration for stability
 const queryClient = new QueryClient({
@@ -37,87 +37,91 @@ const queryClient = new QueryClient({
   },
 });
 
-const App = () => (
-  <StableErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/set-password" element={<SetPassword />} />
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <StableErrorBoundary>
-                      <EnhancedIndex />
-                    </StableErrorBoundary>
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/users" element={
-                <ProtectedRoute requireAdmin>
-                  <Layout>
-                    <StableErrorBoundary>
-                      <UserManagement />
-                    </StableErrorBoundary>
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/vehicles" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <StableErrorBoundary>
-                      <StableEnhancedVehicleManagement />
-                    </StableErrorBoundary>
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/vehicles-legacy" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <StableErrorBoundary>
-                      <VehicleManagement />
-                    </StableErrorBoundary>
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/bulk-extraction" element={
-                <ProtectedRoute requireAdmin>
-                  <Layout>
-                    <StableErrorBoundary>
-                      <BulkExtraction />
-                    </StableErrorBoundary>
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/data-import-review" element={
-                <ProtectedRoute requireAdmin>
-                  <Layout>
-                    <StableErrorBoundary>
-                      <DataImportReview />
-                    </StableErrorBoundary>
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <StableErrorBoundary>
-                      <Settings />
-                    </StableErrorBoundary>
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </StableErrorBoundary>
-);
+function App() {
+  return (
+    <StableErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <Routes>
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/set-password" element={<SetPassword />} />
+                <Route path="/" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <StableErrorBoundary>
+                        <EnhancedIndex />
+                      </StableErrorBoundary>
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/users" element={
+                  <ProtectedRoute requireAdmin>
+                    <Layout>
+                      <StableErrorBoundary>
+                        <UserManagement />
+                      </StableErrorBoundary>
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/vehicles" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <StableErrorBoundary>
+                        <StableEnhancedVehicleManagement />
+                      </StableErrorBoundary>
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/vehicles-legacy" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <StableErrorBoundary>
+                        <VehicleManagement />
+                      </StableErrorBoundary>
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/bulk-extraction" element={
+                  <ProtectedRoute requireAdmin>
+                    <Layout>
+                      <StableErrorBoundary>
+                        <BulkExtraction />
+                      </StableErrorBoundary>
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/data-import-review" element={
+                  <ProtectedRoute requireAdmin>
+                    <Layout>
+                      <StableErrorBoundary>
+                        <DataImportReview />
+                      </StableErrorBoundary>
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/settings" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <StableErrorBoundary>
+                        <Settings />
+                      </StableErrorBoundary>
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/stable-vehicle-management" element={<StableEnhancedVehicleManagement />} />
+                <Route path="/system-monitoring" element={<SystemMonitoringDashboard />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </StableErrorBoundary>
+  );
+}
 
 export default App;

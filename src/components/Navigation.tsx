@@ -1,128 +1,143 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Users, Car, BarChart3, Settings, Menu, LogOut, Shield, Database, FileCheck } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 const Navigation = () => {
+  const { logout, user } = useAuth();
   const location = useLocation();
-  const [isOpen, setIsOpen] = React.useState(false);
-  const { user, isAdmin, signOut } = useAuth();
 
-  const navItems = [
-    { href: '/', label: 'Dashboard', icon: BarChart3, adminOnly: false },
-    { href: '/users', label: 'User Management', icon: Users, adminOnly: true },
-    { href: '/vehicles', label: 'Vehicle Management', icon: Car, adminOnly: false },
-    { href: '/bulk-extraction', label: 'Bulk Extraction', icon: Database, adminOnly: true },
-    { href: '/data-import-review', label: 'Import Review', icon: FileCheck, adminOnly: true },
-    { href: '/settings', label: 'Settings', icon: Settings, adminOnly: false },
-  ];
-
-  const handleSignOut = async () => {
-    await signOut();
-    setIsOpen(false);
+  const handleLogout = async () => {
+    try {
+      await logout();
+      // Redirect to login page or refresh the page
+      window.location.reload();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
   };
 
-  const NavContent = () => (
-    <nav className="flex flex-col space-y-2">
-      {navItems
-        .filter(item => !item.adminOnly || isAdmin)
-        .map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname === item.href;
-          
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                isActive 
-                  ? 'bg-blue-100 text-blue-700 font-medium' 
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-              onClick={() => setIsOpen(false)}
-            >
-              <Icon className="h-5 w-5" />
-              <span>{item.label}</span>
-              {item.adminOnly && (
-                <Shield className="h-4 w-4 text-orange-500" />
-              )}
-            </Link>
-          );
-        })}
-      
-      <div className="pt-4 border-t border-gray-200">
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50"
-          onClick={handleSignOut}
-        >
-          <LogOut className="h-5 w-5 mr-2" />
-          Sign Out
-        </Button>
+  return (
+    <nav className="bg-white shadow-sm border-b">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex">
+            <div className="flex-shrink-0 flex items-center">
+              <h1 className="text-xl font-bold text-gray-900">Envío Console</h1>
+            </div>
+            <div className="ml-6 flex space-x-8">
+              <Link
+                to="/"
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  location.pathname === '/' 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Dashboard
+              </Link>
+              
+              <Link
+                to="/vehicle-management"
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  location.pathname === '/vehicle-management' 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Vehicle Management
+              </Link>
+
+              <Link
+                to="/stable-vehicle-management"
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  location.pathname === '/stable-vehicle-management' 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Stable Vehicles
+              </Link>
+
+              <Link
+                to="/user-management"
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  location.pathname === '/user-management' 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                User Management
+              </Link>
+
+              <Link
+                to="/bulk-extraction"
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  location.pathname === '/bulk-extraction' 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Data Import
+              </Link>
+
+              <Link
+                to="/system-monitoring"
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  location.pathname === '/system-monitoring' 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                System Monitor
+              </Link>
+
+              <Link
+                to="/settings"
+                className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                  location.pathname === '/settings' 
+                    ? 'border-blue-500 text-gray-900' 
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Settings
+              </Link>
+            </div>
+          </div>
+
+          <div className="flex items-center">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="outline-none focus:outline-none rounded-full">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+                    <AvatarFallback>{user?.email[0].toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 mr-2">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout}>
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
       </div>
     </nav>
-  );
-
-  return (
-    <>
-      {/* Desktop Navigation */}
-      <div className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 md:bg-white md:border-r md:border-gray-200">
-        <div className="flex-1 flex flex-col min-h-0 pt-5 pb-4">
-          <div className="flex items-center flex-shrink-0 px-4">
-            <h1 className="text-xl font-bold text-gray-900">Envio Console</h1>
-            {isAdmin && (
-              <Badge variant="secondary" className="ml-2 text-xs">
-                Admin
-              </Badge>
-            )}
-          </div>
-          <div className="flex-1 flex flex-col overflow-y-auto mt-8">
-            <NavContent />
-          </div>
-          {user && (
-            <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200">
-              <div className="text-sm text-gray-600">
-                Signed in as: <span className="font-medium">{user.email}</span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Mobile Navigation */}
-      <div className="md:hidden">
-        <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h1 className="text-lg font-semibold text-gray-900">Envio Console</h1>
-            {isAdmin && (
-              <Badge variant="secondary" className="text-xs">
-                Admin
-              </Badge>
-            )}
-          </div>
-          <Sheet open={isOpen} onOpenChange={setIsOpen}>
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="sm">
-                <Menu className="h-6 w-6" />
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="w-64">
-              <div className="py-4">
-                <NavContent />
-                {user && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 text-sm text-gray-600">
-                    Signed in as: <span className="font-medium">{user.email}</span>
-                  </div>
-                )}
-              </div>
-            </SheetContent>
-          </Sheet>
-        </div>
-      </div>
-    </>
   );
 };
 
