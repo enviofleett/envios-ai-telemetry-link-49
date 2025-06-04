@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, AlertCircle, CheckCircle, Clock, Pause, Play, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Json } from '@/integrations/supabase/types';
 
 interface ImportJob {
   id: string;
@@ -20,12 +21,12 @@ interface ImportJob {
   created_at: string;
   updated_at: string;
   completed_at?: string | null;
-  error_log?: any[];
-  import_results?: any;
+  error_log?: Json | null;
+  import_results?: Json | null;
   admin_gp51_username?: string | null;
   import_type?: string;
-  imported_usernames?: any;
-  // Optional fields that might not be in database but we calculate
+  imported_usernames?: Json | null;
+  // Calculated fields
   progress_percentage?: number;
   current_step?: string;
   step_details?: string;
@@ -42,6 +43,30 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const { toast } = useToast();
 
+  const getCurrentStep = (jobData: any): string => {
+    if (jobData.status === 'completed') return 'Import Complete';
+    if (jobData.status === 'failed') return 'Import Failed';
+    if (jobData.status === 'processing') {
+      if (jobData.processed_usernames === 0) return 'Initializing...';
+      if (jobData.processed_usernames < jobData.total_usernames) return 'Processing Users';
+      return 'Finalizing Import';
+    }
+    return 'Pending';
+  };
+
+  const getStepDetails = (jobData: any): string => {
+    if (jobData.status === 'processing') {
+      return `Processing user ${jobData.processed_usernames + 1} of ${jobData.total_usernames}`;
+    }
+    if (jobData.status === 'completed') {
+      return `Successfully imported ${jobData.successful_imports} users with ${jobData.total_vehicles_imported} vehicles`;
+    }
+    if (jobData.status === 'failed') {
+      return 'Import process encountered errors';
+    }
+    return '';
+  };
+
   const loadJob = async () => {
     if (!jobId) return;
     
@@ -54,7 +79,7 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
 
       if (error) throw error;
       
-      // Calculate derived fields
+      // Calculate derived fields and ensure proper typing
       const jobData: ImportJob = {
         ...data,
         progress_percentage: data.total_usernames > 0 
@@ -82,30 +107,6 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
     }
   };
 
-  const getCurrentStep = (jobData: any): string => {
-    if (jobData.status === 'completed') return 'Import Complete';
-    if (jobData.status === 'failed') return 'Import Failed';
-    if (jobData.status === 'processing') {
-      if (jobData.processed_usernames === 0) return 'Initializing...';
-      if (jobData.processed_usernames < jobData.total_usernames) return 'Processing Users';
-      return 'Finalizing Import';
-    }
-    return 'Pending';
-  };
-
-  const getStepDetails = (jobData: any): string => {
-    if (jobData.status === 'processing') {
-      return `Processing user ${jobData.processed_usernames + 1} of ${jobData.total_usernames}`;
-    }
-    if (jobData.status === 'completed') {
-      return `Successfully imported ${jobData.successful_imports} users with ${jobData.total_vehicles_imported} vehicles`;
-    }
-    if (jobData.status === 'failed') {
-      return 'Import process encountered errors';
-    }
-    return '';
-  };
-
   useEffect(() => {
     if (!jobId) return;
 
@@ -124,25 +125,42 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
         },
         (payload) => {
           console.log('Job update received:', payload);
+          // Ensure we have all required properties from the payload
+          const updatedData = payload.new;
           const jobData: ImportJob = {
-            ...payload.new,
-            progress_percentage: payload.new.total_usernames > 0 
-              ? Math.round((payload.new.processed_usernames / payload.new.total_usernames) * 100) 
+            id: updatedData.id,
+            job_name: updatedData.job_name,
+            status: updatedData.status,
+            total_usernames: updatedData.total_usernames,
+            processed_usernames: updatedData.processed_usernames,
+            successful_imports: updatedData.successful_imports,
+            failed_imports: updatedData.failed_imports,
+            total_vehicles_imported: updatedData.total_vehicles_imported,
+            created_at: updatedData.created_at,
+            updated_at: updatedData.updated_at,
+            completed_at: updatedData.completed_at,
+            error_log: updatedData.error_log,
+            import_results: updatedData.import_results,
+            admin_gp51_username: updatedData.admin_gp51_username,
+            import_type: updatedData.import_type,
+            imported_usernames: updatedData.imported_usernames,
+            progress_percentage: updatedData.total_usernames > 0 
+              ? Math.round((updatedData.processed_usernames / updatedData.total_usernames) * 100) 
               : 0,
-            current_step: getCurrentStep(payload.new),
-            step_details: getStepDetails(payload.new)
+            current_step: getCurrentStep(updatedData),
+            step_details: getStepDetails(updatedData)
           };
           
           setJob(jobData);
           setLastUpdate(new Date().toLocaleTimeString());
           
-          if (payload.new.status === 'completed') {
+          if (updatedData.status === 'completed') {
             toast({
               title: "Import Completed",
-              description: `Successfully imported ${payload.new.successful_imports} users with ${payload.new.total_vehicles_imported} vehicles`,
+              description: `Successfully imported ${updatedData.successful_imports} users with ${updatedData.total_vehicles_imported} vehicles`,
             });
             onJobComplete?.();
-          } else if (payload.new.status === 'failed') {
+          } else if (updatedData.status === 'failed') {
             toast({
               title: "Import Failed",
               description: "The import job has failed. Check the error logs for details.",
@@ -193,6 +211,20 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
     }
   };
 
+  const parseErrorLog = (errorLog: Json | null): any[] => {
+    if (!errorLog) return [];
+    if (Array.isArray(errorLog)) return errorLog;
+    if (typeof errorLog === 'string') {
+      try {
+        const parsed = JSON.parse(errorLog);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
   if (!jobId) {
     return (
       <Card>
@@ -223,6 +255,8 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
       </Card>
     );
   }
+
+  const errorLog = parseErrorLog(job.error_log);
 
   return (
     <Card>
@@ -278,11 +312,11 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
         </div>
 
         {/* Recent Errors */}
-        {job.error_log && job.error_log.length > 0 && (
+        {errorLog.length > 0 && (
           <div className="bg-red-50 p-3 rounded-lg">
             <div className="font-medium text-red-800 mb-2">Recent Errors:</div>
             <div className="space-y-1 max-h-32 overflow-y-auto">
-              {job.error_log.slice(-3).map((error: any, index: number) => (
+              {errorLog.slice(-3).map((error: any, index: number) => (
                 <div key={index} className="text-sm text-red-600">
                   <strong>{error.username}:</strong> {error.error}
                 </div>
