@@ -8,6 +8,7 @@ import EnhancedIndex from "./pages/EnhancedIndex";
 import Auth from "./pages/Auth";
 import UserManagement from "./pages/UserManagement";
 import VehicleManagement from "./pages/VehicleManagement";
+import EnhancedVehicleManagement from "./pages/EnhancedVehicleManagement";
 import BulkExtraction from "./pages/BulkExtraction";
 import DataImportReview from "./pages/DataImportReview";
 import Settings from "./pages/Settings";
@@ -44,6 +45,13 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/vehicles" element={
+              <ProtectedRoute>
+                <Layout>
+                  <EnhancedVehicleManagement />
+                </Layout>
+              </ProtectedRoute>
+            } />
+            <Route path="/vehicles-legacy" element={
               <ProtectedRoute>
                 <Layout>
                   <VehicleManagement />

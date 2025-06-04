@@ -29,6 +29,13 @@ interface Alert {
   timestamp: string;
 }
 
+interface VehiclePosition {
+  updatetime?: string;
+  lat?: number;
+  lon?: number;
+  [key: string]: any;
+}
+
 export const useDashboardData = () => {
   const [metrics, setMetrics] = useState<FleetMetrics>({
     totalVehicles: 0,
@@ -66,10 +73,11 @@ export const useDashboardData = () => {
       
       // Check online status based on last position update time (last 30 minutes)
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-      const onlineVehicles = vehicles?.filter(v => 
-        v.last_position?.updatetime && 
-        new Date(v.last_position.updatetime) > thirtyMinutesAgo
-      ).length || 0;
+      const onlineVehicles = vehicles?.filter(v => {
+        const lastPosition = v.last_position as VehiclePosition;
+        return lastPosition?.updatetime && 
+               new Date(lastPosition.updatetime) > thirtyMinutesAgo;
+      }).length || 0;
 
       // Check for alert vehicles (simplified - based on status)
       const alertVehicles = vehicles?.filter(v => 
