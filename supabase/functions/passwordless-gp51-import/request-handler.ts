@@ -1,5 +1,5 @@
 
-import { serve } from 'std/server';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { cors } from './cors.ts';
 import { rateLimit } from './rate-limiting.ts';
 import { handlePasswordlessImportRequest } from './main-handler.ts';
