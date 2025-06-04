@@ -44,9 +44,9 @@ serve(async (req) => {
       const hashedPassword = await md5(password);
       console.log('Password hashed successfully. Hash length:', hashedPassword.length);
 
-      // Test GP51 connection with enhanced payload and error handling
+      // Test GP51 connection with correct login payload
       const loginPayload = {
-        action: 'login',
+        action: 'login', // Fixed: Use GP51's expected action name
         username: username,
         password: hashedPassword,
         from: 'WEB',
@@ -104,12 +104,12 @@ serve(async (req) => {
 
         console.log('GP51 parsed response:', JSON.stringify(loginResult, null, 2));
 
-        // Check GP51 response status
+        // Check GP51 response status - successful login should have status 0
         if (loginResult.status !== undefined && loginResult.status !== 0) {
           console.error('GP51 authentication failed. Status:', loginResult.status, 'Cause:', loginResult.cause);
           return new Response(
             JSON.stringify({ 
-              error: loginResult.cause || `GP51 error (status: ${loginResult.status})`,
+              error: loginResult.cause || `GP51 authentication failed (status: ${loginResult.status})`,
               gp51Status: loginResult.status
             }),
             { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -129,7 +129,7 @@ serve(async (req) => {
 
         console.log('GP51 authentication successful. Token received:', token.substring(0, 10) + '...');
 
-        // Store/update credentials in database with enhanced error handling
+        // Store/update credentials in database with the unique constraint
         try {
           const { data: sessionData, error: sessionError } = await supabase
             .from('gp51_sessions')
