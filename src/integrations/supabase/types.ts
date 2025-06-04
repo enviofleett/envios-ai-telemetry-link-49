@@ -9,9 +9,34 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      envio_users: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       gp51_sessions: {
         Row: {
           created_at: string
+          envio_user_id: string | null
           gp51_token: string | null
           id: string
           token_expires_at: string | null
@@ -20,6 +45,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
           token_expires_at?: string | null
@@ -28,13 +54,22 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
           token_expires_at?: string | null
           updated_at?: string
           username?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "gp51_sessions_envio_user_id_fkey"
+            columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vehicles: {
         Row: {
@@ -42,8 +77,11 @@ export type Database = {
           device_id: string
           device_name: string
           id: string
+          is_active: boolean | null
           last_position: Json | null
+          notes: string | null
           session_id: string | null
+          sim_number: string | null
           status: string | null
           updated_at: string
         }
@@ -52,8 +90,11 @@ export type Database = {
           device_id: string
           device_name: string
           id?: string
+          is_active?: boolean | null
           last_position?: Json | null
+          notes?: string | null
           session_id?: string | null
+          sim_number?: string | null
           status?: string | null
           updated_at?: string
         }
@@ -62,8 +103,11 @@ export type Database = {
           device_id?: string
           device_name?: string
           id?: string
+          is_active?: boolean | null
           last_position?: Json | null
+          notes?: string | null
           session_id?: string | null
+          sim_number?: string | null
           status?: string | null
           updated_at?: string
         }
