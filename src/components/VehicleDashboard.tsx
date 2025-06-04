@@ -1,19 +1,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { telemetryApi } from '@/services/telemetryApi';
-import { useVehicleData } from '@/hooks/useVehicleData';
+import { useEnhancedVehicleData } from '@/hooks/useEnhancedVehicleData';
 import DashboardHeader from './DashboardHeader';
 import VehicleGrid from './VehicleGrid';
 import LoadingSpinner from './LoadingSpinner';
 
 const VehicleDashboard: React.FC = () => {
-  const { vehicles, isLoading, fetchVehicles, fetchPositions } = useVehicleData();
+  const { vehicles, isLoading, refetch } = useEnhancedVehicleData();
   const [lastUpdate, setLastUpdate] = useState(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchPositions();
+    await refetch();
     setIsRefreshing(false);
   };
 
@@ -21,25 +21,6 @@ const VehicleDashboard: React.FC = () => {
     telemetryApi.clearSession();
     window.location.reload();
   };
-
-  // Fetch initial vehicles and positions
-  useEffect(() => {
-    fetchVehicles();
-  }, []);
-
-  // Fetch positions when vehicles are loaded
-  useEffect(() => {
-    if (vehicles.length > 0) {
-      fetchPositions();
-      
-      // Set up periodic position updates every 30 seconds
-      const positionInterval = setInterval(fetchPositions, 30000);
-      
-      return () => {
-        clearInterval(positionInterval);
-      };
-    }
-  }, [vehicles.length]);
 
   // Update timestamp every second
   useEffect(() => {
