@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Car, MapPin, Clock, Share2, History, Edit, Eye, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,6 +12,8 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import OptimizedVehicleCard from '@/components/vehicles/OptimizedVehicleCard';
+import { usePerformanceMonitoring } from '@/hooks/usePerformanceMonitoring';
 
 interface Vehicle {
   id: string;
@@ -54,13 +55,26 @@ const VehicleManagement = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Performance monitoring for this page
+  const { metrics } = usePerformanceMonitoring('VehicleManagement', {
+    onAlert: (alert) => {
+      console.warn('Vehicle Management performance alert:', alert);
+    }
+  });
+
+  // Use optimized query with better caching strategy
   const { data: vehiclesData, isLoading } = useQuery({
     queryKey: ['vehicles-management'],
     queryFn: async () => {
+      console.log('Fetching vehicles data...');
       const { data, error } = await supabase.functions.invoke('vehicle-management');
       if (error) throw error;
       return data.vehicles as Vehicle[];
     },
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   const updateVehicleMutation = useMutation({
@@ -114,20 +128,25 @@ const VehicleManagement = () => {
     },
   });
 
-  const filteredVehicles = vehiclesData?.filter(vehicle => {
-    const matchesSearch = vehicle.device_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vehicle.device_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (vehicle.sim_number && vehicle.sim_number.toLowerCase().includes(searchTerm.toLowerCase()));
+  // Optimized filtering with useMemo for better performance
+  const filteredVehicles = React.useMemo(() => {
+    if (!vehiclesData) return [];
     
-    const matchesStatus = statusFilter === 'all' || 
-                         (statusFilter === 'active' && vehicle.is_active) ||
-                         (statusFilter === 'inactive' && !vehicle.is_active) ||
-                         vehicle.status?.toLowerCase() === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  }) || [];
+    return vehiclesData.filter(vehicle => {
+      const matchesSearch = vehicle.device_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           vehicle.device_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (vehicle.sim_number && vehicle.sim_number.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+      const matchesStatus = statusFilter === 'all' || 
+                           (statusFilter === 'active' && vehicle.is_active) ||
+                           (statusFilter === 'inactive' && !vehicle.is_active) ||
+                           vehicle.status?.toLowerCase() === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [vehiclesData, searchTerm, statusFilter]);
 
-  const handleEditVehicle = (vehicle: Vehicle) => {
+  const handleEditVehicle = React.useCallback((vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     setFormData({
       notes: vehicle.notes || '',
@@ -135,9 +154,9 @@ const VehicleManagement = () => {
       isActive: vehicle.is_active
     });
     setIsEditDialogOpen(true);
-  };
+  }, []);
 
-  const handleUpdateVehicle = (e: React.FormEvent) => {
+  const handleUpdateVehicle = React.useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (selectedVehicle) {
       updateVehicleMutation.mutate({
@@ -145,32 +164,31 @@ const VehicleManagement = () => {
         ...formData
       });
     }
-  };
+  }, [selectedVehicle, formData, updateVehicleMutation]);
 
-  const handleShareTrack = (vehicle: Vehicle) => {
+  const handleShareTrack = React.useCallback((vehicle: Vehicle) => {
     generateShareUrlMutation.mutate({
       deviceId: vehicle.device_id,
       sessionId: vehicle.gp51_sessions.id
     });
-  };
+  }, [generateShareUrlMutation]);
+
+  const handleViewMap = React.useCallback((vehicle: Vehicle) => {
+    console.log('View map for vehicle:', vehicle.device_id);
+    // TODO: Implement map view
+  }, []);
+
+  const handleViewHistory = React.useCallback((vehicle: Vehicle) => {
+    console.log('View history for vehicle:', vehicle.device_id);
+    // TODO: Implement history view
+  }, []);
+
+  const handleViewDetails = React.useCallback((vehicle: Vehicle) => {
+    handleEditVehicle(vehicle);
+  }, [handleEditVehicle]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
-  };
-
-  const getStatusColor = (status: string, isActive: boolean) => {
-    if (!isActive) return 'secondary';
-    switch (status?.toLowerCase()) {
-      case 'online':
-      case 'active':
-        return 'default';
-      case 'offline':
-        return 'destructive';
-      case 'alert':
-        return 'destructive';
-      default:
-        return 'secondary';
-    }
   };
 
   const copyToClipboard = (text: string) => {
@@ -189,7 +207,14 @@ const VehicleManagement = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Vehicle Management</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Vehicle Management</h1>
+          {process.env.NODE_ENV === 'development' && (
+            <p className="text-xs text-gray-500">
+              Performance: {metrics.renderCount} renders, {metrics.averageRenderTime.toFixed(1)}ms avg
+            </p>
+          )}
+        </div>
         <div className="text-sm text-gray-500">
           {filteredVehicles.length} vehicles found
         </div>
@@ -223,65 +248,13 @@ const VehicleManagement = () => {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredVehicles.map((vehicle) => (
-          <Card key={vehicle.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-100 p-2 rounded-full">
-                    <Car className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">{vehicle.device_name}</CardTitle>
-                    <div className="text-sm text-gray-500">ID: {vehicle.device_id}</div>
-                  </div>
-                </div>
-                <Badge variant={getStatusColor(vehicle.status, vehicle.is_active)}>
-                  {vehicle.is_active ? vehicle.status || 'Unknown' : 'Inactive'}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {vehicle.sim_number && (
-                <div className="text-sm">
-                  <span className="font-medium">SIM:</span> {vehicle.sim_number}
-                </div>
-              )}
-              
-              {vehicle.last_position && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="h-3 w-3 text-gray-400" />
-                    <span>Lat: {vehicle.last_position.lat.toFixed(6)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="ml-5">Lon: {vehicle.last_position.lon.toFixed(6)}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-3 w-3 text-gray-400" />
-                    <span>{formatDate(vehicle.last_position.updatetime)}</span>
-                  </div>
-                </div>
-              )}
-
-              {vehicle.notes && (
-                <div className="text-sm">
-                  <span className="font-medium">Notes:</span>
-                  <p className="text-gray-600 mt-1">{vehicle.notes}</p>
-                </div>
-              )}
-
-              <div className="flex gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => handleEditVehicle(vehicle)}>
-                  <Edit className="h-3 w-3 mr-1" />
-                  Edit
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => handleShareTrack(vehicle)}>
-                  <Share2 className="h-3 w-3 mr-1" />
-                  Share
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <OptimizedVehicleCard
+            key={vehicle.id}
+            vehicle={vehicle}
+            onViewMap={handleViewMap}
+            onViewHistory={handleViewHistory}
+            onViewDetails={handleViewDetails}
+          />
         ))}
       </div>
 
