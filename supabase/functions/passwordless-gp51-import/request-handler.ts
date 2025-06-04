@@ -1,10 +1,11 @@
+
 import { serve } from 'std/server';
 import { cors } from './cors.ts';
 import { createClient } from '@supabase/supabase-js';
 import { GP51User, GP51Vehicle } from './types.ts';
 import { validate as uuidValidate } from 'uuid';
-import { RateLimit, InMemoryStore } from 'upstash/rateLimit';
-import { KvRestApi } from '@upstash/kv';
+import { RateLimit, InMemoryStore } from 'https://esm.sh/@upstash/ratelimit@0.4.4';
+import { KvRestApi } from 'https://esm.sh/@upstash/kv@1.0.1';
 
 interface Env {
   SUPABASE_URL: string;
