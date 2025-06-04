@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, Download, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { Json } from '@/integrations/supabase/types';
 
 interface ExtractionJob {
   id: string;
@@ -22,9 +23,9 @@ interface ExtractionJob {
   failed_accounts: number;
   total_vehicles: number;
   created_at: string;
-  completed_at?: string;
-  extracted_data?: any;
-  error_log?: any[];
+  completed_at?: string | null;
+  extracted_data?: Json;
+  error_log?: Json;
 }
 
 const BulkExtractionManager: React.FC = () => {
@@ -291,11 +292,11 @@ const BulkExtractionManager: React.FC = () => {
                       )}
                     </div>
 
-                    {job.error_log && job.error_log.length > 0 && (
+                    {job.error_log && Array.isArray(job.error_log) && job.error_log.length > 0 && (
                       <div>
                         <h4 className="font-medium text-red-600 mb-2">Failed Accounts ({job.error_log.length})</h4>
                         <div className="bg-red-50 p-3 rounded max-h-40 overflow-y-auto">
-                          {job.error_log.map((error, index) => (
+                          {job.error_log.map((error: any, index: number) => (
                             <div key={index} className="text-sm mb-2">
                               <strong>{error.username}:</strong> {error.error}
                             </div>
