@@ -1,11 +1,10 @@
 
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { PasswordlessImportJob } from './types.ts';
-import { authenticateGP51 } from './gp51-auth.ts';
 import { processUsersWithRateLimit } from './job-manager.ts';
 import { cleanupStuckJobs } from './cleanup-jobs.ts';
+import { getStoredGP51Credentials } from './credential-manager.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -30,21 +29,38 @@ serve(async (req) => {
       });
     }
 
-    const { jobName, adminGp51Username, adminGp51Password, targetUsernames }: PasswordlessImportJob = await req.json();
+    const { jobName, targetUsernames }: { jobName: string; targetUsernames: string[] } = await req.json();
 
-    if (!jobName || !adminGp51Username || !adminGp51Password || !targetUsernames || !Array.isArray(targetUsernames)) {
+    if (!jobName || !targetUsernames || !Array.isArray(targetUsernames)) {
       return new Response(JSON.stringify({ 
-        error: 'Invalid request. jobName, adminGp51Username, adminGp51Password, and targetUsernames array required.' 
+        error: 'Invalid request. jobName and targetUsernames array required.' 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    console.log(`Starting passwordless import job: ${jobName} for ${targetUsernames.length} users`);
+    console.log(`Starting automated passwordless import job: ${jobName} for ${targetUsernames.length} users`);
 
     // Clean up any stuck jobs first
     await cleanupStuckJobs(supabase);
+
+    // Get stored GP51 credentials instead of requiring manual input
+    const credentialsResult = await getStoredGP51Credentials(supabase);
+    
+    if (!credentialsResult.success) {
+      console.error('Failed to get stored GP51 credentials:', credentialsResult.error);
+      return new Response(JSON.stringify({ 
+        error: 'GP51 connection not configured',
+        details: credentialsResult.error,
+        action: 'Please configure GP51 credentials in Admin Settings'
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const { token: adminToken, username: adminUsername } = credentialsResult;
 
     // Create import job record
     const { data: job, error: jobError } = await supabase
@@ -53,7 +69,7 @@ serve(async (req) => {
         job_name: jobName,
         import_type: 'passwordless',
         total_usernames: targetUsernames.length,
-        admin_gp51_username: adminGp51Username,
+        admin_gp51_username: adminUsername,
         imported_usernames: targetUsernames,
         status: 'processing'
       })
@@ -65,17 +81,15 @@ serve(async (req) => {
       throw new Error('Failed to create import job');
     }
 
-    console.log(`Created import job ${job.id} for ${targetUsernames.length} users`);
+    console.log(`Created import job ${job.id} using stored credentials for admin ${adminUsername}`);
 
-    // Get admin GP51 token for data access
     try {
-      const adminToken = await authenticateGP51({ username: adminGp51Username, password: adminGp51Password });
-      console.log('Admin authentication successful, proceeding with user import...');
+      console.log('Using stored GP51 credentials for data import...');
 
-      // Process users with rate limiting
+      // Process users with rate limiting using the stored admin token
       const processingResults = await processUsersWithRateLimit(
         targetUsernames,
-        adminToken,
+        adminToken!,
         job.id,
         supabase
       );
@@ -97,7 +111,7 @@ serve(async (req) => {
         })
         .eq('id', job.id);
 
-      console.log(`Passwordless import completed. Success: ${processingResults.successCount}, Failed: ${processingResults.failedCount}, Total Vehicles: ${processingResults.totalVehicles}`);
+      console.log(`Automated passwordless import completed. Success: ${processingResults.successCount}, Failed: ${processingResults.failedCount}, Total Vehicles: ${processingResults.totalVehicles}`);
 
       return new Response(JSON.stringify({
         success: true,
@@ -109,14 +123,15 @@ serve(async (req) => {
           failedImports: processingResults.failedCount,
           totalVehicles: processingResults.totalVehicles
         },
-        results: processingResults.results
+        results: processingResults.results,
+        adminUsername: adminUsername
       }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
 
-    } catch (authError) {
-      console.error('Admin authentication failed:', authError);
+    } catch (importError) {
+      console.error('Import process failed:', importError);
       
       // Update job status to failed
       await supabase
@@ -124,7 +139,7 @@ serve(async (req) => {
         .update({
           status: 'failed',
           error_log: [{ 
-            error: `Admin authentication failed: ${authError.message}`, 
+            error: `Import process failed: ${importError.message}`, 
             timestamp: new Date().toISOString() 
           }],
           updated_at: new Date().toISOString()
@@ -132,11 +147,11 @@ serve(async (req) => {
         .eq('id', job.id);
 
       return new Response(JSON.stringify({ 
-        error: 'Admin authentication failed',
-        details: authError.message,
+        error: 'Import process failed',
+        details: importError.message,
         jobId: job.id
       }), {
-        status: 401,
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
@@ -152,4 +167,3 @@ serve(async (req) => {
     });
   }
 });
-

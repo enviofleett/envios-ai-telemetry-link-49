@@ -6,9 +6,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { UserPlus, AlertCircle, Info } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { UserPlus, AlertCircle, Info, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 
 interface PasswordlessImportFormProps {
   onJobStarted: () => void;
@@ -16,11 +18,22 @@ interface PasswordlessImportFormProps {
 
 const PasswordlessImportForm: React.FC<PasswordlessImportFormProps> = ({ onJobStarted }) => {
   const [jobName, setJobName] = useState('');
-  const [adminUsername, setAdminUsername] = useState('');
-  const [adminPassword, setAdminPassword] = useState('');
   const [usernamesText, setUsernamesText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
+
+  // Check GP51 connection status
+  const { data: gp51Status, isLoading: statusLoading } = useQuery({
+    queryKey: ['gp51-status'],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'get-gp51-status' }
+      });
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
 
   const parseUsernames = (text: string) => {
     const lines = text.trim().split('\n').filter(line => line.trim());
@@ -37,20 +50,20 @@ const PasswordlessImportForm: React.FC<PasswordlessImportFormProps> = ({ onJobSt
       return;
     }
 
-    if (!adminUsername.trim() || !adminPassword.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter admin GP51 credentials",
-        variant: "destructive"
-      });
-      return;
-    }
-
     const usernames = parseUsernames(usernamesText);
     if (usernames.length === 0) {
       toast({
         title: "Error",
         description: "Please enter at least one username to import",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!gp51Status?.connected) {
+      toast({
+        title: "Error",
+        description: "GP51 credentials not configured. Please set up connection in Admin Settings.",
         variant: "destructive"
       });
       return;
@@ -62,8 +75,6 @@ const PasswordlessImportForm: React.FC<PasswordlessImportFormProps> = ({ onJobSt
       const response = await supabase.functions.invoke('passwordless-gp51-import', {
         body: {
           jobName: jobName.trim(),
-          adminGp51Username: adminUsername.trim(),
-          adminGp51Password: adminPassword.trim(),
           targetUsernames: usernames
         }
       });
@@ -74,12 +85,10 @@ const PasswordlessImportForm: React.FC<PasswordlessImportFormProps> = ({ onJobSt
 
       toast({
         title: "Success",
-        description: `Started passwordless import for ${usernames.length} users`,
+        description: `Started automated passwordless import for ${usernames.length} users using stored GP51 credentials`,
       });
 
       setJobName('');
-      setAdminUsername('');
-      setAdminPassword('');
       setUsernamesText('');
       onJobStarted();
 
@@ -95,21 +104,72 @@ const PasswordlessImportForm: React.FC<PasswordlessImportFormProps> = ({ onJobSt
     }
   };
 
+  const getConnectionStatus = () => {
+    if (statusLoading) return { icon: null, text: 'Checking...', variant: 'secondary' as const };
+    if (gp51Status?.connected) {
+      return { 
+        icon: <CheckCircle className="h-4 w-4" />, 
+        text: 'Connected', 
+        variant: 'default' as const 
+      };
+    }
+    return { 
+      icon: <XCircle className="h-4 w-4" />, 
+      text: 'Not Connected', 
+      variant: 'destructive' as const 
+    };
+  };
+
+  const status = getConnectionStatus();
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <UserPlus className="w-5 h-5" />
-          Passwordless User Import
+          Automated Passwordless User Import
+          <Badge variant="outline" className="text-xs">
+            Uses Stored Credentials
+          </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <Alert>
           <Info className="h-4 w-4" />
           <AlertDescription>
-            Import GP51 users without their passwords. Users will need to set their passwords later using GP51 validation.
+            Import GP51 users using stored admin credentials. No manual password input required.
           </AlertDescription>
         </Alert>
+
+        {/* GP51 Connection Status */}
+        <div className="p-3 border rounded-lg bg-gray-50">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">GP51 Connection Status:</span>
+            <Badge variant={status.variant} className="flex items-center gap-1">
+              {status.icon}
+              {status.text}
+            </Badge>
+          </div>
+          {gp51Status?.connected && gp51Status?.username && (
+            <p className="text-xs text-gray-600 mt-1">
+              Connected as: {gp51Status.username}
+            </p>
+          )}
+          {gp51Status?.connected && gp51Status?.expiresAt && (
+            <p className="text-xs text-gray-600">
+              Token expires: {new Date(gp51Status.expiresAt).toLocaleString()}
+            </p>
+          )}
+        </div>
+
+        {!gp51Status?.connected && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              GP51 credentials not configured. Please set up the connection in Admin Settings before proceeding.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div>
           <Label htmlFor="jobName">Job Name</Label>
@@ -120,30 +180,6 @@ const PasswordlessImportForm: React.FC<PasswordlessImportFormProps> = ({ onJobSt
             placeholder="e.g., Q1 2024 User Migration"
             disabled={isProcessing}
           />
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="adminUsername">Admin GP51 Username</Label>
-            <Input
-              id="adminUsername"
-              value={adminUsername}
-              onChange={(e) => setAdminUsername(e.target.value)}
-              placeholder="Your GP51 admin username"
-              disabled={isProcessing}
-            />
-          </div>
-          <div>
-            <Label htmlFor="adminPassword">Admin GP51 Password</Label>
-            <Input
-              id="adminPassword"
-              type="password"
-              value={adminPassword}
-              onChange={(e) => setAdminPassword(e.target.value)}
-              placeholder="Your GP51 admin password"
-              disabled={isProcessing}
-            />
-          </div>
         </div>
 
         <div>
@@ -164,17 +200,17 @@ const PasswordlessImportForm: React.FC<PasswordlessImportFormProps> = ({ onJobSt
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            This will create Envio accounts for the specified GP51 users. Users will receive temporary accounts 
-            and must set their passwords through GP51 validation before gaining full access.
+            This will create Envio accounts for the specified GP51 users using the stored admin credentials. 
+            Users will receive temporary accounts and must set their passwords through GP51 validation.
           </AlertDescription>
         </Alert>
 
         <Button 
           onClick={startPasswordlessImport} 
-          disabled={isProcessing}
+          disabled={isProcessing || !gp51Status?.connected}
           className="w-full"
         >
-          {isProcessing ? 'Processing...' : 'Start Passwordless Import'}
+          {isProcessing ? 'Processing...' : 'Start Automated Import'}
         </Button>
       </CardContent>
     </Card>

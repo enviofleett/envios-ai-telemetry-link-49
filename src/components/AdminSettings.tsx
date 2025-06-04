@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Shield, CheckCircle, XCircle } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -47,13 +47,37 @@ const AdminSettings = () => {
       setPassword('');
       toast({ 
         title: 'GP51 Credentials Saved',
-        description: data.message || 'Successfully connected to GP51!'
+        description: data.message || 'Successfully connected to GP51! These credentials will be used for automated imports.'
       });
     },
     onError: (error: any) => {
       toast({ 
         title: 'Connection Failed', 
         description: error.message || 'Failed to connect to GP51',
+        variant: 'destructive' 
+      });
+    },
+  });
+
+  const refreshConnectionMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'get-gp51-status' }
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gp51-status'] });
+      toast({ 
+        title: 'Connection Refreshed',
+        description: 'GP51 connection status updated successfully'
+      });
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: 'Refresh Failed', 
+        description: error.message || 'Failed to refresh GP51 connection status',
         variant: 'destructive' 
       });
     },
@@ -102,17 +126,27 @@ const AdminSettings = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">Status:</span>
-          <Badge variant={status.variant} className="flex items-center gap-1">
-            {status.icon}
-            {status.text}
-          </Badge>
-          {gp51Status?.connected && (
-            <span className="text-xs text-gray-500">
-              as {gp51Status.username}
-            </span>
-          )}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">Status:</span>
+            <Badge variant={status.variant} className="flex items-center gap-1">
+              {status.icon}
+              {status.text}
+            </Badge>
+            {gp51Status?.connected && (
+              <span className="text-xs text-gray-500">
+                as {gp51Status.username}
+              </span>
+            )}
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => refreshConnectionMutation.mutate()}
+            disabled={refreshConnectionMutation.isPending}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
         </div>
 
         {gp51Status?.connected && gp51Status?.expiresAt && (
@@ -159,8 +193,9 @@ const AdminSettings = () => {
 
         <Alert>
           <AlertDescription className="text-sm">
-            These credentials will be used to authenticate with the GP51 platform and fetch vehicle data.
-            Only administrators can configure this connection.
+            <strong>Automated Import Integration:</strong> These credentials will be securely stored and used 
+            for automated passwordless imports. Once connected, the system can import GP51 user and vehicle 
+            data without requiring manual password input for each import operation.
           </AlertDescription>
         </Alert>
       </CardContent>
