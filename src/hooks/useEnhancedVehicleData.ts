@@ -2,41 +2,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { Vehicle, FilterState, VehiclePosition } from '@/types/vehicle';
 
-interface VehiclePosition {
-  lat: number;
-  lon: number;
-  speed: number;
-  course: number;
-  updatetime: string;
-  statusText: string;
-}
-
-interface Vehicle {
-  id: string;
-  device_id: string;
-  device_name: string;
-  status?: string;
-  sim_number?: string;
-  notes?: string;
-  is_active: boolean;
-  last_position?: VehiclePosition;
-  envio_user_id?: string;
-  gp51_metadata?: any;
-  created_at: string;
-  updated_at: string;
-  envio_users?: {
-    name: string;
-    email: string;
-  };
-}
-
-interface FilterState {
-  search: string;
-  status: string;
-  user: string;
-  online: string;
-}
+// Type guard to safely cast Json to VehiclePosition
+const isVehiclePosition = (data: any): data is VehiclePosition => {
+  return data && typeof data === 'object' && 
+         typeof data.lat === 'number' && 
+         typeof data.lon === 'number' && 
+         typeof data.speed === 'number' && 
+         typeof data.course === 'number' && 
+         typeof data.updatetime === 'string' && 
+         typeof data.statusText === 'string';
+};
 
 export const useEnhancedVehicleData = () => {
   const [filters, setFilters] = useState<FilterState>({
@@ -62,7 +39,21 @@ export const useEnhancedVehicleData = () => {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      return data as Vehicle[];
+      
+      // Transform the data to match our Vehicle interface
+      const transformedData: Vehicle[] = data.map(vehicle => ({
+        ...vehicle,
+        last_position: vehicle.last_position && isVehiclePosition(vehicle.last_position) ? {
+          lat: vehicle.last_position.lat,
+          lon: vehicle.last_position.lon,
+          speed: vehicle.last_position.speed,
+          course: vehicle.last_position.course,
+          updatetime: vehicle.last_position.updatetime,
+          statusText: vehicle.last_position.statusText
+        } : undefined
+      }));
+
+      return transformedData;
     },
     refetchInterval: 30000, // Refresh every 30 seconds
   });

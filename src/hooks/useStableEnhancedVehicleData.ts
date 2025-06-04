@@ -2,7 +2,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Vehicle, FilterState, VehicleStatistics } from '@/types/vehicle';
+import { Vehicle, FilterState, VehicleStatistics, VehiclePosition } from '@/types/vehicle';
+
+// Type guard to safely cast Json to VehiclePosition
+const isVehiclePosition = (data: any): data is VehiclePosition => {
+  return data && typeof data === 'object' && 
+         typeof data.lat === 'number' && 
+         typeof data.lon === 'number' && 
+         typeof data.speed === 'number' && 
+         typeof data.course === 'number' && 
+         typeof data.updatetime === 'string' && 
+         typeof data.statusText === 'string';
+};
 
 export const useStableEnhancedVehicleData = () => {
   const [filters, setFilters] = useState<FilterState>({
@@ -37,13 +48,13 @@ export const useStableEnhancedVehicleData = () => {
       // Transform the data to match our Vehicle interface
       const transformedData: Vehicle[] = data.map(vehicle => ({
         ...vehicle,
-        last_position: vehicle.last_position ? {
-          lat: vehicle.last_position.lat || 0,
-          lon: vehicle.last_position.lon || 0,
-          speed: vehicle.last_position.speed || 0,
-          course: vehicle.last_position.course || 0,
-          updatetime: vehicle.last_position.updatetime || new Date().toISOString(),
-          statusText: vehicle.last_position.statusText || ''
+        last_position: vehicle.last_position && isVehiclePosition(vehicle.last_position) ? {
+          lat: vehicle.last_position.lat,
+          lon: vehicle.last_position.lon,
+          speed: vehicle.last_position.speed,
+          course: vehicle.last_position.course,
+          updatetime: vehicle.last_position.updatetime,
+          statusText: vehicle.last_position.statusText
         } : undefined
       }));
 
