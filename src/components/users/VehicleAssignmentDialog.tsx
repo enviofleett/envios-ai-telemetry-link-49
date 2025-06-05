@@ -10,21 +10,13 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Car, Plus, Minus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Vehicle } from '@/types/vehicle';
 
 interface User {
   id: string;
   name: string;
   email: string;
   gp51_username?: string;
-}
-
-interface Vehicle {
-  id: string;
-  device_id: string;
-  device_name: string;
-  gp51_username?: string;
-  status?: string;
-  assigned_to?: string;
 }
 
 interface VehicleAssignmentDialogProps {
