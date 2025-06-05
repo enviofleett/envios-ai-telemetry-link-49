@@ -1,49 +1,66 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import type { SessionValidationResult } from './types';
+
+interface SessionValidationResult {
+  valid: boolean;
+  error?: string;
+  username?: string;
+  expiresAt?: string;
+}
 
 export class GP51SessionValidator {
   async validateGP51Session(): Promise<SessionValidationResult> {
     try {
-      // Get the admin username from envio_users
-      const { data: adminUsers, error: adminError } = await supabase
-        .from('envio_users')
-        .select('gp51_username')
-        .not('gp51_username', 'is', null)
-        .limit(1);
+      console.log('Validating GP51 session...');
 
-      if (adminError || !adminUsers || adminUsers.length === 0) {
-        return { valid: false, error: 'No admin GP51 username found' };
-      }
-
-      const adminUsername = adminUsers[0].gp51_username;
-
-      // Check if we have a valid session for this username
-      const { data: sessions, error: sessionError } = await supabase
+      // Get the most recent GP51 session
+      const { data: session, error: sessionError } = await supabase
         .from('gp51_sessions')
-        .select('*')
-        .eq('username', adminUsername)
+        .select('username, gp51_token, token_expires_at')
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(1)
+        .single();
 
-      if (sessionError || !sessions || sessions.length === 0) {
-        return { valid: false, error: `No GP51 session found for username: ${adminUsername}` };
+      if (sessionError) {
+        console.error('No GP51 session found:', sessionError);
+        return {
+          valid: false,
+          error: 'No GP51 session configured. Please set up GP51 connection in Admin Settings.'
+        };
       }
 
-      const session = sessions[0];
-
-      // Check if session is still valid
-      if (new Date(session.token_expires_at) <= new Date()) {
-        return { valid: false, error: 'GP51 session expired' };
+      if (!session || !session.gp51_token) {
+        return {
+          valid: false,
+          error: 'No valid GP51 token found'
+        };
       }
 
-      console.log(`Valid GP51 session found for username: ${adminUsername}`);
-      return { valid: true };
+      // Check if token is still valid
+      const now = new Date();
+      const expiresAt = new Date(session.token_expires_at);
+
+      if (expiresAt <= now) {
+        console.error(`GP51 token expired at ${expiresAt.toISOString()}`);
+        return {
+          valid: false,
+          error: 'GP51 token has expired. Please refresh connection in Admin Settings.'
+        };
+      }
+
+      console.log(`Valid GP51 session found for username: ${session.username}`);
+      
+      return {
+        valid: true,
+        username: session.username,
+        expiresAt: session.token_expires_at
+      };
 
     } catch (error) {
-      return { 
-        valid: false, 
-        error: error instanceof Error ? error.message : 'Session validation failed' 
+      console.error('Session validation error:', error);
+      return {
+        valid: false,
+        error: `Session validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     }
   }

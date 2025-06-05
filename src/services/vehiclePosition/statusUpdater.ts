@@ -12,6 +12,8 @@ export class SyncStatusUpdater {
 
       if (error) {
         console.error('Failed to update sync status:', error);
+      } else {
+        console.log(`Sync status updated: ${success ? 'success' : 'failed'}`);
       }
     } catch (error) {
       console.error('Error updating sync status:', error);
