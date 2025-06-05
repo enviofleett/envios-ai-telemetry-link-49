@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface PageLoadingState {
   isInitialLoading: boolean;
@@ -45,10 +45,6 @@ export const usePageLoadingState = (options: UsePageLoadingOptions = {}) => {
         error: null,
         isInitialLoading: true
       }));
-      
-      setTimeout(() => {
-        // Trigger retry logic here
-      }, retryDelay);
     }
   };
 

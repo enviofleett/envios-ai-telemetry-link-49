@@ -6,7 +6,6 @@ import { useVehicleData } from '@/hooks/useVehicleData';
 import DashboardHeader from './DashboardHeader';
 import VehicleGrid from './VehicleGrid';
 import LoadingFallback from './LoadingFallback';
-import ErrorBoundary from './ErrorBoundary';
 
 const VehicleDashboard: React.FC = () => {
   const { vehicles, isLoading, fetchVehicles, fetchPositions } = useVehicleData();
@@ -19,14 +18,12 @@ const VehicleDashboard: React.FC = () => {
     setError(null);
     
     try {
-      // Use the new position sync service for more reliable updates
       await vehiclePositionSyncService.forceSync();
       await fetchVehicles();
     } catch (error) {
       console.error('Refresh failed:', error);
       setError('Failed to refresh vehicle data');
       
-      // Fallback to original method
       try {
         await fetchPositions();
       } catch (fallbackError) {
@@ -39,24 +36,19 @@ const VehicleDashboard: React.FC = () => {
 
   const handleLogout = () => {
     try {
-      // Stop position sync service
       vehiclePositionSyncService.stopPeriodicSync();
       telemetryApi.clearSession();
       window.location.reload();
     } catch (error) {
       console.error('Error during logout:', error);
-      // Force reload anyway
       window.location.reload();
     }
   };
 
-  // Fetch initial vehicles and start position sync
   useEffect(() => {
     const initializeDashboard = async () => {
       try {
         await fetchVehicles();
-        
-        // Initialize position sync service
         vehiclePositionSyncService.startPeriodicSync();
       } catch (error) {
         console.error('Failed to initialize dashboard:', error);
@@ -67,7 +59,6 @@ const VehicleDashboard: React.FC = () => {
     initializeDashboard();
     
     return () => {
-      // Cleanup on unmount
       try {
         vehiclePositionSyncService.stopPeriodicSync();
       } catch (error) {
@@ -76,7 +67,6 @@ const VehicleDashboard: React.FC = () => {
     };
   }, [fetchVehicles]);
 
-  // Update timestamp every second
   useEffect(() => {
     const timeInterval = setInterval(() => {
       setLastUpdate(new Date());
@@ -109,17 +99,15 @@ const VehicleDashboard: React.FC = () => {
   }
 
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
-        <DashboardHeader
-          lastUpdate={lastUpdate}
-          isRefreshing={isRefreshing}
-          onRefresh={handleRefresh}
-          onLogout={handleLogout}
-        />
-        <VehicleGrid vehicles={vehicles} />
-      </div>
-    </ErrorBoundary>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50">
+      <DashboardHeader
+        lastUpdate={lastUpdate}
+        isRefreshing={isRefreshing}
+        onRefresh={handleRefresh}
+        onLogout={handleLogout}
+      />
+      <VehicleGrid vehicles={vehicles} />
+    </div>
   );
 };
 

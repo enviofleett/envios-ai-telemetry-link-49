@@ -35,26 +35,16 @@ export const optimizedQueryClient = new QueryClient({
   },
 });
 
-// Create optimizedQueryService with metrics and management functions
+// Simplified query service with essential metrics only
 export const optimizedQueryService = {
   getMetrics: () => {
     const queryCache = optimizedQueryClient.getQueryCache();
-    const mutationCache = optimizedQueryClient.getMutationCache();
-    
     const queries = queryCache.getAll();
-    const mutations = mutationCache.getAll();
     
     const totalQueries = queries.length;
     const failedQueries = queries.filter(q => q.state.status === 'error').length;
     const cacheHits = queries.filter(q => q.state.dataUpdatedAt > 0).length;
     const cacheMisses = totalQueries - cacheHits;
-    
-    // Calculate average query time (simplified - using dataUpdatedAt as proxy)
-    const queryTimes = queries
-      .map(q => q.state.dataUpdatedAt)
-      .filter(t => t > 0);
-    const averageQueryTime = queryTimes.length > 0 ? 
-      queryTimes.reduce((a, b) => a + b, 0) / queryTimes.length : 0;
     
     return {
       totalQueries,
@@ -62,26 +52,7 @@ export const optimizedQueryService = {
       cacheHits,
       cacheMisses,
       cacheSize: totalQueries,
-      averageQueryTime: averageQueryTime || 0,
-    };
-  },
-
-  getDetailedCacheInfo: () => {
-    const queryCache = optimizedQueryClient.getQueryCache();
-    const queries = queryCache.getAll();
-    
-    const totalQueries = queries.length;
-    const activeQueries = queries.filter(q => q.getObserversCount() > 0).length;
-    const staleQueries = queries.filter(q => q.isStale()).length;
-    
-    // Rough estimate of cache size
-    const cacheSizeEstimate = `~${Math.round(totalQueries * 0.5)}KB`;
-    
-    return {
-      totalQueries,
-      activeQueries,
-      staleQueries,
-      cacheSizeEstimate,
+      averageQueryTime: 0, // Simplified
     };
   },
 
