@@ -2,10 +2,8 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
 import { 
   MapPin, 
   Navigation, 
@@ -14,67 +12,35 @@ import {
   Search,
   RefreshCw,
   Car,
-  Activity
+  Activity,
+  Filter
 } from 'lucide-react';
+import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
+import LiveTrackingFilters from '@/components/tracking/LiveTrackingFilters';
+import LiveVehicleCard from '@/components/tracking/LiveVehicleCard';
+import LiveTrackingStats from '@/components/tracking/LiveTrackingStats';
+import LiveTrackingMap from '@/components/tracking/LiveTrackingMap';
 
 const LiveTracking: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  
-  const { data: vehicles, isLoading, refetch } = useQuery({
-    queryKey: ['live-tracking-vehicles'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('*')
-        .eq('is_active', true)
-        .order('device_name');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline' | 'alerts'>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState<'cards' | 'map'>('cards');
 
-      if (error) throw error;
-      return data || [];
-    },
-    refetchInterval: 30000, // Refresh every 30 seconds for live data
+  const { 
+    vehicles, 
+    metrics, 
+    syncMetrics, 
+    isLoading, 
+    isRefreshing, 
+    forceRefresh,
+    getVehiclesByStatus 
+  } = useUnifiedVehicleData({
+    search: searchTerm,
+    status: statusFilter
   });
 
-  const filteredVehicles = vehicles?.filter(vehicle =>
-    vehicle.device_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vehicle.device_id.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
-
-  const getVehicleStatus = (vehicle: any) => {
-    const position = vehicle.last_position as any;
-    if (!position || !position.updatetime) return 'offline';
-    
-    const lastUpdate = new Date(position.updatetime);
-    const now = new Date();
-    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-    
-    if (minutesSinceUpdate <= 5) return 'online';
-    if (minutesSinceUpdate <= 30) return 'idle';
-    return 'offline';
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'bg-green-500';
-      case 'idle': return 'bg-yellow-500';
-      default: return 'bg-gray-400';
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    const colors = {
-      online: 'bg-green-100 text-green-800',
-      idle: 'bg-yellow-100 text-yellow-800',
-      offline: 'bg-gray-100 text-gray-800'
-    };
-    
-    return (
-      <Badge className={colors[status as keyof typeof colors] || colors.offline}>
-        <div className={`w-2 h-2 rounded-full mr-1 ${getStatusColor(status)}`}></div>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
-  };
+  const vehiclesByStatus = getVehiclesByStatus();
 
   if (isLoading) {
     return (
@@ -94,82 +60,68 @@ const LiveTracking: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Live Tracking</h1>
-        <p className="text-gray-600 mt-2">
-          Real-time vehicle location and status monitoring
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Live Tracking</h1>
+          <p className="text-gray-600 mt-2">
+            Real-time vehicle location and status monitoring
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button
+            variant={viewMode === 'cards' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('cards')}
+          >
+            <Car className="h-4 w-4 mr-2" />
+            Cards
+          </Button>
+          <Button
+            variant={viewMode === 'map' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('map')}
+          >
+            <MapPin className="h-4 w-4 mr-2" />
+            Map
+          </Button>
+        </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Vehicles</p>
-                <p className="text-2xl font-bold">{filteredVehicles.length}</p>
-              </div>
-              <Car className="h-8 w-8 text-blue-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Online Now</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {filteredVehicles.filter(v => getVehicleStatus(v) === 'online').length}
-                </p>
-              </div>
-              <Activity className="h-8 w-8 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Idle</p>
-                <p className="text-2xl font-bold text-yellow-600">
-                  {filteredVehicles.filter(v => getVehicleStatus(v) === 'idle').length}
-                </p>
-              </div>
-              <Clock className="h-8 w-8 text-yellow-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Offline</p>
-                <p className="text-2xl font-bold text-gray-600">
-                  {filteredVehicles.filter(v => getVehicleStatus(v) === 'offline').length}
-                </p>
-              </div>
-              <MapPin className="h-8 w-8 text-gray-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Summary Stats */}
+      <LiveTrackingStats 
+        metrics={metrics}
+        syncMetrics={syncMetrics}
+        vehiclesByStatus={vehiclesByStatus}
+      />
 
       {/* Controls */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Vehicle Tracking</span>
-            <Button onClick={() => refetch()} size="sm" variant="outline">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
+            <span>Vehicle Tracking Controls</span>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Filters
+              </Button>
+              <Button 
+                onClick={forceRefresh} 
+                size="sm" 
+                variant="outline"
+                disabled={isRefreshing}
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
             <Input
@@ -179,90 +131,28 @@ const LiveTracking: React.FC = () => {
               className="pl-10"
             />
           </div>
+          
+          {showFilters && (
+            <LiveTrackingFilters
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+            />
+          )}
         </CardContent>
       </Card>
 
-      {/* Vehicle List */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {filteredVehicles.map((vehicle) => {
-          const position = vehicle.last_position as any;
-          const status = getVehicleStatus(vehicle);
-          
-          return (
-            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow">
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold">{vehicle.device_name}</h3>
-                    <p className="text-sm text-gray-600">ID: {vehicle.device_id}</p>
-                  </div>
-                  {getStatusBadge(status)}
-                </div>
+      {/* Content based on view mode */}
+      {viewMode === 'map' ? (
+        <LiveTrackingMap vehicles={vehicles} />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {vehicles.map((vehicle) => (
+            <LiveVehicleCard key={vehicle.id} vehicle={vehicle} />
+          ))}
+        </div>
+      )}
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <MapPin className="h-3 w-3 text-gray-400" />
-                      <span className="text-gray-600">Location</span>
-                    </div>
-                    {position?.lat && position?.lon ? (
-                      <p className="font-mono text-xs">
-                        {position.lat.toFixed(4)}, {position.lon.toFixed(4)}
-                      </p>
-                    ) : (
-                      <p className="text-gray-400">No location data</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <Gauge className="h-3 w-3 text-gray-400" />
-                      <span className="text-gray-600">Speed</span>
-                    </div>
-                    <p className="font-medium">
-                      {position?.speed ? `${position.speed} km/h` : 'N/A'}
-                    </p>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <Clock className="h-3 w-3 text-gray-400" />
-                      <span className="text-gray-600">Last Update</span>
-                    </div>
-                    <p className="text-xs">
-                      {position?.updatetime 
-                        ? new Date(position.updatetime).toLocaleString()
-                        : 'No data'
-                      }
-                    </p>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-1 mb-1">
-                      <Navigation className="h-3 w-3 text-gray-400" />
-                      <span className="text-gray-600">Direction</span>
-                    </div>
-                    <p className="font-medium">
-                      {position?.direction ? `${position.direction}°` : 'N/A'}
-                    </p>
-                  </div>
-                </div>
-
-                {status === 'online' && (
-                  <div className="mt-3 pt-3 border-t">
-                    <Button size="sm" variant="outline" className="w-full">
-                      <MapPin className="h-3 w-3 mr-1" />
-                      View on Map
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {filteredVehicles.length === 0 && (
+      {vehicles.length === 0 && (
         <Card>
           <CardContent className="p-8 text-center">
             <Car className="h-12 w-12 text-gray-400 mx-auto mb-4" />
