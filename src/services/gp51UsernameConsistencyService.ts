@@ -123,7 +123,7 @@ export class GP51UsernameConsistencyService {
 
       // Step 2: Update all vehicles to use the target username
       console.log(`Updating vehicles to use username: ${targetUsername}`);
-      const { data: vehicleUpdate, error: vehicleError } = await supabase
+      const { count: vehicleCount, error: vehicleError } = await supabase
         .from('vehicles')
         .update({ 
           gp51_username: targetUsername,
@@ -135,13 +135,13 @@ export class GP51UsernameConsistencyService {
       if (vehicleError) {
         result.errors.push(`Failed to update vehicles: ${vehicleError.message}`);
       } else {
-        result.vehiclesUpdated = vehicleUpdate?.length || 0;
+        result.vehiclesUpdated = vehicleCount || 0;
         console.log(`Updated ${result.vehiclesUpdated} vehicles`);
       }
 
       // Step 3: Update GP51 sessions to use the target username
       console.log(`Updating GP51 sessions to use username: ${targetUsername}`);
-      const { data: sessionUpdate, error: sessionError } = await supabase
+      const { count: sessionCount, error: sessionError } = await supabase
         .from('gp51_sessions')
         .update({ 
           username: targetUsername,
@@ -152,7 +152,7 @@ export class GP51UsernameConsistencyService {
       if (sessionError) {
         result.errors.push(`Failed to update sessions: ${sessionError.message}`);
       } else {
-        result.sessionsUpdated = sessionUpdate?.length || 0;
+        result.sessionsUpdated = sessionCount || 0;
         console.log(`Updated ${result.sessionsUpdated} sessions`);
       }
 
