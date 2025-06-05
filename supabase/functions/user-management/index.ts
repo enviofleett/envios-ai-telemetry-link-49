@@ -13,10 +13,13 @@ async function isUserAdmin(supabase: any, userId: string): Promise<boolean> {
   return data === true;
 }
 
-// Auto-linking function for new users
+// Auto-linking function for new users with enhanced validation
 async function autoLinkUserVehicles(supabase: any, userId: string, gp51Username?: string): Promise<number> {
-  if (!gp51Username) {
-    console.log(`No GP51 username provided for user ${userId}, skipping auto-link`);
+  // Validate GP51 username before processing
+  if (!gp51Username || 
+      gp51Username.trim() === '' || 
+      gp51Username === 'User') {
+    console.log(`Invalid GP51 username provided for user ${userId}: "${gp51Username}". Skipping auto-link.`);
     return 0;
   }
 
@@ -42,7 +45,10 @@ async function autoLinkUserVehicles(supabase: any, userId: string, gp51Username?
     // Link all matching vehicles to the user
     const { error: linkError } = await supabase
       .from('vehicles')
-      .update({ envio_user_id: userId })
+      .update({ 
+        envio_user_id: userId,
+        updated_at: new Date().toISOString()
+      })
       .eq('gp51_username', gp51Username)
       .is('envio_user_id', null);
 
