@@ -1,10 +1,10 @@
 
-import { KvRestApi } from 'https://esm.sh/@upstash/kv@1.0.1';
+import { Redis } from 'https://esm.sh/@upstash/redis@1.28.4';
 import { getEnvironment } from './environment.ts';
 
 export async function getUpstashKvClient() {
   const env = getEnvironment();
-  return new KvRestApi({
+  return new Redis({
     token: env.UPSTASH_TOKEN,
     url: env.UPSTASH_URL,
   });
