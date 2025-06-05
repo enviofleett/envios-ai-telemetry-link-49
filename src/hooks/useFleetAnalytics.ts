@@ -34,22 +34,25 @@ const isValidPosition = (position: any): position is VehiclePosition => {
          'speed' in position;
 };
 
+// Helper function to ensure numeric values are valid
+const safeNumber = (value: any, fallback: number = 0): number => {
+  const num = Number(value);
+  return isNaN(num) || !isFinite(num) ? fallback : num;
+};
+
 export const useFleetAnalytics = () => {
   const [dateRange, setDateRange] = useState({
     from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 days ago
     to: new Date()
   });
 
-  // Fetch vehicle data for analytics
+  // Fetch vehicle data for analytics - removed invalid device_subscriptions join
   const { data: vehicles, isLoading: vehiclesLoading } = useQuery({
     queryKey: ['fleet-analytics-vehicles', dateRange],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('vehicles')
-        .select(`
-          *,
-          device_subscriptions(*)
-        `)
+        .select('*')
         .eq('is_active', true);
 
       if (error) throw error;
@@ -96,7 +99,8 @@ export const useFleetAnalytics = () => {
     const averageSpeed = onlineVehiclesWithSpeed.length > 0 
       ? onlineVehiclesWithSpeed.reduce((sum, v) => {
           const position = v.last_position as any;
-          return sum + (isValidPosition(position) ? (position.speed || 0) : 0);
+          const speed = isValidPosition(position) ? safeNumber(position.speed, 0) : 0;
+          return sum + speed;
         }, 0) / onlineVehiclesWithSpeed.length
       : 0;
 
@@ -109,14 +113,14 @@ export const useFleetAnalytics = () => {
     const costPerMile = 0.45; // USD per mile
 
     return {
-      totalVehicles,
-      activeVehicles,
-      onlineVehicles,
-      utilizationRate: Math.round(utilizationRate * 100) / 100,
-      averageSpeed: Math.round(averageSpeed * 100) / 100,
-      fuelEfficiency,
-      maintenanceAlerts,
-      costPerMile
+      totalVehicles: safeNumber(totalVehicles),
+      activeVehicles: safeNumber(activeVehicles),
+      onlineVehicles: safeNumber(onlineVehicles),
+      utilizationRate: safeNumber(utilizationRate, 0),
+      averageSpeed: safeNumber(averageSpeed, 0),
+      fuelEfficiency: safeNumber(fuelEfficiency, 0),
+      maintenanceAlerts: safeNumber(maintenanceAlerts),
+      costPerMile: safeNumber(costPerMile, 0)
     };
   }, [vehicles]);
 
@@ -139,11 +143,11 @@ export const useFleetAnalytics = () => {
       return {
         deviceId: vehicle.device_id,
         deviceName: vehicle.device_name,
-        utilizationRate: Math.round(utilizationRate * 100) / 100,
-        fuelEfficiency: Math.round(fuelEfficiency * 100) / 100,
-        maintenanceScore: Math.round(maintenanceScore * 100) / 100,
-        driverScore: Math.round(driverScore * 100) / 100,
-        alerts,
+        utilizationRate: safeNumber(utilizationRate, 0),
+        fuelEfficiency: safeNumber(fuelEfficiency, 0),
+        maintenanceScore: safeNumber(maintenanceScore, 0),
+        driverScore: safeNumber(driverScore, 0),
+        alerts: safeNumber(alerts),
         lastUpdate: isValidPosition(position) ? position.updatetime : vehicle.updated_at
       };
     });

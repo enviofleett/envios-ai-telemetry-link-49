@@ -9,6 +9,12 @@ interface FleetPerformanceChartProps {
   isLoading?: boolean;
 }
 
+// Helper function to ensure numeric values are valid for charts
+const safeChartNumber = (value: any, fallback: number = 0): number => {
+  const num = Number(value);
+  return isNaN(num) || !isFinite(num) ? fallback : Math.round(num * 100) / 100;
+};
+
 const FleetPerformanceChart: React.FC<FleetPerformanceChartProps> = ({ vehicleAnalytics, isLoading }) => {
   // Generate sample time-series data for demonstration
   const timeSeriesData = useMemo(() => {
@@ -22,9 +28,9 @@ const FleetPerformanceChart: React.FC<FleetPerformanceChartProps> = ({ vehicleAn
       
       data.push({
         date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        utilization: Math.random() * 20 + 75, // 75-95%
-        fuelEfficiency: Math.random() * 2 + 8, // 8-10 km/l
-        averageSpeed: Math.random() * 10 + 45, // 45-55 km/h
+        utilization: safeChartNumber(Math.random() * 20 + 75), // 75-95%
+        fuelEfficiency: safeChartNumber(Math.random() * 2 + 8), // 8-10 km/l
+        averageSpeed: safeChartNumber(Math.random() * 10 + 45), // 45-55 km/h
         alerts: Math.floor(Math.random() * 5) + 1 // 1-5 alerts
       });
     }
@@ -41,9 +47,9 @@ const FleetPerformanceChart: React.FC<FleetPerformanceChartProps> = ({ vehicleAn
         name: vehicle.deviceName.length > 15 
           ? `${vehicle.deviceName.substring(0, 15)}...` 
           : vehicle.deviceName,
-        utilization: vehicle.utilizationRate,
-        efficiency: vehicle.fuelEfficiency,
-        score: vehicle.driverScore
+        utilization: safeChartNumber(vehicle.utilizationRate),
+        efficiency: safeChartNumber(vehicle.fuelEfficiency),
+        score: safeChartNumber(vehicle.driverScore)
       }));
   }, [vehicleAnalytics]);
 
@@ -81,17 +87,18 @@ const FleetPerformanceChart: React.FC<FleetPerformanceChartProps> = ({ vehicleAn
               <YAxis />
               <Tooltip 
                 formatter={(value: any, name: string) => {
+                  const safeValue = safeChartNumber(value);
                   switch (name) {
                     case 'utilization':
-                      return [`${value.toFixed(1)}%`, 'Utilization'];
+                      return [`${safeValue}%`, 'Utilization'];
                     case 'fuelEfficiency':
-                      return [`${value.toFixed(1)} km/l`, 'Fuel Efficiency'];
+                      return [`${safeValue} km/l`, 'Fuel Efficiency'];
                     case 'averageSpeed':
-                      return [`${value.toFixed(1)} km/h`, 'Average Speed'];
+                      return [`${safeValue} km/h`, 'Average Speed'];
                     case 'alerts':
-                      return [Math.round(value), 'Alerts'];
+                      return [Math.round(safeValue), 'Alerts'];
                     default:
-                      return [value, name];
+                      return [safeValue, name];
                   }
                 }}
               />
@@ -134,15 +141,16 @@ const FleetPerformanceChart: React.FC<FleetPerformanceChartProps> = ({ vehicleAn
               <YAxis dataKey="name" type="category" width={80} />
               <Tooltip 
                 formatter={(value: any, name: string) => {
+                  const safeValue = safeChartNumber(value);
                   switch (name) {
                     case 'utilization':
-                      return [`${value.toFixed(1)}%`, 'Utilization'];
+                      return [`${safeValue}%`, 'Utilization'];
                     case 'efficiency':
-                      return [`${value.toFixed(1)} km/l`, 'Fuel Efficiency'];
+                      return [`${safeValue} km/l`, 'Fuel Efficiency'];
                     case 'score':
-                      return [`${value.toFixed(1)}%`, 'Driver Score'];
+                      return [`${safeValue}%`, 'Driver Score'];
                     default:
-                      return [value, name];
+                      return [safeValue, name];
                   }
                 }}
               />
