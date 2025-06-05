@@ -57,6 +57,255 @@ export type Database = {
         }
         Relationships: []
       }
+      device_configurations: {
+        Row: {
+          configuration_data: Json
+          configuration_name: string
+          created_at: string
+          created_by: string | null
+          device_id: string
+          id: string
+          is_active: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          configuration_data: Json
+          configuration_name: string
+          created_at?: string
+          created_by?: string | null
+          device_id: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          configuration_data?: Json
+          configuration_name?: string
+          created_at?: string
+          created_by?: string | null
+          device_id?: string
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_configurations_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["device_id"]
+          },
+        ]
+      }
+      device_groups: {
+        Row: {
+          color_code: string | null
+          created_at: string
+          description: string | null
+          gp51_group_id: number | null
+          id: string
+          name: string
+          parent_group_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          color_code?: string | null
+          created_at?: string
+          description?: string | null
+          gp51_group_id?: number | null
+          id?: string
+          name: string
+          parent_group_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          color_code?: string | null
+          created_at?: string
+          description?: string | null
+          gp51_group_id?: number | null
+          id?: string
+          name?: string
+          parent_group_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_groups_parent_group_id_fkey"
+            columns: ["parent_group_id"]
+            isOneToOne: false
+            referencedRelation: "device_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_history: {
+        Row: {
+          action_description: string | null
+          action_type: string
+          created_at: string
+          device_id: string
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          performed_by: string | null
+        }
+        Insert: {
+          action_description?: string | null
+          action_type: string
+          created_at?: string
+          device_id: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          performed_by?: string | null
+        }
+        Update: {
+          action_description?: string | null
+          action_type?: string
+          created_at?: string
+          device_id?: string
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          performed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_history_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["device_id"]
+          },
+        ]
+      }
+      device_tag_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          device_id: string
+          id: string
+          tag_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          device_id: string
+          id?: string
+          tag_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          device_id?: string
+          id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_tag_assignments_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["device_id"]
+          },
+          {
+            foreignKeyName: "device_tag_assignments_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "device_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      device_tags: {
+        Row: {
+          color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      device_types: {
+        Row: {
+          created_at: string
+          default_id_length: number | null
+          default_offline_delay: number | null
+          features: Json | null
+          functions: number | null
+          functions_long: number | null
+          gp51_device_type_id: number
+          id: string
+          is_active: boolean | null
+          price_1_year: number | null
+          price_10_year: number | null
+          price_3_year: number | null
+          price_5_year: number | null
+          remark: string | null
+          remark_en: string | null
+          type_code: string | null
+          type_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_id_length?: number | null
+          default_offline_delay?: number | null
+          features?: Json | null
+          functions?: number | null
+          functions_long?: number | null
+          gp51_device_type_id: number
+          id?: string
+          is_active?: boolean | null
+          price_1_year?: number | null
+          price_10_year?: number | null
+          price_3_year?: number | null
+          price_5_year?: number | null
+          remark?: string | null
+          remark_en?: string | null
+          type_code?: string | null
+          type_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_id_length?: number | null
+          default_offline_delay?: number | null
+          features?: Json | null
+          functions?: number | null
+          functions_long?: number | null
+          gp51_device_type_id?: number
+          id?: string
+          is_active?: boolean | null
+          price_1_year?: number | null
+          price_10_year?: number | null
+          price_3_year?: number | null
+          price_5_year?: number | null
+          remark?: string | null
+          remark_en?: string | null
+          type_code?: string | null
+          type_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       envio_users: {
         Row: {
           created_at: string
