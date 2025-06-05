@@ -75,7 +75,7 @@ serve(async (req) => {
       const userId = pathSegments[pathSegments.length - 1];
       
       if (userId && userId !== 'user-management') {
-        // Get specific user with linked GP51 sessions and role
+        // Get specific user with enhanced details
         const { data: user, error: userError } = await supabase
           .from('envio_users')
           .select(`
@@ -100,12 +100,20 @@ serve(async (req) => {
           );
         }
 
+        // Get assigned vehicles count
+        const { data: vehicleCount } = await supabase
+          .from('vehicles')
+          .select('device_id')
+          .eq('envio_user_id', userId);
+
+        user.assigned_vehicles = vehicleCount?.map(v => v.device_id) || [];
+
         return new Response(
           JSON.stringify({ user }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } else {
-        // Get all users with their GP51 sessions and roles
+        // Get all users with enhanced details
         const { data: users, error } = await supabase
           .from('envio_users')
           .select(`
@@ -130,8 +138,23 @@ serve(async (req) => {
           );
         }
 
+        // Enhance users with vehicle assignment counts
+        const enhancedUsers = await Promise.all(
+          users.map(async (user) => {
+            const { data: vehicleCount } = await supabase
+              .from('vehicles')
+              .select('device_id')
+              .eq('envio_user_id', user.id);
+
+            return {
+              ...user,
+              assigned_vehicles: vehicleCount?.map(v => v.device_id) || []
+            };
+          })
+        );
+
         return new Response(
-          JSON.stringify({ users }),
+          JSON.stringify({ users: enhancedUsers }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -147,7 +170,7 @@ serve(async (req) => {
         );
       }
 
-      const { name, email } = JSON.parse(requestBody);
+      const { name, email, phone_number } = JSON.parse(requestBody);
 
       if (!name || !email) {
         return new Response(
@@ -164,16 +187,38 @@ serve(async (req) => {
         );
       }
 
+      // Check if email already exists
+      const { data: existingUser } = await supabase
+        .from('envio_users')
+        .select('id')
+        .eq('email', email)
+        .single();
+
+      if (existingUser) {
+        return new Response(
+          JSON.stringify({ error: 'Email already exists' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       // For new user creation, generate a new UUID
       const newUserId = crypto.randomUUID();
       
+      const userData: any = { 
+        id: newUserId,
+        name, 
+        email,
+        registration_type: 'admin',
+        registration_status: 'completed'
+      };
+
+      if (phone_number) {
+        userData.phone_number = phone_number;
+      }
+
       const { data: user, error } = await supabase
         .from('envio_users')
-        .insert({ 
-          id: newUserId,
-          name, 
-          email 
-        })
+        .insert(userData)
         .select()
         .single();
 
@@ -231,11 +276,11 @@ serve(async (req) => {
           );
         }
 
-        // Update user role - userId should be the auth user ID for role operations
+        // Update user role - userId should be the envio user ID for role operations
         const { error } = await supabase
           .from('user_roles')
           .upsert({ 
-            user_id: userId, // This should be auth user ID
+            user_id: userId,
             role: role,
             updated_at: new Date().toISOString()
           }, {
@@ -257,7 +302,12 @@ serve(async (req) => {
       }
 
       // Handle regular user updates
-      const { name, email } = bodyData;
+      const updateData: any = {};
+      if (bodyData.name) updateData.name = bodyData.name;
+      if (bodyData.email) updateData.email = bodyData.email;
+      if (bodyData.phone_number !== undefined) updateData.phone_number = bodyData.phone_number;
+      if (bodyData.gp51_username !== undefined) updateData.gp51_username = bodyData.gp51_username;
+      if (bodyData.gp51_user_type !== undefined) updateData.gp51_user_type = bodyData.gp51_user_type;
 
       // Check if current user is admin for updating other users
       if (currentUserId !== userId && !(await isUserAdmin(supabase, currentUserId))) {
@@ -267,9 +317,11 @@ serve(async (req) => {
         );
       }
 
+      updateData.updated_at = new Date().toISOString();
+
       const { data: user, error } = await supabase
         .from('envio_users')
-        .update({ name, email, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', userId)
         .select()
         .single();
@@ -306,6 +358,12 @@ serve(async (req) => {
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+
+      // Unassign vehicles before deleting user
+      await supabase
+        .from('vehicles')
+        .update({ envio_user_id: null })
+        .eq('envio_user_id', userId);
 
       const { error } = await supabase
         .from('envio_users')
