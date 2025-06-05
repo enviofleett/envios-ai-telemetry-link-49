@@ -443,6 +443,95 @@ export type Database = {
         }
         Relationships: []
       }
+      email_notifications: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          recipient_email: string
+          retry_count: number | null
+          sent_at: string | null
+          smtp_config_id: string | null
+          status: string | null
+          subject: string
+          template_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          recipient_email: string
+          retry_count?: number | null
+          sent_at?: string | null
+          smtp_config_id?: string | null
+          status?: string | null
+          subject: string
+          template_type: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          recipient_email?: string
+          retry_count?: number | null
+          sent_at?: string | null
+          smtp_config_id?: string | null
+          status?: string | null
+          subject?: string
+          template_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_notifications_smtp_config_id_fkey"
+            columns: ["smtp_config_id"]
+            isOneToOne: false
+            referencedRelation: "smtp_configurations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body_html: string | null
+          body_text: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          placeholders: Json | null
+          subject: string
+          template_type: string
+          theme: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          body_html?: string | null
+          body_text?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          placeholders?: Json | null
+          subject: string
+          template_type: string
+          theme?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          body_html?: string | null
+          body_text?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          placeholders?: Json | null
+          subject?: string
+          template_type?: string
+          theme?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       envio_users: {
         Row: {
           created_at: string
@@ -1015,6 +1104,47 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_settings: {
+        Row: {
+          created_at: string | null
+          email_type: string
+          id: string
+          is_enabled: boolean | null
+          retry_attempts: number | null
+          retry_delay_minutes: number | null
+          template_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email_type: string
+          id?: string
+          is_enabled?: boolean | null
+          retry_attempts?: number | null
+          retry_delay_minutes?: number | null
+          template_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email_type?: string
+          id?: string
+          is_enabled?: boolean | null
+          retry_attempts?: number | null
+          retry_delay_minutes?: number | null
+          template_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_settings_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_methods: {
         Row: {
           billing_address: Json | null
@@ -1108,6 +1238,54 @@ export type Database = {
           price_5_year?: number | null
           sort_order?: number | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      smtp_configurations: {
+        Row: {
+          created_at: string | null
+          from_email: string
+          from_name: string
+          host: string
+          id: string
+          is_active: boolean | null
+          name: string
+          password_encrypted: string
+          port: number
+          updated_at: string | null
+          use_ssl: boolean | null
+          use_tls: boolean | null
+          username: string
+        }
+        Insert: {
+          created_at?: string | null
+          from_email: string
+          from_name: string
+          host: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          password_encrypted: string
+          port?: number
+          updated_at?: string | null
+          use_ssl?: boolean | null
+          use_tls?: boolean | null
+          username: string
+        }
+        Update: {
+          created_at?: string | null
+          from_email?: string
+          from_name?: string
+          host?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          password_encrypted?: string
+          port?: number
+          updated_at?: string | null
+          use_ssl?: boolean | null
+          use_tls?: boolean | null
+          username?: string
         }
         Relationships: []
       }
