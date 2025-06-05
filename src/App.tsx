@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -10,16 +11,11 @@ import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Auth from '@/pages/Auth';
 import SetPassword from '@/pages/SetPassword';
-import Index from '@/pages/Index';
-import EnhancedIndex from '@/pages/EnhancedIndex';
+import Dashboard from '@/pages/Dashboard';
 import FleetManagement from '@/pages/FleetManagement';
-import FleetAnalytics from '@/pages/FleetAnalytics';
-import EnhancedVehicleManagement from '@/pages/EnhancedVehicleManagement';
-import StableEnhancedVehicleManagement from '@/pages/StableEnhancedVehicleManagement';
 import VehicleManagement from '@/pages/VehicleManagement';
+import LiveTracking from '@/pages/LiveTracking';
 import UserManagement from '@/pages/UserManagement';
-import BulkExtraction from '@/pages/BulkExtraction';
-import DataImportReview from '@/pages/DataImportReview';
 import Settings from '@/pages/Settings';
 import NotFound from '@/pages/NotFound';
 
@@ -35,14 +31,7 @@ function App() {
               <Route path="/" element={
                 <ProtectedRoute>
                   <Layout>
-                    <Index />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/enhanced" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <EnhancedIndex />
+                    <Dashboard />
                   </Layout>
                 </ProtectedRoute>
               } />
@@ -53,31 +42,17 @@ function App() {
                   </Layout>
                 </ProtectedRoute>
               } />
-              <Route path="/fleet/analytics" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <FleetAnalytics />
-                  </Layout>
-                </ProtectedRoute>
-              } />
               <Route path="/vehicles" element={
                 <ProtectedRoute>
                   <Layout>
-                    <EnhancedVehicleManagement />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/vehicles/stable" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <StableEnhancedVehicleManagement />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/vehicles/manage" element={
-                <ProtectedRoute>
-                  <Layout>
                     <VehicleManagement />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/tracking" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <LiveTracking />
                   </Layout>
                 </ProtectedRoute>
               } />
@@ -85,20 +60,6 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <UserManagement />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/extraction" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <BulkExtraction />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/import/review" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <DataImportReview />
                   </Layout>
                 </ProtectedRoute>
               } />
