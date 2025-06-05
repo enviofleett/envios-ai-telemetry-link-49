@@ -534,36 +534,54 @@ export type Database = {
       }
       envio_users: {
         Row: {
+          city: string | null
           created_at: string
           email: string
+          gp51_user_type: number | null
           gp51_username: string | null
           id: string
           import_source: string | null
           is_gp51_imported: boolean | null
           name: string
           needs_password_set: boolean | null
+          otp_verified_at: string | null
+          phone_number: string | null
+          registration_status: string | null
+          registration_type: string | null
           updated_at: string
         }
         Insert: {
+          city?: string | null
           created_at?: string
           email: string
+          gp51_user_type?: number | null
           gp51_username?: string | null
           id?: string
           import_source?: string | null
           is_gp51_imported?: boolean | null
           name: string
           needs_password_set?: boolean | null
+          otp_verified_at?: string | null
+          phone_number?: string | null
+          registration_status?: string | null
+          registration_type?: string | null
           updated_at?: string
         }
         Update: {
+          city?: string | null
           created_at?: string
           email?: string
+          gp51_user_type?: number | null
           gp51_username?: string | null
           id?: string
           import_source?: string | null
           is_gp51_imported?: boolean | null
           name?: string
           needs_password_set?: boolean | null
+          otp_verified_at?: string | null
+          phone_number?: string | null
+          registration_status?: string | null
+          registration_type?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -1145,6 +1163,62 @@ export type Database = {
           },
         ]
       }
+      otp_verifications: {
+        Row: {
+          attempts_count: number | null
+          created_at: string
+          email: string | null
+          expires_at: string
+          id: string
+          is_used: boolean | null
+          max_attempts: number | null
+          otp_code: string
+          otp_type: string
+          phone_number: string | null
+          updated_at: string
+          user_id: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          attempts_count?: number | null
+          created_at?: string
+          email?: string | null
+          expires_at: string
+          id?: string
+          is_used?: boolean | null
+          max_attempts?: number | null
+          otp_code: string
+          otp_type: string
+          phone_number?: string | null
+          updated_at?: string
+          user_id?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          attempts_count?: number | null
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          id?: string
+          is_used?: boolean | null
+          max_attempts?: number | null
+          otp_code?: string
+          otp_type?: string
+          phone_number?: string | null
+          updated_at?: string
+          user_id?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "otp_verifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_methods: {
         Row: {
           billing_address: Json | null
@@ -1192,6 +1266,119 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      pending_user_registrations: {
+        Row: {
+          admin_assigned_user_type: number | null
+          assigned_by_admin: string | null
+          city: string
+          completed_at: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          otp_verification_id: string | null
+          phone_number: string
+          registration_source: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          admin_assigned_user_type?: number | null
+          assigned_by_admin?: string | null
+          city: string
+          completed_at?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          otp_verification_id?: string | null
+          phone_number: string
+          registration_source?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          admin_assigned_user_type?: number | null
+          assigned_by_admin?: string | null
+          city?: string
+          completed_at?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          otp_verification_id?: string | null
+          phone_number?: string
+          registration_source?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_user_registrations_otp_verification_id_fkey"
+            columns: ["otp_verification_id"]
+            isOneToOne: false
+            referencedRelation: "otp_verifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registration_audit_log: {
+        Row: {
+          action_description: string | null
+          action_type: string
+          created_at: string
+          id: string
+          ip_address: unknown | null
+          new_values: Json | null
+          old_values: Json | null
+          performed_by: string | null
+          registration_id: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_description?: string | null
+          action_type: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown | null
+          new_values?: Json | null
+          old_values?: Json | null
+          performed_by?: string | null
+          registration_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_description?: string | null
+          action_type?: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown | null
+          new_values?: Json | null
+          old_values?: Json | null
+          performed_by?: string | null
+          registration_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registration_audit_log_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "pending_user_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_audit_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       service_plans: {
         Row: {
@@ -1587,7 +1774,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      clean_expired_otps: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       generate_invoice_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      generate_otp_code: {
         Args: Record<PropertyKey, never>
         Returns: string
       }
