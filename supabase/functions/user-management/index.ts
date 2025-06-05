@@ -13,6 +13,53 @@ async function isUserAdmin(supabase: any, userId: string): Promise<boolean> {
   return data === true;
 }
 
+// Auto-linking function for new users
+async function autoLinkUserVehicles(supabase: any, userId: string, gp51Username?: string): Promise<number> {
+  if (!gp51Username) {
+    console.log(`No GP51 username provided for user ${userId}, skipping auto-link`);
+    return 0;
+  }
+
+  try {
+    // Find unassigned vehicles for this GP51 username
+    const { data: vehicles, error: vehiclesError } = await supabase
+      .from('vehicles')
+      .select('id, device_id')
+      .eq('gp51_username', gp51Username)
+      .is('envio_user_id', null)
+      .eq('is_active', true);
+
+    if (vehiclesError) {
+      console.error('Error fetching vehicles for auto-link:', vehiclesError);
+      return 0;
+    }
+
+    if (!vehicles || vehicles.length === 0) {
+      console.log(`No unassigned vehicles found for GP51 username ${gp51Username}`);
+      return 0;
+    }
+
+    // Link all matching vehicles to the user
+    const { error: linkError } = await supabase
+      .from('vehicles')
+      .update({ envio_user_id: userId })
+      .eq('gp51_username', gp51Username)
+      .is('envio_user_id', null);
+
+    if (linkError) {
+      console.error(`Failed to auto-link vehicles for user ${userId}:`, linkError);
+      return 0;
+    }
+
+    console.log(`Auto-linked ${vehicles.length} vehicles to user ${userId} (GP51: ${gp51Username})`);
+    return vehicles.length;
+
+  } catch (error) {
+    console.error(`Auto-link failed for user ${userId}:`, error);
+    return 0;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -243,7 +290,7 @@ serve(async (req) => {
         );
       }
 
-      const { name, email, phone_number } = JSON.parse(requestBody);
+      const { name, email, phone_number, gp51_username } = JSON.parse(requestBody);
 
       if (!name || !email) {
         return new Response(
@@ -289,6 +336,10 @@ serve(async (req) => {
         userData.phone_number = phone_number;
       }
 
+      if (gp51_username) {
+        userData.gp51_username = gp51_username;
+      }
+
       const { data: user, error } = await supabase
         .from('envio_users')
         .insert(userData)
@@ -311,8 +362,19 @@ serve(async (req) => {
           role: 'user'
         });
 
+      // Auto-link vehicles if GP51 username is provided
+      let linkedVehicles = 0;
+      if (gp51_username) {
+        linkedVehicles = await autoLinkUserVehicles(supabase, newUserId, gp51_username);
+      }
+
+      console.log(`Created user ${newUserId} and auto-linked ${linkedVehicles} vehicles`);
+
       return new Response(
-        JSON.stringify({ user }),
+        JSON.stringify({ 
+          user,
+          autoLinkedVehicles: linkedVehicles
+        }),
         { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -341,7 +403,6 @@ serve(async (req) => {
           );
         }
 
-        // Check if current user is admin
         if (!(await isUserAdmin(supabase, currentUserId))) {
           return new Response(
             JSON.stringify({ error: 'Admin access required' }),
@@ -349,7 +410,6 @@ serve(async (req) => {
           );
         }
 
-        // Update user role - userId should be the envio user ID for role operations
         const { error } = await supabase
           .from('user_roles')
           .upsert({ 
@@ -382,7 +442,6 @@ serve(async (req) => {
       if (bodyData.gp51_username !== undefined) updateData.gp51_username = bodyData.gp51_username;
       if (bodyData.gp51_user_type !== undefined) updateData.gp51_user_type = bodyData.gp51_user_type;
 
-      // Check if current user is admin for updating other users
       if (currentUserId !== userId && !(await isUserAdmin(supabase, currentUserId))) {
         return new Response(
           JSON.stringify({ error: 'Admin access required' }),

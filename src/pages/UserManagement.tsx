@@ -1,9 +1,11 @@
 
 import React, { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import UserManagementTable from '@/components/users/UserManagementTable';
 import CreateUserDialog from '@/components/users/CreateUserDialog';
 import VehicleAssignmentDialog from '@/components/users/VehicleAssignmentDialog';
 import ImportUsersDialog from '@/components/users/ImportUsersDialog';
+import VehicleAssignmentManager from '@/components/admin/VehicleAssignmentManager';
 
 interface User {
   id: string;
@@ -58,12 +60,25 @@ const UserManagement = () => {
         </div>
       </div>
 
-      <UserManagementTable
-        onCreateUser={handleCreateUser}
-        onEditUser={handleEditUser}
-        onImportUsers={handleImportUsers}
-        onAssignVehicles={handleAssignVehicles}
-      />
+      <Tabs defaultValue="users" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="assignments">Vehicle Assignments</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="space-y-6">
+          <UserManagementTable
+            onCreateUser={handleCreateUser}
+            onEditUser={handleEditUser}
+            onImportUsers={handleImportUsers}
+            onAssignVehicles={handleAssignVehicles}
+          />
+        </TabsContent>
+
+        <TabsContent value="assignments" className="space-y-6">
+          <VehicleAssignmentManager />
+        </TabsContent>
+      </Tabs>
 
       <CreateUserDialog
         open={isCreateDialogOpen}
