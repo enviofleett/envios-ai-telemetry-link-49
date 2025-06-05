@@ -1,154 +1,128 @@
-
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import React from "react";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarHeader,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar";
-import { 
   Home,
   Car,
+  Truck,
   Users,
+  Download,
   Settings,
-  Building2
-} from 'lucide-react';
+} from "lucide-react";
+import { NavLink, useLocation } from "react-router-dom";
 
-const navigationItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: Home,
-  },
-  {
-    title: "Vehicle Management",
-    url: "/vehicles",
-    icon: Car,
-  },
-  {
-    title: "Fleet Management",
-    url: "/fleet",
-    icon: Building2,
-  },
-  {
-    title: "User Management",
-    url: "/users",
-    icon: Users,
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-  },
-];
+interface MenuItem {
+  title: string;
+  url: string;
+  icon: React.ComponentType;
+  items?: { title: string; url: string }[];
+}
 
 export function AppSidebar() {
-  const { signOut, user } = useAuth();
   const location = useLocation();
-  const { state } = useSidebar();
 
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      window.location.reload();
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-  };
-
-  const isActive = (path: string) => {
-    if (path === '/') {
-      return location.pathname === '/';
-    }
-    return location.pathname.startsWith(path);
-  };
+  const menuItems = [
+    {
+      title: "Dashboard",
+      url: "/",
+      icon: Home,
+    },
+    {
+      title: "Fleet Management",
+      url: "/fleet",
+      icon: Car,
+      items: [
+        {
+          title: "Fleet Overview",
+          url: "/fleet",
+        },
+        {
+          title: "Analytics & Intelligence",
+          url: "/fleet/analytics",
+        },
+      ],
+    },
+    {
+      title: "Vehicle Management",
+      url: "/vehicles",
+      icon: Truck,
+      items: [
+        {
+          title: "Enhanced Management",
+          url: "/vehicles",
+        },
+        {
+          title: "Stable Management",
+          url: "/vehicles/stable",
+        },
+        {
+          title: "Basic Management",
+          url: "/vehicles/manage",
+        },
+      ],
+    },
+    {
+      title: "User Management",
+      url: "/users",
+      icon: Users,
+    },
+    {
+      title: "Data Import",
+      url: "/extraction",
+      icon: Download,
+      items: [
+        {
+          title: "Bulk Extraction",
+          url: "/extraction",
+        },
+        {
+          title: "Review Import",
+          url: "/import/review",
+        },
+      ],
+    },
+    {
+      title: "Settings",
+      url: "/settings",
+      icon: Settings,
+    },
+  ];
 
   return (
-    <Sidebar className="border-r bg-white">
-      <SidebarHeader className="border-b px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Building2 className="h-4 w-4" />
-          </div>
-          {state !== "collapsed" && (
-            <div className="flex flex-col">
-              <span className="text-sm font-semibold">Envío Console</span>
-            </div>
-          )}
-        </div>
-      </SidebarHeader>
-
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navigationItems.map((item) => (
-                <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={isActive(item.url)}
-                    tooltip={state === "collapsed" ? item.title : undefined}
+    <div className="w-64 bg-gray-100 min-h-screen py-4 px-2">
+      <div className="font-bold text-lg mb-4 px-2">Envio Telemetry</div>
+      <nav>
+        {menuItems.map((menuItem, index) => (
+          <div key={index} className="mb-1">
+            <NavLink
+              to={menuItem.url}
+              className={({ isActive }) =>
+                `flex items-center py-2 px-4 rounded-md hover:bg-gray-200 ${
+                  isActive ? "bg-gray-200 font-medium" : ""
+                }`
+              }
+            >
+              <menuItem.icon className="h-4 w-4 mr-2" />
+              {menuItem.title}
+            </NavLink>
+            {menuItem.items && (
+              <div className="ml-4">
+                {menuItem.items.map((item, i) => (
+                  <NavLink
+                    key={i}
+                    to={item.url}
+                    className={({ isActive }) =>
+                      `flex items-center py-2 px-4 rounded-md hover:bg-gray-200 ${
+                        isActive ? "bg-gray-200 font-medium" : ""
+                      }`
+                    }
                   >
-                    <Link to={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      {state !== "collapsed" && <span>{item.title}</span>}
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-      </SidebarContent>
-
-      <SidebarFooter className="border-t p-2">
-        {user && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex w-full items-center gap-2 rounded-md p-2 text-left text-sm hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src="https://github.com/shadcn.png" alt={user.email} />
-                  <AvatarFallback>{user.email[0].toUpperCase()}</AvatarFallback>
-                </Avatar>
-                {state !== "collapsed" && (
-                  <div className="flex flex-col">
-                    <span className="text-xs font-medium truncate">{user.email}</span>
-                  </div>
-                )}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-56" align="end" side="top">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link to="/settings">Settings</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleLogout}>
-                Log out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
-      </SidebarFooter>
-    </Sidebar>
+                    - {item.title}
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </nav>
+    </div>
   );
 }
