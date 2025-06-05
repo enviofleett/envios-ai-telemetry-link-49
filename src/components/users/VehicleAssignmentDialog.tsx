@@ -10,13 +10,37 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Car, Plus, Minus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Vehicle } from '@/types/vehicle';
 
 interface User {
   id: string;
   name: string;
   email: string;
   gp51_username?: string;
+}
+
+// Type for the raw vehicle data from Supabase
+interface RawVehicleData {
+  id: string;
+  device_id: string;
+  device_name: string;
+  status?: string;
+  sim_number?: string;
+  notes?: string;
+  is_active: boolean;
+  last_position?: any;
+  envio_user_id?: string;
+  gp51_metadata?: any;
+  created_at: string;
+  updated_at: string;
+}
+
+// Simplified Vehicle type for this component
+interface Vehicle {
+  id: string;
+  device_id: string;
+  device_name: string;
+  status?: string;
+  envio_user_id?: string;
 }
 
 interface VehicleAssignmentDialogProps {
@@ -47,7 +71,15 @@ const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = ({
         .order('device_name');
       
       if (error) throw error;
-      return data as Vehicle[];
+      
+      // Transform the raw data to our Vehicle interface
+      return (data as RawVehicleData[]).map(vehicle => ({
+        id: vehicle.id,
+        device_id: vehicle.device_id,
+        device_name: vehicle.device_name,
+        status: vehicle.status,
+        envio_user_id: vehicle.envio_user_id
+      })) as Vehicle[];
     },
     enabled: open
   });
