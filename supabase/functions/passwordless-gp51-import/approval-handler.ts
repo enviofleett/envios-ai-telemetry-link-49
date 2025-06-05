@@ -1,6 +1,5 @@
 
 import { JobProcessingContext } from './enhanced-types.ts';
-import { supabase } from '../../../src/integrations/supabase/client.ts';
 
 export interface ApprovalResult {
   success: boolean;
