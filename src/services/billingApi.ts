@@ -20,7 +20,7 @@ export const billingApi = {
       .order('sort_order');
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as ServicePlan[];
   },
 
   async getServicePlan(id: string): Promise<ServicePlan | null> {
@@ -31,7 +31,7 @@ export const billingApi = {
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data;
+    return data as ServicePlan | null;
   },
 
   // Device Subscriptions
@@ -45,7 +45,7 @@ export const billingApi = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as DeviceSubscription[];
   },
 
   async getDeviceSubscription(id: string): Promise<DeviceSubscription | null> {
@@ -59,7 +59,7 @@ export const billingApi = {
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data;
+    return data as DeviceSubscription | null;
   },
 
   async getDeviceSubscriptionByDeviceId(deviceId: string): Promise<DeviceSubscription | null> {
@@ -74,7 +74,7 @@ export const billingApi = {
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data;
+    return data as DeviceSubscription | null;
   },
 
   async createDeviceSubscription(subscription: CreateSubscriptionRequest): Promise<DeviceSubscription> {
@@ -96,7 +96,7 @@ export const billingApi = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as DeviceSubscription;
   },
 
   async updateDeviceSubscription(id: string, updates: UpdateSubscriptionRequest): Promise<DeviceSubscription> {
@@ -111,7 +111,7 @@ export const billingApi = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as DeviceSubscription;
   },
 
   async cancelDeviceSubscription(id: string): Promise<DeviceSubscription> {
@@ -139,7 +139,7 @@ export const billingApi = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as Invoice[];
   },
 
   async getInvoice(id: string): Promise<Invoice | null> {
@@ -153,7 +153,7 @@ export const billingApi = {
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data;
+    return data as Invoice | null;
   },
 
   async getOverdueInvoices(): Promise<Invoice[]> {
@@ -164,7 +164,7 @@ export const billingApi = {
       .order('due_date');
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as Invoice[];
   },
 
   // Payment Methods
@@ -176,25 +176,34 @@ export const billingApi = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as PaymentMethod[];
   },
 
   async addPaymentMethod(paymentMethod: Partial<PaymentMethod>): Promise<PaymentMethod> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('User not authenticated');
 
+    const insertData = {
+      customer_id: user.id,
+      is_active: true,
+      method_type: paymentMethod.method_type || 'card',
+      stripe_payment_method_id: paymentMethod.stripe_payment_method_id,
+      is_default: paymentMethod.is_default || false,
+      card_last_four: paymentMethod.card_last_four,
+      card_brand: paymentMethod.card_brand,
+      card_exp_month: paymentMethod.card_exp_month,
+      card_exp_year: paymentMethod.card_exp_year,
+      billing_address: paymentMethod.billing_address || {}
+    };
+
     const { data, error } = await supabase
       .from('payment_methods')
-      .insert({
-        ...paymentMethod,
-        customer_id: user.id,
-        is_active: true
-      })
+      .insert(insertData)
       .select()
       .single();
 
     if (error) throw error;
-    return data;
+    return data as PaymentMethod;
   },
 
   async setDefaultPaymentMethod(id: string): Promise<void> {
@@ -260,7 +269,7 @@ export const billingApi = {
       .eq('subscription_status', 'active')
       .eq('billing_cycle', 'annual');
 
-    const mrr = monthlySubscriptions?.reduce((sum, sub) => {
+    const mrr = monthlySubscriptions?.reduce((sum, sub: any) => {
       const annualPrice = sub.service_plan?.price_1_year || 0;
       return sum + (annualPrice / 12);
     }, 0) || 0;

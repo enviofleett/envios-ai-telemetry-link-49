@@ -8,7 +8,7 @@ export interface ServicePlan {
   price_3_year?: number;
   price_5_year?: number;
   price_10_year?: number;
-  features: Record<string, any>;
+  features: any; // Changed from Record<string, any> to any to match Supabase Json type
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -61,7 +61,7 @@ export interface Invoice {
   payment_date?: string;
   payment_method?: string;
   stripe_invoice_id?: string;
-  invoice_data: Record<string, any>;
+  invoice_data: any; // Changed from Record<string, any> to any
   created_at: string;
   updated_at: string;
   line_items?: InvoiceLineItem[];
@@ -90,7 +90,7 @@ export interface PaymentMethod {
   card_brand?: string;
   card_exp_month?: number;
   card_exp_year?: number;
-  billing_address: Record<string, any>;
+  billing_address: any; // Changed from Record<string, any> to any
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -101,8 +101,8 @@ export interface SubscriptionHistory {
   device_subscription_id?: string;
   action_type: 'created' | 'renewed' | 'suspended' | 'cancelled' | 'reactivated';
   action_description?: string;
-  old_values?: Record<string, any>;
-  new_values?: Record<string, any>;
+  old_values?: any; // Changed from Record<string, any> to any
+  new_values?: any; // Changed from Record<string, any> to any
   performed_by?: string;
   created_at: string;
 }
@@ -116,7 +116,7 @@ export interface BillingNotification {
   status: 'pending' | 'sent' | 'failed';
   scheduled_for?: string;
   sent_at?: string;
-  metadata: Record<string, any>;
+  metadata: any; // Changed from Record<string, any> to any
   created_at: string;
 }
 
