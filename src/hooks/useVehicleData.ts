@@ -1,5 +1,7 @@
 
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { telemetryApi } from '@/services/telemetryApi';
 
 interface Vehicle {
@@ -18,76 +20,86 @@ interface Vehicle {
 
 export const useVehicleData = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchVehicles = async () => {
-    try {
-      console.log('Fetching vehicles...');
-      const result = await telemetryApi.getVehiclePositions();
+  // Fetch ALL vehicles from database (removed limit)
+  const { data: dbVehicles, isLoading, refetch } = useQuery({
+    queryKey: ['all-vehicles'],
+    queryFn: async () => {
+      console.log('Fetching all vehicles from database...');
       
-      if (result.success && result.positions) {
-        console.log('Vehicles received:', result.positions);
-        // Convert positions to vehicles format
-        const vehiclesData = result.positions.map(pos => ({
-          deviceid: pos.deviceid,
-          devicename: pos.deviceid, // Using deviceid as name for now
-          status: 'active',
-          lastPosition: {
-            lat: pos.lat,
-            lon: pos.lon,
-            speed: pos.speed,
-            course: pos.course,
-            updatetime: pos.updatetime,
-            statusText: pos.statusText
-          }
-        }));
-        setVehicles(vehiclesData);
-      } else {
-        console.error('Failed to fetch vehicles:', result.error);
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching vehicles:', error);
+        throw error;
       }
-    } catch (error) {
-      console.error('Error fetching vehicles:', error);
-    } finally {
-      setIsLoading(false);
+
+      console.log(`Successfully fetched ${data?.length || 0} vehicles from database`);
+
+      // Transform database vehicles to match the Vehicle interface
+      const transformedVehicles: Vehicle[] = (data || []).map(vehicle => ({
+        deviceid: vehicle.device_id,
+        devicename: vehicle.device_name,
+        status: vehicle.status,
+        lastPosition: vehicle.last_position ? {
+          lat: vehicle.last_position.lat,
+          lon: vehicle.last_position.lon,
+          speed: vehicle.last_position.speed,
+          course: vehicle.last_position.course,
+          updatetime: vehicle.last_position.updatetime,
+          statusText: vehicle.last_position.statusText
+        } : undefined
+      }));
+
+      return transformedVehicles;
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Update local state when database data changes
+  useEffect(() => {
+    if (dbVehicles) {
+      setVehicles(dbVehicles);
     }
+  }, [dbVehicles]);
+
+  const fetchVehicles = async (): Promise<void> => {
+    await refetch();
   };
 
-  const fetchPositions = async () => {
+  const fetchPositions = async (): Promise<void> => {
     try {
-      console.log('Fetching vehicle positions...');
+      console.log('Fetching positions via telemetry API...');
       const deviceIds = vehicles.map(v => v.deviceid);
-      if (deviceIds.length === 0) return;
+      const response = await telemetryApi.getVehiclePositions(deviceIds);
       
-      const result = await telemetryApi.getVehiclePositions(deviceIds);
-      
-      if (result.success && result.positions) {
-        console.log('Positions received:', result.positions);
+      if (response.success && response.positions) {
+        console.log(`Received ${response.positions.length} positions from telemetry API`);
         
-        // Update vehicles with position data
-        setVehicles(currentVehicles => 
-          currentVehicles.map(vehicle => {
-            const position = result.positions?.find(p => p.deviceid === vehicle.deviceid);
-            if (position) {
-              return {
-                ...vehicle,
-                lastPosition: {
-                  lat: position.lat,
-                  lon: position.lon,
-                  speed: position.speed,
-                  course: position.course,
-                  updatetime: position.updatetime,
-                  statusText: position.statusText
-                }
-              };
+        // Update vehicles with new position data
+        const updatedVehicles = vehicles.map(vehicle => {
+          const position = response.positions?.find(p => p.deviceid === vehicle.deviceid);
+          return position ? {
+            ...vehicle,
+            lastPosition: {
+              lat: position.lat,
+              lon: position.lon,
+              speed: position.speed,
+              course: position.course,
+              updatetime: position.updatetime,
+              statusText: position.statusText
             }
-            return vehicle;
-          })
-        );
-      } else {
-        console.error('Failed to fetch positions:', result.error);
+          } : vehicle;
+        });
+        
+        setVehicles(updatedVehicles);
       }
     } catch (error) {
-      console.error('Error fetching positions:', error);
+      console.error('Failed to fetch positions:', error);
     }
   };
 
@@ -95,6 +107,7 @@ export const useVehicleData = () => {
     vehicles,
     isLoading,
     fetchVehicles,
-    fetchPositions
+    fetchPositions,
+    refetch
   };
 };

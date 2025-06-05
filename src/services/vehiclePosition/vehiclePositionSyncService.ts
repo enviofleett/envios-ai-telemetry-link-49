@@ -72,7 +72,7 @@ export class VehiclePositionSyncService {
         throw new Error(`GP51 session invalid: ${sessionValidation.error}`);
       }
 
-      // Get all active vehicles from the database
+      // Get ALL active vehicles from the database (removed limit)
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
         .select('device_id, device_name, is_active, gp51_username')
@@ -88,16 +88,17 @@ export class VehiclePositionSyncService {
         return this.metrics;
       }
 
+      console.log(`Found ${vehicles.length} active vehicles for position sync`);
       this.metrics.totalVehicles = vehicles.length;
 
-      // Process vehicle positions
-      const { updatedCount, errors } = await vehiclePositionProcessor.fetchAndUpdateVehiclePositions(vehicles);
+      // Process vehicle positions with improved handling
+      const { updatedCount, errors, totalProcessed, totalRequested } = await vehiclePositionProcessor.fetchAndUpdateVehiclePositions(vehicles);
 
       this.metrics.positionsUpdated = updatedCount;
       this.metrics.errors = errors;
       this.metrics.lastSyncTime = new Date();
 
-      console.log(`Position sync completed: ${updatedCount} vehicles updated`);
+      console.log(`Position sync completed: ${updatedCount} vehicles updated, ${errors} errors, ${totalProcessed} processed of ${totalRequested} total vehicles`);
 
       // Update sync status in database
       await syncStatusUpdater.updateSyncStatus(true);
