@@ -1,11 +1,13 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useFleetAnalytics } from '@/hooks/useFleetAnalytics';
-import FleetMetricsCards from '@/components/analytics/FleetMetricsCards';
-import FleetPerformanceChart from '@/components/analytics/FleetPerformanceChart';
+import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
 import VehiclePositionMonitor from '@/components/fleet/VehiclePositionMonitor';
 import GP51UsernameConsistencyManager from '@/components/fleet/GP51UsernameConsistencyManager';
+import FleetMetricsDisplay from '@/components/fleet/FleetMetricsDisplay';
+import VehicleStatusDistribution from '@/components/fleet/VehicleStatusDistribution';
+import FleetQuickStats from '@/components/fleet/FleetQuickStats';
 import { 
   Car, 
   BarChart3, 
@@ -17,8 +19,18 @@ import {
 } from 'lucide-react';
 
 const FleetManagement: React.FC = () => {
-  const { fleetMetrics, vehicleAnalytics, isLoading, dateRange, setDateRange } = useFleetAnalytics();
   const [activeTab, setActiveTab] = useState('overview');
+  const { 
+    vehicles, 
+    metrics, 
+    syncMetrics, 
+    isLoading, 
+    isRefreshing,
+    forceRefresh,
+    getVehiclesByStatus 
+  } = useUnifiedVehicleData();
+
+  const vehiclesByStatus = getVehiclesByStatus();
 
   return (
     <div className="space-y-6">
@@ -39,71 +51,26 @@ const FleetManagement: React.FC = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <FleetMetricsCards metrics={fleetMetrics} isLoading={isLoading} />
+          <FleetMetricsDisplay 
+            metrics={metrics} 
+            syncMetrics={syncMetrics}
+            isLoading={isLoading} 
+            isRefreshing={isRefreshing}
+            onRefresh={forceRefresh}
+          />
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Car className="h-5 w-5" />
-                  Fleet Status Distribution
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span>Online Vehicles</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span className="font-medium">{fleetMetrics.onlineVehicles}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Offline Vehicles</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-                      <span className="font-medium">{fleetMetrics.totalVehicles - fleetMetrics.onlineVehicles}</span>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Maintenance Alerts</span>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                      <span className="font-medium">{fleetMetrics.maintenanceAlerts}</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <VehicleStatusDistribution 
+              metrics={metrics}
+              vehiclesByStatus={vehiclesByStatus}
+              isLoading={isLoading}
+            />
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Quick Stats
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span>Fleet Utilization</span>
-                    <span className="font-medium">{fleetMetrics.utilizationRate.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Average Speed</span>
-                    <span className="font-medium">{fleetMetrics.averageSpeed.toFixed(1)} km/h</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Fuel Efficiency</span>
-                    <span className="font-medium">{fleetMetrics.fuelEfficiency.toFixed(1)} km/l</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Cost per Mile</span>
-                    <span className="font-medium">${fleetMetrics.costPerMile.toFixed(2)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <FleetQuickStats 
+              metrics={metrics}
+              vehicles={vehicles}
+              isLoading={isLoading}
+            />
           </div>
         </TabsContent>
 
@@ -112,43 +79,72 @@ const FleetManagement: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">
-          <FleetPerformanceChart vehicleAnalytics={vehicleAnalytics} isLoading={isLoading} />
-          
           <Card>
             <CardHeader>
-              <CardTitle>Vehicle Analytics Summary</CardTitle>
+              <CardTitle>Fleet Analytics</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-sm text-gray-600 mb-4">
-                Showing data for {vehicleAnalytics.length} vehicles
-              </div>
-              
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold text-blue-600">
-                    {vehicleAnalytics.length > 0 
-                      ? (vehicleAnalytics.reduce((sum, v) => sum + v.utilizationRate, 0) / vehicleAnalytics.length).toFixed(1)
-                      : 0}%
+                    {metrics.total > 0 ? ((metrics.online / metrics.total) * 100).toFixed(1) : 0}%
                   </div>
-                  <div className="text-xs text-gray-600">Avg Utilization</div>
+                  <div className="text-xs text-gray-600">Fleet Utilization</div>
                 </div>
                 
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold text-green-600">
-                    {vehicleAnalytics.length > 0 
-                      ? (vehicleAnalytics.reduce((sum, v) => sum + v.fuelEfficiency, 0) / vehicleAnalytics.length).toFixed(1)
-                      : 0} km/l
+                    {vehicles.length} / {metrics.total}
                   </div>
-                  <div className="text-xs text-gray-600">Avg Fuel Efficiency</div>
+                  <div className="text-xs text-gray-600">Vehicles with Data</div>
                 </div>
                 
                 <div className="text-center p-4 border rounded-lg">
                   <div className="text-2xl font-bold text-purple-600">
-                    {vehicleAnalytics.length > 0 
-                      ? (vehicleAnalytics.reduce((sum, v) => sum + v.driverScore, 0) / vehicleAnalytics.length).toFixed(1)
-                      : 0}%
+                    {syncMetrics.lastSyncTime.toLocaleTimeString()}
                   </div>
-                  <div className="text-xs text-gray-600">Avg Driver Score</div>
+                  <div className="text-xs text-gray-600">Last Sync</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Real-Time Vehicle Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Online Vehicles</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span className="font-bold">{metrics.online}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Offline Vehicles</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                        <span className="font-bold">{metrics.offline}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Alerts</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                        <span className="font-bold">{metrics.alerts}</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -158,28 +154,65 @@ const FleetManagement: React.FC = () => {
         <TabsContent value="performance" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Individual Vehicle Performance</CardTitle>
+              <CardTitle>Sync Performance Metrics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">{syncMetrics.totalVehicles}</div>
+                  <div className="text-xs text-gray-600">Total Vehicles</div>
+                </div>
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">{syncMetrics.positionsUpdated}</div>
+                  <div className="text-xs text-gray-600">Positions Updated</div>
+                </div>
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-red-600">{syncMetrics.errors}</div>
+                  <div className="text-xs text-gray-600">Sync Errors</div>
+                </div>
+                <div className="text-center p-4 border rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {new Date(metrics.lastUpdateTime).toLocaleTimeString()}
+                  </div>
+                  <div className="text-xs text-gray-600">Last Update</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Vehicle Activity</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {vehicleAnalytics.slice(0, 10).map((vehicle, index) => (
-                  <div key={vehicle.deviceId} className="flex items-center justify-between p-3 border rounded-lg">
+                {vehicles.slice(0, 10).map((vehicle, index) => (
+                  <div key={vehicle.deviceid} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
-                      <div className="font-medium">{vehicle.deviceName}</div>
-                      <div className="text-sm text-gray-600">ID: {vehicle.deviceId}</div>
+                      <div className="font-medium">{vehicle.devicename}</div>
+                      <div className="text-sm text-gray-600">ID: {vehicle.deviceid}</div>
                     </div>
                     <div className="grid grid-cols-3 gap-4 text-sm">
                       <div className="text-center">
-                        <div className="font-medium">{vehicle.utilizationRate.toFixed(1)}%</div>
-                        <div className="text-xs text-gray-600">Utilization</div>
+                        <div className="font-medium">
+                          {vehicle.lastPosition?.speed ? `${vehicle.lastPosition.speed.toFixed(1)} km/h` : 'N/A'}
+                        </div>
+                        <div className="text-xs text-gray-600">Speed</div>
                       </div>
                       <div className="text-center">
-                        <div className="font-medium">{vehicle.fuelEfficiency.toFixed(1)} km/l</div>
-                        <div className="text-xs text-gray-600">Fuel Efficiency</div>
+                        <div className="font-medium">
+                          {vehicle.lastPosition?.updatetime ? 
+                            new Date(vehicle.lastPosition.updatetime).toLocaleTimeString() : 'N/A'}
+                        </div>
+                        <div className="text-xs text-gray-600">Last Update</div>
                       </div>
                       <div className="text-center">
-                        <div className="font-medium">{vehicle.driverScore.toFixed(1)}%</div>
-                        <div className="text-xs text-gray-600">Driver Score</div>
+                        <div className={`w-3 h-3 rounded-full mx-auto ${
+                          vehicle.lastPosition?.updatetime && 
+                          new Date(vehicle.lastPosition.updatetime) > new Date(Date.now() - 30 * 60 * 1000) 
+                            ? 'bg-green-500' : 'bg-gray-400'
+                        }`}></div>
+                        <div className="text-xs text-gray-600">Status</div>
                       </div>
                     </div>
                   </div>
@@ -208,8 +241,21 @@ const FleetManagement: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-sm text-gray-600">
-                  System health monitoring and diagnostics will be available here.
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 border rounded-lg">
+                    <div className="text-sm font-medium mb-2">Data Sync Status</div>
+                    <div className={`px-2 py-1 rounded text-xs ${
+                      syncMetrics.errors === 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {syncMetrics.errors === 0 ? 'Healthy' : `${syncMetrics.errors} Errors`}
+                    </div>
+                  </div>
+                  <div className="p-4 border rounded-lg">
+                    <div className="text-sm font-medium mb-2">Last Sync</div>
+                    <div className="text-sm text-gray-600">
+                      {syncMetrics.lastSyncTime.toLocaleString()}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
