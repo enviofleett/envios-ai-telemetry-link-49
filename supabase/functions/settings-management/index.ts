@@ -52,7 +52,7 @@ serve(async (req) => {
       const hashedPassword = await md5(password);
       console.log('Password hashed successfully');
 
-      // Fixed GP51 authentication payload - use correct format
+      // Corrected GP51 authentication payload - removed the action field from body
       const authPayload = {
         username: username,
         password: hashedPassword,
@@ -63,7 +63,7 @@ serve(async (req) => {
       console.log('Attempting GP51 authentication with corrected payload...');
 
       try {
-        // Use the correct GP51 API endpoint without action parameter
+        // Use the correct GP51 API endpoint with action parameter in URL only
         const loginResponse = await fetch('https://www.gps51.com/webapi?action=login', {
           method: 'POST',
           headers: {
