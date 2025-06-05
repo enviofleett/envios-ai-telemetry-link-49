@@ -1,348 +1,215 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { memoryMonitor } from '@/services/memoryMonitoringService';
-import { optimizedQueryService } from '@/services/optimizedQueryClient';
+import { Progress } from '@/components/ui/progress';
 import { 
   Activity, 
+  RefreshCw, 
   Database, 
-  Monitor, 
-  Zap, 
-  Download,
-  RefreshCw,
-  TrendingUp,
+  Clock, 
+  TrendingUp, 
   AlertTriangle,
-  CheckCircle
+  CheckCircle 
 } from 'lucide-react';
+import { optimizedQueryService } from '@/services/optimizedQueryClient';
+
+interface PerformanceMetrics {
+  totalQueries: number;
+  failedQueries: number;
+  cacheHits: number;
+  cacheMisses: number;
+  cacheSize: number;
+  averageQueryTime: number;
+}
 
 const PerformanceDashboard: React.FC = () => {
-  const [memoryMetrics, setMemoryMetrics] = useState<any>(null);
-  const [queryMetrics, setQueryMetrics] = useState<any>(null);
-  const [cacheInfo, setCacheInfo] = useState<any>(null);
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [isMonitoring, setIsMonitoring] = useState(false);
+  const [metrics, setMetrics] = useState<PerformanceMetrics>({
+    totalQueries: 0,
+    failedQueries: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    cacheSize: 0,
+    averageQueryTime: 0
+  });
+  const [isLoading, setIsLoading] = useState(false);
+
+  const refreshMetrics = () => {
+    setIsLoading(true);
+    try {
+      const currentMetrics = optimizedQueryService.getMetrics();
+      setMetrics(currentMetrics);
+    } catch (error) {
+      console.error('Failed to refresh metrics:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Start memory monitoring
-    memoryMonitor.startMonitoring(10000); // Every 10 seconds
-    setIsMonitoring(true);
-
-    // Set up alert listener
-    const unsubscribeAlerts = memoryMonitor.onAlert((alert) => {
-      setAlerts(prev => [alert, ...prev.slice(0, 9)]); // Keep last 10 alerts
-    });
-
-    // Update metrics periodically
-    const interval = setInterval(() => {
-      setMemoryMetrics(memoryMonitor.getCurrentMemoryUsage());
-      setQueryMetrics(optimizedQueryService.getMetrics());
-      setCacheInfo(optimizedQueryService.getDetailedCacheInfo());
-    }, 5000);
-
-    return () => {
-      memoryMonitor.stopMonitoring();
-      unsubscribeAlerts();
-      clearInterval(interval);
-    };
+    refreshMetrics();
+    const interval = setInterval(refreshMetrics, 5000);
+    return () => clearInterval(interval);
   }, []);
-
-  const handleExportMetrics = () => {
-    const data = {
-      memory: memoryMonitor.exportMetrics(),
-      queries: queryMetrics,
-      cache: cacheInfo,
-      alerts,
-      timestamp: new Date().toISOString()
-    };
-    
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `performance-metrics-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const handleClearCache = () => {
     optimizedQueryService.clearCache();
-    setCacheInfo(optimizedQueryService.getDetailedCacheInfo());
+    refreshMetrics();
   };
 
   const handleInvalidateStale = () => {
     optimizedQueryService.invalidateStaleQueries();
-    setQueryMetrics(optimizedQueryService.getMetrics());
+    refreshMetrics();
   };
 
-  const formatMemorySize = (bytes: number) => {
-    return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
-  };
+  const cacheHitRate = metrics.totalQueries > 0 
+    ? Math.round((metrics.cacheHits / metrics.totalQueries) * 100) 
+    : 0;
 
-  const getHealthStatus = () => {
-    if (!memoryMetrics || !queryMetrics) return 'unknown';
-    
-    const memoryUsagePercent = (memoryMetrics.usedJSHeapSize / memoryMetrics.jsHeapSizeLimit) * 100;
-    const hasRecentAlerts = alerts.some(alert => Date.now() - alert.timestamp < 300000); // 5 minutes
-    
-    if (hasRecentAlerts || memoryUsagePercent > 85) return 'warning';
-    if (memoryUsagePercent > 70) return 'caution';
-    return 'healthy';
-  };
-
-  const healthStatus = getHealthStatus();
+  const errorRate = metrics.totalQueries > 0 
+    ? Math.round((metrics.failedQueries / metrics.totalQueries) * 100) 
+    : 0;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Performance Dashboard</h2>
-          <p className="text-gray-600">Monitor application performance and resource usage</p>
+          <p className="text-gray-600">Monitor query performance and cache efficiency</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge 
-            variant={healthStatus === 'healthy' ? 'default' : healthStatus === 'warning' ? 'destructive' : 'secondary'}
-            className="flex items-center gap-1"
-          >
-            {healthStatus === 'healthy' ? <CheckCircle className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
-            {healthStatus.charAt(0).toUpperCase() + healthStatus.slice(1)}
-          </Badge>
-          <Button variant="outline" size="sm" onClick={handleExportMetrics}>
-            <Download className="w-4 h-4 mr-1" />
-            Export
-          </Button>
-        </div>
+        <Button 
+          onClick={refreshMetrics} 
+          disabled={isLoading}
+          variant="outline"
+          size="sm"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
-      {/* Overview Cards */}
+      {/* Key Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Monitor className="w-4 h-4 text-blue-500" />
-              Memory Usage
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Queries</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {memoryMetrics ? formatMemorySize(memoryMetrics.usedJSHeapSize) : 'Loading...'}
-            </div>
-            <p className="text-xs text-gray-600">
-              {memoryMetrics ? `${((memoryMetrics.usedJSHeapSize / memoryMetrics.jsHeapSizeLimit) * 100).toFixed(1)}% of limit` : ''}
+            <div className="text-2xl font-bold">{metrics.totalQueries}</div>
+            <p className="text-xs text-muted-foreground">
+              Since application start
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Database className="w-4 h-4 text-green-500" />
-              Query Cache
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cache Hit Rate</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {cacheInfo ? cacheInfo.totalQueries : 'Loading...'}
-            </div>
-            <p className="text-xs text-gray-600">
-              {cacheInfo ? `${cacheInfo.activeQueries} active` : ''}
+            <div className="text-2xl font-bold">{cacheHitRate}%</div>
+            <Progress value={cacheHitRate} className="mt-2" />
+            <p className="text-xs text-muted-foreground mt-1">
+              {metrics.cacheHits} hits of {metrics.totalQueries} queries
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Activity className="w-4 h-4 text-purple-500" />
-              Cache Hit Rate
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Error Rate</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {queryMetrics ? `${((queryMetrics.cacheHits / (queryMetrics.cacheHits + queryMetrics.cacheMisses || 1)) * 100).toFixed(1)}%` : 'Loading...'}
+              <Badge variant={errorRate === 0 ? "secondary" : "destructive"}>
+                {errorRate}%
+              </Badge>
             </div>
-            <p className="text-xs text-gray-600">
-              {queryMetrics ? `${queryMetrics.cacheHits} hits / ${queryMetrics.cacheMisses} misses` : ''}
+            <p className="text-xs text-muted-foreground mt-2">
+              {metrics.failedQueries} failed queries
             </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Zap className="w-4 h-4 text-orange-500" />
-              Avg Query Time
-            </CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cache Size</CardTitle>
+            <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {queryMetrics ? `${queryMetrics.averageQueryTime.toFixed(0)}ms` : 'Loading...'}
-            </div>
-            <p className="text-xs text-gray-600">
-              {queryMetrics ? `${queryMetrics.totalQueries} total queries` : ''}
+            <div className="text-2xl font-bold">{metrics.cacheSize}</div>
+            <p className="text-xs text-muted-foreground">
+              Cached query results
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Detailed Tabs */}
-      <Tabs defaultValue="memory" className="w-full">
-        <TabsList>
-          <TabsTrigger value="memory">Memory</TabsTrigger>
-          <TabsTrigger value="queries">Queries</TabsTrigger>
-          <TabsTrigger value="alerts">Alerts</TabsTrigger>
-          <TabsTrigger value="cache">Cache Details</TabsTrigger>
-        </TabsList>
+      {/* System Health Status */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            System Health
+          </CardTitle>
+          <CardDescription>
+            Overall system performance indicators
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Query Performance</span>
+            <Badge variant={cacheHitRate > 70 ? "secondary" : "outline"}>
+              {cacheHitRate > 70 ? "Good" : "Needs Optimization"}
+            </Badge>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Error Rate</span>
+            <Badge variant={errorRate < 5 ? "secondary" : "destructive"}>
+              {errorRate < 5 ? "Healthy" : "High Error Rate"}
+            </Badge>
+          </div>
 
-        <TabsContent value="memory" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                Memory Metrics
-                <Badge variant={isMonitoring ? 'default' : 'secondary'}>
-                  {isMonitoring ? 'Monitoring' : 'Stopped'}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {memoryMetrics ? (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm font-medium text-gray-600">Used Heap Size</div>
-                    <div className="text-lg font-bold">{formatMemorySize(memoryMetrics.usedJSHeapSize)}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-600">Total Heap Size</div>
-                    <div className="text-lg font-bold">{formatMemorySize(memoryMetrics.totalJSHeapSize)}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-600">Heap Limit</div>
-                    <div className="text-lg font-bold">{formatMemorySize(memoryMetrics.jsHeapSizeLimit)}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-600">Usage Percentage</div>
-                    <div className="text-lg font-bold">
-                      {((memoryMetrics.usedJSHeapSize / memoryMetrics.jsHeapSizeLimit) * 100).toFixed(2)}%
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center text-gray-500">Loading memory metrics...</div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Cache Efficiency</span>
+            <Badge variant={metrics.cacheHits > metrics.cacheMisses ? "secondary" : "outline"}>
+              {metrics.cacheHits > metrics.cacheMisses ? "Efficient" : "Suboptimal"}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
 
-        <TabsContent value="queries" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                Query Performance
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={handleInvalidateStale}>
-                    <RefreshCw className="w-4 h-4 mr-1" />
-                    Invalidate Stale
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleClearCache}>
-                    Clear Cache
-                  </Button>
-                </div>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {queryMetrics ? (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <div className="text-sm font-medium text-gray-600">Total Queries</div>
-                    <div className="text-lg font-bold">{queryMetrics.totalQueries}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-600">Failed Queries</div>
-                    <div className="text-lg font-bold text-red-600">{queryMetrics.failedQueries}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-600">Cache Size</div>
-                    <div className="text-lg font-bold">{queryMetrics.cacheSize}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-600">Average Response</div>
-                    <div className="text-lg font-bold">{queryMetrics.averageQueryTime.toFixed(2)}ms</div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center text-gray-500">Loading query metrics...</div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="alerts" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Performance Alerts</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {alerts.length > 0 ? (
-                <div className="space-y-3">
-                  {alerts.map((alert, index) => (
-                    <div key={index} className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5" />
-                      <div className="flex-1">
-                        <div className="font-medium text-red-800">{alert.type.replace('_', ' ').toUpperCase()}</div>
-                        <div className="text-sm text-red-700">{alert.message}</div>
-                        <div className="text-xs text-red-600 mt-1">
-                          {new Date(alert.timestamp).toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-gray-500 py-8">
-                  <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
-                  No performance alerts
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="cache" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Cache Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {cacheInfo ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <div className="text-sm font-medium text-gray-600">Total Queries</div>
-                      <div className="text-lg font-bold">{cacheInfo.totalQueries}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-600">Active Queries</div>
-                      <div className="text-lg font-bold">{cacheInfo.activeQueries}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-gray-600">Stale Queries</div>
-                      <div className="text-lg font-bold">{cacheInfo.staleQueries}</div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-gray-600 mb-2">Estimated Cache Size</div>
-                    <div className="text-lg font-bold">{cacheInfo.cacheSizeEstimate}</div>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center text-gray-500">Loading cache information...</div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Cache Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Cache Management</CardTitle>
+          <CardDescription>
+            Manage query cache to optimize performance
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Button onClick={handleClearCache} variant="outline" size="sm">
+              <Database className="h-4 w-4 mr-2" />
+              Clear Cache
+            </Button>
+            <Button onClick={handleInvalidateStale} variant="outline" size="sm">
+              <Clock className="h-4 w-4 mr-2" />
+              Invalidate Stale
+            </Button>
+          </div>
+          
+          <div className="text-sm text-gray-600">
+            <p>• Clear Cache: Removes all cached query results</p>
+            <p>• Invalidate Stale: Removes only outdated cache entries</p>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
