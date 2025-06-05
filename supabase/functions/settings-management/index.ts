@@ -52,20 +52,19 @@ serve(async (req) => {
       const hashedPassword = await md5(password);
       console.log('Password hashed successfully');
 
-      // Standardized GP51 authentication payload
+      // Fixed GP51 authentication payload - use correct format
       const authPayload = {
-        action: 'login',
         username: username,
         password: hashedPassword,
         from: 'WEB',
         type: 'USER'
       };
 
-      console.log('Attempting GP51 authentication...');
+      console.log('Attempting GP51 authentication with corrected payload...');
 
       try {
-        // Standardized GP51 API endpoint
-        const loginResponse = await fetch('https://www.gps51.com/webapi', {
+        // Use the correct GP51 API endpoint without action parameter
+        const loginResponse = await fetch('https://www.gps51.com/webapi?action=login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -112,7 +111,7 @@ serve(async (req) => {
           );
         }
 
-        // Standardized success check - GP51 uses status: 0 for success
+        // Check for successful response - GP51 uses status: 0 for success
         if (loginResult.status !== 0) {
           console.error('GP51 authentication failed. Status:', loginResult.status, 'Cause:', loginResult.cause);
           
