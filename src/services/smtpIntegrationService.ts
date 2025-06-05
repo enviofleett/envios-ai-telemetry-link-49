@@ -1,4 +1,5 @@
 
+import React from 'react';
 import { useEmailService } from '@/hooks/useEmailService';
 
 class SMTPIntegrationService {

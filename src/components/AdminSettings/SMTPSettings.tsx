@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -92,7 +93,13 @@ const SMTPSettings: React.FC = () => {
         .order('template_type');
       
       if (error) throw error;
-      return data;
+      // Convert placeholders from Json to string[]
+      return data?.map(template => ({
+        ...template,
+        placeholders: Array.isArray(template.placeholders) 
+          ? template.placeholders 
+          : JSON.parse(template.placeholders as string || '[]')
+      })) as EmailTemplate[];
     }
   });
 
@@ -566,7 +573,7 @@ const SMTPSettings: React.FC = () => {
                   <div className="bg-white border rounded p-3 mb-3" style={{fontSize: '12px'}}>
                     <div style={{color: '#333', fontFamily: 'Arial, sans-serif'}}>
                       <h3 style={{color: '#0066cc'}}>Sample Email</h3>
-                      <p>Hello {{user_name}},</p>
+                      <p>Hello Sample User,</p>
                       <p>This is a sample email using the light theme.</p>
                     </div>
                   </div>
@@ -578,7 +585,7 @@ const SMTPSettings: React.FC = () => {
                   <div className="bg-gray-900 border rounded p-3 mb-3" style={{fontSize: '12px'}}>
                     <div style={{color: '#fff', fontFamily: 'Arial, sans-serif'}}>
                       <h3 style={{color: '#60a5fa'}}>Sample Email</h3>
-                      <p>Hello {{user_name}},</p>
+                      <p>Hello Sample User,</p>
                       <p>This is a sample email using the dark theme.</p>
                     </div>
                   </div>
@@ -590,7 +597,7 @@ const SMTPSettings: React.FC = () => {
                   <div className="bg-gray-50 border rounded p-3 mb-3" style={{fontSize: '12px'}}>
                     <div style={{color: '#374151', fontFamily: 'system-ui, sans-serif'}}>
                       <h3 style={{color: '#111827'}}>Sample Email</h3>
-                      <p>Hello {{user_name}},</p>
+                      <p>Hello Sample User,</p>
                       <p>This is a sample email using the minimal theme.</p>
                     </div>
                   </div>
