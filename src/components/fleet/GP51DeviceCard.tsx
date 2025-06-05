@@ -1,105 +1,92 @@
 
 import React from 'react';
-import { Edit, Trash2, Car, Smartphone, MoreVertical } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Edit, Trash2, Settings, Activity, Circle } from 'lucide-react';
 
 interface GP51DeviceCardProps {
   device: any;
   onEdit: (device: any) => void;
   onDelete: (deviceId: string) => void;
-  isSelected?: boolean;
-  onSelect?: () => void;
-  viewMode?: 'grid' | 'list';
+  isSelected: boolean;
+  onSelect: () => void;
+  viewMode: 'grid' | 'list';
 }
 
 const GP51DeviceCard: React.FC<GP51DeviceCardProps> = ({
   device,
   onEdit,
   onDelete,
-  isSelected = false,
+  isSelected,
   onSelect,
-  viewMode = 'grid'
+  viewMode
 }) => {
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'enabled': return 'text-green-500';
+      case 'disabled': return 'text-red-500';
+      default: return 'text-gray-500';
+    }
+  };
+
+  const getActiveStatusBadge = (isActive: boolean) => {
+    if (isActive) {
+      return (
+        <Badge className="bg-green-100 text-green-800">
+          <Circle className="w-2 h-2 mr-1 fill-current" />
+          Active
+        </Badge>
+      );
+    }
+    return (
+      <Badge className="bg-gray-100 text-gray-800">
+        <Circle className="w-2 h-2 mr-1 fill-current" />
+        Inactive
+      </Badge>
+    );
+  };
+
   if (viewMode === 'list') {
     return (
-      <Card className={`hover:shadow-md transition-shadow ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
+      <Card className={`${isSelected ? 'ring-2 ring-blue-500' : ''} hover:shadow-md transition-shadow`}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 flex-1">
-              {onSelect && (
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={onSelect}
-                />
-              )}
-              
-              <div className="bg-blue-100 p-2 rounded-full">
-                <Car className="h-4 w-4 text-blue-600" />
-              </div>
-              
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <div className="font-medium">{device.device_name}</div>
-                  <div className="text-sm text-gray-500">ID: {device.device_id}</div>
-                </div>
-                
+            <div className="flex items-center space-x-4">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={onSelect}
+                className="rounded"
+              />
+              <div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={device.is_active ? 'default' : 'secondary'}>
-                    {device.is_active ? 'Active' : 'Inactive'}
-                  </Badge>
-                  {device.status && (
-                    <Badge variant="outline">{device.status}</Badge>
-                  )}
+                  <h3 className="font-medium">{device.device_name}</h3>
+                  {getActiveStatusBadge(device.is_active)}
                 </div>
-                
-                <div className="text-sm text-gray-600">
-                  {device.sim_number && (
-                    <div className="flex items-center gap-1">
-                      <Smartphone className="h-3 w-3" />
-                      {device.sim_number}
-                    </div>
-                  )}
-                  {device.gp51_username && (
-                    <div>Owner: {device.gp51_username}</div>
-                  )}
-                </div>
-                
-                <div className="text-sm text-gray-600">
-                  {device.gp51_metadata?.timezone && (
-                    <div>Timezone: GMT+{device.gp51_metadata.timezone}</div>
-                  )}
-                </div>
+                <p className="text-sm text-gray-600">ID: {device.device_id}</p>
+                {device.sim_number && (
+                  <p className="text-xs text-gray-500">SIM: {device.sim_number}</p>
+                )}
               </div>
             </div>
             
-            <div className="flex gap-1">
-              <Button variant="ghost" size="sm" onClick={() => onEdit(device)}>
+            <div className="flex items-center space-x-2">
+              <Activity className={`h-4 w-4 ${getStatusColor(device.status)}`} />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEdit(device)}
+              >
                 <Edit className="h-4 w-4" />
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => onEdit(device)}>
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => onDelete(device.device_id)}
-                    className="text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onDelete(device.device_id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -108,68 +95,67 @@ const GP51DeviceCard: React.FC<GP51DeviceCardProps> = ({
   }
 
   return (
-    <Card className={`hover:shadow-lg transition-shadow ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3 flex-1">
-            {onSelect && (
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={onSelect}
-              />
-            )}
-            <div className="bg-blue-100 p-2 rounded-full">
-              <Car className="h-5 w-5 text-blue-600" />
-            </div>
-            <div className="flex-1">
-              <CardTitle className="text-lg">{device.device_name}</CardTitle>
-              <div className="text-sm text-gray-500">ID: {device.device_id}</div>
+    <Card className={`${isSelected ? 'ring-2 ring-blue-500' : ''} hover:shadow-lg transition-shadow`}>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onSelect}
+              className="rounded"
+            />
+            <div>
+              <h3 className="font-medium">{device.device_name}</h3>
+              <p className="text-sm text-gray-600">ID: {device.device_id}</p>
             </div>
           </div>
-          <div className="flex gap-1">
-            <Button variant="ghost" size="sm" onClick={() => onEdit(device)}>
-              <Edit className="h-4 w-4" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={() => onDelete(device.device_id)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
+          {getActiveStatusBadge(device.is_active)}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Badge variant={device.is_active ? 'default' : 'secondary'}>
-            {device.is_active ? 'Active' : 'Inactive'}
-          </Badge>
-          {device.status && (
-            <Badge variant="outline">{device.status}</Badge>
+
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-600">Status:</span>
+            <div className="flex items-center gap-1">
+              <Activity className={`h-3 w-3 ${getStatusColor(device.status)}`} />
+              <span className="capitalize">{device.status || 'Unknown'}</span>
+            </div>
+          </div>
+          
+          {device.sim_number && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">SIM:</span>
+              <span>{device.sim_number}</span>
+            </div>
+          )}
+          
+          {device.gp51_metadata?.devicetype && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600">Type:</span>
+              <span>{device.gp51_metadata.devicetype}</span>
+            </div>
           )}
         </div>
-        {device.sim_number && (
-          <div className="flex items-center gap-2 text-sm text-gray-600">
-            <Smartphone className="h-3 w-3" />
-            SIM: {device.sim_number}
-          </div>
-        )}
-        {device.gp51_username && (
-          <div className="text-sm text-gray-600">
-            <strong>Owner:</strong> {device.gp51_username}
-          </div>
-        )}
-        {device.gp51_metadata?.timezone && (
-          <div className="text-sm text-gray-600">
-            <strong>Timezone:</strong> GMT+{device.gp51_metadata.timezone}
-          </div>
-        )}
-        {device.notes && (
-          <div className="text-sm text-gray-600">
-            <strong>Notes:</strong> {device.notes}
-          </div>
-        )}
+
+        <div className="flex space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onEdit(device)}
+            className="flex-1"
+          >
+            <Edit className="h-3 w-3 mr-1" />
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onDelete(device.device_id)}
+            className="text-red-600 hover:text-red-700"
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
