@@ -18,6 +18,15 @@ interface Vehicle {
   };
 }
 
+interface VehiclePositionData {
+  lat: number;
+  lon: number;
+  speed: number;
+  course: number;
+  updatetime: string;
+  statusText: string;
+}
+
 export const useVehicleData = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
@@ -41,19 +50,29 @@ export const useVehicleData = () => {
       console.log(`Successfully fetched ${data?.length || 0} vehicles from database`);
 
       // Transform database vehicles to match the Vehicle interface
-      const transformedVehicles: Vehicle[] = (data || []).map(vehicle => ({
-        deviceid: vehicle.device_id,
-        devicename: vehicle.device_name,
-        status: vehicle.status,
-        lastPosition: vehicle.last_position ? {
-          lat: vehicle.last_position.lat,
-          lon: vehicle.last_position.lon,
-          speed: vehicle.last_position.speed,
-          course: vehicle.last_position.course,
-          updatetime: vehicle.last_position.updatetime,
-          statusText: vehicle.last_position.statusText
-        } : undefined
-      }));
+      const transformedVehicles: Vehicle[] = (data || []).map(vehicle => {
+        let lastPosition: VehiclePositionData | undefined = undefined;
+        
+        // Safely parse the JSONB last_position field
+        if (vehicle.last_position && typeof vehicle.last_position === 'object') {
+          const positionData = vehicle.last_position as any;
+          lastPosition = {
+            lat: positionData.lat || 0,
+            lon: positionData.lon || 0,
+            speed: positionData.speed || 0,
+            course: positionData.course || 0,
+            updatetime: positionData.updatetime || '',
+            statusText: positionData.statusText || ''
+          };
+        }
+
+        return {
+          deviceid: vehicle.device_id,
+          devicename: vehicle.device_name,
+          status: vehicle.status,
+          lastPosition
+        };
+      });
 
       return transformedVehicles;
     },
