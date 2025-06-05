@@ -31,11 +31,11 @@ export class EnhancedDeviceManagementApi {
               default_offline_delay: deviceType.defaultofflinedelay,
               functions: deviceType.functions,
               functions_long: deviceType.functionslong,
-              price_1_year: deviceType.price1year,
-              price_3_year: deviceType.price3year,
-              price_5_year: deviceType.price5year,
-              price_10_year: deviceType.price10year,
-              features: deviceType.features || {},
+              price_1_year: deviceType.price,
+              price_3_year: deviceType.price3,
+              price_5_year: deviceType.price5,
+              price_10_year: deviceType.price10,
+              features: {},
               remark: deviceType.remark,
               remark_en: deviceType.remarken,
               is_active: true,
@@ -54,7 +54,10 @@ export class EnhancedDeviceManagementApi {
         .order('type_name');
 
       if (error) throw error;
-      return data || [];
+      return (data || []).map(item => ({
+        ...item,
+        features: item.features as Record<string, any>
+      }));
     } catch (error) {
       console.error('Failed to sync device types:', error);
       throw error;
@@ -69,7 +72,10 @@ export class EnhancedDeviceManagementApi {
       .order('type_name');
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(item => ({
+      ...item,
+      features: item.features as Record<string, any>
+    }));
   }
 
   // Device Groups Management
@@ -201,7 +207,11 @@ export class EnhancedDeviceManagementApi {
       .limit(limit);
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(item => ({
+      ...item,
+      old_values: item.old_values as Record<string, any>,
+      new_values: item.new_values as Record<string, any>
+    }));
   }
 
   // Bulk Operations
@@ -248,7 +258,7 @@ export class EnhancedDeviceManagementApi {
             throw new Error(`Unknown operation: ${request.operation}`);
         }
         results.success++;
-      } catch (error) {
+      } catch (error: any) {
         results.failed++;
         results.errors.push(`Device ${deviceId}: ${error.message}`);
       }
@@ -299,7 +309,10 @@ export class EnhancedDeviceManagementApi {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(item => ({
+      ...item,
+      configuration_data: item.configuration_data as Record<string, any>
+    }));
   }
 
   async saveDeviceConfiguration(config: Omit<DeviceConfiguration, 'id' | 'created_at' | 'updated_at'>): Promise<DeviceConfiguration> {
@@ -310,7 +323,10 @@ export class EnhancedDeviceManagementApi {
       .single();
 
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      configuration_data: data.configuration_data as Record<string, any>
+    };
   }
 
   async updateDeviceConfiguration(id: string, updates: Partial<DeviceConfiguration>): Promise<DeviceConfiguration> {
@@ -322,7 +338,10 @@ export class EnhancedDeviceManagementApi {
       .single();
 
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      configuration_data: data.configuration_data as Record<string, any>
+    };
   }
 
   async deleteDeviceConfiguration(id: string): Promise<void> {

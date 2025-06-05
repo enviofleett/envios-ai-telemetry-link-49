@@ -158,7 +158,7 @@ const BulkDeviceOperations: React.FC<BulkDeviceOperationsProps> = ({
                             id={tag.id}
                             checked={selectedTags.includes(tag.id)}
                             onCheckedChange={(checked) => {
-                              if (checked) {
+                              if (checked === true) {
                                 setSelectedTags([...selectedTags, tag.id]);
                               } else {
                                 setSelectedTags(selectedTags.filter(id => id !== tag.id));
@@ -195,7 +195,7 @@ const BulkDeviceOperations: React.FC<BulkDeviceOperationsProps> = ({
                       <Checkbox
                         id="confirmDelete"
                         checked={confirmDelete}
-                        onCheckedChange={setConfirmDelete}
+                        onCheckedChange={(checked) => setConfirmDelete(checked === true)}
                       />
                       <Label htmlFor="confirmDelete" className="text-sm text-red-800">
                         I understand and want to delete these devices

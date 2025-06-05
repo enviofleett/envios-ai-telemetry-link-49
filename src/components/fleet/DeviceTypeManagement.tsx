@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Search, Refresh, DollarSign, Settings, Cpu } from 'lucide-react';
+import { Search, RefreshCw, DollarSign, Settings, Cpu } from 'lucide-react';
 import { enhancedDeviceApi } from '@/services/enhancedDeviceManagementApi';
 import { useToast } from '@/hooks/use-toast';
 import { DeviceType } from '@/types/device-management';
@@ -120,7 +120,7 @@ const DeviceTypeManagement = () => {
           disabled={syncMutation.isPending}
           className="flex items-center gap-2"
         >
-          <Refresh className="h-4 w-4" />
+          <RefreshCw className="h-4 w-4" />
           {syncMutation.isPending ? 'Syncing...' : 'Sync Device Types'}
         </Button>
       </div>

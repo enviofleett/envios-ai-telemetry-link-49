@@ -46,11 +46,12 @@ const DeviceFilters: React.FC<DeviceFiltersProps> = ({
     }
   };
 
-  const hasActiveFilters = Object.keys(filter).some(key => 
-    filter[key as keyof DeviceFilter] !== undefined && 
-    filter[key as keyof DeviceFilter] !== '' &&
-    !(Array.isArray(filter[key as keyof DeviceFilter]) && filter[key as keyof DeviceFilter]?.length === 0)
-  );
+  const hasActiveFilters = Object.keys(filter).some(key => {
+    const value = filter[key as keyof DeviceFilter];
+    return value !== undefined && 
+           value !== '' &&
+           !(Array.isArray(value) && value.length === 0);
+  });
 
   if (isCollapsed) {
     return (
