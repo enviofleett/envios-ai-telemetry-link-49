@@ -24,3 +24,12 @@ verify_jwt = false
 
 [functions.gp51-data-preview]
 verify_jwt = true
+
+[functions.gp51-user-management]
+verify_jwt = true
+
+[functions.gp51-device-management]
+verify_jwt = true
+
+[functions.gp51-service-management]
+verify_jwt = true

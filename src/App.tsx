@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -17,6 +16,7 @@ import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import StableErrorBoundary from "./components/StableErrorBoundary";
 import { AuthProvider } from "./contexts/AuthContext";
+import FleetManagement from "./pages/FleetManagement";
 
 function App() {
   return (
@@ -54,6 +54,15 @@ function App() {
                     <Layout>
                       <StableErrorBoundary>
                         <StableEnhancedVehicleManagement />
+                      </StableErrorBoundary>
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                <Route path="/fleet" element={
+                  <ProtectedRoute requireAdmin>
+                    <Layout>
+                      <StableErrorBoundary>
+                        <FleetManagement />
                       </StableErrorBoundary>
                     </Layout>
                   </ProtectedRoute>

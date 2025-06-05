@@ -44,6 +44,11 @@ const navigationItems = [
     icon: Car,
   },
   {
+    title: "Fleet Management",
+    url: "/fleet",
+    icon: Building2,
+  },
+  {
     title: "User Management",
     url: "/users",
     icon: Users,
