@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import VehicleDetailsModal from './VehicleDetailsModal';
 import FleetMapView from './FleetMapView';
+import FleetMapWidget from './FleetMapWidget';
 import DashboardNavigation from './DashboardNavigation';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
@@ -216,80 +217,59 @@ const UnifiedFleetDashboard: React.FC = () => {
           onVehicleSelect={setSelectedVehicle}
         />
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {vehicles.slice(0, 12).map((vehicle) => {
-            const status = getVehicleStatus(vehicle);
-            return (
-              <Card key={vehicle.deviceid} className="hover:shadow-lg transition-shadow cursor-pointer">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{vehicle.devicename}</h3>
-                      <p className="text-sm text-gray-600">ID: {vehicle.deviceid}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      {getStatusBadge(vehicle)}
-                    </div>
-                  </div>
-
-                  {vehicle.lastPosition && (
-                    <div className="grid grid-cols-2 gap-3 text-sm mb-3">
-                      <div className="flex items-center gap-1">
-                        <Gauge className="h-3 w-3 text-gray-400" />
-                        <span className="text-gray-600">Speed:</span>
-                        <span className="font-medium">{vehicle.lastPosition.speed} km/h</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Fleet Map Widget */}
+          <FleetMapWidget />
+          
+          {/* Vehicle Cards */}
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Vehicle Activity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {vehicles.slice(0, 8).map((vehicle) => {
+                    const status = getVehicleStatus(vehicle);
+                    return (
+                      <div 
+                        key={vehicle.deviceid}
+                        className="flex items-center justify-between p-3 hover:bg-gray-50 rounded cursor-pointer border"
+                        onClick={() => setSelectedVehicle(vehicle)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`}></div>
+                          <div>
+                            <div className="font-medium text-sm">{vehicle.devicename}</div>
+                            <div className="text-xs text-gray-500">
+                              {vehicle.lastPosition?.speed || 0} km/h
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-gray-500">
+                            {vehicle.lastPosition?.updatetime 
+                              ? new Date(vehicle.lastPosition.updatetime).toLocaleTimeString()
+                              : 'No data'
+                            }
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-1"
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            Details
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Navigation className="h-3 w-3 text-gray-400" />
-                        <span className="text-gray-600">Course:</span>
-                        <span className="font-medium">{vehicle.lastPosition.course}°</span>
-                      </div>
-                      <div className="flex items-center gap-1 col-span-2">
-                        <MapPin className="h-3 w-3 text-gray-400" />
-                        <span className="text-gray-600">Location:</span>
-                        <span className="font-mono text-xs">
-                          {vehicle.lastPosition.lat.toFixed(4)}, {vehicle.lastPosition.lon.toFixed(4)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center pt-2 border-t">
-                    <span className="text-xs text-gray-500">
-                      {vehicle.lastPosition?.updatetime 
-                        ? `Updated ${new Date(vehicle.lastPosition.updatetime).toLocaleTimeString()}`
-                        : 'No recent data'
-                      }
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setSelectedVehicle(vehicle)}
-                      className="flex items-center gap-1"
-                    >
-                      <Eye className="h-3 w-3" />
-                      Details
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      )}
-
-      {/* Show More Button if there are more vehicles */}
-      {!showMap && vehicles.length > 12 && (
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-gray-600 mb-4">
-              Showing 12 of {vehicles.length} vehicles
-            </p>
-            <Button variant="outline" onClick={() => setShowMap(true)}>
-              View All on Map
-            </Button>
-          </CardContent>
-        </Card>
       )}
 
       {/* Navigation to Other Pages */}
