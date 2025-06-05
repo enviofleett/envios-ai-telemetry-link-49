@@ -9,6 +9,84 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      billing_cycles: {
+        Row: {
+          billing_date: string
+          created_at: string
+          currency: string | null
+          customer_id: string | null
+          cycle_end_date: string
+          cycle_start_date: string
+          id: string
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          billing_date: string
+          created_at?: string
+          currency?: string | null
+          customer_id?: string | null
+          cycle_end_date: string
+          cycle_start_date: string
+          id?: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          billing_date?: string
+          created_at?: string
+          currency?: string | null
+          customer_id?: string | null
+          cycle_end_date?: string
+          cycle_start_date?: string
+          id?: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      billing_notifications: {
+        Row: {
+          created_at: string
+          customer_id: string | null
+          id: string
+          message: string
+          metadata: Json | null
+          notification_type: string
+          scheduled_for: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          message: string
+          metadata?: Json | null
+          notification_type: string
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          message?: string
+          metadata?: Json | null
+          notification_type?: string
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       bulk_extraction_jobs: {
         Row: {
           completed_at: string | null
@@ -177,6 +255,65 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vehicles"
             referencedColumns: ["device_id"]
+          },
+        ]
+      }
+      device_subscriptions: {
+        Row: {
+          auto_renewal: boolean | null
+          billing_cycle: string
+          created_at: string
+          customer_id: string | null
+          device_id: string
+          discount_percentage: number | null
+          end_date: string
+          id: string
+          notes: string | null
+          price_override: number | null
+          service_plan_id: string | null
+          start_date: string
+          subscription_status: string
+          updated_at: string
+        }
+        Insert: {
+          auto_renewal?: boolean | null
+          billing_cycle?: string
+          created_at?: string
+          customer_id?: string | null
+          device_id: string
+          discount_percentage?: number | null
+          end_date: string
+          id?: string
+          notes?: string | null
+          price_override?: number | null
+          service_plan_id?: string | null
+          start_date: string
+          subscription_status?: string
+          updated_at?: string
+        }
+        Update: {
+          auto_renewal?: boolean | null
+          billing_cycle?: string
+          created_at?: string
+          customer_id?: string | null
+          device_id?: string
+          discount_percentage?: number | null
+          end_date?: string
+          id?: string
+          notes?: string | null
+          price_override?: number | null
+          service_plan_id?: string | null
+          start_date?: string
+          subscription_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_subscriptions_service_plan_id_fkey"
+            columns: ["service_plan_id"]
+            isOneToOne: false
+            referencedRelation: "service_plans"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -501,6 +638,265 @@ export type Database = {
           },
         ]
       }
+      invoice_line_items: {
+        Row: {
+          created_at: string
+          description: string
+          device_subscription_id: string | null
+          id: string
+          invoice_id: string | null
+          line_total: number
+          period_end: string | null
+          period_start: string | null
+          quantity: number | null
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          device_subscription_id?: string | null
+          id?: string
+          invoice_id?: string | null
+          line_total: number
+          period_end?: string | null
+          period_start?: string | null
+          quantity?: number | null
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          device_subscription_id?: string | null
+          id?: string
+          invoice_id?: string | null
+          line_total?: number
+          period_end?: string | null
+          period_start?: string | null
+          quantity?: number | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_line_items_device_subscription_id_fkey"
+            columns: ["device_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "device_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_line_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          billing_cycle_id: string | null
+          created_at: string
+          currency: string | null
+          customer_id: string | null
+          due_date: string
+          id: string
+          invoice_data: Json | null
+          invoice_date: string
+          invoice_number: string
+          payment_date: string | null
+          payment_method: string | null
+          status: string
+          stripe_invoice_id: string | null
+          subtotal: number
+          tax_amount: number
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          billing_cycle_id?: string | null
+          created_at?: string
+          currency?: string | null
+          customer_id?: string | null
+          due_date: string
+          id?: string
+          invoice_data?: Json | null
+          invoice_date: string
+          invoice_number: string
+          payment_date?: string | null
+          payment_method?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          billing_cycle_id?: string | null
+          created_at?: string
+          currency?: string | null
+          customer_id?: string | null
+          due_date?: string
+          id?: string
+          invoice_data?: Json | null
+          invoice_date?: string
+          invoice_number?: string
+          payment_date?: string | null
+          payment_method?: string | null
+          status?: string
+          stripe_invoice_id?: string | null
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_billing_cycle_id_fkey"
+            columns: ["billing_cycle_id"]
+            isOneToOne: false
+            referencedRelation: "billing_cycles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_methods: {
+        Row: {
+          billing_address: Json | null
+          card_brand: string | null
+          card_exp_month: number | null
+          card_exp_year: number | null
+          card_last_four: string | null
+          created_at: string
+          customer_id: string | null
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          method_type: string
+          stripe_payment_method_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          billing_address?: Json | null
+          card_brand?: string | null
+          card_exp_month?: number | null
+          card_exp_year?: number | null
+          card_last_four?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          method_type: string
+          stripe_payment_method_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          billing_address?: Json | null
+          card_brand?: string | null
+          card_exp_month?: number | null
+          card_exp_year?: number | null
+          card_last_four?: string | null
+          created_at?: string
+          customer_id?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          method_type?: string
+          stripe_payment_method_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      service_plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          features: Json | null
+          id: string
+          is_active: boolean | null
+          plan_code: string
+          plan_name: string
+          price_1_year: number | null
+          price_10_year: number | null
+          price_3_year: number | null
+          price_5_year: number | null
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          plan_code: string
+          plan_name: string
+          price_1_year?: number | null
+          price_10_year?: number | null
+          price_3_year?: number | null
+          price_5_year?: number | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean | null
+          plan_code?: string
+          plan_name?: string
+          price_1_year?: number | null
+          price_10_year?: number | null
+          price_3_year?: number | null
+          price_5_year?: number | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      subscription_history: {
+        Row: {
+          action_description: string | null
+          action_type: string
+          created_at: string
+          device_subscription_id: string | null
+          id: string
+          new_values: Json | null
+          old_values: Json | null
+          performed_by: string | null
+        }
+        Insert: {
+          action_description?: string | null
+          action_type: string
+          created_at?: string
+          device_subscription_id?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          performed_by?: string | null
+        }
+        Update: {
+          action_description?: string | null
+          action_type?: string
+          created_at?: string
+          device_subscription_id?: string | null
+          id?: string
+          new_values?: Json | null
+          old_values?: Json | null
+          performed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_history_device_subscription_id_fkey"
+            columns: ["device_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "device_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_import_jobs: {
         Row: {
           admin_gp51_username: string | null
@@ -689,6 +1085,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_invoice_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       generate_temp_password_hash: {
         Args: Record<PropertyKey, never>
         Returns: string
