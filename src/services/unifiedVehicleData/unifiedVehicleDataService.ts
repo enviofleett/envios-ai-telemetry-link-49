@@ -1,4 +1,3 @@
-
 import { vehiclePositionSyncService } from '../vehiclePosition/vehiclePositionSyncService';
 import type { SyncMetrics } from '../vehiclePosition/types';
 import { VehicleDataLoader } from './dataLoader';
@@ -26,27 +25,29 @@ export class UnifiedVehicleDataService {
   }
 
   private async initializeService(): Promise<void> {
-    console.log('Initializing unified vehicle data service...');
+    console.log('Initializing unified vehicle data service for ALL vehicles...');
     
-    // Load initial data from database
-    await this.loadVehiclesFromDatabase();
+    // Load initial data from database (ALL vehicles, not limited to 1000)
+    await this.loadAllVehiclesFromDatabase();
     
-    // Start the sync service for real-time updates
-    vehiclePositionSyncService.startPeriodicSync(30000);
+    // Start the enhanced sync service for real-time updates
+    vehiclePositionSyncService.startPeriodicSync(300000); // 5 minutes for full sync
     
-    // Set up periodic data refresh
+    // Set up periodic data refresh for UI updates
     this.startDataRefresh();
     
     this.isInitialized = true;
     this.notifyListeners();
   }
 
-  private async loadVehiclesFromDatabase(): Promise<void> {
+  private async loadAllVehiclesFromDatabase(): Promise<void> {
     try {
+      console.log('Loading ALL vehicles from database (no limits)...');
       const { vehicles, totalCount } = await this.dataLoader.loadVehiclesFromDatabase();
       this.vehicles = vehicles;
       this.totalVehiclesInDatabase = totalCount;
       this.updateMetrics();
+      console.log(`Loaded ${vehicles.length} vehicles out of ${totalCount} total in database`);
     } catch (error) {
       console.error('Failed to load vehicles from database:', error);
     }
@@ -54,6 +55,7 @@ export class UnifiedVehicleDataService {
 
   private updateMetrics(): void {
     this.metrics = this.metricsCalculator.calculateMetrics(this.vehicles, this.totalVehiclesInDatabase);
+    console.log(`Metrics updated - Total: ${this.metrics.total}, Online: ${this.metrics.online}, Offline: ${this.metrics.offline}, Alerts: ${this.metrics.alerts}`);
   }
 
   private startDataRefresh(): void {
@@ -61,23 +63,28 @@ export class UnifiedVehicleDataService {
       clearInterval(this.updateInterval);
     }
 
+    // More frequent UI updates to show sync progress
     this.updateInterval = setInterval(async () => {
       await this.refreshData();
-    }, 60000); // Refresh every minute
+    }, 30000); // Refresh UI every 30 seconds
   }
 
   public async refreshData(): Promise<void> {
     try {
-      // Force sync with GP51
+      // Force sync with GP51 for all vehicles
       await vehiclePositionSyncService.forceSync();
       
-      // Reload from database
-      await this.loadVehiclesFromDatabase();
+      // Reload from database to get latest positions
+      await this.loadAllVehiclesFromDatabase();
       
       this.notifyListeners();
     } catch (error) {
       console.error('Failed to refresh vehicle data:', error);
     }
+  }
+
+  public async getSyncProgress() {
+    return await vehiclePositionSyncService.getSyncProgress();
   }
 
   public getAllVehicles(): Vehicle[] {
@@ -120,6 +127,7 @@ export class UnifiedVehicleDataService {
   }
 
   public async forceSync(): Promise<void> {
+    console.log('Force syncing ALL vehicle positions...');
     await this.refreshData();
   }
 

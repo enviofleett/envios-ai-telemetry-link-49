@@ -13,17 +13,21 @@ interface ProcessingResult {
   errors: number;
   totalProcessed: number;
   totalRequested: number;
+  completionRate: number;
+  avgProcessingTime: number;
 }
 
 export class VehiclePositionProcessor {
   private readonly BATCH_SIZE = 500; // GP51 API batch limit
+  private readonly MAX_CONCURRENT_BATCHES = 3; // Process multiple batches concurrently
   
   async fetchAndUpdateVehiclePositions(vehicles: VehicleRecord[]): Promise<ProcessingResult> {
-    console.log(`Starting position fetch for ${vehicles.length} vehicles`);
+    console.log(`Starting enhanced position fetch for ${vehicles.length} vehicles`);
     
     let totalUpdatedCount = 0;
     let totalErrors = 0;
     let totalProcessed = 0;
+    const startTime = Date.now();
 
     try {
       // Get active GP51 session
@@ -45,45 +49,71 @@ export class VehiclePositionProcessor {
 
       console.log(`Using GP51 session for user: ${session.username}`);
 
-      // Process vehicles in batches to handle GP51 API limits
+      // Create batches for all vehicles
       const deviceIds = vehicles.map(v => v.device_id);
       const batches = this.createBatches(deviceIds, this.BATCH_SIZE);
       
       console.log(`Processing ${vehicles.length} vehicles in ${batches.length} batches of max ${this.BATCH_SIZE}`);
 
-      for (let i = 0; i < batches.length; i++) {
-        const batch = batches[i];
-        console.log(`Processing batch ${i + 1}/${batches.length} with ${batch.length} vehicles`);
+      // Process batches with controlled concurrency
+      for (let i = 0; i < batches.length; i += this.MAX_CONCURRENT_BATCHES) {
+        const batchGroup = batches.slice(i, i + this.MAX_CONCURRENT_BATCHES);
         
+        console.log(`Processing batch group ${Math.floor(i / this.MAX_CONCURRENT_BATCHES) + 1}/${Math.ceil(batches.length / this.MAX_CONCURRENT_BATCHES)} with ${batchGroup.length} batches`);
+        
+        const batchPromises = batchGroup.map((batch, batchIndex) => 
+          this.processBatchWithRetry(batch, session.gp51_token, i + batchIndex + 1)
+        );
+
         try {
-          const batchResult = await this.processBatch(batch, session.gp51_token);
-          totalUpdatedCount += batchResult.updatedCount;
-          totalErrors += batchResult.errors;
-          totalProcessed += batch.length;
+          const batchResults = await Promise.allSettled(batchPromises);
           
-          // Add delay between batches to respect rate limits
-          if (i < batches.length - 1) {
-            await this.delay(1000); // 1 second delay between batches
+          for (const result of batchResults) {
+            if (result.status === 'fulfilled') {
+              totalUpdatedCount += result.value.updatedCount;
+              totalErrors += result.value.errors;
+              totalProcessed += result.value.batchSize;
+            } else {
+              console.error('Batch processing failed:', result.reason);
+              totalErrors += this.BATCH_SIZE; // Assume full batch failed
+              totalProcessed += this.BATCH_SIZE;
+            }
+          }
+
+          // Add delay between batch groups to respect rate limits
+          if (i + this.MAX_CONCURRENT_BATCHES < batches.length) {
+            await this.delay(2000); // 2 second delay between batch groups
           }
         } catch (error) {
-          console.error(`Batch ${i + 1} failed:`, error);
-          totalErrors += batch.length;
-          totalProcessed += batch.length;
+          console.error(`Batch group ${Math.floor(i / this.MAX_CONCURRENT_BATCHES) + 1} failed:`, error);
+          totalErrors += batchGroup.length * this.BATCH_SIZE;
+          totalProcessed += batchGroup.length * this.BATCH_SIZE;
         }
       }
 
-      console.log(`Position update completed: ${totalUpdatedCount} updated, ${totalErrors} errors, ${totalProcessed} processed of ${vehicles.length} requested`);
+      const processingTime = Date.now() - startTime;
+      const completionRate = totalProcessed > 0 ? (totalUpdatedCount / totalProcessed) * 100 : 0;
+      const avgProcessingTime = totalProcessed > 0 ? processingTime / totalProcessed : 0;
+
+      console.log(`Enhanced position update completed: ${totalUpdatedCount} updated, ${totalErrors} errors, ${totalProcessed} processed of ${vehicles.length} requested`);
+      console.log(`Completion rate: ${completionRate.toFixed(2)}%, Average processing time: ${avgProcessingTime.toFixed(2)}ms per vehicle`);
 
     } catch (error) {
       console.error('Position fetch failed:', error);
       throw new Error(`Failed to fetch positions from GP51: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
+    const processingTime = Date.now() - startTime;
+    const completionRate = totalProcessed > 0 ? (totalUpdatedCount / totalProcessed) * 100 : 0;
+    const avgProcessingTime = totalProcessed > 0 ? processingTime / totalProcessed : 0;
+
     return { 
       updatedCount: totalUpdatedCount, 
       errors: totalErrors,
       totalProcessed,
-      totalRequested: vehicles.length
+      totalRequested: vehicles.length,
+      completionRate,
+      avgProcessingTime
     };
   }
 
@@ -93,6 +123,30 @@ export class VehiclePositionProcessor {
       batches.push(array.slice(i, i + batchSize));
     }
     return batches;
+  }
+
+  private async processBatchWithRetry(deviceIds: string[], token: string, batchNumber: number, maxRetries: number = 2): Promise<{ updatedCount: number; errors: number; batchSize: number }> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        console.log(`Processing batch ${batchNumber}, attempt ${attempt}/${maxRetries + 1} with ${deviceIds.length} devices`);
+        const result = await this.processBatch(deviceIds, token);
+        return { ...result, batchSize: deviceIds.length };
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        console.warn(`Batch ${batchNumber} attempt ${attempt} failed:`, lastError.message);
+        
+        if (attempt <= maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000; // Exponential backoff
+          console.log(`Retrying batch ${batchNumber} in ${delay}ms...`);
+          await this.delay(delay);
+        }
+      }
+    }
+
+    console.error(`Batch ${batchNumber} failed after ${maxRetries + 1} attempts:`, lastError?.message);
+    return { updatedCount: 0, errors: deviceIds.length, batchSize: deviceIds.length };
   }
 
   private async processBatch(deviceIds: string[], token: string): Promise<{ updatedCount: number; errors: number }> {
@@ -125,33 +179,44 @@ export class VehiclePositionProcessor {
     let updatedCount = 0;
     let errors = 0;
 
-    // Update vehicle positions in database
-    for (const position of positions) {
-      try {
-        const { error: updateError } = await supabase
-          .from('vehicles')
-          .update({
-            last_position: {
-              lat: position.callat,
-              lon: position.callon,
-              speed: position.speed,
-              course: position.course,
-              updatetime: position.updatetime,
-              statusText: position.strstatusen
-            },
-            updated_at: new Date().toISOString()
-          })
-          .eq('device_id', position.deviceid);
+    // Bulk update approach for better performance
+    const updates = positions.map(position => ({
+      device_id: position.deviceid,
+      last_position: {
+        lat: position.callat,
+        lon: position.callon,
+        speed: position.speed,
+        course: position.course,
+        updatetime: position.updatetime,
+        statusText: position.strstatusen
+      },
+      updated_at: new Date().toISOString()
+    }));
 
-        if (updateError) {
-          console.error(`Failed to update vehicle ${position.deviceid}:`, updateError);
-          errors++;
-        } else {
-          updatedCount++;
+    // Process updates in smaller chunks for better database performance
+    const updateChunks = this.createBatches(updates, 100);
+    
+    for (const chunk of updateChunks) {
+      try {
+        for (const update of chunk) {
+          const { error: updateError } = await supabase
+            .from('vehicles')
+            .update({
+              last_position: update.last_position,
+              updated_at: update.updated_at
+            })
+            .eq('device_id', update.device_id);
+
+          if (updateError) {
+            console.error(`Failed to update vehicle ${update.device_id}:`, updateError);
+            errors++;
+          } else {
+            updatedCount++;
+          }
         }
       } catch (error) {
-        console.error(`Error updating vehicle ${position.deviceid}:`, error);
-        errors++;
+        console.error(`Error updating chunk:`, error);
+        errors += chunk.length;
       }
     }
 

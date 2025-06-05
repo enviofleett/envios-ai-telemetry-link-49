@@ -20,7 +20,7 @@ interface PollingMetrics {
 
 export class EnhancedPollingService {
   private config: PollingConfig = {
-    interval: 30000, // 30 seconds
+    interval: 300000, // 5 minutes for full sync of all vehicles
     maxRetries: 3,
     backoffMultiplier: 2,
     enabled: true
@@ -34,6 +34,7 @@ export class EnhancedPollingService {
   };
 
   private pollingInterval: NodeJS.Timeout | null = null;
+  private progressiveInterval: NodeJS.Timeout | null = null;
   private isPolling = false;
 
   constructor() {
@@ -61,6 +62,7 @@ export class EnhancedPollingService {
   private initializePolling(): void {
     if (this.config.enabled) {
       this.startPolling();
+      this.startProgressivePolling();
     }
   }
 
@@ -69,33 +71,34 @@ export class EnhancedPollingService {
       clearInterval(this.pollingInterval);
     }
 
-    console.log(`Starting enhanced polling service with ${this.config.interval}ms interval`);
+    console.log(`Starting enhanced polling service with ${this.config.interval}ms interval for ALL vehicles`);
     
-    // Start vehicle position sync service with the same interval
+    // Start vehicle position sync service for all vehicles
     vehiclePositionSyncService.startPeriodicSync(this.config.interval);
 
     this.pollingInterval = setInterval(() => {
-      this.performPoll();
+      this.performFullPoll();
     }, this.config.interval);
 
     // Perform initial poll immediately
-    this.performPoll();
+    this.performFullPoll();
   }
 
-  public stopPolling(): void {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-      this.pollingInterval = null;
-      console.log('Polling service stopped');
+  private startProgressivePolling(): void {
+    if (this.progressiveInterval) {
+      clearInterval(this.progressiveInterval);
     }
 
-    // Stop vehicle position sync service
-    vehiclePositionSyncService.stopPeriodicSync();
+    console.log('Starting progressive polling for vehicles needing updates');
+    
+    this.progressiveInterval = setInterval(() => {
+      this.performProgressivePoll();
+    }, 60000); // Every minute for urgent updates
   }
 
-  private async performPoll(): Promise<void> {
+  private async performFullPoll(): Promise<void> {
     if (this.isPolling) {
-      console.log('Poll already in progress, skipping...');
+      console.log('Full poll already in progress, skipping...');
       return;
     }
 
@@ -104,22 +107,33 @@ export class EnhancedPollingService {
     this.metrics.lastPollTime = new Date();
 
     try {
-      console.log(`Starting poll #${this.metrics.totalPolls} at ${this.metrics.lastPollTime.toISOString()}`);
+      console.log(`Starting full poll #${this.metrics.totalPolls} for ALL vehicles at ${this.metrics.lastPollTime.toISOString()}`);
 
-      // Use the updated vehicle position sync service
+      // Use the enhanced vehicle position sync service for all vehicles
       const syncMetrics = await vehiclePositionSyncService.forceSync();
       
-      console.log(`Poll #${this.metrics.totalPolls} completed:`, syncMetrics);
+      // Get detailed progress
+      const progress = await vehiclePositionSyncService.getSyncProgress();
+      
+      console.log(`Full poll #${this.metrics.totalPolls} completed:`, {
+        ...syncMetrics,
+        progress
+      });
 
       this.metrics.successfulPolls++;
       this.metrics.lastSuccessTime = new Date();
       this.metrics.currentRetryCount = 0;
 
-      // Update polling status
-      await this.updatePollingStatus(true);
+      // Update polling status with enhanced metrics
+      await this.updatePollingStatus(true, undefined, progress);
+
+      // Alert if completion rate is low
+      if (progress.completionPercentage < 90) {
+        console.warn(`⚠️  Low sync completion rate: ${progress.completionPercentage.toFixed(2)}%`);
+      }
 
     } catch (error) {
-      console.error(`Poll #${this.metrics.totalPolls} failed:`, error);
+      console.error(`Full poll #${this.metrics.totalPolls} failed:`, error);
       
       this.metrics.failedPolls++;
       this.metrics.lastErrorTime = new Date();
@@ -133,7 +147,7 @@ export class EnhancedPollingService {
         console.log(`Scheduling retry in ${backoffDelay}ms`);
         
         setTimeout(() => {
-          this.performPoll();
+          this.performFullPoll();
         }, backoffDelay);
       } else {
         console.error('Max retries exceeded, stopping polling');
@@ -144,7 +158,40 @@ export class EnhancedPollingService {
     }
   }
 
-  private async updatePollingStatus(success: boolean, errorMessage?: string): Promise<void> {
+  private async performProgressivePoll(): Promise<void> {
+    if (this.isPolling) {
+      return; // Don't interfere with full poll
+    }
+
+    try {
+      const progress = await vehiclePositionSyncService.getSyncProgress();
+      
+      // Only perform progressive poll if there are vehicles needing updates
+      if (progress.vehiclesNeedingUpdates > 0) {
+        console.log(`Progressive poll: ${progress.vehiclesNeedingUpdates} vehicles need position updates`);
+        // The progressive sync is handled automatically by the VehiclePositionSyncService
+      }
+    } catch (error) {
+      console.error('Progressive poll check failed:', error);
+    }
+  }
+
+  public stopPolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
+    if (this.progressiveInterval) {
+      clearInterval(this.progressiveInterval);
+      this.progressiveInterval = null;
+    }
+
+    // Stop vehicle position sync service
+    vehiclePositionSyncService.stopPeriodicSync();
+    console.log('Enhanced polling service stopped');
+  }
+
+  private async updatePollingStatus(success: boolean, errorMessage?: string, progress?: any): Promise<void> {
     try {
       const { error } = await supabase.rpc('update_polling_status', {
         p_last_poll_time: new Date().toISOString(),
@@ -154,6 +201,11 @@ export class EnhancedPollingService {
 
       if (error) {
         console.error('Failed to update polling status:', error);
+      }
+
+      // Log progress for monitoring
+      if (progress) {
+        console.log(`Sync Progress - Total: ${progress.totalVehicles}, Recent Updates: ${progress.vehiclesWithRecentUpdates}, Needing Updates: ${progress.vehiclesNeedingUpdates}, Completion: ${progress.completionPercentage.toFixed(2)}%`);
       }
     } catch (error) {
       console.error('Error updating polling status:', error);
@@ -186,9 +238,16 @@ export class EnhancedPollingService {
 
   public async validateConnection(): Promise<{ success: boolean; error?: string }> {
     try {
-      // Test connection by attempting a sync
+      // Test connection by attempting a sync of all vehicles
       const syncMetrics = await vehiclePositionSyncService.forceSync();
-      return { success: syncMetrics.positionsUpdated > 0 || syncMetrics.errors === 0 };
+      const progress = await vehiclePositionSyncService.getSyncProgress();
+      
+      const success = progress.completionPercentage > 50; // At least 50% of vehicles should sync
+      
+      return { 
+        success,
+        error: success ? undefined : `Low completion rate: ${progress.completionPercentage.toFixed(2)}%`
+      };
     } catch (error) {
       return { 
         success: false, 
