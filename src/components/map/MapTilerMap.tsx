@@ -4,7 +4,7 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { useMapTilerApi } from '@/hooks/useMapTilerApi';
 import { Card, CardContent } from '@/components/ui/card';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import LoadingSpinner from '@/components/LoadingSpinner';
 import { AlertTriangle } from 'lucide-react';
 
 interface MapTilerMapProps {
