@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Map, BarChart3, MapPin } from 'lucide-react';
+import { Shield, Map, BarChart3, MapPin, Key } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import GP51ConnectionInfo from './AdminSettings/GP51ConnectionInfo';
@@ -11,6 +11,7 @@ import GP51CredentialsForm from './AdminSettings/GP51CredentialsForm';
 import EnhancedMapApiManagement from './AdminSettings/EnhancedMapApiManagement';
 import MapAnalyticsDashboard from '@/components/map/MapAnalyticsDashboard';
 import GeofenceManager from '@/components/map/GeofenceManager';
+import ApiCredentialsTab from './AdminSettings/ApiCredentialsTab';
 
 const AdminSettings = () => {
   const { data: gp51Status, isLoading: statusLoading } = useQuery({
@@ -38,7 +39,7 @@ const AdminSettings = () => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="gp51" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="gp51" className="flex items-center gap-2">
               <Shield className="h-4 w-4" />
               GP51 Platform
@@ -54,6 +55,10 @@ const AdminSettings = () => {
             <TabsTrigger value="geofencing" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
               Geofencing
+            </TabsTrigger>
+            <TabsTrigger value="api-credentials" className="flex items-center gap-2">
+              <Key className="h-4 w-4" />
+              API Credentials
             </TabsTrigger>
           </TabsList>
           
@@ -99,6 +104,10 @@ const AdminSettings = () => {
               </p>
             </div>
             <GeofenceManager />
+          </TabsContent>
+
+          <TabsContent value="api-credentials" className="space-y-4 mt-6">
+            <ApiCredentialsTab />
           </TabsContent>
         </Tabs>
       </CardContent>
