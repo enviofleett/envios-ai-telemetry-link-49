@@ -1,5 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { GeocodingResult } from '@/types/mapIntegration';
 
 class LocationServices {
   private apiKey: string | null = null;
