@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import VehicleCard from '@/components/vehicles/VehicleCard';
 import VehicleFilters from '@/components/vehicles/VehicleFilters';
 import { useStableEnhancedVehicleData } from '@/hooks/useStableEnhancedVehicleData';
-import StableErrorBoundary from '@/components/StableErrorBoundary';
+import ErrorBoundary from '@/components/StableErrorBoundary';
+import LoadingFallback from '@/components/LoadingFallback';
 
 const StableEnhancedVehicleManagement = () => {
   const {
@@ -29,19 +30,27 @@ const StableEnhancedVehicleManagement = () => {
     }
   };
 
+  if (isLoading) {
+    return <LoadingFallback message="Loading vehicles..." fullScreen />;
+  }
+
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="text-red-500 mb-4">Error loading vehicles: {error.message}</div>
-          <Button onClick={handleRefresh}>Retry</Button>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="text-red-500 mb-4">Error loading vehicles</div>
+          <p className="text-gray-600 mb-4">{error.message}</p>
+          <Button onClick={handleRefresh}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry
+          </Button>
         </div>
       </div>
     );
   }
 
   return (
-    <StableErrorBoundary>
+    <ErrorBoundary>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -88,24 +97,18 @@ const StableEnhancedVehicleManagement = () => {
         </div>
 
         {/* Filters */}
-        <VehicleFilters
-          filters={filters}
-          onFiltersChange={setFilters}
-          userOptions={userOptions}
-          vehicleCount={vehicles.length}
-          filteredCount={filteredVehicles.length}
-        />
+        <ErrorBoundary>
+          <VehicleFilters
+            filters={filters}
+            onFiltersChange={setFilters}
+            userOptions={userOptions}
+            vehicleCount={vehicles.length}
+            filteredCount={filteredVehicles.length}
+          />
+        </ErrorBoundary>
 
         {/* Vehicle Grid */}
-        {isLoading ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="animate-pulse">
-                <div className="bg-gray-200 rounded-lg h-80"></div>
-              </div>
-            ))}
-          </div>
-        ) : filteredVehicles.length === 0 ? (
+        {filteredVehicles.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-500 mb-4">
               {vehicles.length === 0 ? 'No vehicles found' : 'No vehicles match your filters'}
@@ -124,7 +127,7 @@ const StableEnhancedVehicleManagement = () => {
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredVehicles.map((vehicle) => (
-              <StableErrorBoundary key={vehicle.id}>
+              <ErrorBoundary key={vehicle.id}>
                 <VehicleCard
                   vehicle={vehicle}
                   associatedUser={vehicle.envio_users?.name}
@@ -133,12 +136,12 @@ const StableEnhancedVehicleManagement = () => {
                   onViewDetails={handleVehicleAction.viewDetails}
                   onSendCommand={handleVehicleAction.sendCommand}
                 />
-              </StableErrorBoundary>
+              </ErrorBoundary>
             ))}
           </div>
         )}
       </div>
-    </StableErrorBoundary>
+    </ErrorBoundary>
   );
 };
 
