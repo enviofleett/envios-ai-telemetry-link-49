@@ -27,6 +27,36 @@ export interface GeofenceAlert {
   acknowledged_at?: string;
 }
 
+// Type guard to safely convert JSON location to our expected format
+function isValidLocation(location: any): location is { lat: number; lng: number } {
+  return (
+    typeof location === 'object' &&
+    location !== null &&
+    typeof location.lat === 'number' &&
+    typeof location.lng === 'number'
+  );
+}
+
+// Helper function to safely convert Supabase data to GeofenceAlert
+function convertToGeofenceAlert(data: any): GeofenceAlert | null {
+  if (!data || !isValidLocation(data.location)) {
+    console.warn('Invalid geofence alert data:', data);
+    return null;
+  }
+
+  return {
+    id: data.id,
+    geofence_id: data.geofence_id,
+    device_id: data.device_id,
+    alert_type: data.alert_type,
+    triggered_at: data.triggered_at,
+    location: data.location,
+    is_acknowledged: data.is_acknowledged,
+    acknowledged_by: data.acknowledged_by,
+    acknowledged_at: data.acknowledged_at
+  };
+}
+
 class GeofencingService {
   async createGeofence(geofence: Omit<Geofence, 'id' | 'created_at' | 'updated_at'>) {
     try {
@@ -153,7 +183,7 @@ class GeofencingService {
         .single();
 
       if (error) throw error;
-      return data as GeofenceAlert;
+      return convertToGeofenceAlert(data);
     } catch (error) {
       console.error('Failed to create geofence alert:', error);
       return null;
@@ -199,7 +229,19 @@ class GeofencingService {
       const { data, error } = await query;
 
       if (error) throw error;
-      return (data || []) as GeofenceAlert[];
+      
+      // Safely convert the data to GeofenceAlert[]
+      const alerts: GeofenceAlert[] = [];
+      if (data) {
+        for (const item of data) {
+          const alert = convertToGeofenceAlert(item);
+          if (alert) {
+            alerts.push(alert);
+          }
+        }
+      }
+      
+      return alerts;
     } catch (error) {
       console.error('Failed to fetch geofence alerts:', error);
       return [];
