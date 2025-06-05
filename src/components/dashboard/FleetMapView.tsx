@@ -3,7 +3,8 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Navigation, Activity } from 'lucide-react';
+import { Activity, Navigation, TrendingUp } from 'lucide-react';
+import MapTilerMap from '@/components/map/MapTilerMap';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface FleetMapViewProps {
@@ -26,14 +27,6 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
     return 'offline';
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'bg-green-500';
-      case 'idle': return 'bg-yellow-500';
-      default: return 'bg-gray-400';
-    }
-  };
-
   const statusCounts = vehicles.reduce((acc, vehicle) => {
     const status = getVehicleStatus(vehicle);
     acc[status] = (acc[status] || 0) + 1;
@@ -48,27 +41,19 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Navigation className="h-5 w-5" />
-              Fleet Map View
+              Live Fleet Map
+              <Badge variant="outline" className="ml-2">
+                {vehiclesWithPosition.length} vehicles
+              </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="bg-gray-100 rounded-lg p-8 text-center min-h-[500px] flex flex-col items-center justify-center">
-              <MapPin className="h-16 w-16 text-gray-400 mb-4" />
-              <h3 className="text-lg font-semibold text-gray-600 mb-2">Interactive Map Coming Soon</h3>
-              <p className="text-gray-500 mb-6">
-                Real-time vehicle positions will be displayed on an interactive map
-              </p>
-              <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">{vehiclesWithPosition.length}</div>
-                  <div>Vehicles with GPS</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">{statusCounts.online || 0}</div>
-                  <div>Currently Online</div>
-                </div>
-              </div>
-            </div>
+          <CardContent className="p-0">
+            <MapTilerMap
+              vehicles={vehiclesWithPosition}
+              onVehicleSelect={onVehicleSelect}
+              height="500px"
+              className="rounded-none border-0"
+            />
           </CardContent>
         </Card>
       </div>
@@ -109,6 +94,43 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
           </CardContent>
         </Card>
 
+        {/* Fleet Statistics */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Fleet Stats
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total Vehicles:</span>
+                <span className="font-semibold">{vehicles.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">With GPS:</span>
+                <span className="font-semibold">{vehiclesWithPosition.length}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Moving:</span>
+                <span className="font-semibold">
+                  {vehiclesWithPosition.filter(v => 
+                    v.lastPosition?.speed && v.lastPosition.speed > 0
+                  ).length}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">GPS Coverage:</span>
+                <span className="font-semibold">
+                  {vehicles.length > 0 ? 
+                    ((vehiclesWithPosition.length / vehicles.length) * 100).toFixed(1) : 0}%
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Recent Activity */}
         <Card>
           <CardHeader>
@@ -125,6 +147,14 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
                 .slice(0, 10)
                 .map((vehicle) => {
                   const status = getVehicleStatus(vehicle);
+                  const getStatusColor = (status: string) => {
+                    switch (status) {
+                      case 'online': return 'bg-green-500';
+                      case 'idle': return 'bg-yellow-500';
+                      default: return 'bg-gray-400';
+                    }
+                  };
+
                   return (
                     <div 
                       key={vehicle.deviceid}
@@ -136,7 +166,7 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
                         <div>
                           <div className="font-medium text-sm">{vehicle.devicename}</div>
                           <div className="text-xs text-gray-500">
-                            {vehicle.lastPosition?.speed} km/h
+                            {vehicle.lastPosition?.speed || 0} km/h
                           </div>
                         </div>
                       </div>

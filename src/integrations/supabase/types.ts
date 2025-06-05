@@ -760,6 +760,77 @@ export type Database = {
           },
         ]
       }
+      map_api_configs: {
+        Row: {
+          api_key: string
+          created_at: string
+          fallback_priority: number
+          id: string
+          is_active: boolean
+          name: string
+          provider_type: string
+          threshold_type: string
+          threshold_value: number
+          updated_at: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          fallback_priority?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          provider_type?: string
+          threshold_type?: string
+          threshold_value?: number
+          updated_at?: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          fallback_priority?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          provider_type?: string
+          threshold_type?: string
+          threshold_value?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      map_api_usage: {
+        Row: {
+          api_config_id: string
+          id: string
+          last_updated: string
+          request_count: number
+          usage_date: string
+        }
+        Insert: {
+          api_config_id: string
+          id?: string
+          last_updated?: string
+          request_count?: number
+          usage_date?: string
+        }
+        Update: {
+          api_config_id?: string
+          id?: string
+          last_updated?: string
+          request_count?: number
+          usage_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_api_usage_api_config_id_fkey"
+            columns: ["api_config_id"]
+            isOneToOne: false
+            referencedRelation: "map_api_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payment_methods: {
         Row: {
           billing_address: Json | null
@@ -1120,6 +1191,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_active_map_api: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          api_key: string
+          provider_type: string
+          config_id: string
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -1130,6 +1209,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
         }
         Returns: boolean
+      }
+      increment_map_api_usage: {
+        Args: { config_id: string }
+        Returns: undefined
       }
       update_polling_status: {
         Args: {
