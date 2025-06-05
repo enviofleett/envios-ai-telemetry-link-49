@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { VehiclePosition } from '@/types/vehicle';
 
 export interface FleetMetrics {
   totalVehicles: number;
@@ -24,6 +25,14 @@ export interface VehicleAnalytics {
   alerts: number;
   lastUpdate: string;
 }
+
+// Type guard to check if the position data is valid
+const isValidPosition = (position: any): position is VehiclePosition => {
+  return position && 
+         typeof position === 'object' && 
+         'updatetime' in position &&
+         'speed' in position;
+};
 
 export const useFleetAnalytics = () => {
   const [dateRange, setDateRange] = useState({
@@ -67,8 +76,9 @@ export const useFleetAnalytics = () => {
     
     // Calculate online vehicles (last update within 30 minutes)
     const onlineVehicles = vehicles.filter(v => {
-      if (!v.last_position?.updatetime) return false;
-      const lastUpdate = new Date(v.last_position.updatetime);
+      const position = v.last_position as any;
+      if (!isValidPosition(position)) return false;
+      const lastUpdate = new Date(position.updatetime);
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
       return lastUpdate > thirtyMinutesAgo;
     }).length;
@@ -76,14 +86,18 @@ export const useFleetAnalytics = () => {
     const utilizationRate = totalVehicles > 0 ? (onlineVehicles / totalVehicles) * 100 : 0;
     
     // Calculate average speed from online vehicles
-    const onlineVehiclesWithSpeed = vehicles.filter(v => 
-      v.last_position?.speed !== undefined && 
-      v.last_position?.updatetime &&
-      new Date(v.last_position.updatetime) > new Date(Date.now() - 30 * 60 * 1000)
-    );
+    const onlineVehiclesWithSpeed = vehicles.filter(v => {
+      const position = v.last_position as any;
+      return isValidPosition(position) && 
+             typeof position.speed === 'number' &&
+             new Date(position.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
+    });
     
     const averageSpeed = onlineVehiclesWithSpeed.length > 0 
-      ? onlineVehiclesWithSpeed.reduce((sum, v) => sum + (v.last_position?.speed || 0), 0) / onlineVehiclesWithSpeed.length
+      ? onlineVehiclesWithSpeed.reduce((sum, v) => {
+          const position = v.last_position as any;
+          return sum + (isValidPosition(position) ? (position.speed || 0) : 0);
+        }, 0) / onlineVehiclesWithSpeed.length
       : 0;
 
     // Mock calculations for other metrics (would be calculated from historical data)
@@ -111,8 +125,9 @@ export const useFleetAnalytics = () => {
     if (!vehicles) return [];
 
     return vehicles.map(vehicle => {
-      const isOnline = vehicle.last_position?.updatetime && 
-        new Date(vehicle.last_position.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
+      const position = vehicle.last_position as any;
+      const isOnline = isValidPosition(position) && 
+        new Date(position.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
       
       // Mock analytics calculations (would use historical data)
       const utilizationRate = isOnline ? Math.random() * 40 + 60 : Math.random() * 30; // 60-100% or 0-30%
@@ -129,7 +144,7 @@ export const useFleetAnalytics = () => {
         maintenanceScore: Math.round(maintenanceScore * 100) / 100,
         driverScore: Math.round(driverScore * 100) / 100,
         alerts,
-        lastUpdate: vehicle.last_position?.updatetime || vehicle.updated_at
+        lastUpdate: isValidPosition(position) ? position.updatetime : vehicle.updated_at
       };
     });
   }, [vehicles]);
