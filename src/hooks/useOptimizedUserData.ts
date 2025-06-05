@@ -46,6 +46,8 @@ export const useOptimizedUserData = ({
   return useQuery({
     queryKey: ['users-optimized', page, limit, search],
     queryFn: async (): Promise<UsersResponse> => {
+      console.log('Fetching users with params:', { page, limit, search });
+      
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
@@ -68,6 +70,7 @@ export const useOptimizedUserData = ({
         throw new Error(`Failed to fetch users: ${error.message}`);
       }
 
+      console.log('Users data received:', data);
       return data as UsersResponse;
     },
     enabled,

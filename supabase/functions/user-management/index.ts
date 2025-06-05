@@ -34,6 +34,8 @@ serve(async (req) => {
     const search = url.searchParams.get('search') || '';
     const offset = (page - 1) * limit;
 
+    console.log('Request params:', { page, limit, search, offset });
+
     // Get current user from auth header
     const authHeader = req.headers.get('authorization');
     let currentUserId = null;
@@ -80,7 +82,7 @@ serve(async (req) => {
       const userId = pathSegments[pathSegments.length - 1];
       
       if (userId && userId !== 'user-management') {
-        // Get specific user with enhanced details using optimized query
+        // Get specific user with enhanced details
         const { data: user, error: userError } = await supabase
           .from('envio_users')
           .select(`
@@ -93,34 +95,40 @@ serve(async (req) => {
             ),
             user_roles!user_roles_user_id_fkey (
               role
-            ),
-            vehicle_count:vehicles(count)
+            )
           `)
           .eq('id', userId)
           .single();
 
         if (userError) {
+          console.error('Error fetching user:', userError);
           return new Response(
             JSON.stringify({ error: 'User not found' }),
             { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Get assigned vehicles list
-        const { data: vehicles } = await supabase
+        // Get assigned vehicles for this user
+        const { data: vehicles, error: vehiclesError } = await supabase
           .from('vehicles')
-          .select('device_id')
+          .select('device_id, device_name')
           .eq('envio_user_id', userId);
 
+        if (vehiclesError) {
+          console.error('Error fetching user vehicles:', vehiclesError);
+        }
+
         user.assigned_vehicles = vehicles?.map(v => v.device_id) || [];
+
+        console.log(`User ${userId} has ${user.assigned_vehicles.length} vehicles assigned`);
 
         return new Response(
           JSON.stringify({ user }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } else {
-        // Optimized query for all users with pagination and search
-        let query = supabase
+        // Optimized query for all users with their vehicle assignments
+        let userQuery = supabase
           .from('envio_users')
           .select(`
             *,
@@ -136,43 +144,79 @@ serve(async (req) => {
           `, { count: 'exact' })
           .order('created_at', { ascending: false });
 
-        // Add search filter if provided
+        // Add search filter if provided (minimum 2 characters)
         if (search.length >= 2) {
-          query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone_number.ilike.%${search}%`);
+          userQuery = userQuery.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone_number.ilike.%${search}%`);
         }
 
         // Add pagination
-        query = query.range(offset, offset + limit - 1);
+        userQuery = userQuery.range(offset, offset + limit - 1);
 
-        const { data: users, error, count } = await query;
+        const { data: users, error: usersError, count } = await userQuery;
 
-        if (error) {
-          console.error('Error fetching users:', error);
+        if (usersError) {
+          console.error('Error fetching users:', usersError);
           return new Response(
             JSON.stringify({ error: 'Failed to fetch users' }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
 
-        // Get vehicle counts for all users in one query
-        const userIds = users?.map(user => user.id) || [];
-        const { data: vehicleCounts } = await supabase
+        console.log(`Fetched ${users?.length || 0} users out of ${count} total`);
+
+        if (!users || users.length === 0) {
+          return new Response(
+            JSON.stringify({ 
+              users: [],
+              pagination: {
+                page,
+                limit,
+                total: count || 0,
+                totalPages: Math.ceil((count || 0) / limit)
+              }
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        // Get vehicle assignments for all users in a single query
+        const userIds = users.map(user => user.id);
+        console.log('Fetching vehicles for user IDs:', userIds);
+
+        const { data: vehicleAssignments, error: vehiclesError } = await supabase
           .from('vehicles')
-          .select('envio_user_id')
+          .select('envio_user_id, device_id, device_name')
           .in('envio_user_id', userIds)
           .not('envio_user_id', 'is', null);
 
-        // Create a map of user ID to vehicle count
-        const vehicleCountMap = vehicleCounts?.reduce((acc, vehicle) => {
-          acc[vehicle.envio_user_id] = (acc[vehicle.envio_user_id] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>) || {};
+        if (vehiclesError) {
+          console.error('Error fetching vehicle assignments:', vehiclesError);
+        }
 
-        // Add vehicle counts to users
-        const enhancedUsers = users?.map(user => ({
+        console.log(`Found ${vehicleAssignments?.length || 0} vehicle assignments`);
+
+        // Create a map of user ID to their assigned vehicles
+        const vehiclesByUser = (vehicleAssignments || []).reduce((acc, vehicle) => {
+          if (!acc[vehicle.envio_user_id]) {
+            acc[vehicle.envio_user_id] = [];
+          }
+          acc[vehicle.envio_user_id].push(vehicle.device_id);
+          return acc;
+        }, {} as Record<string, string[]>);
+
+        console.log('Vehicle assignments by user:', vehiclesByUser);
+
+        // Add vehicle assignments to users
+        const enhancedUsers = users.map(user => ({
           ...user,
-          assigned_vehicles: Array(vehicleCountMap[user.id] || 0).fill('').map((_, i) => `vehicle_${i}`)
-        })) || [];
+          assigned_vehicles: vehiclesByUser[user.id] || []
+        }));
+
+        console.log('Enhanced users with vehicle counts:', enhancedUsers.map(u => ({ 
+          id: u.id, 
+          name: u.name, 
+          vehicleCount: u.assigned_vehicles.length 
+        })));
 
         return new Response(
           JSON.stringify({ 
