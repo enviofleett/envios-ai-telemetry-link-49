@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Plus, Edit, Trash2, UserPlus, Upload, Download, MoreHorizontal } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Search, Plus, Edit, Trash2, UserPlus, Upload, Download, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -20,8 +20,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useOptimizedUserData } from '@/hooks/useOptimizedUserData';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface User {
   id: string;
@@ -56,20 +66,26 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<'name' | 'email' | 'created_at'>('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: users, isLoading } = useQuery({
-    queryKey: ['users-enhanced'],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('user-management');
-      if (error) throw error;
-      return data.users as User[];
-    },
+  // Debounce search to prevent excessive API calls
+  const debouncedSearch = useDebounce(searchTerm, 500);
+
+  const pageSize = 50;
+
+  const { data: usersData, isLoading, error } = useOptimizedUserData({
+    page: currentPage,
+    limit: pageSize,
+    search: debouncedSearch,
   });
+
+  const users = usersData?.users || [];
+  const pagination = usersData?.pagination;
 
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
@@ -79,7 +95,7 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users-enhanced'] });
+      queryClient.invalidateQueries({ queryKey: ['users-optimized'] });
       toast({ title: 'User deleted successfully' });
     },
     onError: (error: any) => {
@@ -100,7 +116,7 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users-enhanced'] });
+      queryClient.invalidateQueries({ queryKey: ['users-optimized'] });
       setSelectedUsers([]);
       toast({ title: `${selectedUsers.length} users deleted successfully` });
     },
@@ -113,18 +129,15 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
     },
   });
 
-  const filteredUsers = users?.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.phone_number?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
-
-  const sortedUsers = [...filteredUsers].sort((a, b) => {
-    const aValue = a[sortBy];
-    const bValue = b[sortBy];
-    const comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-    return sortOrder === 'asc' ? comparison : -comparison;
-  });
+  // Sort users on frontend (since we're paginated, this is manageable)
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      const aValue = a[sortBy];
+      const bValue = b[sortBy];
+      const comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [users, sortBy, sortOrder]);
 
   const handleSort = (column: 'name' | 'email' | 'created_at') => {
     if (sortBy === column) {
@@ -202,10 +215,17 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
     return userType ? labels[userType as keyof typeof labels] : 'Not Set';
   };
 
-  if (isLoading) {
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    setSelectedUsers([]); // Clear selections when changing pages
+  };
+
+  if (error) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Loading users...</div>
+        <div className="text-lg text-red-600">
+          Error loading users: {error.message}
+        </div>
       </div>
     );
   }
@@ -217,11 +237,17 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <Search className="h-4 w-4 text-gray-400" />
           <Input
-            placeholder="Search users by name, email, or phone..."
+            placeholder="Search users (min 2 chars)..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1); // Reset to first page on search
+            }}
             className="max-w-sm"
           />
+          {debouncedSearch !== searchTerm && (
+            <span className="text-sm text-gray-500">Searching...</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {selectedUsers.length > 0 && (
@@ -248,6 +274,16 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
           </Button>
         </div>
       </div>
+
+      {/* Pagination Info */}
+      {pagination && (
+        <div className="flex justify-between items-center text-sm text-gray-600">
+          <span>
+            Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, pagination.total)} of {pagination.total} users
+          </span>
+          <span>Page {currentPage} of {pagination.totalPages}</span>
+        </div>
+      )}
 
       {/* Users Table */}
       <div className="border rounded-lg">
@@ -287,77 +323,128 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedUsers.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell>
-                  <Checkbox
-                    checked={selectedUsers.includes(user.id)}
-                    onCheckedChange={(checked) => handleSelectUser(user.id, checked as boolean)}
-                  />
-                </TableCell>
-                <TableCell className="font-medium">{user.name}</TableCell>
-                <TableCell>{user.email}</TableCell>
-                <TableCell>{user.phone_number || '-'}</TableCell>
-                <TableCell>
-                  <Badge variant={getUserRole(user) === 'admin' ? 'default' : 'secondary'}>
-                    {getUserRole(user)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant={getGP51Status(user) === 'Active' ? 'default' : 'outline'}>
-                    {getGP51Status(user)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">
-                    {getUserTypeLabel(user.gp51_user_type)}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <span className="text-sm text-gray-600">
-                    {user.assigned_vehicles?.length || 0} vehicles
-                  </span>
-                </TableCell>
-                <TableCell className="text-sm text-gray-500">
-                  {new Date(user.created_at).toLocaleDateString()}
-                </TableCell>
-                <TableCell>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEditUser(user)}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit User
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onAssignVehicles(user)}>
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        Assign Vehicles
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => deleteUserMutation.mutate(user.id)}
-                        className="text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete User
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={10} className="text-center py-8">
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-2"></div>
+                    Loading users...
+                  </div>
                 </TableCell>
               </TableRow>
-            ))}
+            ) : sortedUsers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={10} className="text-center py-8">
+                  <div className="text-gray-500">
+                    {debouncedSearch ? 'No users found matching your search' : 'No users found'}
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              sortedUsers.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedUsers.includes(user.id)}
+                      onCheckedChange={(checked) => handleSelectUser(user.id, checked as boolean)}
+                    />
+                  </TableCell>
+                  <TableCell className="font-medium">{user.name}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>{user.phone_number || '-'}</TableCell>
+                  <TableCell>
+                    <Badge variant={getUserRole(user) === 'admin' ? 'default' : 'secondary'}>
+                      {getUserRole(user)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={getGP51Status(user) === 'Active' ? 'default' : 'outline'}>
+                      {getGP51Status(user)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {getUserTypeLabel(user.gp51_user_type)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-gray-600">
+                      {user.assigned_vehicles?.length || 0} vehicles
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-500">
+                    {new Date(user.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onEditUser(user)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Edit User
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onAssignVehicles(user)}>
+                          <UserPlus className="h-4 w-4 mr-2" />
+                          Assign Vehicles
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => deleteUserMutation.mutate(user.id)}
+                          className="text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete User
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
 
-      {sortedUsers.length === 0 && (
-        <div className="text-center py-12">
-          <div className="text-gray-500">
-            {searchTerm ? 'No users found matching your search' : 'No users found'}
-          </div>
+      {/* Pagination */}
+      {pagination && pagination.totalPages > 1 && (
+        <div className="flex justify-center">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious 
+                  onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                  className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+              
+              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                const pageNum = Math.max(1, Math.min(pagination.totalPages - 4, currentPage - 2)) + i;
+                if (pageNum > pagination.totalPages) return null;
+                
+                return (
+                  <PaginationItem key={pageNum}>
+                    <PaginationLink
+                      onClick={() => handlePageChange(pageNum)}
+                      isActive={pageNum === currentPage}
+                      className="cursor-pointer"
+                    >
+                      {pageNum}
+                    </PaginationLink>
+                  </PaginationItem>
+                );
+              })}
+              
+              <PaginationItem>
+                <PaginationNext 
+                  onClick={() => handlePageChange(Math.min(pagination.totalPages, currentPage + 1))}
+                  className={currentPage === pagination.totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         </div>
       )}
     </div>

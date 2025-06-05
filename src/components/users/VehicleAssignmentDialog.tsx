@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -135,6 +134,7 @@ const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = ({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicles-for-assignment'] });
       queryClient.invalidateQueries({ queryKey: ['user-vehicle-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['users-optimized'] });
       queryClient.invalidateQueries({ queryKey: ['users-enhanced'] });
       onOpenChange(false);
       toast({ 

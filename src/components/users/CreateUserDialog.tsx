@@ -127,6 +127,8 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({ open, onOpenChange 
       return envioUser;
     },
     onSuccess: () => {
+      // Invalidate all user queries to refresh the data
+      queryClient.invalidateQueries({ queryKey: ['users-optimized'] });
       queryClient.invalidateQueries({ queryKey: ['users-enhanced'] });
       onOpenChange(false);
       resetForm();
