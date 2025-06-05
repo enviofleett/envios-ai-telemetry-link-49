@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useEnhancedDeviceManagement } from '@/hooks/useEnhancedDeviceManagement';
+import { useQuery } from '@tanstack/react-query';
+import { gp51DeviceApi } from '@/services/gp51DeviceManagementApi';
 import GP51CreateDeviceForm from './GP51CreateDeviceForm';
 import GP51EditDeviceForm from './GP51EditDeviceForm';
 import GP51DeviceCard from './GP51DeviceCard';
@@ -16,9 +18,15 @@ const GP51DeviceManagement = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [showFilters, setShowFilters] = useState(false);
   
+  // Fetch GP51 device types directly for the form components
+  const { data: gp51DeviceTypes } = useQuery({
+    queryKey: ['gp51-device-types'],
+    queryFn: () => gp51DeviceApi.queryDeviceTypes(),
+  });
+  
   const {
     devices,
-    deviceTypes,
+    deviceTypes: enhancedDeviceTypes,
     deviceTags,
     isLoading,
     isCreateDialogOpen,
@@ -75,7 +83,7 @@ const GP51DeviceManagement = () => {
                 formData={createFormData}
                 onFormDataChange={setCreateFormData}
                 onSubmit={handleCreateDevice}
-                deviceTypes={deviceTypes}
+                deviceTypes={gp51DeviceTypes?.devicetypes || []}
                 isPending={createDeviceMutation.isPending}
               />
             </DialogContent>
@@ -96,7 +104,7 @@ const GP51DeviceManagement = () => {
             <DeviceFilters
               filter={deviceFilter}
               onFilterChange={setDeviceFilter}
-              deviceTypes={deviceTypes}
+              deviceTypes={enhancedDeviceTypes}
               deviceTags={deviceTags}
               onToggleCollapse={() => setShowFilters(false)}
             />
