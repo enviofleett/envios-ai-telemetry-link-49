@@ -1,10 +1,10 @@
 
-import { useAuthContext } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import UnifiedFleetDashboard from "@/components/dashboard/UnifiedFleetDashboard";
 
 const Index = () => {
-  const { user } = useAuthContext();
+  const { user } = useAuth();
 
   if (!user) {
     return <Navigate to="/auth" replace />;
