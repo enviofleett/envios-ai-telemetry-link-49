@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -54,18 +53,30 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({ open, onOpenChange 
         }
       });
 
-      if (envioError) throw envioError;
+      if (envioError) {
+        console.error('Envio user creation error:', envioError);
+        throw new Error(`Failed to create user: ${envioError.message || 'Unknown error'}`);
+      }
+
+      if (!envioUser || !envioUser.user) {
+        throw new Error('Failed to create user: No user data returned');
+      }
 
       // Set user role
       const { error: roleError } = await supabase.functions.invoke(`user-management/${envioUser.user.id}/role`, {
         body: { role: userData.role }
       });
 
-      if (roleError) throw roleError;
+      if (roleError) {
+        console.error('Role assignment error:', roleError);
+        throw new Error(`Failed to assign role: ${roleError.message || 'Unknown error'}`);
+      }
 
       // Create GP51 account if requested
       if (userData.create_gp51_account) {
         try {
+          console.log('Creating GP51 account for:', userData.gp51_username);
+          
           const gp51Response = await gp51UserApi.createUser({
             username: userData.gp51_username,
             password: userData.gp51_password,
@@ -76,9 +87,11 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({ open, onOpenChange 
             email: userData.email
           });
 
-          if (gp51Response.status === 0) {
+          console.log('GP51 creation response:', gp51Response);
+
+          if (gp51Response && gp51Response.status === 0) {
             // Update Envio user with GP51 information
-            await supabase
+            const { error: updateError } = await supabase
               .from('envio_users')
               .update({
                 gp51_username: userData.gp51_username,
@@ -86,12 +99,26 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({ open, onOpenChange 
                 is_gp51_imported: true
               })
               .eq('id', envioUser.user.id);
+
+            if (updateError) {
+              console.error('GP51 metadata update error:', updateError);
+              // Don't throw here as user was created successfully
+            }
+          } else {
+            console.error('GP51 account creation failed:', gp51Response);
+            // Don't throw here, just show a warning toast
+            toast({
+              title: 'User created with warning',
+              description: 'User was created but GP51 account creation failed. You can try creating the GP51 account later.',
+              variant: 'destructive'
+            });
           }
-        } catch (gp51Error) {
+        } catch (gp51Error: any) {
           console.error('GP51 account creation failed:', gp51Error);
+          // Don't throw here, just show a warning toast
           toast({
-            title: 'User created but GP51 account failed',
-            description: 'The user was created in Envio but GP51 account creation failed.',
+            title: 'User created with warning',
+            description: 'User was created but GP51 account creation failed. You can try creating the GP51 account later.',
             variant: 'destructive'
           });
         }
@@ -103,12 +130,16 @@ const CreateUserDialog: React.FC<CreateUserDialogProps> = ({ open, onOpenChange 
       queryClient.invalidateQueries({ queryKey: ['users-enhanced'] });
       onOpenChange(false);
       resetForm();
-      toast({ title: 'User created successfully' });
+      toast({ 
+        title: 'User created successfully',
+        description: 'The user has been created and can now access the system.'
+      });
     },
     onError: (error: any) => {
+      console.error('User creation mutation error:', error);
       toast({
         title: 'Error creating user',
-        description: error.message,
+        description: error.message || 'An unexpected error occurred while creating the user.',
         variant: 'destructive'
       });
     },
