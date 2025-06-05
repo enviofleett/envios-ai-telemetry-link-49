@@ -12,8 +12,8 @@ interface LiveTrackingMapProps {
   vehicles: Vehicle[];
   searchTerm?: string;
   onSearchChange?: (search: string) => void;
-  statusFilter?: string;
-  onStatusFilterChange?: (status: string) => void;
+  statusFilter?: 'all' | 'online' | 'offline' | 'alerts';
+  onStatusFilterChange?: (status: 'all' | 'online' | 'offline' | 'alerts') => void;
 }
 
 const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({ 
@@ -89,7 +89,12 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
 
             {/* Status Filter */}
             <div className="w-full md:w-48">
-              <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+              <Select 
+                value={statusFilter} 
+                onValueChange={(value: 'all' | 'online' | 'offline' | 'alerts') => 
+                  onStatusFilterChange?.(value)
+                }
+              >
                 <SelectTrigger>
                   <Filter className="h-4 w-4 mr-2" />
                   <SelectValue />

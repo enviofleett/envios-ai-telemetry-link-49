@@ -28,6 +28,11 @@ const LiveTracking: React.FC = () => {
 
   const vehiclesByStatus = getVehiclesByStatus();
 
+  // Create a typed handler for status filter changes
+  const handleStatusFilterChange = (status: 'all' | 'online' | 'offline' | 'alerts') => {
+    setStatusFilter(status);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -61,7 +66,7 @@ const LiveTracking: React.FC = () => {
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
+        onStatusFilterChange={handleStatusFilterChange}
         showFilters={showFilters}
         onToggleFilters={() => setShowFilters(!showFilters)}
         onRefresh={forceRefresh}
@@ -75,7 +80,7 @@ const LiveTracking: React.FC = () => {
           searchTerm={searchTerm}
           onSearchChange={setSearchTerm}
           statusFilter={statusFilter}
-          onStatusFilterChange={setStatusFilter}
+          onStatusFilterChange={handleStatusFilterChange}
         />
       ) : (
         <LiveTrackingContent
