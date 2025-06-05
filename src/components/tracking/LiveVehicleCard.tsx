@@ -92,10 +92,10 @@ const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
           <div className="flex-1">
             <h3 className="font-semibold text-lg">{vehicle.devicename}</h3>
             <p className="text-sm text-gray-600">ID: {vehicle.deviceid}</p>
-            {vehicle.envio_users && (
+            {vehicle.envio_user_id && (
               <div className="flex items-center gap-1 mt-1">
                 <User className="h-3 w-3 text-gray-400" />
-                <span className="text-xs text-gray-500">{vehicle.envio_users.name}</span>
+                <span className="text-xs text-gray-500">User ID: {vehicle.envio_user_id}</span>
               </div>
             )}
           </div>
