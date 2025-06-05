@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { ApiCredential, ApiCredentialForm } from '@/components/AdminSettings/api-credentials/types';
+import { mapDatabaseRowToApiCredential } from '@/components/AdminSettings/api-credentials/types';
 
 export const useApiCredentials = () => {
   const [credentials, setCredentials] = useState<ApiCredential[]>([]);
@@ -20,7 +21,9 @@ export const useApiCredentials = () => {
 
       if (error) throw error;
 
-      setCredentials(data || []);
+      // Map database rows to properly typed ApiCredential objects
+      const mappedCredentials = (data || []).map(mapDatabaseRowToApiCredential);
+      setCredentials(mappedCredentials);
     } catch (err) {
       console.error('Error fetching API credentials:', err);
       setError('Failed to load API credentials');
@@ -43,7 +46,7 @@ export const useApiCredentials = () => {
       if (error) throw error;
 
       await fetchCredentials();
-      return data;
+      return mapDatabaseRowToApiCredential(data);
     } catch (err) {
       console.error('Error saving API credential:', err);
       throw new Error('Failed to save API credential');
@@ -65,7 +68,7 @@ export const useApiCredentials = () => {
       if (error) throw error;
 
       await fetchCredentials();
-      return data;
+      return mapDatabaseRowToApiCredential(data);
     } catch (err) {
       console.error('Error updating API credential:', err);
       throw new Error('Failed to update API credential');

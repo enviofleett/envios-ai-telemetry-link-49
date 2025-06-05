@@ -33,3 +33,19 @@ export interface CredentialValidationResult {
   isValid: boolean;
   errors: string[];
 }
+
+// Type guard to ensure credential_type is valid
+export const isValidCredentialType = (type: string): type is 'api_key' | 'oauth' | 'jwt' | 'basic_auth' => {
+  return ['api_key', 'oauth', 'jwt', 'basic_auth'].includes(type);
+};
+
+// Helper function to convert database row to ApiCredential
+export const mapDatabaseRowToApiCredential = (row: any): ApiCredential => {
+  return {
+    ...row,
+    credential_type: isValidCredentialType(row.credential_type) 
+      ? row.credential_type 
+      : 'api_key' as const, // fallback to api_key if invalid
+    additional_config: row.additional_config || {}
+  };
+};
