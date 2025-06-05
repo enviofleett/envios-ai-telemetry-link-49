@@ -3,7 +3,8 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, Car, Activity, AlertTriangle, Clock } from 'lucide-react';
-import type { VehicleMetrics, SyncMetrics } from '@/services/unifiedVehicleData';
+import type { VehicleMetrics } from '@/services/unifiedVehicleData';
+import type { SyncMetrics } from '@/services/vehiclePosition/types';
 
 interface FleetMetricsDisplayProps {
   metrics: VehicleMetrics;
