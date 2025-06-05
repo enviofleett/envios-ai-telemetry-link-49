@@ -1,31 +1,8 @@
 
 import { useState, useEffect } from 'react';
-import { unifiedVehicleDataService } from '@/services/unifiedVehicleDataService';
+import { unifiedVehicleDataService } from '@/services/unifiedVehicleData';
 import type { SyncMetrics } from '@/services/vehiclePosition/types';
-
-interface Vehicle {
-  deviceid: string;
-  devicename: string;
-  status?: string;
-  lastPosition?: {
-    lat: number;
-    lon: number;
-    speed: number;
-    course: number;
-    updatetime: string;
-    statusText: string;
-  };
-  envio_user_id?: string;
-  is_active: boolean;
-}
-
-interface VehicleMetrics {
-  total: number;
-  online: number;
-  offline: number;
-  alerts: number;
-  lastUpdateTime: Date;
-}
+import type { Vehicle, VehicleMetrics } from '@/services/unifiedVehicleData';
 
 interface FilterOptions {
   search?: string;
