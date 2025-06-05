@@ -1,6 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { vehiclePositionSyncService } from '@/services/vehiclePositionSyncService';
+import { vehiclePositionSyncService } from '@/services/vehiclePosition/vehiclePositionSyncService';
 
 interface PollingConfig {
   interval: number;

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { telemetryApi } from '@/services/telemetryApi';
-import { vehiclePositionSyncService } from '@/services/vehiclePositionSyncService';
+import { vehiclePositionSyncService } from '@/services/vehiclePosition/vehiclePositionSyncService';
 import { useVehicleData } from '@/hooks/useVehicleData';
 import DashboardHeader from './DashboardHeader';
 import VehicleGrid from './VehicleGrid';
