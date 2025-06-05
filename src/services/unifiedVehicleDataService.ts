@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { vehiclePositionSyncService } from './vehiclePosition/vehiclePositionSyncService';
 import type { SyncMetrics } from './vehiclePosition/types';
@@ -29,6 +28,7 @@ interface VehicleMetrics {
 
 export class UnifiedVehicleDataService {
   private vehicles: Vehicle[] = [];
+  private totalVehiclesInDatabase: number = 0;
   private metrics: VehicleMetrics = {
     total: 0,
     online: 0,
@@ -62,6 +62,18 @@ export class UnifiedVehicleDataService {
 
   private async loadVehiclesFromDatabase(): Promise<void> {
     try {
+      // Get total count of active vehicles first
+      const { count: totalCount, error: countError } = await supabase
+        .from('vehicles')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      if (countError) throw countError;
+      
+      this.totalVehiclesInDatabase = totalCount || 0;
+      console.log(`Total active vehicles in database: ${this.totalVehiclesInDatabase}`);
+
+      // Load vehicle data with position information
       const { data, error } = await supabase
         .from('vehicles')
         .select('*')
@@ -80,7 +92,7 @@ export class UnifiedVehicleDataService {
       }));
 
       this.updateMetrics();
-      console.log(`Loaded ${this.vehicles.length} vehicles from database`);
+      console.log(`Loaded ${this.vehicles.length} vehicles with position data from database`);
     } catch (error) {
       console.error('Failed to load vehicles from database:', error);
     }
@@ -103,22 +115,30 @@ export class UnifiedVehicleDataService {
     const now = new Date();
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
+    // Calculate online/offline based on loaded vehicles with position data
+    const vehiclesWithPositions = this.vehicles.filter(v => v.lastPosition?.updatetime);
+    const onlineVehicles = vehiclesWithPositions.filter(v => 
+      new Date(v.lastPosition!.updatetime) > thirtyMinutesAgo
+    );
+    const offlineVehicles = vehiclesWithPositions.filter(v => 
+      new Date(v.lastPosition!.updatetime) <= thirtyMinutesAgo
+    );
+
+    // Calculate alerts from all loaded vehicles
+    const alertVehicles = this.vehicles.filter(v => 
+      v.status?.toLowerCase().includes('alert') || 
+      v.status?.toLowerCase().includes('alarm')
+    );
+
     this.metrics = {
-      total: this.vehicles.length,
-      online: this.vehicles.filter(v => 
-        v.lastPosition?.updatetime && 
-        new Date(v.lastPosition.updatetime) > thirtyMinutesAgo
-      ).length,
-      offline: this.vehicles.filter(v => 
-        !v.lastPosition?.updatetime || 
-        new Date(v.lastPosition.updatetime) <= thirtyMinutesAgo
-      ).length,
-      alerts: this.vehicles.filter(v => 
-        v.status?.toLowerCase().includes('alert') || 
-        v.status?.toLowerCase().includes('alarm')
-      ).length,
+      total: this.totalVehiclesInDatabase, // Always use database total
+      online: onlineVehicles.length,
+      offline: offlineVehicles.length,
+      alerts: alertVehicles.length,
       lastUpdateTime: now
     };
+
+    console.log(`Metrics updated - Total: ${this.metrics.total}, Online: ${this.metrics.online}, Offline: ${this.metrics.offline}, Alerts: ${this.metrics.alerts}`);
   }
 
   private startDataRefresh(): void {
@@ -172,7 +192,7 @@ export class UnifiedVehicleDataService {
   public getOfflineVehicles(): Vehicle[] {
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     return this.vehicles.filter(v => 
-      !v.lastPosition?.updatetime || 
+      v.lastPosition?.updatetime && 
       new Date(v.lastPosition.updatetime) <= thirtyMinutesAgo
     );
   }
