@@ -15,25 +15,18 @@ import {
 import { vehiclePositionSyncService } from '@/services/vehiclePositionSyncService';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { Vehicle, VehiclePosition } from '@/types/vehicle';
 
-interface VehiclePosition {
-  lat: number;
-  lon: number;
-  speed: number;
-  course: number;
-  updatetime: string;
-  statusText: string;
-}
-
-interface Vehicle {
-  id: string;
-  device_id: string;
-  device_name: string;
-  status: string;
-  is_active: boolean;
-  last_position: VehiclePosition | null;
-  updated_at: string;
-}
+// Type guard to safely cast Json to VehiclePosition
+const isVehiclePosition = (data: any): data is VehiclePosition => {
+  return data && typeof data === 'object' && 
+         typeof data.lat === 'number' && 
+         typeof data.lon === 'number' && 
+         typeof data.speed === 'number' && 
+         typeof data.course === 'number' && 
+         typeof data.updatetime === 'string' && 
+         typeof data.statusText === 'string';
+};
 
 const VehiclePositionMonitor: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -50,7 +43,21 @@ const VehiclePositionMonitor: React.FC = () => {
         .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      return data as Vehicle[];
+      
+      // Transform the data to match our Vehicle interface
+      const transformedData: Vehicle[] = data.map(vehicle => ({
+        ...vehicle,
+        last_position: vehicle.last_position && isVehiclePosition(vehicle.last_position) ? {
+          lat: vehicle.last_position.lat,
+          lon: vehicle.last_position.lon,
+          speed: vehicle.last_position.speed,
+          course: vehicle.last_position.course,
+          updatetime: vehicle.last_position.updatetime,
+          statusText: vehicle.last_position.statusText
+        } : undefined
+      }));
+
+      return transformedData;
     },
     refetchInterval: 10000, // Refresh every 10 seconds
   });
