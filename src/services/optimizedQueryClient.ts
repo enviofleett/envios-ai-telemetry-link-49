@@ -49,9 +49,12 @@ export const optimizedQueryService = {
     const cacheHits = queries.filter(q => q.state.dataUpdatedAt > 0).length;
     const cacheMisses = totalQueries - cacheHits;
     
-    // Calculate average query time (simplified)
-    const queryTimes = queries.map(q => q.state.dataUpdatedAt - q.state.fetchedAt).filter(t => t > 0);
-    const averageQueryTime = queryTimes.length > 0 ? queryTimes.reduce((a, b) => a + b, 0) / queryTimes.length : 0;
+    // Calculate average query time (simplified - using dataUpdatedAt as proxy)
+    const queryTimes = queries
+      .map(q => q.state.dataUpdatedAt)
+      .filter(t => t > 0);
+    const averageQueryTime = queryTimes.length > 0 ? 
+      queryTimes.reduce((a, b) => a + b, 0) / queryTimes.length : 0;
     
     return {
       totalQueries,
