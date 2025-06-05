@@ -17,6 +17,19 @@ interface ProcessingResult {
   avgProcessingTime: number;
 }
 
+interface VehicleUpdate {
+  device_id: string;
+  last_position: {
+    lat: number;
+    lon: number;
+    speed: number;
+    course: number;
+    updatetime: string;
+    statusText: string;
+  };
+  updated_at: string;
+}
+
 export class VehiclePositionProcessor {
   private readonly BATCH_SIZE = 500; // GP51 API batch limit
   private readonly MAX_CONCURRENT_BATCHES = 3; // Process multiple batches concurrently
@@ -180,7 +193,7 @@ export class VehiclePositionProcessor {
     let errors = 0;
 
     // Bulk update approach for better performance
-    const updates = positions.map(position => ({
+    const updates: VehicleUpdate[] = positions.map(position => ({
       device_id: position.deviceid,
       last_position: {
         lat: position.callat,

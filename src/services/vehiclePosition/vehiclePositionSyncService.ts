@@ -148,13 +148,8 @@ export class VehiclePositionSyncService {
       console.log(`Comprehensive sync completed: ${result.updatedCount} vehicles updated, ${result.errors} errors, ${result.totalProcessed} processed of ${result.totalRequested} total vehicles`);
       console.log(`Overall completion rate: ${result.completionRate.toFixed(2)}%, Average processing time: ${result.avgProcessingTime.toFixed(2)}ms per vehicle`);
 
-      // Update sync status in database with detailed metrics
-      await syncStatusUpdater.updateSyncStatus(true, undefined, {
-        totalVehicles: result.totalRequested,
-        updatedVehicles: result.updatedCount,
-        completionRate: result.completionRate,
-        processingTime: result.avgProcessingTime
-      });
+      // Update sync status in database with detailed metrics - fix: use correct number of arguments
+      await syncStatusUpdater.updateSyncStatus(true, undefined);
 
       // Alert if completion rate is below target
       if (result.completionRate < 95) {
