@@ -1,8 +1,9 @@
 
 import React from 'react';
-import { RefreshCw, Calendar, Download, Settings } from 'lucide-react';
+import { RefreshCw, Calendar, Download, Settings, TrendingUp, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { useFleetAnalytics } from '@/hooks/useFleetAnalytics';
 import FleetMetricsCards from '@/components/analytics/FleetMetricsCards';
 import FleetPerformanceChart from '@/components/analytics/FleetPerformanceChart';
@@ -13,15 +14,22 @@ const FleetAnalytics = () => {
   const {
     fleetMetrics,
     vehicleAnalytics,
+    aiInsights,
+    analyticsReport,
     dateRange,
     setDateRange,
     isLoading,
-    refreshData
+    refreshData,
+    exportReport
   } = useFleetAnalytics();
 
-  const handleExportReport = () => {
-    // TODO: Implement report export functionality
-    console.log('Exporting fleet analytics report...');
+  const handleExportReport = async (format: 'pdf' | 'excel' | 'csv') => {
+    try {
+      await exportReport(format);
+      console.log(`Report exported as ${format}`);
+    } catch (error) {
+      console.error('Failed to export report:', error);
+    }
   };
 
   return (
@@ -52,7 +60,7 @@ const FleetAnalytics = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleExportReport}
+            onClick={() => handleExportReport('pdf')}
             className="flex items-center gap-2"
           >
             <Download className="h-4 w-4" />
@@ -85,41 +93,68 @@ const FleetAnalytics = () => {
       <Card className="bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
         <CardHeader>
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            🤖 AI-Powered Insights
+            <Bot className="h-5 w-5 text-blue-600" />
+            AI-Powered Insights
+            <Badge variant="secondary">Live</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-start gap-3">
-              <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
-              <div>
-                <div className="font-medium">Fleet Optimization Opportunity</div>
-                <div className="text-sm text-gray-600">
-                  Vehicles DEV-001 and DEV-003 show 15% below-average utilization. 
-                  Consider route optimization or redistributing workload.
-                </div>
+          <div className="space-y-4">
+            {isLoading ? (
+              <div className="animate-pulse space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-16 bg-blue-100 rounded-lg"></div>
+                ))}
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-              <div>
-                <div className="font-medium">Fuel Efficiency Trend</div>
-                <div className="text-sm text-gray-600">
-                  Your fleet's fuel efficiency improved by 8% this month. 
-                  Driver training programs are showing positive results.
+            ) : aiInsights.length > 0 ? (
+              aiInsights.map((insight) => (
+                <div key={insight.id} className="flex items-start gap-3 p-3 bg-white rounded-lg border">
+                  <div className={`w-2 h-2 rounded-full mt-2 ${
+                    insight.priority === 'high' ? 'bg-red-500' :
+                    insight.priority === 'medium' ? 'bg-orange-500' : 'bg-green-500'
+                  }`}></div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="font-medium text-sm">{insight.title}</div>
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          variant={insight.priority === 'high' ? 'destructive' : 
+                                  insight.priority === 'medium' ? 'secondary' : 'outline'}
+                          className="text-xs"
+                        >
+                          {insight.priority}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {Math.round(insight.confidence * 100)}% confidence
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-2">
+                      {insight.description}
+                    </div>
+                    <div className="text-sm font-medium text-blue-700">
+                      💡 {insight.recommendation}
+                    </div>
+                    {insight.potentialSavings && (
+                      <div className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                        <TrendingUp className="h-3 w-3" />
+                        Potential savings: ${insight.potentialSavings.toLocaleString()}
+                      </div>
+                    )}
+                  </div>
                 </div>
+              ))
+            ) : (
+              <div className="text-center py-4">
+                <Bot className="h-12 w-12 text-blue-400 mx-auto mb-3" />
+                <h3 className="text-sm font-semibold text-gray-600 mb-1">
+                  AI Analysis in Progress
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Analyzing your fleet data to generate insights...
+                </p>
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="w-2 h-2 bg-orange-500 rounded-full mt-2"></div>
-              <div>
-                <div className="font-medium">Maintenance Prediction</div>
-                <div className="text-sm text-gray-600">
-                  3 vehicles are approaching their optimal maintenance window based on usage patterns. 
-                  Schedule maintenance to prevent breakdowns.
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         </CardContent>
       </Card>

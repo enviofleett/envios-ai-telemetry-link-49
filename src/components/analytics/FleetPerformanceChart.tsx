@@ -1,70 +1,25 @@
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { VehicleAnalytics } from '@/hooks/useFleetAnalytics';
+import type { VehicleAnalytics } from '@/services/analytics/analyticsService';
 
 interface FleetPerformanceChartProps {
   vehicleAnalytics: VehicleAnalytics[];
-  isLoading?: boolean;
+  isLoading: boolean;
 }
 
-// Helper function to ensure numeric values are valid for charts
-const safeChartNumber = (value: any, fallback: number = 0): number => {
-  const num = Number(value);
-  return isNaN(num) || !isFinite(num) ? fallback : Math.round(num * 100) / 100;
-};
-
 const FleetPerformanceChart: React.FC<FleetPerformanceChartProps> = ({ vehicleAnalytics, isLoading }) => {
-  // Generate sample time-series data for demonstration
-  const timeSeriesData = useMemo(() => {
-    const days = 7;
-    const data = [];
-    const today = new Date();
-    
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      
-      data.push({
-        date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-        utilization: safeChartNumber(Math.random() * 20 + 75), // 75-95%
-        fuelEfficiency: safeChartNumber(Math.random() * 2 + 8), // 8-10 km/l
-        averageSpeed: safeChartNumber(Math.random() * 10 + 45), // 45-55 km/h
-        alerts: Math.floor(Math.random() * 5) + 1 // 1-5 alerts
-      });
-    }
-    
-    return data;
-  }, []);
-
-  // Top performing vehicles data
-  const topVehicles = useMemo(() => {
-    return vehicleAnalytics
-      .sort((a, b) => b.utilizationRate - a.utilizationRate)
-      .slice(0, 5)
-      .map(vehicle => ({
-        name: vehicle.deviceName.length > 15 
-          ? `${vehicle.deviceName.substring(0, 15)}...` 
-          : vehicle.deviceName,
-        utilization: safeChartNumber(vehicle.utilizationRate),
-        efficiency: safeChartNumber(vehicle.fuelEfficiency),
-        score: safeChartNumber(vehicle.driverScore)
-      }));
-  }, [vehicleAnalytics]);
-
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="animate-pulse">
           <CardContent className="p-6">
-            <div className="h-4 bg-gray-200 rounded mb-4"></div>
             <div className="h-64 bg-gray-200 rounded"></div>
           </CardContent>
         </Card>
         <Card className="animate-pulse">
           <CardContent className="p-6">
-            <div className="h-4 bg-gray-200 rounded mb-4"></div>
             <div className="h-64 bg-gray-200 rounded"></div>
           </CardContent>
         </Card>
@@ -72,96 +27,88 @@ const FleetPerformanceChart: React.FC<FleetPerformanceChartProps> = ({ vehicleAn
     );
   }
 
+  // Generate performance trend data
+  const performanceTrendData = [
+    { month: 'Jan', utilization: 78, efficiency: 85, performance: 82 },
+    { month: 'Feb', utilization: 82, efficiency: 87, performance: 85 },
+    { month: 'Mar', utilization: 79, efficiency: 89, performance: 84 },
+    { month: 'Apr', utilization: 85, efficiency: 91, performance: 88 },
+    { month: 'May', utilization: 88, efficiency: 93, performance: 90 },
+    { month: 'Jun', utilization: 90, efficiency: 95, performance: 92 }
+  ];
+
+  // Top performing vehicles data
+  const topVehiclesData = vehicleAnalytics
+    .sort((a, b) => b.performanceRating - a.performanceRating)
+    .slice(0, 10)
+    .map(vehicle => ({
+      name: vehicle.deviceName,
+      performance: vehicle.performanceRating,
+      utilization: vehicle.utilizationRate * 100,
+      efficiency: vehicle.fuelEfficiency
+    }));
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-      {/* Fleet Performance Trends */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold">Fleet Performance Trends</CardTitle>
+          <CardTitle>Fleet Performance Trends</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={timeSeriesData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip 
-                formatter={(value: any, name: string) => {
-                  const safeValue = safeChartNumber(value);
-                  switch (name) {
-                    case 'utilization':
-                      return [`${safeValue}%`, 'Utilization'];
-                    case 'fuelEfficiency':
-                      return [`${safeValue} km/l`, 'Fuel Efficiency'];
-                    case 'averageSpeed':
-                      return [`${safeValue} km/h`, 'Average Speed'];
-                    case 'alerts':
-                      return [Math.round(safeValue), 'Alerts'];
-                    default:
-                      return [safeValue, name];
-                  }
-                }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="utilization" 
-                stroke="#3B82F6" 
-                strokeWidth={2}
-                name="utilization"
-              />
-              <Line 
-                type="monotone" 
-                dataKey="fuelEfficiency" 
-                stroke="#10B981" 
-                strokeWidth={2}
-                name="fuelEfficiency"
-              />
-              <Line 
-                type="monotone" 
-                dataKey="averageSpeed" 
-                stroke="#F59E0B" 
-                strokeWidth={2}
-                name="averageSpeed"
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={performanceTrendData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Line 
+                  type="monotone" 
+                  dataKey="utilization" 
+                  stroke="#8884d8" 
+                  strokeWidth={2}
+                  name="Utilization %"
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="efficiency" 
+                  stroke="#82ca9d" 
+                  strokeWidth={2}
+                  name="Fuel Efficiency"
+                />
+                <Line 
+                  type="monotone" 
+                  dataKey="performance" 
+                  stroke="#ffc658" 
+                  strokeWidth={2}
+                  name="Performance Score"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Top Performing Vehicles */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold">Top Performing Vehicles</CardTitle>
+          <CardTitle>Top Performing Vehicles</CardTitle>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={topVehicles} layout="horizontal">
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" domain={[0, 100]} />
-              <YAxis dataKey="name" type="category" width={80} />
-              <Tooltip 
-                formatter={(value: any, name: string) => {
-                  const safeValue = safeChartNumber(value);
-                  switch (name) {
-                    case 'utilization':
-                      return [`${safeValue}%`, 'Utilization'];
-                    case 'efficiency':
-                      return [`${safeValue} km/l`, 'Fuel Efficiency'];
-                    case 'score':
-                      return [`${safeValue}%`, 'Driver Score'];
-                    default:
-                      return [safeValue, name];
-                  }
-                }}
-              />
-              <Bar 
-                dataKey="utilization" 
-                fill="#3B82F6" 
-                name="utilization"
-                radius={[0, 4, 4, 0]}
-              />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topVehiclesData} layout="horizontal">
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis type="number" />
+                <YAxis dataKey="name" type="category" width={80} />
+                <Tooltip />
+                <Bar 
+                  dataKey="performance" 
+                  fill="#8884d8" 
+                  name="Performance Score"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </CardContent>
       </Card>
     </div>

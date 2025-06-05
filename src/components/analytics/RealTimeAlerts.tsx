@@ -1,200 +1,190 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, CheckCircle, Clock, MapPin, Bell, X } from 'lucide-react';
+import { 
+  AlertTriangle, 
+  Wrench, 
+  TrendingDown, 
+  Clock,
+  CheckCircle,
+  X
+} from 'lucide-react';
+import type { VehicleAnalytics } from '@/services/analytics/analyticsService';
+
+interface RealTimeAlertsProps {
+  vehicleAnalytics: VehicleAnalytics[];
+}
 
 interface Alert {
   id: string;
+  type: 'maintenance' | 'performance' | 'efficiency' | 'offline';
+  severity: 'high' | 'medium' | 'low';
   vehicleId: string;
   vehicleName: string;
-  type: 'maintenance' | 'security' | 'performance' | 'geofence' | 'fuel';
-  severity: 'low' | 'medium' | 'high' | 'critical';
   message: string;
   timestamp: Date;
-  location?: string;
-  resolved: boolean;
-}
-
-interface RealTimeAlertsProps {
-  vehicleAnalytics: any[];
 }
 
 const RealTimeAlerts: React.FC<RealTimeAlertsProps> = ({ vehicleAnalytics }) => {
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [showResolved, setShowResolved] = useState(false);
+  // Generate alerts based on vehicle analytics
+  const generateAlerts = (): Alert[] => {
+    const alerts: Alert[] = [];
 
-  // Generate sample alerts based on vehicle data
-  useEffect(() => {
-    const generateAlerts = () => {
-      const alertTypes = ['maintenance', 'security', 'performance', 'geofence', 'fuel'] as const;
-      const severities = ['low', 'medium', 'high', 'critical'] as const;
-      const messages = {
-        maintenance: 'Scheduled maintenance due in 3 days',
-        security: 'Unusual activity detected after hours',
-        performance: 'Fuel efficiency below optimal range',
-        geofence: 'Vehicle left designated area',
-        fuel: 'Low fuel level detected'
-      };
-
-      const newAlerts: Alert[] = vehicleAnalytics
-        .filter(vehicle => vehicle.alerts > 0)
-        .map((vehicle, index) => ({
-          id: `alert-${vehicle.deviceId}-${index}`,
+    vehicleAnalytics.forEach(vehicle => {
+      // Performance alerts
+      if (vehicle.performanceRating < 60) {
+        alerts.push({
+          id: `perf-${vehicle.deviceId}`,
+          type: 'performance',
+          severity: 'high',
           vehicleId: vehicle.deviceId,
           vehicleName: vehicle.deviceName,
-          type: alertTypes[Math.floor(Math.random() * alertTypes.length)],
-          severity: severities[Math.floor(Math.random() * severities.length)],
-          message: messages[alertTypes[Math.floor(Math.random() * alertTypes.length)]],
-          timestamp: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000), // Last 24 hours
-          location: `${(Math.random() * 90).toFixed(4)}, ${(Math.random() * 180).toFixed(4)}`,
-          resolved: Math.random() > 0.7 // 30% chance of being resolved
-        }));
-
-      setAlerts(newAlerts);
-    };
-
-    generateAlerts();
-    
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      if (Math.random() > 0.8) { // 20% chance of new alert every 30 seconds
-        generateAlerts();
+          message: `Low performance rating: ${vehicle.performanceRating.toFixed(1)}%`,
+          timestamp: new Date()
+        });
       }
-    }, 30000);
 
-    return () => clearInterval(interval);
-  }, [vehicleAnalytics]);
+      // Maintenance alerts
+      if (vehicle.maintenanceScore < 70) {
+        alerts.push({
+          id: `maint-${vehicle.deviceId}`,
+          type: 'maintenance',
+          severity: vehicle.maintenanceScore < 50 ? 'high' : 'medium',
+          vehicleId: vehicle.deviceId,
+          vehicleName: vehicle.deviceName,
+          message: `Maintenance required (Score: ${vehicle.maintenanceScore.toFixed(1)})`,
+          timestamp: new Date()
+        });
+      }
 
-  const getSeverityColor = (severity: Alert['severity']) => {
-    switch (severity) {
-      case 'low':
-        return 'text-blue-600 bg-blue-50 border-blue-200';
-      case 'medium':
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'high':
-        return 'text-orange-600 bg-orange-50 border-orange-200';
-      case 'critical':
-        return 'text-red-600 bg-red-50 border-red-200';
-      default:
-        return 'text-gray-600 bg-gray-50 border-gray-200';
-    }
+      // Efficiency alerts
+      if (vehicle.fuelEfficiency < 75) {
+        alerts.push({
+          id: `eff-${vehicle.deviceId}`,
+          type: 'efficiency',
+          severity: 'medium',
+          vehicleId: vehicle.deviceId,
+          vehicleName: vehicle.deviceName,
+          message: `Low fuel efficiency: ${vehicle.fuelEfficiency.toFixed(1)}`,
+          timestamp: new Date()
+        });
+      }
+
+      // Offline alerts
+      const lastActive = new Date(vehicle.lastActiveDate);
+      const hoursOffline = (Date.now() - lastActive.getTime()) / (1000 * 60 * 60);
+      if (hoursOffline > 24) {
+        alerts.push({
+          id: `offline-${vehicle.deviceId}`,
+          type: 'offline',
+          severity: hoursOffline > 72 ? 'high' : 'medium',
+          vehicleId: vehicle.deviceId,
+          vehicleName: vehicle.deviceName,
+          message: `Offline for ${Math.floor(hoursOffline)} hours`,
+          timestamp: new Date()
+        });
+      }
+    });
+
+    return alerts.sort((a, b) => {
+      const severityOrder = { high: 3, medium: 2, low: 1 };
+      return severityOrder[b.severity] - severityOrder[a.severity];
+    });
   };
 
-  const getTypeIcon = (type: Alert['type']) => {
+  const alerts = generateAlerts();
+
+  const getAlertIcon = (type: Alert['type']) => {
     switch (type) {
       case 'maintenance':
-        return <AlertTriangle className="h-4 w-4" />;
-      case 'security':
-        return <Bell className="h-4 w-4" />;
+        return <Wrench className="h-4 w-4" />;
       case 'performance':
-        return <CheckCircle className="h-4 w-4" />;
-      case 'geofence':
-        return <MapPin className="h-4 w-4" />;
-      case 'fuel':
+        return <TrendingDown className="h-4 w-4" />;
+      case 'efficiency':
+        return <TrendingDown className="h-4 w-4" />;
+      case 'offline':
         return <Clock className="h-4 w-4" />;
       default:
         return <AlertTriangle className="h-4 w-4" />;
     }
   };
 
-  const resolveAlert = (alertId: string) => {
-    setAlerts(prev => prev.map(alert => 
-      alert.id === alertId ? { ...alert, resolved: true } : alert
-    ));
+  const getAlertColor = (severity: Alert['severity']) => {
+    switch (severity) {
+      case 'high':
+        return 'text-red-600 bg-red-50 border-red-200';
+      case 'medium':
+        return 'text-orange-600 bg-orange-50 border-orange-200';
+      case 'low':
+        return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+    }
   };
 
-  const filteredAlerts = showResolved ? alerts : alerts.filter(alert => !alert.resolved);
+  const getSeverityBadge = (severity: Alert['severity']) => {
+    switch (severity) {
+      case 'high':
+        return <Badge variant="destructive">High</Badge>;
+      case 'medium':
+        return <Badge variant="secondary">Medium</Badge>;
+      case 'low':
+        return <Badge variant="outline">Low</Badge>;
+    }
+  };
 
   return (
     <Card>
       <CardHeader>
-        <div className="flex justify-between items-center">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Real-Time Alerts
-            <Badge variant="secondary">
-              {alerts.filter(a => !a.resolved).length} Active
-            </Badge>
-          </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowResolved(!showResolved)}
-          >
-            {showResolved ? 'Hide Resolved' : 'Show All'}
-          </Button>
-        </div>
+        <CardTitle className="flex items-center justify-between">
+          <span>Real-Time Alerts</span>
+          <Badge variant="secondary">{alerts.length}</Badge>
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {filteredAlerts.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <CheckCircle className="h-12 w-12 mx-auto mb-4 text-green-500" />
-              <div>No active alerts</div>
-              <div className="text-sm">Your fleet is running smoothly</div>
+        <div className="space-y-3">
+          {alerts.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">All Clear!</h3>
+              <p className="text-gray-600">No active alerts for your fleet</p>
             </div>
           ) : (
-            filteredAlerts.map((alert) => (
+            alerts.slice(0, 10).map((alert) => (
               <div
                 key={alert.id}
-                className={`p-4 rounded-lg border ${getSeverityColor(alert.severity)} ${
-                  alert.resolved ? 'opacity-60' : ''
-                }`}
+                className={`p-3 rounded-lg border ${getAlertColor(alert.severity)}`}
               >
                 <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className={`p-1 rounded ${getSeverityColor(alert.severity)}`}>
-                      {getTypeIcon(alert.type)}
-                    </div>
+                  <div className="flex items-start gap-3">
+                    {getAlertIcon(alert.type)}
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <div className="font-medium">{alert.vehicleName}</div>
-                        <Badge variant="outline" className="text-xs">
-                          {alert.type}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {alert.severity}
-                        </Badge>
-                        {alert.resolved && (
-                          <Badge variant="secondary" className="text-xs">
-                            Resolved
-                          </Badge>
-                        )}
+                        <span className="font-medium text-sm">{alert.vehicleName}</span>
+                        {getSeverityBadge(alert.severity)}
                       </div>
-                      <div className="text-sm text-gray-600 mb-2">
-                        {alert.message}
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {alert.timestamp.toLocaleString()}
-                        </div>
-                        {alert.location && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {alert.location}
-                          </div>
-                        )}
-                      </div>
+                      <p className="text-sm">{alert.message}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {alert.timestamp.toLocaleTimeString()}
+                      </p>
                     </div>
                   </div>
-                  {!alert.resolved && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => resolveAlert(alert.id)}
-                      className="ml-2"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                    <X className="h-3 w-3" />
+                  </Button>
                 </div>
               </div>
             ))
           )}
         </div>
+
+        {alerts.length > 10 && (
+          <div className="mt-4 text-center">
+            <Button variant="outline" size="sm">
+              View All {alerts.length} Alerts
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

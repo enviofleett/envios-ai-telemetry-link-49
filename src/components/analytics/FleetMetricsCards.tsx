@@ -1,100 +1,32 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { 
   Car, 
   Activity, 
   Gauge, 
-  Fuel, 
-  AlertTriangle, 
+  TrendingUp, 
+  TrendingDown,
+  AlertTriangle,
   DollarSign,
-  TrendingUp,
-  Wifi
+  Wrench
 } from 'lucide-react';
-import { FleetMetrics } from '@/hooks/useFleetAnalytics';
+import type { FleetMetrics } from '@/services/analytics/analyticsService';
 
 interface FleetMetricsCardsProps {
   metrics: FleetMetrics;
-  isLoading?: boolean;
+  isLoading: boolean;
 }
 
 const FleetMetricsCards: React.FC<FleetMetricsCardsProps> = ({ metrics, isLoading }) => {
-  const metricsConfig = [
-    {
-      title: 'Total Vehicles',
-      value: metrics.totalVehicles,
-      icon: Car,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50 border-blue-200',
-      format: (val: number) => val.toString()
-    },
-    {
-      title: 'Active Vehicles',
-      value: metrics.activeVehicles,
-      icon: Activity,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50 border-green-200',
-      format: (val: number) => val.toString()
-    },
-    {
-      title: 'Online Now',
-      value: metrics.onlineVehicles,
-      icon: Wifi,
-      color: 'text-emerald-600',
-      bgColor: 'bg-emerald-50 border-emerald-200',
-      format: (val: number) => val.toString()
-    },
-    {
-      title: 'Fleet Utilization',
-      value: metrics.utilizationRate,
-      icon: TrendingUp,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50 border-purple-200',
-      format: (val: number) => `${val}%`
-    },
-    {
-      title: 'Average Speed',
-      value: metrics.averageSpeed,
-      icon: Gauge,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50 border-orange-200',
-      format: (val: number) => `${val} km/h`
-    },
-    {
-      title: 'Fuel Efficiency',
-      value: metrics.fuelEfficiency,
-      icon: Fuel,
-      color: 'text-cyan-600',
-      bgColor: 'bg-cyan-50 border-cyan-200',
-      format: (val: number) => `${val} km/l`
-    },
-    {
-      title: 'Maintenance Alerts',
-      value: metrics.maintenanceAlerts,
-      icon: AlertTriangle,
-      color: 'text-red-600',
-      bgColor: 'bg-red-50 border-red-200',
-      format: (val: number) => val.toString()
-    },
-    {
-      title: 'Cost per Mile',
-      value: metrics.costPerMile,
-      icon: DollarSign,
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-50 border-yellow-200',
-      format: (val: number) => `$${val}`
-    }
-  ];
-
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {Array.from({ length: 8 }).map((_, i) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[...Array(8)].map((_, i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-6">
-              <div className="h-4 bg-gray-200 rounded mb-4"></div>
-              <div className="h-8 bg-gray-200 rounded mb-2"></div>
-              <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+              <div className="h-16 bg-gray-200 rounded"></div>
             </CardContent>
           </Card>
         ))}
@@ -102,31 +34,125 @@ const FleetMetricsCards: React.FC<FleetMetricsCardsProps> = ({ metrics, isLoadin
     );
   }
 
+  const onlinePercentage = metrics.totalVehicles > 0 
+    ? ((metrics.onlineVehicles / metrics.totalVehicles) * 100).toFixed(1) 
+    : '0';
+
+  const utilizationPercentage = (metrics.averageUtilization * 100).toFixed(1);
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-      {metricsConfig.map((metric, index) => {
-        const Icon = metric.icon;
-        return (
-          <Card key={index} className={`${metric.bgColor} transition-all hover:shadow-lg`}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-gray-700">
-                  {metric.title}
-                </CardTitle>
-                <Icon className={`h-5 w-5 ${metric.color}`} />
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className={`text-2xl font-bold ${metric.color}`}>
-                {metric.format(metric.value)}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                Real-time data
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Total Fleet</CardTitle>
+          <Car className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{metrics.totalVehicles}</div>
+          <p className="text-xs text-muted-foreground">
+            {metrics.activeVehicles} active vehicles
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Online Status</CardTitle>
+          <Activity className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-green-600">{metrics.onlineVehicles}</div>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="text-xs">
+              {onlinePercentage}%
+            </Badge>
+            <span className="text-xs text-muted-foreground">online now</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Fleet Utilization</CardTitle>
+          <Gauge className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{utilizationPercentage}%</div>
+          <div className="flex items-center gap-1">
+            <TrendingUp className="h-3 w-3 text-green-500" />
+            <span className="text-xs text-green-600">+2.1% from last month</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Fuel Efficiency</CardTitle>
+          <TrendingUp className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{metrics.fuelEfficiencyScore.toFixed(1)}</div>
+          <div className="flex items-center gap-1">
+            <TrendingUp className="h-3 w-3 text-green-500" />
+            <span className="text-xs text-green-600">Efficiency score</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Performance Score</CardTitle>
+          <Badge variant={metrics.performanceScore >= 80 ? "default" : "secondary"}>
+            {metrics.performanceScore >= 80 ? "Good" : "Needs Attention"}
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{metrics.performanceScore}%</div>
+          <p className="text-xs text-muted-foreground">
+            Overall fleet performance
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Maintenance Alerts</CardTitle>
+          <AlertTriangle className="h-4 w-4 text-orange-500" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-orange-600">{metrics.maintenanceAlerts}</div>
+          <p className="text-xs text-muted-foreground">
+            Vehicles needing attention
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Cost per KM</CardTitle>
+          <DollarSign className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">${metrics.costPerKm.toFixed(2)}</div>
+          <div className="flex items-center gap-1">
+            <TrendingDown className="h-3 w-3 text-green-500" />
+            <span className="text-xs text-green-600">-3.2% vs last month</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">System Health</CardTitle>
+          <Wrench className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold text-green-600">98.5%</div>
+          <div className="flex items-center gap-1">
+            <Badge variant="default" className="text-xs">Healthy</Badge>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
