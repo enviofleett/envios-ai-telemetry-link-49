@@ -72,7 +72,7 @@ export class EnhancedPollingService {
 
     console.log(`Starting enhanced polling service with ${this.config.interval}ms interval`);
     
-    // Start vehicle position sync service
+    // Start vehicle position sync service with the same interval
     vehiclePositionSyncService.startPeriodicSync(this.config.interval);
 
     this.pollingInterval = setInterval(() => {
@@ -107,7 +107,7 @@ export class EnhancedPollingService {
     try {
       console.log(`Starting poll #${this.metrics.totalPolls} at ${this.metrics.lastPollTime.toISOString()}`);
 
-      // Use the new vehicle position sync service
+      // Use the updated vehicle position sync service
       const syncMetrics = await vehiclePositionSyncService.forceSync();
       
       console.log(`Poll #${this.metrics.totalPolls} completed:`, syncMetrics);

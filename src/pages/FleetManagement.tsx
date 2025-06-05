@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -6,13 +5,15 @@ import { useFleetAnalytics } from '@/hooks/useFleetAnalytics';
 import FleetMetricsCards from '@/components/analytics/FleetMetricsCards';
 import FleetPerformanceChart from '@/components/analytics/FleetPerformanceChart';
 import VehiclePositionMonitor from '@/components/fleet/VehiclePositionMonitor';
+import GP51UsernameConsistencyManager from '@/components/fleet/GP51UsernameConsistencyManager';
 import { 
   Car, 
   BarChart3, 
   MapPin, 
   Calendar,
   Filter,
-  Activity
+  Activity,
+  Settings
 } from 'lucide-react';
 
 const FleetManagement: React.FC = () => {
@@ -29,11 +30,12 @@ const FleetManagement: React.FC = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Fleet Overview</TabsTrigger>
           <TabsTrigger value="positions">Live Positions</TabsTrigger>
           <TabsTrigger value="analytics">Analytics & Insights</TabsTrigger>
           <TabsTrigger value="performance">Performance Metrics</TabsTrigger>
+          <TabsTrigger value="system">System Management</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -185,6 +187,33 @@ const FleetManagement: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="system" className="space-y-6">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">System Management</h2>
+              <p className="text-gray-600">
+                Manage system configurations and resolve data inconsistencies
+              </p>
+            </div>
+            
+            <GP51UsernameConsistencyManager />
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  System Health
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-gray-600">
+                  System health monitoring and diagnostics will be available here.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

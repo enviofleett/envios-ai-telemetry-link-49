@@ -36,42 +36,58 @@ export class VehiclePositionSyncService {
   private async initializeSync(): Promise<void> {
     console.log('Initializing vehicle position sync service...');
     
-    // Check if we have an active GP51 session
-    const sessionId = telemetryApi.getSessionId();
-    if (!sessionId) {
-      console.log('No active GP51 session found, checking for stored session...');
-      await this.checkStoredSession();
+    // Check if we have an active GP51 session with consistent username
+    const sessionValidation = await this.validateGP51Session();
+    if (!sessionValidation.valid) {
+      console.warn('GP51 session validation failed:', sessionValidation.error);
     }
 
     // Start periodic sync
     this.startPeriodicSync();
   }
 
-  private async checkStoredSession(): Promise<void> {
+  private async validateGP51Session(): Promise<{ valid: boolean; error?: string }> {
     try {
-      const { data: sessions, error } = await supabase
+      // Get the admin username from envio_users
+      const { data: adminUsers, error: adminError } = await supabase
+        .from('envio_users')
+        .select('gp51_username')
+        .not('gp51_username', 'is', null)
+        .limit(1);
+
+      if (adminError || !adminUsers || adminUsers.length === 0) {
+        return { valid: false, error: 'No admin GP51 username found' };
+      }
+
+      const adminUsername = adminUsers[0].gp51_username;
+
+      // Check if we have a valid session for this username
+      const { data: sessions, error: sessionError } = await supabase
         .from('gp51_sessions')
         .select('*')
+        .eq('username', adminUsername)
         .order('created_at', { ascending: false })
         .limit(1);
 
-      if (error) {
-        console.error('Error checking stored sessions:', error);
-        return;
+      if (sessionError || !sessions || sessions.length === 0) {
+        return { valid: false, error: `No GP51 session found for username: ${adminUsername}` };
       }
 
-      if (sessions && sessions.length > 0) {
-        const session = sessions[0];
-        
-        // Check if session is still valid
-        if (new Date(session.token_expires_at) > new Date()) {
-          console.log('Found valid stored session, will use for position sync');
-        } else {
-          console.log('Stored session expired, position sync will be limited');
-        }
+      const session = sessions[0];
+
+      // Check if session is still valid
+      if (new Date(session.token_expires_at) <= new Date()) {
+        return { valid: false, error: 'GP51 session expired' };
       }
+
+      console.log(`Valid GP51 session found for username: ${adminUsername}`);
+      return { valid: true };
+
     } catch (error) {
-      console.error('Error checking stored session:', error);
+      return { 
+        valid: false, 
+        error: error instanceof Error ? error.message : 'Session validation failed' 
+      };
     }
   }
 
@@ -109,10 +125,16 @@ export class VehiclePositionSyncService {
     console.log('Starting vehicle position sync...');
 
     try {
-      // Get all active vehicles
+      // Validate session before attempting sync
+      const sessionValidation = await this.validateGP51Session();
+      if (!sessionValidation.valid) {
+        throw new Error(`GP51 session invalid: ${sessionValidation.error}`);
+      }
+
+      // Get all active vehicles from the database
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
-        .select('device_id, device_name, is_active')
+        .select('device_id, device_name, is_active, gp51_username')
         .eq('is_active', true);
 
       if (vehiclesError) {
@@ -121,22 +143,27 @@ export class VehiclePositionSyncService {
 
       if (!vehicles || vehicles.length === 0) {
         console.log('No active vehicles found for position sync');
+        this.metrics.totalVehicles = 0;
         return this.metrics;
       }
 
       this.metrics.totalVehicles = vehicles.length;
       console.log(`Syncing positions for ${vehicles.length} active vehicles`);
 
+      // Check for username consistency in vehicles
+      const uniqueUsernames = new Set(vehicles.map(v => v.gp51_username).filter(Boolean));
+      if (uniqueUsernames.size > 1) {
+        console.warn('Multiple GP51 usernames found in vehicles:', Array.from(uniqueUsernames));
+      }
+
       // Get device IDs for position request
       const deviceIds = vehicles.map(v => v.device_id);
 
-      // Fetch positions from GP51
+      // Fetch positions from GP51 using the telemetry API
       const positionsResult = await telemetryApi.getVehiclePositions(deviceIds);
 
       if (!positionsResult.success) {
-        console.error('Failed to fetch positions from GP51:', positionsResult.error);
-        this.metrics.errors++;
-        return this.metrics;
+        throw new Error(`Failed to fetch positions from GP51: ${positionsResult.error}`);
       }
 
       const positions = positionsResult.positions || [];
