@@ -35,16 +35,60 @@ export const optimizedQueryClient = new QueryClient({
   },
 });
 
-// Add global error handler
-optimizedQueryClient.setQueryDefaults(['*'], {
-  onError: (error) => {
-    console.error('Query error:', error);
+// Create optimizedQueryService with metrics and management functions
+export const optimizedQueryService = {
+  getMetrics: () => {
+    const queryCache = optimizedQueryClient.getQueryCache();
+    const mutationCache = optimizedQueryClient.getMutationCache();
+    
+    const queries = queryCache.getAll();
+    const mutations = mutationCache.getAll();
+    
+    const totalQueries = queries.length;
+    const failedQueries = queries.filter(q => q.state.status === 'error').length;
+    const cacheHits = queries.filter(q => q.state.dataUpdatedAt > 0).length;
+    const cacheMisses = totalQueries - cacheHits;
+    
+    // Calculate average query time (simplified)
+    const queryTimes = queries.map(q => q.state.dataUpdatedAt - q.state.fetchedAt).filter(t => t > 0);
+    const averageQueryTime = queryTimes.length > 0 ? queryTimes.reduce((a, b) => a + b, 0) / queryTimes.length : 0;
+    
+    return {
+      totalQueries,
+      failedQueries,
+      cacheHits,
+      cacheMisses,
+      cacheSize: totalQueries,
+      averageQueryTime: averageQueryTime || 0,
+    };
   },
-});
 
-// Add global mutation error handler
-optimizedQueryClient.setMutationDefaults({
-  onError: (error) => {
-    console.error('Mutation error:', error);
+  getDetailedCacheInfo: () => {
+    const queryCache = optimizedQueryClient.getQueryCache();
+    const queries = queryCache.getAll();
+    
+    const totalQueries = queries.length;
+    const activeQueries = queries.filter(q => q.getObserversCount() > 0).length;
+    const staleQueries = queries.filter(q => q.isStale()).length;
+    
+    // Rough estimate of cache size
+    const cacheSizeEstimate = `~${Math.round(totalQueries * 0.5)}KB`;
+    
+    return {
+      totalQueries,
+      activeQueries,
+      staleQueries,
+      cacheSizeEstimate,
+    };
   },
-});
+
+  clearCache: () => {
+    optimizedQueryClient.clear();
+  },
+
+  invalidateStaleQueries: () => {
+    optimizedQueryClient.invalidateQueries({
+      predicate: (query) => query.isStale(),
+    });
+  },
+};
