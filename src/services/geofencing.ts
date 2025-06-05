@@ -5,7 +5,7 @@ export interface Geofence {
   id: string;
   name: string;
   description?: string;
-  geometry: GeoJSON.Polygon;
+  geometry: any; // Using any for GeoJSON compatibility
   fence_type: 'inclusion' | 'exclusion';
   is_active: boolean;
   alert_on_enter: boolean;
@@ -32,12 +32,21 @@ class GeofencingService {
     try {
       const { data, error } = await supabase
         .from('geofences')
-        .insert(geofence)
+        .insert({
+          name: geofence.name,
+          description: geofence.description,
+          geometry: geofence.geometry as any,
+          fence_type: geofence.fence_type,
+          is_active: geofence.is_active,
+          alert_on_enter: geofence.alert_on_enter,
+          alert_on_exit: geofence.alert_on_exit,
+          created_by: geofence.created_by
+        })
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+      return data as Geofence;
     } catch (error) {
       console.error('Failed to create geofence:', error);
       throw error;
@@ -53,7 +62,7 @@ class GeofencingService {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as Geofence[];
     } catch (error) {
       console.error('Failed to fetch geofences:', error);
       return [];
@@ -62,15 +71,25 @@ class GeofencingService {
 
   async updateGeofence(id: string, updates: Partial<Geofence>) {
     try {
+      const updateData: any = {
+        ...updates,
+        updated_at: new Date().toISOString()
+      };
+      
+      // Convert geometry if present
+      if (updates.geometry) {
+        updateData.geometry = updates.geometry as any;
+      }
+
       const { data, error } = await supabase
         .from('geofences')
-        .update({ ...updates, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+      return data as Geofence;
     } catch (error) {
       console.error('Failed to update geofence:', error);
       throw error;
@@ -122,19 +141,28 @@ class GeofencingService {
     try {
       const { data, error } = await supabase
         .from('geofence_alerts')
-        .insert(alert)
+        .insert({
+          geofence_id: alert.geofence_id,
+          device_id: alert.device_id,
+          alert_type: alert.alert_type,
+          triggered_at: alert.triggered_at,
+          location: alert.location as any,
+          is_acknowledged: alert.is_acknowledged
+        })
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+      return data as GeofenceAlert;
     } catch (error) {
       console.error('Failed to create geofence alert:', error);
       return null;
     }
   }
 
-  private isPointInPolygon(point: { lat: number; lng: number }, polygon: GeoJSON.Polygon): boolean {
+  private isPointInPolygon(point: { lat: number; lng: number }, polygon: any): boolean {
+    if (!polygon?.coordinates?.[0]) return false;
+    
     const coordinates = polygon.coordinates[0];
     const x = point.lng;
     const y = point.lat;
@@ -171,7 +199,7 @@ class GeofencingService {
       const { data, error } = await query;
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as GeofenceAlert[];
     } catch (error) {
       console.error('Failed to fetch geofence alerts:', error);
       return [];

@@ -21,36 +21,9 @@ import {
 import { toast } from 'sonner';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
-interface ConfigWithMetrics {
-  id: string;
-  name: string;
-  api_key: string;
-  provider_type: string;
-  threshold_value: number;
-  is_active: boolean;
-  fallback_priority: number;
-  alert_threshold_80: number;
-  alert_threshold_90: number;
-  alert_threshold_95: number;
-  auto_fallback_enabled: boolean;
-  last_alert_sent?: string;
-  performance_weight: number;
-  map_api_usage?: Array<{
-    usage_date: string;
-    request_count: number;
-  }>;
-}
-
 const EnhancedMapApiManagement: React.FC = () => {
   const { configs, isLoading, saveConfig, deleteConfig, refetch } = useMapConfigs();
-  const [configsWithMetrics, setConfigsWithMetrics] = useState<ConfigWithMetrics[]>([]);
   const [autoRefresh, setAutoRefresh] = useState(true);
-
-  useEffect(() => {
-    if (configs) {
-      setConfigsWithMetrics(configs as ConfigWithMetrics[]);
-    }
-  }, [configs]);
 
   useEffect(() => {
     if (autoRefresh) {
@@ -62,7 +35,7 @@ const EnhancedMapApiManagement: React.FC = () => {
     }
   }, [autoRefresh, refetch]);
 
-  const getTodayUsage = (config: ConfigWithMetrics) => {
+  const getTodayUsage = (config: any) => {
     if (!config.map_api_usage || config.map_api_usage.length === 0) return 0;
     
     const today = new Date().toISOString().split('T')[0];
@@ -73,12 +46,12 @@ const EnhancedMapApiManagement: React.FC = () => {
     return todayUsage?.request_count || 0;
   };
 
-  const getUsagePercentage = (config: ConfigWithMetrics) => {
+  const getUsagePercentage = (config: any) => {
     const usage = getTodayUsage(config);
     return (usage / config.threshold_value) * 100;
   };
 
-  const getAlertLevel = (config: ConfigWithMetrics) => {
+  const getAlertLevel = (config: any) => {
     const percentage = getUsagePercentage(config);
     
     if (percentage >= 95) return { level: 'critical', color: 'bg-red-500', threshold: 95 };
@@ -87,7 +60,7 @@ const EnhancedMapApiManagement: React.FC = () => {
     return { level: 'normal', color: 'bg-green-500', threshold: 0 };
   };
 
-  const getStatusBadge = (config: ConfigWithMetrics) => {
+  const getStatusBadge = (config: any) => {
     if (!config.is_active) {
       return <Badge variant="secondary">Inactive</Badge>;
     }
@@ -106,7 +79,7 @@ const EnhancedMapApiManagement: React.FC = () => {
     }
   };
 
-  const handleToggleAutoFallback = async (config: ConfigWithMetrics, enabled: boolean) => {
+  const handleToggleAutoFallback = async (config: any, enabled: boolean) => {
     try {
       await saveConfig({
         ...config,
@@ -119,7 +92,7 @@ const EnhancedMapApiManagement: React.FC = () => {
     }
   };
 
-  const handleUpdateThresholds = async (config: ConfigWithMetrics, thresholds: {
+  const handleUpdateThresholds = async (config: any, thresholds: {
     alert_threshold_80: number;
     alert_threshold_90: number;
     alert_threshold_95: number;
@@ -136,15 +109,15 @@ const EnhancedMapApiManagement: React.FC = () => {
     }
   };
 
-  const calculateEfficiency = (config: ConfigWithMetrics) => {
+  const calculateEfficiency = (config: any) => {
     const usage = getTodayUsage(config);
-    const efficiency = usage > 0 ? (usage / config.threshold_value) * config.performance_weight : 0;
+    const weight = config.performance_weight || 1;
+    const efficiency = usage > 0 ? (usage / config.threshold_value) * weight : 0;
     return Math.min(efficiency * 100, 100);
   };
 
-  const getRecommendedAction = (config: ConfigWithMetrics) => {
+  const getRecommendedAction = (config: any) => {
     const percentage = getUsagePercentage(config);
-    const alertLevel = getAlertLevel(config);
     
     if (!config.is_active) return 'Activate this configuration to enable usage';
     if (percentage >= 95) return 'Consider switching to fallback or increasing limit';
@@ -166,7 +139,7 @@ const EnhancedMapApiManagement: React.FC = () => {
     );
   }
 
-  const activeConfigs = configsWithMetrics.filter(c => c.is_active);
+  const activeConfigs = configs.filter(c => c.is_active);
   const totalDailyUsage = activeConfigs.reduce((sum, config) => sum + getTodayUsage(config), 0);
   const avgUsagePercentage = activeConfigs.length > 0 
     ? activeConfigs.reduce((sum, config) => sum + getUsagePercentage(config), 0) / activeConfigs.length
@@ -235,7 +208,7 @@ const EnhancedMapApiManagement: React.FC = () => {
 
       {/* API Configurations */}
       <div className="grid gap-6">
-        {configsWithMetrics.map((config) => {
+        {configs.map((config) => {
           const usagePercentage = getUsagePercentage(config);
           const alertLevel = getAlertLevel(config);
           const efficiency = calculateEfficiency(config);
@@ -273,7 +246,7 @@ const EnhancedMapApiManagement: React.FC = () => {
                       </div>
                       <div>
                         <span className="font-medium">Performance Weight:</span>
-                        <span className="ml-1">{config.performance_weight}x</span>
+                        <span className="ml-1">{config.performance_weight || 1}x</span>
                       </div>
                     </div>
                   </div>
@@ -337,7 +310,7 @@ const EnhancedMapApiManagement: React.FC = () => {
                     </div>
                   </div>
                   <Switch
-                    checked={config.auto_fallback_enabled}
+                    checked={config.auto_fallback_enabled || false}
                     onCheckedChange={(enabled) => handleToggleAutoFallback(config, enabled)}
                   />
                 </div>
