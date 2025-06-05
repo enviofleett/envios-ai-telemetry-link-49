@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { telemetryApi } from '@/services/telemetryApi';
+import { vehiclePositionSyncService } from '@/services/vehiclePositionSyncService';
 
 interface PollingConfig {
   interval: number;
@@ -72,6 +72,9 @@ export class EnhancedPollingService {
 
     console.log(`Starting enhanced polling service with ${this.config.interval}ms interval`);
     
+    // Start vehicle position sync service
+    vehiclePositionSyncService.startPeriodicSync(this.config.interval);
+
     this.pollingInterval = setInterval(() => {
       this.performPoll();
     }, this.config.interval);
@@ -86,6 +89,9 @@ export class EnhancedPollingService {
       this.pollingInterval = null;
       console.log('Polling service stopped');
     }
+
+    // Stop vehicle position sync service
+    vehiclePositionSyncService.stopPeriodicSync();
   }
 
   private async performPoll(): Promise<void> {
@@ -101,61 +107,17 @@ export class EnhancedPollingService {
     try {
       console.log(`Starting poll #${this.metrics.totalPolls} at ${this.metrics.lastPollTime.toISOString()}`);
 
-      // Check if we have an active session
-      const sessionId = telemetryApi.getSessionId();
-      if (!sessionId) {
-        throw new Error('No active GP51 session found');
-      }
-
-      // Get list of device IDs to poll
-      const { data: vehicles, error: vehiclesError } = await supabase
-        .from('vehicles')
-        .select('device_id')
-        .eq('is_active', true);
-
-      if (vehiclesError) {
-        throw new Error(`Failed to get vehicle list: ${vehiclesError.message}`);
-      }
-
-      const deviceIds = vehicles?.map(v => v.device_id) || [];
-      console.log(`Polling positions for ${deviceIds.length} vehicles`);
-
-      // Fetch positions from GP51
-      const positionsResult = await telemetryApi.getVehiclePositions(deviceIds);
-
-      if (!positionsResult.success) {
-        throw new Error(positionsResult.error || 'Failed to fetch positions');
-      }
-
-      // Update vehicle positions in database
-      const positions = positionsResult.positions || [];
-      console.log(`Received ${positions.length} position updates`);
-
-      for (const position of positions) {
-        await supabase
-          .from('vehicles')
-          .update({
-            last_position: {
-              lat: position.lat,
-              lon: position.lon,
-              speed: position.speed,
-              course: position.course,
-              updatetime: position.updatetime,
-              statusText: position.statusText
-            },
-            updated_at: new Date().toISOString()
-          })
-          .eq('device_id', position.deviceid);
-      }
-
-      // Update polling status
-      await this.updatePollingStatus(true);
+      // Use the new vehicle position sync service
+      const syncMetrics = await vehiclePositionSyncService.forceSync();
+      
+      console.log(`Poll #${this.metrics.totalPolls} completed:`, syncMetrics);
 
       this.metrics.successfulPolls++;
       this.metrics.lastSuccessTime = new Date();
       this.metrics.currentRetryCount = 0;
 
-      console.log(`Poll #${this.metrics.totalPolls} completed successfully`);
+      // Update polling status
+      await this.updatePollingStatus(true);
 
     } catch (error) {
       console.error(`Poll #${this.metrics.totalPolls} failed:`, error);
@@ -203,6 +165,10 @@ export class EnhancedPollingService {
     return { ...this.metrics };
   }
 
+  public getSyncMetrics() {
+    return vehiclePositionSyncService.getMetrics();
+  }
+
   public updateConfig(newConfig: Partial<PollingConfig>): void {
     this.config = { ...this.config, ...newConfig };
     
@@ -221,14 +187,9 @@ export class EnhancedPollingService {
 
   public async validateConnection(): Promise<{ success: boolean; error?: string }> {
     try {
-      const sessionId = telemetryApi.getSessionId();
-      if (!sessionId) {
-        return { success: false, error: 'No active session' };
-      }
-
-      // Test connection with a simple position request
-      const result = await telemetryApi.getVehiclePositions([]);
-      return { success: result.success, error: result.error };
+      // Test connection by attempting a sync
+      const syncMetrics = await vehiclePositionSyncService.forceSync();
+      return { success: syncMetrics.positionsUpdated > 0 || syncMetrics.errors === 0 };
     } catch (error) {
       return { 
         success: false, 

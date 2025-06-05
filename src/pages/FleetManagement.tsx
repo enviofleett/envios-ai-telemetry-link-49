@@ -5,12 +5,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useFleetAnalytics } from '@/hooks/useFleetAnalytics';
 import FleetMetricsCards from '@/components/analytics/FleetMetricsCards';
 import FleetPerformanceChart from '@/components/analytics/FleetPerformanceChart';
+import VehiclePositionMonitor from '@/components/fleet/VehiclePositionMonitor';
 import { 
   Car, 
   BarChart3, 
   MapPin, 
   Calendar,
-  Filter
+  Filter,
+  Activity
 } from 'lucide-react';
 
 const FleetManagement: React.FC = () => {
@@ -22,13 +24,14 @@ const FleetManagement: React.FC = () => {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Fleet Management</h1>
         <p className="text-gray-600 mt-2">
-          Comprehensive fleet overview, analytics, and performance insights
+          Comprehensive fleet overview, analytics, and real-time position monitoring
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Fleet Overview</TabsTrigger>
+          <TabsTrigger value="positions">Live Positions</TabsTrigger>
           <TabsTrigger value="analytics">Analytics & Insights</TabsTrigger>
           <TabsTrigger value="performance">Performance Metrics</TabsTrigger>
         </TabsList>
@@ -100,6 +103,10 @@ const FleetManagement: React.FC = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="positions" className="space-y-6">
+          <VehiclePositionMonitor />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6">

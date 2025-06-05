@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { telemetryApi } from '@/services/telemetryApi';
+import { vehiclePositionSyncService } from '@/services/vehiclePositionSyncService';
 import { useVehicleData } from '@/hooks/useVehicleData';
 import DashboardHeader from './DashboardHeader';
 import VehicleGrid from './VehicleGrid';
@@ -13,33 +14,38 @@ const VehicleDashboard: React.FC = () => {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await fetchPositions();
-    setIsRefreshing(false);
+    try {
+      // Use the new position sync service for more reliable updates
+      await vehiclePositionSyncService.forceSync();
+      await fetchVehicles();
+    } catch (error) {
+      console.error('Refresh failed:', error);
+      // Fallback to original method
+      await fetchPositions();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const handleLogout = () => {
+    // Stop position sync service
+    vehiclePositionSyncService.stopPeriodicSync();
     telemetryApi.clearSession();
     window.location.reload();
   };
 
-  // Fetch initial vehicles and positions
+  // Fetch initial vehicles and start position sync
   useEffect(() => {
     fetchVehicles();
+    
+    // Initialize position sync service
+    vehiclePositionSyncService.startPeriodicSync();
+    
+    return () => {
+      // Cleanup on unmount
+      vehiclePositionSyncService.stopPeriodicSync();
+    };
   }, []);
-
-  // Fetch positions when vehicles are loaded
-  useEffect(() => {
-    if (vehicles.length > 0) {
-      fetchPositions();
-      
-      // Set up periodic position updates every 30 seconds
-      const positionInterval = setInterval(fetchPositions, 30000);
-      
-      return () => {
-        clearInterval(positionInterval);
-      };
-    }
-  }, [vehicles.length]);
 
   // Update timestamp every second
   useEffect(() => {

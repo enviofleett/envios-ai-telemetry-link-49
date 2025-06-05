@@ -1001,6 +1001,33 @@ export type Database = {
           },
         ]
       }
+      vehicle_assignment_backup_20250605: {
+        Row: {
+          device_id: string | null
+          device_name: string | null
+          envio_user_id: string | null
+          gp51_username: string | null
+          id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          device_id?: string | null
+          device_name?: string | null
+          envio_user_id?: string | null
+          gp51_username?: string | null
+          id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          device_id?: string | null
+          device_name?: string | null
+          envio_user_id?: string | null
+          gp51_username?: string | null
+          id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           created_at: string
