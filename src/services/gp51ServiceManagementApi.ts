@@ -74,8 +74,12 @@ export class GP51ServiceManagementApi {
       if (error) throw error;
 
       return vehicles?.filter(vehicle => {
-        const serviceEndDate = new Date(vehicle.gp51_metadata?.service_end_date);
-        return serviceEndDate <= thresholdDate;
+        const metadata = vehicle.gp51_metadata as any;
+        if (metadata?.service_end_date) {
+          const serviceEndDate = new Date(metadata.service_end_date);
+          return serviceEndDate <= thresholdDate;
+        }
+        return false;
       }) || [];
     } catch (error) {
       console.error('Failed to get devices near expiration:', error);

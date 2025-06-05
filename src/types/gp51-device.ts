@@ -1,4 +1,9 @@
 
+export interface GP51ApiResponse {
+  status: number;
+  cause: string;
+}
+
 export interface GP51Device {
   deviceid: string;
   devicename: string;

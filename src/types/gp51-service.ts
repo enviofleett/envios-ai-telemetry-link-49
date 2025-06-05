@@ -1,4 +1,9 @@
 
+export interface GP51ApiResponse {
+  status: number;
+  cause: string;
+}
+
 export interface ChargeDevicesRequest {
   deviceids: number[];
   years: number;
