@@ -479,6 +479,95 @@ export type Database = {
         }
         Relationships: []
       }
+      geofence_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_type: string
+          created_at: string
+          device_id: string
+          geofence_id: string
+          id: string
+          is_acknowledged: boolean | null
+          location: Json
+          triggered_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type: string
+          created_at?: string
+          device_id: string
+          geofence_id: string
+          id?: string
+          is_acknowledged?: boolean | null
+          location: Json
+          triggered_at: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_type?: string
+          created_at?: string
+          device_id?: string
+          geofence_id?: string
+          id?: string
+          is_acknowledged?: boolean | null
+          location?: Json
+          triggered_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "geofence_alerts_geofence_id_fkey"
+            columns: ["geofence_id"]
+            isOneToOne: false
+            referencedRelation: "geofences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      geofences: {
+        Row: {
+          alert_on_enter: boolean | null
+          alert_on_exit: boolean | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          fence_type: string
+          geometry: Json
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          alert_on_enter?: boolean | null
+          alert_on_exit?: boolean | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          fence_type?: string
+          geometry: Json
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          alert_on_enter?: boolean | null
+          alert_on_exit?: boolean | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          fence_type?: string
+          geometry?: Json
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       gp51_data_conflicts: {
         Row: {
           conflict_details: Json | null
@@ -762,36 +851,54 @@ export type Database = {
       }
       map_api_configs: {
         Row: {
+          alert_threshold_80: number | null
+          alert_threshold_90: number | null
+          alert_threshold_95: number | null
           api_key: string
+          auto_fallback_enabled: boolean | null
           created_at: string
           fallback_priority: number
           id: string
           is_active: boolean
+          last_alert_sent: string | null
           name: string
+          performance_weight: number | null
           provider_type: string
           threshold_type: string
           threshold_value: number
           updated_at: string
         }
         Insert: {
+          alert_threshold_80?: number | null
+          alert_threshold_90?: number | null
+          alert_threshold_95?: number | null
           api_key: string
+          auto_fallback_enabled?: boolean | null
           created_at?: string
           fallback_priority?: number
           id?: string
           is_active?: boolean
+          last_alert_sent?: string | null
           name: string
+          performance_weight?: number | null
           provider_type?: string
           threshold_type?: string
           threshold_value?: number
           updated_at?: string
         }
         Update: {
+          alert_threshold_80?: number | null
+          alert_threshold_90?: number | null
+          alert_threshold_95?: number | null
           api_key?: string
+          auto_fallback_enabled?: boolean | null
           created_at?: string
           fallback_priority?: number
           id?: string
           is_active?: boolean
+          last_alert_sent?: string | null
           name?: string
+          performance_weight?: number | null
           provider_type?: string
           threshold_type?: string
           threshold_value?: number
@@ -830,6 +937,83 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      map_performance_metrics: {
+        Row: {
+          api_config_id: string | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          metric_type: string
+          metric_value: number | null
+          session_id: string
+        }
+        Insert: {
+          api_config_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          metric_type: string
+          metric_value?: number | null
+          session_id: string
+        }
+        Update: {
+          api_config_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          metric_type?: string
+          metric_value?: number | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_performance_metrics_api_config_id_fkey"
+            columns: ["api_config_id"]
+            isOneToOne: false
+            referencedRelation: "map_api_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      map_usage_analytics: {
+        Row: {
+          action_data: Json | null
+          action_type: string
+          center_lat: number | null
+          center_lng: number | null
+          created_at: string
+          id: string
+          session_id: string
+          user_id: string | null
+          viewport_bounds: Json | null
+          zoom_level: number | null
+        }
+        Insert: {
+          action_data?: Json | null
+          action_type: string
+          center_lat?: number | null
+          center_lng?: number | null
+          created_at?: string
+          id?: string
+          session_id: string
+          user_id?: string | null
+          viewport_bounds?: Json | null
+          zoom_level?: number | null
+        }
+        Update: {
+          action_data?: Json | null
+          action_type?: string
+          center_lat?: number | null
+          center_lng?: number | null
+          created_at?: string
+          id?: string
+          session_id?: string
+          user_id?: string | null
+          viewport_bounds?: Json | null
+          zoom_level?: number | null
+        }
+        Relationships: []
       }
       payment_methods: {
         Row: {
@@ -1099,6 +1283,48 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_routes: {
+        Row: {
+          avg_speed: number | null
+          created_at: string
+          device_id: string
+          end_location: Json | null
+          id: string
+          max_speed: number | null
+          route_date: string
+          route_points: Json
+          start_location: Json | null
+          total_distance: number | null
+          total_duration: number | null
+        }
+        Insert: {
+          avg_speed?: number | null
+          created_at?: string
+          device_id: string
+          end_location?: Json | null
+          id?: string
+          max_speed?: number | null
+          route_date: string
+          route_points: Json
+          start_location?: Json | null
+          total_distance?: number | null
+          total_duration?: number | null
+        }
+        Update: {
+          avg_speed?: number | null
+          created_at?: string
+          device_id?: string
+          end_location?: Json | null
+          id?: string
+          max_speed?: number | null
+          route_date?: string
+          route_points?: Json
+          start_location?: Json | null
+          total_distance?: number | null
+          total_duration?: number | null
+        }
+        Relationships: []
+      }
       vehicles: {
         Row: {
           created_at: string
@@ -1198,6 +1424,10 @@ export type Database = {
           provider_type: string
           config_id: string
         }[]
+      }
+      get_map_config_usage_percentage: {
+        Args: { config_id: string; check_date?: string }
+        Returns: number
       }
       get_user_role: {
         Args: { _user_id: string }

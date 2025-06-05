@@ -5,7 +5,7 @@ import { Navigation, Filter, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import MapTilerMap from '@/components/map/MapTilerMap';
+import EnhancedMapTilerMap from '@/components/map/EnhancedMapTilerMap';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface LiveTrackingMapProps {
@@ -148,14 +148,17 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
         </CardContent>
       </Card>
 
-      {/* Interactive Map */}
+      {/* Enhanced Interactive Map */}
       <Card>
         <CardContent className="p-0">
-          <MapTilerMap
+          <EnhancedMapTilerMap
             vehicles={filteredVehicles}
             onVehicleSelect={handleVehicleSelect}
             height="600px"
             className="rounded-lg border-0"
+            enableClustering={true}
+            enableGeofencing={false}
+            maxVehiclesBeforeClustering={100}
           />
         </CardContent>
       </Card>
