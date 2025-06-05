@@ -5,6 +5,7 @@ import LiveTrackingHeader from '@/components/tracking/LiveTrackingHeader';
 import LiveTrackingStats from '@/components/tracking/LiveTrackingStats';
 import LiveTrackingControls from '@/components/tracking/LiveTrackingControls';
 import LiveTrackingContent from '@/components/tracking/LiveTrackingContent';
+import LiveTrackingMap from '@/components/tracking/LiveTrackingMap';
 
 const LiveTracking: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,10 +68,21 @@ const LiveTracking: React.FC = () => {
         isRefreshing={isRefreshing}
       />
 
-      <LiveTrackingContent
-        viewMode={viewMode}
-        vehicles={vehicles}
-      />
+      {/* Conditional Content Based on View Mode */}
+      {viewMode === 'map' ? (
+        <LiveTrackingMap
+          vehicles={vehicles}
+          searchTerm={searchTerm}
+          onSearchChange={setSearchTerm}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+        />
+      ) : (
+        <LiveTrackingContent
+          viewMode={viewMode}
+          vehicles={vehicles}
+        />
+      )}
     </div>
   );
 };

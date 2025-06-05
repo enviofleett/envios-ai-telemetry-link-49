@@ -1,9 +1,9 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Activity, Navigation, TrendingUp } from 'lucide-react';
+import { Activity, Navigation, TrendingUp, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import MapTilerMap from '@/components/map/MapTilerMap';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
@@ -13,6 +13,8 @@ interface FleetMapViewProps {
 }
 
 const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }) => {
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  
   const vehiclesWithPosition = vehicles.filter(v => v.lastPosition?.lat && v.lastPosition?.lon);
   
   const getVehicleStatus = (vehicle: Vehicle) => {
@@ -33,6 +35,22 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
     return acc;
   }, {} as Record<string, number>);
 
+  const handleVehicleSelect = (vehicle: Vehicle) => {
+    setSelectedVehicle(vehicle);
+    onVehicleSelect(vehicle);
+  };
+
+  const formatLastUpdate = (updatetime: string) => {
+    const date = new Date(updatetime);
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+    return date.toLocaleDateString();
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Map Container */}
@@ -50,7 +68,7 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
           <CardContent className="p-0">
             <MapTilerMap
               vehicles={vehiclesWithPosition}
-              onVehicleSelect={onVehicleSelect}
+              onVehicleSelect={handleVehicleSelect}
               height="500px"
               className="rounded-none border-0"
             />
@@ -60,6 +78,7 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
 
       {/* Vehicle Status Panel */}
       <div className="space-y-4">
+        {/* ... keep existing code (status cards and fleet stats) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -159,7 +178,7 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
                     <div 
                       key={vehicle.deviceid}
                       className="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer"
-                      onClick={() => onVehicleSelect(vehicle)}
+                      onClick={() => handleVehicleSelect(vehicle)}
                     >
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${getStatusColor(status)}`}></div>
@@ -172,7 +191,7 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
                       </div>
                       <div className="text-xs text-gray-500">
                         {vehicle.lastPosition?.updatetime 
-                          ? new Date(vehicle.lastPosition.updatetime).toLocaleTimeString()
+                          ? formatLastUpdate(vehicle.lastPosition.updatetime)
                           : 'No data'
                         }
                       </div>
@@ -183,6 +202,75 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
           </CardContent>
         </Card>
       </div>
+
+      {/* Vehicle Details Modal */}
+      <Dialog open={!!selectedVehicle} onOpenChange={() => setSelectedVehicle(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Vehicle Details: {selectedVehicle?.devicename}</span>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setSelectedVehicle(null)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedVehicle && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Device ID</label>
+                  <p className="font-mono text-sm">{selectedVehicle.deviceid}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Status</label>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${
+                      getVehicleStatus(selectedVehicle) === 'online' ? 'bg-green-500' :
+                      getVehicleStatus(selectedVehicle) === 'idle' ? 'bg-yellow-500' : 'bg-gray-400'
+                    }`}></div>
+                    <span className="capitalize text-sm">{getVehicleStatus(selectedVehicle)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {selectedVehicle.lastPosition && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Location</label>
+                    <p className="font-mono text-sm">
+                      {selectedVehicle.lastPosition.lat.toFixed(6)}, {selectedVehicle.lastPosition.lon.toFixed(6)}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Speed</label>
+                    <p className="text-sm">{selectedVehicle.lastPosition.speed || 0} km/h</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Course</label>
+                    <p className="text-sm">{selectedVehicle.lastPosition.course || 0}°</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Last Update</label>
+                    <p className="text-sm">{formatLastUpdate(selectedVehicle.lastPosition.updatetime)}</p>
+                  </div>
+                </div>
+              )}
+
+              {selectedVehicle.lastPosition?.statusText && (
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Status Text</label>
+                  <p className="text-sm">{selectedVehicle.lastPosition.statusText}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

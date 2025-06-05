@@ -1,46 +1,171 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPin, Navigation } from 'lucide-react';
+import { Navigation, Filter, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import MapTilerMap from '@/components/map/MapTilerMap';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface LiveTrackingMapProps {
   vehicles: Vehicle[];
+  searchTerm?: string;
+  onSearchChange?: (search: string) => void;
+  statusFilter?: string;
+  onStatusFilterChange?: (status: string) => void;
 }
 
-const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({ vehicles }) => {
-  const onlineVehicles = vehicles.filter(vehicle => {
-    if (!vehicle.lastPosition?.updatetime) return false;
+const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({ 
+  vehicles,
+  searchTerm = '',
+  onSearchChange,
+  statusFilter = 'all',
+  onStatusFilterChange
+}) => {
+  const getVehicleStatus = (vehicle: Vehicle) => {
+    if (!vehicle.lastPosition?.updatetime) return 'offline';
+    
     const lastUpdate = new Date(vehicle.lastPosition.updatetime);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-    return minutesSinceUpdate <= 30;
+    
+    if (minutesSinceUpdate <= 5) return 'online';
+    if (minutesSinceUpdate <= 30) return 'idle';
+    return 'offline';
+  };
+
+  // Filter vehicles based on search and status
+  const filteredVehicles = vehicles.filter(vehicle => {
+    const matchesSearch = vehicle.devicename.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    if (statusFilter === 'all') return matchesSearch;
+    
+    const vehicleStatus = getVehicleStatus(vehicle);
+    return matchesSearch && vehicleStatus === statusFilter;
   });
 
+  const vehiclesWithPosition = filteredVehicles.filter(v => v.lastPosition?.lat && v.lastPosition?.lon);
+  
+  const statusCounts = vehicles.reduce((acc, vehicle) => {
+    const status = getVehicleStatus(vehicle);
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const handleVehicleSelect = (vehicle: Vehicle) => {
+    console.log('Selected vehicle:', vehicle);
+    // Add custom selection logic here if needed
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Navigation className="h-5 w-5" />
-          Live Vehicle Map
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="bg-gray-100 rounded-lg p-8 text-center min-h-[400px] flex flex-col items-center justify-center">
-          <MapPin className="h-16 w-16 text-gray-400 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-600 mb-2">Interactive Map Coming Soon</h3>
-          <p className="text-gray-500 mb-4">
-            Real-time vehicle positions will be displayed on an interactive map
-          </p>
-          <div className="text-sm text-gray-600 space-y-1">
-            <p>📍 {onlineVehicles.length} vehicles online and trackable</p>
-            <p>🗺️ Interactive controls and clustering</p>
-            <p>🚗 Real-time position updates</p>
-            <p>📊 Vehicle status indicators</p>
+    <div className="space-y-4">
+      {/* Controls */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Navigation className="h-5 w-5" />
+            Live Vehicle Tracking
+            <Badge variant="outline" className="ml-2">
+              {vehiclesWithPosition.length} trackable vehicles
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search vehicles by name or ID..."
+                  value={searchTerm}
+                  onChange={(e) => onSearchChange?.(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Status Filter */}
+            <div className="w-full md:w-48">
+              <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+                <SelectTrigger>
+                  <Filter className="h-4 w-4 mr-2" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status ({vehicles.length})</SelectItem>
+                  <SelectItem value="online">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                      Online ({statusCounts.online || 0})
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="idle">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
+                      Idle ({statusCounts.idle || 0})
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="offline">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-gray-400"></div>
+                      Offline ({statusCounts.offline || 0})
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
+
+          {/* Status Summary */}
+          <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span className="text-sm">Online: {statusCounts.online || 0}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+              <span className="text-sm">Idle: {statusCounts.idle || 0}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+              <span className="text-sm">Offline: {statusCounts.offline || 0}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">
+                GPS Coverage: {vehicles.length > 0 ? 
+                  ((vehiclesWithPosition.length / vehicles.length) * 100).toFixed(1) : 0}%
+              </span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Interactive Map */}
+      <Card>
+        <CardContent className="p-0">
+          <MapTilerMap
+            vehicles={filteredVehicles}
+            onVehicleSelect={handleVehicleSelect}
+            height="600px"
+            className="rounded-lg border-0"
+          />
+        </CardContent>
+      </Card>
+
+      {/* Additional Info */}
+      {filteredVehicles.length === 0 && vehicles.length > 0 && (
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-gray-500">
+              No vehicles match the current filters. Try adjusting your search or status filter.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 };
 

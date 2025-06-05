@@ -15,7 +15,9 @@ interface MapTilerMapProps {
       lat: number;
       lon: number;
       speed?: number;
+      course?: number;
       updatetime: string;
+      statusText?: string;
     };
     status?: string;
   }>;
@@ -39,6 +41,42 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
   const markers = useRef<mapboxgl.Marker[]>([]);
   const { apiKey, isLoading, error } = useMapTilerApi();
   const [mapError, setMapError] = useState<string | null>(null);
+
+  const getVehicleStatus = (vehicle: any) => {
+    if (!vehicle.lastPosition?.updatetime) return 'offline';
+    
+    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    const now = new Date();
+    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+    
+    if (minutesSinceUpdate <= 5) return 'online';
+    if (minutesSinceUpdate <= 30) return 'idle';
+    return 'offline';
+  };
+
+  const getMarkerColor = (vehicle: any) => {
+    const status = getVehicleStatus(vehicle);
+    switch (status) {
+      case 'online': return '#10B981'; // green
+      case 'idle': return '#F59E0B'; // yellow
+      default: return '#6B7280'; // gray
+    }
+  };
+
+  const getStatusIcon = (vehicle: any) => {
+    const status = getVehicleStatus(vehicle);
+    const speed = vehicle.lastPosition?.speed || 0;
+    
+    if (status === 'online' && speed > 0) {
+      return '🚗'; // Moving vehicle
+    } else if (status === 'online') {
+      return '🟢'; // Stopped but online
+    } else if (status === 'idle') {
+      return '🟡'; // Idle
+    } else {
+      return '⚫'; // Offline
+    }
+  };
 
   // Initialize map when API key is available
   useEffect(() => {
@@ -90,44 +128,94 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
     vehicles.forEach(vehicle => {
       if (!vehicle.lastPosition?.lat || !vehicle.lastPosition?.lon) return;
 
-      const getMarkerColor = (status?: string) => {
-        if (!status) return '#6B7280'; // gray
-        if (status.toLowerCase().includes('online')) return '#10B981'; // green
-        if (status.toLowerCase().includes('idle')) return '#F59E0B'; // yellow
-        return '#EF4444'; // red
-      };
+      const status = getVehicleStatus(vehicle);
+      const markerColor = getMarkerColor(vehicle);
+      const statusIcon = getStatusIcon(vehicle);
 
-      // Create custom marker element
+      // Create custom marker element with enhanced styling
       const markerElement = document.createElement('div');
-      markerElement.className = 'custom-marker';
+      markerElement.className = 'custom-vehicle-marker';
       markerElement.style.cssText = `
-        width: 12px;
-        height: 12px;
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
-        background-color: ${getMarkerColor(vehicle.status)};
-        border: 2px solid white;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        background-color: ${markerColor};
+        border: 3px solid white;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        color: white;
+        position: relative;
+        transition: all 0.2s ease;
       `;
+
+      // Add status indicator text
+      markerElement.textContent = vehicle.devicename.substring(0, 2).toUpperCase();
+
+      // Add hover effects
+      markerElement.addEventListener('mouseenter', () => {
+        markerElement.style.transform = 'scale(1.2)';
+        markerElement.style.zIndex = '1000';
+      });
+
+      markerElement.addEventListener('mouseleave', () => {
+        markerElement.style.transform = 'scale(1)';
+        markerElement.style.zIndex = 'auto';
+      });
 
       const marker = new mapboxgl.Marker(markerElement)
         .setLngLat([vehicle.lastPosition.lon, vehicle.lastPosition.lat])
         .addTo(map.current!);
 
-      // Create popup
-      const popup = new mapboxgl.Popup({ offset: 15 })
-        .setHTML(`
-          <div class="p-2">
-            <h3 class="font-semibold text-sm">${vehicle.devicename}</h3>
-            <p class="text-xs text-gray-600">ID: ${vehicle.deviceid}</p>
-            <p class="text-xs">Speed: ${vehicle.lastPosition.speed || 0} km/h</p>
-            <p class="text-xs">Updated: ${new Date(vehicle.lastPosition.updatetime).toLocaleTimeString()}</p>
+      // Create enhanced popup with more details
+      const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+      const timeDiff = Math.floor((Date.now() - lastUpdate.getTime()) / (1000 * 60));
+      const timeAgo = timeDiff < 1 ? 'Just now' : 
+                     timeDiff < 60 ? `${timeDiff}m ago` : 
+                     timeDiff < 1440 ? `${Math.floor(timeDiff / 60)}h ago` : 
+                     lastUpdate.toLocaleDateString();
+
+      const popup = new mapboxgl.Popup({ 
+        offset: 25,
+        closeButton: true,
+        closeOnClick: false
+      }).setHTML(`
+        <div class="p-3 min-w-[250px]">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold text-base text-gray-900">${vehicle.devicename}</h3>
+            <div class="flex items-center gap-1">
+              <div class="w-2 h-2 rounded-full" style="background-color: ${markerColor}"></div>
+              <span class="text-xs font-medium capitalize">${status}</span>
+            </div>
           </div>
-        `);
+          
+          <div class="space-y-1 text-sm text-gray-600">
+            <div><strong>ID:</strong> ${vehicle.deviceid}</div>
+            <div><strong>Speed:</strong> ${vehicle.lastPosition.speed || 0} km/h</div>
+            ${vehicle.lastPosition.course ? `<div><strong>Direction:</strong> ${vehicle.lastPosition.course}°</div>` : ''}
+            <div><strong>Location:</strong> ${vehicle.lastPosition.lat.toFixed(4)}, ${vehicle.lastPosition.lon.toFixed(4)}</div>
+            <div><strong>Last Update:</strong> ${timeAgo}</div>
+            ${vehicle.lastPosition.statusText ? `<div><strong>Status:</strong> ${vehicle.lastPosition.statusText}</div>` : ''}
+          </div>
+
+          ${onVehicleSelect ? `
+            <button 
+              onclick="window.selectVehicle('${vehicle.deviceid}')"
+              class="mt-3 w-full px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+            >
+              View Details
+            </button>
+          ` : ''}
+        </div>
+      `);
 
       marker.setPopup(popup);
 
-      // Add click handler
+      // Add click handler for vehicle selection
       markerElement.addEventListener('click', () => {
         if (onVehicleSelect) {
           onVehicleSelect(vehicle);
@@ -137,6 +225,16 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
       markers.current.push(marker);
     });
 
+    // Set up global vehicle selection function for popup buttons
+    if (onVehicleSelect) {
+      (window as any).selectVehicle = (deviceId: string) => {
+        const vehicle = vehicles.find(v => v.deviceid === deviceId);
+        if (vehicle) {
+          onVehicleSelect(vehicle);
+        }
+      };
+    }
+
     // Fit map to show all markers if we have vehicles
     if (vehicles.length > 0 && markers.current.length > 0) {
       const bounds = new mapboxgl.LngLatBounds();
@@ -145,7 +243,11 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
       });
       
       if (!bounds.isEmpty()) {
-        map.current.fitBounds(bounds, { padding: 50, maxZoom: 15 });
+        map.current.fitBounds(bounds, { 
+          padding: 50, 
+          maxZoom: 15,
+          duration: 1000
+        });
       }
     }
   }, [vehicles, onVehicleSelect]);
