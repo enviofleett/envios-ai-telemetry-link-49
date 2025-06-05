@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, Car, Settings, Shield } from "lucide-react";
+import UnifiedDashboard from "@/components/UnifiedDashboard";
 
 const Index = () => {
   const { user, isAdmin, loading } = useAuth();
@@ -29,7 +30,7 @@ const Index = () => {
     return null; // Will redirect to auth
   }
 
-  const dashboardCards = [
+  const quickActions = [
     {
       title: "User Management",
       description: "Manage Envio users and their roles",
@@ -39,7 +40,7 @@ const Index = () => {
     },
     {
       title: "Vehicle Management",
-      description: "View and manage tracked vehicles",
+      description: "Advanced vehicle and device management",
       icon: Car,
       href: "/vehicle-management",
       adminOnly: false,
@@ -55,9 +56,10 @@ const Index = () => {
 
   return (
     <div className="space-y-6">
+      {/* Welcome Section */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Welcome to Envio Fleet Management</h1>
           <p className="text-gray-600 mt-1">
             Welcome back, {user.email}
             {isAdmin && (
@@ -70,39 +72,47 @@ const Index = () => {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {dashboardCards
-          .filter(card => !card.adminOnly || isAdmin)
-          .map((card) => {
-            const Icon = card.icon;
-            return (
-              <Card 
-                key={card.href} 
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-              >
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Icon className="h-6 w-6" />
-                    {card.title}
-                    {card.adminOnly && (
-                      <Badge variant="outline" className="text-xs">
-                        Admin
-                      </Badge>
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-4">{card.description}</p>
-                  <Button 
-                    onClick={() => navigate(card.href)}
-                    className="w-full"
-                  >
-                    Open
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
+      {/* Unified Dashboard */}
+      <UnifiedDashboard />
+
+      {/* Quick Actions */}
+      <div className="mt-8">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          {quickActions
+            .filter(action => !action.adminOnly || isAdmin)
+            .map((action) => {
+              const Icon = action.icon;
+              return (
+                <Card 
+                  key={action.href} 
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                >
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Icon className="h-5 w-5" />
+                      {action.title}
+                      {action.adminOnly && (
+                        <Badge variant="outline" className="text-xs">
+                          Admin
+                        </Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600 mb-4">{action.description}</p>
+                    <Button 
+                      onClick={() => navigate(action.href)}
+                      className="w-full"
+                      size="sm"
+                    >
+                      Open
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+        </div>
       </div>
 
       {isAdmin && (
