@@ -29,26 +29,28 @@ export async function authenticateWithGP51({ username, password }: { username: s
     
     console.log('Attempting GP51 authentication...');
     
-    // Construct the proper GP51 API URL using GET method with query parameters
-    const params = new URLSearchParams({
+    // Use POST method with JSON body like the working implementation
+    const authData = {
       action: 'login',
       username: username,
       password: hashedPassword,
       from: 'WEB',
       type: 'USER'
-    });
+    };
     
-    const apiUrl = `${GP51_API_BASE}/webapi?${params.toString()}`;
-    console.log('Using GP51 API URL:', apiUrl.replace(hashedPassword, '[REDACTED]'));
+    const apiUrl = `${GP51_API_BASE}/webapi?action=login&token=`;
+    console.log('Using GP51 API URL:', apiUrl);
     
     console.log('Sending authentication request to GP51...');
     
     const response = await fetch(apiUrl, {
-      method: 'GET',
+      method: 'POST',
       headers: {
+        'Content-Type': 'application/json',
         'Accept': 'application/json',
         'User-Agent': 'Fleet-Management-System/1.0'
-      }
+      },
+      body: JSON.stringify(authData)
     });
 
     console.log('GP51 API response status:', response.status);
@@ -62,6 +64,7 @@ export async function authenticateWithGP51({ username, password }: { username: s
     // Get response text first to check if it's empty
     const responseText = await response.text();
     console.log('GP51 API response body length:', responseText.length);
+    console.log('GP51 API response preview:', responseText.substring(0, 200));
     
     if (!responseText || responseText.trim().length === 0) {
       console.error('Empty response from GP51 API');
