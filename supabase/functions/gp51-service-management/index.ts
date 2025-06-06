@@ -62,7 +62,7 @@ serve(async (req) => {
         return new Response(
           JSON.stringify({ 
             success: false, 
-            error: 'GP51 session expired' 
+            error: 'GP51 session expired. Please re-authenticate in Admin Settings.' 
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -79,7 +79,7 @@ serve(async (req) => {
       );
     }
 
-    // Get the most recent valid GP51 session (not hardcoded to 'admin')
+    // Get the most recent valid GP51 session
     const { data: sessions, error: sessionError } = await supabase
       .from('gp51_sessions')
       .select('*')
@@ -90,7 +90,7 @@ serve(async (req) => {
     if (sessionError || !sessions || sessions.length === 0) {
       console.error('No GP51 sessions found:', sessionError);
       return new Response(
-        JSON.stringify({ error: 'No GP51 sessions found' }),
+        JSON.stringify({ error: 'No GP51 sessions found. Please authenticate in Admin Settings.' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -110,7 +110,7 @@ serve(async (req) => {
     if (!validSession) {
       console.error('All GP51 sessions are expired');
       return new Response(
-        JSON.stringify({ error: 'All GP51 sessions expired' }),
+        JSON.stringify({ error: 'All GP51 sessions expired. Please re-authenticate in Admin Settings.' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -118,27 +118,71 @@ serve(async (req) => {
     console.log('Using GP51 session for user:', validSession.username);
     const token = validSession.gp51_token;
 
-    // Call GP51 API
+    // Call GP51 API with correct URL construction
     const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
-    const gp51Response = await fetch(`${GP51_API_BASE}/webapi?action=${action}&token=${encodeURIComponent(token)}`, {
+    
+    // Ensure proper URL construction - avoid double /webapi
+    let apiUrl;
+    if (GP51_API_BASE.endsWith('/webapi')) {
+      apiUrl = `${GP51_API_BASE}?action=${action}&token=${encodeURIComponent(token)}`;
+    } else {
+      apiUrl = `${GP51_API_BASE}/webapi?action=${action}&token=${encodeURIComponent(token)}`;
+    }
+    
+    console.log('Calling GP51 API:', apiUrl.replace(token, '[TOKEN_REDACTED]'));
+    
+    const gp51Response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'User-Agent': 'Fleet-Management-System/1.0'
       },
       body: JSON.stringify(payload),
     });
 
+    console.log('GP51 API response status:', gp51Response.status);
+
     if (!gp51Response.ok) {
-      console.error('GP51 API request failed:', gp51Response.status);
+      const errorText = await gp51Response.text();
+      console.error('GP51 API request failed:', gp51Response.status, errorText);
+      
+      // If unauthorized, session might be invalid
+      if (gp51Response.status === 401 || gp51Response.status === 403) {
+        return new Response(
+          JSON.stringify({ 
+            error: 'GP51 session is invalid. Please re-authenticate with GP51.',
+            status: gp51Response.status,
+            details: errorText
+          }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       return new Response(
-        JSON.stringify({ error: 'GP51 API request failed', status: gp51Response.status }),
+        JSON.stringify({ 
+          error: 'GP51 API request failed', 
+          status: gp51Response.status,
+          details: errorText
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const result = await gp51Response.json();
-    console.log('GP51 API response:', result);
+    const responseText = await gp51Response.text();
+    console.log('GP51 API response length:', responseText.length);
+    
+    let result;
+    try {
+      result = JSON.parse(responseText);
+      console.log('GP51 API response parsed successfully');
+    } catch (parseError) {
+      console.error('Failed to parse GP51 response:', parseError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid response from GP51 API' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Update the session's last used timestamp
     await supabase

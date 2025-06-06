@@ -2,9 +2,11 @@
 import { createHash } from './crypto.ts';
 
 export async function authenticateWithGP51({ username, password }: { username: string; password: string }) {
-  console.log('Starting GP51 credential validation for user:', username);
+  // Trim whitespace from username to ensure clean storage
+  const trimmedUsername = username.trim();
+  console.log('Starting GP51 credential validation for user:', trimmedUsername);
   
-  // Use the same URL as the working telemetry-auth function
+  // Use the correct GP51 API base URL
   const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
   console.log('Using GP51 API base URL:', GP51_API_BASE);
   
@@ -23,22 +25,23 @@ export async function authenticateWithGP51({ username, password }: { username: s
   try {
     // Hash the password
     const hashedPassword = await createHash(password);
-    console.log('Password hashed successfully');
+    console.log('Password hashed successfully for user:', trimmedUsername);
     
     console.log('Attempting GP51 authentication...');
     
-    // Use the same format as the working telemetry-auth function
+    // Use the correct authentication payload format
     const loginPayload = {
       action: 'login',
-      username: username,
+      username: trimmedUsername,
       password: hashedPassword,
       from: 'WEB',
       type: 'USER'
     };
     
-    // Use the same endpoint structure as telemetry-auth
+    // Construct the API URL correctly - avoid double /webapi
     const apiUrl = `${GP51_API_BASE}/webapi`;
     console.log('Using GP51 API URL:', apiUrl);
+    console.log('Authentication payload:', { ...loginPayload, password: '[REDACTED]' });
     
     console.log('Sending authentication request to GP51...');
     
@@ -53,6 +56,7 @@ export async function authenticateWithGP51({ username, password }: { username: s
     });
 
     console.log('GP51 API response status:', response.status);
+    console.log('GP51 API response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -75,6 +79,12 @@ export async function authenticateWithGP51({ username, password }: { username: s
     try {
       result = JSON.parse(responseText);
       console.log('GP51 authentication response parsed successfully');
+      console.log('GP51 response structure:', { 
+        status: result.status, 
+        hasToken: !!result.token,
+        hasSessionId: !!result.session_id,
+        keys: Object.keys(result)
+      });
     } catch (parseError) {
       console.error('Failed to parse GP51 response as JSON:', parseError);
       console.error('Response text:', responseText);
@@ -90,22 +100,22 @@ export async function authenticateWithGP51({ username, password }: { username: s
     // GP51 typically returns status: 0 for success, non-zero for errors
     if (result.status !== undefined && result.status !== 0) {
       const errorMsg = result.cause || result.message || result.error || 'Authentication failed';
-      console.error('GP51 authentication failed:', errorMsg);
+      console.error('GP51 authentication failed for user:', trimmedUsername, 'Error:', errorMsg);
       throw new Error(`GP51 authentication failed: ${errorMsg}`);
     }
 
     // Check for token in response - GP51 might return it as 'token' or 'session_id'
     const token = result.token || result.session_id || result.sessionId;
     if (!token) {
-      console.error('No token received from GP51:', result);
+      console.error('No token received from GP51 for user:', trimmedUsername, 'Response:', result);
       throw new Error('GP51 authentication failed: No token received');
     }
 
-    console.log('GP51 authentication successful for user:', username);
-    return token;
+    console.log('GP51 authentication successful for user:', trimmedUsername, 'Token length:', token.length);
+    return { token, username: trimmedUsername };
 
   } catch (error) {
-    console.error('GP51 authentication error:', error);
+    console.error('GP51 authentication error for user:', trimmedUsername, error);
     
     if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('NetworkError') || error.message.includes('error sending request'))) {
       throw new Error(`Network error connecting to GP51 API at ${GP51_API_BASE}. Please verify the GP51_API_BASE_URL is correct and the GP51 server is accessible.`);

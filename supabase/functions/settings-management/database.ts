@@ -7,17 +7,20 @@ export async function saveGP51Session(username: string, token: string) {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
+  // Trim whitespace from username to ensure clean storage
+  const trimmedUsername = username.trim();
+
   // Calculate token expiry (24 hours from now)
   const expiresAt = new Date();
   expiresAt.setHours(expiresAt.getHours() + 24);
 
   try {
-    console.log('Saving GP51 session for user:', username);
+    console.log('Saving GP51 session for user:', trimmedUsername);
     
     const { data, error } = await supabase
       .from('gp51_sessions')
       .upsert({
-        username: username,
+        username: trimmedUsername,
         gp51_token: token,
         token_expires_at: expiresAt.toISOString(),
         created_at: new Date().toISOString(),
@@ -33,7 +36,7 @@ export async function saveGP51Session(username: string, token: string) {
       throw new Error(`Failed to save GP51 session: ${error.message}`);
     }
 
-    console.log('GP51 session saved successfully:', data?.id);
+    console.log('GP51 session saved successfully for user:', trimmedUsername, 'ID:', data?.id);
     return data;
 
   } catch (error) {

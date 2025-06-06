@@ -1,13 +1,16 @@
-
 import { authenticateWithGP51 } from './gp51-auth.ts';
 import { saveGP51Session, getGP51Status } from './database.ts';
 import { createResponse } from './cors.ts';
 import type { GP51Credentials } from './types.ts';
 
 export async function handleSaveCredentials(credentials: GP51Credentials) {
-  console.log('Processing GP51 credentials save request for user:', credentials.username);
+  // Trim whitespace from username
+  const trimmedUsername = credentials.username?.trim();
+  const trimmedPassword = credentials.password?.trim();
   
-  if (!credentials.username || !credentials.password) {
+  console.log('Processing GP51 credentials save request for user:', trimmedUsername);
+  
+  if (!trimmedUsername || !trimmedPassword) {
     console.error('Missing credentials: username or password not provided');
     return createResponse(
       { error: 'Username and password are required' },
@@ -17,15 +20,19 @@ export async function handleSaveCredentials(credentials: GP51Credentials) {
 
   try {
     console.log('Authenticating with GP51...');
-    const token = await authenticateWithGP51(credentials);
+    const authResult = await authenticateWithGP51({ 
+      username: trimmedUsername, 
+      password: trimmedPassword 
+    });
     
     console.log('Saving GP51 session to database...');
-    await saveGP51Session(credentials.username, token);
+    await saveGP51Session(authResult.username, authResult.token);
 
     console.log('GP51 credentials successfully validated and saved');
     return createResponse({
       success: true,
       message: 'GP51 credentials validated and saved successfully!',
+      username: authResult.username,
       tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
     });
 
@@ -55,7 +62,7 @@ export async function handleSaveCredentials(credentials: GP51Credentials) {
     } else if (errorMessage.includes('GP51 authentication failed')) {
       return createResponse({
         error: 'Authentication Failed',
-        details: 'Invalid GP51 username or password. Please verify your credentials and try again.'
+        details: `Invalid GP51 username or password for user "${trimmedUsername}". Please verify your credentials and try again.`
       }, 401);
     } else if (errorMessage.includes('Failed to save')) {
       return createResponse({
@@ -71,7 +78,8 @@ export async function handleSaveCredentials(credentials: GP51Credentials) {
 
     return createResponse({
       error: 'GP51 Connection Failed',
-      details: errorMessage
+      details: errorMessage,
+      username: trimmedUsername
     }, 500);
   }
 }
