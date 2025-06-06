@@ -32,6 +32,8 @@ export interface SystemImportResult {
 class FullSystemImportService {
   private async validateGP51Configuration(): Promise<boolean> {
     try {
+      console.log('Validating GP51 configuration...');
+      
       // Test GP51 connectivity
       const { data, error } = await supabase.functions.invoke('gp51-service-management', {
         body: { action: 'test_connection' }
@@ -42,7 +44,9 @@ class FullSystemImportService {
         return false;
       }
       
-      return data?.success || false;
+      const isValid = data?.success || false;
+      console.log('GP51 configuration validation result:', isValid);
+      return isValid;
     } catch (error) {
       console.error('Failed to validate GP51 configuration:', error);
       return false;
@@ -54,6 +58,8 @@ class FullSystemImportService {
     onProgress?: (progress: SystemImportProgress) => void
   ): Promise<SystemImportResult> {
     try {
+      console.log('Starting full system import with options:', options);
+      
       // Pre-flight checks
       onProgress?.({
         phase: 'Validation',
@@ -74,7 +80,8 @@ class FullSystemImportService {
         currentOperation: 'Starting system import'
       });
 
-      // Start the import
+      // Start the import with enhanced error handling
+      console.log('Invoking full-system-import edge function...');
       const { data, error } = await supabase.functions.invoke('full-system-import', {
         body: {
           jobName: `Full System Import - ${new Date().toISOString()}`,
@@ -87,16 +94,19 @@ class FullSystemImportService {
       });
 
       if (error) {
+        console.error('Import initialization error:', error);
         throw new Error(`Import initialization failed: ${error.message}`);
       }
 
       if (!data?.success) {
+        console.error('Import failed to start:', data);
         throw new Error(data?.details || 'Import failed to start');
       }
 
       const importId = data.importId;
+      console.log('Import started successfully with ID:', importId);
 
-      // Monitor progress
+      // Monitor progress with real-time updates
       return await this.monitorImportProgress(importId, onProgress);
 
     } catch (error) {
@@ -110,6 +120,27 @@ class FullSystemImportService {
     onProgress?: (progress: SystemImportProgress) => void
   ): Promise<SystemImportResult> {
     return new Promise((resolve, reject) => {
+      console.log('Starting import progress monitoring for:', importId);
+      
+      // Set up real-time subscription for live updates
+      const channel = supabase
+        .channel(`import-progress-${importId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'gp51_system_imports',
+            filter: `id=eq.${importId}`
+          },
+          (payload) => {
+            console.log('Real-time import update received:', payload);
+            this.handleImportUpdate(payload.new, onProgress, resolve, reject);
+          }
+        )
+        .subscribe();
+
+      // Polling fallback for robustness
       const pollInterval = setInterval(async () => {
         try {
           const { data: importJob, error } = await supabase
@@ -119,76 +150,98 @@ class FullSystemImportService {
             .single();
 
           if (error) {
+            console.error('Failed to fetch import status:', error);
             clearInterval(pollInterval);
+            supabase.removeChannel(channel);
             reject(new Error(`Failed to fetch import status: ${error.message}`));
             return;
           }
 
           if (!importJob) {
+            console.error('Import job not found');
             clearInterval(pollInterval);
+            supabase.removeChannel(channel);
             reject(new Error('Import job not found'));
             return;
           }
 
-          // Update progress
-          onProgress?.({
-            phase: importJob.current_phase || 'Unknown',
-            phaseProgress: 100,
-            overallProgress: importJob.progress_percentage || 0,
-            currentOperation: importJob.phase_details || 'Processing...'
+          this.handleImportUpdate(importJob, onProgress, resolve, reject, () => {
+            clearInterval(pollInterval);
+            supabase.removeChannel(channel);
           });
 
-          // Check if completed
-          if (importJob.status === 'completed') {
-            clearInterval(pollInterval);
-            
-            // Safely handle backup_tables Json type
-            const backupTablesData = importJob.backup_tables;
-            let backupTables: string[] = [];
-            
-            if (backupTablesData && typeof backupTablesData === 'object' && 'backup_tables' in backupTablesData) {
-              const tablesArray = (backupTablesData as any).backup_tables;
-              if (Array.isArray(tablesArray)) {
-                backupTables = tablesArray;
-              }
-            }
-            
-            resolve({
-              importId,
-              success: true,
-              totalUsers: importJob.total_users || 0,
-              successfulUsers: importJob.successful_users || 0,
-              totalVehicles: importJob.total_devices || 0,
-              successfulVehicles: importJob.successful_devices || 0,
-              conflicts: 0,
-              backupTables
-            });
-          } else if (importJob.status === 'failed') {
-            clearInterval(pollInterval);
-            
-            // Safely handle error_log Json type
-            const errorLogData = importJob.error_log;
-            let errorMessage = 'Import failed';
-            
-            if (errorLogData && typeof errorLogData === 'object' && 'error' in errorLogData) {
-              errorMessage = (errorLogData as any).error || errorMessage;
-            }
-            
-            reject(new Error(errorMessage));
-          }
-
         } catch (error) {
+          console.error('Polling error:', error);
           clearInterval(pollInterval);
+          supabase.removeChannel(channel);
           reject(error);
         }
-      }, 2000); // Poll every 2 seconds
+      }, 3000); // Poll every 3 seconds
 
       // Timeout after 30 minutes
       setTimeout(() => {
         clearInterval(pollInterval);
+        supabase.removeChannel(channel);
         reject(new Error('Import timeout - operation took too long'));
       }, 30 * 60 * 1000);
     });
+  }
+
+  private handleImportUpdate(
+    importJob: any,
+    onProgress?: (progress: SystemImportProgress) => void,
+    resolve?: (result: SystemImportResult) => void,
+    reject?: (error: Error) => void,
+    cleanup?: () => void
+  ) {
+    // Update progress
+    onProgress?.({
+      phase: importJob.current_phase || 'Unknown',
+      phaseProgress: 100,
+      overallProgress: importJob.progress_percentage || 0,
+      currentOperation: importJob.phase_details || 'Processing...'
+    });
+
+    // Check if completed
+    if (importJob.status === 'completed') {
+      cleanup?.();
+      
+      // Safely handle backup_tables Json type
+      const backupTablesData = importJob.backup_tables;
+      let backupTables: string[] = [];
+      
+      if (backupTablesData && typeof backupTablesData === 'object' && 'backup_tables' in backupTablesData) {
+        const tablesArray = (backupTablesData as any).backup_tables;
+        if (Array.isArray(tablesArray)) {
+          backupTables = tablesArray;
+        }
+      }
+      
+      console.log('Import completed successfully:', importJob);
+      resolve?.({
+        importId: importJob.id,
+        success: true,
+        totalUsers: importJob.total_users || 0,
+        successfulUsers: importJob.successful_users || 0,
+        totalVehicles: importJob.total_devices || 0,
+        successfulVehicles: importJob.successful_devices || 0,
+        conflicts: 0,
+        backupTables
+      });
+    } else if (importJob.status === 'failed') {
+      cleanup?.();
+      
+      // Safely handle error_log Json type
+      const errorLogData = importJob.error_log;
+      let errorMessage = 'Import failed';
+      
+      if (errorLogData && typeof errorLogData === 'object' && 'error' in errorLogData) {
+        errorMessage = (errorLogData as any).error || errorMessage;
+      }
+      
+      console.error('Import failed:', errorMessage);
+      reject?.(new Error(errorMessage));
+    }
   }
 
   async getImportProgress(importId: string): Promise<SystemImportProgress[]> {
@@ -220,6 +273,8 @@ class FullSystemImportService {
   }
 
   async rollbackImport(importId: string): Promise<void> {
+    console.log('Starting rollback for import:', importId);
+    
     const { data: importJob, error } = await supabase
       .from('gp51_system_imports')
       .select('rollback_data, backup_tables')
@@ -246,6 +301,19 @@ class FullSystemImportService {
           success: true
         });
     }
+  }
+
+  async cancelImport(importId: string): Promise<void> {
+    console.log('Cancelling import:', importId);
+    
+    await supabase
+      .from('gp51_system_imports')
+      .update({
+        status: 'cancelled',
+        current_phase: 'cancelled',
+        phase_details: 'Import cancelled by user'
+      })
+      .eq('id', importId);
   }
 }
 

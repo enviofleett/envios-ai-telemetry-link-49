@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -25,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { fullSystemImportService, SystemImportOptions, SystemImportProgress } from '@/services/fullSystemImportService';
+import ImportProgressMonitor from '@/components/import/ImportProgressMonitor';
 
 interface FullGP51ImportDialogProps {
   open: boolean;
@@ -49,6 +49,7 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
   const [importResult, setImportResult] = useState<any>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [selectedUsernames, setSelectedUsernames] = useState<string>('');
+  const [activeImportId, setActiveImportId] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleStartImport = async () => {
@@ -65,13 +66,17 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
           : undefined
       };
 
+      console.log('Starting import with options:', options);
+
       const result = await fullSystemImportService.startFullSystemImport(
         options,
         (progress) => {
+          console.log('Progress update:', progress);
           setCurrentProgress(progress);
         }
       );
 
+      setActiveImportId(result.importId);
       setImportResult(result);
       setCurrentStep('completed');
       
@@ -88,6 +93,8 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
         description: error.message || "An error occurred during import",
         variant: "destructive"
       });
+      
+      setCurrentStep('options');
     } finally {
       setIsImporting(false);
     }
@@ -99,6 +106,7 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
     setCurrentProgress(null);
     setImportResult(null);
     setIsImporting(false);
+    setActiveImportId(null);
   };
 
   const getStepContent = () => {
@@ -307,7 +315,19 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
                 Import in Progress
               </h3>
 
-              {currentProgress && (
+              {activeImportId ? (
+                <ImportProgressMonitor
+                  importId={activeImportId}
+                  onComplete={(result) => {
+                    setImportResult(result);
+                    setCurrentStep('completed');
+                  }}
+                  onCancel={() => {
+                    setCurrentStep('options');
+                    setIsImporting(false);
+                  }}
+                />
+              ) : currentProgress && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base">Current Phase: {currentProgress.phase}</CardTitle>
