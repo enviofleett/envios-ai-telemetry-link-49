@@ -17,7 +17,7 @@ import { Menu } from 'lucide-react';
 // This component is now used as fallback/mobile navigation
 // The main sidebar is handled by AppSidebar component
 const Navigation = () => {
-  const { signOut, user } = useAuth();
+  const { signOut, user, isAdmin } = useAuth();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
@@ -34,6 +34,7 @@ const Navigation = () => {
     { name: "Dashboard", href: "/" },
     { name: "Vehicle Management", href: "/vehicles" },
     { name: "User Management", href: "/users" },
+    ...(isAdmin ? [{ name: "System Import", href: "/system-import" }] : []),
     { name: "Settings", href: "/settings" },
   ];
 

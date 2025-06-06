@@ -17,6 +17,7 @@ import VehicleManagement from '@/pages/VehicleManagement';
 import LiveTracking from '@/pages/LiveTracking';
 import UserManagement from '@/pages/UserManagement';
 import Settings from '@/pages/Settings';
+import SystemImport from '@/pages/SystemImport';
 import NotFound from '@/pages/NotFound';
 
 function App() {
@@ -67,6 +68,13 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Settings />
+                  </Layout>
+                </ProtectedRoute>
+              } />
+              <Route path="/system-import" element={
+                <ProtectedRoute requireAdmin={true}>
+                  <Layout>
+                    <SystemImport />
                   </Layout>
                 </ProtectedRoute>
               } />
