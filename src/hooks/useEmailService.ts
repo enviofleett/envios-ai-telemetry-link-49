@@ -1,13 +1,24 @@
 
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 
 interface SendEmailParams {
   recipientEmail: string;
   templateType: 'otp' | 'welcome' | 'password_reset' | 'vehicle_activation';
   placeholderData?: Record<string, string>;
   smtpConfigId?: string;
+}
+
+interface TestSMTPParams {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  from_email: string;
+  from_name: string;
+  use_ssl: boolean;
+  use_tls: boolean;
 }
 
 export const useEmailService = () => {
@@ -42,6 +53,41 @@ export const useEmailService = () => {
     }
   });
 
+  const testSMTPMutation = useMutation({
+    mutationFn: async (testConfig: TestSMTPParams) => {
+      const { data, error } = await supabase.functions.invoke('smtp-email-service', {
+        body: {
+          action: 'test-smtp',
+          testConfig
+        }
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast({
+          title: "SMTP Test Successful",
+          description: "Your SMTP configuration is working correctly!"
+        });
+      } else {
+        toast({
+          title: "SMTP Test Failed",
+          description: data.error || "SMTP connection test failed",
+          variant: "destructive"
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "SMTP Test Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
   const { data: emailLogs, refetch: refetchEmailLogs } = useQuery({
     queryKey: ['email-notifications'],
     queryFn: async () => {
@@ -53,6 +99,19 @@ export const useEmailService = () => {
         `)
         .order('created_at', { ascending: false })
         .limit(50);
+      
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const { data: smtpConfigs } = useQuery({
+    queryKey: ['smtp-configurations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('smtp_configurations')
+        .select('*')
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data;
@@ -106,14 +165,21 @@ export const useEmailService = () => {
     });
   };
 
+  const testSMTPConnection = (config: TestSMTPParams) => {
+    return testSMTPMutation.mutateAsync(config);
+  };
+
   return {
     sendEmail: sendEmailMutation.mutateAsync,
     sendOTPEmail,
     sendWelcomeEmail,
     sendPasswordResetEmail,
     sendVehicleActivationEmail,
+    testSMTPConnection,
     emailLogs,
+    smtpConfigs,
     refetchEmailLogs,
-    isSending: sendEmailMutation.isPending
+    isSending: sendEmailMutation.isPending,
+    isTesting: testSMTPMutation.isPending
   };
 };

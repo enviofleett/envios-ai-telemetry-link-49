@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Map, BarChart3, MapPin, Mail, Activity } from 'lucide-react';
+import { Shield, Map, BarChart3, MapPin, Mail, Activity, Book } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import GP51ConnectionInfo from './AdminSettings/GP51ConnectionInfo';
@@ -13,6 +13,7 @@ import EnhancedMapApiManagement from './AdminSettings/EnhancedMapApiManagement';
 import MapAnalyticsDashboard from '@/components/map/MapAnalyticsDashboard';
 import GeofenceManager from '@/components/map/GeofenceManager';
 import SMTPSettings from './AdminSettings/SMTPSettings';
+import SMTPProviderGuide from './AdminSettings/SMTPProviderGuide';
 
 const AdminSettings = () => {
   const { data: gp51Status, isLoading: statusLoading } = useQuery({
@@ -40,7 +41,7 @@ const AdminSettings = () => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="gp51" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="gp51" className="flex items-center gap-2">
               <Shield className="h-4 w-4" />
               GP51 Platform
@@ -61,9 +62,13 @@ const AdminSettings = () => {
               <MapPin className="h-4 w-4" />
               Geofencing
             </TabsTrigger>
+            <TabsTrigger value="smtp-guide" className="flex items-center gap-2">
+              <Book className="h-4 w-4" />
+              SMTP Setup
+            </TabsTrigger>
             <TabsTrigger value="smtp" className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
-              SMTP Settings
+              SMTP Config
             </TabsTrigger>
           </TabsList>
           
@@ -119,6 +124,10 @@ const AdminSettings = () => {
               </p>
             </div>
             <GeofenceManager />
+          </TabsContent>
+          
+          <TabsContent value="smtp-guide" className="space-y-4 mt-6">
+            <SMTPProviderGuide />
           </TabsContent>
           
           <TabsContent value="smtp" className="space-y-4 mt-6">
