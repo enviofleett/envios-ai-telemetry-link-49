@@ -25,7 +25,7 @@ function App() {
     <QueryClientProvider client={optimizedQueryClient}>
       <Router>
         <AuthProvider>
-          <div className="min-h-screen bg-gray-50">
+          <div className="min-h-screen bg-background text-foreground">
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/set-password" element={<SetPassword />} />
