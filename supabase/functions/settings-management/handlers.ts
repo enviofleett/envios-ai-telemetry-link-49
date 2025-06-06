@@ -34,11 +34,17 @@ export async function handleSaveCredentials(credentials: GP51Credentials) {
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
-    if (errorMessage.includes('GP51_API_BASE_URL is not a valid URL format') || 
-        errorMessage.includes('GP51_API_BASE_URL environment variable is not configured')) {
+    if (errorMessage.includes('Network error connecting to GP51 API') || 
+        errorMessage.includes('error sending request')) {
+      return createResponse({
+        error: 'GP51 Connection Failed',
+        details: 'Unable to connect to GP51 API. Please check if the GP51_API_BASE_URL is correctly configured in Supabase secrets and that the GP51 server is accessible.'
+      }, 503);
+    } else if (errorMessage.includes('GP51_API_BASE_URL is not a valid URL format') || 
+               errorMessage.includes('GP51_API_BASE_URL environment variable is not configured')) {
       return createResponse({
         error: 'GP51 API Configuration Error',
-        details: 'The GP51_API_BASE_URL is not properly configured. Please contact your administrator to set the correct GP51 API URL in Supabase secrets.'
+        details: 'The GP51_API_BASE_URL is not properly configured. Please contact your administrator to set the correct GP51 API URL in Supabase secrets (e.g., https://www.gps51.com).'
       }, 500);
     } else if (errorMessage.includes('GP51 API returned an empty response') || 
                errorMessage.includes('GP51 API returned invalid JSON response')) {
@@ -46,11 +52,6 @@ export async function handleSaveCredentials(credentials: GP51Credentials) {
         error: 'GP51 API Response Error',
         details: 'The GP51 API returned an invalid or empty response. Please check the GP51 API URL configuration and try again.'
       }, 502);
-    } else if (errorMessage.includes('Network error') || errorMessage.includes('fetch')) {
-      return createResponse({
-        error: 'Network Connection Error',
-        details: 'Unable to connect to GP51 API. Please check your internet connection and try again.'
-      }, 503);
     } else if (errorMessage.includes('GP51 authentication failed')) {
       return createResponse({
         error: 'Authentication Failed',

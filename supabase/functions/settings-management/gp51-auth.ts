@@ -4,11 +4,9 @@ import { createHash } from './crypto.ts';
 export async function authenticateWithGP51({ username, password }: { username: string; password: string }) {
   console.log('Starting GP51 credential validation for user:', username);
   
-  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL');
-  if (!GP51_API_BASE) {
-    console.error('GP51_API_BASE_URL environment variable is not configured');
-    throw new Error('GP51_API_BASE_URL environment variable is not configured');
-  }
+  // Use the same URL as the working telemetry-auth function
+  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+  console.log('Using GP51 API base URL:', GP51_API_BASE);
   
   // Validate that GP51_API_BASE is a proper URL
   let baseUrl: URL;
@@ -19,7 +17,7 @@ export async function authenticateWithGP51({ username, password }: { username: s
     }
   } catch (error) {
     console.error('Invalid GP51_API_BASE_URL format:', GP51_API_BASE);
-    throw new Error(`GP51_API_BASE_URL is not a valid URL format. Expected format: https://api.gps51.com but got: ${GP51_API_BASE}`);
+    throw new Error(`GP51_API_BASE_URL is not a valid URL format. Expected format: https://www.gps51.com but got: ${GP51_API_BASE}`);
   }
   
   try {
@@ -29,8 +27,8 @@ export async function authenticateWithGP51({ username, password }: { username: s
     
     console.log('Attempting GP51 authentication...');
     
-    // Use POST method with JSON body like the working implementation
-    const authData = {
+    // Use the same format as the working telemetry-auth function
+    const loginPayload = {
       action: 'login',
       username: username,
       password: hashedPassword,
@@ -38,7 +36,8 @@ export async function authenticateWithGP51({ username, password }: { username: s
       type: 'USER'
     };
     
-    const apiUrl = `${GP51_API_BASE}/webapi?action=login&token=`;
+    // Use the same endpoint structure as telemetry-auth
+    const apiUrl = `${GP51_API_BASE}/webapi`;
     console.log('Using GP51 API URL:', apiUrl);
     
     console.log('Sending authentication request to GP51...');
@@ -50,7 +49,7 @@ export async function authenticateWithGP51({ username, password }: { username: s
         'Accept': 'application/json',
         'User-Agent': 'Fleet-Management-System/1.0'
       },
-      body: JSON.stringify(authData)
+      body: JSON.stringify(loginPayload)
     });
 
     console.log('GP51 API response status:', response.status);
@@ -58,7 +57,7 @@ export async function authenticateWithGP51({ username, password }: { username: s
     if (!response.ok) {
       const errorText = await response.text();
       console.error('GP51 API request failed:', response.status, errorText);
-      throw new Error(`GP51 API error (${response.status}): ${errorText}`);
+      throw new Error(`GP51 API error (${response.status}): ${errorText || 'Unknown error'}`);
     }
 
     // Get response text first to check if it's empty
@@ -108,12 +107,12 @@ export async function authenticateWithGP51({ username, password }: { username: s
   } catch (error) {
     console.error('GP51 authentication error:', error);
     
-    if (error instanceof TypeError && error.message.includes('Invalid URL')) {
-      throw new Error(`GP51 API configuration error: The GP51_API_BASE_URL is incorrectly configured. Please check your Supabase secrets and ensure GP51_API_BASE_URL is set to a valid URL like https://api.gps51.com`);
+    if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('NetworkError') || error.message.includes('error sending request'))) {
+      throw new Error(`Network error connecting to GP51 API at ${GP51_API_BASE}. Please verify the GP51_API_BASE_URL is correct and the GP51 server is accessible.`);
     }
     
-    if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
-      throw new Error('Network error connecting to GP51 API. Please check your internet connection and GP51 server status.');
+    if (error.message.includes('Invalid URL')) {
+      throw new Error(`GP51 API configuration error: The GP51_API_BASE_URL is incorrectly configured. Please check your Supabase secrets and ensure GP51_API_BASE_URL is set to a valid URL like https://www.gps51.com`);
     }
     
     throw error;
