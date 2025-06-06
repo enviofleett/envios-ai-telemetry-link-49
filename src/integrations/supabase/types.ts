@@ -1398,6 +1398,135 @@ export type Database = {
           },
         ]
       }
+      import_notifications: {
+        Row: {
+          created_at: string | null
+          data: Json | null
+          id: string
+          is_read: boolean | null
+          message: string
+          notification_type: string
+          title: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          is_read?: boolean | null
+          message: string
+          notification_type: string
+          title: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json | null
+          id?: string
+          is_read?: boolean | null
+          message?: string
+          notification_type?: string
+          title?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      import_performance_metrics: {
+        Row: {
+          created_at: string | null
+          id: string
+          import_id: string | null
+          metric_data: Json | null
+          metric_type: string
+          metric_value: number | null
+          phase: string | null
+          timestamp: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          import_id?: string | null
+          metric_data?: Json | null
+          metric_type: string
+          metric_value?: number | null
+          phase?: string | null
+          timestamp?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          import_id?: string | null
+          metric_data?: Json | null
+          metric_type?: string
+          metric_value?: number | null
+          phase?: string | null
+          timestamp?: string | null
+        }
+        Relationships: []
+      }
+      import_preview_cache: {
+        Row: {
+          cache_key: string
+          created_at: string | null
+          expires_at: string
+          id: string
+          preview_data: Json
+        }
+        Insert: {
+          cache_key: string
+          created_at?: string | null
+          expires_at: string
+          id?: string
+          preview_data: Json
+        }
+        Update: {
+          cache_key?: string
+          created_at?: string | null
+          expires_at?: string
+          id?: string
+          preview_data?: Json
+        }
+        Relationships: []
+      }
+      import_templates: {
+        Row: {
+          configuration: Json
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          is_system_template: boolean | null
+          name: string
+          template_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          configuration?: Json
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system_template?: boolean | null
+          name: string
+          template_type?: string
+          updated_at?: string | null
+        }
+        Update: {
+          configuration?: Json
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_system_template?: boolean | null
+          name?: string
+          template_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       invoice_line_items: {
         Row: {
           created_at: string
@@ -2168,6 +2297,42 @@ export type Database = {
           total_usernames?: number
           total_vehicles_imported?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      user_notification_preferences: {
+        Row: {
+          browser_notifications: boolean | null
+          created_at: string | null
+          email_notifications: boolean | null
+          id: string
+          import_completion: boolean | null
+          import_failure: boolean | null
+          import_progress: boolean | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          browser_notifications?: boolean | null
+          created_at?: string | null
+          email_notifications?: boolean | null
+          id?: string
+          import_completion?: boolean | null
+          import_failure?: boolean | null
+          import_progress?: boolean | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          browser_notifications?: boolean | null
+          created_at?: string | null
+          email_notifications?: boolean | null
+          id?: string
+          import_completion?: boolean | null
+          import_failure?: boolean | null
+          import_progress?: boolean | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }

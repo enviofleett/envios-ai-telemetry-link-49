@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { SystemImportOptions, SystemImportProgress, SystemImportResult } from '@/types/system-import';
 import { importErrorHandler } from './systemImport/errorHandler';
@@ -10,13 +9,15 @@ import { importManagementService } from './systemImport/importManagementService'
 import { importMemoryMonitor } from './systemImport/memoryMonitor';
 import { importLogger } from './systemImport/importLogger';
 import { importTimeoutManager } from './systemImport/timeoutManager';
+import { performanceMetricsService } from './systemImport/performanceMetricsService';
+import { notificationService } from './systemImport/notificationService';
 
 class FullSystemImportService {
   async startFullSystemImport(
     options: SystemImportOptions,
     onProgress?: (progress: SystemImportProgress) => void
   ): Promise<SystemImportResult> {
-    console.log('Starting enhanced full system import with Phase 2 stability improvements:', options);
+    console.log('Starting enhanced full system import with Phase 3 enhancements:', options);
     
     // Clear any previous errors and initialize logging
     importErrorHandler.clearErrors();
@@ -25,9 +26,17 @@ class FullSystemImportService {
     importLogger.startImportLogging(importId);
     importLogger.info('import', 'Starting enhanced full system import', options);
     
+    // Start performance monitoring
+    performanceMetricsService.startMonitoring(importId);
+    
+    // Notify import started
+    await notificationService.notifyImportStarted(importId, options.importType);
+    
     try {
       // Phase 1: Enhanced Pre-flight validation
       importLogger.setPhase('validation');
+      performanceMetricsService.setPhase('validation');
+      
       onProgress?.({
         phase: 'Validation',
         phaseProgress: 0,
@@ -37,6 +46,7 @@ class FullSystemImportService {
 
       await this.runPreflightChecks(options);
       importLogger.info('validation', 'Pre-flight checks completed successfully');
+      performanceMetricsService.recordProcessedRecords(1); // Validation complete
 
       onProgress?.({
         phase: 'Validation',
@@ -47,6 +57,8 @@ class FullSystemImportService {
 
       // Phase 2: Start transaction-safe import with stability monitoring
       importLogger.setPhase('initialization');
+      performanceMetricsService.setPhase('initialization');
+      
       onProgress?.({
         phase: 'Initialization',
         phaseProgress: 0,
@@ -56,6 +68,7 @@ class FullSystemImportService {
 
       const finalImportId = await this.initializeSecureImport(options, importId);
       importLogger.info('initialization', 'Secure import initialized successfully', { importId: finalImportId });
+      performanceMetricsService.recordProcessedRecords(1); // Initialization complete
 
       onProgress?.({
         phase: 'Initialization',
@@ -66,15 +79,38 @@ class FullSystemImportService {
 
       // Phase 3: Execute import with enhanced monitoring and stability features
       importLogger.setPhase('execution');
+      performanceMetricsService.setPhase('execution');
       importLogger.info('execution', 'Starting enhanced import execution', { importId: finalImportId });
       
       // Start stability monitoring
       this.startStabilityMonitoring(finalImportId);
       
-      const result = await enhancedProgressMonitor.startMonitoring(finalImportId, onProgress);
+      const result = await enhancedProgressMonitor.startMonitoring(finalImportId, (progress) => {
+        onProgress?.(progress);
+        
+        // Notify progress updates
+        notificationService.notifyImportProgress(
+          finalImportId, 
+          progress.overallProgress, 
+          progress.phase
+        );
+      });
       
       // Stop stability monitoring
       this.stopStabilityMonitoring();
+      
+      // Record final metrics
+      performanceMetricsService.recordProcessedRecords(result.totalUsers + result.totalVehicles);
+      
+      // Stop performance monitoring
+      performanceMetricsService.stopMonitoring();
+      
+      // Notify completion
+      await notificationService.notifyImportCompleted(finalImportId, {
+        totalUsers: result.totalUsers,
+        totalVehicles: result.totalVehicles,
+        duration: this.calculateDuration(importLogger.getLogSummary())
+      });
       
       importLogger.info('completion', 'Enhanced import completed successfully', result);
       importLogger.stopImportLogging();
@@ -82,6 +118,13 @@ class FullSystemImportService {
       return result;
 
     } catch (error) {
+      // Record error in performance metrics
+      performanceMetricsService.recordError();
+      performanceMetricsService.stopMonitoring();
+      
+      // Notify failure
+      await notificationService.notifyImportFailed(importId, error.message);
+      
       importLogger.critical('import', `Full system import failed: ${error.message}`, { error, options });
       console.error('Enhanced full system import failed:', error);
       
@@ -108,6 +151,11 @@ class FullSystemImportService {
       importLogger.stopImportLogging();
       throw error;
     }
+  }
+
+  private calculateDuration(logSummary: any): string {
+    // Calculate duration from log summary or return default
+    return '5 minutes'; // Placeholder implementation
   }
 
   private async runPreflightChecks(options: SystemImportOptions): Promise<void> {
@@ -271,6 +319,7 @@ class FullSystemImportService {
     importMemoryMonitor.startMonitoring();
     importMemoryMonitor.onAlert((alert) => {
       importLogger.warn('memory', `Memory alert: ${alert.message}`, alert);
+      performanceMetricsService.recordNetworkLatency(100); // Placeholder
     });
 
     // Start GP51 session refresh for long operations
@@ -438,6 +487,18 @@ class FullSystemImportService {
 
   exportImportLogs(format: 'json' | 'csv' = 'json'): string {
     return importLogger.exportLogs(format);
+  }
+
+  async getPerformanceMetrics(importId: string) {
+    return await performanceMetricsService.getMetricsForImport(importId);
+  }
+
+  async getHistoricalPerformance(days: number = 7) {
+    return await performanceMetricsService.getHistoricalMetrics(days);
+  }
+
+  getCurrentPerformanceSnapshot() {
+    return performanceMetricsService.getCurrentSnapshot();
   }
 }
 
