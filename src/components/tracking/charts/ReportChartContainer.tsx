@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { TrendingUp, BarChart3, PieChart, Activity } from 'lucide-react';
 import type { ReportData } from '@/hooks/useAdvancedReports';
 
@@ -10,13 +9,15 @@ interface ReportChartContainerProps {
   reportType: string;
   isLoading: boolean;
   title: string;
+  children?: React.ReactNode;
 }
 
 const ReportChartContainer: React.FC<ReportChartContainerProps> = ({
   data,
   reportType,
   isLoading,
-  title
+  title,
+  children
 }) => {
   const getChartIcon = () => {
     switch (reportType) {
@@ -88,10 +89,7 @@ const ReportChartContainer: React.FC<ReportChartContainerProps> = ({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-64">
-          {/* Chart content will be rendered by specific chart components */}
-          {/* This is a base container that child components will use */}
-        </div>
+        {children}
       </CardContent>
     </Card>
   );
