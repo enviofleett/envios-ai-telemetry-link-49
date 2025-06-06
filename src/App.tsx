@@ -10,7 +10,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Register from "./pages/Register";
 import UserManagement from "./pages/UserManagement";
-import Tracking from "./pages/Tracking";
+import LiveTracking from "./pages/LiveTracking";
 import Settings from "./pages/Settings";
 import SystemImport from "./pages/SystemImport";
 import PublicRegistration from "./pages/PublicRegistration";
@@ -32,7 +32,7 @@ const App = () => (
             <Route path="/set-password" element={<SetPassword />} />
             <Route path="/" element={<Layout><Index /></Layout>} />
             <Route path="/users" element={<Layout><UserManagement /></Layout>} />
-            <Route path="/tracking" element={<Layout><Tracking /></Layout>} />
+            <Route path="/tracking" element={<Layout><LiveTracking /></Layout>} />
             <Route path="/settings" element={<Layout><Settings /></Layout>} />
             <Route path="/system-import" element={<Layout><SystemImport /></Layout>} />
           </Routes>
