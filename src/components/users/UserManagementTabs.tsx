@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent } from '@/components/ui/card';
 import UserManagementTable from './UserManagementTable';
+import RoleManagementTab from './RoleManagementTab';
+import ImportHistoryTab from './ImportHistoryTab';
 
 interface UserManagementTabsProps {
   refreshTrigger: number;
@@ -38,23 +39,11 @@ const UserManagementTabs: React.FC<UserManagementTabsProps> = ({
       </TabsContent>
       
       <TabsContent value="roles" className="space-y-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center text-gray-500">
-              Role management interface coming soon...
-            </div>
-          </CardContent>
-        </Card>
+        <RoleManagementTab />
       </TabsContent>
       
       <TabsContent value="import-history" className="space-y-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center text-gray-500">
-              Import history and audit logs coming soon...
-            </div>
-          </CardContent>
-        </Card>
+        <ImportHistoryTab />
       </TabsContent>
     </Tabs>
   );
