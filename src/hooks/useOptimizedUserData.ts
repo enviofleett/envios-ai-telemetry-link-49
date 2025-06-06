@@ -1,34 +1,13 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone_number?: string;
-  created_at: string;
-  user_roles: Array<{ role: string }>;
-  gp51_sessions: Array<{
-    id: string;
-    username: string;
-    token_expires_at: string;
-  }>;
-  gp51_username?: string;
-  gp51_user_type?: number;
-  registration_status?: string;
-  assigned_vehicles?: string[];
-}
-
-interface UsersResponse {
-  users: User[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}
+import { 
+  User, 
+  UsersResponse, 
+  createUserManagementError,
+  isUsersResponse,
+  UsersResponseSchema 
+} from '@/types/user-management';
 
 interface UseOptimizedUserDataOptions {
   page?: number;
@@ -46,56 +25,133 @@ export const useOptimizedUserData = ({
   return useQuery({
     queryKey: ['users-optimized', page, limit, search],
     queryFn: async (): Promise<UsersResponse> => {
-      console.log('Fetching users with params:', { page, limit, search });
-      
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-      });
-      
-      if (search.length >= 2) {
-        params.append('search', search);
-      }
-
-      const { data, error } = await supabase.functions.invoke('user-management', {
-        method: 'GET',
-        body: null,
-        headers: {
-          'Content-Type': 'application/json',
+      try {
+        console.log('Fetching users with params:', { page, limit, search });
+        
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: limit.toString(),
+        });
+        
+        if (search.length >= 2) {
+          params.append('search', search);
         }
-      });
 
-      if (error) {
-        console.error('Error fetching users:', error);
-        throw new Error(`Failed to fetch users: ${error.message}`);
+        const { data, error } = await supabase.functions.invoke('user-management', {
+          method: 'GET',
+          body: null,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+
+        if (error) {
+          console.error('Error fetching users:', error);
+          throw createUserManagementError(
+            'FETCH_USERS_ERROR',
+            `Failed to fetch users: ${error.message}`,
+            { originalError: error, params: Object.fromEntries(params) }
+          );
+        }
+
+        // Validate response structure
+        try {
+          const validatedData = UsersResponseSchema.parse(data);
+          console.log('Users data received and validated:', validatedData);
+          return validatedData;
+        } catch (validationError) {
+          console.error('Invalid response structure:', validationError);
+          throw createUserManagementError(
+            'VALIDATION_ERROR',
+            'Received invalid data structure from server',
+            { validationError, receivedData: data }
+          );
+        }
+      } catch (error) {
+        if (error instanceof Error && 'code' in error) {
+          throw error; // Re-throw UserManagementError
+        }
+        
+        throw createUserManagementError(
+          'NETWORK_ERROR',
+          'Network error while fetching users',
+          { originalError: error, page, limit, search }
+        );
       }
-
-      console.log('Users data received:', data);
-      return data as UsersResponse;
     },
     enabled,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false,
-    retry: 2,
+    retry: (failureCount, error) => {
+      // Don't retry validation errors
+      if (error instanceof Error && 'code' in error) {
+        const userError = error as any;
+        if (userError.code === 'VALIDATION_ERROR') {
+          return false;
+        }
+      }
+      return failureCount < 2; // Retry network errors up to 2 times
+    },
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 };
 
-// Hook for fetching a single user
+// Hook for fetching a single user with enhanced error handling
 export const useOptimizedSingleUser = (userId: string, enabled = true) => {
   return useQuery({
     queryKey: ['user-single', userId],
     queryFn: async (): Promise<User> => {
-      const { data, error } = await supabase.functions.invoke(`user-management/${userId}`);
-      
-      if (error) {
-        throw new Error(`Failed to fetch user: ${error.message}`);
-      }
+      try {
+        if (!userId || typeof userId !== 'string') {
+          throw createUserManagementError(
+            'VALIDATION_ERROR',
+            'Invalid user ID provided'
+          );
+        }
 
-      return data.user;
+        const { data, error } = await supabase.functions.invoke(`user-management/${userId}`);
+        
+        if (error) {
+          throw createUserManagementError(
+            'FETCH_USERS_ERROR',
+            `Failed to fetch user: ${error.message}`,
+            { userId, originalError: error }
+          );
+        }
+
+        if (!data?.user) {
+          throw createUserManagementError(
+            'NOT_FOUND_ERROR',
+            'User not found',
+            { userId }
+          );
+        }
+
+        return data.user;
+      } catch (error) {
+        if (error instanceof Error && 'code' in error) {
+          throw error;
+        }
+        
+        throw createUserManagementError(
+          'NETWORK_ERROR',
+          'Network error while fetching user',
+          { userId, originalError: error }
+        );
+      }
     },
     enabled: enabled && !!userId,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+    retry: (failureCount, error) => {
+      if (error instanceof Error && 'code' in error) {
+        const userError = error as any;
+        if (['VALIDATION_ERROR', 'NOT_FOUND_ERROR'].includes(userError.code)) {
+          return false;
+        }
+      }
+      return failureCount < 2;
+    },
   });
 };
