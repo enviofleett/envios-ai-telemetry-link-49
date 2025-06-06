@@ -33,7 +33,7 @@ class TemplateService {
         name: template.name,
         description: template.description,
         templateType: template.template_type as 'system' | 'custom',
-        configuration: template.configuration as SystemImportOptions & { description?: string },
+        configuration: template.configuration as unknown as SystemImportOptions & { description?: string },
         isSystemTemplate: template.is_system_template,
         isActive: template.is_active,
         createdBy: template.created_by,
@@ -61,7 +61,7 @@ class TemplateService {
         name: data.name,
         description: data.description,
         templateType: data.template_type as 'system' | 'custom',
-        configuration: data.configuration as SystemImportOptions & { description?: string },
+        configuration: data.configuration as unknown as SystemImportOptions & { description?: string },
         isSystemTemplate: data.is_system_template,
         isActive: data.is_active,
         createdBy: data.created_by,
@@ -86,7 +86,7 @@ class TemplateService {
           name: template.name,
           description: template.description,
           template_type: 'custom',
-          configuration: template.configuration,
+          configuration: template.configuration as unknown as any,
           is_system_template: false,
           is_active: true
         })
@@ -102,7 +102,7 @@ class TemplateService {
         name: data.name,
         description: data.description,
         templateType: 'custom',
-        configuration: data.configuration as SystemImportOptions & { description?: string },
+        configuration: data.configuration as unknown as SystemImportOptions & { description?: string },
         isSystemTemplate: false,
         isActive: true,
         createdBy: data.created_by,
@@ -121,12 +121,17 @@ class TemplateService {
     configuration?: SystemImportOptions & { description?: string };
   }): Promise<ImportTemplate> {
     try {
+      const updateData: any = {
+        updated_at: new Date().toISOString()
+      };
+      
+      if (updates.name) updateData.name = updates.name;
+      if (updates.description !== undefined) updateData.description = updates.description;
+      if (updates.configuration) updateData.configuration = updates.configuration as unknown as any;
+
       const { data, error } = await supabase
         .from('import_templates')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id)
         .select()
         .single();
@@ -140,7 +145,7 @@ class TemplateService {
         name: data.name,
         description: data.description,
         templateType: data.template_type as 'system' | 'custom',
-        configuration: data.configuration as SystemImportOptions & { description?: string },
+        configuration: data.configuration as unknown as SystemImportOptions & { description?: string },
         isSystemTemplate: data.is_system_template,
         isActive: data.is_active,
         createdBy: data.created_by,

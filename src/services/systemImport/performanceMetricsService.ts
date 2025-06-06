@@ -213,10 +213,10 @@ class PerformanceMetricsService {
       return data.map(row => ({
         type: row.metric_type as any,
         value: Number(row.metric_value),
-        unit: row.metric_data?.unit || '',
+        unit: (row.metric_data as any)?.unit || '',
         timestamp: new Date(row.timestamp),
         phase: row.phase || undefined,
-        metadata: row.metric_data?.metadata || {}
+        metadata: (row.metric_data as any)?.metadata || {}
       }));
     } catch (error) {
       importLogger.error('performance', 'Failed to fetch metrics', { error, importId });

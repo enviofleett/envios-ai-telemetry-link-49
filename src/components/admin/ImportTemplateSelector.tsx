@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { templateService, ImportTemplate } from '@/services/systemImport/templateService';
 import { SystemImportOptions } from '@/types/system-import';
 import { 
-  Template, 
+  FileText, 
   Plus, 
   Copy, 
   Download, 
@@ -164,10 +163,10 @@ const ImportTemplateSelector: React.FC<ImportTemplateSelectorProps> = ({
   const getTypeIcon = (type: string) => {
     switch (type) {
       case 'users_only': return <User className="h-4 w-4" />;
-      case 'vehicles_only': return <Template className="h-4 w-4" />;
+      case 'vehicles_only': return <FileText className="h-4 w-4" />;
       case 'complete_system': return <Star className="h-4 w-4" />;
       case 'selective': return <Copy className="h-4 w-4" />;
-      default: return <Template className="h-4 w-4" />;
+      default: return <FileText className="h-4 w-4" />;
     }
   };
 

@@ -60,7 +60,7 @@ class ImportPreviewService {
         .single();
 
       if (error || !data) return null;
-      return data.preview_data as ImportPreviewData;
+      return data.preview_data as unknown as ImportPreviewData;
     } catch (error) {
       importLogger.debug('preview', 'Cache miss or error', { error });
       return null;
@@ -74,7 +74,7 @@ class ImportPreviewService {
       .from('import_preview_cache')
       .upsert({
         cache_key: cacheKey,
-        preview_data: previewData,
+        preview_data: previewData as unknown as any,
         expires_at: expiresAt.toISOString()
       });
   }
