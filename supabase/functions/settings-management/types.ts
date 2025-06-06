@@ -2,6 +2,7 @@
 export interface GP51Credentials {
   username: string;
   password: string;
+  apiUrl?: string;
 }
 
 export interface GP51AuthPayload {
@@ -29,4 +30,5 @@ export interface SettingsRequest {
   action: string;
   username?: string;
   password?: string;
+  apiUrl?: string;
 }

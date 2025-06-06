@@ -12,10 +12,14 @@ serve(async (req) => {
 
   try {
     const requestData: SettingsRequest = await req.json();
-    const { action, username, password } = requestData;
+    const { action, username, password, apiUrl } = requestData;
     
     if (action === 'save-gp51-credentials') {
-      return await handleSaveCredentials({ username: username!, password: password! });
+      return await handleSaveCredentials({ 
+        username: username!, 
+        password: password!,
+        apiUrl: apiUrl 
+      });
     } else if (action === 'get-gp51-status') {
       return await handleGetStatus();
     }
