@@ -7,27 +7,36 @@ import { gp51SessionManager } from './systemImport/gp51SessionManager';
 import { enhancedProgressMonitor } from './systemImport/enhancedProgressMonitor';
 import { gp51ConfigValidator } from './systemImport/gp51ConfigValidator';
 import { importManagementService } from './systemImport/importManagementService';
+import { importMemoryMonitor } from './systemImport/memoryMonitor';
+import { importLogger } from './systemImport/importLogger';
+import { importTimeoutManager } from './systemImport/timeoutManager';
 
 class FullSystemImportService {
   async startFullSystemImport(
     options: SystemImportOptions,
     onProgress?: (progress: SystemImportProgress) => void
   ): Promise<SystemImportResult> {
-    console.log('Starting enhanced full system import with options:', options);
+    console.log('Starting enhanced full system import with Phase 2 stability improvements:', options);
     
-    // Clear any previous errors
+    // Clear any previous errors and initialize logging
     importErrorHandler.clearErrors();
+    
+    const importId = crypto.randomUUID();
+    importLogger.startImportLogging(importId);
+    importLogger.info('import', 'Starting enhanced full system import', options);
     
     try {
       // Phase 1: Enhanced Pre-flight validation
+      importLogger.setPhase('validation');
       onProgress?.({
         phase: 'Validation',
         phaseProgress: 0,
         overallProgress: 0,
-        currentOperation: 'Running comprehensive pre-flight checks'
+        currentOperation: 'Running comprehensive pre-flight checks with stability monitoring'
       });
 
       await this.runPreflightChecks(options);
+      importLogger.info('validation', 'Pre-flight checks completed successfully');
 
       onProgress?.({
         phase: 'Validation',
@@ -36,29 +45,44 @@ class FullSystemImportService {
         currentOperation: 'Pre-flight validation completed successfully'
       });
 
-      // Phase 2: Start transaction-safe import
+      // Phase 2: Start transaction-safe import with stability monitoring
+      importLogger.setPhase('initialization');
       onProgress?.({
         phase: 'Initialization',
         phaseProgress: 0,
         overallProgress: 10,
-        currentOperation: 'Initializing secure import transaction'
+        currentOperation: 'Initializing secure import with stability monitoring'
       });
 
-      const importId = await this.initializeSecureImport(options);
+      const finalImportId = await this.initializeSecureImport(options, importId);
+      importLogger.info('initialization', 'Secure import initialized successfully', { importId: finalImportId });
 
       onProgress?.({
         phase: 'Initialization',
         phaseProgress: 100,
         overallProgress: 15,
-        currentOperation: 'Import transaction initialized successfully'
+        currentOperation: 'Import transaction initialized with stability monitoring'
       });
 
-      // Phase 3: Execute import with enhanced monitoring
-      console.log('Starting enhanced import execution with ID:', importId);
+      // Phase 3: Execute import with enhanced monitoring and stability features
+      importLogger.setPhase('execution');
+      importLogger.info('execution', 'Starting enhanced import execution', { importId: finalImportId });
       
-      return await enhancedProgressMonitor.startMonitoring(importId, onProgress);
+      // Start stability monitoring
+      this.startStabilityMonitoring(finalImportId);
+      
+      const result = await enhancedProgressMonitor.startMonitoring(finalImportId, onProgress);
+      
+      // Stop stability monitoring
+      this.stopStabilityMonitoring();
+      
+      importLogger.info('completion', 'Enhanced import completed successfully', result);
+      importLogger.stopImportLogging();
+      
+      return result;
 
     } catch (error) {
+      importLogger.critical('import', `Full system import failed: ${error.message}`, { error, options });
       console.error('Enhanced full system import failed:', error);
       
       // Log the error
@@ -69,30 +93,37 @@ class FullSystemImportService {
         false
       );
 
+      // Stop stability monitoring
+      this.stopStabilityMonitoring();
+
       // Attempt rollback if we have an active transaction
       try {
         await transactionManager.rollbackTransaction('Import failed during execution');
+        importLogger.info('rollback', 'Transaction rollback completed after failure');
       } catch (rollbackError) {
+        importLogger.critical('rollback', 'Additional error during rollback', { rollbackError });
         console.error('Additional error during rollback:', rollbackError);
       }
 
+      importLogger.stopImportLogging();
       throw error;
     }
   }
 
   private async runPreflightChecks(options: SystemImportOptions): Promise<void> {
-    console.log('Running enhanced pre-flight validation...');
+    importLogger.info('validation', 'Running enhanced pre-flight validation...');
     
     // 1. GP51 Configuration Validation
     const isGP51Valid = await gp51ConfigValidator.validateConfiguration();
     if (!isGP51Valid) {
       throw new Error('GP51 configuration validation failed. Please check your GP51 settings.');
     }
+    importLogger.info('validation', 'GP51 configuration validation passed');
 
     // 2. GP51 Session Validation
     try {
       await gp51SessionManager.ensureValidSession();
-      console.log('GP51 session validation passed');
+      importLogger.info('validation', 'GP51 session validation passed');
     } catch (error) {
       importErrorHandler.logError(
         'GP51_SESSION_INVALID',
@@ -107,15 +138,28 @@ class FullSystemImportService {
     try {
       const { error } = await supabase.from('gp51_system_imports').select('id').limit(1);
       if (error) throw error;
-      console.log('Database connection validation passed');
+      importLogger.info('validation', 'Database connection validation passed');
     } catch (error) {
       throw new Error('Database connection validation failed');
     }
 
     // 4. Options Validation
     this.validateImportOptions(options);
+    importLogger.info('validation', 'Import options validation passed');
     
-    console.log('All pre-flight checks passed successfully');
+    // 5. Memory and Performance Check
+    if ('memory' in performance) {
+      const memory = (performance as any).memory;
+      const usagePercent = (memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100;
+      
+      if (usagePercent > 70) {
+        importLogger.warn('validation', `High memory usage before import: ${usagePercent.toFixed(1)}%`);
+      } else {
+        importLogger.info('validation', `Memory usage acceptable: ${usagePercent.toFixed(1)}%`);
+      }
+    }
+    
+    importLogger.info('validation', 'All enhanced pre-flight checks passed successfully');
   }
 
   private validateImportOptions(options: SystemImportOptions): void {
@@ -137,14 +181,15 @@ class FullSystemImportService {
     }
   }
 
-  private async initializeSecureImport(options: SystemImportOptions): Promise<string> {
-    console.log('Initializing secure import with transaction management...');
+  private async initializeSecureImport(options: SystemImportOptions, importId: string): Promise<string> {
+    importLogger.info('initialization', 'Initializing secure import with enhanced stability...');
     
     try {
       // Create the system import job record
       const { data: importJob, error: jobError } = await supabase
         .from('gp51_system_imports')
         .insert({
+          id: importId,
           job_name: `Enhanced System Import - ${new Date().toISOString()}`,
           import_type: 'full_system',
           import_scope: options.importType,
@@ -154,7 +199,8 @@ class FullSystemImportService {
             cleanup_requested: options.performCleanup,
             preserve_admin: options.preserveAdminEmail,
             batch_size: options.batchSize,
-            validation_timestamp: new Date().toISOString()
+            validation_timestamp: new Date().toISOString(),
+            stability_features_enabled: true
           },
           created_by: (await supabase.auth.getUser()).data.user?.id
         })
@@ -166,13 +212,14 @@ class FullSystemImportService {
         throw jobError;
       }
 
-      const importId = importJob.id;
+      const finalImportId = importJob.id;
       
       // Start transaction management
-      await transactionManager.startTransaction(importId);
+      await transactionManager.startTransaction(finalImportId);
+      importLogger.info('initialization', 'Transaction management started');
       
       // Invoke the enhanced full-system-import edge function
-      console.log('Invoking enhanced full-system-import edge function...');
+      importLogger.info('initialization', 'Invoking enhanced full-system-import edge function...');
       const { data, error } = await supabase.functions.invoke('full-system-import', {
         body: {
           jobName: importJob.job_name,
@@ -181,7 +228,13 @@ class FullSystemImportService {
           performCleanup: options.performCleanup,
           preserveAdminEmail: options.preserveAdminEmail || 'chudesyl@gmail.com',
           batchSize: options.batchSize || 10,
-          importId: importId // Pass the import ID for tracking
+          importId: finalImportId,
+          stabilityFeatures: {
+            memoryMonitoring: true,
+            sessionRefresh: true,
+            timeoutManagement: true,
+            enhancedLogging: true
+          }
         }
       });
 
@@ -197,8 +250,8 @@ class FullSystemImportService {
         throw new Error(data?.details || 'Import failed to start');
       }
 
-      console.log('Secure import initialized successfully with ID:', importId);
-      return importId;
+      importLogger.info('initialization', 'Secure import initialized successfully', { importId: finalImportId });
+      return finalImportId;
 
     } catch (error) {
       importErrorHandler.logError(
@@ -208,6 +261,66 @@ class FullSystemImportService {
         false
       );
       throw error;
+    }
+  }
+
+  private startStabilityMonitoring(importId: string): void {
+    importLogger.info('monitoring', 'Starting comprehensive stability monitoring...');
+    
+    // Start memory monitoring
+    importMemoryMonitor.startMonitoring();
+    importMemoryMonitor.onAlert((alert) => {
+      importLogger.warn('memory', `Memory alert: ${alert.message}`, alert);
+    });
+
+    // Start GP51 session refresh for long operations
+    gp51SessionManager.startLongRunningOperation();
+
+    // Start timeout management
+    importTimeoutManager.startImportTimeout(importId);
+    importTimeoutManager.onTimeout((reason) => {
+      importLogger.critical('timeout', `Import timeout: ${reason}`);
+      this.handleImportTimeout(reason);
+    });
+    importTimeoutManager.onCancel((reason) => {
+      importLogger.warn('cancellation', `Import cancelled: ${reason}`);
+    });
+
+    importLogger.info('monitoring', 'All stability monitoring systems active');
+  }
+
+  private stopStabilityMonitoring(): void {
+    importLogger.info('monitoring', 'Stopping stability monitoring systems...');
+    
+    // Stop memory monitoring
+    if (importMemoryMonitor.isMonitoringActive()) {
+      const summary = importMemoryMonitor.getMemorySummary();
+      importLogger.info('memory', 'Final memory summary', summary);
+      importMemoryMonitor.cleanup();
+    }
+
+    // Stop GP51 session management
+    gp51SessionManager.stopLongRunningOperation();
+
+    // Stop timeout management
+    importTimeoutManager.destroy();
+
+    importLogger.info('monitoring', 'All stability monitoring systems stopped');
+  }
+
+  private async handleImportTimeout(reason: string): Promise<void> {
+    importLogger.critical('timeout', 'Handling import timeout', { reason });
+    
+    try {
+      // Cancel the import gracefully
+      importTimeoutManager.cancel(`Timeout: ${reason}`);
+      
+      // Attempt transaction rollback
+      await transactionManager.rollbackTransaction(reason);
+      
+      importLogger.info('timeout', 'Import timeout handled with rollback completed');
+    } catch (error) {
+      importLogger.critical('timeout', 'Error during timeout handling', { error });
     }
   }
 
@@ -251,7 +364,7 @@ class FullSystemImportService {
   }
 
   async rollbackImport(importId: string): Promise<void> {
-    console.log('Starting enhanced rollback for import:', importId);
+    importLogger.info('rollback', 'Starting enhanced rollback', { importId });
     
     try {
       // Use the enhanced transaction manager for rollback
@@ -260,7 +373,7 @@ class FullSystemImportService {
       // Also call the existing rollback service
       await importManagementService.rollbackImport(importId);
       
-      console.log('Enhanced rollback completed successfully');
+      importLogger.info('rollback', 'Enhanced rollback completed successfully');
     } catch (error) {
       importErrorHandler.logError(
         'ROLLBACK_FAILED',
@@ -273,9 +386,12 @@ class FullSystemImportService {
   }
 
   async cancelImport(importId: string): Promise<void> {
-    console.log('Cancelling enhanced import:', importId);
+    importLogger.info('cancellation', 'Cancelling enhanced import', { importId });
     
     try {
+      // Cancel through timeout manager
+      importTimeoutManager.cancel('User cancelled import');
+      
       // Cancel through transaction manager
       await transactionManager.rollbackTransaction('User cancelled import');
       
@@ -285,7 +401,10 @@ class FullSystemImportService {
       // Clear any ongoing sessions
       gp51SessionManager.clearSession();
       
-      console.log('Enhanced import cancellation completed');
+      // Stop stability monitoring
+      this.stopStabilityMonitoring();
+      
+      importLogger.info('cancellation', 'Enhanced import cancellation completed');
     } catch (error) {
       importErrorHandler.logError(
         'CANCEL_FAILED',
@@ -307,6 +426,18 @@ class FullSystemImportService {
 
   hasCriticalErrors(): boolean {
     return importErrorHandler.hasCriticalErrors();
+  }
+
+  getImportLogs(importId?: string): any[] {
+    return importLogger.getLogs(importId ? { importId } : undefined);
+  }
+
+  getLogSummary(): any {
+    return importLogger.getLogSummary();
+  }
+
+  exportImportLogs(format: 'json' | 'csv' = 'json'): string {
+    return importLogger.exportLogs(format);
   }
 }
 

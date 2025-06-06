@@ -12,6 +12,8 @@ export interface GP51Session {
 export class GP51SessionManager {
   private currentSession: GP51Session | null = null;
   private refreshPromise: Promise<GP51Session> | null = null;
+  private refreshInterval: number | null = null;
+  private isLongRunningOperation = false;
 
   async validateSession(): Promise<boolean> {
     if (!this.currentSession) {
@@ -66,6 +68,38 @@ export class GP51SessionManager {
     } catch (error) {
       this.refreshPromise = null;
       throw error;
+    }
+  }
+
+  startLongRunningOperation(): void {
+    console.log('Starting long-running operation with periodic session refresh...');
+    this.isLongRunningOperation = true;
+    
+    // Refresh session every 10 minutes during long operations
+    this.refreshInterval = window.setInterval(async () => {
+      try {
+        console.log('Performing periodic session refresh for long-running operation...');
+        await this.ensureValidSession();
+        console.log('Periodic session refresh completed successfully');
+      } catch (error) {
+        console.error('Periodic session refresh failed:', error);
+        importErrorHandler.logError(
+          'GP51_PERIODIC_REFRESH_FAILED',
+          `Periodic session refresh failed: ${error.message}`,
+          { error },
+          true
+        );
+      }
+    }, 10 * 60 * 1000); // 10 minutes
+  }
+
+  stopLongRunningOperation(): void {
+    console.log('Stopping long-running operation session management...');
+    this.isLongRunningOperation = false;
+    
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+      this.refreshInterval = null;
     }
   }
 
@@ -213,6 +247,11 @@ export class GP51SessionManager {
   clearSession(): void {
     this.currentSession = null;
     this.refreshPromise = null;
+    this.stopLongRunningOperation();
+  }
+
+  isInLongRunningOperation(): boolean {
+    return this.isLongRunningOperation;
   }
 }
 
