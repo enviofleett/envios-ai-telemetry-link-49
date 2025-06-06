@@ -1,4 +1,3 @@
-
 import type { Config } from "tailwindcss";
 
 export default {
@@ -19,37 +18,6 @@ export default {
 			}
 		},
 		extend: {
-			fontFamily: {
-				sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'sans-serif'],
-			},
-			fontSize: {
-				'xs': ['0.75rem', { lineHeight: '1.25' }],   /* 12px */
-				'sm': ['0.875rem', { lineHeight: '1.5' }],   /* 14px */
-				'md': ['1rem', { lineHeight: '1.5' }],       /* 16px */
-				'lg': ['1.125rem', { lineHeight: '1.5' }],   /* 18px */
-				'xl': ['1.25rem', { lineHeight: '1.5' }],    /* 20px */
-				'2xl': ['1.5rem', { lineHeight: '1.25' }],   /* 24px */
-				'3xl': ['1.875rem', { lineHeight: '1.25' }], /* 30px */
-				'4xl': ['2.25rem', { lineHeight: '1.25' }],  /* 36px */
-			},
-			fontWeight: {
-				normal: '400',
-				medium: '500',
-				semibold: '600',
-				bold: '700',
-			},
-			spacing: {
-				'1': '0.25rem',  /* 4px */
-				'2': '0.5rem',   /* 8px */
-				'3': '0.75rem',  /* 12px */
-				'4': '1rem',     /* 16px */
-				'5': '1.25rem',  /* 20px */
-				'6': '1.5rem',   /* 24px */
-				'8': '2rem',     /* 32px */
-				'10': '2.5rem',  /* 40px */
-				'12': '3rem',    /* 48px */
-				'16': '4rem',    /* 64px */
-			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -93,11 +61,7 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				},
-				// FleetIQ semantic colors
-				success: 'hsl(var(--success))',
-				warning: 'hsl(var(--warning))',
-				error: 'hsl(var(--error))',
+				}
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

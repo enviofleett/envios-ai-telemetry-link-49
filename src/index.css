@@ -1,99 +1,92 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* FleetIQ Color Palette - Light Mode */
-    --background: 255 255 255; /* #ffffff */
-    --foreground: 15 23 42; /* #0f172a */
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
 
-    --card: 255 255 255; /* #ffffff */
-    --card-foreground: 15 23 42; /* #0f172a */
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
 
-    --popover: 255 255 255; /* #ffffff */
-    --popover-foreground: 15 23 42; /* #0f172a */
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 15 23 42; /* #0f172a */
-    --primary-foreground: 248 250 252; /* #f8fafc */
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
 
-    --secondary: 241 245 249; /* #f1f5f9 */
-    --secondary-foreground: 15 23 42; /* #0f172a */
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 241 245 249; /* #f1f5f9 */
-    --muted-foreground: 100 116 139; /* #64748b */
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 13 148 136; /* #0d9488 */
-    --accent-foreground: 255 255 255; /* #ffffff */
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
 
-    --destructive: 220 38 38; /* #dc2626 */
-    --destructive-foreground: 248 250 252; /* #f8fafc */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 226 232 240; /* #e2e8f0 */
-    --input: 226 232 240; /* #e2e8f0 */
-    --ring: 15 23 42; /* #0f172a */
-
-    --success: 22 163 74; /* #16a34a */
-    --warning: 234 179 8; /* #eab308 */
-    --error: 220 38 38; /* #dc2626 */
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
 
     --radius: 0.5rem;
 
-    /* Sidebar specific colors */
-    --sidebar-background: 255 255 255; /* #ffffff */
-    --sidebar-foreground: 15 23 42; /* #0f172a */
-    --sidebar-primary: 15 23 42; /* #0f172a */
-    --sidebar-primary-foreground: 248 250 252; /* #f8fafc */
-    --sidebar-accent: 241 245 249; /* #f1f5f9 */
-    --sidebar-accent-foreground: 15 23 42; /* #0f172a */
-    --sidebar-border: 226 232 240; /* #e2e8f0 */
-    --sidebar-ring: 15 23 42; /* #0f172a */
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    /* FleetIQ Color Palette - Dark Mode */
-    --background: 15 23 42; /* #0f172a */
-    --foreground: 248 250 252; /* #f8fafc */
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
 
-    --card: 30 41 59; /* #1e293b */
-    --card-foreground: 248 250 252; /* #f8fafc */
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
 
-    --popover: 30 41 59; /* #1e293b */
-    --popover-foreground: 248 250 252; /* #f8fafc */
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 248 250 252; /* #f8fafc */
-    --primary-foreground: 15 23 42; /* #0f172a */
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
 
-    --secondary: 51 65 85; /* #334155 */
-    --secondary-foreground: 248 250 252; /* #f8fafc */
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 51 65 85; /* #334155 */
-    --muted-foreground: 148 163 184; /* #94a3b8 */
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 20 184 166; /* #14b8a6 */
-    --accent-foreground: 15 23 42; /* #0f172a */
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
 
-    --destructive: 239 68 68; /* #ef4444 */
-    --destructive-foreground: 248 250 252; /* #f8fafc */
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 51 65 85; /* #334155 */
-    --input: 51 65 85; /* #334155 */
-    --ring: 148 163 184; /* #94a3b8 */
-
-    --success: 34 197 94; /* #22c55e */
-    --warning: 250 204 21; /* #facc15 */
-    --error: 239 68 68; /* #ef4444 */
-
-    --sidebar-background: 15 23 42; /* #0f172a */
-    --sidebar-foreground: 248 250 252; /* #f8fafc */
-    --sidebar-primary: 20 184 166; /* #14b8a6 */
-    --sidebar-primary-foreground: 15 23 42; /* #0f172a */
-    --sidebar-accent: 30 41 59; /* #1e293b */
-    --sidebar-accent-foreground: 248 250 252; /* #f8fafc */
-    --sidebar-border: 51 65 85; /* #334155 */
-    --sidebar-ring: 148 163 184; /* #94a3b8 */
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -104,25 +97,5 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-  }
-}
-
-/* FleetIQ specific utilities */
-@layer utilities {
-  .text-fleetiq-primary {
-    color: hsl(var(--primary));
-  }
-  
-  .text-fleetiq-secondary {
-    color: hsl(var(--muted-foreground));
-  }
-  
-  .bg-fleetiq-accent {
-    background-color: hsl(var(--accent));
-  }
-  
-  .border-fleetiq {
-    border-color: hsl(var(--border));
   }
 }
