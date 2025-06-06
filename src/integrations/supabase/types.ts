@@ -740,6 +740,60 @@ export type Database = {
         }
         Relationships: []
       }
+      envio_users_backup_2025_06_06_16_18_27: {
+        Row: {
+          city: string | null
+          created_at: string | null
+          email: string | null
+          gp51_user_type: number | null
+          gp51_username: string | null
+          id: string | null
+          import_source: string | null
+          is_gp51_imported: boolean | null
+          name: string | null
+          needs_password_set: boolean | null
+          otp_verified_at: string | null
+          phone_number: string | null
+          registration_status: string | null
+          registration_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string | null
+          email?: string | null
+          gp51_user_type?: number | null
+          gp51_username?: string | null
+          id?: string | null
+          import_source?: string | null
+          is_gp51_imported?: boolean | null
+          name?: string | null
+          needs_password_set?: boolean | null
+          otp_verified_at?: string | null
+          phone_number?: string | null
+          registration_status?: string | null
+          registration_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          city?: string | null
+          created_at?: string | null
+          email?: string | null
+          gp51_user_type?: number | null
+          gp51_username?: string | null
+          id?: string | null
+          import_source?: string | null
+          is_gp51_imported?: boolean | null
+          name?: string | null
+          needs_password_set?: boolean | null
+          otp_verified_at?: string | null
+          phone_number?: string | null
+          registration_status?: string | null
+          registration_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       envio_users_backup_full_import: {
         Row: {
           city: string | null
@@ -1257,6 +1311,39 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          created_at?: string | null
+          envio_user_id?: string | null
+          gp51_token?: string | null
+          id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      gp51_sessions_backup_2025_06_06_16_18_27: {
+        Row: {
+          api_url: string | null
+          created_at: string | null
+          envio_user_id: string | null
+          gp51_token: string | null
+          id: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          api_url?: string | null
+          created_at?: string | null
+          envio_user_id?: string | null
+          gp51_token?: string | null
+          id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          api_url?: string | null
           created_at?: string | null
           envio_user_id?: string | null
           gp51_token?: string | null
@@ -2443,6 +2530,30 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles_backup_2025_06_06_16_18_27: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_roles_backup_full_import: {
         Row: {
           created_at: string | null
@@ -2595,6 +2706,7 @@ export type Database = {
           created_at: string
           device_id: string
           device_name: string
+          device_type: string | null
           envio_user_id: string | null
           extraction_job_id: string | null
           gp51_metadata: Json | null
@@ -2613,6 +2725,7 @@ export type Database = {
           created_at?: string
           device_id: string
           device_name: string
+          device_type?: string | null
           envio_user_id?: string | null
           extraction_job_id?: string | null
           gp51_metadata?: Json | null
@@ -2631,6 +2744,7 @@ export type Database = {
           created_at?: string
           device_id?: string
           device_name?: string
+          device_type?: string | null
           envio_user_id?: string | null
           extraction_job_id?: string | null
           gp51_metadata?: Json | null
@@ -2784,6 +2898,63 @@ export type Database = {
         Relationships: []
       }
       vehicles_backup_2025_06_06_10_34_58: {
+        Row: {
+          created_at: string | null
+          device_id: string | null
+          device_name: string | null
+          envio_user_id: string | null
+          extraction_job_id: string | null
+          gp51_metadata: Json | null
+          gp51_username: string | null
+          id: string | null
+          import_job_type: string | null
+          is_active: boolean | null
+          last_position: Json | null
+          notes: string | null
+          session_id: string | null
+          sim_number: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_id?: string | null
+          device_name?: string | null
+          envio_user_id?: string | null
+          extraction_job_id?: string | null
+          gp51_metadata?: Json | null
+          gp51_username?: string | null
+          id?: string | null
+          import_job_type?: string | null
+          is_active?: boolean | null
+          last_position?: Json | null
+          notes?: string | null
+          session_id?: string | null
+          sim_number?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          device_id?: string | null
+          device_name?: string | null
+          envio_user_id?: string | null
+          extraction_job_id?: string | null
+          gp51_metadata?: Json | null
+          gp51_username?: string | null
+          id?: string | null
+          import_job_type?: string | null
+          is_active?: boolean | null
+          last_position?: Json | null
+          notes?: string | null
+          session_id?: string | null
+          sim_number?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      vehicles_backup_2025_06_06_16_18_27: {
         Row: {
           created_at: string | null
           device_id: string | null
