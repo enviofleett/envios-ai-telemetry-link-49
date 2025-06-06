@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,16 +52,28 @@ const AdvancedReportsHub: React.FC<AdvancedReportsHubProps> = ({ vehicles }) => 
   useEffect(() => {
     // Subscribe to real-time updates for selected vehicles
     if (filters.vehicleIds.length > 0) {
-      const subscriptionKey = realtimeReportsService.subscribeToVehicleUpdates(
-        filters.vehicleIds,
-        (data) => {
-          console.log('Vehicle data updated in real-time:', data);
-          // Optionally refresh report data
+      let subscriptionKey: string;
+
+      const setupSubscription = async () => {
+        try {
+          subscriptionKey = await realtimeReportsService.subscribeToVehicleUpdates(
+            filters.vehicleIds,
+            (data) => {
+              console.log('Vehicle data updated in real-time:', data);
+              // Optionally refresh report data
+            }
+          );
+        } catch (error) {
+          console.error('Error setting up vehicle subscription:', error);
         }
-      );
+      };
+
+      setupSubscription();
 
       return () => {
-        realtimeReportsService.unsubscribe(subscriptionKey);
+        if (subscriptionKey) {
+          realtimeReportsService.unsubscribe(subscriptionKey);
+        }
       };
     }
   }, [filters.vehicleIds]);
