@@ -6,135 +6,74 @@
 
 @layer base {
   :root {
-    /* Updated color system to match wireframe specifications */
-    
-    /* Primary Colors - Exact wireframe specifications */
-    --primary-dark: 15 23 42; /* #0f172a */
-    --secondary-dark: 30 41 59; /* #1e293b */
-    --tertiary-dark: 51 65 85; /* #334155 */
-    --quaternary-dark: 71 85 105; /* #475569 */
-    
-    /* Gray Scale - Exact wireframe specifications */
-    --gray-mid: 100 116 139; /* #64748b */
-    --gray-light: 148 163 184; /* #94a3b8 */
-    --gray-lighter: 203 213 225; /* #cbd5e1 */
-    --gray-very-light: 226 232 240; /* #e2e8f0 */
-    --gray-background: 241 245 249; /* #f1f5f9 */
-    --off-white: 248 250 252; /* #f8fafc */
-    
-    /* Status Colors - Exact wireframe specifications */
-    --success-dark: 22 163 74; /* #16a34a */
-    --success-primary: 34 197 94; /* #22c55e */
-    --success-light: 74 222 128; /* #4ade80 */
-    
-    --warning-dark: 217 119 6; /* #d97706 */
-    --warning-primary: 245 158 11; /* #f59e0b */
-    --warning-light: 251 191 36; /* #fbbf24 */
-    
-    --error-dark: 220 38 38; /* #dc2626 */
-    --error-primary: 239 68 68; /* #ef4444 */
-    --error-light: 248 113 113; /* #f87171 */
-    
-    /* Teal Colors */
-    --teal-primary: 13 148 136; /* #0d9488 */
-    --teal-secondary: 20 184 166; /* #14b8a6 */
-    --teal-light: 45 212 191; /* #2dd4bf */
-
-    /* Background Colors */
-    --background: 241 245 249; /* #f1f5f9 - Background Gray */
-    --foreground: 15 23 42; /* #0f172a - Primary Dark */
-
-    /* Card Colors */
-    --card: 248 250 252; /* #f8fafc - Off White */
-    --card-foreground: 15 23 42; /* #0f172a - Primary Dark */
-
-    /* Popover Colors */
-    --popover: 248 250 252; /* #f8fafc - Off White */
-    --popover-foreground: 15 23 42; /* #0f172a - Primary Dark */
-
-    /* Primary Colors */
-    --primary: 15 23 42; /* #0f172a - Primary Dark */
-    --primary-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    /* Secondary Colors */
-    --secondary: 226 232 240; /* #e2e8f0 - Very Light Gray */
-    --secondary-foreground: 30 41 59; /* #1e293b - Secondary Dark */
-
-    /* Muted Colors */
-    --muted: 241 245 249; /* #f1f5f9 - Background Gray */
-    --muted-foreground: 100 116 139; /* #64748b - Mid Gray */
-
-    /* Accent Colors */
-    --accent: 13 148 136; /* #0d9488 - Teal Primary */
-    --accent-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    /* Destructive Colors */
-    --destructive: 220 38 38; /* #dc2626 - Error Dark */
-    --destructive-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    /* Success Colors */
-    --success: 22 197 94; /* #16a34a - Success Dark */
-    --success-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    /* Warning Colors */
-    --warning: 217 119 6; /* #d97706 - Warning Dark */
-    --warning-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    /* Border Colors */
-    --border: 203 213 225; /* #cbd5e1 - Lighter Gray */
-    --input: 203 213 225; /* #cbd5e1 - Lighter Gray */
-    --ring: 13 148 136; /* #0d9488 - Teal Primary */
-
-    /* Sidebar Colors */
-    --sidebar-background: 15 23 42; /* #0f172a - Primary Dark */
-    --sidebar-foreground: 248 250 252; /* #f8fafc - Off White */
-    --sidebar-primary: 13 148 136; /* #0d9488 - Teal Primary */
-    --sidebar-primary-foreground: 248 250 252; /* #f8fafc - Off White */
-    --sidebar-accent: 30 41 59; /* #1e293b - Secondary Dark */
-    --sidebar-accent-foreground: 248 250 252; /* #f8fafc - Off White */
-    --sidebar-border: 51 65 85; /* #334155 - Tertiary Dark */
-    --sidebar-ring: 13 148 136; /* #0d9488 - Teal Primary */
-
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 9% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 10% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
     --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 15 23 42; /* #0f172a - Primary Dark */
-    --foreground: 248 250 252; /* #f8fafc - Off White */
-
-    --card: 30 41 59; /* #1e293b - Secondary Dark */
-    --card-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    --popover: 30 41 59; /* #1e293b - Secondary Dark */
-    --popover-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    --primary: 13 148 136; /* #0d9488 - Teal Primary */
-    --primary-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    --secondary: 51 65 85; /* #334155 - Tertiary Dark */
-    --secondary-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    --muted: 30 41 59; /* #1e293b - Secondary Dark */
-    --muted-foreground: 148 163 184; /* #94a3b8 - Light Gray */
-
-    --accent: 20 184 166; /* #14b8a6 - Teal Secondary */
-    --accent-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    --destructive: 239 68 68; /* #ef4444 - Error Primary */
-    --destructive-foreground: 248 250 252; /* #f8fafc - Off White */
-
-    --border: 51 65 85; /* #334155 - Tertiary Dark */
-    --input: 51 65 85; /* #334155 - Tertiary Dark */
-    --ring: 13 148 136; /* #0d9488 - Teal Primary */
-
-    --sidebar-background: 15 23 42; /* #0f172a - Primary Dark */
-    --sidebar-foreground: 248 250 252; /* #f8fafc - Off White */
-    --sidebar-primary: 13 148 136; /* #0d9488 - Teal Primary */
-    --sidebar-primary-foreground: 248 250 252; /* #f8fafc - Off White */
-    --sidebar-accent: 30 41 59; /* #1e293b - Secondary Dark */
-    --sidebar-accent-foreground: 248 250 252; /* #f8fafc - Off White */
-    --sidebar-border: 51 65 85; /* #334155 - Tertiary Dark */
-    --sidebar-ring: 13 148 136; /* #0d9488 - Teal Primary */
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 0 0% 98%;
+    --sidebar-primary-foreground: 240 5.9% 10%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
@@ -167,7 +106,7 @@
   }
 
   .status-online {
-    @apply bg-success text-success-foreground;
+    @apply bg-green-500 text-white;
   }
 
   .status-offline {
@@ -175,10 +114,87 @@
   }
 
   .status-warning {
-    @apply bg-warning text-warning-foreground;
+    @apply bg-yellow-500 text-white;
   }
 
   .status-error {
     @apply bg-destructive text-destructive-foreground;
+  }
+}
+
+/* Custom animations for fleet management */
+@keyframes pulse-green {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-green {
+  animation: pulse-green 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Status indicator animations */
+.status-online {
+  @apply bg-green-500;
+  animation: pulse-green 2s infinite;
+}
+
+.status-warning {
+  @apply bg-yellow-500;
+  animation: pulse 1.5s infinite;
+}
+
+.status-critical {
+  @apply bg-red-500;
+  animation: pulse 1s infinite;
+}
+
+/* Map container styles */
+.map-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.vehicle-marker {
+  transition: all 0.3s ease;
+}
+
+.vehicle-marker:hover {
+  transform: scale(1.1);
+}
+
+/* Chart customizations */
+.recharts-tooltip-wrapper {
+  @apply rounded-lg shadow-lg;
+}
+
+.recharts-tooltip-content {
+  @apply bg-white border border-slate-200 rounded-lg p-2;
+}
+
+/* Responsive grid adjustments */
+@media (max-width: 768px) {
+  .grid-responsive {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Loading states */
+.loading-shimmer {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
   }
 }
