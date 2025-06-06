@@ -1,6 +1,5 @@
 
-import React, { memo, useMemo, Suspense, lazy } from 'react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import React, { memo, useMemo } from 'react';
 import { usePerformanceOptimizedUserManagement } from '@/hooks/usePerformanceOptimizedUserManagement';
 import { useQueryPrefetching } from '@/hooks/useQueryPrefetching';
 import { usePerformanceMonitoring } from '@/hooks/usePerformanceMonitoring';
@@ -8,10 +7,9 @@ import { User } from '@/types/user-management';
 import UserTableHeader from './UserTableHeader';
 import UserTablePagination from './UserTablePagination';
 import UserErrorBoundary from './UserErrorBoundary';
-import UserTableSkeleton from './UserTableSkeleton';
-
-// Lazy load heavy components
-const OptimizedUserTableRow = lazy(() => import('./OptimizedUserTableRow'));
+import UserTablePerformanceMetrics from './UserTablePerformanceMetrics';
+import UserTableDatabaseStatus from './UserTableDatabaseStatus';
+import UserTableContent from './UserTableContent';
 
 interface OptimizedUserManagementTableProps {
   refreshTrigger?: number;
@@ -123,100 +121,28 @@ const OptimizedUserManagementTable = memo<OptimizedUserManagementTableProps>(({
           searchValue={filters.search}
         />
 
-        {/* Performance Metrics (Development only) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs">
-            <div className="flex items-center gap-4">
-              <span>Render: {metrics.renderTime.toFixed(1)}ms</span>
-              <span>Re-renders: {metrics.reRenderCount}</span>
-              <span>Users: {performanceMetrics.totalUsers}</span>
-              <span>Selected: {performanceMetrics.selectedCount}</span>
-              <span>Page: {performanceMetrics.pageInfo}</span>
-              {shouldUseVirtualScrolling && <span className="text-blue-600">Virtual Scrolling</span>}
-            </div>
-          </div>
-        )}
+        <UserTablePerformanceMetrics
+          metrics={metrics}
+          performanceMetrics={performanceMetrics}
+          shouldUseVirtualScrolling={shouldUseVirtualScrolling}
+        />
 
-        {/* Database Status Info */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span className="text-sm text-green-700 font-medium">
-              Database cleaned and ready for fresh data
-            </span>
-          </div>
-          <p className="text-xs text-green-600 mt-1">
-            All previous data has been safely backed up and the system is ready for new imports
-          </p>
-        </div>
+        <UserTableDatabaseStatus />
 
-        {/* Users Table */}
-        <div className="border rounded-lg">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12">
-                  <input
-                    type="checkbox"
-                    className="rounded border-gray-300"
-                    checked={selectedUsers.length === users.length && users.length > 0}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
-                  />
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('name')}
-                >
-                  Name {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('email')}
-                >
-                  Email {sortBy === 'email' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>GP51 Status</TableHead>
-                <TableHead>User Type</TableHead>
-                <TableHead>Vehicles</TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleSort('created_at')}
-                >
-                  Created {sortBy === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
-                </TableHead>
-                <TableHead className="w-16">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <UserTableSkeleton rows={10} />
-              ) : users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8">
-                    <div className="text-gray-500">
-                      {debouncedSearch ? 'No users found matching your search' : 'No users found - Start by importing or creating new users'}
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users.map((user) => (
-                  <Suspense key={user.id} fallback={<UserTableSkeleton rows={1} />}>
-                    <OptimizedUserTableRow
-                      user={user}
-                      isSelected={selectedUsers.includes(user.id)}
-                      onSelect={handleUserSelect}
-                      onEdit={handleUserEdit}
-                      onDelete={handleUserDelete}
-                      onAssignVehicles={handleUserAssignVehicles}
-                    />
-                  </Suspense>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <UserTableContent
+          users={users}
+          isLoading={isLoading}
+          debouncedSearch={debouncedSearch}
+          selectedUsers={selectedUsers}
+          handleSelectAll={handleSelectAll}
+          handleUserSelect={handleUserSelect}
+          handleUserEdit={handleUserEdit}
+          handleUserDelete={handleUserDelete}
+          handleUserAssignVehicles={handleUserAssignVehicles}
+          sortBy={sortBy}
+          sortOrder={sortOrder}
+          handleSort={handleSort}
+        />
 
         {/* Pagination */}
         {pagination && (
