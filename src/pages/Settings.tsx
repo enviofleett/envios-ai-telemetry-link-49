@@ -3,13 +3,15 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Building2, CreditCard, Bell, Settings as SettingsIcon } from "lucide-react";
+import { User, Building2, CreditCard, Bell, Settings as SettingsIcon, Mail, Palette } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import CompanySettingsTab from "@/components/settings/CompanySettingsTab";
 import FleetUserManagementTab from "@/components/settings/FleetUserManagementTab";
 import BillingSettingsTab from "@/components/settings/BillingSettingsTab";
 import NotificationsSettingsTab from "@/components/settings/NotificationsSettingsTab";
 import GP51ApiSettingsTab from "@/components/settings/GP51ApiSettingsTab";
+import EnhancedSMTPSettingsTab from "@/components/settings/EnhancedSMTPSettingsTab";
+import BrandingCustomizationTab from "@/components/settings/BrandingCustomizationTab";
 import AdminSettings from "@/components/AdminSettings";
 
 const Settings = () => {
@@ -21,7 +23,7 @@ const Settings = () => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-gray-900">Settings & Configurations</h1>
           <p className="text-gray-600 mt-1">
-            Manage your FleetIQ GPS51 platform settings and configurations
+            Manage your Envio GPS tracking platform settings and customizations
           </p>
         </div>
       </div>
@@ -51,7 +53,7 @@ const Settings = () => {
       </Card>
 
       <Tabs defaultValue="company" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="company" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Company
@@ -71,6 +73,14 @@ const Settings = () => {
           <TabsTrigger value="gp51" className="flex items-center gap-2">
             <SettingsIcon className="h-4 w-4" />
             GPS51 API
+          </TabsTrigger>
+          <TabsTrigger value="smtp" className="flex items-center gap-2">
+            <Mail className="h-4 w-4" />
+            Email
+          </TabsTrigger>
+          <TabsTrigger value="branding" className="flex items-center gap-2">
+            <Palette className="h-4 w-4" />
+            Branding
           </TabsTrigger>
         </TabsList>
 
@@ -93,6 +103,14 @@ const Settings = () => {
         <TabsContent value="gp51">
           <GP51ApiSettingsTab />
         </TabsContent>
+
+        <TabsContent value="smtp">
+          <EnhancedSMTPSettingsTab />
+        </TabsContent>
+
+        <TabsContent value="branding">
+          <BrandingCustomizationTab />
+        </TabsContent>
       </Tabs>
 
       {/* Admin-Only Advanced Settings */}
@@ -108,7 +126,7 @@ const Settings = () => {
           <CardContent className="pt-6">
             <p className="text-gray-600 text-center">
               Advanced administration settings are available to administrators only.
-              Contact your system administrator for access to advanced GP51 platform configuration.
+              Contact your system administrator for access to advanced platform configuration.
             </p>
           </CardContent>
         </Card>
