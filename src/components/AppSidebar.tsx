@@ -32,13 +32,14 @@ const menuItems = [
 ];
 
 export function AppSidebar() {
-  const { collapsed } = useSidebar();
+  const { state } = useSidebar();
   const location = useLocation();
   const currentPath = location.pathname;
   const [expandedGroups, setExpandedGroups] = useState<{ [key: string]: boolean }>({
     main: true
   });
 
+  const isCollapsed = state === "collapsed";
   const isActive = (path: string) => currentPath === path;
 
   const toggleGroup = (groupKey: string) => {
@@ -49,18 +50,18 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible>
+    <Sidebar className={isCollapsed ? "w-14" : "w-60"} collapsible="offcanvas">
       <SidebarTrigger className="m-2 self-end" />
       
       <SidebarContent>
         <SidebarGroup>
           <div className="flex items-center justify-between px-3 py-2">
-            {!collapsed && (
+            {!isCollapsed && (
               <SidebarGroupLabel className="text-sm font-medium text-gray-500">
                 Main Navigation
               </SidebarGroupLabel>
             )}
-            {!collapsed && (
+            {!isCollapsed && (
               <button
                 onClick={() => toggleGroup('main')}
                 className="p-1 hover:bg-gray-100 rounded"
@@ -74,7 +75,7 @@ export function AppSidebar() {
             )}
           </div>
           
-          {(collapsed || expandedGroups.main) && (
+          {(isCollapsed || expandedGroups.main) && (
             <SidebarGroupContent>
               <SidebarMenu>
                 {menuItems.map((item) => (
@@ -92,7 +93,7 @@ export function AppSidebar() {
                         }
                       >
                         <item.icon className="h-4 w-4" />
-                        {!collapsed && <span>{item.title}</span>}
+                        {!isCollapsed && <span>{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
