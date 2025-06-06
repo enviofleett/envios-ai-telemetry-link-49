@@ -3,6 +3,7 @@ import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import UserManagementTable from './UserManagementTable';
+import VehicleImportTab from './VehicleImportTab';
 
 interface UserManagementTabsProps {
   refreshTrigger: number;
@@ -23,6 +24,7 @@ const UserManagementTabs: React.FC<UserManagementTabsProps> = ({
     <Tabs defaultValue="users" className="w-full">
       <TabsList>
         <TabsTrigger value="users">Users</TabsTrigger>
+        <TabsTrigger value="vehicle-import">Vehicle Import</TabsTrigger>
         <TabsTrigger value="roles">Roles & Permissions</TabsTrigger>
         <TabsTrigger value="import-history">Import History</TabsTrigger>
       </TabsList>
@@ -35,6 +37,10 @@ const UserManagementTabs: React.FC<UserManagementTabsProps> = ({
           onImportUsers={onImportUsers}
           onAssignVehicles={onAssignVehicles}
         />
+      </TabsContent>
+
+      <TabsContent value="vehicle-import" className="space-y-4">
+        <VehicleImportTab />
       </TabsContent>
       
       <TabsContent value="roles" className="space-y-4">
