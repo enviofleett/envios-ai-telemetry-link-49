@@ -79,7 +79,8 @@ serve(async (req) => {
     console.log('Calling GP51 API with action:', action);
 
     // Call GP51 API
-    const gp51Response = await fetch(`https://www.gps51.com/webapi?action=${action}&token=${encodeURIComponent(token)}`, {
+    const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    const gp51Response = await fetch(`${GP51_API_BASE}/webapi?action=${action}&token=${encodeURIComponent(token)}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

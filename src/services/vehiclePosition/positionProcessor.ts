@@ -1,5 +1,7 @@
-
 import { supabase } from '@/integrations/supabase/client';
+
+// Configuration for GP51 API endpoint
+const GP51_API_BASE = 'https://api.gps51.com';
 
 interface VehicleRecord {
   device_id: string;
@@ -168,7 +170,7 @@ export class VehiclePositionProcessor {
       lastquerypositiontime: ""
     };
 
-    const response = await fetch(`https://www.gps51.com/webapi?action=lastposition&token=${encodeURIComponent(token)}`, {
+    const response = await fetch(`${GP51_API_BASE}/webapi?action=lastposition&token=${encodeURIComponent(token)}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

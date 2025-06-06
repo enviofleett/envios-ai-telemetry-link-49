@@ -1,4 +1,3 @@
-
 export async function authenticateGP51(credentials: { username: string; password: string }): Promise<string> {
   const md5Hash = await hashMD5(credentials.password);
   
@@ -11,7 +10,8 @@ export async function authenticateGP51(credentials: { username: string; password
   console.log(`Authenticating admin ${credentials.username} with GP51...`);
 
   // Standardized GP51 API endpoint
-  const response = await fetch(`https://www.gps51.com/webapi?action=login&token=`, {
+  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+  const response = await fetch(`${GP51_API_BASE}/webapi?action=login&token=`, {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',

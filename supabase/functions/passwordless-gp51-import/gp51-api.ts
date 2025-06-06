@@ -10,7 +10,8 @@ export async function getMonitorListForUser(username: string, token: string): Pr
 
   try {
     // Standardized GP51 API endpoint with token as URL parameter
-    const response = await fetch(`https://www.gps51.com/webapi?action=querymonitorlist&token=${encodeURIComponent(token)}`, {
+    const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    const response = await fetch(`${GP51_API_BASE}/webapi?action=querymonitorlist&token=${encodeURIComponent(token)}`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
@@ -99,7 +100,8 @@ export async function enrichWithPositions(vehicles: GP51Vehicle[], token: string
 
   try {
     // Standardized GP51 API endpoint with token as URL parameter
-    const response = await fetch(`https://www.gps51.com/webapi?action=lastposition&token=${encodeURIComponent(token)}`, {
+    const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    const response = await fetch(`${GP51_API_BASE}/webapi?action=lastposition&token=${encodeURIComponent(token)}`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',

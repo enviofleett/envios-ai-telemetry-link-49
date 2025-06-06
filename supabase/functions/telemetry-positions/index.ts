@@ -63,7 +63,8 @@ serve(async (req) => {
       lastquerypositiontime: ""
     };
 
-    const positionResponse = await fetch(`https://www.gps51.com/webapi?action=lastposition&token=${token}`, {
+    const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    const positionResponse = await fetch(`${GP51_API_BASE}/webapi?action=lastposition&token=${token}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -20,7 +20,8 @@ export async function authenticateWithGP51(credentials: GP51Credentials): Promis
   console.log('Attempting GP51 authentication with corrected payload...');
 
   // Use the correct GP51 API endpoint with action parameter in URL only
-  const loginResponse = await fetch('https://www.gps51.com/webapi?action=login', {
+  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+  const loginResponse = await fetch(`${GP51_API_BASE}/webapi?action=login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

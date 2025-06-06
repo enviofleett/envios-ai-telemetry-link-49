@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
@@ -63,6 +62,7 @@ serve(async (req) => {
         const token = session.gp51_token;
         
         // Fetch historical tracks from GP51
+        const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
         const trackPayload = {
           deviceid: deviceId,
           begintime: beginTime,
@@ -70,7 +70,7 @@ serve(async (req) => {
           timezone: "UTC"
         };
 
-        const trackResponse = await fetch(`https://www.gps51.com/webapi?action=querytracks&token=${token}`, {
+        const trackResponse = await fetch(`${GP51_API_BASE}/webapi?action=querytracks&token=${token}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(trackPayload),
@@ -130,12 +130,13 @@ serve(async (req) => {
         const token = session.gp51_token;
         
         // Generate share URL from GP51
+        const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
         const sharePayload = {
           deviceid: deviceId,
           interval: interval
         };
 
-        const shareResponse = await fetch(`https://www.gps51.com/webapi?action=gensharetrackurl&token=${token}`, {
+        const shareResponse = await fetch(`${GP51_API_BASE}/webapi?action=gensharetrackurl&token=${token}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(sharePayload),

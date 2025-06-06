@@ -69,7 +69,8 @@ serve(async (req) => {
         console.log(`Processing preview for user: ${username}`);
         
         // Fetch user's vehicles from GP51
-        const vehiclesResponse = await fetch(`https://www.gps51.com/webapi?action=querymonitorlist&token=${credentials.gp51_token}`, {
+        const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+        const vehiclesResponse = await fetch(`${GP51_API_BASE}/webapi?action=querymonitorlist&token=${credentials.gp51_token}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: username })
@@ -89,7 +90,7 @@ serve(async (req) => {
         const enhancedVehicles = [];
         for (const vehicle of vehicles.slice(0, 10)) { // Limit for preview
           try {
-            const positionResponse = await fetch(`https://www.gps51.com/webapi?action=lastposition&token=${credentials.gp51_token}`, {
+            const positionResponse = await fetch(`${GP51_API_BASE}/webapi?action=lastposition&token=${credentials.gp51_token}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ deviceid: vehicle.deviceid })

@@ -61,7 +61,8 @@ serve(async (req) => {
 
     console.log('Calling GP51 login API...');
     // Standardized GP51 API endpoint
-    const loginResponse = await fetch('https://www.gps51.com/webapi', {
+    const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    const loginResponse = await fetch(`${GP51_API_BASE}/webapi`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -114,7 +115,7 @@ serve(async (req) => {
     console.log('Session stored, fetching vehicle list...');
 
     // Fetch vehicle list using standardized endpoint and token parameter
-    const vehicleResponse = await fetch(`https://www.gps51.com/webapi?action=querymonitorlist&token=${encodeURIComponent(token)}`, {
+    const vehicleResponse = await fetch(`${GP51_API_BASE}/webapi?action=querymonitorlist&token=${encodeURIComponent(token)}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

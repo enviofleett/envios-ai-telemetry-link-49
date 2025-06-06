@@ -234,7 +234,8 @@ async function authenticateGP51(credentials: GP51Credentials): Promise<string> {
 
   console.log(`Authenticating ${credentials.username} with GP51...`);
 
-  const response = await fetch('https://www.gps51.com/webapi', {
+  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+  const response = await fetch(`${GP51_API_BASE}/webapi`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(authData)
@@ -253,7 +254,8 @@ async function authenticateGP51(credentials: GP51Credentials): Promise<string> {
 async function getMonitorList(username: string, token: string): Promise<GP51Vehicle[]> {
   console.log(`Fetching vehicle list for ${username}...`);
 
-  const response = await fetch(`https://www.gps51.com/webapi?action=querymonitorlist&token=${token}`, {
+  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+  const response = await fetch(`${GP51_API_BASE}/webapi?action=querymonitorlist&token=${token}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username })
@@ -276,7 +278,8 @@ async function enrichWithPositions(vehicles: GP51Vehicle[], token: string): Prom
   console.log(`Fetching positions for ${deviceIds.length} vehicles...`);
 
   try {
-    const response = await fetch(`https://www.gps51.com/webapi?action=lastposition&token=${token}`, {
+    const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    const response = await fetch(`${GP51_API_BASE}/webapi?action=lastposition&token=${token}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
