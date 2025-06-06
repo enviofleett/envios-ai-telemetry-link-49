@@ -5,7 +5,7 @@ import { useVehicleDetails } from '@/hooks/useVehicleDetails';
 import LiveTrackingHeader from '@/components/tracking/LiveTrackingHeader';
 import LiveTrackingStats from '@/components/tracking/LiveTrackingStats';
 import LiveMapAndVehicleList from '@/components/tracking/LiveMapAndVehicleList';
-import ReportsHub from '@/components/tracking/ReportsHub';
+import EnhancedReportsHub from '@/components/tracking/EnhancedReportsHub';
 import VehicleDetailsModal from '@/components/vehicles/VehicleDetailsModal';
 import TripHistoryModal from '@/components/vehicles/TripHistoryModal';
 import AlertModal from '@/components/vehicles/AlertModal';
@@ -93,7 +93,7 @@ const LiveTracking: React.FC = () => {
         onSendAlert={handleSendAlert}
       />
 
-      <ReportsHub
+      <EnhancedReportsHub
         vehicles={vehicles}
       />
 
