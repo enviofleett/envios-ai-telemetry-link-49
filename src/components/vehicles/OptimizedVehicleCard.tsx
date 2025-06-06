@@ -1,4 +1,3 @@
-
 import React, { memo, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,12 +58,10 @@ const OptimizedVehicleCard: React.FC<OptimizedVehicleCardProps> = memo(({
   onViewDetails,
   onSendCommand
 }) => {
-  const { metrics } = usePerformanceMonitoring(`VehicleCard-${vehicle.id}`, {
-    slowRenderThreshold: 50,
-    onAlert: (alert) => {
-      console.warn(`Vehicle card performance issue:`, alert);
-    }
-  });
+  const { metrics, logPerformanceWarning } = usePerformanceMonitoring(`VehicleCard-${vehicle.id}`);
+
+  // Log performance warning if render time is too high
+  logPerformanceWarning(50);
 
   // Memoize expensive calculations
   const statusInfo = useMemo(() => {
@@ -296,7 +293,7 @@ const OptimizedVehicleCard: React.FC<OptimizedVehicleCardProps> = memo(({
         {/* Performance Debug Info (only in development) */}
         {process.env.NODE_ENV === 'development' && (
           <div className="text-xs text-gray-400 border-t pt-2">
-            Renders: {metrics.renderCount} | Avg: {metrics.averageRenderTime.toFixed(1)}ms
+            Re-renders: {metrics.reRenderCount} | Render time: {metrics.renderTime.toFixed(1)}ms
           </div>
         )}
       </CardContent>
