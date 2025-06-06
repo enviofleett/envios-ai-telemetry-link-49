@@ -1,85 +1,223 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { 
+  Bell, 
+  AlertTriangle, 
+  MapPin, 
+  Clock, 
+  Eye,
+  X,
+  Calendar,
+  Navigation
+} from 'lucide-react';
 
 interface Alert {
-  id: number;
-  message: string;
-  time: string;
-  priority: 'High' | 'Medium' | 'Low';
+  id: string;
+  priority: 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  vehicle?: string;
+  location?: string;
+  timestamp: Date;
+  actionLabel: string;
 }
 
 const RealTimeAlertsPanel: React.FC = () => {
-  const alerts: Alert[] = [
+  const [alerts, setAlerts] = useState<Alert[]>([
     {
-      id: 1,
-      message: "Vehicle #4523 battery critical",
-      time: "2 mins ago",
-      priority: "High"
+      id: '1',
+      priority: 'high',
+      title: 'Vehicle #4523 battery critical',
+      description: 'Battery: 5% | Location: Downtown',
+      vehicle: '#4523',
+      location: 'Downtown',
+      timestamp: new Date(Date.now() - 2 * 60 * 1000), // 2 minutes ago
+      actionLabel: 'Dismiss'
     },
     {
-      id: 2,
-      message: "Geofence violation detected",
-      time: "5 mins ago",
-      priority: "High"
+      id: '2',
+      priority: 'high',
+      title: 'Geofence violation detected',
+      description: 'Vehicle #7821 | Industrial Zone',
+      vehicle: '#7821',
+      location: 'Industrial Zone',
+      timestamp: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
+      actionLabel: 'View'
     },
     {
-      id: 3,
-      message: "Maintenance due for Vehicle #7821",
-      time: "15 mins ago",
-      priority: "Medium"
+      id: '3',
+      priority: 'medium',
+      title: 'Maintenance due Vehicle #7821',
+      description: 'Service: Oil Change | Due: Today',
+      vehicle: '#7821',
+      timestamp: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
+      actionLabel: 'Schedule'
     },
     {
-      id: 4,
-      message: "GPS signal lost for Vehicle #3456",
-      time: "18 mins ago",
-      priority: "Low"
+      id: '4',
+      priority: 'high',
+      title: 'GPS signal lost Vehicle #3456',
+      description: 'Last seen: Highway 101',
+      vehicle: '#3456',
+      location: 'Highway 101',
+      timestamp: new Date(Date.now() - 18 * 60 * 1000), // 18 minutes ago
+      actionLabel: 'Locate'
     }
-  ];
+  ]);
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityConfig = (priority: string) => {
     switch (priority) {
-      case 'High':
-        return '#ef4444';
-      case 'Medium':
-        return '#f59e0b';
-      case 'Low':
-        return '#3b82f6';
+      case 'high':
+        return {
+          color: 'bg-red-100 text-red-800 border-red-200',
+          icon: '🔴',
+          badgeClass: 'bg-red-500'
+        };
+      case 'medium':
+        return {
+          color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+          icon: '🟡',
+          badgeClass: 'bg-yellow-500'
+        };
+      case 'low':
+        return {
+          color: 'bg-blue-100 text-blue-800 border-blue-200',
+          icon: '🔵',
+          badgeClass: 'bg-blue-500'
+        };
       default:
-        return '#64748b';
+        return {
+          color: 'bg-gray-100 text-gray-800 border-gray-200',
+          icon: '⚪',
+          badgeClass: 'bg-gray-500'
+        };
     }
   };
 
+  const formatTimeAgo = (timestamp: Date) => {
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'Just now';
+    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    return `${diffInDays}d ago`;
+  };
+
+  const handleDismissAlert = (alertId: string) => {
+    setAlerts(alerts.filter(alert => alert.id !== alertId));
+  };
+
+  const alertCount = alerts.length;
+
+  // Auto-refresh simulation
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Simulate real-time updates
+      setAlerts(currentAlerts => currentAlerts.map(alert => ({
+        ...alert,
+        // Update timestamps to reflect passing time
+      })));
+    }, 15000); // Refresh every 15 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <Card className="bg-white border border-gray-lighter shadow-sm">
-      <CardHeader className="p-6 pb-4">
-        <CardTitle className="text-lg font-semibold text-primary-dark">
-          Real-time Alerts
-        </CardTitle>
+    <Card className="bg-white border border-gray-200 shadow-sm h-fit">
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            Real-time Alerts
+            <Bell className="h-5 w-5" />
+          </CardTitle>
+          {alertCount > 0 && (
+            <Badge variant="destructive" className="bg-red-500 text-white">
+              {alertCount}
+            </Badge>
+          )}
+        </div>
       </CardHeader>
-      <CardContent className="p-6 pt-0">
-        <div className="space-y-3">
-          {alerts.map((alert) => (
-            <div
-              key={alert.id}
-              className="bg-white border border-gray-lighter rounded-lg p-3"
-            >
-              <div className="flex items-start gap-2">
-                <div
-                  className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
-                  style={{ backgroundColor: getPriorityColor(alert.priority) }}
-                ></div>
-                <div className="flex-1">
-                  <div className="text-sm text-primary-dark">
-                    {alert.message}
+      
+      <CardContent className="space-y-4">
+        {/* Alerts List */}
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {alerts.map((alert) => {
+            const config = getPriorityConfig(alert.priority);
+            
+            return (
+              <div 
+                key={alert.id}
+                className={`p-3 rounded-lg border ${config.color} hover:shadow-sm transition-shadow`}
+              >
+                {/* Alert Header */}
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">
+                      {config.icon} {alert.priority.toUpperCase()}
+                    </span>
                   </div>
-                  <div className="text-xs text-gray-mid mt-1">
-                    {alert.time}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 hover:bg-white/50"
+                    onClick={() => handleDismissAlert(alert.id)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+
+                {/* Alert Content */}
+                <div className="space-y-1">
+                  <h4 className="text-sm font-medium text-gray-900">
+                    {alert.title}
+                  </h4>
+                  <p className="text-xs text-gray-600">
+                    {alert.description}
+                  </p>
+                </div>
+
+                {/* Alert Footer */}
+                <div className="flex items-center justify-between mt-3">
+                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                    <Clock className="h-3 w-3" />
+                    {formatTimeAgo(alert.timestamp)}
                   </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-xs h-6 px-2"
+                  >
+                    {alert.actionLabel}
+                  </Button>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
+        </div>
+
+        {alerts.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            <Bell className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+            <p className="text-sm">No active alerts</p>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="pt-4 border-t border-gray-200 flex gap-2">
+          <Button variant="outline" size="sm" className="flex-1 text-xs">
+            View All Alerts
+          </Button>
+          <Button variant="outline" size="sm" className="flex-1 text-xs">
+            Mark All Read
+          </Button>
         </div>
       </CardContent>
     </Card>
