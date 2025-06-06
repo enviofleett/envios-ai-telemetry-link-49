@@ -29,29 +29,26 @@ export async function authenticateWithGP51({ username, password }: { username: s
     
     console.log('Attempting GP51 authentication...');
     
-    // Construct the proper GP51 API URL - using webapi endpoint with POST method
-    const apiUrl = `${GP51_API_BASE}/webapi`;
-    console.log('Using GP51 API URL:', apiUrl);
-    
-    // Create the request payload according to GP51 API specification
-    const requestBody = {
+    // Construct the proper GP51 API URL using GET method with query parameters
+    const params = new URLSearchParams({
       action: 'login',
       username: username,
       password: hashedPassword,
       from: 'WEB',
       type: 'USER'
-    };
+    });
+    
+    const apiUrl = `${GP51_API_BASE}/webapi?${params.toString()}`;
+    console.log('Using GP51 API URL:', apiUrl.replace(hashedPassword, '[REDACTED]'));
     
     console.log('Sending authentication request to GP51...');
     
     const response = await fetch(apiUrl, {
-      method: 'POST',
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
         'Accept': 'application/json',
         'User-Agent': 'Fleet-Management-System/1.0'
-      },
-      body: JSON.stringify(requestBody)
+      }
     });
 
     console.log('GP51 API response status:', response.status);
@@ -71,20 +68,22 @@ export async function authenticateWithGP51({ username, password }: { username: s
     }
 
     // Check for GP51 specific success/error format
+    // GP51 typically returns status: 0 for success, non-zero for errors
     if (result.status !== undefined && result.status !== 0) {
-      const errorMsg = result.cause || result.message || 'Authentication failed';
+      const errorMsg = result.cause || result.message || result.error || 'Authentication failed';
       console.error('GP51 authentication failed:', errorMsg);
       throw new Error(`GP51 authentication failed: ${errorMsg}`);
     }
 
-    // Check for token in response
-    if (!result.token) {
+    // Check for token in response - GP51 might return it as 'token' or 'session_id'
+    const token = result.token || result.session_id || result.sessionId;
+    if (!token) {
       console.error('No token received from GP51:', result);
       throw new Error('GP51 authentication failed: No token received');
     }
 
     console.log('GP51 authentication successful for user:', username);
-    return result.token;
+    return token;
 
   } catch (error) {
     console.error('GP51 authentication error:', error);
