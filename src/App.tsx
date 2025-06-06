@@ -1,85 +1,45 @@
 
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SidebarProvider } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/AppSidebar';
-import { Toaster } from '@/components/ui/toaster';
-import { AuthProvider } from '@/contexts/AuthContext';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import Layout from "@/components/Layout";
+import Index from "./pages/Index";
+import Auth from "./pages/Auth";
+import Register from "./pages/Register";
+import UserManagement from "./pages/UserManagement";
+import Tracking from "./pages/Tracking";
+import Settings from "./pages/Settings";
+import SystemImport from "./pages/SystemImport";
+import PublicRegistration from "./pages/PublicRegistration";
+import SetPassword from "./pages/SetPassword";
 
-// Pages
-import Index from '@/pages/Index';
-import Auth from '@/pages/Auth';
-import Dashboard from '@/pages/Dashboard';
-import LiveTracking from '@/pages/LiveTracking';
-import UserManagement from '@/pages/UserManagement';
-import Settings from '@/pages/Settings';
-import SystemImport from '@/pages/SystemImport';
-import NotFound from '@/pages/NotFound';
+const queryClient = new QueryClient();
 
-import './App.css';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-    },
-  },
-});
-
-function App() {
-  return (
-    <QueryClientProvider client={queryClient}>
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
       <AuthProvider>
-        <Router>
-          <SidebarProvider defaultOpen={true}>
-            <div className="min-h-screen flex w-full">
-              <AppSidebar />
-              <main className="flex-1 overflow-auto">
-                <Routes>
-                  <Route path="/auth" element={<Auth />} />
-                  <Route path="/" element={
-                    <ProtectedRoute>
-                      <Index />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/dashboard" element={
-                    <ProtectedRoute>
-                      <Dashboard />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/tracking" element={
-                    <ProtectedRoute>
-                      <LiveTracking />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/users" element={
-                    <ProtectedRoute>
-                      <UserManagement />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/settings" element={
-                    <ProtectedRoute>
-                      <Settings />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="/system-import" element={
-                    <ProtectedRoute>
-                      <SystemImport />
-                    </ProtectedRoute>
-                  } />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </main>
-            </div>
-            <Toaster />
-          </SidebarProvider>
-        </Router>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/public-registration" element={<PublicRegistration />} />
+            <Route path="/set-password" element={<SetPassword />} />
+            <Route path="/" element={<Layout><Index /></Layout>} />
+            <Route path="/users" element={<Layout><UserManagement /></Layout>} />
+            <Route path="/tracking" element={<Layout><Tracking /></Layout>} />
+            <Route path="/settings" element={<Layout><Settings /></Layout>} />
+            <Route path="/system-import" element={<Layout><SystemImport /></Layout>} />
+          </Routes>
+        </BrowserRouter>
       </AuthProvider>
-    </QueryClientProvider>
-  );
-}
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;

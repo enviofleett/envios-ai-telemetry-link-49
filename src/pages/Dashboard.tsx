@@ -1,9 +1,9 @@
 
 import React from 'react';
-import NewDashboard from '@/components/dashboard/NewDashboard';
+import ProfessionalDashboard from '@/components/dashboard/ProfessionalDashboard';
 
 const Dashboard: React.FC = () => {
-  return <NewDashboard />;
+  return <ProfessionalDashboard />;
 };
 
 export default Dashboard;
