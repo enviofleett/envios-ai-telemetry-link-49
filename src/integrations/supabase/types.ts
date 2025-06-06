@@ -87,6 +87,117 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_settings: {
+        Row: {
+          auto_renewal: boolean | null
+          billing_amount: number | null
+          billing_cycle: string
+          created_at: string
+          currency: string | null
+          current_usage: Json | null
+          id: string
+          next_billing_date: string | null
+          payment_methods: Json | null
+          subscription_plan: string
+          updated_at: string
+          usage_limits: Json | null
+          user_id: string
+        }
+        Insert: {
+          auto_renewal?: boolean | null
+          billing_amount?: number | null
+          billing_cycle?: string
+          created_at?: string
+          currency?: string | null
+          current_usage?: Json | null
+          id?: string
+          next_billing_date?: string | null
+          payment_methods?: Json | null
+          subscription_plan?: string
+          updated_at?: string
+          usage_limits?: Json | null
+          user_id: string
+        }
+        Update: {
+          auto_renewal?: boolean | null
+          billing_amount?: number | null
+          billing_cycle?: string
+          created_at?: string
+          currency?: string | null
+          current_usage?: Json | null
+          id?: string
+          next_billing_date?: string | null
+          payment_methods?: Json | null
+          subscription_plan?: string
+          updated_at?: string
+          usage_limits?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      branding_settings: {
+        Row: {
+          accent_color: string | null
+          background_color: string | null
+          border_color: string | null
+          button_style: string | null
+          created_at: string
+          custom_css: string | null
+          favicon_url: string | null
+          font_family_body: string | null
+          font_family_heading: string | null
+          font_size_scale: string | null
+          id: string
+          logo_url: string | null
+          muted_color: string | null
+          primary_color: string | null
+          secondary_color: string | null
+          text_color: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          accent_color?: string | null
+          background_color?: string | null
+          border_color?: string | null
+          button_style?: string | null
+          created_at?: string
+          custom_css?: string | null
+          favicon_url?: string | null
+          font_family_body?: string | null
+          font_family_heading?: string | null
+          font_size_scale?: string | null
+          id?: string
+          logo_url?: string | null
+          muted_color?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          text_color?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          accent_color?: string | null
+          background_color?: string | null
+          border_color?: string | null
+          button_style?: string | null
+          created_at?: string
+          custom_css?: string | null
+          favicon_url?: string | null
+          font_family_body?: string | null
+          font_family_heading?: string | null
+          font_size_scale?: string | null
+          id?: string
+          logo_url?: string | null
+          muted_color?: string | null
+          primary_color?: string | null
+          secondary_color?: string | null
+          text_color?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       bulk_extraction_jobs: {
         Row: {
           completed_at: string | null
@@ -132,6 +243,51 @@ export type Database = {
           total_accounts?: number
           total_vehicles?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      company_settings: {
+        Row: {
+          company_address: string | null
+          company_name: string
+          contact_email: string | null
+          created_at: string
+          fleet_size: number | null
+          id: string
+          logo_url: string | null
+          operational_hours: string | null
+          phone_number: string | null
+          timezone: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_address?: string | null
+          company_name?: string
+          contact_email?: string | null
+          created_at?: string
+          fleet_size?: number | null
+          id?: string
+          logo_url?: string | null
+          operational_hours?: string | null
+          phone_number?: string | null
+          timezone?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_address?: string | null
+          company_name?: string
+          contact_email?: string | null
+          created_at?: string
+          fleet_size?: number | null
+          id?: string
+          logo_url?: string | null
+          operational_hours?: string | null
+          phone_number?: string | null
+          timezone?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

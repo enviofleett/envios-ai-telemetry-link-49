@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import { useBrandingSettings } from '@/hooks/useBrandingSettings';
 import { 
   Palette, 
   Type, 
@@ -61,17 +64,17 @@ const defaultMenuItems: MenuItemConfig[] = [
 
 const BrandingCustomizationTab: React.FC = () => {
   const { toast } = useToast();
-  const { currentTheme, setTheme, resetTheme, applyTheme, isLoading } = useTheme();
+  const { currentTheme, setTheme, resetTheme, applyTheme, isLoading: themeLoading } = useTheme();
+  const { settings, isLoading, updateSettings, isUpdating, uploadAsset, isUploading } = useBrandingSettings();
   
-  // Legacy branding config for backward compatibility
   const [brandingConfig, setBrandingConfig] = useState<BrandingConfig>({
-    primary_color: currentTheme.colors.primary,
-    accent_color: currentTheme.colors.accent,
-    background_color: currentTheme.colors.background,
-    text_color: currentTheme.colors.text,
-    font_family_heading: currentTheme.typography.fontFamily,
-    font_family_body: currentTheme.typography.fontFamily,
-    font_size_scale: currentTheme.layout.spacingScale,
+    primary_color: '#3b82f6',
+    accent_color: '#2563eb',
+    background_color: '#ffffff',
+    text_color: '#1f2937',
+    font_family_heading: 'Inter',
+    font_family_body: 'Inter',
+    font_size_scale: 'medium',
     button_style: 'rounded'
   });
 
@@ -83,6 +86,26 @@ const BrandingCustomizationTab: React.FC = () => {
   const [workingTheme, setWorkingTheme] = useState(currentTheme);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
+  // Sync with backend settings
+  useEffect(() => {
+    if (settings) {
+      setBrandingConfig({
+        logo_url: settings.logo_url,
+        favicon_url: settings.favicon_url,
+        primary_color: settings.primary_color,
+        accent_color: settings.accent_color,
+        background_color: settings.background_color,
+        text_color: settings.text_color,
+        font_family_heading: settings.font_family_heading,
+        font_family_body: settings.font_family_body,
+        font_size_scale: settings.font_size_scale,
+        button_style: settings.button_style
+      });
+      setLogoPreview(settings.logo_url || null);
+      setFaviconPreview(settings.favicon_url || null);
+    }
+  }, [settings]);
+
   // Sync working theme with current theme
   useEffect(() => {
     setWorkingTheme(currentTheme);
@@ -93,20 +116,6 @@ const BrandingCustomizationTab: React.FC = () => {
     const hasChanges = JSON.stringify(workingTheme) !== JSON.stringify(currentTheme);
     setHasUnsavedChanges(hasChanges);
   }, [workingTheme, currentTheme]);
-
-  // Sync legacy config with theme
-  useEffect(() => {
-    setBrandingConfig({
-      primary_color: currentTheme.colors.primary,
-      accent_color: currentTheme.colors.accent,
-      background_color: currentTheme.colors.background,
-      text_color: currentTheme.colors.text,
-      font_family_heading: currentTheme.typography.fontFamily,
-      font_family_body: currentTheme.typography.fontFamily,
-      font_size_scale: currentTheme.layout.spacingScale,
-      button_style: 'rounded'
-    });
-  }, [currentTheme]);
 
   const handlePresetSelect = (presetId: string) => {
     const preset = themePresets.find(p => p.id === presetId);
@@ -121,19 +130,27 @@ const BrandingCustomizationTab: React.FC = () => {
     }
   };
 
-  const handleFileUpload = (file: File, type: 'logo' | 'favicon') => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
+  const handleFileUpload = async (file: File, type: 'logo' | 'favicon') => {
+    try {
+      const url = await new Promise<string>((resolve, reject) => {
+        uploadAsset(file, {
+          onSuccess: resolve,
+          onError: reject
+        });
+      });
+
       if (type === 'logo') {
-        setLogoPreview(result);
-        setBrandingConfig(prev => ({ ...prev, logo_url: result }));
+        setLogoPreview(url);
+        setBrandingConfig(prev => ({ ...prev, logo_url: url }));
+        updateSettings({ logo_url: url });
       } else {
-        setFaviconPreview(result);
-        setBrandingConfig(prev => ({ ...prev, favicon_url: result }));
+        setFaviconPreview(url);
+        setBrandingConfig(prev => ({ ...prev, favicon_url: url }));
+        updateSettings({ favicon_url: url });
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Failed to upload file:', error);
+    }
   };
 
   const handleDrop = (e: React.DragEvent, type: 'logo' | 'favicon') => {
@@ -161,17 +178,42 @@ const BrandingCustomizationTab: React.FC = () => {
     setLogoPreview(null);
     setFaviconPreview(null);
     setMenuItems(defaultMenuItems);
+    updateSettings({
+      logo_url: '',
+      favicon_url: '',
+      primary_color: '#3b82f6',
+      secondary_color: '#6366f1',
+      accent_color: '#2563eb',
+      background_color: '#ffffff',
+      text_color: '#1f2937',
+      border_color: '#e5e7eb',
+      muted_color: '#6b7280',
+      font_family_heading: 'Inter',
+      font_family_body: 'Inter',
+      font_size_scale: 'medium',
+      button_style: 'rounded',
+      custom_css: ''
+    });
   };
 
   const saveBrandingConfig = async () => {
     try {
       await setTheme(workingTheme);
-    } catch (error) {
-      toast({
-        title: "Save Failed",
-        description: "Failed to save branding configuration",
-        variant: "destructive"
+      updateSettings({
+        ...brandingConfig,
+        primary_color: workingTheme.colors.primary,
+        secondary_color: workingTheme.colors.secondary,
+        accent_color: workingTheme.colors.accent,
+        background_color: workingTheme.colors.background,
+        text_color: workingTheme.colors.text,
+        border_color: workingTheme.colors.border,
+        muted_color: workingTheme.colors.muted,
+        font_family_heading: workingTheme.typography.fontFamily,
+        font_family_body: workingTheme.typography.fontFamily,
+        custom_css: workingTheme.customCSS || ''
       });
+    } catch (error) {
+      console.error('Failed to save branding config:', error);
     }
   };
 
@@ -238,6 +280,14 @@ const BrandingCustomizationTab: React.FC = () => {
     };
     reader.readAsText(file);
   };
+
+  if (isLoading || themeLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <LoadingSpinner />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -336,16 +386,19 @@ const BrandingCustomizationTab: React.FC = () => {
             onFaviconChange={(file) => handleFileUpload(file, 'favicon')}
             onLogoRemove={() => {
               setLogoPreview(null);
-              setBrandingConfig(prev => ({ ...prev, logo_url: undefined }));
+              setBrandingConfig(prev => ({ ...prev, logo_url: '' }));
+              updateSettings({ logo_url: '' });
             }}
             onFaviconRemove={() => {
               setFaviconPreview(null);
-              setBrandingConfig(prev => ({ ...prev, favicon_url: undefined }));
+              setBrandingConfig(prev => ({ ...prev, favicon_url: '' }));
+              updateSettings({ favicon_url: '' });
             }}
             isDragOver={isDragOver}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
+            isUploading={isUploading}
           />
         </TabsContent>
 
@@ -375,6 +428,7 @@ const BrandingCustomizationTab: React.FC = () => {
       <BrandingActions
         onReset={resetToDefaults}
         onSave={saveBrandingConfig}
+        isLoading={isUpdating}
       />
     </div>
   );
