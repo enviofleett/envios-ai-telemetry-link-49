@@ -29,13 +29,17 @@ export async function authenticateWithGP51({ username, password }: { username: s
     
     console.log('Attempting GP51 authentication...');
     
-    // Construct the proper GP51 API URL
-    const apiUrl = `${GP51_API_BASE}/webapi?action=login`;
+    // Construct the proper GP51 API URL - using webapi endpoint with POST method
+    const apiUrl = `${GP51_API_BASE}/webapi`;
     console.log('Using GP51 API URL:', apiUrl);
     
+    // Create the request payload according to GP51 API specification
     const requestBody = {
+      action: 'login',
       username: username,
-      password: hashedPassword
+      password: hashedPassword,
+      from: 'WEB',
+      type: 'USER'
     };
     
     console.log('Sending authentication request to GP51...');
@@ -44,7 +48,8 @@ export async function authenticateWithGP51({ username, password }: { username: s
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'User-Agent': 'Fleet-Management-System/1.0'
       },
       body: JSON.stringify(requestBody)
     });
@@ -65,10 +70,17 @@ export async function authenticateWithGP51({ username, password }: { username: s
       throw new Error('Invalid response format from GP51 API');
     }
 
-    if (result.error || !result.token) {
-      const errorMsg = result.error || 'No token received from GP51';
+    // Check for GP51 specific success/error format
+    if (result.status !== undefined && result.status !== 0) {
+      const errorMsg = result.cause || result.message || 'Authentication failed';
       console.error('GP51 authentication failed:', errorMsg);
       throw new Error(`GP51 authentication failed: ${errorMsg}`);
+    }
+
+    // Check for token in response
+    if (!result.token) {
+      console.error('No token received from GP51:', result);
+      throw new Error('GP51 authentication failed: No token received');
     }
 
     console.log('GP51 authentication successful for user:', username);
@@ -81,8 +93,8 @@ export async function authenticateWithGP51({ username, password }: { username: s
       throw new Error(`GP51 API configuration error: The GP51_API_BASE_URL is incorrectly configured. Please check your Supabase secrets and ensure GP51_API_BASE_URL is set to a valid URL like https://api.gps51.com`);
     }
     
-    if (error.message.includes('fetch')) {
-      throw new Error('Network error connecting to GP51 API');
+    if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
+      throw new Error('Network error connecting to GP51 API. Please check your internet connection and GP51 server status.');
     }
     
     throw error;

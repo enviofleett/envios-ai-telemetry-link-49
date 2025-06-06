@@ -34,35 +34,40 @@ export async function handleSaveCredentials(credentials: GP51Credentials) {
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
-    if (errorMessage.includes('GP51_API_BASE_URL is incorrectly configured')) {
+    if (errorMessage.includes('GP51_API_BASE_URL is incorrectly configured') || errorMessage.includes('GP51 API configuration error')) {
       return createResponse({
         error: 'GP51 API Configuration Error',
         details: 'The GP51_API_BASE_URL is not properly configured. Please contact your administrator to set the correct GP51 API URL in Supabase secrets.'
       }, 500);
-    } else if (errorMessage.includes('GP51 API error') || errorMessage.includes('authentication failed')) {
+    } else if (errorMessage.includes('Network error')) {
       return createResponse({
-        error: errorMessage,
-        details: 'Please verify your GP51 username and password are correct'
+        error: 'Network Connection Error',
+        details: 'Unable to connect to GP51 API. Please check your internet connection and try again.'
+      }, 503);
+    } else if (errorMessage.includes('GP51 authentication failed')) {
+      return createResponse({
+        error: 'Authentication Failed',
+        details: 'Invalid GP51 username or password. Please verify your credentials and try again.'
       }, 401);
     } else if (errorMessage.includes('Invalid response format')) {
       return createResponse({
-        error: errorMessage,
-        details: 'The GP51 API returned a malformed response'
-      }, 500);
+        error: 'GP51 API Error',
+        details: 'The GP51 API returned an unexpected response format. Please contact support.'
+      }, 502);
     } else if (errorMessage.includes('Failed to save')) {
       return createResponse({
-        error: errorMessage,
-        details: 'Database error while saving credentials'
+        error: 'Database Error',
+        details: 'Failed to save GP51 session to database. Please try again.'
       }, 500);
     } else if (errorMessage.includes('Failed to hash password')) {
       return createResponse({
-        error: 'Password processing failed',
-        details: 'There was an error processing your password'
+        error: 'Password Processing Error',
+        details: 'There was an error processing your password. Please try again.'
       }, 500);
     }
 
     return createResponse({
-      error: 'Failed to connect to GP51 API',
+      error: 'GP51 Connection Failed',
       details: errorMessage
     }, 500);
   }
