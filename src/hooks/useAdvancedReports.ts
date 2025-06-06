@@ -1,6 +1,5 @@
-
 import { useState, useCallback } from 'react';
-import { geofencingService } from '@/services/geofencing';
+import { reportsApi, type ReportQuery } from '@/services/reportsApi';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 export type ReportType = 'trip' | 'activity' | 'maintenance' | 'alerts' | 'geofence' | 'mileage';
@@ -101,83 +100,129 @@ export const useAdvancedReports = () => {
     reportType: 'trip',
   });
 
-  const generateTripReports = useCallback((vehicles: Vehicle[]): TripReportData[] => {
-    return vehicles.slice(0, 15).map((vehicle, index) => ({
-      id: `trip-${vehicle.deviceid}-${index}`,
-      vehicleId: vehicle.deviceid,
-      vehicleName: vehicle.devicename,
-      type: 'Trip',
-      startTime: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toLocaleString(),
-      endTime: new Date(Date.now() - Math.random() * 12 * 60 * 60 * 1000).toLocaleString(),
-      duration: `${Math.floor(Math.random() * 8 + 1)}h ${Math.floor(Math.random() * 60)}m`,
-      distance: `${Math.floor(Math.random() * 500 + 50)} km`,
-      averageSpeed: `${Math.floor(Math.random() * 60 + 20)} km/h`,
-      maxSpeed: `${Math.floor(Math.random() * 40 + 80)} km/h`,
-      fuelConsumption: `${(Math.random() * 20 + 5).toFixed(1)} L`,
-      idleTime: `${Math.floor(Math.random() * 60)} min`,
-      status: Math.random() > 0.8 ? 'Alert' : 'Normal',
-    }));
-  }, []);
-
-  const generateGeofenceReports = useCallback((vehicles: Vehicle[]): GeofenceReportData[] => {
-    const geofenceNames = ['Warehouse A', 'Customer Site B', 'Depot C', 'Service Center D'];
-    return vehicles.slice(0, 12).map((vehicle, index) => ({
-      id: `geofence-${vehicle.deviceid}-${index}`,
-      vehicleId: vehicle.deviceid,
-      vehicleName: vehicle.devicename,
-      geofenceName: geofenceNames[Math.floor(Math.random() * geofenceNames.length)],
-      eventType: Math.random() > 0.5 ? 'enter' : 'exit' as 'enter' | 'exit',
-      eventTime: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toLocaleString(),
-      duration: Math.random() > 0.5 ? `${Math.floor(Math.random() * 120 + 10)} min` : undefined,
-      location: {
-        lat: 40.7128 + (Math.random() - 0.5) * 0.1,
-        lng: -74.0060 + (Math.random() - 0.5) * 0.1,
-      },
-      status: Math.random() > 0.9 ? 'Violation' : 'Normal',
-    }));
-  }, []);
-
-  const generateMaintenanceReports = useCallback((vehicles: Vehicle[]): MaintenanceReportData[] => {
-    const maintenanceTypes = ['Oil Change', 'Tire Rotation', 'Brake Inspection', 'Engine Service', 'Transmission Check'];
-    return vehicles.slice(0, 10).map((vehicle, index) => ({
-      id: `maintenance-${vehicle.deviceid}-${index}`,
-      vehicleId: vehicle.deviceid,
-      vehicleName: vehicle.devicename,
-      maintenanceType: maintenanceTypes[Math.floor(Math.random() * maintenanceTypes.length)],
-      scheduledDate: new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
-      completedDate: Math.random() > 0.6 ? new Date(Date.now() - Math.random() * 10 * 24 * 60 * 60 * 1000).toLocaleDateString() : undefined,
-      cost: Math.random() > 0.3 ? `$${Math.floor(Math.random() * 500 + 100)}` : undefined,
-      serviceProvider: Math.random() > 0.4 ? 'AutoService Pro' : 'Fleet Maintenance Inc',
-      nextServiceDue: new Date(Date.now() + Math.random() * 60 * 24 * 60 * 60 * 1000).toLocaleDateString(),
-      status: Math.random() > 0.7 ? 'overdue' : Math.random() > 0.4 ? 'completed' : 'scheduled',
-    }));
-  }, []);
-
-  const generateAlertReports = useCallback((vehicles: Vehicle[]): AlertReportData[] => {
-    const alertTypes = ['Speed Violation', 'Geofence Breach', 'Engine Warning', 'Low Fuel', 'Maintenance Due', 'Security Alert'];
-    const severities: ('low' | 'medium' | 'high' | 'critical')[] = ['low', 'medium', 'high', 'critical'];
+  const generateReport = useCallback(async (vehicles: Vehicle[]) => {
+    setIsLoading(true);
     
-    return vehicles.slice(0, 8).map((vehicle, index) => ({
-      id: `alert-${vehicle.deviceid}-${index}`,
-      vehicleId: vehicle.deviceid,
-      vehicleName: vehicle.devicename,
-      alertType: alertTypes[Math.floor(Math.random() * alertTypes.length)],
-      alertTime: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toLocaleString(),
-      severity: severities[Math.floor(Math.random() * severities.length)],
-      description: 'Alert description with details about the issue detected.',
-      location: {
-        lat: 40.7128 + (Math.random() - 0.5) * 0.1,
-        lng: -74.0060 + (Math.random() - 0.5) * 0.1,
-      },
-      acknowledgedBy: Math.random() > 0.5 ? 'Fleet Manager' : undefined,
-      acknowledgedAt: Math.random() > 0.5 ? new Date(Date.now() - Math.random() * 12 * 60 * 60 * 1000).toLocaleString() : undefined,
-      status: Math.random() > 0.6 ? 'resolved' : Math.random() > 0.3 ? 'acknowledged' : 'active',
-    }));
-  }, []);
+    try {
+      const query: ReportQuery = {
+        vehicleIds: filters.vehicleIds.length > 0 ? filters.vehicleIds : undefined,
+        dateFrom: filters.dateRange.from || undefined,
+        dateTo: filters.dateRange.to || undefined,
+        reportType: filters.reportType,
+        status: filters.status,
+        limit: 50
+      };
+
+      let apiData: any[] = [];
+
+      switch (filters.reportType) {
+        case 'trip':
+        case 'activity':
+          apiData = await reportsApi.generateTripReports(query);
+          break;
+        case 'geofence':
+          apiData = await reportsApi.generateGeofenceReports(query);
+          break;
+        case 'maintenance':
+          apiData = await reportsApi.generateMaintenanceReports(query);
+          break;
+        case 'alerts':
+          apiData = await reportsApi.generateAlertReports(query);
+          break;
+        case 'mileage':
+          // Use existing mock data for mileage reports
+          apiData = generateMileageReports(vehicles);
+          break;
+        default:
+          apiData = await reportsApi.generateTripReports(query);
+      }
+
+      // Transform API data to match the existing interface
+      const transformedData = transformApiDataToReportData(apiData, filters.reportType);
+      setReportData(transformedData);
+      
+    } catch (error) {
+      console.error('Error generating report:', error);
+      setReportData([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filters]);
+
+  const transformApiDataToReportData = (apiData: any[], reportType: ReportType): ReportData[] => {
+    switch (reportType) {
+      case 'trip':
+      case 'activity':
+        return apiData.map(trip => ({
+          id: trip.id,
+          vehicleId: trip.vehicleId,
+          vehicleName: trip.vehicleName,
+          type: 'Trip',
+          startTime: new Date(trip.startTime).toLocaleString(),
+          endTime: new Date(trip.endTime).toLocaleString(),
+          duration: `${Math.floor(trip.duration / 60)}h ${trip.duration % 60}m`,
+          distance: `${(trip.distance / 1000).toFixed(1)} km`,
+          averageSpeed: `${trip.averageSpeed} km/h`,
+          maxSpeed: `${trip.maxSpeed} km/h`,
+          fuelConsumption: trip.fuelConsumed ? `${trip.fuelConsumed} L` : '',
+          idleTime: trip.idleTime ? `${trip.idleTime} min` : '',
+          status: trip.status === 'completed' ? 'Normal' : 'Alert',
+        }));
+
+      case 'geofence':
+        return apiData.map(geo => ({
+          id: geo.id,
+          vehicleId: geo.vehicleId,
+          vehicleName: geo.vehicleName,
+          geofenceName: geo.geofenceName,
+          eventType: geo.eventType,
+          eventTime: new Date(geo.eventTime).toLocaleString(),
+          duration: geo.duration ? `${geo.duration} min` : '',
+          location: geo.location,
+          status: geo.violationType === 'unauthorized' ? 'Violation' : 'Normal',
+        }));
+
+      case 'maintenance':
+        return apiData.map(maint => ({
+          id: maint.id,
+          vehicleId: maint.vehicleId,
+          vehicleName: maint.vehicleName,
+          maintenanceType: maint.maintenanceType,
+          scheduledDate: new Date(maint.scheduledDate).toLocaleDateString(),
+          completedDate: maint.completedDate ? new Date(maint.completedDate).toLocaleDateString() : undefined,
+          cost: maint.cost ? `$${maint.cost}` : undefined,
+          serviceProvider: maint.serviceProvider,
+          nextServiceDue: maint.nextServiceDue ? new Date(maint.nextServiceDue).toLocaleDateString() : undefined,
+          status: maint.status,
+        }));
+
+      case 'alerts':
+        return apiData.map(alert => ({
+          id: alert.id,
+          vehicleId: alert.vehicleId,
+          vehicleName: alert.vehicleName,
+          alertType: alert.alertType,
+          alertTime: new Date(alert.alertTime).toLocaleString(),
+          severity: alert.severity,
+          description: alert.description,
+          location: alert.location,
+          acknowledgedBy: alert.resolvedBy,
+          acknowledgedAt: alert.resolvedAt ? new Date(alert.resolvedAt).toLocaleString() : undefined,
+          status: alert.status,
+        }));
+
+      default:
+        return [];
+    }
+  };
 
   const generateMileageReports = useCallback((vehicles: Vehicle[]): MileageReportData[] => {
     const periods = ['Daily', 'Weekly', 'Monthly'];
-    return vehicles.slice(0, 12).map((vehicle, index) => ({
+    const filteredVehicles = filters.vehicleIds.length > 0 
+      ? vehicles.filter(v => filters.vehicleIds.includes(v.deviceid))
+      : vehicles;
+
+    return filteredVehicles.slice(0, 12).map((vehicle, index) => ({
       id: `mileage-${vehicle.deviceid}-${index}`,
       vehicleId: vehicle.deviceid,
       vehicleName: vehicle.devicename,
@@ -189,169 +234,27 @@ export const useAdvancedReports = () => {
       costPerMile: `$${(Math.random() * 0.5 + 0.3).toFixed(2)}`,
       utilizationRate: `${Math.floor(Math.random() * 40 + 60)}%`,
     }));
-  }, []);
+  }, [filters.vehicleIds]);
 
-  const generateReport = useCallback(async (vehicles: Vehicle[]) => {
-    setIsLoading(true);
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const filteredVehicles = filters.vehicleIds.length > 0 
-      ? vehicles.filter(v => filters.vehicleIds.includes(v.deviceid))
-      : vehicles;
-
-    let data: ReportData[] = [];
-
-    switch (filters.reportType) {
-      case 'trip':
-      case 'activity':
-        data = generateTripReports(filteredVehicles);
-        break;
-      case 'geofence':
-        data = generateGeofenceReports(filteredVehicles);
-        break;
-      case 'maintenance':
-        data = generateMaintenanceReports(filteredVehicles);
-        break;
-      case 'alerts':
-        data = generateAlertReports(filteredVehicles);
-        break;
-      case 'mileage':
-        data = generateMileageReports(filteredVehicles);
-        break;
-      default:
-        data = generateTripReports(filteredVehicles);
-    }
-
-    setReportData(data);
-    setIsLoading(false);
-  }, [filters, generateTripReports, generateGeofenceReports, generateMaintenanceReports, generateAlertReports, generateMileageReports]);
-
-  const exportReport = useCallback((format: 'csv' | 'pdf' = 'csv') => {
+  const exportReport = useCallback(async (format: 'csv' | 'pdf' = 'csv') => {
     if (reportData.length === 0) return;
 
     if (format === 'csv') {
-      let headers: string[] = [];
-      let csvContent = '';
-
-      switch (filters.reportType) {
-        case 'trip':
-        case 'activity':
-          headers = ['Vehicle ID', 'Vehicle Name', 'Type', 'Start Time', 'End Time', 'Duration', 'Distance', 'Avg Speed', 'Max Speed', 'Fuel', 'Idle Time', 'Status'];
-          csvContent = [
-            headers.join(','),
-            ...reportData.map(row => {
-              const tripRow = row as TripReportData;
-              return [
-                tripRow.vehicleId,
-                tripRow.vehicleName,
-                tripRow.type,
-                tripRow.startTime,
-                tripRow.endTime,
-                tripRow.duration,
-                tripRow.distance,
-                tripRow.averageSpeed,
-                tripRow.maxSpeed,
-                tripRow.fuelConsumption || '',
-                tripRow.idleTime || '',
-                tripRow.status
-              ].join(',');
-            })
-          ].join('\n');
-          break;
-
-        case 'geofence':
-          headers = ['Vehicle ID', 'Vehicle Name', 'Geofence', 'Event Type', 'Event Time', 'Duration', 'Location', 'Status'];
-          csvContent = [
-            headers.join(','),
-            ...reportData.map(row => {
-              const geoRow = row as GeofenceReportData;
-              return [
-                geoRow.vehicleId,
-                geoRow.vehicleName,
-                geoRow.geofenceName,
-                geoRow.eventType,
-                geoRow.eventTime,
-                geoRow.duration || '',
-                `${geoRow.location.lat}, ${geoRow.location.lng}`,
-                geoRow.status
-              ].join(',');
-            })
-          ].join('\n');
-          break;
-
-        case 'maintenance':
-          headers = ['Vehicle ID', 'Vehicle Name', 'Maintenance Type', 'Scheduled Date', 'Completed Date', 'Cost', 'Service Provider', 'Next Service Due', 'Status'];
-          csvContent = [
-            headers.join(','),
-            ...reportData.map(row => {
-              const maintRow = row as MaintenanceReportData;
-              return [
-                maintRow.vehicleId,
-                maintRow.vehicleName,
-                maintRow.maintenanceType,
-                maintRow.scheduledDate,
-                maintRow.completedDate || '',
-                maintRow.cost || '',
-                maintRow.serviceProvider || '',
-                maintRow.nextServiceDue || '',
-                maintRow.status
-              ].join(',');
-            })
-          ].join('\n');
-          break;
-
-        case 'alerts':
-          headers = ['Vehicle ID', 'Vehicle Name', 'Alert Type', 'Alert Time', 'Severity', 'Description', 'Location', 'Acknowledged By', 'Acknowledged At', 'Status'];
-          csvContent = [
-            headers.join(','),
-            ...reportData.map(row => {
-              const alertRow = row as AlertReportData;
-              return [
-                alertRow.vehicleId,
-                alertRow.vehicleName,
-                alertRow.alertType,
-                alertRow.alertTime,
-                alertRow.severity,
-                alertRow.description,
-                alertRow.location ? `${alertRow.location.lat}, ${alertRow.location.lng}` : '',
-                alertRow.acknowledgedBy || '',
-                alertRow.acknowledgedAt || '',
-                alertRow.status
-              ].join(',');
-            })
-          ].join('\n');
-          break;
-
-        case 'mileage':
-          headers = ['Vehicle ID', 'Vehicle Name', 'Period', 'Total Distance', 'Average Distance', 'Fuel Consumption', 'Fuel Efficiency', 'Cost Per Mile', 'Utilization Rate'];
-          csvContent = [
-            headers.join(','),
-            ...reportData.map(row => {
-              const mileageRow = row as MileageReportData;
-              return [
-                mileageRow.vehicleId,
-                mileageRow.vehicleName,
-                mileageRow.period,
-                mileageRow.totalDistance,
-                mileageRow.averageDistance,
-                mileageRow.fuelConsumption,
-                mileageRow.fuelEfficiency,
-                mileageRow.costPerMile,
-                mileageRow.utilizationRate
-              ].join(',');
-            })
-          ].join('\n');
-          break;
+      try {
+        const csvContent = await reportsApi.exportReportData(filters.reportType, reportData);
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${filters.reportType}-report-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error('Error exporting report:', error);
       }
-
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${filters.reportType}-report-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
     }
   }, [reportData, filters.reportType]);
 

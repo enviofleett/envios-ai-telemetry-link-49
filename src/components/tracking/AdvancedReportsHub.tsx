@@ -1,11 +1,11 @@
-
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Download, TrendingUp, MapPin, Wrench, AlertTriangle, Gauge } from 'lucide-react';
+import { Download, TrendingUp, MapPin, Wrench, AlertTriangle, Gauge, BarChart3 } from 'lucide-react';
 import { useAdvancedReports } from '@/hooks/useAdvancedReports';
+import { realtimeReportsService } from '@/services/reports/realtimeReportsService';
 import AdvancedReportFilters from './AdvancedReportFilters';
 import AdvancedReportTable from './AdvancedReportTable';
 import type { Vehicle } from '@/services/unifiedVehicleData';
@@ -26,6 +26,46 @@ const AdvancedReportsHub: React.FC<AdvancedReportsHubProps> = ({ vehicles }) => 
     setActiveReportTab,
   } = useAdvancedReports();
 
+  const [reportMetrics, setReportMetrics] = useState<any>({});
+  const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
+
+  useEffect(() => {
+    // Load report metrics when filters change
+    const loadMetrics = async () => {
+      setIsLoadingMetrics(true);
+      try {
+        const metrics = await realtimeReportsService.getReportMetrics(
+          filters.reportType,
+          filters.vehicleIds.length > 0 ? filters.vehicleIds : undefined
+        );
+        setReportMetrics(metrics);
+      } catch (error) {
+        console.error('Error loading report metrics:', error);
+      } finally {
+        setIsLoadingMetrics(false);
+      }
+    };
+
+    loadMetrics();
+  }, [filters.reportType, filters.vehicleIds]);
+
+  useEffect(() => {
+    // Subscribe to real-time updates for selected vehicles
+    if (filters.vehicleIds.length > 0) {
+      const subscriptionKey = realtimeReportsService.subscribeToVehicleUpdates(
+        filters.vehicleIds,
+        (data) => {
+          console.log('Vehicle data updated in real-time:', data);
+          // Optionally refresh report data
+        }
+      );
+
+      return () => {
+        realtimeReportsService.unsubscribe(subscriptionKey);
+      };
+    }
+  }, [filters.vehicleIds]);
+
   const handleGenerateReport = () => {
     generateReport(vehicles);
   };
@@ -45,8 +85,44 @@ const AdvancedReportsHub: React.FC<AdvancedReportsHubProps> = ({ vehicles }) => 
     { id: 'mileage', label: 'Mileage', icon: Gauge },
     { id: 'maintenance', label: 'Maintenance', icon: Wrench },
     { id: 'alerts', label: 'Alerts', icon: AlertTriangle },
-    { id: 'activity', label: 'Activity', icon: TrendingUp },
+    { id: 'activity', label: 'Activity', icon: BarChart3 },
   ];
+
+  const renderMetricsCards = () => {
+    if (isLoadingMetrics || Object.keys(reportMetrics).length === 0) {
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardContent className="p-4">
+                <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                <div className="h-6 bg-gray-200 rounded"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      );
+    }
+
+    const metricEntries = Object.entries(reportMetrics);
+    
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        {metricEntries.map(([key, value], index) => (
+          <Card key={key} className="bg-gradient-to-br from-white to-gray-50">
+            <CardContent className="p-4">
+              <div className="text-sm text-gray-600 capitalize">
+                {key.replace(/([A-Z])/g, ' $1').trim()}
+              </div>
+              <div className="text-lg font-semibold text-primary-dark mt-1">
+                {value as string}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <Card className="bg-white border border-gray-lighter shadow-sm">
@@ -86,6 +162,9 @@ const AdvancedReportsHub: React.FC<AdvancedReportsHubProps> = ({ vehicles }) => 
               );
             })}
           </TabsList>
+
+          {/* Report Metrics */}
+          {renderMetricsCards()}
 
           {/* Report Filters */}
           <AdvancedReportFilters
