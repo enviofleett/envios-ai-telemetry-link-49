@@ -10,11 +10,16 @@ import { Users, Database, Plus } from 'lucide-react';
 import UserManagementTable from '@/components/users/UserManagementTable';
 import ImportUsersDialog from '@/components/users/ImportUsersDialog';
 import FullGP51ImportDialog from '@/components/admin/FullGP51ImportDialog';
+import CreateUserDialog from '@/components/users/CreateUserDialog';
+import VehicleAssignmentDialog from '@/components/users/VehicleAssignmentDialog';
 
 const UserManagement = () => {
   const { user } = useAuth();
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showFullImportDialog, setShowFullImportDialog] = useState(false);
+  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
+  const [showVehicleAssignmentDialog, setShowVehicleAssignmentDialog] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   if (!user) {
@@ -22,6 +27,36 @@ const UserManagement = () => {
   }
 
   const handleImportComplete = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleCreateUser = () => {
+    setShowCreateUserDialog(true);
+  };
+
+  const handleEditUser = (user: any) => {
+    setSelectedUser(user);
+    setShowCreateUserDialog(true);
+  };
+
+  const handleImportUsers = () => {
+    setShowImportDialog(true);
+  };
+
+  const handleAssignVehicles = (user: any) => {
+    setSelectedUser(user);
+    setShowVehicleAssignmentDialog(true);
+  };
+
+  const handleUserDialogClose = () => {
+    setShowCreateUserDialog(false);
+    setSelectedUser(null);
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  const handleVehicleAssignmentClose = () => {
+    setShowVehicleAssignmentDialog(false);
+    setSelectedUser(null);
     setRefreshTrigger(prev => prev + 1);
   };
 
@@ -102,7 +137,13 @@ const UserManagement = () => {
           </TabsList>
           
           <TabsContent value="users" className="space-y-4">
-            <UserManagementTable refreshTrigger={refreshTrigger} />
+            <UserManagementTable 
+              refreshTrigger={refreshTrigger}
+              onCreateUser={handleCreateUser}
+              onEditUser={handleEditUser}
+              onImportUsers={handleImportUsers}
+              onAssignVehicles={handleAssignVehicles}
+            />
           </TabsContent>
           
           <TabsContent value="roles" className="space-y-4">
@@ -137,6 +178,19 @@ const UserManagement = () => {
           open={showFullImportDialog}
           onOpenChange={setShowFullImportDialog}
           onImportComplete={handleImportComplete}
+        />
+
+        {/* User Management Dialogs */}
+        <CreateUserDialog
+          open={showCreateUserDialog}
+          onOpenChange={handleUserDialogClose}
+          editUser={selectedUser}
+        />
+
+        <VehicleAssignmentDialog
+          open={showVehicleAssignmentDialog}
+          onOpenChange={handleVehicleAssignmentClose}
+          user={selectedUser}
         />
       </div>
     </div>
