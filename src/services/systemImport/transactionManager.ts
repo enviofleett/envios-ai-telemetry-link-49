@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { importErrorHandler } from './errorHandler';
 
@@ -59,8 +58,8 @@ export class TransactionManager {
         throw error;
       }
 
-      if (backupResult && typeof backupResult === 'object') {
-        const result = backupResult as BackupResult;
+      if (backupResult && typeof backupResult === 'object' && !Array.isArray(backupResult)) {
+        const result = backupResult as unknown as BackupResult;
         if (result.backup_tables && Array.isArray(result.backup_tables)) {
           this.context.backupTables = result.backup_tables;
           console.log('System backup created:', result);
@@ -90,16 +89,16 @@ export class TransactionManager {
       // Use specific table operations instead of dynamic table names
       switch (operation.table) {
         case 'envio_users':
-          result = await this.executeUserOperation(operation);
+          result = await this.executeUserOperation(fullOperation);
           break;
         case 'vehicles':
-          result = await this.executeVehicleOperation(operation);
+          result = await this.executeVehicleOperation(fullOperation);
           break;
         case 'gp51_sessions':
-          result = await this.executeSessionOperation(operation);
+          result = await this.executeSessionOperation(fullOperation);
           break;
         case 'user_roles':
-          result = await this.executeRoleOperation(operation);
+          result = await this.executeRoleOperation(fullOperation);
           break;
         default:
           throw new Error(`Unsupported table for transaction: ${operation.table}`);
