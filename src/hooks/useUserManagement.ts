@@ -14,6 +14,17 @@ import {
 } from '@/types/user-management';
 import { userManagementService } from '@/services/userManagementService';
 
+// Type guard to check if an error is a UserManagementError
+function isUserManagementError(error: any): error is UserManagementError {
+  return (
+    error &&
+    typeof error === 'object' &&
+    typeof error.code === 'string' &&
+    typeof error.message === 'string' &&
+    typeof error.timestamp === 'string'
+  );
+}
+
 export const useUserManagement = () => {
   const [filters, setFilters] = useState<UserFilters>({ search: '' });
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -61,7 +72,7 @@ export const useUserManagement = () => {
       try {
         await userManagementService.deleteUser(userId);
       } catch (error) {
-        if (error && typeof error === 'object' && 'code' in error) {
+        if (isUserManagementError(error)) {
           throw error;
         }
         throw createUserManagementError(
@@ -80,8 +91,8 @@ export const useUserManagement = () => {
     },
     onError: (error: any) => {
       console.error('Delete user error:', error);
-      const userError = error && typeof error === 'object' && 'code' in error 
-        ? error as UserManagementError
+      const userError = isUserManagementError(error)
+        ? error
         : createUserManagementError('DELETE_USER_ERROR', 'An unexpected error occurred');
       
       toast({ 
@@ -97,7 +108,7 @@ export const useUserManagement = () => {
       try {
         await userManagementService.bulkDeleteUsers(userIds);
       } catch (error) {
-        if (error && typeof error === 'object' && 'code' in error) {
+        if (isUserManagementError(error)) {
           throw error;
         }
         throw createUserManagementError(
@@ -117,8 +128,8 @@ export const useUserManagement = () => {
     },
     onError: (error: any) => {
       console.error('Bulk delete error:', error);
-      const userError = error && typeof error === 'object' && 'code' in error 
-        ? error as UserManagementError
+      const userError = isUserManagementError(error)
+        ? error
         : createUserManagementError('BULK_DELETE_ERROR', 'An unexpected error occurred');
       
       toast({ 
@@ -183,8 +194,8 @@ export const useUserManagement = () => {
       });
     } catch (error) {
       console.error('Export error:', error);
-      const userError = error && typeof error === 'object' && 'code' in error 
-        ? error as UserManagementError
+      const userError = isUserManagementError(error)
+        ? error
         : createUserManagementError('EXPORT_ERROR', 'Failed to export users');
       
       toast({
@@ -200,9 +211,7 @@ export const useUserManagement = () => {
     users: sortedUsers,
     pagination,
     isLoading,
-    error: error && typeof error === 'object' && 'code' in error 
-      ? error as UserManagementError 
-      : null,
+    error: error && isUserManagementError(error) ? error : null,
     
     // Filters and search
     filters,
