@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { gp51ApiService } from './gp51ApiService';
 
@@ -34,7 +33,9 @@ export class GP51HealthMonitor {
     };
     const metrics = {
       totalVehicles: 0,
-      activeVehicles: 0
+      activeVehicles: 0,
+      lastSyncTime: undefined as Date | undefined,
+      sessionExpiresAt: undefined as Date | undefined
     };
 
     try {

@@ -130,7 +130,7 @@ export class SystemHealthMonitor {
     try {
       const { data: vehicles, error } = await supabase
         .from('vehicles')
-        .select('id, is_active, last_update, device_status')
+        .select('id, is_active, updated_at, device_status')
         .limit(1000);
 
       if (error) {
@@ -141,7 +141,7 @@ export class SystemHealthMonitor {
       const totalVehicles = vehicles?.length || 0;
       const activeVehicles = vehicles?.filter(v => v.is_active)?.length || 0;
       const recentlyUpdated = vehicles?.filter(v => {
-        const lastUpdate = new Date(v.last_update);
+        const lastUpdate = new Date(v.updated_at);
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
         return lastUpdate > oneHourAgo;
       })?.length || 0;
