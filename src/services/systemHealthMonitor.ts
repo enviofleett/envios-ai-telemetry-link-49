@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { enhancedPollingService } from './enhancedPollingService';
 import { vehiclePositionSyncService } from './vehiclePosition/vehiclePositionSyncService';
@@ -130,7 +131,7 @@ export class SystemHealthMonitor {
     try {
       const { data: vehicles, error } = await supabase
         .from('vehicles')
-        .select('id, is_active, updated_at, device_status')
+        .select('id, is_active, updated_at')
         .limit(1000);
 
       if (error) {
