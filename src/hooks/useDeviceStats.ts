@@ -12,7 +12,7 @@ interface DeviceStats {
 }
 
 export const useDeviceStats = () => {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['device-stats'],
     queryFn: async (): Promise<DeviceStats> => {
       // Get total vehicles count
@@ -38,4 +38,11 @@ export const useDeviceStats = () => {
     },
     refetchInterval: 30000, // Refetch every 30 seconds
   });
+
+  return {
+    stats: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch
+  };
 };

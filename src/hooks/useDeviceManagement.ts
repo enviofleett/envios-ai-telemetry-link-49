@@ -11,21 +11,21 @@ interface Device {
 }
 
 export const useDeviceManagement = (searchQuery: string = '') => {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['device-management', searchQuery],
     queryFn: async (): Promise<Device[]> => {
-      let query = supabase
+      let queryBuilder = supabase
         .from('vehicles')
-        .select('device_id, license_plate, gp51_metadata, created_at, updated_at')
+        .select('device_id, gp51_metadata, created_at, updated_at')
         .order('created_at', { ascending: false });
 
       if (searchQuery) {
-        query = query.or(
-          `device_id.ilike.%${searchQuery}%,license_plate.ilike.%${searchQuery}%`
+        queryBuilder = queryBuilder.or(
+          `device_id.ilike.%${searchQuery}%`
         );
       }
 
-      const { data, error } = await query.limit(50);
+      const { data, error } = await queryBuilder.limit(50);
 
       if (error) {
         console.error('Error fetching devices:', error);
@@ -36,4 +36,11 @@ export const useDeviceManagement = (searchQuery: string = '') => {
     },
     refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
   });
+
+  return {
+    devices: query.data,
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch
+  };
 };
