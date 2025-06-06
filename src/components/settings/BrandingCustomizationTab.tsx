@@ -1,12 +1,33 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from './branding/ThemeProvider';
+import { themePresets } from './branding/ThemePresets';
+import { validateThemeConfig } from './branding/ThemeValidator';
+import { FontLoader } from './branding/FontLoader';
 import LogoUploadCard from './branding/LogoUploadCard';
 import ColorSchemeCard from './branding/ColorSchemeCard';
 import TypographyCard from './branding/TypographyCard';
 import NavigationMenuCard from './branding/NavigationMenuCard';
 import BrandingActions from './branding/BrandingActions';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { 
+  Palette, 
+  Type, 
+  Layout, 
+  Monitor,
+  Smartphone,
+  Save,
+  RotateCcw,
+  Download,
+  Upload,
+  Eye,
+  Settings
+} from 'lucide-react';
 
 interface BrandingConfig {
   logo_url?: string;
@@ -40,15 +61,17 @@ const defaultMenuItems: MenuItemConfig[] = [
 
 const BrandingCustomizationTab: React.FC = () => {
   const { toast } = useToast();
+  const { currentTheme, setTheme, resetTheme, applyTheme, isLoading } = useTheme();
   
+  // Legacy branding config for backward compatibility
   const [brandingConfig, setBrandingConfig] = useState<BrandingConfig>({
-    primary_color: '#0066cc',
-    accent_color: '#0052a3',
-    background_color: '#ffffff',
-    text_color: '#1f2937',
-    font_family_heading: 'Inter',
-    font_family_body: 'Inter',
-    font_size_scale: 'medium',
+    primary_color: currentTheme.colors.primary,
+    accent_color: currentTheme.colors.accent,
+    background_color: currentTheme.colors.background,
+    text_color: currentTheme.colors.text,
+    font_family_heading: currentTheme.typography.fontFamily,
+    font_family_body: currentTheme.typography.fontFamily,
+    font_size_scale: currentTheme.layout.spacingScale,
     button_style: 'rounded'
   });
 
@@ -56,6 +79,47 @@ const BrandingCustomizationTab: React.FC = () => {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [faviconPreview, setFaviconPreview] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>('desktop');
+  const [workingTheme, setWorkingTheme] = useState(currentTheme);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Sync working theme with current theme
+  useEffect(() => {
+    setWorkingTheme(currentTheme);
+  }, [currentTheme]);
+
+  // Check for unsaved changes
+  useEffect(() => {
+    const hasChanges = JSON.stringify(workingTheme) !== JSON.stringify(currentTheme);
+    setHasUnsavedChanges(hasChanges);
+  }, [workingTheme, currentTheme]);
+
+  // Sync legacy config with theme
+  useEffect(() => {
+    setBrandingConfig({
+      primary_color: currentTheme.colors.primary,
+      accent_color: currentTheme.colors.accent,
+      background_color: currentTheme.colors.background,
+      text_color: currentTheme.colors.text,
+      font_family_heading: currentTheme.typography.fontFamily,
+      font_family_body: currentTheme.typography.fontFamily,
+      font_size_scale: currentTheme.layout.spacingScale,
+      button_style: 'rounded'
+    });
+  }, [currentTheme]);
+
+  const handlePresetSelect = (presetId: string) => {
+    const preset = themePresets.find(p => p.id === presetId);
+    if (preset) {
+      const newTheme = {
+        ...preset,
+        id: workingTheme.id,
+        name: preset.name
+      };
+      setWorkingTheme(newTheme);
+      applyTheme(newTheme); // Apply immediately for preview
+    }
+  };
 
   const handleFileUpload = (file: File, type: 'logo' | 'favicon') => {
     const reader = new FileReader();
@@ -93,32 +157,15 @@ const BrandingCustomizationTab: React.FC = () => {
   };
 
   const resetToDefaults = () => {
-    setBrandingConfig({
-      primary_color: '#0066cc',
-      accent_color: '#0052a3',
-      background_color: '#ffffff',
-      text_color: '#1f2937',
-      font_family_heading: 'Inter',
-      font_family_body: 'Inter',
-      font_size_scale: 'medium',
-      button_style: 'rounded'
-    });
+    resetTheme();
     setLogoPreview(null);
     setFaviconPreview(null);
     setMenuItems(defaultMenuItems);
-    toast({
-      title: "Reset Complete",
-      description: "All branding settings have been reset to defaults"
-    });
   };
 
   const saveBrandingConfig = async () => {
     try {
-      // Here you would typically save to your backend
-      toast({
-        title: "Settings Saved",
-        description: "Branding configuration saved successfully"
-      });
+      await setTheme(workingTheme);
     } catch (error) {
       toast({
         title: "Save Failed",
@@ -149,22 +196,137 @@ const BrandingCustomizationTab: React.FC = () => {
     });
   };
 
+  const exportTheme = () => {
+    const dataStr = JSON.stringify(workingTheme, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${workingTheme.name.toLowerCase().replace(/\s+/g, '-')}-theme.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importTheme = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedTheme = JSON.parse(e.target?.result as string);
+        const validatedTheme = validateThemeConfig(importedTheme);
+        
+        if (validatedTheme) {
+          setWorkingTheme(validatedTheme);
+          applyTheme(validatedTheme);
+          toast({
+            title: "Theme Imported",
+            description: "Theme has been imported successfully."
+          });
+        } else {
+          toast({
+            title: "Import Failed",
+            description: "Invalid theme file format.",
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        toast({
+          title: "Import Failed",
+          description: "Invalid theme file format.",
+          variant: "destructive"
+        });
+      }
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold mb-2">Branding & UI Customization</h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          Customize your Envio platform's visual identity and user interface
-        </p>
+      <FontLoader />
+      
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-semibold mb-2">Branding & UI Customization</h3>
+          <p className="text-sm text-muted-foreground">
+            Customize your Envio platform's visual identity and user interface
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {hasUnsavedChanges && (
+            <Badge variant="secondary">Unsaved Changes</Badge>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPreviewMode(previewMode === 'desktop' ? 'mobile' : 'desktop')}
+            className="flex items-center gap-2"
+          >
+            {previewMode === 'desktop' ? <Monitor className="h-4 w-4" /> : <Smartphone className="h-4 w-4" />}
+            {previewMode === 'desktop' ? 'Desktop' : 'Mobile'}
+          </Button>
+        </div>
       </div>
 
-      <Tabs defaultValue="logo" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="logo">Logo & Assets</TabsTrigger>
-          <TabsTrigger value="colors">Colors & Theme</TabsTrigger>
-          <TabsTrigger value="typography">Typography</TabsTrigger>
-          <TabsTrigger value="menu">Menu Layout</TabsTrigger>
+      <Tabs defaultValue="presets" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="presets" className="flex items-center gap-2">
+            <Eye className="h-4 w-4" />
+            Presets
+          </TabsTrigger>
+          <TabsTrigger value="logo" className="flex items-center gap-2">
+            <Upload className="h-4 w-4" />
+            Assets
+          </TabsTrigger>
+          <TabsTrigger value="colors" className="flex items-center gap-2">
+            <Palette className="h-4 w-4" />
+            Colors
+          </TabsTrigger>
+          <TabsTrigger value="typography" className="flex items-center gap-2">
+            <Type className="h-4 w-4" />
+            Typography
+          </TabsTrigger>
+          <TabsTrigger value="menu" className="flex items-center gap-2">
+            <Layout className="h-4 w-4" />
+            Menu
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="presets" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {themePresets.map((preset) => (
+              <div
+                key={preset.id}
+                className={`border rounded-lg p-4 cursor-pointer transition-colors hover:bg-muted/50 ${
+                  workingTheme.name === preset.name ? 'border-primary bg-primary/5' : ''
+                }`}
+                onClick={() => handlePresetSelect(preset.id)}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">{preset.name}</h4>
+                  </div>
+                  <div className="flex gap-1">
+                    <div 
+                      className="w-4 h-4 rounded border"
+                      style={{ backgroundColor: preset.colors.primary }}
+                    />
+                    <div 
+                      className="w-4 h-4 rounded border"
+                      style={{ backgroundColor: preset.colors.secondary }}
+                    />
+                    <div 
+                      className="w-4 h-4 rounded border"
+                      style={{ backgroundColor: preset.colors.background }}
+                    />
+                    <div 
+                      className="w-4 h-4 rounded border"
+                      style={{ backgroundColor: preset.colors.text }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </TabsContent>
 
         <TabsContent value="logo" className="space-y-4">
           <LogoUploadCard
