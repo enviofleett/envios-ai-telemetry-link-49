@@ -3,15 +3,12 @@ import React, { useState } from 'react';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
 import LiveTrackingHeader from '@/components/tracking/LiveTrackingHeader';
 import LiveTrackingStats from '@/components/tracking/LiveTrackingStats';
-import LiveTrackingControls from '@/components/tracking/LiveTrackingControls';
-import LiveTrackingContent from '@/components/tracking/LiveTrackingContent';
-import LiveTrackingMap from '@/components/tracking/LiveTrackingMap';
+import LiveMapAndVehicleList from '@/components/tracking/LiveMapAndVehicleList';
+import ReportsHub from '@/components/tracking/ReportsHub';
 
 const LiveTracking: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline' | 'alerts'>('all');
-  const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState<'cards' | 'map'>('cards');
 
   const { 
     vehicles, 
@@ -28,9 +25,9 @@ const LiveTracking: React.FC = () => {
 
   const vehiclesByStatus = getVehiclesByStatus();
 
-  // Create a typed handler for status filter changes
-  const handleStatusFilterChange = (status: 'all' | 'online' | 'offline' | 'alerts') => {
-    setStatusFilter(status);
+  const handleVehicleSelect = (vehicle: any) => {
+    console.log('Vehicle selected:', vehicle);
+    // TODO: Implement vehicle selection logic
   };
 
   if (isLoading) {
@@ -52,8 +49,8 @@ const LiveTracking: React.FC = () => {
   return (
     <div className="space-y-6">
       <LiveTrackingHeader 
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        viewMode="cards"
+        onViewModeChange={() => {}}
       />
 
       <LiveTrackingStats 
@@ -62,32 +59,14 @@ const LiveTracking: React.FC = () => {
         vehiclesByStatus={vehiclesByStatus}
       />
 
-      <LiveTrackingControls
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        statusFilter={statusFilter}
-        onStatusFilterChange={handleStatusFilterChange}
-        showFilters={showFilters}
-        onToggleFilters={() => setShowFilters(!showFilters)}
-        onRefresh={forceRefresh}
-        isRefreshing={isRefreshing}
+      <LiveMapAndVehicleList
+        vehicles={vehicles}
+        onVehicleSelect={handleVehicleSelect}
       />
 
-      {/* Conditional Content Based on View Mode */}
-      {viewMode === 'map' ? (
-        <LiveTrackingMap
-          vehicles={vehicles}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          statusFilter={statusFilter}
-          onStatusFilterChange={handleStatusFilterChange}
-        />
-      ) : (
-        <LiveTrackingContent
-          viewMode={viewMode}
-          vehicles={vehicles}
-        />
-      )}
+      <ReportsHub
+        vehicles={vehicles}
+      />
     </div>
   );
 };
