@@ -25,6 +25,7 @@ serve(async (req) => {
       throw new Error('Missing Supabase configuration');
     }
 
+    console.log('Creating Supabase client...');
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     if (req.method !== 'POST') {
@@ -50,6 +51,7 @@ serve(async (req) => {
       });
     }
 
+    console.log('Processing import request...');
     const result = await handlePasswordlessImportRequest(requestBody, supabase);
     console.log('Import request completed successfully');
     return result;

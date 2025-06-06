@@ -43,6 +43,23 @@ export async function validateGP51Connection(): Promise<GP51ValidationResult> {
       result.warnings.push('GP51 health check endpoint not available');
     }
 
+    // Additional validation: Check for required GP51 environment variables
+    const requiredEnvVars = ['GP51_API_BASE_URL'];
+    for (const envVar of requiredEnvVars) {
+      if (!Deno.env.get(envVar)) {
+        result.isValid = false;
+        result.errors.push(`Required environment variable ${envVar} is not configured`);
+      }
+    }
+
+    // Validate URL format
+    try {
+      new URL(gp51BaseUrl);
+    } catch (error) {
+      result.isValid = false;
+      result.errors.push('GP51_API_BASE_URL is not a valid URL');
+    }
+
     return result;
 
   } catch (error) {

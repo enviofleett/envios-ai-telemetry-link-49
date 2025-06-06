@@ -65,6 +65,21 @@ export async function validateGP51Configuration(): Promise<GP51ValidationResult>
       result.warnings.push('Could not verify import job status');
     }
 
+    // Validate environment configuration
+    try {
+      const { data: envValidation, error: envError } = await supabase.functions.invoke('passwordless-gp51-import', {
+        body: { action: 'validate_environment' }
+      });
+
+      if (envError) {
+        result.warnings.push('Could not validate environment configuration');
+      } else if (envValidation?.warnings) {
+        result.warnings.push(...envValidation.warnings);
+      }
+    } catch (error) {
+      result.warnings.push('Environment validation unavailable');
+    }
+
     return result;
 
   } catch (error) {

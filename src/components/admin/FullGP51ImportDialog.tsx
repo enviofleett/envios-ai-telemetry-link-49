@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { fullSystemImportService, SystemImportOptions, SystemImportProgress } from '@/services/fullSystemImportService';
+import { validateGP51Configuration } from '@/utils/gp51-validator';
 import ImportProgressMonitor from '@/components/import/ImportProgressMonitor';
 
 interface FullGP51ImportDialogProps {
@@ -37,13 +39,14 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
   onOpenChange,
   onImportComplete
 }) => {
-  const [currentStep, setCurrentStep] = useState<'options' | 'confirmation' | 'progress' | 'completed'>('options');
+  const [currentStep, setCurrentStep] = useState<'options' | 'validation' | 'confirmation' | 'progress' | 'completed'>('options');
   const [importOptions, setImportOptions] = useState<SystemImportOptions>({
     importType: 'complete_system',
     performCleanup: false,
     preserveAdminEmail: 'chudesyl@gmail.com',
     batchSize: 50
   });
+  const [validationResult, setValidationResult] = useState<any>(null);
   const [importProgress, setImportProgress] = useState<SystemImportProgress[]>([]);
   const [currentProgress, setCurrentProgress] = useState<SystemImportProgress | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
@@ -51,6 +54,39 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
   const [selectedUsernames, setSelectedUsernames] = useState<string>('');
   const [activeImportId, setActiveImportId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const handleValidateConfiguration = async () => {
+    setCurrentStep('validation');
+    
+    try {
+      console.log('Validating GP51 configuration...');
+      const result = await validateGP51Configuration();
+      setValidationResult(result);
+      
+      if (result.isValid) {
+        setCurrentStep('confirmation');
+        toast({
+          title: "Validation Successful",
+          description: "GP51 configuration is valid. Ready to proceed with import.",
+        });
+      } else {
+        toast({
+          title: "Validation Failed",
+          description: result.errors.join(', '),
+          variant: "destructive"
+        });
+        setCurrentStep('options');
+      }
+    } catch (error) {
+      console.error('Validation error:', error);
+      toast({
+        title: "Validation Error",
+        description: "Failed to validate GP51 configuration",
+        variant: "destructive"
+      });
+      setCurrentStep('options');
+    }
+  };
 
   const handleStartImport = async () => {
     if (currentStep !== 'confirmation') return;
@@ -102,6 +138,7 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
 
   const resetDialog = () => {
     setCurrentStep('options');
+    setValidationResult(null);
     setImportProgress([]);
     setCurrentProgress(null);
     setImportResult(null);
@@ -225,9 +262,20 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => setCurrentStep('confirmation')}>
-                Continue
+              <Button onClick={handleValidateConfiguration}>
+                Validate & Continue
               </Button>
+            </div>
+          </div>
+        );
+
+      case 'validation':
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Validating Configuration</h3>
+              <p className="text-gray-600">Checking GP51 connectivity and system readiness...</p>
             </div>
           </div>
         );
@@ -240,6 +288,20 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
                 <Shield className="w-5 h-5" />
                 Confirm Import Configuration
               </h3>
+              
+              {validationResult && validationResult.warnings.length > 0 && (
+                <Alert className="border-orange-200 bg-orange-50 mb-4">
+                  <AlertTriangle className="h-4 w-4 text-orange-600" />
+                  <AlertDescription className="text-orange-700">
+                    <strong>Warnings:</strong>
+                    <ul className="list-disc ml-4 mt-1">
+                      {validationResult.warnings.map((warning: string, index: number) => (
+                        <li key={index}>{warning}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
               
               <Card>
                 <CardHeader>
