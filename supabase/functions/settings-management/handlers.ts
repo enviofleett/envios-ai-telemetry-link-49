@@ -1,4 +1,3 @@
-
 import { authenticateWithGP51 } from './gp51-auth.ts';
 import { saveGP51Session, getGP51Status } from './database.ts';
 import { createResponse } from './cors.ts';
@@ -49,13 +48,12 @@ export async function handleSaveCredentials(credentials: GP51Credentials & { api
         errorMessage.includes('error sending request')) {
       return createResponse({
         error: 'GP51 Connection Failed',
-        details: 'Unable to connect to GP51 API. Please check if the GP51 API URL is correct and that the GP51 server is accessible.'
+        details: 'Unable to connect to GP51 API. Please check if the GP51 API URL is correct and accessible. Try using "https://www.gps51.com/webapi" if you\'re unsure of the correct URL.'
       }, 503);
-    } else if (errorMessage.includes('GP51 API URL is not a valid URL format') || 
-               errorMessage.includes('GP51 API URL is required')) {
+    } else if (errorMessage.includes('Invalid GP51 API URL format')) {
       return createResponse({
         error: 'GP51 API Configuration Error',
-        details: 'The GP51 API URL is not properly configured. Please provide a valid GP51 API URL (e.g., https://api.gps51.com).'
+        details: 'The GP51 API URL format is invalid. Please provide a valid GP51 API URL (e.g., https://www.gps51.com/webapi or https://api.gps51.com).'
       }, 500);
     } else if (errorMessage.includes('GP51 API returned an empty response') || 
                errorMessage.includes('GP51 API returned invalid JSON response')) {
@@ -68,15 +66,15 @@ export async function handleSaveCredentials(credentials: GP51Credentials & { api
         error: 'Authentication Failed',
         details: `Invalid GP51 username or password for user "${trimmedUsername}". Please verify your credentials and try again.`
       }, 401);
+    } else if (errorMessage.includes('All GP51 authentication methods failed')) {
+      return createResponse({
+        error: 'GP51 Connection Failed',
+        details: 'Could not connect to GP51 using any known API endpoints. Please verify your API URL is correct or try the legacy URL: https://www.gps51.com/webapi'
+      }, 503);
     } else if (errorMessage.includes('Failed to save')) {
       return createResponse({
         error: 'Database Error',
         details: 'Failed to save GP51 session to database. Please try again.'
-      }, 500);
-    } else if (errorMessage.includes('Failed to hash password')) {
-      return createResponse({
-        error: 'Password Processing Error',
-        details: 'There was an error processing your password. Please try again.'
       }, 500);
     }
 
