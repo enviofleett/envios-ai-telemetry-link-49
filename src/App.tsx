@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,7 +16,7 @@ import SystemImport from "./pages/SystemImport";
 import PublicRegistration from "./pages/PublicRegistration";
 import SetPassword from "./pages/SetPassword";
 import { ThemeProvider } from '@/contexts/ThemeContext';
-import { QueryDevtools } from '@tanstack/react-query-devtools';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 const queryClient = new QueryClient();
 
@@ -26,7 +27,7 @@ function App() {
         <BrowserRouter>
           <AuthProvider>
             <Toaster />
-            <QueryDevtools initialIsOpen={false} />
+            <ReactQueryDevtools initialIsOpen={false} />
             <Routes>
               <Route path="/auth" element={<Auth />} />
               <Route path="/register" element={<Register />} />
