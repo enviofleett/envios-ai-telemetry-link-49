@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import LoadingSpinner from '@/components/LoadingSpinner';
 import { useBillingSettings } from '@/hooks/useBillingSettings';
 
 const BillingSettingsTab: React.FC = () => {
@@ -173,7 +173,7 @@ const BillingSettingsTab: React.FC = () => {
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span>Usage this month</span>
-                  <span>{settings?.current_usage?.api_calls || 0} / {settings?.usage_limits?.api_calls || 'Unlimited'}</span>
+                  <span>{(settings?.current_usage as any)?.api_calls || 0} / {(settings?.usage_limits as any)?.api_calls || 'Unlimited'}</span>
                 </div>
                 <div className="w-full bg-secondary rounded-full h-2">
                   <div
@@ -181,8 +181,8 @@ const BillingSettingsTab: React.FC = () => {
                     style={{
                       width: `${Math.min(
                         getUsagePercentage(
-                          settings?.current_usage?.api_calls || 0,
-                          settings?.usage_limits?.api_calls || 100
+                          (settings?.current_usage as any)?.api_calls || 0,
+                          (settings?.usage_limits as any)?.api_calls || 100
                         ),
                         100
                       )}%`
@@ -196,7 +196,7 @@ const BillingSettingsTab: React.FC = () => {
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span>Usage this month</span>
-                  <span>{settings?.current_usage?.data_transfer || '0 GB'} / {settings?.usage_limits?.data_transfer || 'Unlimited'}</span>
+                  <span>{(settings?.current_usage as any)?.data_transfer || '0 GB'} / {(settings?.usage_limits as any)?.data_transfer || 'Unlimited'}</span>
                 </div>
                 <div className="w-full bg-secondary rounded-full h-2">
                   <div
@@ -204,8 +204,8 @@ const BillingSettingsTab: React.FC = () => {
                     style={{
                       width: `${Math.min(
                         getUsagePercentage(
-                          parseFloat(settings?.current_usage?.data_transfer || '0'),
-                          parseFloat(settings?.usage_limits?.data_transfer || '10')
+                          parseFloat((settings?.current_usage as any)?.data_transfer || '0'),
+                          parseFloat((settings?.usage_limits as any)?.data_transfer || '10')
                         ),
                         100
                       )}%`
