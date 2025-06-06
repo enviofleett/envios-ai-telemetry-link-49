@@ -17,7 +17,7 @@ class FullSystemImportService {
     options: SystemImportOptions,
     onProgress?: (progress: SystemImportProgress) => void
   ): Promise<SystemImportResult> {
-    console.log('Starting enhanced full system import with Phase 3 enhancements:', options);
+    console.log('Starting enhanced full system import:', options);
     
     // Clear any previous errors and initialize logging
     importErrorHandler.clearErrors();
@@ -41,12 +41,12 @@ class FullSystemImportService {
         phase: 'Validation',
         phaseProgress: 0,
         overallProgress: 0,
-        currentOperation: 'Running comprehensive pre-flight checks with stability monitoring'
+        currentOperation: 'Running comprehensive pre-flight checks'
       });
 
       await this.runPreflightChecks(options);
       importLogger.info('validation', 'Pre-flight checks completed successfully');
-      performanceMetricsService.recordProcessedRecords(1); // Validation complete
+      performanceMetricsService.recordProcessedRecords(1);
 
       onProgress?.({
         phase: 'Validation',
@@ -55,7 +55,7 @@ class FullSystemImportService {
         currentOperation: 'Pre-flight validation completed successfully'
       });
 
-      // Phase 2: Start transaction-safe import with stability monitoring
+      // Phase 2: Initialize import
       importLogger.setPhase('initialization');
       performanceMetricsService.setPhase('initialization');
       
@@ -63,27 +63,24 @@ class FullSystemImportService {
         phase: 'Initialization',
         phaseProgress: 0,
         overallProgress: 10,
-        currentOperation: 'Initializing secure import with stability monitoring'
+        currentOperation: 'Initializing enhanced import system'
       });
 
-      const finalImportId = await this.initializeSecureImport(options, importId);
-      importLogger.info('initialization', 'Secure import initialized successfully', { importId: finalImportId });
-      performanceMetricsService.recordProcessedRecords(1); // Initialization complete
+      const finalImportId = await this.initializeEnhancedImport(options, importId);
+      importLogger.info('initialization', 'Enhanced import initialized successfully', { importId: finalImportId });
+      performanceMetricsService.recordProcessedRecords(1);
 
       onProgress?.({
         phase: 'Initialization',
         phaseProgress: 100,
         overallProgress: 15,
-        currentOperation: 'Import transaction initialized with stability monitoring'
+        currentOperation: 'Import system initialized successfully'
       });
 
-      // Phase 3: Execute import with enhanced monitoring and stability features
+      // Phase 3: Execute import with monitoring
       importLogger.setPhase('execution');
       performanceMetricsService.setPhase('execution');
       importLogger.info('execution', 'Starting enhanced import execution', { importId: finalImportId });
-      
-      // Start stability monitoring
-      this.startStabilityMonitoring(finalImportId);
       
       const result = await enhancedProgressMonitor.startMonitoring(finalImportId, (progress) => {
         onProgress?.(progress);
@@ -95,9 +92,6 @@ class FullSystemImportService {
           progress.phase
         );
       });
-      
-      // Stop stability monitoring
-      this.stopStabilityMonitoring();
       
       // Record final metrics
       performanceMetricsService.recordProcessedRecords(result.totalUsers + result.totalVehicles);
@@ -125,28 +119,16 @@ class FullSystemImportService {
       // Notify failure
       await notificationService.notifyImportFailed(importId, error.message);
       
-      importLogger.critical('import', `Full system import failed: ${error.message}`, { error, options });
+      importLogger.critical('import', `Enhanced full system import failed: ${error.message}`, { error, options });
       console.error('Enhanced full system import failed:', error);
       
       // Log the error
       importErrorHandler.logError(
-        'FULL_IMPORT_FAILED',
-        `Full system import failed: ${error.message}`,
+        'ENHANCED_IMPORT_FAILED',
+        `Enhanced full system import failed: ${error.message}`,
         { options, error },
         false
       );
-
-      // Stop stability monitoring
-      this.stopStabilityMonitoring();
-
-      // Attempt rollback if we have an active transaction
-      try {
-        await transactionManager.rollbackTransaction('Import failed during execution');
-        importLogger.info('rollback', 'Transaction rollback completed after failure');
-      } catch (rollbackError) {
-        importLogger.critical('rollback', 'Additional error during rollback', { rollbackError });
-        console.error('Additional error during rollback:', rollbackError);
-      }
 
       importLogger.stopImportLogging();
       throw error;
@@ -154,7 +136,6 @@ class FullSystemImportService {
   }
 
   private calculateDuration(logSummary: any): string {
-    // Calculate duration from log summary or return default
     return '5 minutes'; // Placeholder implementation
   }
 
@@ -229,54 +210,21 @@ class FullSystemImportService {
     }
   }
 
-  private async initializeSecureImport(options: SystemImportOptions, importId: string): Promise<string> {
-    importLogger.info('initialization', 'Initializing secure import with enhanced stability...');
+  private async initializeEnhancedImport(options: SystemImportOptions, importId: string): Promise<string> {
+    importLogger.info('initialization', 'Initializing enhanced import...');
     
     try {
-      // Create the system import job record
-      const { data: importJob, error: jobError } = await supabase
-        .from('gp51_system_imports')
-        .insert({
-          id: importId,
-          job_name: `Enhanced System Import - ${new Date().toISOString()}`,
-          import_type: 'full_system',
-          import_scope: options.importType,
-          status: 'processing',
-          current_phase: 'initialization',
-          pre_import_checks: {
-            cleanup_requested: options.performCleanup,
-            preserve_admin: options.preserveAdminEmail,
-            batch_size: options.batchSize,
-            validation_timestamp: new Date().toISOString(),
-            stability_features_enabled: true
-          },
-          created_by: (await supabase.auth.getUser()).data.user?.id
-        })
-        .select()
-        .single();
-
-      if (jobError) {
-        console.error('Failed to create import job:', jobError);
-        throw jobError;
-      }
-
-      const finalImportId = importJob.id;
-      
-      // Start transaction management
-      await transactionManager.startTransaction(finalImportId);
-      importLogger.info('initialization', 'Transaction management started');
-      
       // Invoke the enhanced full-system-import edge function
       importLogger.info('initialization', 'Invoking enhanced full-system-import edge function...');
       const { data, error } = await supabase.functions.invoke('full-system-import', {
         body: {
-          jobName: importJob.job_name,
+          jobName: `Enhanced System Import - ${new Date().toISOString()}`,
           importType: options.importType,
           selectedUsernames: options.selectedUsernames,
           performCleanup: options.performCleanup,
           preserveAdminEmail: options.preserveAdminEmail || 'chudesyl@gmail.com',
           batchSize: options.batchSize || 10,
-          importId: finalImportId,
+          importId: importId,
           stabilityFeatures: {
             memoryMonitoring: true,
             sessionRefresh: true,
@@ -287,24 +235,22 @@ class FullSystemImportService {
       });
 
       if (error) {
-        console.error('Import initialization error:', error);
-        await transactionManager.rollbackTransaction('Edge function invocation failed');
-        throw new Error(`Import initialization failed: ${error.message}`);
+        console.error('Enhanced import initialization error:', error);
+        throw new Error(`Enhanced import initialization failed: ${error.message}`);
       }
 
       if (!data?.success) {
-        console.error('Import failed to start:', data);
-        await transactionManager.rollbackTransaction('Import failed to start');
-        throw new Error(data?.details || 'Import failed to start');
+        console.error('Enhanced import failed to start:', data);
+        throw new Error(data?.details || 'Enhanced import failed to start');
       }
 
-      importLogger.info('initialization', 'Secure import initialized successfully', { importId: finalImportId });
-      return finalImportId;
+      importLogger.info('initialization', 'Enhanced import initialized successfully', { importId });
+      return data.importId || importId;
 
     } catch (error) {
       importErrorHandler.logError(
-        'IMPORT_INITIALIZATION_FAILED',
-        `Failed to initialize secure import: ${error.message}`,
+        'ENHANCED_IMPORT_INITIALIZATION_FAILED',
+        `Failed to initialize enhanced import: ${error.message}`,
         { options, error },
         false
       );
@@ -416,10 +362,7 @@ class FullSystemImportService {
     importLogger.info('rollback', 'Starting enhanced rollback', { importId });
     
     try {
-      // Use the enhanced transaction manager for rollback
       await transactionManager.rollbackTransaction('User requested rollback');
-      
-      // Also call the existing rollback service
       await importManagementService.rollbackImport(importId);
       
       importLogger.info('rollback', 'Enhanced rollback completed successfully');
@@ -438,20 +381,10 @@ class FullSystemImportService {
     importLogger.info('cancellation', 'Cancelling enhanced import', { importId });
     
     try {
-      // Cancel through timeout manager
       importTimeoutManager.cancel('User cancelled import');
-      
-      // Cancel through transaction manager
       await transactionManager.rollbackTransaction('User cancelled import');
-      
-      // Update import status
       await importManagementService.cancelImport(importId);
-      
-      // Clear any ongoing sessions
       gp51SessionManager.clearSession();
-      
-      // Stop stability monitoring
-      this.stopStabilityMonitoring();
       
       importLogger.info('cancellation', 'Enhanced import cancellation completed');
     } catch (error) {

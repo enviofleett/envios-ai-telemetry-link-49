@@ -11,7 +11,8 @@ import {
   CheckCircle,
   Users,
   Car,
-  Settings
+  Settings,
+  RefreshCw
 } from 'lucide-react';
 import { fullSystemImportService } from '@/services/fullSystemImportService';
 import { SystemImportOptions } from '@/types/system-import';
@@ -22,6 +23,7 @@ const SystemImportManager: React.FC = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [currentImportId, setCurrentImportId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [lastError, setLastError] = useState<string | null>(null);
   const [importOptions, setImportOptions] = useState<SystemImportOptions>({
     importType: 'complete_system',
     performCleanup: false,
@@ -43,6 +45,7 @@ const SystemImportManager: React.FC = () => {
 
     try {
       setIsImporting(true);
+      setLastError(null);
       
       console.log('Starting enhanced system import with options:', importOptions);
       
@@ -54,7 +57,6 @@ const SystemImportManager: React.FC = () => {
         }
       );
 
-      // This will only execute if the import completes successfully
       console.log('Enhanced import completed:', result);
       
       toast({
@@ -62,8 +64,14 @@ const SystemImportManager: React.FC = () => {
         description: `Imported ${result.successfulUsers} users and ${result.successfulVehicles} vehicles with enhanced reliability.`
       });
 
+      // Reset state after successful completion
+      setCurrentImportId(null);
+
     } catch (error: any) {
       console.error('Enhanced import failed:', error);
+      
+      // Set detailed error information
+      setLastError(error.message || 'An unexpected error occurred during import');
       
       // Get detailed error information
       const errorSummary = fullSystemImportService.getErrorSummary();
@@ -76,7 +84,6 @@ const SystemImportManager: React.FC = () => {
       });
     } finally {
       setIsImporting(false);
-      setCurrentImportId(null);
     }
   };
 
@@ -84,10 +91,11 @@ const SystemImportManager: React.FC = () => {
     console.log('Enhanced import monitoring completed:', result);
     setIsImporting(false);
     setCurrentImportId(null);
+    setLastError(null);
     
     toast({
       title: "Enhanced Import Completed",
-      description: `Successfully imported data with ${result.data_integrity_score || 100}% integrity score.`
+      description: `Successfully imported data with enhanced reliability features.`
     });
   };
 
@@ -109,6 +117,11 @@ const SystemImportManager: React.FC = () => {
     }
     setIsImporting(false);
     setCurrentImportId(null);
+    setLastError(null);
+  };
+
+  const clearError = () => {
+    setLastError(null);
   };
 
   const getImportTypeDescription = (type: string) => {
@@ -160,6 +173,19 @@ const SystemImportManager: React.FC = () => {
           Comprehensive data import with transaction safety, real-time monitoring, and automatic error recovery
         </p>
       </div>
+
+      {/* Error Display */}
+      {lastError && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription className="flex justify-between items-center">
+            <span>{lastError}</span>
+            <Button variant="ghost" size="sm" onClick={clearError}>
+              Clear
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Enhanced Features */}
       <Card className="border-green-200 bg-green-50">
@@ -321,8 +347,17 @@ const SystemImportManager: React.FC = () => {
           size="lg"
           className="px-8"
         >
-          <Database className="w-5 h-5 mr-2" />
-          Start Enhanced Import
+          {isImporting ? (
+            <>
+              <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+              Starting Import...
+            </>
+          ) : (
+            <>
+              <Database className="w-5 h-5 mr-2" />
+              Start Enhanced Import
+            </>
+          )}
         </Button>
       </div>
     </div>
