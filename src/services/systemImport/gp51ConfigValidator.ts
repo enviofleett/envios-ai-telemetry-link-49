@@ -4,32 +4,28 @@ import { supabase } from '@/integrations/supabase/client';
 export class GP51ConfigValidator {
   async validateConfiguration(): Promise<boolean> {
     try {
-      // Check if GP51 base URL is configured
-      const gp51BaseUrl = import.meta.env.GP51_API_BASE_URL || 'https://www.gps51.com';
-      if (!gp51BaseUrl) {
-        console.error('GP51_API_BASE_URL not configured');
-        return false;
-      }
-
-      // Check if we have any GP51 sessions
-      const { data: sessions, error } = await supabase
-        .from('gp51_sessions')
-        .select('id')
-        .limit(1);
-
+      console.log('Validating GP51 configuration...');
+      
+      // Test GP51 connectivity using the updated test_connection action
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: { action: 'test_connection' }
+      });
+      
       if (error) {
-        console.error('Failed to check GP51 sessions:', error);
+        console.error('GP51 configuration test failed:', error);
         return false;
       }
-
-      if (!sessions || sessions.length === 0) {
-        console.error('No GP51 sessions found');
+      
+      // Check if the test was successful
+      if (!data?.success) {
+        console.error('GP51 configuration test returned failure:', data);
         return false;
       }
-
+      
+      console.log('GP51 configuration validation passed for user:', data.username);
       return true;
     } catch (error) {
-      console.error('GP51 configuration validation failed:', error);
+      console.error('Failed to validate GP51 configuration:', error);
       return false;
     }
   }

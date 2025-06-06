@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { SystemImportOptions, SystemImportProgress, SystemImportResult } from '@/types/system-import';
 import { importErrorHandler } from './systemImport/errorHandler';
@@ -152,10 +151,7 @@ class FullSystemImportService {
 
     // 2. GP51 Session Validation
     try {
-      const hasValidSession = await gp51SessionManager.hasValidSession();
-      if (!hasValidSession) {
-        throw new Error('GP51 session is invalid. Please re-authenticate with GP51.');
-      }
+      await gp51SessionManager.ensureValidSession();
       importLogger.info('validation', 'GP51 session validation passed');
     } catch (error) {
       importErrorHandler.logError(

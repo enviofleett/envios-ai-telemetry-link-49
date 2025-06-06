@@ -1,221 +1,316 @@
-export class PerformanceMetricsService {
-  private startTime: number | null = null;
-  private currentPhase: string | null = null;
-  private processedRecords = 0;
-  private errorCount = 0;
-  private currentImportId: string | null = null;
-  private phaseStartTimes: Record<string, number> = {};
-  private networkLatencies: number[] = [];
-  private memoryUsageSamples: number[] = [];
-  private processingTimes: number[] = [];
-  private lastProgressUpdate: number = 0;
-  private progressUpdateInterval = 2000; // 2 seconds
-  private metricsHistory: any[] = [];
 
-  startMonitoring(importId: string): void {
-    this.currentImportId = importId;
-    this.startTime = Date.now();
-    this.processedRecords = 0;
-    this.errorCount = 0;
-    this.phaseStartTimes = {};
-    this.networkLatencies = [];
-    this.memoryUsageSamples = [];
-    this.processingTimes = [];
-    this.lastProgressUpdate = Date.now();
-    console.log('Performance monitoring started for import:', importId);
+import { supabase } from '@/integrations/supabase/client';
+import { importLogger } from './importLogger';
+
+export interface PerformanceMetric {
+  type: 'throughput' | 'memory_usage' | 'network_latency' | 'db_performance' | 'phase_duration' | 'error_rate';
+  value: number;
+  unit: string;
+  timestamp: Date;
+  phase?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface PerformanceSnapshot {
+  importId: string;
+  throughput: number; // records/second
+  memoryUsage: number; // MB
+  networkLatency: number; // ms
+  dbPerformance: number; // ms
+  errorRate: number; // percentage
+  currentPhase: string;
+  timestamp: Date;
+}
+
+class PerformanceMetricsService {
+  private importId: string | null = null;
+  private startTime: Date | null = null;
+  private phaseStartTime: Date | null = null;
+  private currentPhase: string | null = null;
+  private recordsProcessed = 0;
+  private errors = 0;
+  private totalOperations = 0;
+
+  public startMonitoring(importId: string): void {
+    this.importId = importId;
+    this.startTime = new Date();
+    this.phaseStartTime = new Date();
+    this.recordsProcessed = 0;
+    this.errors = 0;
+    this.totalOperations = 0;
     
-    // Start memory sampling if available
-    if ('memory' in performance) {
-      this.sampleMemoryUsage();
-    }
+    importLogger.info('performance', 'Performance monitoring started', { importId });
+    
+    // Start periodic metric collection
+    this.startPeriodicCollection();
   }
 
-  setPhase(phase: string): void {
-    if (this.currentPhase && this.phaseStartTimes[this.currentPhase]) {
-      // Record duration of previous phase
-      const phaseDuration = Date.now() - this.phaseStartTimes[this.currentPhase];
-      this.metricsHistory.push({
-        importId: this.currentImportId,
+  public stopMonitoring(): void {
+    if (this.importId && this.startTime) {
+      const totalDuration = Date.now() - this.startTime.getTime();
+      this.recordMetric({
+        type: 'phase_duration',
+        value: totalDuration,
+        unit: 'ms',
+        timestamp: new Date(),
+        phase: 'total_import',
+        metadata: {
+          totalRecords: this.recordsProcessed,
+          totalErrors: this.errors,
+          avgThroughput: this.recordsProcessed / (totalDuration / 1000)
+        }
+      });
+    }
+    
+    this.importId = null;
+    this.startTime = null;
+    this.phaseStartTime = null;
+    this.currentPhase = null;
+    
+    importLogger.info('performance', 'Performance monitoring stopped');
+  }
+
+  public setPhase(phase: string): void {
+    if (this.currentPhase && this.phaseStartTime) {
+      // Record the previous phase duration
+      const phaseDuration = Date.now() - this.phaseStartTime.getTime();
+      this.recordMetric({
+        type: 'phase_duration',
+        value: phaseDuration,
+        unit: 'ms',
+        timestamp: new Date(),
         phase: this.currentPhase,
-        duration: phaseDuration,
-        timestamp: new Date().toISOString(),
-        records: this.processedRecords
+        metadata: {
+          recordsInPhase: this.recordsProcessed
+        }
       });
     }
     
     this.currentPhase = phase;
-    this.phaseStartTimes[phase] = Date.now();
-    console.log(`Performance phase set to: ${phase}`);
+    this.phaseStartTime = new Date();
+    
+    importLogger.debug('performance', `Phase changed to: ${phase}`);
   }
 
-  recordProcessedRecords(count: number): void {
-    this.processedRecords += count;
+  public recordProcessedRecords(count: number): void {
+    this.recordsProcessed += count;
+    this.totalOperations += count;
     
-    // Only log progress at reasonable intervals to avoid console spam
-    const now = Date.now();
-    if (now - this.lastProgressUpdate > this.progressUpdateInterval) {
-      this.lastProgressUpdate = now;
+    // Calculate current throughput
+    if (this.startTime) {
+      const elapsed = (Date.now() - this.startTime.getTime()) / 1000;
+      const throughput = this.recordsProcessed / elapsed;
       
-      if (this.startTime) {
-        const elapsedSeconds = (now - this.startTime) / 1000;
-        const recordsPerSecond = this.processedRecords / elapsedSeconds;
-        console.log(`Processing rate: ${recordsPerSecond.toFixed(2)} records/sec (${this.processedRecords} total)`);
-      }
-    }
-  }
-
-  recordError(): void {
-    this.errorCount++;
-  }
-
-  recordNetworkLatency(latency: number): void {
-    this.networkLatencies.push(latency);
-    
-    // Calculate and log average latency periodically
-    if (this.networkLatencies.length % 10 === 0) {
-      const avgLatency = this.networkLatencies.reduce((sum, val) => sum + val, 0) / this.networkLatencies.length;
-      console.log(`Average network latency: ${avgLatency.toFixed(2)}ms (${this.networkLatencies.length} samples)`);
-    }
-  }
-
-  recordProcessingTime(operation: string, timeMs: number): void {
-    this.processingTimes.push(timeMs);
-    
-    // Log slow operations
-    if (timeMs > 1000) {
-      console.warn(`Slow operation detected: ${operation} took ${timeMs}ms`);
-    }
-  }
-
-  private sampleMemoryUsage(): void {
-    if (!('memory' in performance)) return;
-    
-    const memoryInterval = setInterval(() => {
-      if (!this.startTime) {
-        clearInterval(memoryInterval);
-        return;
-      }
-      
-      const memory = (performance as any).memory;
-      const usagePercent = (memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100;
-      this.memoryUsageSamples.push(usagePercent);
-      
-      // Log high memory usage
-      if (usagePercent > 80) {
-        console.warn(`High memory usage: ${usagePercent.toFixed(1)}%`);
-      }
-    }, 30000); // Sample every 30 seconds
-  }
-
-  stopMonitoring(): void {
-    // Record final phase metrics
-    if (this.currentPhase && this.phaseStartTimes[this.currentPhase]) {
-      const phaseDuration = Date.now() - this.phaseStartTimes[this.currentPhase];
-      this.metricsHistory.push({
-        importId: this.currentImportId,
-        phase: this.currentPhase,
-        duration: phaseDuration,
-        timestamp: new Date().toISOString(),
-        records: this.processedRecords,
-        final: true
+      this.recordMetric({
+        type: 'throughput',
+        value: throughput,
+        unit: 'records/second',
+        timestamp: new Date(),
+        phase: this.currentPhase || 'unknown'
       });
     }
+  }
+
+  public recordError(): void {
+    this.errors++;
+    this.totalOperations++;
     
-    // Log final performance summary
-    if (this.startTime) {
-      const totalDuration = Date.now() - this.startTime;
-      const recordsPerSecond = this.processedRecords / (totalDuration / 1000);
-      
-      console.log('Performance monitoring stopped');
-      console.log(`Total duration: ${(totalDuration / 1000).toFixed(2)} seconds`);
-      console.log(`Total records processed: ${this.processedRecords}`);
-      console.log(`Processing rate: ${recordsPerSecond.toFixed(2)} records/second`);
-      console.log(`Error rate: ${(this.errorCount / Math.max(1, this.processedRecords) * 100).toFixed(2)}%`);
-      
-      if (this.memoryUsageSamples.length > 0) {
-        const avgMemory = this.memoryUsageSamples.reduce((sum, val) => sum + val, 0) / this.memoryUsageSamples.length;
-        console.log(`Average memory usage: ${avgMemory.toFixed(1)}%`);
-      }
+    // Calculate error rate
+    const errorRate = (this.errors / this.totalOperations) * 100;
+    this.recordMetric({
+      type: 'error_rate',
+      value: errorRate,
+      unit: 'percentage',
+      timestamp: new Date(),
+      phase: this.currentPhase || 'unknown'
+    });
+  }
+
+  public recordNetworkLatency(latency: number): void {
+    this.recordMetric({
+      type: 'network_latency',
+      value: latency,
+      unit: 'ms',
+      timestamp: new Date(),
+      phase: this.currentPhase || 'unknown'
+    });
+  }
+
+  public recordDatabasePerformance(duration: number): void {
+    this.recordMetric({
+      type: 'db_performance',
+      value: duration,
+      unit: 'ms',
+      timestamp: new Date(),
+      phase: this.currentPhase || 'unknown'
+    });
+  }
+
+  private async recordMetric(metric: PerformanceMetric): Promise<void> {
+    if (!this.importId) return;
+
+    try {
+      await supabase
+        .from('import_performance_metrics')
+        .insert({
+          import_id: this.importId,
+          metric_type: metric.type,
+          metric_value: metric.value,
+          metric_data: {
+            unit: metric.unit,
+            metadata: metric.metadata || {}
+          },
+          phase: metric.phase,
+          timestamp: metric.timestamp.toISOString()
+        });
+    } catch (error) {
+      importLogger.error('performance', 'Failed to record metric', { error, metric });
     }
-    
-    this.currentImportId = null;
-    this.startTime = null;
-    this.currentPhase = null;
   }
 
-  async getMetricsForImport(importId: string): Promise<any> {
-    // Filter metrics history for this import
-    const importMetrics = this.metricsHistory.filter(m => m.importId === importId);
-    
-    // Calculate overall metrics
-    const totalDuration = this.startTime ? Date.now() - this.startTime : 
-      importMetrics.length > 0 ? 
-        Math.max(...importMetrics.map(m => m.duration)) : 0;
-    
-    const phaseBreakdown = importMetrics.reduce((acc, metric) => {
-      if (!acc[metric.phase]) {
-        acc[metric.phase] = { duration: 0, records: 0 };
+  private startPeriodicCollection(): void {
+    if (!this.importId) return;
+
+    const collectMetrics = () => {
+      if (!this.importId) return;
+
+      // Collect memory usage
+      if ('memory' in performance) {
+        const memory = (performance as any).memory;
+        const memoryUsageMB = memory.usedJSHeapSize / 1024 / 1024;
+        
+        this.recordMetric({
+          type: 'memory_usage',
+          value: memoryUsageMB,
+          unit: 'MB',
+          timestamp: new Date(),
+          phase: this.currentPhase || 'unknown',
+          metadata: {
+            totalHeapSize: memory.totalJSHeapSize / 1024 / 1024,
+            heapLimit: memory.jsHeapSizeLimit / 1024 / 1024
+          }
+        });
       }
-      acc[metric.phase].duration += metric.duration;
-      acc[metric.phase].records = Math.max(acc[metric.phase].records, metric.records);
-      return acc;
-    }, {});
-    
+
+      // Schedule next collection
+      setTimeout(collectMetrics, 10000); // Every 10 seconds
+    };
+
+    // Start collecting
+    setTimeout(collectMetrics, 1000);
+  }
+
+  public async getMetricsForImport(importId: string): Promise<PerformanceMetric[]> {
+    try {
+      const { data, error } = await supabase
+        .from('import_performance_metrics')
+        .select('*')
+        .eq('import_id', importId)
+        .order('timestamp', { ascending: true });
+
+      if (error) throw error;
+
+      return data.map(row => ({
+        type: row.metric_type as any,
+        value: Number(row.metric_value),
+        unit: (row.metric_data as any)?.unit || '',
+        timestamp: new Date(row.timestamp),
+        phase: row.phase || undefined,
+        metadata: (row.metric_data as any)?.metadata || {}
+      }));
+    } catch (error) {
+      importLogger.error('performance', 'Failed to fetch metrics', { error, importId });
+      return [];
+    }
+  }
+
+  public getCurrentSnapshot(): PerformanceSnapshot | null {
+    if (!this.importId || !this.startTime) return null;
+
+    const elapsed = (Date.now() - this.startTime.getTime()) / 1000;
+    const throughput = this.recordsProcessed / elapsed;
+    const errorRate = this.totalOperations > 0 ? (this.errors / this.totalOperations) * 100 : 0;
+
+    // Get current memory usage
+    let memoryUsage = 0;
+    if ('memory' in performance) {
+      const memory = (performance as any).memory;
+      memoryUsage = memory.usedJSHeapSize / 1024 / 1024;
+    }
+
     return {
-      importId,
-      totalDuration,
-      processedRecords: this.processedRecords,
-      errorCount: this.errorCount,
-      averageRecordsPerSecond: totalDuration > 0 ? 
-        this.processedRecords / (totalDuration / 1000) : 0,
-      networkLatency: this.networkLatencies.length > 0 ? {
-        average: this.networkLatencies.reduce((sum, val) => sum + val, 0) / this.networkLatencies.length,
-        min: Math.min(...this.networkLatencies),
-        max: Math.max(...this.networkLatencies)
-      } : null,
-      memoryUsage: this.memoryUsageSamples.length > 0 ? {
-        average: this.memoryUsageSamples.reduce((sum, val) => sum + val, 0) / this.memoryUsageSamples.length,
-        peak: Math.max(...this.memoryUsageSamples)
-      } : null,
-      phaseBreakdown
+      importId: this.importId,
+      throughput,
+      memoryUsage,
+      networkLatency: 0, // Would be calculated from recent measurements
+      dbPerformance: 0, // Would be calculated from recent measurements
+      errorRate,
+      currentPhase: this.currentPhase || 'unknown',
+      timestamp: new Date()
     };
   }
 
-  async getHistoricalMetrics(days: number): Promise<any> {
-    // In a real implementation, this would fetch metrics from a database
-    // For now, we'll return a placeholder with some calculated metrics
-    
-    const recentImports = [...new Set(this.metricsHistory.map(m => m.importId))].filter(Boolean);
-    
-    return {
-      period: `${days} days`,
-      totalImports: recentImports.length,
-      averageDuration: this.metricsHistory.length > 0 ? 
-        this.metricsHistory.reduce((sum, m) => sum + m.duration, 0) / this.metricsHistory.length : 0,
-      successRate: this.errorCount > 0 ? 
-        (1 - (this.errorCount / Math.max(1, this.processedRecords))) * 100 : 100,
-      recentImports: recentImports.slice(0, 5),
-      totalRecordsProcessed: this.processedRecords
-    };
-  }
+  public async getHistoricalMetrics(days: number = 7): Promise<Array<{
+    date: string;
+    avgThroughput: number;
+    avgMemoryUsage: number;
+    avgErrorRate: number;
+    totalImports: number;
+  }>> {
+    try {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
 
-  getCurrentSnapshot(): any {
-    const currentDuration = this.startTime ? Date.now() - this.startTime : 0;
-    const recordsPerSecond = currentDuration > 0 ? 
-      this.processedRecords / (currentDuration / 1000) : 0;
-    
-    return {
-      currentPhase: this.currentPhase,
-      processedRecords: this.processedRecords,
-      errorCount: this.errorCount,
-      duration: currentDuration,
-      recordsPerSecond,
-      memoryUsage: this.memoryUsageSamples.length > 0 ? 
-        this.memoryUsageSamples[this.memoryUsageSamples.length - 1] : null,
-      networkLatency: this.networkLatencies.length > 0 ?
-        this.networkLatencies.slice(-5).reduce((sum, val) => sum + val, 0) / 
-        Math.min(5, this.networkLatencies.length) : null
-    };
+      const { data, error } = await supabase
+        .from('import_performance_metrics')
+        .select('*')
+        .gte('created_at', startDate.toISOString())
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Group by date and calculate averages
+      const dailyMetrics = new Map();
+      
+      data.forEach(metric => {
+        const date = new Date(metric.created_at).toISOString().split('T')[0];
+        if (!dailyMetrics.has(date)) {
+          dailyMetrics.set(date, {
+            date,
+            throughput: [],
+            memoryUsage: [],
+            errorRate: [],
+            imports: new Set()
+          });
+        }
+        
+        const day = dailyMetrics.get(date);
+        if (metric.import_id) day.imports.add(metric.import_id);
+        
+        switch (metric.metric_type) {
+          case 'throughput':
+            day.throughput.push(Number(metric.metric_value));
+            break;
+          case 'memory_usage':
+            day.memoryUsage.push(Number(metric.metric_value));
+            break;
+          case 'error_rate':
+            day.errorRate.push(Number(metric.metric_value));
+            break;
+        }
+      });
+
+      return Array.from(dailyMetrics.values()).map(day => ({
+        date: day.date,
+        avgThroughput: day.throughput.length ? day.throughput.reduce((a, b) => a + b, 0) / day.throughput.length : 0,
+        avgMemoryUsage: day.memoryUsage.length ? day.memoryUsage.reduce((a, b) => a + b, 0) / day.memoryUsage.length : 0,
+        avgErrorRate: day.errorRate.length ? day.errorRate.reduce((a, b) => a + b, 0) / day.errorRate.length : 0,
+        totalImports: day.imports.size
+      }));
+    } catch (error) {
+      importLogger.error('performance', 'Failed to fetch historical metrics', { error });
+      return [];
+    }
   }
 }
 

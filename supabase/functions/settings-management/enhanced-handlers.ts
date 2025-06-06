@@ -198,7 +198,7 @@ function prepareVehicleData(vehicle: any, username: string) {
   return {
     device_id: vehicle.deviceid.toString(),
     device_name: vehicle.devicename || `Device ${vehicle.deviceid}`,
-    device_type: vehicle.devicetype || 'unknown', // Now properly mapped to the device_type column
+    device_type: vehicle.devicetype,
     group_id: vehicle.groupid,
     gp51_username: username, // Critical for user-vehicle association
     device_status: vehicle.devicestatus,
