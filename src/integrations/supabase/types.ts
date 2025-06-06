@@ -248,15 +248,7 @@ export type Database = {
           old_values?: Json | null
           performed_by?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "device_history_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "vehicles"
-            referencedColumns: ["device_id"]
-          },
-        ]
+        Relationships: []
       }
       device_subscriptions: {
         Row: {
@@ -828,6 +820,95 @@ export type Database = {
           {
             foreignKeyName: "gp51_sessions_envio_user_id_fkey"
             columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gp51_system_imports: {
+        Row: {
+          admin_gp51_username: string | null
+          can_rollback: boolean | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          current_phase: string | null
+          error_log: Json | null
+          failed_devices: number
+          failed_users: number
+          id: string
+          import_results: Json | null
+          import_type: string
+          job_name: string
+          phase_details: string | null
+          processed_devices: number
+          processed_users: number
+          progress_percentage: number | null
+          rollback_data: Json | null
+          status: string
+          successful_devices: number
+          successful_users: number
+          total_devices: number
+          total_users: number
+          updated_at: string
+        }
+        Insert: {
+          admin_gp51_username?: string | null
+          can_rollback?: boolean | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_phase?: string | null
+          error_log?: Json | null
+          failed_devices?: number
+          failed_users?: number
+          id?: string
+          import_results?: Json | null
+          import_type?: string
+          job_name: string
+          phase_details?: string | null
+          processed_devices?: number
+          processed_users?: number
+          progress_percentage?: number | null
+          rollback_data?: Json | null
+          status?: string
+          successful_devices?: number
+          successful_users?: number
+          total_devices?: number
+          total_users?: number
+          updated_at?: string
+        }
+        Update: {
+          admin_gp51_username?: string | null
+          can_rollback?: boolean | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_phase?: string | null
+          error_log?: Json | null
+          failed_devices?: number
+          failed_users?: number
+          id?: string
+          import_results?: Json | null
+          import_type?: string
+          job_name?: string
+          phase_details?: string | null
+          processed_devices?: number
+          processed_users?: number
+          progress_percentage?: number | null
+          rollback_data?: Json | null
+          status?: string
+          successful_devices?: number
+          successful_users?: number
+          total_devices?: number
+          total_users?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_system_imports_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "envio_users"
             referencedColumns: ["id"]
@@ -1527,6 +1608,7 @@ export type Database = {
           failed_imports: number
           id: string
           import_results: Json | null
+          import_scope: string | null
           import_type: string
           imported_usernames: Json | null
           job_name: string
@@ -1535,8 +1617,10 @@ export type Database = {
           review_status: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          rollback_available: boolean | null
           status: string
           successful_imports: number
+          total_devices_imported: number | null
           total_usernames: number
           total_vehicles_imported: number
           updated_at: string
@@ -1550,6 +1634,7 @@ export type Database = {
           failed_imports?: number
           id?: string
           import_results?: Json | null
+          import_scope?: string | null
           import_type?: string
           imported_usernames?: Json | null
           job_name: string
@@ -1558,8 +1643,10 @@ export type Database = {
           review_status?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          rollback_available?: boolean | null
           status?: string
           successful_imports?: number
+          total_devices_imported?: number | null
           total_usernames?: number
           total_vehicles_imported?: number
           updated_at?: string
@@ -1573,6 +1660,7 @@ export type Database = {
           failed_imports?: number
           id?: string
           import_results?: Json | null
+          import_scope?: string | null
           import_type?: string
           imported_usernames?: Json | null
           job_name?: string
@@ -1581,8 +1669,10 @@ export type Database = {
           review_status?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          rollback_available?: boolean | null
           status?: string
           successful_imports?: number
+          total_devices_imported?: number | null
           total_usernames?: number
           total_vehicles_imported?: number
           updated_at?: string
@@ -1620,6 +1710,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      users_backup_20250605: {
+        Row: {
+          city: string | null
+          created_at: string | null
+          email: string | null
+          gp51_user_type: number | null
+          gp51_username: string | null
+          id: string | null
+          import_source: string | null
+          is_gp51_imported: boolean | null
+          name: string | null
+          needs_password_set: boolean | null
+          otp_verified_at: string | null
+          phone_number: string | null
+          registration_status: string | null
+          registration_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string | null
+          email?: string | null
+          gp51_user_type?: number | null
+          gp51_username?: string | null
+          id?: string | null
+          import_source?: string | null
+          is_gp51_imported?: boolean | null
+          name?: string | null
+          needs_password_set?: boolean | null
+          otp_verified_at?: string | null
+          phone_number?: string | null
+          registration_status?: string | null
+          registration_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          city?: string | null
+          created_at?: string | null
+          email?: string | null
+          gp51_user_type?: number | null
+          gp51_username?: string | null
+          id?: string | null
+          import_source?: string | null
+          is_gp51_imported?: boolean | null
+          name?: string | null
+          needs_password_set?: boolean | null
+          otp_verified_at?: string | null
+          phone_number?: string | null
+          registration_status?: string | null
+          registration_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       vehicle_assignment_backup_20250605: {
         Row: {
@@ -1768,6 +1912,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      vehicles_backup_20250605: {
+        Row: {
+          created_at: string | null
+          device_id: string | null
+          device_name: string | null
+          envio_user_id: string | null
+          extraction_job_id: string | null
+          gp51_metadata: Json | null
+          gp51_username: string | null
+          id: string | null
+          import_job_type: string | null
+          is_active: boolean | null
+          last_position: Json | null
+          notes: string | null
+          session_id: string | null
+          sim_number: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_id?: string | null
+          device_name?: string | null
+          envio_user_id?: string | null
+          extraction_job_id?: string | null
+          gp51_metadata?: Json | null
+          gp51_username?: string | null
+          id?: string | null
+          import_job_type?: string | null
+          is_active?: boolean | null
+          last_position?: Json | null
+          notes?: string | null
+          session_id?: string | null
+          sim_number?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          device_id?: string | null
+          device_name?: string | null
+          envio_user_id?: string | null
+          extraction_job_id?: string | null
+          gp51_metadata?: Json | null
+          gp51_username?: string | null
+          id?: string | null
+          import_job_type?: string | null
+          is_active?: boolean | null
+          last_position?: Json | null
+          notes?: string | null
+          session_id?: string | null
+          sim_number?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {

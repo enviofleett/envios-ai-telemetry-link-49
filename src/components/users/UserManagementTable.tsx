@@ -275,6 +275,19 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
         </div>
       </div>
 
+      {/* Database Status Info */}
+      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+          <span className="text-sm text-green-700 font-medium">
+            Database cleaned and ready for fresh data
+          </span>
+        </div>
+        <p className="text-xs text-green-600 mt-1">
+          All previous data has been safely backed up and the system is ready for new imports
+        </p>
+      </div>
+
       {/* Pagination Info */}
       {pagination && (
         <div className="flex justify-between items-center text-sm text-gray-600">
@@ -336,7 +349,7 @@ const UserManagementTable: React.FC<UserManagementTableProps> = ({
               <TableRow>
                 <TableCell colSpan={10} className="text-center py-8">
                   <div className="text-gray-500">
-                    {debouncedSearch ? 'No users found matching your search' : 'No users found'}
+                    {debouncedSearch ? 'No users found matching your search' : 'No users found - Start by importing or creating new users'}
                   </div>
                 </TableCell>
               </TableRow>

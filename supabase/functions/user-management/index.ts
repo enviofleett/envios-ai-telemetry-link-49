@@ -24,6 +24,8 @@ serve(async (req) => {
     const url = new URL(req.url);
     const method = req.method;
 
+    console.log(`User Management API: ${method} ${url.pathname}`);
+
     // Get current user from auth header
     const authHeader = req.headers.get('authorization');
     const currentUserId = await getCurrentUser(supabase, authHeader);
@@ -64,7 +66,11 @@ serve(async (req) => {
     console.error('User management error:', error);
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
-      { status: error.message?.includes('required') ? 400 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: error.message?.includes('required') ? 400 : 
+               error.message?.includes('not found') ? 404 : 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });

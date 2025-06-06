@@ -135,3 +135,52 @@ export async function getUsersWithPagination(supabase: any, page: number, limit:
     }
   };
 }
+
+export async function getSystemImportJobs(supabase: any, page: number = 1, limit: number = 10) {
+  const offset = (page - 1) * limit;
+
+  const { data: jobs, error, count } = await supabase
+    .from('gp51_system_imports')
+    .select('*', { count: 'exact' })
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) {
+    console.error('Error fetching system import jobs:', error);
+    throw new Error('Failed to fetch system import jobs');
+  }
+
+  return {
+    jobs: jobs || [],
+    pagination: {
+      page,
+      limit,
+      total: count || 0,
+      totalPages: Math.ceil((count || 0) / limit)
+    }
+  };
+}
+
+export async function createSystemImportJob(supabase: any, jobData: any, currentUserId: string) {
+  if (!currentUserId) {
+    throw new Error('Authentication required');
+  }
+
+  const { data: job, error } = await supabase
+    .from('gp51_system_imports')
+    .insert({
+      ...jobData,
+      created_by: currentUserId,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating system import job:', error);
+    throw new Error(error.message);
+  }
+
+  return job;
+}
