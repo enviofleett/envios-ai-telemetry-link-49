@@ -1,16 +1,20 @@
 
-// Proper MD5 implementation using Web Crypto API
-export async function md5(input: string): Promise<string> {
+export async function createHash(input: string): Promise<string> {
   try {
-    const data = new TextEncoder().encode(input);
+    // Convert string to Uint8Array
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+    
+    // Create MD5 hash
     const hashBuffer = await crypto.subtle.digest('MD5', data);
+    
+    // Convert to hex string
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    return hashHex;
   } catch (error) {
-    // Fallback for environments where Web Crypto MD5 isn't available
-    const { createHash } = await import('https://deno.land/std@0.168.0/node/crypto.ts');
-    const hash = createHash('md5');
-    hash.update(input);
-    return hash.digest('hex');
+    console.error('Error creating hash:', error);
+    throw new Error('Failed to hash password');
   }
 }

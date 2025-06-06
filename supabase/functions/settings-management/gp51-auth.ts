@@ -1,76 +1,70 @@
 
-import { md5 } from './crypto.ts';
-import type { GP51Credentials, GP51AuthPayload, GP51LoginResult } from './types.ts';
+import { createHash } from './crypto.ts';
 
-export async function authenticateWithGP51(credentials: GP51Credentials): Promise<string> {
-  console.log('Starting GP51 credential validation for user:', credentials.username);
-
-  // MD5 encrypt the password
-  const hashedPassword = await md5(credentials.password);
-  console.log('Password hashed successfully');
-
-  // Corrected GP51 authentication payload - removed the action field from body
-  const authPayload: GP51AuthPayload = {
-    username: credentials.username,
-    password: hashedPassword,
-    from: 'WEB',
-    type: 'USER'
-  };
-
-  console.log('Attempting GP51 authentication with corrected payload...');
-
-  // Use the correct GP51 API endpoint with action parameter in URL only
-  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
-  const loginResponse = await fetch(`${GP51_API_BASE}/webapi?action=login`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'User-Agent': 'Envio-Console/1.0',
-      'Accept': 'application/json'
-    },
-    body: JSON.stringify(authPayload),
-    signal: AbortSignal.timeout(15000) // 15 second timeout
-  });
-
-  console.log('GP51 API response status:', loginResponse.status);
-
-  if (!loginResponse.ok) {
-    console.error('GP51 API returned non-OK status:', loginResponse.status, loginResponse.statusText);
-    const errorText = await loginResponse.text();
-    console.error('GP51 API error response body:', errorText);
-    
-    throw new Error(`GP51 API error: ${loginResponse.status} ${loginResponse.statusText}`);
+export async function authenticateWithGP51({ username, password }: { username: string; password: string }) {
+  console.log('Starting GP51 credential validation for user:', username);
+  
+  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL');
+  if (!GP51_API_BASE) {
+    throw new Error('GP51_API_BASE_URL environment variable is not configured');
   }
-
-  const responseText = await loginResponse.text();
-  console.log('GP51 API raw response received');
-
-  let loginResult: GP51LoginResult;
+  
   try {
-    loginResult = JSON.parse(responseText);
-    console.log('GP51 parsed response received');
-  } catch (parseError) {
-    console.error('Failed to parse GP51 response as JSON:', parseError);
-    console.error('Raw response was:', responseText.substring(0, 200));
+    // Hash the password using MD5
+    const hashedPassword = await createHash(password);
+    console.log('Password hashed successfully');
     
-    throw new Error('Invalid response format from GP51 API');
-  }
-
-  // Check for successful response - GP51 uses status: 0 for success
-  if (loginResult.status !== 0) {
-    console.error('GP51 authentication failed. Status:', loginResult.status, 'Cause:', loginResult.cause);
+    console.log('Attempting GP51 authentication with corrected payload...');
     
-    throw new Error(loginResult.cause || `GP51 authentication failed (status: ${loginResult.status})`);
-  }
+    // Construct the proper GP51 API URL
+    const apiUrl = `${GP51_API_BASE}/webapi?action=login`;
+    console.log('Using GP51 API URL:', apiUrl);
+    
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        username: username,
+        password: hashedPassword
+      })
+    });
 
-  // Extract token from successful response
-  const token = loginResult.token;
-  if (!token) {
-    console.error('GP51 login successful but no token received');
-    console.error('Full response:', JSON.stringify(loginResult, null, 2));
-    throw new Error('GP51 authentication successful but no token received');
-  }
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('GP51 API request failed:', response.status, errorText);
+      throw new Error(`GP51 API error (${response.status}): ${errorText}`);
+    }
 
-  console.log('GP51 authentication successful. Token received');
-  return token;
+    const result = await response.json();
+    console.log('GP51 authentication response received');
+
+    if (!result || typeof result !== 'object') {
+      throw new Error('Invalid response format from GP51 API');
+    }
+
+    if (result.error || !result.token) {
+      const errorMsg = result.error || 'No token received from GP51';
+      console.error('GP51 authentication failed:', errorMsg);
+      throw new Error(`GP51 authentication failed: ${errorMsg}`);
+    }
+
+    console.log('GP51 authentication successful for user:', username);
+    return result.token;
+
+  } catch (error) {
+    console.error('GP51 authentication error:', error);
+    
+    if (error instanceof TypeError && error.message.includes('Invalid URL')) {
+      throw new Error('GP51 API configuration error: Invalid base URL format');
+    }
+    
+    if (error.message.includes('fetch')) {
+      throw new Error('Network error connecting to GP51 API');
+    }
+    
+    throw error;
+  }
 }
