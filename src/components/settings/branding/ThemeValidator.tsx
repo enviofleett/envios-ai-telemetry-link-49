@@ -65,17 +65,31 @@ export const sanitizeThemeConfig = (theme: Partial<ThemeConfig>): Partial<ThemeC
 
   // Sanitize colors
   if (theme.colors) {
-    sanitized.colors = {};
+    sanitized.colors = {
+      primary: '',
+      secondary: '',
+      background: '',
+      text: '',
+      button: '',
+      border: '',
+      accent: '',
+      muted: ''
+    };
     for (const [key, value] of Object.entries(theme.colors)) {
       if (typeof value === 'string' && isValidHexColor(value)) {
-        sanitized.colors[key as keyof typeof sanitized.colors] = value;
+        (sanitized.colors as any)[key] = value;
       }
     }
   }
 
   // Sanitize typography
   if (theme.typography) {
-    sanitized.typography = {};
+    sanitized.typography = {
+      fontFamily: '',
+      baseFontSize: 16,
+      headingMultiplier: 1.25,
+      lineHeight: 1.5
+    };
     if (theme.typography.fontFamily) sanitized.typography.fontFamily = theme.typography.fontFamily;
     if (typeof theme.typography.baseFontSize === 'number' && theme.typography.baseFontSize > 10 && theme.typography.baseFontSize < 30) {
       sanitized.typography.baseFontSize = theme.typography.baseFontSize;
@@ -90,7 +104,13 @@ export const sanitizeThemeConfig = (theme: Partial<ThemeConfig>): Partial<ThemeC
 
   // Sanitize layout
   if (theme.layout) {
-    sanitized.layout = {};
+    sanitized.layout = {
+      sidebarPosition: 'left',
+      sidebarStyle: 'expanded',
+      cardRadius: 8,
+      spacingScale: 'medium',
+      containerMaxWidth: '1200px'
+    };
     const validSidebarPositions = ['left', 'right'];
     const validSidebarStyles = ['collapsed', 'expanded', 'floating'];
     const validSpacingScales = ['small', 'medium', 'large'];

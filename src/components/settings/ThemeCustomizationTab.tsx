@@ -10,8 +10,9 @@ import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { useTheme } from '@/contexts/ThemeContext';
-import { ThemeConfig, themePresets, defaultThemeConfig } from '@/types/theme';
+import { useTheme } from '@/components/settings/branding/ThemeProvider';
+import { themePresets } from '@/components/settings/branding/ThemePresets';
+import type { ThemeConfig } from '@/components/settings/branding/ThemeProvider';
 import { 
   Palette, 
   Type, 
@@ -46,7 +47,7 @@ const ThemeCustomizationTab: React.FC = () => {
     const preset = themePresets.find(p => p.id === presetId);
     if (preset) {
       const newTheme = {
-        ...preset.config,
+        ...preset,
         id: workingTheme.id,
         name: preset.name
       };
@@ -109,7 +110,7 @@ const ThemeCustomizationTab: React.FC = () => {
 
   const handleResetTheme = () => {
     resetTheme();
-    setWorkingTheme(defaultThemeConfig);
+    setWorkingTheme(currentTheme);
     toast({
       title: "Theme Reset",
       description: "Theme has been reset to default settings."
@@ -206,25 +207,23 @@ const ThemeCustomizationTab: React.FC = () => {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <h4 className="font-medium">{preset.name}</h4>
-                        {preset.isDefault && <Badge variant="outline" className="text-xs">Default</Badge>}
                       </div>
-                      <p className="text-sm text-muted-foreground">{preset.description}</p>
                       <div className="flex gap-1">
                         <div 
                           className="w-4 h-4 rounded border"
-                          style={{ backgroundColor: preset.config.colors.primary }}
+                          style={{ backgroundColor: preset.colors.primary }}
                         />
                         <div 
                           className="w-4 h-4 rounded border"
-                          style={{ backgroundColor: preset.config.colors.secondary }}
+                          style={{ backgroundColor: preset.colors.secondary }}
                         />
                         <div 
                           className="w-4 h-4 rounded border"
-                          style={{ backgroundColor: preset.config.colors.background }}
+                          style={{ backgroundColor: preset.colors.background }}
                         />
                         <div 
                           className="w-4 h-4 rounded border"
-                          style={{ backgroundColor: preset.config.colors.text }}
+                          style={{ backgroundColor: preset.colors.text }}
                         />
                       </div>
                     </div>

@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 
 export interface ThemeColors {
   primary: string;
@@ -184,23 +183,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const saveTheme = async (theme: ThemeConfig) => {
     setIsLoading(true);
     try {
-      // Save to local storage as backup
+      // Save to local storage for now (will add Supabase integration once types are updated)
       localStorage.setItem('envio-theme', JSON.stringify(theme));
       
-      // Save to Supabase for persistence across devices
-      const { error } = await supabase
-        .from('theme_settings')
-        .upsert({
-          user_id: (await supabase.auth.getUser()).data.user?.id,
-          theme_data: theme,
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) {
-        console.warn('Failed to save theme to backend:', error);
-        // Continue with local storage only
-      }
-
       applyTheme(theme);
       
       toast({
@@ -211,7 +196,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('Failed to save theme:', error);
       toast({
         title: "Save Failed",
-        description: "Failed to save theme settings. Using local storage only.",
+        description: "Failed to save theme settings.",
         variant: "destructive"
       });
     } finally {
@@ -236,22 +221,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const loadTheme = async () => {
       try {
-        // Try to load from Supabase first
-        const { data: user } = await supabase.auth.getUser();
-        if (user.user) {
-          const { data, error } = await supabase
-            .from('theme_settings')
-            .select('theme_data')
-            .eq('user_id', user.user.id)
-            .single();
-
-          if (data && !error) {
-            applyTheme(data.theme_data);
-            return;
-          }
-        }
-
-        // Fallback to local storage
+        // Load from local storage for now
         const savedTheme = localStorage.getItem('envio-theme');
         if (savedTheme) {
           const theme = JSON.parse(savedTheme);
