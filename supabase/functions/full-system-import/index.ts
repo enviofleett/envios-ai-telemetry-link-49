@@ -35,6 +35,12 @@ serve(async (req) => {
       usernames: importRequest.selectedUsernames?.length || 'all'
     });
 
+    // Validate GP51 configuration
+    const gp51BaseUrl = Deno.env.get('GP51_API_BASE_URL');
+    if (!gp51BaseUrl) {
+      throw new Error('GP51_API_BASE_URL not configured');
+    }
+
     // Create system import job
     const { data: importJob, error: jobError } = await supabase
       .from('gp51_system_imports')
@@ -63,19 +69,19 @@ serve(async (req) => {
 
     // Phase 1: Create backup
     await updatePhase(supabase, importId, 'backup', 'Creating system backup');
-    const backupResult = await supabase.rpc('create_system_backup_for_import', {
+    const { data: backupResult, error: backupError } = await supabase.rpc('create_system_backup_for_import', {
       import_id: importId
     });
 
-    if (backupResult.error) {
-      throw new Error(`Backup failed: ${backupResult.error.message}`);
+    if (backupError) {
+      throw new Error(`Backup failed: ${backupError.message}`);
     }
 
     // Update job with backup info
     await supabase
       .from('gp51_system_imports')
       .update({
-        backup_tables: backupResult.data,
+        backup_tables: backupResult,
         progress_percentage: 20
       })
       .eq('id', importId);
@@ -84,15 +90,15 @@ serve(async (req) => {
     if (importRequest.performCleanup) {
       await updatePhase(supabase, importId, 'cleanup', 'Cleaning existing data');
       
-      const cleanupResult = await supabase.rpc('perform_safe_data_cleanup', {
+      const { data: cleanupResult, error: cleanupError } = await supabase.rpc('perform_safe_data_cleanup', {
         preserve_admin_email: importRequest.preserveAdminEmail || 'chudesyl@gmail.com'
       });
 
-      if (cleanupResult.error) {
-        throw new Error(`Cleanup failed: ${cleanupResult.error.message}`);
+      if (cleanupError) {
+        throw new Error(`Cleanup failed: ${cleanupError.message}`);
       }
 
-      await logAuditEvent(supabase, importId, 'data_cleanup', cleanupResult.data);
+      await logAuditEvent(supabase, importId, 'data_cleanup', cleanupResult);
       await updateProgress(supabase, importId, 40);
     }
 
@@ -100,7 +106,20 @@ serve(async (req) => {
     if (importRequest.importType === 'users_only' || importRequest.importType === 'complete_system') {
       await updatePhase(supabase, importId, 'user_import', 'Importing GP51 users');
       
-      const userImportResult = await importUsers(supabase, importId, importRequest);
+      // Use supabase.functions.invoke instead of fetch
+      const { data: userImportResult, error: userImportError } = await supabase.functions.invoke('passwordless-gp51-import', {
+        body: {
+          jobName: `System Import Users - ${importId}`,
+          targetUsernames: importRequest.selectedUsernames || [],
+          systemImportId: importId
+        }
+      });
+
+      if (userImportError) {
+        console.error('User import failed:', userImportError);
+        throw new Error(`User import failed: ${userImportError.message}`);
+      }
+
       await updateProgress(supabase, importId, 70);
     }
 
@@ -108,7 +127,21 @@ serve(async (req) => {
     if (importRequest.importType === 'vehicles_only' || importRequest.importType === 'complete_system') {
       await updatePhase(supabase, importId, 'vehicle_import', 'Importing GP51 vehicles');
       
-      const vehicleImportResult = await importVehicles(supabase, importId, importRequest);
+      // Use supabase.functions.invoke for vehicle extraction
+      const { data: vehicleImportResult, error: vehicleImportError } = await supabase.functions.invoke('bulk-gp51-extraction', {
+        body: {
+          jobName: `System Import Vehicles - ${importId}`,
+          extractVehicles: true,
+          systemImportId: importId
+        }
+      });
+
+      if (vehicleImportError) {
+        console.error('Vehicle import failed:', vehicleImportError);
+        // Don't fail the entire import for vehicle issues, just log
+        await logAuditEvent(supabase, importId, 'vehicle_import_warning', { error: vehicleImportError.message });
+      }
+
       await updateProgress(supabase, importId, 90);
     }
 
@@ -191,40 +224,4 @@ async function logAuditEvent(supabase: any, importId: string, operationType: str
       operation_details: details,
       success: true
     });
-}
-
-async function importUsers(supabase: any, importId: string, request: SystemImportRequest) {
-  // Call the existing passwordless import function
-  const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/passwordless-gp51-import`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      jobName: `System Import Users - ${importId}`,
-      targetUsernames: request.selectedUsernames || [],
-      systemImportId: importId
-    })
-  });
-
-  return await response.json();
-}
-
-async function importVehicles(supabase: any, importId: string, request: SystemImportRequest) {
-  // Call the existing bulk extraction function for vehicles
-  const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/bulk-gp51-extraction`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      jobName: `System Import Vehicles - ${importId}`,
-      extractVehicles: true,
-      systemImportId: importId
-    })
-  });
-
-  return await response.json();
 }

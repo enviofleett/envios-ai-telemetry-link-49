@@ -1,5 +1,7 @@
 
-import { JobProcessingContext } from './enhanced-types.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getEnvironment } from './environment.ts';
+import { JobContext } from './context-initializer.ts';
 
 export interface ApprovalResult {
   success: boolean;
@@ -8,45 +10,41 @@ export interface ApprovalResult {
 }
 
 export async function handleApprovedImport(
-  approvedPreviewIds: string[],
-  context: JobProcessingContext
+  approvedPreviewIds: string[], 
+  context: JobContext
 ): Promise<ApprovalResult> {
-  console.log(`Processing approved import for ${approvedPreviewIds.length} preview records`);
+  const env = getEnvironment();
+  const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+  
+  console.log(`Processing ${approvedPreviewIds.length} approved previews`);
   
   try {
-    // Fetch approved preview records to get usernames and data
-    const { data: previewRecords, error: fetchError } = await context.supabase
+    // Fetch approved preview records
+    const { data: previews, error: previewError } = await supabase
       .from('gp51_import_previews')
-      .select('*')
+      .select('gp51_username, raw_user_data, raw_vehicle_data')
       .in('id', approvedPreviewIds)
       .eq('review_status', 'approved');
 
-    if (fetchError) {
-      console.error('Failed to fetch approved preview records:', fetchError);
-      throw new Error(`Failed to fetch preview records: ${fetchError.message}`);
+    if (previewError) {
+      throw new Error(`Failed to fetch approved previews: ${previewError.message}`);
     }
 
-    if (!previewRecords || previewRecords.length === 0) {
-      throw new Error('No approved preview records found');
+    if (!previews || previews.length === 0) {
+      throw new Error('No approved previews found');
     }
 
-    // Extract usernames from preview records
-    const targetUsernames = previewRecords.map(record => record.gp51_username);
-    console.log(`Extracted usernames from approved previews: ${targetUsernames.join(', ')}`);
-
-    // Validate that all records are actually approved
-    const unapprovedRecords = previewRecords.filter(record => record.review_status !== 'approved');
-    if (unapprovedRecords.length > 0) {
-      throw new Error(`Found unapproved records in selection: ${unapprovedRecords.map(r => r.gp51_username).join(', ')}`);
-    }
-
+    const processedUsernames = previews.map(p => p.gp51_username);
+    
+    console.log(`Extracted ${processedUsernames.length} usernames from approved previews`);
+    
     return {
       success: true,
-      processedUsernames: targetUsernames
+      processedUsernames
     };
 
   } catch (error) {
-    console.error('Error handling approved import:', error);
+    console.error('Failed to handle approved import:', error);
     return {
       success: false,
       processedUsernames: [],
