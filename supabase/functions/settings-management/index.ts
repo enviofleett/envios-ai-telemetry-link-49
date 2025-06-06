@@ -15,8 +15,10 @@ serve(async (req) => {
     const requestData: SettingsRequest = await req.json();
     const { action, username, password, apiUrl } = requestData;
     
+    console.log(`Settings management request: action=${action}, username=${username ? 'provided' : 'missing'}`);
+    
     if (action === 'save-gp51-credentials') {
-      // Use enhanced handler with vehicle import
+      // Use enhanced handler with vehicle import by default
       return await handleSaveCredentialsWithVehicleImport({ 
         username: username!, 
         password: password!,
@@ -27,7 +29,7 @@ serve(async (req) => {
     } else if (action === 'health-check') {
       return await handleHealthCheck();
     } else if (action === 'save-gp51-credentials-basic') {
-      // Fallback to basic save without vehicle import
+      // Fallback to basic save without enhanced vehicle import
       return await handleSaveCredentials({ 
         username: username!, 
         password: password!,

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { enhancedPollingService } from './enhancedPollingService';
 import { vehiclePositionSyncService } from './vehiclePosition/vehiclePositionSyncService';
@@ -42,7 +41,7 @@ export class SystemHealthMonitor {
   }
 
   private initializeMonitoring(): void {
-    console.log('Initializing system health monitoring...');
+    console.log('Initializing enhanced system health monitoring...');
     this.startMonitoring();
   }
 
@@ -51,7 +50,7 @@ export class SystemHealthMonitor {
       clearInterval(this.monitoringInterval);
     }
 
-    // Monitor every 30 seconds
+    // Monitor every 30 seconds with enhanced checks
     this.monitoringInterval = setInterval(() => {
       this.performHealthChecks();
     }, 30000);
@@ -71,11 +70,11 @@ export class SystemHealthMonitor {
     const startTime = Date.now();
 
     try {
-      // Check GP51 platform health (enhanced)
-      await this.checkGP51PlatformHealth();
+      // Check enhanced GP51 platform health
+      await this.checkEnhancedGP51PlatformHealth();
       
-      // Check database connectivity
-      await this.checkDatabaseHealth();
+      // Check database connectivity with enhanced metrics
+      await this.checkEnhancedDatabaseHealth();
       
       // Check sync service health
       await this.checkSyncServiceHealth();
@@ -86,33 +85,40 @@ export class SystemHealthMonitor {
       // Check polling service health
       await this.checkPollingServiceHealth();
 
-      // Check vehicle data integrity
-      await this.checkVehicleDataIntegrity();
+      // Check enhanced vehicle data integrity
+      await this.checkEnhancedVehicleDataIntegrity();
 
       const responseTime = Date.now() - startTime;
       this.updateMetric('system_response_time', responseTime, responseTime < 5000 ? 'healthy' : 'warning');
 
     } catch (error) {
-      console.error('Health check failed:', error);
+      console.error('Enhanced health check failed:', error);
       this.addAlert('error', `Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
     this.notifySubscribers();
   }
 
-  private async checkGP51PlatformHealth(): Promise<void> {
+  private async checkEnhancedGP51PlatformHealth(): Promise<void> {
     try {
       const healthResult = await gp51HealthMonitor.performHealthCheck();
       
-      // Update GP51 connection status
-      const connectionStatus = healthResult.checks.sessionValidity && healthResult.checks.gp51Connection ? 'healthy' : 'critical';
+      // Update GP51 connection status with enhanced details
+      const connectionStatus = healthResult.checks.sessionValidity && healthResult.checks.gp51Connection && healthResult.checks.apiConnectivity ? 'healthy' : 'critical';
       this.updateMetric('gp51_connection', healthResult.overall, connectionStatus, 
-        `Session: ${healthResult.checks.sessionValidity}, API: ${healthResult.checks.gp51Connection}`);
+        `Session: ${healthResult.checks.sessionValidity}, API: ${healthResult.checks.gp51Connection}, Connectivity: ${healthResult.checks.apiConnectivity}`);
 
-      // Update vehicle sync status
+      // Update vehicle sync status with position data
       const syncStatus = healthResult.checks.vehicleSync ? 'healthy' : 'warning';
       this.updateMetric('gp51_vehicle_sync', `${healthResult.metrics.activeVehicles} active`, syncStatus,
-        `${healthResult.metrics.totalVehicles} total vehicles`);
+        `${healthResult.metrics.totalVehicles} total, ${healthResult.metrics.vehiclesWithPositions} with positions`);
+
+      // Update position data quality metric
+      const positionRate = healthResult.metrics.totalVehicles > 0 ? 
+        (healthResult.metrics.vehiclesWithPositions / healthResult.metrics.totalVehicles) * 100 : 0;
+      const positionStatus = positionRate >= 80 ? 'healthy' : positionRate >= 50 ? 'warning' : 'critical';
+      this.updateMetric('vehicle_position_coverage', `${positionRate.toFixed(1)}%`, positionStatus,
+        `${healthResult.metrics.vehiclesWithPositions}/${healthResult.metrics.totalVehicles} vehicles have position data`);
 
       // Add alerts for critical issues
       if (healthResult.overall === 'critical') {
@@ -123,16 +129,48 @@ export class SystemHealthMonitor {
 
     } catch (error) {
       this.updateMetric('gp51_connection', 'Error', 'critical', error instanceof Error ? error.message : 'Unknown error');
-      this.addAlert('error', `GP51 platform health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.addAlert('error', `Enhanced GP51 platform health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  private async checkVehicleDataIntegrity(): Promise<void> {
+  private async checkEnhancedDatabaseHealth(): Promise<void> {
+    try {
+      const startTime = Date.now();
+      
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('id, gp51_username')
+        .limit(10);
+
+      const queryTime = Date.now() - startTime;
+
+      if (error) {
+        this.updateMetric('database', 'Error', 'critical', error.message);
+        this.addAlert('error', `Enhanced database health check failed: ${error.message}`);
+        return;
+      }
+
+      const status = queryTime < 1000 ? 'healthy' : queryTime < 3000 ? 'warning' : 'critical';
+      this.updateMetric('database', `${queryTime}ms`, status, `Query response time: ${queryTime}ms`);
+
+      // Check user-vehicle association health
+      const uniqueUsers = new Set(data?.map(v => v.gp51_username).filter(Boolean)).size;
+      const associationStatus = uniqueUsers > 0 ? 'healthy' : 'warning';
+      this.updateMetric('user_vehicle_associations', `${uniqueUsers} users`, associationStatus,
+        `Vehicles are associated with ${uniqueUsers} different GP51 users`);
+
+    } catch (error) {
+      this.updateMetric('database', 'Error', 'critical', error instanceof Error ? error.message : 'Unknown error');
+      this.addAlert('error', `Enhanced database unreachable: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async checkEnhancedVehicleDataIntegrity(): Promise<void> {
     try {
       const { data: vehicles, error } = await supabase
         .from('vehicles')
-        .select('id, is_active, updated_at')
-        .limit(1000);
+        .select('id, is_active, updated_at, last_position, gp51_username')
+        .limit(2000); // Increased for better sampling
 
       if (error) {
         this.updateMetric('vehicle_data_integrity', 'Error', 'critical', error.message);
@@ -141,50 +179,32 @@ export class SystemHealthMonitor {
 
       const totalVehicles = vehicles?.length || 0;
       const activeVehicles = vehicles?.filter(v => v.is_active)?.length || 0;
+      const vehiclesWithUsers = vehicles?.filter(v => v.gp51_username)?.length || 0;
+      const vehiclesWithPositions = vehicles?.filter(v => v.last_position)?.length || 0;
+      
       const recentlyUpdated = vehicles?.filter(v => {
         const lastUpdate = new Date(v.updated_at);
         const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
         return lastUpdate > oneHourAgo;
       })?.length || 0;
 
-      const integrityScore = totalVehicles > 0 ? (recentlyUpdated / totalVehicles) * 100 : 0;
-      const status = integrityScore >= 80 ? 'healthy' : integrityScore >= 50 ? 'warning' : 'critical';
+      // Calculate comprehensive integrity score
+      const userAssociationScore = totalVehicles > 0 ? (vehiclesWithUsers / totalVehicles) * 100 : 0;
+      const positionDataScore = totalVehicles > 0 ? (vehiclesWithPositions / totalVehicles) * 100 : 0;
+      const freshnessScore = totalVehicles > 0 ? (recentlyUpdated / totalVehicles) * 100 : 0;
       
-      this.updateMetric('vehicle_data_integrity', `${integrityScore.toFixed(1)}%`, status,
-        `${recentlyUpdated}/${totalVehicles} recently updated`);
+      const overallIntegrityScore = (userAssociationScore + positionDataScore + freshnessScore) / 3;
+      const status = overallIntegrityScore >= 80 ? 'healthy' : overallIntegrityScore >= 50 ? 'warning' : 'critical';
+      
+      this.updateMetric('vehicle_data_integrity', `${overallIntegrityScore.toFixed(1)}%`, status,
+        `Users: ${userAssociationScore.toFixed(1)}%, Positions: ${positionDataScore.toFixed(1)}%, Freshness: ${freshnessScore.toFixed(1)}%`);
 
-      if (integrityScore < 50 && totalVehicles > 0) {
-        this.addAlert('warning', `Low vehicle data freshness: ${integrityScore.toFixed(1)}%`);
+      if (overallIntegrityScore < 50 && totalVehicles > 0) {
+        this.addAlert('warning', `Low vehicle data integrity: ${overallIntegrityScore.toFixed(1)}%`);
       }
 
     } catch (error) {
       this.updateMetric('vehicle_data_integrity', 'Error', 'warning', error instanceof Error ? error.message : 'Unknown error');
-    }
-  }
-
-  private async checkDatabaseHealth(): Promise<void> {
-    try {
-      const startTime = Date.now();
-      
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('id')
-        .limit(1);
-
-      const queryTime = Date.now() - startTime;
-
-      if (error) {
-        this.updateMetric('database', 'Error', 'critical', error.message);
-        this.addAlert('error', `Database health check failed: ${error.message}`);
-        return;
-      }
-
-      const status = queryTime < 1000 ? 'healthy' : queryTime < 3000 ? 'warning' : 'critical';
-      this.updateMetric('database', `${queryTime}ms`, status, `Query response time: ${queryTime}ms`);
-
-    } catch (error) {
-      this.updateMetric('database', 'Error', 'critical', error instanceof Error ? error.message : 'Unknown error');
-      this.addAlert('error', `Database unreachable: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

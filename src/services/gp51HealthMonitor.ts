@@ -1,5 +1,5 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { gp51ApiService } from './gp51ApiService';
 
 interface HealthCheckResult {
   overall: 'healthy' | 'warning' | 'critical';
@@ -9,12 +9,14 @@ interface HealthCheckResult {
     vehicleSync: boolean;
     databaseAccess: boolean;
     sessionValidity: boolean;
+    apiConnectivity: boolean;
   };
   metrics: {
     totalVehicles: number;
     activeVehicles: number;
     lastSyncTime?: Date;
     sessionExpiresAt?: Date;
+    vehiclesWithPositions: number;
   };
   errors: string[];
 }
@@ -29,38 +31,43 @@ export class GP51HealthMonitor {
       gp51Connection: false,
       vehicleSync: false,
       databaseAccess: false,
-      sessionValidity: false
+      sessionValidity: false,
+      apiConnectivity: false
     };
     const metrics = {
       totalVehicles: 0,
       activeVehicles: 0,
       lastSyncTime: undefined as Date | undefined,
-      sessionExpiresAt: undefined as Date | undefined
+      sessionExpiresAt: undefined as Date | undefined,
+      vehiclesWithPositions: 0
     };
 
     try {
-      // Check GP51 session status
+      // Check GP51 session status using enhanced health check
       const { data: statusData, error: statusError } = await supabase.functions.invoke('settings-management', {
-        body: { action: 'get-gp51-status' }
+        body: { action: 'health-check' }
       });
 
       if (statusError) {
         errors.push(`Status check failed: ${statusError.message}`);
-      } else if (statusData?.connected) {
-        checks.sessionValidity = true;
-        if (statusData.expiresAt) {
-          metrics.sessionExpiresAt = new Date(statusData.expiresAt);
+      } else if (statusData?.healthy) {
+        checks.sessionValidity = statusData.details?.gp51Connected || false;
+        checks.gp51Connection = statusData.details?.authentication || false;
+        checks.apiConnectivity = statusData.details?.apiConnectivity || false;
+        
+        if (statusData.details?.expiresAt) {
+          metrics.sessionExpiresAt = new Date(statusData.details.expiresAt);
         }
       } else {
-        errors.push('GP51 session not connected');
+        errors.push(statusData?.error || 'GP51 health check failed');
       }
 
-      // Check database access and vehicle counts
+      // Check database access and vehicle metrics
       try {
         const { data: vehicles, error: vehiclesError } = await supabase
           .from('vehicles')
-          .select('id, is_active, updated_at')
-          .limit(1000);
+          .select('id, is_active, updated_at, last_position')
+          .limit(5000); // Increased limit for better metrics
 
         if (vehiclesError) {
           errors.push(`Database access failed: ${vehiclesError.message}`);
@@ -68,6 +75,9 @@ export class GP51HealthMonitor {
           checks.databaseAccess = true;
           metrics.totalVehicles = vehicles?.length || 0;
           metrics.activeVehicles = vehicles?.filter(v => v.is_active)?.length || 0;
+          
+          // Count vehicles with recent position data
+          metrics.vehiclesWithPositions = vehicles?.filter(v => v.last_position)?.length || 0;
 
           if (vehicles && vehicles.length > 0) {
             const latestUpdate = vehicles.reduce((latest, vehicle) => {
@@ -81,29 +91,14 @@ export class GP51HealthMonitor {
         errors.push(`Database error: ${dbError instanceof Error ? dbError.message : 'Unknown database error'}`);
       }
 
-      // Perform GP51 API health check if session is valid
-      if (checks.sessionValidity) {
-        try {
-          const { data: healthData, error: healthError } = await supabase.functions.invoke('settings-management', {
-            body: { action: 'health-check' }
-          });
+      // Enhanced vehicle sync check
+      checks.vehicleSync = metrics.totalVehicles > 0 && metrics.activeVehicles > 0;
 
-          if (healthError) {
-            errors.push(`GP51 health check failed: ${healthError.message}`);
-          } else if (healthData?.healthy) {
-            checks.gp51Connection = true;
-            checks.vehicleSync = metrics.totalVehicles > 0;
-          } else {
-            errors.push('GP51 health check returned unhealthy status');
-          }
-        } catch (healthError) {
-          errors.push(`GP51 health check error: ${healthError instanceof Error ? healthError.message : 'Unknown error'}`);
-        }
-      }
-
-      // Determine overall health
-      const criticalIssues = !checks.databaseAccess || !checks.sessionValidity;
-      const warningIssues = !checks.gp51Connection || !checks.vehicleSync || metrics.activeVehicles === 0;
+      // Determine overall health with enhanced criteria
+      const criticalIssues = !checks.databaseAccess || !checks.sessionValidity || !checks.apiConnectivity;
+      const warningIssues = !checks.gp51Connection || !checks.vehicleSync || 
+                           metrics.activeVehicles === 0 || 
+                           (metrics.totalVehicles > 0 && metrics.vehiclesWithPositions / metrics.totalVehicles < 0.5);
 
       const overall = criticalIssues ? 'critical' : warningIssues ? 'warning' : 'healthy';
 
@@ -177,7 +172,7 @@ export class GP51HealthMonitor {
 
   async triggerVehicleSync(): Promise<{ success: boolean; message: string }> {
     try {
-      console.log('Triggering manual vehicle sync...');
+      console.log('Triggering enhanced vehicle sync...');
       
       // Get current session
       const { data: statusData, error: statusError } = await supabase.functions.invoke('settings-management', {
@@ -188,13 +183,24 @@ export class GP51HealthMonitor {
         return { success: false, message: 'GP51 not connected. Please check your credentials.' };
       }
 
-      // The enhanced handler will automatically import vehicles
-      // We can trigger this by calling the health check which will update metrics
+      // Trigger enhanced vehicle import
+      const { data: importData, error: importError } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'save-gp51-credentials' }
+      });
+
+      if (importError) {
+        return { success: false, message: `Vehicle sync failed: ${importError.message}` };
+      }
+
+      // Update health metrics
       await this.performHealthCheck();
 
-      return { success: true, message: 'Vehicle sync completed successfully' };
+      return { 
+        success: true, 
+        message: `Vehicle sync completed successfully. Imported ${importData?.vehicleImport?.vehiclesImported || 0} vehicles.` 
+      };
     } catch (error) {
-      console.error('Manual vehicle sync failed:', error);
+      console.error('Enhanced vehicle sync failed:', error);
       return { 
         success: false, 
         message: `Sync failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
