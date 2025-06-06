@@ -122,8 +122,8 @@ class FullSystemImportService {
     return new Promise((resolve, reject) => {
       console.log('Starting import progress monitoring for:', importId);
       
-      let pollInterval: number;
-      let timeoutHandle: number;
+      let pollInterval: NodeJS.Timeout | undefined;
+      let timeoutHandle: NodeJS.Timeout | undefined;
       
       const cleanup = () => {
         if (pollInterval) clearInterval(pollInterval);
