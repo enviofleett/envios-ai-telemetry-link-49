@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { useOptimizedUserData } from '@/hooks/useOptimizedUserData';
 import UserStatsCards from './UserStatsCards';
-import SimpleUserManagementTable from './SimpleUserManagementTable';
+import ModernUserManagementTable from './ModernUserManagementTable';
 import UserDetailsModal from './UserDetailsModal';
 import CreateUserDialog from './CreateUserDialog';
 
@@ -83,15 +83,13 @@ const SimpleUserManagement: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="animate-pulse">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-[120px] bg-gray-very-light rounded-lg"></div>
-            ))}
-          </div>
-          <div className="h-96 bg-gray-very-light rounded-lg"></div>
+      <div className="space-y-6 animate-pulse">
+        <div className="mobile-grid">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="skeleton-modern h-32"></div>
+          ))}
         </div>
+        <div className="skeleton-modern h-96"></div>
       </div>
     );
   }
@@ -106,8 +104,8 @@ const SimpleUserManagement: React.FC = () => {
         userDistribution={userDistribution}
       />
 
-      {/* User Management Table */}
-      <SimpleUserManagementTable
+      {/* Modern User Management Table */}
+      <ModernUserManagementTable
         users={users}
         onAddUser={handleAddUser}
         onUserClick={handleUserClick}
