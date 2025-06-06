@@ -13,8 +13,16 @@ export interface ImportMetrics {
   errorRate: number;
   throughputUsersPerMinute: number;
   throughputVehiclesPerMinute: number;
-  memoryUsage?: number;
   apiCallCount: number;
   retryCount: number;
   rollbackCount: number;
+}
+
+export interface ProcessingPhase {
+  name: string;
+  startTime: number;
+  endTime?: number;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  details?: string;
+  progress: number;
 }

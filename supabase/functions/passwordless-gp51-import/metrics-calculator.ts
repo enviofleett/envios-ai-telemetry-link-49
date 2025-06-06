@@ -1,51 +1,57 @@
 
-export class MetricsCalculator {
-  static calculateAverages(metrics: any, lastProcessingTime: number) {
-    // Calculate averages
-    if (metrics.successfulUsers > 0) {
-      metrics.averageVehiclesPerUser = metrics.totalVehicles / metrics.successfulUsers;
-    }
-    
-    // Update average processing time (rolling average)
-    if (metrics.processedUsers > 0) {
-      const currentAverage = metrics.averageProcessingTimePerUser || 0;
-      metrics.averageProcessingTimePerUser = 
-        (currentAverage * (metrics.processedUsers - 1) + lastProcessingTime) / metrics.processedUsers;
-    }
-    
-    return metrics;
-  }
+import { ImportMetrics } from './import-metrics-types.ts';
 
-  static calculateRates(metrics: any, startTime: number) {
-    const currentTime = Date.now();
-    const elapsedMinutes = (currentTime - startTime) / (1000 * 60);
+export class MetricsCalculator {
+  static calculateAverages(metrics: ImportMetrics, lastProcessingTime: number): ImportMetrics {
+    const updatedMetrics = { ...metrics };
+    
+    // Calculate average vehicles per user
+    if (updatedMetrics.successfulUsers > 0) {
+      updatedMetrics.averageVehiclesPerUser = updatedMetrics.totalVehicles / updatedMetrics.successfulUsers;
+    }
+    
+    // Calculate average processing time per user
+    if (updatedMetrics.processedUsers > 0) {
+      const totalTime = Date.now() - updatedMetrics.startTime;
+      updatedMetrics.averageProcessingTimePerUser = totalTime / updatedMetrics.processedUsers;
+    }
     
     // Calculate error rate
-    metrics.errorRate = metrics.processedUsers > 0 
-      ? metrics.failedUsers / metrics.processedUsers 
-      : 0;
-    
-    // Calculate throughput
-    if (elapsedMinutes > 0) {
-      metrics.throughputUsersPerMinute = metrics.processedUsers / elapsedMinutes;
-      metrics.throughputVehiclesPerMinute = metrics.totalVehicles / elapsedMinutes;
+    if (updatedMetrics.processedUsers > 0) {
+      updatedMetrics.errorRate = updatedMetrics.failedUsers / updatedMetrics.processedUsers;
     }
     
-    return metrics;
+    return updatedMetrics;
   }
-
-  static logFinalMetrics(metrics: any) {
+  
+  static calculateRates(metrics: ImportMetrics, startTime: number): ImportMetrics {
+    const updatedMetrics = { ...metrics };
+    const elapsedMinutes = (Date.now() - startTime) / (1000 * 60);
+    
+    if (elapsedMinutes > 0) {
+      updatedMetrics.throughputUsersPerMinute = updatedMetrics.processedUsers / elapsedMinutes;
+      updatedMetrics.throughputVehiclesPerMinute = updatedMetrics.totalVehicles / elapsedMinutes;
+    }
+    
+    return updatedMetrics;
+  }
+  
+  static logFinalMetrics(metrics: ImportMetrics) {
+    const duration = metrics.endTime ? (metrics.endTime - metrics.startTime) / 1000 : 0;
+    
     console.log('=== FINAL IMPORT METRICS ===');
     console.log(`Job ID: ${metrics.jobId}`);
-    
-    if (metrics.endTime) {
-      console.log(`Duration: ${((metrics.endTime - metrics.startTime) / 1000).toFixed(2)} seconds`);
-    }
-    
-    console.log(`Users: ${metrics.successfulUsers}/${metrics.totalUsers} successful (${(metrics.errorRate * 100).toFixed(1)}% error rate)`);
-    console.log(`Vehicles: ${metrics.totalVehicles} (avg ${metrics.averageVehiclesPerUser.toFixed(1)} per user)`);
-    console.log(`Throughput: ${metrics.throughputUsersPerMinute.toFixed(2)} users/min, ${metrics.throughputVehiclesPerMinute.toFixed(2)} vehicles/min`);
-    console.log(`API Calls: ${metrics.apiCallCount}, Retries: ${metrics.retryCount}, Rollbacks: ${metrics.rollbackCount}`);
-    console.log('========================');
+    console.log(`Total Duration: ${duration.toFixed(2)} seconds`);
+    console.log(`Total Users: ${metrics.totalUsers}`);
+    console.log(`Successful: ${metrics.successfulUsers}`);
+    console.log(`Failed: ${metrics.failedUsers}`);
+    console.log(`Success Rate: ${((metrics.successfulUsers / metrics.totalUsers) * 100).toFixed(2)}%`);
+    console.log(`Total Vehicles: ${metrics.totalVehicles}`);
+    console.log(`Avg Vehicles/User: ${metrics.averageVehiclesPerUser.toFixed(2)}`);
+    console.log(`Processing Speed: ${metrics.throughputUsersPerMinute.toFixed(2)} users/min`);
+    console.log(`API Calls: ${metrics.apiCallCount}`);
+    console.log(`Retries: ${metrics.retryCount}`);
+    console.log(`Rollbacks: ${metrics.rollbackCount}`);
+    console.log('=== END METRICS ===');
   }
 }
