@@ -65,10 +65,10 @@ export function AppSidebar() {
       description: "Real-time vehicle tracking"
     },
     {
-      title: "User Management",
+      title: "Management",
       url: "/users",
       icon: Users,
-      description: "Manage system users"
+      description: "User and system management"
     },
     {
       title: "System Import",
