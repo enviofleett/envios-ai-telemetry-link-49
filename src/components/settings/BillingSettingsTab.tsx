@@ -109,7 +109,11 @@ const BillingSettingsTab: React.FC = () => {
             <Label htmlFor="next-billing">Next Billing Date</Label>
             <Input
               id="next-billing"
-              value={settings?.next_billing_date ? new Date(settings.next_billing_date).toLocaleDateString() : 'Not set'}
+              value={
+                settings && 'next_billing_date' in settings && settings.next_billing_date
+                  ? new Date(settings.next_billing_date).toLocaleDateString()
+                  : 'Not set'
+              }
               readOnly
               className="bg-muted"
             />
@@ -118,7 +122,10 @@ const BillingSettingsTab: React.FC = () => {
             <Label htmlFor="billing-amount">Amount</Label>
             <Input
               id="billing-amount"
-              value={formatCurrency(settings?.billing_amount || 0, formData.currency)}
+              value={formatCurrency(
+                settings && 'billing_amount' in settings ? settings.billing_amount || 0 : 0,
+                formData.currency
+              )}
               readOnly
               className="bg-muted"
             />
