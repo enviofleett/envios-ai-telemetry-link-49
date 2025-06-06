@@ -11,7 +11,7 @@ import BillingSettingsTab from "@/components/settings/BillingSettingsTab";
 import NotificationsSettingsTab from "@/components/settings/NotificationsSettingsTab";
 import GP51ApiSettingsTab from "@/components/settings/GP51ApiSettingsTab";
 import EnhancedSMTPSettingsTab from "@/components/settings/EnhancedSMTPSettingsTab";
-import BrandingCustomizationTab from "@/components/settings/BrandingCustomizationTab";
+import ThemeCustomizationTab from "@/components/settings/ThemeCustomizationTab";
 import AdminSettings from "@/components/AdminSettings";
 
 const Settings = () => {
@@ -78,9 +78,9 @@ const Settings = () => {
             <Mail className="h-4 w-4" />
             Email
           </TabsTrigger>
-          <TabsTrigger value="branding" className="flex items-center gap-2">
+          <TabsTrigger value="theme" className="flex items-center gap-2">
             <Palette className="h-4 w-4" />
-            Branding
+            Theme
           </TabsTrigger>
         </TabsList>
 
@@ -108,8 +108,8 @@ const Settings = () => {
           <EnhancedSMTPSettingsTab />
         </TabsContent>
 
-        <TabsContent value="branding">
-          <BrandingCustomizationTab />
+        <TabsContent value="theme">
+          <ThemeCustomizationTab />
         </TabsContent>
       </Tabs>
 

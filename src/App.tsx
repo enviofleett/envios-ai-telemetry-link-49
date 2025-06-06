@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -15,31 +14,35 @@ import Settings from "./pages/Settings";
 import SystemImport from "./pages/SystemImport";
 import PublicRegistration from "./pages/PublicRegistration";
 import SetPassword from "./pages/SetPassword";
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { QueryDevtools } from '@tanstack/react-query-devtools';
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <AuthProvider>
-        <Toaster />
-        <Sonner />
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
         <BrowserRouter>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/public-registration" element={<PublicRegistration />} />
-            <Route path="/set-password" element={<SetPassword />} />
-            <Route path="/" element={<Layout><Index /></Layout>} />
-            <Route path="/users" element={<Layout><UserManagement /></Layout>} />
-            <Route path="/tracking" element={<Layout><LiveTracking /></Layout>} />
-            <Route path="/settings" element={<Layout><Settings /></Layout>} />
-            <Route path="/system-import" element={<Layout><SystemImport /></Layout>} />
-          </Routes>
+          <AuthProvider>
+            <Toaster />
+            <QueryDevtools initialIsOpen={false} />
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/public-registration" element={<PublicRegistration />} />
+              <Route path="/set-password" element={<SetPassword />} />
+              <Route path="/" element={<Layout><Index /></Layout>} />
+              <Route path="/users" element={<Layout><UserManagement /></Layout>} />
+              <Route path="/tracking" element={<Layout><LiveTracking /></Layout>} />
+              <Route path="/settings" element={<Layout><Settings /></Layout>} />
+              <Route path="/system-import" element={<Layout><SystemImport /></Layout>} />
+            </Routes>
+          </AuthProvider>
         </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+}
 
 export default App;
