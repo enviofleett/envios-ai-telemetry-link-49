@@ -1,7 +1,7 @@
 
 interface LogEntry {
   timestamp: string;
-  level: 'info' | 'warn' | 'error' | 'critical';
+  level: 'info' | 'warn' | 'error' | 'critical' | 'debug';
   phase?: string;
   type: string;
   message: string;
@@ -38,6 +38,10 @@ export class ImportLogger {
 
   critical(type: string, message: string, data?: any): void {
     this.addLog('critical', type, message, data);
+  }
+
+  debug(type: string, message: string, data?: any): void {
+    this.addLog('debug', type, message, data);
   }
 
   private addLog(level: LogEntry['level'], type: string, message: string, data?: any): void {

@@ -40,6 +40,16 @@ export class EnhancedProgressMonitor {
           // Check if completed
           if (importJob.status === 'completed') {
             console.log('Import completed successfully');
+            
+            // Safely handle backup_tables JSON type
+            let backupTables: string[] = [];
+            if (importJob.backup_tables && typeof importJob.backup_tables === 'object') {
+              const backupData = importJob.backup_tables as any;
+              if (backupData.backup_tables && Array.isArray(backupData.backup_tables)) {
+                backupTables = backupData.backup_tables.filter((item: any) => typeof item === 'string');
+              }
+            }
+            
             resolve({
               importId,
               success: true,
@@ -48,14 +58,22 @@ export class EnhancedProgressMonitor {
               totalVehicles: importJob.total_devices || 0,
               successfulVehicles: importJob.successful_devices || 0,
               conflicts: (importJob.failed_users || 0) + (importJob.failed_devices || 0),
-              backupTables: Array.isArray(importJob.backup_tables) ? importJob.backup_tables : []
+              backupTables
             });
             return;
           }
 
           // Check if failed
           if (importJob.status === 'failed') {
-            const errorMessage = importJob.error_log?.error || 'Import failed for unknown reason';
+            // Safely handle error_log JSON type
+            let errorMessage = 'Import failed for unknown reason';
+            if (importJob.error_log && typeof importJob.error_log === 'object') {
+              const errorData = importJob.error_log as any;
+              if (errorData.error && typeof errorData.error === 'string') {
+                errorMessage = errorData.error;
+              }
+            }
+            
             console.error('Import failed:', errorMessage);
             reject(new Error(errorMessage));
             return;

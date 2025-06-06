@@ -146,28 +146,30 @@ export class GP51ApiService {
 
     for (const vehicle of vehicles) {
       try {
-        // Prepare vehicle data for storage
+        // Prepare vehicle data for storage - convert device_type to string
         const vehicleData = {
           device_id: vehicle.deviceid.toString(),
           device_name: vehicle.devicename || `Device ${vehicle.deviceid}`,
-          device_type: vehicle.devicetype,
-          group_id: vehicle.groupid,
+          device_type: vehicle.devicetype.toString(), // Convert number to string
           gp51_username: this.username,
-          device_status: vehicle.devicestatus,
-          overdue_time: vehicle.overduetime,
-          timezone: vehicle.timezone,
-          icon_type: vehicle.icontype,
-          offline_delay: vehicle.offline_delay,
-          last_update: vehicle.lastupdate,
-          latitude: vehicle.lat,
-          longitude: vehicle.lng,
-          speed: vehicle.speed,
-          course: vehicle.course,
-          acc_status: vehicle.acc,
-          oil_level: vehicle.oil,
-          temperature: vehicle.temperature,
-          gsm_signal: vehicle.gsm,
-          gps_signal: vehicle.gps,
+          gp51_metadata: {
+            group_id: vehicle.groupid,
+            device_status: vehicle.devicestatus,
+            overdue_time: vehicle.overduetime,
+            timezone: vehicle.timezone,
+            icon_type: vehicle.icontype,
+            offline_delay: vehicle.offline_delay,
+            last_update: vehicle.lastupdate,
+            latitude: vehicle.lat,
+            longitude: vehicle.lng,
+            speed: vehicle.speed,
+            course: vehicle.course,
+            acc_status: vehicle.acc,
+            oil_level: vehicle.oil,
+            temperature: vehicle.temperature,
+            gsm_signal: vehicle.gsm,
+            gps_signal: vehicle.gps
+          },
           is_active: true, // Mark as active during import
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
