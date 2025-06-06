@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,19 @@ import { useAdvancedReports } from '@/hooks/useAdvancedReports';
 import { realtimeReportsService } from '@/services/reports/realtimeReportsService';
 import AdvancedReportFilters from './AdvancedReportFilters';
 import AdvancedReportTable from './AdvancedReportTable';
+import TripReportCharts from './charts/TripReportCharts';
+import GeofenceReportCharts from './charts/GeofenceReportCharts';
+import MaintenanceReportCharts from './charts/MaintenanceReportCharts';
+import AlertReportCharts from './charts/AlertReportCharts';
+import MileageReportCharts from './charts/MileageReportCharts';
 import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { 
+  TripReportData, 
+  GeofenceReportData, 
+  MaintenanceReportData, 
+  AlertReportData, 
+  MileageReportData 
+} from '@/hooks/useAdvancedReports';
 
 interface AdvancedReportsHubProps {
   vehicles: Vehicle[];
@@ -136,6 +149,49 @@ const AdvancedReportsHub: React.FC<AdvancedReportsHubProps> = ({ vehicles }) => 
     );
   };
 
+  const renderChartComponent = () => {
+    switch (activeTab) {
+      case 'trip':
+      case 'activity':
+        return (
+          <TripReportCharts
+            data={reportData as TripReportData[]}
+            isLoading={isLoading}
+          />
+        );
+      case 'geofence':
+        return (
+          <GeofenceReportCharts
+            data={reportData as GeofenceReportData[]}
+            isLoading={isLoading}
+          />
+        );
+      case 'maintenance':
+        return (
+          <MaintenanceReportCharts
+            data={reportData as MaintenanceReportData[]}
+            isLoading={isLoading}
+          />
+        );
+      case 'alerts':
+        return (
+          <AlertReportCharts
+            data={reportData as AlertReportData[]}
+            isLoading={isLoading}
+          />
+        );
+      case 'mileage':
+        return (
+          <MileageReportCharts
+            data={reportData as MileageReportData[]}
+            isLoading={isLoading}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <Card className="bg-white border border-gray-lighter shadow-sm">
       <CardHeader className="p-6 border-b border-gray-lighter">
@@ -186,6 +242,9 @@ const AdvancedReportsHub: React.FC<AdvancedReportsHubProps> = ({ vehicles }) => 
             onGenerate={handleGenerateReport}
             isLoading={isLoading}
           />
+
+          {/* Interactive Charts */}
+          {renderChartComponent()}
 
           {/* Report Content */}
           <TabsContent value="trip">
