@@ -22,16 +22,15 @@ export async function authenticateWithGP51({
     throw new Error('GP51 API URL is required. Please provide an API URL or configure GP51_API_BASE_URL in Supabase secrets.');
   }
 
-  // If no custom API URL is provided, try the legacy URL first as fallback
+  // URLs to try in order of preference
   const urlsToTry = [];
   
   if (apiUrl?.trim()) {
     // User provided a custom URL, try it first
     urlsToTry.push(apiUrl.trim());
   } else {
-    // Try both new and legacy URLs
-    urlsToTry.push('https://www.gps51.com/webapi'); // Legacy URL first
-    urlsToTry.push('https://api.gps51.com'); // New URL as fallback
+    // Try legacy URL first as it's more reliable
+    urlsToTry.push('https://www.gps51.com');
     if (GP51_API_BASE && !urlsToTry.includes(GP51_API_BASE)) {
       urlsToTry.push(GP51_API_BASE);
     }
@@ -40,30 +39,9 @@ export async function authenticateWithGP51({
   console.log('Will try GP51 API URLs in order:', urlsToTry);
   
   try {
-    // Hash the password
+    // Hash the password using MD5
     const hashedPassword = await createHash(password);
     console.log('Password hashed successfully for user:', trimmedUsername);
-    
-    // Try different authentication payload formats that GP51 might expect
-    const authenticationAttempts = [
-      // Attempt 1: Login action (most common)
-      {
-        action: 'login',
-        username: trimmedUsername,
-        password: hashedPassword
-      },
-      // Attempt 2: User login action
-      {
-        action: 'user_login',
-        username: trimmedUsername,
-        password: hashedPassword
-      },
-      // Attempt 3: Simple credentials without action
-      {
-        username: trimmedUsername,
-        password: hashedPassword
-      }
-    ];
     
     let lastError: Error | null = null;
     
@@ -80,7 +58,7 @@ export async function authenticateWithGP51({
         cleanUrl = 'https://' + cleanUrl;
       }
       
-      // Remove trailing /webapi if present (we'll add it back if needed)
+      // Remove trailing /webapi if present (we'll add it back)
       cleanUrl = cleanUrl.replace(/\/webapi\/?$/, '');
       
       // Validate URL format
@@ -96,104 +74,101 @@ export async function authenticateWithGP51({
         continue; // Try next URL
       }
       
-      // Construct the final API URL
-      let finalApiUrl: string;
-      if (cleanUrl.includes('api.gps51.com')) {
-        // New API format - no /webapi needed
-        finalApiUrl = cleanUrl;
-      } else {
-        // Legacy API format - add /webapi
-        finalApiUrl = `${cleanUrl}/webapi`;
-      }
+      // Construct the final API URL with correct format
+      const finalApiUrl = `${cleanUrl}/webapi?action=login&token=`;
       
       console.log(`Using final GP51 API URL: ${finalApiUrl}`);
       
-      // Try each authentication method for this URL
-      for (let i = 0; i < authenticationAttempts.length; i++) {
-        const loginPayload = authenticationAttempts[i];
-        console.log(`URL ${urlIndex + 1}, Auth attempt ${i + 1}:`, { ...loginPayload, password: '[REDACTED]' });
-        
-        try {
-          const response = await fetch(finalApiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'User-Agent': 'Fleet-Management-System/1.0'
-            },
-            body: JSON.stringify(loginPayload)
-          });
+      // Prepare authentication payload
+      const authData = {
+        action: 'login',
+        username: trimmedUsername,
+        password: hashedPassword
+      };
+      
+      console.log(`Auth attempt for user: ${trimmedUsername}`);
+      
+      try {
+        const response = await fetch(finalApiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'User-Agent': 'Fleet-Management-System/1.0'
+          },
+          body: JSON.stringify(authData)
+        });
 
-          console.log(`URL ${urlIndex + 1}, Attempt ${i + 1} - GP51 API response status:`, response.status);
+        console.log(`GP51 API response status: ${response.status}`);
 
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`URL ${urlIndex + 1}, Attempt ${i + 1} - GP51 API request failed:`, response.status, errorText);
-            lastError = new Error(`GP51 API error (${response.status}): ${errorText || 'Unknown error'}`);
-            continue; // Try next attempt
-          }
-
-          // Get response text first to check if it's empty
-          const responseText = await response.text();
-          console.log(`URL ${urlIndex + 1}, Attempt ${i + 1} - GP51 API response body length:`, responseText.length);
-          
-          if (!responseText || responseText.trim().length === 0) {
-            console.error(`URL ${urlIndex + 1}, Attempt ${i + 1} - Empty response from GP51 API`);
-            lastError = new Error('GP51 API returned an empty response');
-            continue; // Try next attempt
-          }
-
-          // Try to parse JSON
-          let result;
-          try {
-            result = JSON.parse(responseText);
-            console.log(`URL ${urlIndex + 1}, Attempt ${i + 1} - GP51 authentication response parsed successfully`);
-          } catch (parseError) {
-            console.error(`URL ${urlIndex + 1}, Attempt ${i + 1} - Failed to parse GP51 response as JSON:`, parseError);
-            lastError = new Error('GP51 API returned invalid JSON response');
-            continue; // Try next attempt
-          }
-
-          if (!result || typeof result !== 'object') {
-            console.error(`URL ${urlIndex + 1}, Attempt ${i + 1} - Invalid response format from GP51 API:`, result);
-            lastError = new Error('Invalid response format from GP51 API');
-            continue; // Try next attempt
-          }
-
-          // Check for GP51 specific success/error format
-          if (result.status !== undefined && result.status !== 0) {
-            const errorMsg = result.cause || result.message || result.error || 'Authentication failed';
-            console.error(`URL ${urlIndex + 1}, Attempt ${i + 1} - GP51 authentication failed for user:`, trimmedUsername, 'Error:', errorMsg);
-            lastError = new Error(`GP51 authentication failed: ${errorMsg}`);
-            continue; // Try next attempt
-          }
-
-          // Check for token in response
-          const token = result.token || result.session_id || result.sessionId;
-          if (!token) {
-            console.error(`URL ${urlIndex + 1}, Attempt ${i + 1} - No token received from GP51 for user:`, trimmedUsername, 'Response:', result);
-            lastError = new Error('GP51 authentication failed: No token received');
-            continue; // Try next attempt
-          }
-
-          console.log(`SUCCESS! GP51 authentication successful on URL ${urlIndex + 1}, attempt ${i + 1} for user:`, trimmedUsername, 'Token length:', token.length);
-          return { token, username: trimmedUsername, apiUrl: finalApiUrl };
-
-        } catch (error) {
-          console.error(`URL ${urlIndex + 1}, Attempt ${i + 1} - GP51 authentication error for user:`, trimmedUsername, error);
-          
-          if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('NetworkError') || error.message.includes('error sending request'))) {
-            lastError = new Error(`Network error connecting to GP51 API at ${finalApiUrl}. Please verify the GP51 API URL is correct and accessible.`);
-          } else {
-            lastError = error instanceof Error ? error : new Error('Unknown authentication error');
-          }
-          continue; // Try next attempt
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`GP51 API request failed: ${response.status} ${errorText}`);
+          lastError = new Error(`GP51 API error (${response.status}): ${errorText || 'Unknown error'}`);
+          continue; // Try next URL
         }
+
+        // Get response text first to check if it's empty
+        const responseText = await response.text();
+        console.log(`GP51 API response body length: ${responseText.length}`);
+        
+        if (!responseText || responseText.trim().length === 0) {
+          console.error(`Empty response from GP51 API`);
+          lastError = new Error('GP51 API returned an empty response');
+          continue; // Try next URL
+        }
+
+        // Try to parse JSON
+        let result;
+        try {
+          result = JSON.parse(responseText);
+          console.log('GP51 authentication response parsed successfully');
+        } catch (parseError) {
+          console.error('Failed to parse GP51 response as JSON:', parseError);
+          console.error('Response text:', responseText.substring(0, 200));
+          lastError = new Error('GP51 API returned invalid JSON response');
+          continue; // Try next URL
+        }
+
+        if (!result || typeof result !== 'object') {
+          console.error('Invalid response format from GP51 API:', result);
+          lastError = new Error('Invalid response format from GP51 API');
+          continue; // Try next URL
+        }
+
+        // Check for GP51 specific success/error format
+        if (result.status !== undefined && result.status !== 0) {
+          const errorMsg = result.cause || result.message || result.error || 'Authentication failed';
+          console.error(`GP51 authentication failed for user: ${trimmedUsername} Error: ${errorMsg}`);
+          lastError = new Error(`GP51 authentication failed: ${errorMsg}`);
+          continue; // Try next URL
+        }
+
+        // Check for token in response
+        const token = result.token || result.session_id || result.sessionId;
+        if (!token) {
+          console.error(`No token received from GP51 for user: ${trimmedUsername} Response:`, result);
+          lastError = new Error('GP51 authentication failed: No token received');
+          continue; // Try next URL
+        }
+
+        console.log(`SUCCESS! GP51 authentication successful for user: ${trimmedUsername} Token length: ${token.length}`);
+        return { token, username: trimmedUsername, apiUrl: cleanUrl };
+
+      } catch (error) {
+        console.error(`GP51 authentication error for user: ${trimmedUsername}`, error);
+        
+        if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('NetworkError') || error.message.includes('error sending request'))) {
+          lastError = new Error(`Network error connecting to GP51 API at ${finalApiUrl}. Please verify the GP51 API URL is correct and accessible.`);
+        } else {
+          lastError = error instanceof Error ? error : new Error('Unknown authentication error');
+        }
+        continue; // Try next URL
       }
     }
     
-    // If we get here, all URLs and attempts failed
-    console.error('All GP51 authentication URLs and methods failed for user:', trimmedUsername);
+    // If we get here, all URLs failed
+    console.error('All GP51 authentication URLs failed for user:', trimmedUsername);
     throw lastError || new Error('All GP51 authentication methods failed. Please check your API URL configuration.');
 
   } catch (error) {

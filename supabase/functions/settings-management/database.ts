@@ -25,7 +25,7 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
       updated_at: new Date().toISOString()
     };
 
-    // Add API URL if provided
+    // Add API URL if provided and working
     if (apiUrl) {
       sessionData.api_url = apiUrl;
     }
