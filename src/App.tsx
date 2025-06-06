@@ -12,8 +12,6 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import Auth from '@/pages/Auth';
 import SetPassword from '@/pages/SetPassword';
 import Dashboard from '@/pages/Dashboard';
-import FleetManagement from '@/pages/FleetManagement';
-import VehicleManagement from '@/pages/VehicleManagement';
 import LiveTracking from '@/pages/LiveTracking';
 import UserManagement from '@/pages/UserManagement';
 import Settings from '@/pages/Settings';
@@ -33,20 +31,6 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Dashboard />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/fleet" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <FleetManagement />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/vehicles" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <VehicleManagement />
                   </Layout>
                 </ProtectedRoute>
               } />
