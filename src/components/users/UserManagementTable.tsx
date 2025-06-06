@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, Plus, Edit, Trash2, UserPlus, Upload, Download, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -52,6 +51,7 @@ interface User {
 }
 
 interface UserManagementTableProps {
+  refreshTrigger?: number;
   onCreateUser: () => void;
   onEditUser: (user: User) => void;
   onImportUsers: () => void;
@@ -59,6 +59,7 @@ interface UserManagementTableProps {
 }
 
 const UserManagementTable: React.FC<UserManagementTableProps> = ({
+  refreshTrigger,
   onCreateUser,
   onEditUser,
   onImportUsers,

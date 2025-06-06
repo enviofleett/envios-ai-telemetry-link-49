@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -14,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 interface ImportUsersDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onImportComplete?: () => void;
 }
 
 interface ImportResult {
@@ -23,7 +23,11 @@ interface ImportResult {
   errors: string[];
 }
 
-const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ open, onOpenChange }) => {
+const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ 
+  open, 
+  onOpenChange, 
+  onImportComplete 
+}) => {
   const [file, setFile] = useState<File | null>(null);
   const [csvData, setCsvData] = useState<any[]>([]);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -171,6 +175,7 @@ const ImportUsersDialog: React.FC<ImportUsersDialogProps> = ({ open, onOpenChang
     onSuccess: (result) => {
       setImportResult(result);
       queryClient.invalidateQueries({ queryKey: ['users-enhanced'] });
+      onImportComplete?.();
       toast({
         title: 'Import completed',
         description: `${result.successful} users imported successfully, ${result.failed} failed`
