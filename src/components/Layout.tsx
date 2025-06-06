@@ -38,27 +38,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="min-h-screen flex w-full bg-gray-50">
         <AppSidebar />
         <SidebarInset className="flex-1">
-          {/* Enhanced Header with modern styling */}
-          <header className="h-16 flex items-center gap-4 bg-card border-b border-border px-4 lg:px-6 shadow-sm sticky top-0 z-10 backdrop-blur-sm bg-card/95">
-            <SidebarTrigger className="w-10 h-10 p-2 rounded-lg hover:bg-accent text-foreground transition-colors duration-200" />
+          {/* Header with breadcrumb - matches reference design */}
+          <header className="h-16 flex items-center gap-4 bg-white border-b border-gray-200 px-6 shadow-sm">
+            <SidebarTrigger className="w-10 h-10 p-2 rounded hover:bg-gray-100 text-gray-700" />
             
-            <div className="flex-1 min-w-0">
+            <div className="flex-1">
               <Breadcrumb>
                 <BreadcrumbList className="text-sm">
                   {breadcrumbs.map((breadcrumb, index) => (
                     <React.Fragment key={breadcrumb.path}>
                       <BreadcrumbItem>
                         {index === breadcrumbs.length - 1 ? (
-                          <BreadcrumbPage className="text-foreground font-semibold text-base lg:text-lg truncate">
+                          <BreadcrumbPage className="text-gray-900 font-semibold text-lg">
                             {breadcrumb.name}
                           </BreadcrumbPage>
                         ) : (
                           <BreadcrumbLink 
                             href={breadcrumb.path}
-                            className="text-muted-foreground hover:text-foreground font-medium transition-colors duration-200 truncate"
+                            className="text-gray-500 hover:text-gray-700 font-medium"
                           >
                             {breadcrumb.name}
                           </BreadcrumbLink>
@@ -66,7 +66,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       </BreadcrumbItem>
                       {index < breadcrumbs.length - 1 && (
                         <BreadcrumbSeparator className="mx-2">
-                          <span className="text-muted-foreground">›</span>
+                          <span className="text-gray-400">›</span>
                         </BreadcrumbSeparator>
                       )}
                     </React.Fragment>
@@ -74,16 +74,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </BreadcrumbList>
               </Breadcrumb>
             </div>
-
-            {/* Optional: Add user profile or notifications here */}
-            <div className="hidden sm:flex items-center gap-2">
-              {/* Future: Add user avatar, notifications, etc. */}
-            </div>
           </header>
           
-          {/* Enhanced Main content area */}
-          <main className="flex-1 bg-background min-h-[calc(100vh-4rem)]">
-            <div className="container-responsive py-6 animate-slide-in-up">
+          {/* Main content area with proper dimensions */}
+          <main className="flex-1 bg-gray-50 min-h-[calc(100vh-4rem)]">
+            <div className="max-w-[1400px] mx-auto p-6">
               <div className="w-full">
                 {children}
               </div>

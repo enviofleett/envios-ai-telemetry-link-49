@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   Sidebar,
@@ -11,6 +11,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar';
@@ -75,21 +76,26 @@ export function AppSidebar() {
   const isCollapsed = state === "collapsed";
   const isActive = (path: string) => currentPath === path;
 
+  const getNavCls = ({ isActive }: { isActive: boolean }) =>
+    isActive 
+      ? "bg-blue-50 text-blue-700 font-semibold border-r-2 border-blue-700" 
+      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900";
+
   return (
     <Sidebar 
       variant="inset" 
-      className="border-r border-border bg-card w-64 shadow-sm"
+      className="border-r border-gray-200 bg-white w-64"
       collapsible="icon"
     >
-      <SidebarHeader className="border-b border-border p-6 bg-gradient-to-r from-primary/5 to-transparent">
+      <SidebarHeader className="border-b border-gray-200 p-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-md">
-            <Car className="h-5 w-5 text-primary-foreground" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
+            <Car className="h-5 w-5 text-white" />
           </div>
           {!isCollapsed && (
             <div className="flex flex-col">
-              <span className="text-lg font-bold text-foreground">FleetIQ</span>
-              <span className="text-xs text-muted-foreground font-medium">Management Platform</span>
+              <span className="text-lg font-bold text-gray-900">FleetIQ</span>
+              <span className="text-sm text-gray-500">Management Platform</span>
             </div>
           )}
         </div>
@@ -99,7 +105,7 @@ export function AppSidebar() {
         {navigation.map((section) => (
           <SidebarGroup key={section.title} className="mb-6">
             {!isCollapsed && (
-              <SidebarGroupLabel className="text-muted-foreground text-xs font-semibold uppercase tracking-wider mb-3 px-2">
+              <SidebarGroupLabel className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-3">
                 {section.title}
               </SidebarGroupLabel>
             )}
@@ -110,27 +116,11 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       isActive={isActive(item.url)}
-                      className={`nav-item-modern ${
-                        isActive(item.url) 
-                          ? 'nav-item-active shadow-sm' 
-                          : 'nav-item-inactive'
-                      } group relative overflow-hidden`}
+                      className={`h-10 px-3 rounded-lg transition-all duration-200 ${getNavCls({ isActive: isActive(item.url) })}`}
                     >
-                      <NavLink to={item.url} end className="flex items-center gap-3 w-full">
-                        <item.icon className={`h-5 w-5 flex-shrink-0 transition-colors duration-200 ${
-                          isActive(item.url) ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
-                        }`} />
-                        {!isCollapsed && (
-                          <span className={`font-medium transition-colors duration-200 truncate ${
-                            isActive(item.url) ? 'text-primary' : 'text-foreground'
-                          }`}>
-                            {item.title}
-                          </span>
-                        )}
-                        {/* Active indicator */}
-                        {isActive(item.url) && (
-                          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary rounded-l-full" />
-                        )}
+                      <NavLink to={item.url} end className="flex items-center gap-3">
+                        <item.icon className="h-5 w-5 flex-shrink-0" />
+                        {!isCollapsed && <span className="font-medium">{item.title}</span>}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
