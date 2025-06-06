@@ -85,7 +85,7 @@ export function AppSidebar() {
     <Sidebar 
       variant="inset" 
       className="border-r border-gray-200 bg-white w-64"
-      collapsible
+      collapsible="icon"
     >
       <SidebarHeader className="border-b border-gray-200 p-6">
         <div className="flex items-center gap-3">
