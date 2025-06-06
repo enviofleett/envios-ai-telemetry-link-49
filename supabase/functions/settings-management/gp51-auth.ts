@@ -45,36 +45,36 @@ export async function authenticateWithGP51({ username, password }: { username: s
     
     // Try different authentication payload formats that GP51 might expect
     const authenticationAttempts = [
-      // Attempt 1: Standard login action
+      // Attempt 1: Login action (most common)
+      {
+        action: 'login',
+        username: trimmedUsername,
+        password: hashedPassword
+      },
+      // Attempt 2: User login action
       {
         action: 'user_login',
         username: trimmedUsername,
+        password: hashedPassword
+      },
+      // Attempt 3: Simple credentials without action
+      {
+        username: trimmedUsername,
+        password: hashedPassword
+      },
+      // Attempt 4: With additional fields
+      {
+        action: 'login',
+        username: trimmedUsername,
         password: hashedPassword,
         from: 'WEB',
         type: 'USER'
       },
-      // Attempt 2: Alternative action name
+      // Attempt 5: Authentication action
       {
         action: 'authenticate',
         username: trimmedUsername,
-        password: hashedPassword,
-        from: 'WEB',
-        type: 'USER'
-      },
-      // Attempt 3: Simple action name
-      {
-        action: 'auth',
-        username: trimmedUsername,
-        password: hashedPassword,
-        from: 'WEB',
-        type: 'USER'
-      },
-      // Attempt 4: Without action (some APIs don't need it)
-      {
-        username: trimmedUsername,
-        password: hashedPassword,
-        from: 'WEB',
-        type: 'USER'
+        password: hashedPassword
       }
     ];
     
