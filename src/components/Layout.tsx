@@ -37,12 +37,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const breadcrumbs = getBreadcrumbs();
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gray-background">
+    <SidebarProvider defaultOpen={true}>
+      <div className="min-h-screen flex w-full bg-gray-50">
         <AppSidebar />
         <SidebarInset className="flex-1">
-          <header className="h-16 flex items-center gap-4 bg-white border-b border-gray-lighter px-6">
-            <SidebarTrigger className="w-10 h-10 p-2 rounded hover:bg-gray-background text-primary-dark" />
+          {/* Header with breadcrumb - matches reference design */}
+          <header className="h-16 flex items-center gap-4 bg-white border-b border-gray-200 px-6 shadow-sm">
+            <SidebarTrigger className="w-10 h-10 p-2 rounded hover:bg-gray-100 text-gray-700" />
             
             <div className="flex-1">
               <Breadcrumb>
@@ -51,13 +52,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <React.Fragment key={breadcrumb.path}>
                       <BreadcrumbItem>
                         {index === breadcrumbs.length - 1 ? (
-                          <BreadcrumbPage className="text-primary-dark font-medium">
+                          <BreadcrumbPage className="text-gray-900 font-semibold text-lg">
                             {breadcrumb.name}
                           </BreadcrumbPage>
                         ) : (
                           <BreadcrumbLink 
                             href={breadcrumb.path}
-                            className="text-gray-mid hover:text-primary-dark font-medium"
+                            className="text-gray-500 hover:text-gray-700 font-medium"
                           >
                             {breadcrumb.name}
                           </BreadcrumbLink>
@@ -65,7 +66,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       </BreadcrumbItem>
                       {index < breadcrumbs.length - 1 && (
                         <BreadcrumbSeparator className="mx-2">
-                          <span className="text-gray-mid">/</span>
+                          <span className="text-gray-400">›</span>
                         </BreadcrumbSeparator>
                       )}
                     </React.Fragment>
@@ -75,8 +76,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </header>
           
-          <main className="flex-1 p-6 bg-gray-background">
-            {children}
+          {/* Main content area with proper dimensions */}
+          <main className="flex-1 bg-gray-50 min-h-[calc(100vh-4rem)]">
+            <div className="max-w-[1400px] mx-auto p-6">
+              <div className="w-full">
+                {children}
+              </div>
+            </div>
           </main>
         </SidebarInset>
       </div>
