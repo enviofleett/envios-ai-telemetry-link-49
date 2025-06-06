@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -17,8 +16,6 @@ interface BackupVehicle {
   device_id: string;
   device_name: string;
   gp51_username: string;
-  device_type?: string;
-  notes?: string;
 }
 
 interface UserMappingDialogProps {
@@ -99,12 +96,11 @@ const UserMappingDialog: React.FC<UserMappingDialogProps> = ({
             targetUserId = newUser.user.id;
           }
 
-          // Import vehicle
+          // Import vehicle - using only string device_type and minimal required fields
           const vehicleData = {
             device_id: mapping.vehicle.device_id,
             device_name: mapping.vehicle.device_name,
-            device_type: mapping.vehicle.device_type,
-            notes: mapping.vehicle.notes,
+            device_type: 'unknown', // Default string value since we don't have this from backup
             envio_user_id: targetUserId,
             is_active: true,
             gp51_metadata: {

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,8 +15,6 @@ interface BackupVehicle {
   device_id: string;
   device_name: string;
   gp51_username: string;
-  device_type?: string;
-  notes?: string;
 }
 
 interface VehicleImportReviewDialogProps {
@@ -43,7 +40,7 @@ const VehicleImportReviewDialog: React.FC<VehicleImportReviewDialogProps> = ({
     queryFn: async (): Promise<BackupVehicle[]> => {
       const { data, error } = await supabase
         .from('vehicle_assignment_backup_20250605')
-        .select('device_id, device_name, gp51_username, device_type, notes')
+        .select('device_id, device_name, gp51_username')
         .order('device_name');
       
       if (error) {
@@ -188,15 +185,13 @@ const VehicleImportReviewDialog: React.FC<VehicleImportReviewDialogProps> = ({
                       </TableHead>
                       <TableHead>Device ID</TableHead>
                       <TableHead>Vehicle Name</TableHead>
-                      <TableHead>Device Type</TableHead>
                       <TableHead>Original User</TableHead>
-                      <TableHead>Notes</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8">
+                        <TableCell colSpan={4} className="text-center py-8">
                           <div className="flex items-center justify-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900 mr-2"></div>
                             Loading backup vehicles...
@@ -205,7 +200,7 @@ const VehicleImportReviewDialog: React.FC<VehicleImportReviewDialogProps> = ({
                       </TableRow>
                     ) : paginatedVehicles.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8">
+                        <TableCell colSpan={4} className="text-center py-8">
                           <div className="text-gray-500">
                             {searchTerm ? 'No vehicles found matching your search' : 'No vehicles available'}
                           </div>
@@ -228,16 +223,8 @@ const VehicleImportReviewDialog: React.FC<VehicleImportReviewDialogProps> = ({
                           <TableCell className="font-medium">
                             {vehicle.device_name}
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {vehicle.device_type || 'Unknown'}
-                            </Badge>
-                          </TableCell>
                           <TableCell className="font-mono text-sm">
                             {vehicle.gp51_username}
-                          </TableCell>
-                          <TableCell className="text-sm text-gray-600 max-w-32 truncate">
-                            {vehicle.notes || '-'}
                           </TableCell>
                         </TableRow>
                       ))
