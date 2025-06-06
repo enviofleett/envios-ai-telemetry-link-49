@@ -50,7 +50,9 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
     return user.gp51_user_type ? labels[user.gp51_user_type as keyof typeof labels] : 'Not Set';
   };
 
-  const getStatusVariant = (status: string) => {
+  const getStatusVariant = (status?: string) => {
+    if (!status) return 'outline';
+    
     switch (status.toLowerCase()) {
       case 'active':
       case 'online':
@@ -119,7 +121,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
               <div>
                 <label className="text-xs font-medium text-gray-mid">Status</label>
                 <div className="mt-1">
-                  <Badge variant={getStatusVariant(user.registration_status || 'active')}>
+                  <Badge variant={getStatusVariant(user.registration_status)}>
                     {user.registration_status || 'Active'}
                   </Badge>
                 </div>
@@ -150,7 +152,7 @@ const UserDetailsModal: React.FC<UserDetailsModalProps> = ({
                         <div>{vehicle.plate_number || '-'}</div>
                         <div>
                           <Badge variant={getStatusVariant(vehicle.status)}>
-                            {vehicle.status}
+                            {vehicle.status || 'Unknown'}
                           </Badge>
                         </div>
                         <div>{vehicle.last_update}</div>
