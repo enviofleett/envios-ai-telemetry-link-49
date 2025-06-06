@@ -61,7 +61,7 @@ export const useUserManagement = () => {
       try {
         await userManagementService.deleteUser(userId);
       } catch (error) {
-        if (error instanceof Error && 'code' in error) {
+        if (error && typeof error === 'object' && 'code' in error) {
           throw error;
         }
         throw createUserManagementError(
@@ -78,11 +78,15 @@ export const useUserManagement = () => {
         description: 'User deleted successfully' 
       });
     },
-    onError: (error: UserManagementError) => {
+    onError: (error: any) => {
       console.error('Delete user error:', error);
+      const userError = error && typeof error === 'object' && 'code' in error 
+        ? error as UserManagementError
+        : createUserManagementError('DELETE_USER_ERROR', 'An unexpected error occurred');
+      
       toast({ 
         title: 'Error deleting user', 
-        description: error.message || 'An unexpected error occurred', 
+        description: userError.message || 'An unexpected error occurred', 
         variant: 'destructive' 
       });
     },
@@ -93,7 +97,7 @@ export const useUserManagement = () => {
       try {
         await userManagementService.bulkDeleteUsers(userIds);
       } catch (error) {
-        if (error instanceof Error && 'code' in error) {
+        if (error && typeof error === 'object' && 'code' in error) {
           throw error;
         }
         throw createUserManagementError(
@@ -111,11 +115,15 @@ export const useUserManagement = () => {
         description: `${selectedUsers.length} users deleted successfully` 
       });
     },
-    onError: (error: UserManagementError) => {
+    onError: (error: any) => {
       console.error('Bulk delete error:', error);
+      const userError = error && typeof error === 'object' && 'code' in error 
+        ? error as UserManagementError
+        : createUserManagementError('BULK_DELETE_ERROR', 'An unexpected error occurred');
+      
       toast({ 
         title: 'Error deleting users', 
-        description: error.message || 'An unexpected error occurred', 
+        description: userError.message || 'An unexpected error occurred', 
         variant: 'destructive' 
       });
     },
@@ -175,7 +183,7 @@ export const useUserManagement = () => {
       });
     } catch (error) {
       console.error('Export error:', error);
-      const userError = error instanceof Error && 'code' in error 
+      const userError = error && typeof error === 'object' && 'code' in error 
         ? error as UserManagementError
         : createUserManagementError('EXPORT_ERROR', 'Failed to export users');
       
@@ -192,7 +200,9 @@ export const useUserManagement = () => {
     users: sortedUsers,
     pagination,
     isLoading,
-    error: error as UserManagementError | null,
+    error: error && typeof error === 'object' && 'code' in error 
+      ? error as UserManagementError 
+      : null,
     
     // Filters and search
     filters,

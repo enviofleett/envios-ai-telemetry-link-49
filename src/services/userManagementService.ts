@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { 
   User, 
@@ -68,7 +67,7 @@ export class UserManagementService {
       // Validate response structure
       try {
         const validatedData = UsersResponseSchema.parse(data);
-        return validatedData;
+        return validatedData as UsersResponse;
       } catch (validationError) {
         console.error('Invalid response structure:', validationError);
         throw createUserManagementError(
@@ -78,7 +77,7 @@ export class UserManagementService {
         );
       }
     } catch (error) {
-      if (error instanceof Error && 'code' in error) {
+      if (error && typeof error === 'object' && 'code' in error) {
         throw error; // Re-throw UserManagementError
       }
       
@@ -111,7 +110,7 @@ export class UserManagementService {
         );
       }
     } catch (error) {
-      if (error instanceof Error && 'code' in error) {
+      if (error && typeof error === 'object' && 'code' in error) {
         throw error;
       }
       
@@ -156,7 +155,7 @@ export class UserManagementService {
         );
       }
     } catch (error) {
-      if (error instanceof Error && 'code' in error) {
+      if (error && typeof error === 'object' && 'code' in error) {
         throw error;
       }
       

@@ -58,7 +58,7 @@ export const useOptimizedUserData = ({
         try {
           const validatedData = UsersResponseSchema.parse(data);
           console.log('Users data received and validated:', validatedData);
-          return validatedData;
+          return validatedData as UsersResponse;
         } catch (validationError) {
           console.error('Invalid response structure:', validationError);
           throw createUserManagementError(
@@ -68,7 +68,7 @@ export const useOptimizedUserData = ({
           );
         }
       } catch (error) {
-        if (error instanceof Error && 'code' in error) {
+        if (error && typeof error === 'object' && 'code' in error) {
           throw error; // Re-throw UserManagementError
         }
         
@@ -85,7 +85,7 @@ export const useOptimizedUserData = ({
     refetchOnWindowFocus: false,
     retry: (failureCount, error) => {
       // Don't retry validation errors
-      if (error instanceof Error && 'code' in error) {
+      if (error && typeof error === 'object' && 'code' in error) {
         const userError = error as any;
         if (userError.code === 'VALIDATION_ERROR') {
           return false;
@@ -130,7 +130,7 @@ export const useOptimizedSingleUser = (userId: string, enabled = true) => {
 
         return data.user;
       } catch (error) {
-        if (error instanceof Error && 'code' in error) {
+        if (error && typeof error === 'object' && 'code' in error) {
           throw error;
         }
         
@@ -145,7 +145,7 @@ export const useOptimizedSingleUser = (userId: string, enabled = true) => {
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     retry: (failureCount, error) => {
-      if (error instanceof Error && 'code' in error) {
+      if (error && typeof error === 'object' && 'code' in error) {
         const userError = error as any;
         if (['VALIDATION_ERROR', 'NOT_FOUND_ERROR'].includes(userError.code)) {
           return false;
