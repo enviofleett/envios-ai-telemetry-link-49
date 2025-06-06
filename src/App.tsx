@@ -15,6 +15,7 @@ import Settings from "./pages/Settings";
 import SystemImport from "./pages/SystemImport";
 import PublicRegistration from "./pages/PublicRegistration";
 import SetPassword from "./pages/SetPassword";
+import DeviceConfiguration from "./pages/DeviceConfiguration";
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
@@ -36,6 +37,7 @@ function App() {
               <Route path="/" element={<Layout><Index /></Layout>} />
               <Route path="/users" element={<Layout><UserManagement /></Layout>} />
               <Route path="/tracking" element={<Layout><LiveTracking /></Layout>} />
+              <Route path="/device-configuration" element={<Layout><DeviceConfiguration /></Layout>} />
               <Route path="/settings" element={<Layout><Settings /></Layout>} />
               <Route path="/system-import" element={<Layout><SystemImport /></Layout>} />
             </Routes>

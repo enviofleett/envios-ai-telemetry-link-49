@@ -22,7 +22,8 @@ import {
   Settings, 
   Database,
   Car,
-  Home
+  Home,
+  Cog
 } from 'lucide-react';
 
 const navigation = [
@@ -48,6 +49,11 @@ const navigation = [
         title: "Live Tracking",
         url: "/tracking",
         icon: Navigation,
+      },
+      {
+        title: "Device Configuration",
+        url: "/device-configuration",
+        icon: Cog,
       },
       {
         title: "System Import",
