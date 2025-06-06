@@ -248,11 +248,11 @@ export class ProductionVehicleService {
         is_active: true,
         gp51_metadata: {
           device_type: request.deviceType,
-          imei: request.imei,
-          sim_number: request.simNumber,
-          handshake_result: productionData.handshakeResult,
-          communication_check: productionData.communicationCheck,
-          configuration_id: productionData.configurationId,
+          imei: request.imei || null,
+          sim_number: request.simNumber || null,
+          handshake_result: JSON.parse(JSON.stringify(productionData.handshakeResult)),
+          communication_check: JSON.parse(JSON.stringify(productionData.communicationCheck)),
+          configuration_id: productionData.configurationId || null,
           production_ready: true,
           created_by_admin: request.adminUserId,
           creation_timestamp: new Date().toISOString()
