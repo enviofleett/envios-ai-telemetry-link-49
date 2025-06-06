@@ -33,9 +33,9 @@ const UserTableHeader: React.FC<UserTableHeaderProps> = ({
   debouncedSearch,
   searchValue
 }) => {
-  const [savedPresets] = useState([
-    { name: 'Active Admins', filters: { search: '', role: 'admin', status: 'active' } },
-    { name: 'GP51 Users', filters: { search: '', gp51Status: 'active' } },
+  const [savedPresets] = useState<Array<{ name: string; filters: UserFilters }>>([
+    { name: 'Active Admins', filters: { search: '', role: 'admin' as const, status: 'active' as const } },
+    { name: 'GP51 Users', filters: { search: '', gp51Status: 'active' as const } },
     { name: 'Recent Registrations', filters: { search: '', dateRange: { from: '2024-01-01', to: '2024-12-31' } } }
   ]);
 
