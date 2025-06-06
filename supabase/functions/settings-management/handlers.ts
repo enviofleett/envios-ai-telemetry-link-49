@@ -34,7 +34,12 @@ export async function handleSaveCredentials(credentials: GP51Credentials) {
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
-    if (errorMessage.includes('GP51 API error') || errorMessage.includes('authentication failed')) {
+    if (errorMessage.includes('GP51_API_BASE_URL is incorrectly configured')) {
+      return createResponse({
+        error: 'GP51 API Configuration Error',
+        details: 'The GP51_API_BASE_URL is not properly configured. Please contact your administrator to set the correct GP51 API URL in Supabase secrets.'
+      }, 500);
+    } else if (errorMessage.includes('GP51 API error') || errorMessage.includes('authentication failed')) {
       return createResponse({
         error: errorMessage,
         details: 'Please verify your GP51 username and password are correct'

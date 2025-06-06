@@ -10,6 +10,18 @@ export async function authenticateWithGP51({ username, password }: { username: s
     throw new Error('GP51_API_BASE_URL environment variable is not configured');
   }
   
+  // Validate that GP51_API_BASE is a proper URL
+  let baseUrl: URL;
+  try {
+    baseUrl = new URL(GP51_API_BASE);
+    if (!baseUrl.protocol.startsWith('http')) {
+      throw new Error('GP51_API_BASE_URL must be a valid HTTP/HTTPS URL');
+    }
+  } catch (error) {
+    console.error('Invalid GP51_API_BASE_URL format:', GP51_API_BASE);
+    throw new Error(`GP51_API_BASE_URL is not a valid URL format. Expected format: https://api.gps51.com but got: ${GP51_API_BASE}`);
+  }
+  
   try {
     // Hash the password
     const hashedPassword = await createHash(password);
@@ -66,7 +78,7 @@ export async function authenticateWithGP51({ username, password }: { username: s
     console.error('GP51 authentication error:', error);
     
     if (error instanceof TypeError && error.message.includes('Invalid URL')) {
-      throw new Error('GP51 API configuration error: Invalid base URL format');
+      throw new Error(`GP51 API configuration error: The GP51_API_BASE_URL is incorrectly configured. Please check your Supabase secrets and ensure GP51_API_BASE_URL is set to a valid URL like https://api.gps51.com`);
     }
     
     if (error.message.includes('fetch')) {
