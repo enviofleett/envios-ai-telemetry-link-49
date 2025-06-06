@@ -578,6 +578,60 @@ export type Database = {
         }
         Relationships: []
       }
+      envio_users_backup_full_import: {
+        Row: {
+          city: string | null
+          created_at: string | null
+          email: string | null
+          gp51_user_type: number | null
+          gp51_username: string | null
+          id: string | null
+          import_source: string | null
+          is_gp51_imported: boolean | null
+          name: string | null
+          needs_password_set: boolean | null
+          otp_verified_at: string | null
+          phone_number: string | null
+          registration_status: string | null
+          registration_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string | null
+          email?: string | null
+          gp51_user_type?: number | null
+          gp51_username?: string | null
+          id?: string | null
+          import_source?: string | null
+          is_gp51_imported?: boolean | null
+          name?: string | null
+          needs_password_set?: boolean | null
+          otp_verified_at?: string | null
+          phone_number?: string | null
+          registration_status?: string | null
+          registration_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          city?: string | null
+          created_at?: string | null
+          email?: string | null
+          gp51_user_type?: number | null
+          gp51_username?: string | null
+          id?: string | null
+          import_source?: string | null
+          is_gp51_imported?: boolean | null
+          name?: string | null
+          needs_password_set?: boolean | null
+          otp_verified_at?: string | null
+          phone_number?: string | null
+          registration_status?: string | null
+          registration_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       geofence_alerts: {
         Row: {
           acknowledged_at: string | null
@@ -705,6 +759,94 @@ export type Database = {
           },
         ]
       }
+      gp51_data_conflicts_resolution: {
+        Row: {
+          conflict_entity: string
+          conflict_type: string
+          created_at: string | null
+          existing_data: Json | null
+          id: string
+          incoming_data: Json | null
+          resolution_action: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          system_import_id: string | null
+        }
+        Insert: {
+          conflict_entity: string
+          conflict_type: string
+          created_at?: string | null
+          existing_data?: Json | null
+          id?: string
+          incoming_data?: Json | null
+          resolution_action?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          system_import_id?: string | null
+        }
+        Update: {
+          conflict_entity?: string
+          conflict_type?: string
+          created_at?: string | null
+          existing_data?: Json | null
+          id?: string
+          incoming_data?: Json | null
+          resolution_action?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          system_import_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_data_conflicts_resolution_system_import_id_fkey"
+            columns: ["system_import_id"]
+            isOneToOne: false
+            referencedRelation: "gp51_system_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gp51_import_audit_log: {
+        Row: {
+          affected_records: number | null
+          created_at: string | null
+          error_details: string | null
+          id: string
+          operation_details: Json | null
+          operation_type: string
+          success: boolean | null
+          system_import_id: string | null
+        }
+        Insert: {
+          affected_records?: number | null
+          created_at?: string | null
+          error_details?: string | null
+          id?: string
+          operation_details?: Json | null
+          operation_type: string
+          success?: boolean | null
+          system_import_id?: string | null
+        }
+        Update: {
+          affected_records?: number | null
+          created_at?: string | null
+          error_details?: string | null
+          id?: string
+          operation_details?: Json | null
+          operation_type?: string
+          success?: boolean | null
+          system_import_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_import_audit_log_system_import_id_fkey"
+            columns: ["system_import_id"]
+            isOneToOne: false
+            referencedRelation: "gp51_system_imports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gp51_import_previews: {
         Row: {
           conflict_flags: Json | null
@@ -748,6 +890,50 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "user_import_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gp51_import_progress_phases: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          phase_details: Json | null
+          phase_name: string
+          phase_progress: number | null
+          phase_status: string | null
+          started_at: string | null
+          system_import_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          phase_details?: Json | null
+          phase_name: string
+          phase_progress?: number | null
+          phase_status?: string | null
+          started_at?: string | null
+          system_import_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          phase_details?: Json | null
+          phase_name?: string
+          phase_progress?: number | null
+          phase_status?: string | null
+          started_at?: string | null
+          system_import_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_import_progress_phases_system_import_id_fkey"
+            columns: ["system_import_id"]
+            isOneToOne: false
+            referencedRelation: "gp51_system_imports"
             referencedColumns: ["id"]
           },
         ]
@@ -826,22 +1012,56 @@ export type Database = {
           },
         ]
       }
+      gp51_sessions_backup_full_import: {
+        Row: {
+          created_at: string | null
+          envio_user_id: string | null
+          gp51_token: string | null
+          id: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          envio_user_id?: string | null
+          gp51_token?: string | null
+          id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          envio_user_id?: string | null
+          gp51_token?: string | null
+          id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
       gp51_system_imports: {
         Row: {
           admin_gp51_username: string | null
+          backup_tables: Json | null
           can_rollback: boolean | null
           completed_at: string | null
           created_at: string
           created_by: string | null
           current_phase: string | null
+          data_integrity_score: number | null
           error_log: Json | null
           failed_devices: number
           failed_users: number
           id: string
           import_results: Json | null
+          import_scope: string | null
           import_type: string
           job_name: string
           phase_details: string | null
+          pre_import_checks: Json | null
           processed_devices: number
           processed_users: number
           progress_percentage: number | null
@@ -852,22 +1072,27 @@ export type Database = {
           total_devices: number
           total_users: number
           updated_at: string
+          validation_results: Json | null
         }
         Insert: {
           admin_gp51_username?: string | null
+          backup_tables?: Json | null
           can_rollback?: boolean | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
           current_phase?: string | null
+          data_integrity_score?: number | null
           error_log?: Json | null
           failed_devices?: number
           failed_users?: number
           id?: string
           import_results?: Json | null
+          import_scope?: string | null
           import_type?: string
           job_name: string
           phase_details?: string | null
+          pre_import_checks?: Json | null
           processed_devices?: number
           processed_users?: number
           progress_percentage?: number | null
@@ -878,22 +1103,27 @@ export type Database = {
           total_devices?: number
           total_users?: number
           updated_at?: string
+          validation_results?: Json | null
         }
         Update: {
           admin_gp51_username?: string | null
+          backup_tables?: Json | null
           can_rollback?: boolean | null
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
           current_phase?: string | null
+          data_integrity_score?: number | null
           error_log?: Json | null
           failed_devices?: number
           failed_users?: number
           id?: string
           import_results?: Json | null
+          import_scope?: string | null
           import_type?: string
           job_name?: string
           phase_details?: string | null
+          pre_import_checks?: Json | null
           processed_devices?: number
           processed_users?: number
           progress_percentage?: number | null
@@ -904,6 +1134,7 @@ export type Database = {
           total_devices?: number
           total_users?: number
           updated_at?: string
+          validation_results?: Json | null
         }
         Relationships: [
           {
@@ -1711,6 +1942,30 @@ export type Database = {
           },
         ]
       }
+      user_roles_backup_full_import: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          role?: Database["public"]["Enums"]["app_role"] | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       users_backup_20250605: {
         Row: {
           city: string | null
@@ -1970,6 +2225,63 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicles_backup_full_import: {
+        Row: {
+          created_at: string | null
+          device_id: string | null
+          device_name: string | null
+          envio_user_id: string | null
+          extraction_job_id: string | null
+          gp51_metadata: Json | null
+          gp51_username: string | null
+          id: string | null
+          import_job_type: string | null
+          is_active: boolean | null
+          last_position: Json | null
+          notes: string | null
+          session_id: string | null
+          sim_number: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_id?: string | null
+          device_name?: string | null
+          envio_user_id?: string | null
+          extraction_job_id?: string | null
+          gp51_metadata?: Json | null
+          gp51_username?: string | null
+          id?: string | null
+          import_job_type?: string | null
+          is_active?: boolean | null
+          last_position?: Json | null
+          notes?: string | null
+          session_id?: string | null
+          sim_number?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          device_id?: string | null
+          device_name?: string | null
+          envio_user_id?: string | null
+          extraction_job_id?: string | null
+          gp51_metadata?: Json | null
+          gp51_username?: string | null
+          id?: string | null
+          import_job_type?: string | null
+          is_active?: boolean | null
+          last_position?: Json | null
+          notes?: string | null
+          session_id?: string | null
+          sim_number?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -1978,6 +2290,10 @@ export type Database = {
       clean_expired_otps: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      create_system_backup_for_import: {
+        Args: { import_id: string }
+        Returns: Json
       }
       generate_invoice_number: {
         Args: Record<PropertyKey, never>
@@ -2017,6 +2333,10 @@ export type Database = {
       increment_map_api_usage: {
         Args: { config_id: string }
         Returns: undefined
+      }
+      perform_safe_data_cleanup: {
+        Args: { preserve_admin_email?: string }
+        Returns: Json
       }
       update_polling_status: {
         Args: {
