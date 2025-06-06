@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { enhancedPollingService } from './enhancedPollingService';
 import { vehiclePositionSyncService } from './vehiclePosition/vehiclePositionSyncService';
 import { unifiedVehicleDataService } from './unifiedVehicleData';
+import { gp51HealthMonitor } from './gp51HealthMonitor';
 
 interface HealthMetric {
   name: string;
@@ -69,8 +70,8 @@ export class SystemHealthMonitor {
     const startTime = Date.now();
 
     try {
-      // Check GP51 API health
-      await this.checkGP51ApiHealth();
+      // Check GP51 platform health (enhanced)
+      await this.checkGP51PlatformHealth();
       
       // Check database connectivity
       await this.checkDatabaseHealth();
@@ -84,6 +85,9 @@ export class SystemHealthMonitor {
       // Check polling service health
       await this.checkPollingServiceHealth();
 
+      // Check vehicle data integrity
+      await this.checkVehicleDataIntegrity();
+
       const responseTime = Date.now() - startTime;
       this.updateMetric('system_response_time', responseTime, responseTime < 5000 ? 'healthy' : 'warning');
 
@@ -95,24 +99,65 @@ export class SystemHealthMonitor {
     this.notifySubscribers();
   }
 
-  private async checkGP51ApiHealth(): Promise<void> {
+  private async checkGP51PlatformHealth(): Promise<void> {
     try {
-      const { data, error } = await supabase.functions.invoke('settings-management', {
-        body: { action: 'get-gp51-status' }
-      });
+      const healthResult = await gp51HealthMonitor.performHealthCheck();
+      
+      // Update GP51 connection status
+      const connectionStatus = healthResult.checks.sessionValidity && healthResult.checks.gp51Connection ? 'healthy' : 'critical';
+      this.updateMetric('gp51_connection', healthResult.overall, connectionStatus, 
+        `Session: ${healthResult.checks.sessionValidity}, API: ${healthResult.checks.gp51Connection}`);
+
+      // Update vehicle sync status
+      const syncStatus = healthResult.checks.vehicleSync ? 'healthy' : 'warning';
+      this.updateMetric('gp51_vehicle_sync', `${healthResult.metrics.activeVehicles} active`, syncStatus,
+        `${healthResult.metrics.totalVehicles} total vehicles`);
+
+      // Add alerts for critical issues
+      if (healthResult.overall === 'critical') {
+        this.addAlert('error', `GP51 platform critical: ${healthResult.errors.join(', ')}`);
+      } else if (healthResult.overall === 'warning') {
+        this.addAlert('warning', `GP51 platform warning: ${healthResult.errors.join(', ')}`);
+      }
+
+    } catch (error) {
+      this.updateMetric('gp51_connection', 'Error', 'critical', error instanceof Error ? error.message : 'Unknown error');
+      this.addAlert('error', `GP51 platform health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async checkVehicleDataIntegrity(): Promise<void> {
+    try {
+      const { data: vehicles, error } = await supabase
+        .from('vehicles')
+        .select('id, is_active, last_update, device_status')
+        .limit(1000);
 
       if (error) {
-        this.updateMetric('gp51_api', 'Error', 'critical', `API error: ${error.message}`);
-        this.addAlert('error', `GP51 API health check failed: ${error.message}`);
+        this.updateMetric('vehicle_data_integrity', 'Error', 'critical', error.message);
         return;
       }
 
-      const status = data?.connected ? 'healthy' : 'warning';
-      this.updateMetric('gp51_api', data?.connected ? 'Connected' : 'Disconnected', status);
+      const totalVehicles = vehicles?.length || 0;
+      const activeVehicles = vehicles?.filter(v => v.is_active)?.length || 0;
+      const recentlyUpdated = vehicles?.filter(v => {
+        const lastUpdate = new Date(v.last_update);
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        return lastUpdate > oneHourAgo;
+      })?.length || 0;
+
+      const integrityScore = totalVehicles > 0 ? (recentlyUpdated / totalVehicles) * 100 : 0;
+      const status = integrityScore >= 80 ? 'healthy' : integrityScore >= 50 ? 'warning' : 'critical';
+      
+      this.updateMetric('vehicle_data_integrity', `${integrityScore.toFixed(1)}%`, status,
+        `${recentlyUpdated}/${totalVehicles} recently updated`);
+
+      if (integrityScore < 50 && totalVehicles > 0) {
+        this.addAlert('warning', `Low vehicle data freshness: ${integrityScore.toFixed(1)}%`);
+      }
 
     } catch (error) {
-      this.updateMetric('gp51_api', 'Error', 'critical', error instanceof Error ? error.message : 'Unknown error');
-      this.addAlert('error', `GP51 API unreachable: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.updateMetric('vehicle_data_integrity', 'Error', 'warning', error instanceof Error ? error.message : 'Unknown error');
     }
   }
 

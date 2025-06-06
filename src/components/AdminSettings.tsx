@@ -3,11 +3,12 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Map, BarChart3, MapPin, Mail } from 'lucide-react';
+import { Shield, Map, BarChart3, MapPin, Mail, Activity } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import GP51ConnectionInfo from './AdminSettings/GP51ConnectionInfo';
 import GP51CredentialsForm from './AdminSettings/GP51CredentialsForm';
+import GP51HealthDashboard from './AdminSettings/GP51HealthDashboard';
 import EnhancedMapApiManagement from './AdminSettings/EnhancedMapApiManagement';
 import MapAnalyticsDashboard from '@/components/map/MapAnalyticsDashboard';
 import GeofenceManager from '@/components/map/GeofenceManager';
@@ -39,10 +40,14 @@ const AdminSettings = () => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="gp51" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="gp51" className="flex items-center gap-2">
               <Shield className="h-4 w-4" />
               GP51 Platform
+            </TabsTrigger>
+            <TabsTrigger value="health" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Health Monitor
             </TabsTrigger>
             <TabsTrigger value="maps" className="flex items-center gap-2">
               <Map className="h-4 w-4" />
@@ -74,6 +79,16 @@ const AdminSettings = () => {
               statusLoading={statusLoading}
             />
             <GP51CredentialsForm />
+          </TabsContent>
+
+          <TabsContent value="health" className="space-y-4 mt-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">GP51 Platform Health Monitoring</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Real-time monitoring of GP51 connection status, vehicle synchronization, and system health
+              </p>
+            </div>
+            <GP51HealthDashboard />
           </TabsContent>
           
           <TabsContent value="maps" className="space-y-4 mt-6">

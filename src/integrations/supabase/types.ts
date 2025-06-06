@@ -1138,6 +1138,7 @@ export type Database = {
       }
       gp51_sessions: {
         Row: {
+          api_url: string | null
           created_at: string
           envio_user_id: string | null
           gp51_token: string | null
@@ -1147,6 +1148,7 @@ export type Database = {
           username: string
         }
         Insert: {
+          api_url?: string | null
           created_at?: string
           envio_user_id?: string | null
           gp51_token?: string | null
@@ -1156,6 +1158,7 @@ export type Database = {
           username: string
         }
         Update: {
+          api_url?: string | null
           created_at?: string
           envio_user_id?: string | null
           gp51_token?: string | null
