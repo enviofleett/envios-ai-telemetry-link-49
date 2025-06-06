@@ -59,8 +59,25 @@ export async function authenticateWithGP51({ username, password }: { username: s
       throw new Error(`GP51 API error (${response.status}): ${errorText}`);
     }
 
-    const result = await response.json();
-    console.log('GP51 authentication response received');
+    // Get response text first to check if it's empty
+    const responseText = await response.text();
+    console.log('GP51 API response body length:', responseText.length);
+    
+    if (!responseText || responseText.trim().length === 0) {
+      console.error('Empty response from GP51 API');
+      throw new Error('GP51 API returned an empty response');
+    }
+
+    // Try to parse JSON
+    let result;
+    try {
+      result = JSON.parse(responseText);
+      console.log('GP51 authentication response parsed successfully');
+    } catch (parseError) {
+      console.error('Failed to parse GP51 response as JSON:', parseError);
+      console.error('Response text:', responseText);
+      throw new Error('GP51 API returned invalid JSON response');
+    }
 
     if (!result || typeof result !== 'object') {
       console.error('Invalid response format from GP51 API:', result);

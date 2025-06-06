@@ -34,12 +34,19 @@ export async function handleSaveCredentials(credentials: GP51Credentials) {
     
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
-    if (errorMessage.includes('GP51_API_BASE_URL is incorrectly configured') || errorMessage.includes('GP51 API configuration error')) {
+    if (errorMessage.includes('GP51_API_BASE_URL is not a valid URL format') || 
+        errorMessage.includes('GP51_API_BASE_URL environment variable is not configured')) {
       return createResponse({
         error: 'GP51 API Configuration Error',
         details: 'The GP51_API_BASE_URL is not properly configured. Please contact your administrator to set the correct GP51 API URL in Supabase secrets.'
       }, 500);
-    } else if (errorMessage.includes('Network error')) {
+    } else if (errorMessage.includes('GP51 API returned an empty response') || 
+               errorMessage.includes('GP51 API returned invalid JSON response')) {
+      return createResponse({
+        error: 'GP51 API Response Error',
+        details: 'The GP51 API returned an invalid or empty response. Please check the GP51 API URL configuration and try again.'
+      }, 502);
+    } else if (errorMessage.includes('Network error') || errorMessage.includes('fetch')) {
       return createResponse({
         error: 'Network Connection Error',
         details: 'Unable to connect to GP51 API. Please check your internet connection and try again.'
@@ -49,11 +56,6 @@ export async function handleSaveCredentials(credentials: GP51Credentials) {
         error: 'Authentication Failed',
         details: 'Invalid GP51 username or password. Please verify your credentials and try again.'
       }, 401);
-    } else if (errorMessage.includes('Invalid response format')) {
-      return createResponse({
-        error: 'GP51 API Error',
-        details: 'The GP51 API returned an unexpected response format. Please contact support.'
-      }, 502);
     } else if (errorMessage.includes('Failed to save')) {
       return createResponse({
         error: 'Database Error',
