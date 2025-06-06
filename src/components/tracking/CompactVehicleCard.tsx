@@ -7,12 +7,14 @@ import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface CompactVehicleCardProps {
   vehicle: Vehicle;
+  onClick?: (vehicle: Vehicle) => void;
   onTripClick?: (vehicle: Vehicle) => void;
   onAlertClick?: (vehicle: Vehicle) => void;
 }
 
 const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
   vehicle,
+  onClick,
   onTripClick,
   onAlertClick
 }) => {
@@ -61,8 +63,25 @@ const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
   const speed = vehicle.lastPosition?.speed || 0;
   const battery = Math.floor(Math.random() * 100); // Mock battery data
 
+  const handleCardClick = () => {
+    onClick?.(vehicle);
+  };
+
+  const handleTripClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onTripClick?.(vehicle);
+  };
+
+  const handleAlertClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAlertClick?.(vehicle);
+  };
+
   return (
-    <div className="bg-white border border-gray-lighter rounded-lg p-3 mb-3 hover:bg-gray-background cursor-pointer">
+    <div 
+      className="bg-white border border-gray-lighter rounded-lg p-3 mb-3 hover:bg-gray-background cursor-pointer transition-colors"
+      onClick={handleCardClick}
+    >
       {/* Header Row */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-primary-dark">
@@ -100,10 +119,7 @@ const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
           variant="outline"
           size="sm"
           className="h-8 text-xs bg-white border-gray-lighter text-primary-dark hover:bg-gray-background"
-          onClick={(e) => {
-            e.stopPropagation();
-            onTripClick?.(vehicle);
-          }}
+          onClick={handleTripClick}
         >
           Trip
         </Button>
@@ -111,10 +127,7 @@ const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
           variant="outline"
           size="sm"
           className="h-8 text-xs bg-white border-gray-lighter text-primary-dark hover:bg-gray-background"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAlertClick?.(vehicle);
-          }}
+          onClick={handleAlertClick}
         >
           Alert
         </Button>

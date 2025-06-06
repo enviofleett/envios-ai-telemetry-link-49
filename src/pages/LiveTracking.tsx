@@ -1,10 +1,14 @@
 
 import React, { useState } from 'react';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
+import { useVehicleDetails } from '@/hooks/useVehicleDetails';
 import LiveTrackingHeader from '@/components/tracking/LiveTrackingHeader';
 import LiveTrackingStats from '@/components/tracking/LiveTrackingStats';
 import LiveMapAndVehicleList from '@/components/tracking/LiveMapAndVehicleList';
 import ReportsHub from '@/components/tracking/ReportsHub';
+import VehicleDetailsModal from '@/components/vehicles/VehicleDetailsModal';
+import TripHistoryModal from '@/components/vehicles/TripHistoryModal';
+import AlertModal from '@/components/vehicles/AlertModal';
 
 const LiveTracking: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -23,11 +27,34 @@ const LiveTracking: React.FC = () => {
     status: statusFilter
   });
 
+  const {
+    selectedVehicle,
+    isDetailsModalOpen,
+    isTripHistoryModalOpen,
+    isAlertModalOpen,
+    openDetailsModal,
+    closeDetailsModal,
+    openTripHistoryModal,
+    closeTripHistoryModal,
+    openAlertModal,
+    closeAlertModal,
+  } = useVehicleDetails();
+
   const vehiclesByStatus = getVehiclesByStatus();
 
   const handleVehicleSelect = (vehicle: any) => {
     console.log('Vehicle selected:', vehicle);
-    // TODO: Implement vehicle selection logic
+    openDetailsModal(vehicle);
+  };
+
+  const handleTripHistory = (vehicle: any) => {
+    console.log('Trip history requested for:', vehicle);
+    openTripHistoryModal(vehicle);
+  };
+
+  const handleSendAlert = (vehicle: any) => {
+    console.log('Send alert requested for:', vehicle);
+    openAlertModal(vehicle);
   };
 
   if (isLoading) {
@@ -62,10 +89,33 @@ const LiveTracking: React.FC = () => {
       <LiveMapAndVehicleList
         vehicles={vehicles}
         onVehicleSelect={handleVehicleSelect}
+        onTripHistory={handleTripHistory}
+        onSendAlert={handleSendAlert}
       />
 
       <ReportsHub
         vehicles={vehicles}
+      />
+
+      {/* Modals */}
+      <VehicleDetailsModal
+        vehicle={selectedVehicle}
+        isOpen={isDetailsModalOpen}
+        onClose={closeDetailsModal}
+        onViewHistory={openTripHistoryModal}
+        onSendAlert={openAlertModal}
+      />
+
+      <TripHistoryModal
+        vehicle={selectedVehicle}
+        isOpen={isTripHistoryModalOpen}
+        onClose={closeTripHistoryModal}
+      />
+
+      <AlertModal
+        vehicle={selectedVehicle}
+        isOpen={isAlertModalOpen}
+        onClose={closeAlertModal}
       />
     </div>
   );

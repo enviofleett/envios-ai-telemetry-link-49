@@ -12,11 +12,15 @@ import type { Vehicle } from '@/services/unifiedVehicleData';
 interface LiveMapAndVehicleListProps {
   vehicles: Vehicle[];
   onVehicleSelect?: (vehicle: Vehicle) => void;
+  onTripHistory?: (vehicle: Vehicle) => void;
+  onSendAlert?: (vehicle: Vehicle) => void;
 }
 
 const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
   vehicles,
-  onVehicleSelect
+  onVehicleSelect,
+  onTripHistory,
+  onSendAlert
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
@@ -130,6 +134,8 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
         <VehicleListPanel
           vehicles={filteredVehicles}
           onVehicleSelect={onVehicleSelect}
+          onTripHistory={onTripHistory}
+          onSendAlert={onSendAlert}
         />
       </div>
     </div>

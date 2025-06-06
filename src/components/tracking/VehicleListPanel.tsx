@@ -8,11 +8,15 @@ import type { Vehicle } from '@/services/unifiedVehicleData';
 interface VehicleListPanelProps {
   vehicles: Vehicle[];
   onVehicleSelect?: (vehicle: Vehicle) => void;
+  onTripHistory?: (vehicle: Vehicle) => void;
+  onSendAlert?: (vehicle: Vehicle) => void;
 }
 
 const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
   vehicles,
-  onVehicleSelect
+  onVehicleSelect,
+  onTripHistory,
+  onSendAlert
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -21,14 +25,19 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
     vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleVehicleClick = (vehicle: Vehicle) => {
+    console.log('Vehicle card clicked:', vehicle.deviceid);
+    onVehicleSelect?.(vehicle);
+  };
+
   const handleTripClick = (vehicle: Vehicle) => {
     console.log('Trip clicked for vehicle:', vehicle.deviceid);
-    // TODO: Implement trip functionality
+    onTripHistory?.(vehicle);
   };
 
   const handleAlertClick = (vehicle: Vehicle) => {
     console.log('Alert clicked for vehicle:', vehicle.deviceid);
-    // TODO: Implement alert functionality
+    onSendAlert?.(vehicle);
   };
 
   return (
@@ -56,6 +65,7 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
             <CompactVehicleCard
               key={vehicle.deviceid}
               vehicle={vehicle}
+              onClick={handleVehicleClick}
               onTripClick={handleTripClick}
               onAlertClick={handleAlertClick}
             />
