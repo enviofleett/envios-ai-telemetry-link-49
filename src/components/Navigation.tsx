@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { Menu } from 'lucide-react';
+import { Menu, Settings, LogOut } from 'lucide-react';
 
 // This component is now used as fallback/mobile navigation
 // The main sidebar is handled by AppSidebar component
@@ -69,9 +69,14 @@ const Navigation = () => {
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link to="/settings">Settings</Link>
+                    <Link to="/settings" className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" />
+                      Settings
+                    </Link>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleLogout}>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2">
+                    <LogOut className="h-4 w-4" />
                     Log out
                   </DropdownMenuItem>
                 </DropdownMenuContent>
