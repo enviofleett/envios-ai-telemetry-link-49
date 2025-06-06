@@ -10,6 +10,8 @@ const GP51CredentialsForm: React.FC = () => {
     setUsername,
     password,
     setPassword,
+    apiUrl,
+    setApiUrl,
     handleSaveCredentials,
     isLoading
   } = useGP51Credentials();
@@ -24,8 +26,10 @@ const GP51CredentialsForm: React.FC = () => {
       <GP51FormFields
         username={username}
         password={password}
+        apiUrl={apiUrl}
         onUsernameChange={setUsername}
         onPasswordChange={setPassword}
+        onApiUrlChange={setApiUrl}
         onSubmit={handleSubmit}
         isLoading={isLoading}
       />

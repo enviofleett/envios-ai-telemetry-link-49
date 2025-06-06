@@ -1,7 +1,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
-export async function saveGP51Session(username: string, token: string) {
+export async function saveGP51Session(username: string, token: string, apiUrl?: string) {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -17,15 +17,22 @@ export async function saveGP51Session(username: string, token: string) {
   try {
     console.log('Saving GP51 session for user:', trimmedUsername);
     
+    const sessionData: any = {
+      username: trimmedUsername,
+      gp51_token: token,
+      token_expires_at: expiresAt.toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    // Add API URL if provided
+    if (apiUrl) {
+      sessionData.api_url = apiUrl;
+    }
+
     const { data, error } = await supabase
       .from('gp51_sessions')
-      .upsert({
-        username: trimmedUsername,
-        gp51_token: token,
-        token_expires_at: expiresAt.toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, {
+      .upsert(sessionData, {
         onConflict: 'username'
       })
       .select()

@@ -1,17 +1,25 @@
 
 import { createHash } from './crypto.ts';
 
-export async function authenticateWithGP51({ username, password }: { username: string; password: string }) {
+export async function authenticateWithGP51({ 
+  username, 
+  password, 
+  apiUrl 
+}: { 
+  username: string; 
+  password: string; 
+  apiUrl?: string;
+}) {
   // Trim whitespace from username to ensure clean storage
   const trimmedUsername = username.trim();
   console.log('Starting GP51 credential validation for user:', trimmedUsername);
   
-  // Get and validate GP51 API base URL
-  let GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL');
+  // Get and validate GP51 API base URL - use provided apiUrl or environment variable
+  let GP51_API_BASE = apiUrl?.trim() || Deno.env.get('GP51_API_BASE_URL');
   
   if (!GP51_API_BASE) {
-    console.error('GP51_API_BASE_URL environment variable is not configured');
-    throw new Error('GP51_API_BASE_URL environment variable is not configured. Please set it in Supabase secrets (e.g., https://www.gps51.com).');
+    console.error('GP51 API URL not provided and GP51_API_BASE_URL environment variable is not configured');
+    throw new Error('GP51 API URL is required. Please provide an API URL or configure GP51_API_BASE_URL in Supabase secrets.');
   }
 
   // Clean up the URL - remove /webapi if present and ensure proper protocol
@@ -22,18 +30,18 @@ export async function authenticateWithGP51({ username, password }: { username: s
     GP51_API_BASE = 'https://' + GP51_API_BASE;
   }
   
-  console.log('Using cleaned GP51 API base URL:', GP51_API_BASE);
+  console.log('Using GP51 API base URL:', GP51_API_BASE);
   
   // Validate that GP51_API_BASE is a proper URL
   let baseUrl: URL;
   try {
     baseUrl = new URL(GP51_API_BASE);
     if (!baseUrl.protocol.startsWith('http')) {
-      throw new Error('GP51_API_BASE_URL must be a valid HTTP/HTTPS URL');
+      throw new Error('GP51 API URL must be a valid HTTP/HTTPS URL');
     }
   } catch (error) {
-    console.error('Invalid GP51_API_BASE_URL format:', GP51_API_BASE);
-    throw new Error(`GP51_API_BASE_URL is not a valid URL format. Expected format: https://www.gps51.com but got: ${GP51_API_BASE}`);
+    console.error('Invalid GP51 API URL format:', GP51_API_BASE);
+    throw new Error(`GP51 API URL is not a valid URL format. Expected format: https://api.gps51.com but got: ${GP51_API_BASE}`);
   }
   
   try {
@@ -78,8 +86,16 @@ export async function authenticateWithGP51({ username, password }: { username: s
       }
     ];
     
-    // Construct the API URL correctly
-    const apiUrl = `${GP51_API_BASE}/webapi`;
+    // Construct the API URL correctly - handle both old and new API formats
+    let apiUrl: string;
+    if (GP51_API_BASE.includes('api.gps51.com')) {
+      // New API format - no /webapi needed
+      apiUrl = GP51_API_BASE;
+    } else {
+      // Legacy API format - add /webapi
+      apiUrl = `${GP51_API_BASE}/webapi`;
+    }
+    
     console.log('Using GP51 API URL:', apiUrl);
     
     let lastError: Error | null = null;
@@ -161,7 +177,7 @@ export async function authenticateWithGP51({ username, password }: { username: s
         }
 
         console.log(`SUCCESS! GP51 authentication successful on attempt ${i + 1} for user:`, trimmedUsername, 'Token length:', token.length);
-        return { token, username: trimmedUsername };
+        return { token, username: trimmedUsername, apiUrl: GP51_API_BASE };
 
       } catch (error) {
         console.error(`Attempt ${i + 1} - GP51 authentication error for user:`, trimmedUsername, error);
@@ -178,11 +194,11 @@ export async function authenticateWithGP51({ username, password }: { username: s
     console.error('GP51 authentication error for user:', trimmedUsername, error);
     
     if (error instanceof TypeError && (error.message.includes('fetch') || error.message.includes('NetworkError') || error.message.includes('error sending request'))) {
-      throw new Error(`Network error connecting to GP51 API at ${GP51_API_BASE}. Please verify the GP51_API_BASE_URL is correct and the GP51 server is accessible.`);
+      throw new Error(`Network error connecting to GP51 API at ${GP51_API_BASE}. Please verify the GP51 API URL is correct and the GP51 server is accessible.`);
     }
     
     if (error.message.includes('Invalid URL') || error.message.includes('not a valid URL format')) {
-      throw new Error(`GP51 API configuration error: The GP51_API_BASE_URL is incorrectly configured. Current value: ${GP51_API_BASE}. Please check your Supabase secrets and ensure GP51_API_BASE_URL is set to a valid URL like https://www.gps51.com`);
+      throw new Error(`GP51 API configuration error: The GP51 API URL is incorrectly configured. Current value: ${GP51_API_BASE}. Please check your API URL format (e.g., https://api.gps51.com)`);
     }
     
     throw error;

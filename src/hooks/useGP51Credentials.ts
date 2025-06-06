@@ -7,17 +7,32 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 export const useGP51Credentials = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [apiUrl, setApiUrl] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const saveCredentialsMutation = useMutation({
-    mutationFn: async ({ username, password }: { username: string; password: string }) => {
+    mutationFn: async ({ 
+      username, 
+      password, 
+      apiUrl 
+    }: { 
+      username: string; 
+      password: string; 
+      apiUrl?: string;
+    }) => {
+      const payload: any = { 
+        action: 'save-gp51-credentials',
+        username,
+        password
+      };
+
+      if (apiUrl && apiUrl.trim()) {
+        payload.apiUrl = apiUrl.trim();
+      }
+
       const { data, error } = await supabase.functions.invoke('settings-management', {
-        body: { 
-          action: 'save-gp51-credentials',
-          username,
-          password
-        }
+        body: payload
       });
       if (error) throw error;
       return data;
@@ -26,6 +41,7 @@ export const useGP51Credentials = () => {
       queryClient.invalidateQueries({ queryKey: ['gp51-status'] });
       setUsername('');
       setPassword('');
+      setApiUrl('');
       toast({ 
         title: 'GP51 Credentials Saved',
         description: data.message || 'Successfully connected to GP51! These credentials will be used for automated imports.'
@@ -49,7 +65,7 @@ export const useGP51Credentials = () => {
       });
       return;
     }
-    saveCredentialsMutation.mutate({ username, password });
+    saveCredentialsMutation.mutate({ username, password, apiUrl });
   };
 
   return {
@@ -57,6 +73,8 @@ export const useGP51Credentials = () => {
     setUsername,
     password,
     setPassword,
+    apiUrl,
+    setApiUrl,
     handleSaveCredentials,
     isLoading: saveCredentialsMutation.isPending
   };

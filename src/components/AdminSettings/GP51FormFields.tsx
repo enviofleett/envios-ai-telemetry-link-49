@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button';
 interface GP51FormFieldsProps {
   username: string;
   password: string;
+  apiUrl?: string;
   onUsernameChange: (value: string) => void;
   onPasswordChange: (value: string) => void;
+  onApiUrlChange?: (value: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   isLoading: boolean;
 }
@@ -16,13 +18,29 @@ interface GP51FormFieldsProps {
 const GP51FormFields: React.FC<GP51FormFieldsProps> = ({
   username,
   password,
+  apiUrl = '',
   onUsernameChange,
   onPasswordChange,
+  onApiUrlChange,
   onSubmit,
   isLoading
 }) => {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="gp51-api-url">GP51 API URL (Optional)</Label>
+        <Input
+          id="gp51-api-url"
+          type="url"
+          value={apiUrl}
+          onChange={(e) => onApiUrlChange?.(e.target.value)}
+          placeholder="e.g., https://api.gps51.com (leave empty to use default)"
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Enter your GP51 API URL. Leave empty to use the system default.
+        </p>
+      </div>
+
       <div>
         <Label htmlFor="gp51-username">GP51 Username</Label>
         <Input
