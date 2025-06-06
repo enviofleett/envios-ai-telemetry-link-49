@@ -6,19 +6,27 @@ export async function authenticateWithGP51({ username, password }: { username: s
   
   const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL');
   if (!GP51_API_BASE) {
+    console.error('GP51_API_BASE_URL environment variable is not configured');
     throw new Error('GP51_API_BASE_URL environment variable is not configured');
   }
   
   try {
-    // Hash the password using MD5
+    // Hash the password
     const hashedPassword = await createHash(password);
     console.log('Password hashed successfully');
     
-    console.log('Attempting GP51 authentication with corrected payload...');
+    console.log('Attempting GP51 authentication...');
     
     // Construct the proper GP51 API URL
     const apiUrl = `${GP51_API_BASE}/webapi?action=login`;
     console.log('Using GP51 API URL:', apiUrl);
+    
+    const requestBody = {
+      username: username,
+      password: hashedPassword
+    };
+    
+    console.log('Sending authentication request to GP51...');
     
     const response = await fetch(apiUrl, {
       method: 'POST',
@@ -26,11 +34,10 @@ export async function authenticateWithGP51({ username, password }: { username: s
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify({
-        username: username,
-        password: hashedPassword
-      })
+      body: JSON.stringify(requestBody)
     });
+
+    console.log('GP51 API response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -42,6 +49,7 @@ export async function authenticateWithGP51({ username, password }: { username: s
     console.log('GP51 authentication response received');
 
     if (!result || typeof result !== 'object') {
+      console.error('Invalid response format from GP51 API:', result);
       throw new Error('Invalid response format from GP51 API');
     }
 
