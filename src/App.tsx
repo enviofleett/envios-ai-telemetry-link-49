@@ -1,16 +1,16 @@
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { Toaster } from '@/components/ui/sonner';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { SidebarProvider } from '@/components/ui/sidebar';
+import { AppSidebar } from '@/components/AppSidebar';
+import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/contexts/AuthContext';
-import { optimizedQueryClient } from '@/services/optimizedQueryClient';
-
-import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
+
+// Pages
+import Index from '@/pages/Index';
 import Auth from '@/pages/Auth';
-import SetPassword from '@/pages/SetPassword';
 import Dashboard from '@/pages/Dashboard';
 import LiveTracking from '@/pages/LiveTracking';
 import UserManagement from '@/pages/UserManagement';
@@ -18,57 +18,66 @@ import Settings from '@/pages/Settings';
 import SystemImport from '@/pages/SystemImport';
 import NotFound from '@/pages/NotFound';
 
+import './App.css';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      retry: 1,
+    },
+  },
+});
+
 function App() {
   return (
-    <QueryClientProvider client={optimizedQueryClient}>
-      <Router>
-        <AuthProvider>
-          <div className="min-h-screen bg-background text-foreground">
-            <Routes>
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/set-password" element={<SetPassword />} />
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Dashboard />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/tracking" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <LiveTracking />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/users" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <UserManagement />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/settings" element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Settings />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="/system-import" element={
-                <ProtectedRoute requireAdmin={true}>
-                  <Layout>
-                    <SystemImport />
-                  </Layout>
-                </ProtectedRoute>
-              } />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </div>
-          <Toaster />
-        </AuthProvider>
-      </Router>
-      <ReactQueryDevtools initialIsOpen={false} />
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Router>
+          <SidebarProvider defaultOpen={true}>
+            <div className="min-h-screen flex w-full">
+              <AppSidebar />
+              <main className="flex-1 overflow-auto">
+                <Routes>
+                  <Route path="/auth" element={<Auth />} />
+                  <Route path="/" element={
+                    <ProtectedRoute>
+                      <Index />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/dashboard" element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/tracking" element={
+                    <ProtectedRoute>
+                      <LiveTracking />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/users" element={
+                    <ProtectedRoute>
+                      <UserManagement />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/settings" element={
+                    <ProtectedRoute>
+                      <Settings />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/system-import" element={
+                    <ProtectedRoute>
+                      <SystemImport />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </main>
+            </div>
+            <Toaster />
+          </SidebarProvider>
+        </Router>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

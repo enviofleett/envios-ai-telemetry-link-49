@@ -49,6 +49,9 @@ export function AppSidebar() {
     }));
   };
 
+  const getNavCls = ({ isActive }: { isActive: boolean }) =>
+    isActive ? "bg-primary text-primary-foreground" : "text-gray-700 hover:bg-gray-100";
+
   return (
     <Sidebar className={isCollapsed ? "w-14" : "w-60"} collapsible="offcanvas">
       <SidebarTrigger className="m-2 self-end" />
@@ -58,7 +61,7 @@ export function AppSidebar() {
           <div className="flex items-center justify-between px-3 py-2">
             {!isCollapsed && (
               <SidebarGroupLabel className="text-sm font-medium text-gray-500">
-                Main Navigation
+                Fleet Management
               </SidebarGroupLabel>
             )}
             {!isCollapsed && (
@@ -84,13 +87,7 @@ export function AppSidebar() {
                       <NavLink
                         to={item.url}
                         end
-                        className={({ isActive }) =>
-                          `flex items-center gap-2 px-3 py-2 rounded-md transition-colors ${
-                            isActive
-                              ? 'bg-primary text-primary-foreground'
-                              : 'text-gray-700 hover:bg-gray-100'
-                          }`
-                        }
+                        className={getNavCls}
                       >
                         <item.icon className="h-4 w-4" />
                         {!isCollapsed && <span>{item.title}</span>}
