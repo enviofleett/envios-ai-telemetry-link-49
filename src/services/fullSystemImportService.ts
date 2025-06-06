@@ -141,6 +141,18 @@ class FullSystemImportService {
           // Check if completed
           if (importJob.status === 'completed') {
             clearInterval(pollInterval);
+            
+            // Safely handle backup_tables Json type
+            const backupTablesData = importJob.backup_tables;
+            let backupTables: string[] = [];
+            
+            if (backupTablesData && typeof backupTablesData === 'object' && 'backup_tables' in backupTablesData) {
+              const tablesArray = (backupTablesData as any).backup_tables;
+              if (Array.isArray(tablesArray)) {
+                backupTables = tablesArray;
+              }
+            }
+            
             resolve({
               importId,
               success: true,
@@ -149,11 +161,20 @@ class FullSystemImportService {
               totalVehicles: importJob.total_devices || 0,
               successfulVehicles: importJob.successful_devices || 0,
               conflicts: 0,
-              backupTables: importJob.backup_tables?.backup_tables || []
+              backupTables
             });
           } else if (importJob.status === 'failed') {
             clearInterval(pollInterval);
-            reject(new Error(importJob.error_log?.error || 'Import failed'));
+            
+            // Safely handle error_log Json type
+            const errorLogData = importJob.error_log;
+            let errorMessage = 'Import failed';
+            
+            if (errorLogData && typeof errorLogData === 'object' && 'error' in errorLogData) {
+              errorMessage = (errorLogData as any).error || errorMessage;
+            }
+            
+            reject(new Error(errorMessage));
           }
 
         } catch (error) {
@@ -179,15 +200,23 @@ class FullSystemImportService {
 
     if (error) throw error;
     
-    return data.map(phase => ({
-      phase: phase.phase_name,
-      phaseProgress: phase.phase_progress,
-      overallProgress: 0, // Calculate based on all phases
-      currentOperation: typeof phase.phase_details === 'object' && phase.phase_details && 'details' in phase.phase_details 
-        ? (phase.phase_details as any).details || phase.phase_name
-        : phase.phase_name,
-      details: JSON.stringify(phase.phase_details)
-    }));
+    return data.map(phase => {
+      // Safely handle phase_details Json type
+      let currentOperation = phase.phase_name;
+      const phaseDetails = phase.phase_details;
+      
+      if (phaseDetails && typeof phaseDetails === 'object' && 'details' in phaseDetails) {
+        currentOperation = (phaseDetails as any).details || phase.phase_name;
+      }
+      
+      return {
+        phase: phase.phase_name,
+        phaseProgress: phase.phase_progress,
+        overallProgress: 0, // Calculate based on all phases
+        currentOperation,
+        details: typeof phaseDetails === 'object' ? JSON.stringify(phaseDetails) : String(phaseDetails || '')
+      };
+    });
   }
 
   async rollbackImport(importId: string): Promise<void> {
@@ -201,9 +230,11 @@ class FullSystemImportService {
 
     // For now, we'll log the rollback attempt
     // In production, this would restore from backup tables
-    const backupTables = importJob.backup_tables as any;
-    if (backupTables?.backup_tables) {
-      console.log('Rolling back from backup tables:', backupTables.backup_tables);
+    const backupTablesData = importJob.backup_tables;
+    
+    if (backupTablesData && typeof backupTablesData === 'object' && 'backup_tables' in backupTablesData) {
+      const backupTables = (backupTablesData as any).backup_tables;
+      console.log('Rolling back from backup tables:', backupTables);
       
       // Log audit event
       await supabase
