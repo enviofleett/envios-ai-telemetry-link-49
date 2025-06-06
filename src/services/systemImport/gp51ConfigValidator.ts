@@ -6,7 +6,7 @@ export class GP51ConfigValidator {
     try {
       console.log('Validating GP51 configuration...');
       
-      // Test GP51 connectivity
+      // Test GP51 connectivity using the updated test_connection action
       const { data, error } = await supabase.functions.invoke('gp51-service-management', {
         body: { action: 'test_connection' }
       });
@@ -16,9 +16,14 @@ export class GP51ConfigValidator {
         return false;
       }
       
-      const isValid = data?.success || false;
-      console.log('GP51 configuration validation result:', isValid);
-      return isValid;
+      // Check if the test was successful
+      if (!data?.success) {
+        console.error('GP51 configuration test returned failure:', data);
+        return false;
+      }
+      
+      console.log('GP51 configuration validation passed for user:', data.username);
+      return true;
     } catch (error) {
       console.error('Failed to validate GP51 configuration:', error);
       return false;

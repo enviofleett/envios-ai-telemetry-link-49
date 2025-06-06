@@ -29,7 +29,7 @@ export class GP51SessionManager {
       return false;
     }
 
-    // Test actual connectivity
+    // Test actual connectivity using the improved test_connection
     try {
       const { data, error } = await supabase.functions.invoke('gp51-service-management', {
         body: { action: 'test_connection' }
@@ -107,38 +107,55 @@ export class GP51SessionManager {
     console.log('Refreshing GP51 session...');
     
     try {
-      // Get stored GP51 credentials
+      // Get the most recent valid GP51 session (not hardcoded to any specific username)
       const { data: sessionData, error } = await supabase
         .from('gp51_sessions')
         .select('username, gp51_token, token_expires_at')
         .order('created_at', { ascending: false })
-        .limit(1);
+        .order('token_expires_at', { ascending: false })
+        .limit(5); // Get multiple sessions to find a valid one
 
       if (error || !sessionData || sessionData.length === 0) {
-        throw new Error('No GP51 session found. Please authenticate first.');
+        throw new Error('No GP51 sessions found. Please authenticate first.');
       }
 
-      const session = sessionData[0];
+      // Find the first non-expired session
+      let validSession = null;
+      const now = new Date();
+      
+      for (const session of sessionData) {
+        const expiresAt = new Date(session.token_expires_at);
+        if (expiresAt > now) {
+          validSession = session;
+          break;
+        }
+      }
+
+      if (!validSession) {
+        throw new Error('All GP51 sessions are expired. Please re-authenticate.');
+      }
+
+      console.log('Using GP51 session for user:', validSession.username);
       
       // Try to refresh the existing session
       const { data: refreshResult, error: refreshError } = await supabase.functions.invoke('gp51-service-management', {
         body: { 
           action: 'refresh_session',
-          username: session.username,
-          currentToken: session.gp51_token
+          username: validSession.username,
+          currentToken: validSession.gp51_token
         }
       });
 
       if (refreshError || !refreshResult?.success) {
         // If refresh fails, try re-authentication
         console.log('Session refresh failed, attempting re-authentication');
-        return await this.reAuthenticate(session.username);
+        return await this.reAuthenticate(validSession.username);
       }
 
       // Update current session
       this.currentSession = {
         token: refreshResult.token,
-        username: session.username,
+        username: validSession.username,
         expiresAt: new Date(refreshResult.expiresAt),
         isValid: true
       };
@@ -151,9 +168,9 @@ export class GP51SessionManager {
           token_expires_at: refreshResult.expiresAt,
           updated_at: new Date().toISOString()
         })
-        .eq('username', session.username);
+        .eq('username', validSession.username);
 
-      console.log('GP51 session refreshed successfully');
+      console.log('GP51 session refreshed successfully for user:', validSession.username);
       return this.currentSession;
 
     } catch (error) {
@@ -168,7 +185,7 @@ export class GP51SessionManager {
   }
 
   private async reAuthenticate(username: string): Promise<GP51Session> {
-    console.log('Re-authenticating with GP51...');
+    console.log('Re-authenticating with GP51 for user:', username);
     
     try {
       const { data, error } = await supabase.functions.invoke('gp51-service-management', {
@@ -190,7 +207,7 @@ export class GP51SessionManager {
         isValid: true
       };
 
-      console.log('GP51 re-authentication successful');
+      console.log('GP51 re-authentication successful for user:', username);
       return this.currentSession;
 
     } catch (error) {

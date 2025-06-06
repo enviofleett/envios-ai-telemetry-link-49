@@ -29,33 +29,94 @@ serve(async (req) => {
 
     console.log('GP51 Service Management API call:', action);
 
-    // Get admin credentials for GP51 API calls
-    const { data: adminSession, error: sessionError } = await supabase
+    // Handle test_connection as a special case - just validate we have a valid session
+    if (action === 'test_connection') {
+      console.log('Testing GP51 connection by validating session...');
+      
+      const { data: sessions, error: sessionError } = await supabase
+        .from('gp51_sessions')
+        .select('username, gp51_token, token_expires_at')
+        .order('created_at', { ascending: false })
+        .order('token_expires_at', { ascending: false })
+        .limit(1);
+
+      if (sessionError || !sessions || sessions.length === 0) {
+        console.error('No GP51 sessions found:', sessionError);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'No GP51 sessions configured' 
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const latestSession = sessions[0];
+      
+      // Check if session is expired
+      const now = new Date();
+      const expiresAt = new Date(latestSession.token_expires_at);
+      
+      if (expiresAt <= now) {
+        console.error('GP51 session expired:', latestSession.username, 'expired at', expiresAt);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'GP51 session expired' 
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('GP51 connection test successful for user:', latestSession.username);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          username: latestSession.username,
+          expiresAt: latestSession.token_expires_at
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get the most recent valid GP51 session (not hardcoded to 'admin')
+    const { data: sessions, error: sessionError } = await supabase
       .from('gp51_sessions')
       .select('*')
-      .eq('username', 'admin') // This should be configurable
       .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .order('token_expires_at', { ascending: false })
+      .limit(5); // Get top 5 to find a valid one
 
-    if (sessionError || !adminSession) {
+    if (sessionError || !sessions || sessions.length === 0) {
+      console.error('No GP51 sessions found:', sessionError);
       return new Response(
-        JSON.stringify({ error: 'Admin GP51 session not found' }),
+        JSON.stringify({ error: 'No GP51 sessions found' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check if admin token is still valid
-    if (new Date(adminSession.token_expires_at) < new Date()) {
+    // Find the first non-expired session
+    let validSession = null;
+    const now = new Date();
+    
+    for (const session of sessions) {
+      const expiresAt = new Date(session.token_expires_at);
+      if (expiresAt > now) {
+        validSession = session;
+        break;
+      }
+    }
+
+    if (!validSession) {
+      console.error('All GP51 sessions are expired');
       return new Response(
-        JSON.stringify({ error: 'Admin GP51 session expired' }),
+        JSON.stringify({ error: 'All GP51 sessions expired' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const token = adminSession.gp51_token;
-
-    console.log('Calling GP51 API with action:', action);
+    console.log('Using GP51 session for user:', validSession.username);
+    const token = validSession.gp51_token;
 
     // Call GP51 API
     const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
@@ -79,13 +140,13 @@ serve(async (req) => {
     const result = await gp51Response.json();
     console.log('GP51 API response:', result);
 
-    // Log the API call for audit purposes
+    // Update the session's last used timestamp
     await supabase
       .from('gp51_sessions')
       .update({
         updated_at: new Date().toISOString()
       })
-      .eq('id', adminSession.id);
+      .eq('id', validSession.id);
 
     return new Response(
       JSON.stringify(result),

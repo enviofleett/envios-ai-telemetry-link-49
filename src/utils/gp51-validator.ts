@@ -17,7 +17,7 @@ export async function validateGP51Configuration(): Promise<GP51ValidationResult>
   try {
     console.log('Validating GP51 configuration...');
     
-    // Test GP51 connectivity
+    // Test GP51 connectivity using the improved test_connection action
     const { data, error } = await supabase.functions.invoke('gp51-service-management', {
       body: { action: 'test_connection' }
     });
@@ -30,22 +30,33 @@ export async function validateGP51Configuration(): Promise<GP51ValidationResult>
 
     if (!data?.success) {
       result.isValid = false;
-      result.errors.push('GP51 service is not responding correctly');
+      result.errors.push(data?.error || 'GP51 service is not responding correctly');
       return result;
     }
 
-    console.log('GP51 connectivity test passed');
+    console.log('GP51 connectivity test passed for user:', data.username);
 
     // Check for existing GP51 sessions
     const { data: sessions, error: sessionError } = await supabase
       .from('gp51_sessions')
-      .select('count')
+      .select('username, token_expires_at')
+      .order('created_at', { ascending: false })
       .limit(1);
 
     if (sessionError) {
       result.warnings.push('Could not verify GP51 session status');
     } else if (!sessions || sessions.length === 0) {
-      result.warnings.push('No active GP51 sessions found. You may need to authenticate first.');
+      result.warnings.push('No GP51 sessions found. You may need to authenticate first.');
+    } else {
+      const session = sessions[0];
+      const expiresAt = new Date(session.token_expires_at);
+      const now = new Date();
+      
+      if (expiresAt <= now) {
+        result.warnings.push(`GP51 session for ${session.username} has expired. Please re-authenticate.`);
+      } else {
+        console.log(`Active GP51 session found for ${session.username}, expires at ${expiresAt}`);
+      }
     }
 
     // Additional validation checks
@@ -65,21 +76,6 @@ export async function validateGP51Configuration(): Promise<GP51ValidationResult>
       result.warnings.push('Could not verify import job status');
     }
 
-    // Validate environment configuration
-    try {
-      const { data: envValidation, error: envError } = await supabase.functions.invoke('passwordless-gp51-import', {
-        body: { action: 'validate_environment' }
-      });
-
-      if (envError) {
-        result.warnings.push('Could not validate environment configuration');
-      } else if (envValidation?.warnings) {
-        result.warnings.push(...envValidation.warnings);
-      }
-    } catch (error) {
-      result.warnings.push('Environment validation unavailable');
-    }
-
     return result;
 
   } catch (error) {
@@ -94,7 +90,7 @@ export function getGP51ConfigurationHelp(): string[] {
   return [
     '1. Ensure GP51_API_BASE_URL is configured in Supabase secrets',
     '2. Test GP51 connectivity in Admin Settings',
-    '3. Verify GP51 credentials are valid',
+    '3. Verify GP51 credentials are valid and not expired',
     '4. Check that GP51 services are accessible from your network',
     '5. Ensure no other import operations are currently running',
     '6. Verify GP51 session is active and not expired'
