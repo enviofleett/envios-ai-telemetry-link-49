@@ -6,6 +6,40 @@
 
 @layer base {
   :root {
+    /* Updated color system to match wireframe specifications */
+    
+    /* Primary Colors - Exact wireframe specifications */
+    --primary-dark: 15 23 42; /* #0f172a */
+    --secondary-dark: 30 41 59; /* #1e293b */
+    --tertiary-dark: 51 65 85; /* #334155 */
+    --quaternary-dark: 71 85 105; /* #475569 */
+    
+    /* Gray Scale - Exact wireframe specifications */
+    --gray-mid: 100 116 139; /* #64748b */
+    --gray-light: 148 163 184; /* #94a3b8 */
+    --gray-lighter: 203 213 225; /* #cbd5e1 */
+    --gray-very-light: 226 232 240; /* #e2e8f0 */
+    --gray-background: 241 245 249; /* #f1f5f9 */
+    --off-white: 248 250 252; /* #f8fafc */
+    
+    /* Status Colors - Exact wireframe specifications */
+    --success-dark: 22 163 74; /* #16a34a */
+    --success-primary: 34 197 94; /* #22c55e */
+    --success-light: 74 222 128; /* #4ade80 */
+    
+    --warning-dark: 217 119 6; /* #d97706 */
+    --warning-primary: 245 158 11; /* #f59e0b */
+    --warning-light: 251 191 36; /* #fbbf24 */
+    
+    --error-dark: 220 38 38; /* #dc2626 */
+    --error-primary: 239 68 68; /* #ef4444 */
+    --error-light: 248 113 113; /* #f87171 */
+    
+    /* Teal Colors */
+    --teal-primary: 13 148 136; /* #0d9488 */
+    --teal-secondary: 20 184 166; /* #14b8a6 */
+    --teal-light: 45 212 191; /* #2dd4bf */
+
     /* Background Colors */
     --background: 241 245 249; /* #f1f5f9 - Background Gray */
     --foreground: 15 23 42; /* #0f172a - Primary Dark */
@@ -125,11 +159,11 @@
   }
 
   .card-shadow {
-    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   }
 
   .card-shadow-lg {
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   }
 
   .status-online {

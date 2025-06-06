@@ -38,54 +38,45 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="min-h-screen flex w-full bg-gray-background">
         <AppSidebar />
         <SidebarInset className="flex-1">
-          <header className="flex h-16 shrink-0 items-center gap-4 border-b border-border bg-card px-6">
-            <SidebarTrigger className="text-foreground hover:bg-muted" />
+          <header className="h-16 flex items-center gap-4 bg-white border-b border-gray-lighter px-6">
+            <SidebarTrigger className="w-10 h-10 p-2 rounded hover:bg-gray-background text-primary-dark" />
             
             <div className="flex-1">
               <Breadcrumb>
-                <BreadcrumbList>
+                <BreadcrumbList className="text-sm">
                   {breadcrumbs.map((breadcrumb, index) => (
                     <React.Fragment key={breadcrumb.path}>
                       <BreadcrumbItem>
                         {index === breadcrumbs.length - 1 ? (
-                          <BreadcrumbPage className="text-foreground font-medium">
+                          <BreadcrumbPage className="text-primary-dark font-medium">
                             {breadcrumb.name}
                           </BreadcrumbPage>
                         ) : (
                           <BreadcrumbLink 
                             href={breadcrumb.path}
-                            className="text-muted-foreground hover:text-foreground"
+                            className="text-gray-mid hover:text-primary-dark font-medium"
                           >
                             {breadcrumb.name}
                           </BreadcrumbLink>
                         )}
                       </BreadcrumbItem>
-                      {index < breadcrumbs.length - 1 && <BreadcrumbSeparator />}
+                      {index < breadcrumbs.length - 1 && (
+                        <BreadcrumbSeparator className="mx-2">
+                          <span className="text-gray-mid">/</span>
+                        </BreadcrumbSeparator>
+                      )}
                     </React.Fragment>
                   ))}
                 </BreadcrumbList>
               </Breadcrumb>
             </div>
-
-            <div className="flex items-center gap-4">
-              <div className="text-sm text-muted-foreground">
-                {new Date().toLocaleDateString('en-US', {
-                  weekday: 'short',
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric'
-                })}
-              </div>
-            </div>
           </header>
           
-          <main className="flex-1 p-6">
-            <div className="page-container">
-              {children}
-            </div>
+          <main className="flex-1 p-6 bg-gray-background">
+            {children}
           </main>
         </SidebarInset>
       </div>
