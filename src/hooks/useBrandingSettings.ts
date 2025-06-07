@@ -62,7 +62,7 @@ export const useBrandingSettings = () => {
           accent_color: data.accent_color || defaultBrandingSettings.accent_color,
           background_color: data.background_color || defaultBrandingSettings.background_color,
           text_color: data.text_color || defaultBrandingSettings.text_color,
-          font_family: data.font_family || defaultBrandingSettings.font_family,
+          font_family: data.font_family_body || data.font_family_heading || defaultBrandingSettings.font_family,
           logo_url: data.logo_url || '',
           favicon_url: data.favicon_url || '',
           custom_css: data.custom_css || '',
@@ -85,13 +85,25 @@ export const useBrandingSettings = () => {
       const updatedSettings = { ...settings, [key]: value };
       setSettings(updatedSettings);
 
+      // Map new schema to existing database columns
+      const dbPayload: any = {
+        user_id: user.id,
+        primary_color: updatedSettings.primary_color,
+        secondary_color: updatedSettings.secondary_color,
+        accent_color: updatedSettings.accent_color,
+        background_color: updatedSettings.background_color,
+        text_color: updatedSettings.text_color,
+        font_family_body: updatedSettings.font_family,
+        font_family_heading: updatedSettings.font_family,
+        logo_url: updatedSettings.logo_url,
+        favicon_url: updatedSettings.favicon_url,
+        custom_css: updatedSettings.custom_css,
+        updated_at: new Date().toISOString(),
+      };
+
       const { error } = await supabase
         .from('branding_settings')
-        .upsert({
-          user_id: user.id,
-          ...updatedSettings,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(dbPayload);
 
       if (error) {
         console.error('Error updating branding settings:', error);
@@ -155,13 +167,24 @@ export const useBrandingSettings = () => {
 
       setSettings(defaultBrandingSettings);
 
+      const dbPayload = {
+        user_id: user.id,
+        primary_color: defaultBrandingSettings.primary_color,
+        secondary_color: defaultBrandingSettings.secondary_color,
+        accent_color: defaultBrandingSettings.accent_color,
+        background_color: defaultBrandingSettings.background_color,
+        text_color: defaultBrandingSettings.text_color,
+        font_family_body: defaultBrandingSettings.font_family,
+        font_family_heading: defaultBrandingSettings.font_family,
+        logo_url: defaultBrandingSettings.logo_url,
+        favicon_url: defaultBrandingSettings.favicon_url,
+        custom_css: defaultBrandingSettings.custom_css,
+        updated_at: new Date().toISOString(),
+      };
+
       const { error } = await supabase
         .from('branding_settings')
-        .upsert({
-          user_id: user.id,
-          ...defaultBrandingSettings,
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(dbPayload);
 
       if (error) {
         console.error('Error resetting branding settings:', error);

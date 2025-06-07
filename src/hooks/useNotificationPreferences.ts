@@ -63,35 +63,57 @@ export const useNotificationPreferences = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
+      // Try to fetch from user_notification_preferences table first
+      let { data, error } = await supabase
         .from('user_notification_preferences')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching notification preferences:', error);
+      // If table doesn't exist or no data, fall back to existing notification_settings table
+      if (error || !data) {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('notification_settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (fallbackError && fallbackError.code !== 'PGRST116') {
+          console.error('Error fetching notification preferences:', fallbackError);
+          return;
+        }
+
+        if (fallbackData) {
+          // Map existing fields to new structure
+          setPreferences({
+            ...defaultPreferences,
+            email_notifications: fallbackData.email_notifications ?? true,
+            // Map other existing fields as available
+            system_updates: fallbackData.import_completion ?? true,
+            billing_alerts: fallbackData.import_failure ?? true,
+          });
+        }
         return;
       }
 
       if (data) {
         setPreferences({
-          vehicle_online_offline: data.vehicle_online_offline,
-          low_battery_alerts: data.low_battery_alerts,
-          maintenance_due: data.maintenance_due,
-          engine_diagnostics: data.engine_diagnostics,
-          geofence_violations: data.geofence_violations,
-          speeding_alerts: data.speeding_alerts,
-          unauthorized_use: data.unauthorized_use,
-          panic_button: data.panic_button,
-          system_updates: data.system_updates,
-          daily_reports: data.daily_reports,
-          billing_alerts: data.billing_alerts,
-          api_status: data.api_status,
-          email_notifications: data.email_notifications,
-          sms_notifications: data.sms_notifications,
-          push_notifications: data.push_notifications,
-          webhook_notifications: data.webhook_notifications,
+          vehicle_online_offline: data.vehicle_online_offline ?? true,
+          low_battery_alerts: data.low_battery_alerts ?? true,
+          maintenance_due: data.maintenance_due ?? true,
+          engine_diagnostics: data.engine_diagnostics ?? false,
+          geofence_violations: data.geofence_violations ?? true,
+          speeding_alerts: data.speeding_alerts ?? true,
+          unauthorized_use: data.unauthorized_use ?? true,
+          panic_button: data.panic_button ?? true,
+          system_updates: data.system_updates ?? true,
+          daily_reports: data.daily_reports ?? true,
+          billing_alerts: data.billing_alerts ?? true,
+          api_status: data.api_status ?? false,
+          email_notifications: data.email_notifications ?? true,
+          sms_notifications: data.sms_notifications ?? true,
+          push_notifications: data.push_notifications ?? true,
+          webhook_notifications: data.webhook_notifications ?? false,
         });
       }
     } catch (error) {
@@ -110,6 +132,7 @@ export const useNotificationPreferences = () => {
       const updatedPreferences = { ...preferences, [key]: value };
       setPreferences(updatedPreferences);
 
+      // Try to save to user_notification_preferences table
       const { error } = await supabase
         .from('user_notification_preferences')
         .upsert({
