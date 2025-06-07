@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { gp51SessionManager } from './systemImport/gp51SessionManager';
 import { importErrorHandler } from './systemImport/errorHandler';
@@ -22,6 +21,9 @@ export interface ImportResult {
   backupTables: string[];
   error?: string;
 }
+
+// Export SystemImportOptions for component use
+export { SystemImportOptions };
 
 class FullSystemImportService {
   private currentImportId: string | null = null;
@@ -218,6 +220,26 @@ class FullSystemImportService {
       
     } catch (error) {
       console.error('Error during import cancellation:', error);
+      throw error;
+    }
+  }
+
+  async rollbackImport(importId: string): Promise<void> {
+    console.log(`🔄 Rolling back import: ${importId}`);
+    
+    try {
+      const { data, error } = await supabase.rpc('rollback_system_import', {
+        import_id: importId
+      });
+
+      if (error) {
+        throw new Error(`Rollback failed: ${error.message}`);
+      }
+
+      console.log('✅ Import rollback completed successfully');
+      
+    } catch (error) {
+      console.error('Error during import rollback:', error);
       throw error;
     }
   }
