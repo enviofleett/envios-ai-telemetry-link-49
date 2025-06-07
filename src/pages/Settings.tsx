@@ -3,14 +3,14 @@ import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CompanySettingsTab } from '@/components/settings/CompanySettingsTab';
-import { BillingSettingsTab } from '@/components/settings/BillingSettingsTab';
-import { EnhancedSMTPSettingsTab } from '@/components/settings/EnhancedSMTPSettingsTab';
-import { BrandingCustomizationTab } from '@/components/settings/BrandingCustomizationTab';
-import { GP51ApiSettingsTab } from '@/components/settings/GP51ApiSettingsTab';
-import { NotificationsSettingsTab } from '@/components/settings/NotificationsSettingsTab';
-import { ThemeCustomizationTab } from '@/components/settings/ThemeCustomizationTab';
-import { FleetUserManagementTab } from '@/components/settings/FleetUserManagementTab';
+import CompanySettingsTab from '@/components/settings/CompanySettingsTab';
+import BillingSettingsTab from '@/components/settings/BillingSettingsTab';
+import EnhancedSMTPSettingsTab from '@/components/settings/EnhancedSMTPSettingsTab';
+import BrandingCustomizationTab from '@/components/settings/BrandingCustomizationTab';
+import GP51ApiSettingsTab from '@/components/settings/GP51ApiSettingsTab';
+import NotificationsSettingsTab from '@/components/settings/NotificationsSettingsTab';
+import ThemeCustomizationTab from '@/components/settings/ThemeCustomizationTab';
+import FleetUserManagementTab from '@/components/settings/FleetUserManagementTab';
 import { PrivacySettingsTab } from '@/components/settings/PrivacySettingsTab';
 
 const Settings: React.FC = () => {
