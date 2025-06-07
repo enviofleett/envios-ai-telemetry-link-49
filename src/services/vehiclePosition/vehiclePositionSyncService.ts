@@ -318,7 +318,8 @@ export class VehiclePositionSyncService {
 
   public async forceSync(): Promise<SyncMetrics> {
     console.log('Force syncing active vehicle positions...');
-    return await this.syncActiveVehiclePositions();
+    await this.syncActiveVehiclePositions();
+    return this.metrics;
   }
 
   public async getSyncProgress(): Promise<{
