@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -37,7 +36,7 @@ const RealTimeAlertsPanel: React.FC = () => {
         priority: alert.severity === 'critical' ? 'high' : 
                  alert.severity === 'high' ? 'high' :
                  alert.severity === 'medium' ? 'medium' : 'low',
-        title: `${alert.alertType} - ${alert.deviceName}`,
+        title: `${alert.description} - ${alert.deviceName}`,
         description: alert.description,
         vehicle: alert.deviceId,
         timestamp: new Date(alert.timestamp),

@@ -7,7 +7,7 @@ import {
   Car, 
   Activity, 
   WifiOff, 
-  Users,
+  AlertTriangle,
   TrendingUp,
   TrendingDown,
   MoreHorizontal
@@ -67,7 +67,7 @@ const KPICardsSection: React.FC = () => {
       trend: '70%',
       trendDirection: 'up' as const,
       subtitle: 'need attention',
-      icon: Users,
+      icon: AlertTriangle,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
       progressValue: 70
