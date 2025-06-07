@@ -9,6 +9,11 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { GP51SessionProvider } from "@/contexts/GP51SessionContext";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import UserManagement from "./pages/UserManagement";
+import LiveTracking from "./pages/LiveTracking";
+import DeviceConfiguration from "./pages/DeviceConfiguration";
+import SystemImport from "./pages/SystemImport";
+import Settings from "./pages/Settings";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +29,11 @@ function App() {
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/users" element={<UserManagement />} />
+                <Route path="/tracking" element={<LiveTracking />} />
+                <Route path="/device-configuration" element={<DeviceConfiguration />} />
+                <Route path="/system-import" element={<SystemImport />} />
+                <Route path="/settings" element={<Settings />} />
               </Routes>
             </BrowserRouter>
           </TooltipProvider>

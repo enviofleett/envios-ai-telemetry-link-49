@@ -14,6 +14,7 @@ import {
   SidebarTrigger,
   SidebarRail,
   useSidebar,
+  SidebarFooter,
 } from '@/components/ui/sidebar';
 import { 
   BarChart3, 
@@ -25,6 +26,7 @@ import {
   Home,
   Cog
 } from 'lucide-react';
+import UserProfile from './UserProfile';
 
 const navigation = [
   {
@@ -136,6 +138,11 @@ export function AppSidebar() {
           </SidebarGroup>
         ))}
       </SidebarContent>
+
+      <SidebarFooter className="p-4 border-t border-sidebar-border">
+        {!isCollapsed && <UserProfile />}
+      </SidebarFooter>
+      
       <SidebarRail />
     </Sidebar>
   );
