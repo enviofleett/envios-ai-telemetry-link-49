@@ -1,47 +1,13 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { gp51SessionManager } from './gp51SessionManager';
+import { VehicleData, VehicleDataMetrics } from './vehicleData/types';
+import { VehicleDataProcessor } from './vehicleData/vehicleDataProcessor';
+import { MetricsCalculator } from './vehicleData/metricsCalculator';
+import { GP51ApiService } from './vehicleData/gp51ApiService';
 
-export interface VehicleData {
-  deviceId: string;
-  deviceName: string;
-  status: 'online' | 'offline' | 'unknown';
-  lastUpdate: Date;
-  location?: {
-    latitude: number;
-    longitude: number;
-  };
-  speed?: number;
-  course?: number;
-  additionalData?: Record<string, any>;
-}
-
-export interface VehicleDataMetrics {
-  totalVehicles: number;
-  onlineVehicles: number;
-  offlineVehicles: number;
-  recentlyActiveVehicles: number;
-  lastSyncTime: Date;
-  syncStatus: 'success' | 'error' | 'in_progress';
-  errorMessage?: string;
-}
-
-// Type definitions for GP51 API responses
-interface GP51Vehicle {
-  deviceid: number;
-  devicename: string;
-  [key: string]: any;
-}
-
-interface GP51Position {
-  deviceid: number;
-  servertime: number;
-  lat: number;
-  lng: number;
-  speed?: number;
-  course?: number;
-  [key: string]: any;
-}
+// Re-export types for backward compatibility
+export type { VehicleData, VehicleDataMetrics };
 
 export class EnhancedVehicleDataService {
   private static instance: EnhancedVehicleDataService;
@@ -72,13 +38,9 @@ export class EnhancedVehicleDataService {
   private async initializeService(): Promise<void> {
     console.log('🚀 Initializing Enhanced Vehicle Data Service...');
     
-    // Load initial data from database
     await this.loadVehiclesFromDatabase();
-    
-    // Start periodic sync with GP51
     this.startPeriodicSync();
     
-    // Subscribe to session changes
     gp51SessionManager.subscribe((session) => {
       if (session) {
         console.log('✅ GP51 session available, starting data sync...');
@@ -104,15 +66,7 @@ export class EnhancedVehicleDataService {
         return;
       }
 
-      // Transform database vehicles to our format
-      this.vehicles = (vehicles || []).map(vehicle => ({
-        deviceId: vehicle.device_id,
-        deviceName: vehicle.device_name || `Vehicle ${vehicle.device_id}`,
-        status: 'unknown' as const,
-        lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
-        additionalData: (vehicle.gp51_metadata as Record<string, any>) || {}
-      }));
-
+      this.vehicles = VehicleDataProcessor.transformDatabaseVehicles(vehicles || []);
       this.updateMetrics();
       console.log(`📊 Loaded ${this.vehicles.length} vehicles from database`);
       this.notifyListeners();
@@ -129,10 +83,7 @@ export class EnhancedVehicleDataService {
 
     console.log(`⏰ Starting periodic vehicle data sync (${intervalMs}ms interval)`);
     
-    // Initial sync
     this.syncVehicleData();
-
-    // Set up periodic sync
     this.syncInterval = setInterval(() => {
       this.syncVehicleData();
     }, intervalMs);
@@ -151,71 +102,24 @@ export class EnhancedVehicleDataService {
     try {
       console.log('🔄 Starting vehicle data sync with GP51...');
       
-      // Ensure we have a valid session
-      const session = await gp51SessionManager.validateAndEnsureSession();
+      await gp51SessionManager.validateAndEnsureSession();
       
-      // Get vehicle list from GP51
-      const { data: vehicleListData, error: listError } = await supabase.functions.invoke('gp51-service-management', {
-        body: { 
-          action: 'querymonitorlist',
-          username: session.username
-        }
-      });
-
-      if (listError || vehicleListData?.status !== 0) {
-        throw new Error(`Failed to get vehicle list: ${listError?.message || vehicleListData?.cause}`);
-      }
-
-      const gp51Vehicles: GP51Vehicle[] = vehicleListData.records || vehicleListData.monitors || [];
+      const gp51Vehicles = await GP51ApiService.fetchVehicleList();
       console.log(`📋 Retrieved ${gp51Vehicles.length} vehicles from GP51`);
 
-      // Get position data for all vehicles
-      const deviceIds = gp51Vehicles.map((v: GP51Vehicle) => v.deviceid).filter(Boolean);
+      const deviceIds = gp51Vehicles.map(v => v.deviceid).filter(Boolean);
       
       if (deviceIds.length > 0) {
-        const { data: positionData, error: positionError } = await supabase.functions.invoke('gp51-service-management', {
-          body: { 
-            action: 'lastposition',
-            deviceids: deviceIds
-          }
-        });
+        const positions = await GP51ApiService.fetchPositions(deviceIds);
+        const positionMap = new Map(positions.map(pos => [pos.deviceid, pos]));
 
-        // Process vehicle data (even if position fetch partially fails)
-        const positions: GP51Position[] = positionData?.status === 0 ? (positionData.positions || []) : [];
-        const positionMap = new Map<number, GP51Position>(positions.map((pos: GP51Position) => [pos.deviceid, pos]));
-
-        // Update vehicle data
-        this.vehicles = gp51Vehicles.map((vehicle: GP51Vehicle) => {
-          const position = positionMap.get(vehicle.deviceid);
-          const lastUpdate = position?.servertime ? new Date(position.servertime * 1000) : new Date();
-          const timeSinceUpdate = Date.now() - lastUpdate.getTime();
-          
-          return {
-            deviceId: vehicle.deviceid.toString(),
-            deviceName: vehicle.devicename || `Vehicle ${vehicle.deviceid}`,
-            status: this.determineVehicleStatus(timeSinceUpdate, position),
-            lastUpdate,
-            location: position ? {
-              latitude: position.lat,
-              longitude: position.lng
-            } : undefined,
-            speed: position?.speed || 0,
-            course: position?.course || 0,
-            additionalData: {
-              ...vehicle,
-              position: position || null
-            }
-          };
-        });
-
-        // Update metrics
+        this.vehicles = VehicleDataProcessor.processVehicleData(gp51Vehicles, positionMap);
         this.updateMetrics();
         this.metrics.syncStatus = 'success';
         this.metrics.lastSyncTime = new Date();
         delete this.metrics.errorMessage;
 
         console.log(`✅ Vehicle data sync completed. ${this.metrics.onlineVehicles}/${this.metrics.totalVehicles} vehicles online`);
-
       } else {
         console.warn('⚠️ No vehicle device IDs found');
         this.metrics.syncStatus = 'success';
@@ -233,22 +137,6 @@ export class EnhancedVehicleDataService {
     }
   }
 
-  private determineVehicleStatus(timeSinceUpdate: number, position?: GP51Position): 'online' | 'offline' | 'unknown' {
-    if (!position) return 'unknown';
-    
-    // Consider vehicle online if updated within last 15 minutes
-    if (timeSinceUpdate <= 15 * 60 * 1000) {
-      return 'online';
-    }
-    
-    // Consider offline if no update for more than 2 hours
-    if (timeSinceUpdate > 2 * 60 * 60 * 1000) {
-      return 'offline';
-    }
-    
-    return 'unknown';
-  }
-
   private markAllVehiclesOffline(): void {
     this.vehicles = this.vehicles.map(vehicle => ({
       ...vehicle,
@@ -258,15 +146,12 @@ export class EnhancedVehicleDataService {
   }
 
   private updateMetrics(): void {
-    const now = Date.now();
-    const recentThreshold = 30 * 60 * 1000; // 30 minutes
-
-    this.metrics.totalVehicles = this.vehicles.length;
-    this.metrics.onlineVehicles = this.vehicles.filter(v => v.status === 'online').length;
-    this.metrics.offlineVehicles = this.vehicles.filter(v => v.status === 'offline').length;
-    this.metrics.recentlyActiveVehicles = this.vehicles.filter(v => 
-      now - v.lastUpdate.getTime() <= recentThreshold
-    ).length;
+    this.metrics = MetricsCalculator.calculateMetrics(
+      this.vehicles, 
+      this.metrics.lastSyncTime, 
+      this.metrics.syncStatus, 
+      this.metrics.errorMessage
+    );
   }
 
   public async forceSync(): Promise<void> {
