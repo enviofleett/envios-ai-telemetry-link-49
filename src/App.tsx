@@ -14,6 +14,7 @@ import LiveTracking from "./pages/LiveTracking";
 import DeviceConfiguration from "./pages/DeviceConfiguration";
 import SystemImport from "./pages/SystemImport";
 import Settings from "./pages/Settings";
+import PackageManagement from "./pages/PackageManagement";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ function App() {
                 <Route path="/tracking" element={<LiveTracking />} />
                 <Route path="/device-configuration" element={<DeviceConfiguration />} />
                 <Route path="/system-import" element={<SystemImport />} />
+                <Route path="/packages" element={<PackageManagement />} />
                 <Route path="/settings" element={<Settings />} />
               </Routes>
             </BrowserRouter>

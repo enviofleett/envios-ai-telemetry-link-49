@@ -2383,6 +2383,36 @@ export type Database = {
         }
         Relationships: []
       }
+      menu_permissions: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          menu_code: string
+          menu_name: string
+          parent_menu_code: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          menu_code: string
+          menu_name: string
+          parent_menu_code?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          menu_code?: string
+          menu_name?: string
+          parent_menu_code?: string | null
+        }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           created_at: string
@@ -2520,6 +2550,108 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      package_feature_assignments: {
+        Row: {
+          assigned_at: string
+          feature_id: string
+          id: string
+          package_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          feature_id: string
+          id?: string
+          package_id: string
+        }
+        Update: {
+          assigned_at?: string
+          feature_id?: string
+          id?: string
+          package_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "package_feature_assignments_feature_id_fkey"
+            columns: ["feature_id"]
+            isOneToOne: false
+            referencedRelation: "package_features"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "package_feature_assignments_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "subscriber_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      package_features: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          feature_id: string
+          feature_name: string
+          id: string
+          is_active: boolean | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          feature_id: string
+          feature_name: string
+          id?: string
+          is_active?: boolean | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          feature_id?: string
+          feature_name?: string
+          id?: string
+          is_active?: boolean | null
+        }
+        Relationships: []
+      }
+      package_menu_permissions: {
+        Row: {
+          assigned_at: string
+          id: string
+          menu_permission_id: string
+          package_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          id?: string
+          menu_permission_id: string
+          package_id: string
+        }
+        Update: {
+          assigned_at?: string
+          id?: string
+          menu_permission_id?: string
+          package_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "package_menu_permissions_menu_permission_id_fkey"
+            columns: ["menu_permission_id"]
+            isOneToOne: false
+            referencedRelation: "menu_permissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "package_menu_permissions_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "subscriber_packages"
             referencedColumns: ["id"]
           },
         ]
@@ -2664,6 +2796,42 @@ export type Database = {
           resolved?: boolean | null
           resolved_at?: string | null
           severity?: string
+        }
+        Relationships: []
+      }
+      referral_codes: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          discount_percentage: number | null
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          usage_count: number | null
+          usage_limit: number | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          discount_percentage?: number | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          usage_count?: number | null
+          usage_limit?: number | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          discount_percentage?: number | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          usage_count?: number | null
+          usage_limit?: number | null
         }
         Relationships: []
       }
@@ -2820,6 +2988,48 @@ export type Database = {
           use_ssl?: boolean | null
           use_tls?: boolean | null
           username?: string
+        }
+        Relationships: []
+      }
+      subscriber_packages: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          package_name: string
+          referral_discount_percentage: number | null
+          subscription_fee_annually: number | null
+          subscription_fee_monthly: number | null
+          updated_at: string
+          user_type: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          package_name: string
+          referral_discount_percentage?: number | null
+          subscription_fee_annually?: number | null
+          subscription_fee_monthly?: number | null
+          updated_at?: string
+          user_type: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          package_name?: string
+          referral_discount_percentage?: number | null
+          subscription_fee_annually?: number | null
+          subscription_fee_monthly?: number | null
+          updated_at?: string
+          user_type?: string
         }
         Relationships: []
       }
@@ -3273,6 +3483,56 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          billing_cycle: string
+          created_at: string
+          discount_applied: number | null
+          end_date: string | null
+          id: string
+          package_id: string
+          referral_code_used: string | null
+          start_date: string
+          subscription_status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          billing_cycle?: string
+          created_at?: string
+          discount_applied?: number | null
+          end_date?: string | null
+          id?: string
+          package_id: string
+          referral_code_used?: string | null
+          start_date?: string
+          subscription_status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          billing_cycle?: string
+          created_at?: string
+          discount_applied?: number | null
+          end_date?: string | null
+          id?: string
+          package_id?: string
+          referral_code_used?: string | null
+          start_date?: string
+          subscription_status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subscriptions_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "subscriber_packages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users_backup_20250605: {
         Row: {
