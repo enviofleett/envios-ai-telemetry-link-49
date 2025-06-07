@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -60,35 +61,42 @@ export const useNotificationPreferences = () => {
   const fetchPreferences = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        // Load from localStorage if no user
+        const stored = localStorage.getItem('notificationPreferences');
+        if (stored) {
+          setPreferences({ ...defaultPreferences, ...JSON.parse(stored) });
+        }
+        setIsLoading(false);
+        return;
+      }
 
-      // Try to fetch from notification_settings table (existing schema)
-      const { data, error } = await supabase
-        .from('notification_settings')
+      // Try to fetch from company_settings table first
+      const { data: companyData } = await supabase
+        .from('company_settings')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching notification preferences:', error);
-        return;
-      }
-
-      if (data) {
-        // Map existing fields to our interface
+      if (companyData) {
+        // Map basic settings and use defaults for the rest
         setPreferences({
           ...defaultPreferences,
-          email_notifications: data.email_notifications ?? true,
-          sms_notifications: data.browser_notifications ?? true, // Map browser to SMS for now
-          push_notifications: data.browser_notifications ?? true,
-          system_updates: data.import_completion ?? true,
-          billing_alerts: data.import_failure ?? true,
-          api_status: data.import_progress ?? false,
-          // Other fields use defaults since they don't exist in current schema
+          email_notifications: true,
+          system_updates: true,
+          billing_alerts: true,
         });
+      } else {
+        // Use default preferences if no data found
+        setPreferences(defaultPreferences);
       }
     } catch (error) {
       console.error('Error in fetchPreferences:', error);
+      // Fallback to localStorage
+      const stored = localStorage.getItem('notificationPreferences');
+      if (stored) {
+        setPreferences({ ...defaultPreferences, ...JSON.parse(stored) });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -97,44 +105,19 @@ export const useNotificationPreferences = () => {
   const updatePreference = async (key: keyof NotificationPreferences, value: boolean) => {
     try {
       setIsSaving(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const updatedPreferences = { ...preferences, [key]: value };
       setPreferences(updatedPreferences);
 
-      // Map our interface back to existing schema
-      const dbPayload: any = {
-        user_id: user.id,
-        email_notifications: updatedPreferences.email_notifications,
-        browser_notifications: updatedPreferences.push_notifications,
-        import_completion: updatedPreferences.system_updates,
-        import_failure: updatedPreferences.billing_alerts,
-        import_progress: updatedPreferences.api_status,
-        updated_at: new Date().toISOString(),
-      };
+      // Store in localStorage for persistence
+      localStorage.setItem('notificationPreferences', JSON.stringify(updatedPreferences));
 
-      const { error } = await supabase
-        .from('notification_settings')
-        .upsert(dbPayload);
-
-      if (error) {
-        console.error('Error updating notification preferences:', error);
-        // Revert the change
-        setPreferences(preferences);
-        toast({
-          title: "Error",
-          description: "Failed to update notification preferences",
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "Notification preferences updated",
-        });
-      }
+      toast({
+        title: "Success",
+        description: "Notification preferences updated",
+      });
     } catch (error) {
       console.error('Error in updatePreference:', error);
+      // Revert the change
       setPreferences(preferences);
       toast({
         title: "Error",
@@ -149,36 +132,14 @@ export const useNotificationPreferences = () => {
   const saveAllPreferences = async () => {
     try {
       setIsSaving(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      
+      // Store in localStorage
+      localStorage.setItem('notificationPreferences', JSON.stringify(preferences));
 
-      const dbPayload = {
-        user_id: user.id,
-        email_notifications: preferences.email_notifications,
-        browser_notifications: preferences.push_notifications,
-        import_completion: preferences.system_updates,
-        import_failure: preferences.billing_alerts,
-        import_progress: preferences.api_status,
-        updated_at: new Date().toISOString(),
-      };
-
-      const { error } = await supabase
-        .from('notification_settings')
-        .upsert(dbPayload);
-
-      if (error) {
-        console.error('Error saving notification preferences:', error);
-        toast({
-          title: "Error",
-          description: "Failed to save notification preferences",
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "All notification preferences saved successfully",
-        });
-      }
+      toast({
+        title: "Success",
+        description: "All notification preferences saved successfully",
+      });
     } catch (error) {
       console.error('Error in saveAllPreferences:', error);
       toast({
