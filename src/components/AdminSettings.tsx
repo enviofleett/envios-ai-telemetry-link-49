@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Map, BarChart3, MapPin, Mail, Activity, Book, Package, Settings, User, Bell, Info } from 'lucide-react';
+import { Shield, Map, BarChart3, MapPin, Mail, Activity, Book, Package, Settings, User, Bell, Info, Upload } from 'lucide-react';
 import GP51CredentialsForm from './AdminSettings/GP51CredentialsForm';
 import EnhancedGP51StatusCard from './AdminSettings/EnhancedGP51StatusCard';
 import GP51HealthDashboard from './AdminSettings/GP51HealthDashboard';
@@ -17,6 +17,7 @@ import CompanySettingsTab from '@/components/settings/CompanySettingsTab';
 import BillingSettingsTab from '@/components/settings/BillingSettingsTab';
 import NotificationsSettingsTab from '@/components/settings/NotificationsSettingsTab';
 import FleetUserManagementTab from '@/components/settings/FleetUserManagementTab';
+import CSVVehicleImportManager from '@/components/csv/CSVVehicleImportManager';
 
 const AdminSettings = () => {
   return (
@@ -32,10 +33,14 @@ const AdminSettings = () => {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="packages" className="w-full">
-          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
+          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-13">
             <TabsTrigger value="packages" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               <span className="hidden sm:inline">Packages</span>
+            </TabsTrigger>
+            <TabsTrigger value="csv-import" className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">CSV Import</span>
             </TabsTrigger>
             <TabsTrigger value="company" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
@@ -91,6 +96,16 @@ const AdminSettings = () => {
               </p>
             </div>
             <PackageManagementDashboard />
+          </TabsContent>
+
+          <TabsContent value="csv-import" className="space-y-4 mt-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">CSV Vehicle Import</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Import vehicle data from CSV files with validation and conflict resolution
+              </p>
+            </div>
+            <CSVVehicleImportManager />
           </TabsContent>
 
           <TabsContent value="company" className="space-y-4 mt-6">

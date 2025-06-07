@@ -339,6 +339,137 @@ export type Database = {
         }
         Relationships: []
       }
+      csv_import_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          error_log: Json | null
+          failed_imports: number
+          file_name: string
+          id: string
+          import_results: Json | null
+          job_name: string
+          processed_rows: number
+          progress_percentage: number | null
+          status: string
+          successful_imports: number
+          total_rows: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          error_log?: Json | null
+          failed_imports?: number
+          file_name: string
+          id?: string
+          import_results?: Json | null
+          job_name: string
+          processed_rows?: number
+          progress_percentage?: number | null
+          status?: string
+          successful_imports?: number
+          total_rows?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          error_log?: Json | null
+          failed_imports?: number
+          file_name?: string
+          id?: string
+          import_results?: Json | null
+          job_name?: string
+          processed_rows?: number
+          progress_percentage?: number | null
+          status?: string
+          successful_imports?: number
+          total_rows?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      csv_import_templates: {
+        Row: {
+          column_mappings: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          is_system_template: boolean | null
+          template_name: string
+          template_type: string
+          updated_at: string
+          validation_rules: Json
+        }
+        Insert: {
+          column_mappings: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_system_template?: boolean | null
+          template_name: string
+          template_type?: string
+          updated_at?: string
+          validation_rules: Json
+        }
+        Update: {
+          column_mappings?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_system_template?: boolean | null
+          template_name?: string
+          template_type?: string
+          updated_at?: string
+          validation_rules?: Json
+        }
+        Relationships: []
+      }
+      csv_validation_logs: {
+        Row: {
+          created_at: string
+          error_message: string
+          field_name: string | null
+          id: string
+          import_job_id: string | null
+          raw_data: Json | null
+          row_number: number
+          validation_type: string
+        }
+        Insert: {
+          created_at?: string
+          error_message: string
+          field_name?: string | null
+          id?: string
+          import_job_id?: string | null
+          raw_data?: Json | null
+          row_number: number
+          validation_type: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string
+          field_name?: string | null
+          id?: string
+          import_job_id?: string | null
+          raw_data?: Json | null
+          row_number?: number
+          validation_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "csv_validation_logs_import_job_id_fkey"
+            columns: ["import_job_id"]
+            isOneToOne: false
+            referencedRelation: "csv_import_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       data_consistency_logs: {
         Row: {
           checks_failed: number
