@@ -1,135 +1,251 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Car, MapPin, Clock, Battery, Signal } from 'lucide-react';
+import { 
+  Car, 
+  Search, 
+  Filter, 
+  Download,
+  RefreshCw,
+  MapPin,
+  Gauge,
+  Clock
+} from 'lucide-react';
+import { useVehicleData } from '@/hooks/useVehicleData';
+import { useAdvancedExport } from '@/hooks/useAdvancedExport';
+import { Progress } from '@/components/ui/progress';
 
 const VehicleManagementPanel: React.FC = () => {
-  // Mock data - in real implementation, this would come from your API
-  const vehicles = [
-    {
-      id: 'VH001',
-      name: 'Fleet Vehicle 01',
-      status: 'online',
-      location: 'Downtown Area',
-      lastUpdate: '2 min ago',
-      battery: 85,
-      signal: 'Strong',
-      driver: 'John Doe'
-    },
-    {
-      id: 'VH002',
-      name: 'Fleet Vehicle 02',
-      status: 'moving',
-      location: 'Highway 101',
-      lastUpdate: '1 min ago',
-      battery: 92,
-      signal: 'Strong',
-      driver: 'Jane Smith'
-    },
-    {
-      id: 'VH003',
-      name: 'Fleet Vehicle 03',
-      status: 'offline',
-      location: 'Parking Lot A',
-      lastUpdate: '15 min ago',
-      battery: 45,
-      signal: 'Weak',
-      driver: 'Mike Johnson'
-    }
-  ];
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  
+  const { 
+    data: vehicles, 
+    isLoading, 
+    error,
+    refetch 
+  } = useVehicleData({ search: searchTerm, status: statusFilter });
+  
+  const { exportVehicles, isExporting, progress } = useAdvancedExport();
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'online':
-        return <Badge className="bg-green-100 text-green-800 border-green-200">Online</Badge>;
-      case 'moving':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Moving</Badge>;
-      case 'offline':
-        return <Badge className="bg-red-100 text-red-800 border-red-200">Offline</Badge>;
-      default:
-        return <Badge variant="secondary">Unknown</Badge>;
+  const handleExport = (format: 'csv' | 'json' | 'excel') => {
+    exportVehicles(format, {
+      search: searchTerm,
+      status: statusFilter,
+      includePositions: true
+    });
+  };
+
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilter(prev => 
+      prev.includes(status) 
+        ? prev.filter(s => s !== status)
+        : [...prev, status]
+    );
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'online': return 'bg-green-100 text-green-800';
+      case 'offline': return 'bg-gray-100 text-gray-800';
+      case 'moving': return 'bg-blue-100 text-blue-800';
+      case 'idle': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getBatteryColor = (level: number) => {
-    if (level >= 70) return 'text-green-600';
-    if (level >= 30) return 'text-yellow-600';
-    return 'text-red-600';
-  };
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Car className="h-5 w-5" />
+            Vehicle Management
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="animate-pulse">
+                <div className="h-16 bg-gray-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2">
-          <Car className="h-5 w-5" />
-          Vehicle Fleet Overview
-        </CardTitle>
-        <Button size="sm" className="gap-2">
-          <Plus className="h-4 w-4" />
-          Add Vehicle
-        </Button>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          {vehicles.map((vehicle) => (
-            <div
-              key={vehicle.id}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Car className="h-5 w-5" />
+            Vehicle Management
+            <Badge variant="outline">{vehicles?.length || 0} vehicles</Badge>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
             >
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Car className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-gray-900">{vehicle.name}</h4>
-                  <p className="text-sm text-gray-500">ID: {vehicle.id}</p>
+              <Filter className="h-4 w-4 mr-1" />
+              Filters
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport('csv')}
+              disabled={isExporting}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Export
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refetch()}
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Export Progress */}
+        {isExporting && (
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span>Exporting vehicle data...</span>
+              <span>{progress}%</span>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </div>
+        )}
+
+        {/* Search and Filters */}
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search vehicles..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          {showAdvancedFilters && (
+            <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Status Filters:</label>
+                <div className="flex gap-2 flex-wrap">
+                  {['online', 'offline', 'moving', 'idle'].map((status) => (
+                    <Button
+                      key={status}
+                      variant={statusFilter.includes(status) ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => toggleStatusFilter(status)}
+                    >
+                      {status.charAt(0).toUpperCase() + status.slice(1)}
+                    </Button>
+                  ))}
                 </div>
               </div>
               
-              <div className="flex items-center gap-6">
-                <div className="text-center">
-                  <p className="text-xs text-gray-500">Status</p>
-                  {getStatusBadge(vehicle.status)}
-                </div>
-                
-                <div className="text-center">
-                  <p className="text-xs text-gray-500">Location</p>
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3 text-gray-400" />
-                    <p className="text-sm font-medium">{vehicle.location}</p>
-                  </div>
-                </div>
-                
-                <div className="text-center">
-                  <p className="text-xs text-gray-500">Battery</p>
-                  <div className="flex items-center gap-1">
-                    <Battery className={`h-3 w-3 ${getBatteryColor(vehicle.battery)}`} />
-                    <p className={`text-sm font-medium ${getBatteryColor(vehicle.battery)}`}>
-                      {vehicle.battery}%
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="text-center">
-                  <p className="text-xs text-gray-500">Signal</p>
-                  <div className="flex items-center gap-1">
-                    <Signal className="h-3 w-3 text-gray-400" />
-                    <p className="text-sm font-medium">{vehicle.signal}</p>
-                  </div>
-                </div>
-                
-                <div className="text-center">
-                  <p className="text-xs text-gray-500">Last Update</p>
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3 text-gray-400" />
-                    <p className="text-sm">{vehicle.lastUpdate}</p>
-                  </div>
-                </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleExport('json')}
+                  disabled={isExporting}
+                >
+                  Export JSON
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleExport('excel')}
+                  disabled={isExporting}
+                >
+                  Export Excel
+                </Button>
               </div>
             </div>
-          ))}
+          )}
+        </div>
+
+        {/* Vehicle List */}
+        <div className="space-y-3 max-h-96 overflow-y-auto">
+          {vehicles && vehicles.length > 0 ? (
+            vehicles.map((vehicle: any) => (
+              <div key={vehicle.id} className="border rounded-lg p-3 hover:bg-gray-50">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h4 className="font-medium">{vehicle.device_name || `Device ${vehicle.device_id}`}</h4>
+                    <p className="text-sm text-gray-600">ID: {vehicle.device_id}</p>
+                  </div>
+                  <Badge className={getStatusColor(vehicle.status)}>
+                    {vehicle.status || 'Unknown'}
+                  </Badge>
+                </div>
+
+                {vehicle.lastPosition && (
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3 text-gray-400" />
+                      <span className="text-gray-600">Location:</span>
+                      <span className="font-mono text-xs">
+                        {vehicle.lastPosition.lat?.toFixed(4)}, {vehicle.lastPosition.lon?.toFixed(4)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      <Gauge className="h-3 w-3 text-gray-400" />
+                      <span className="text-gray-600">Speed:</span>
+                      <span className="font-medium">
+                        {vehicle.lastPosition.speed || 0} km/h
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 col-span-2">
+                      <Clock className="h-3 w-3 text-gray-400" />
+                      <span className="text-gray-600">Last Update:</span>
+                      <span className="text-xs">
+                        {vehicle.lastPosition.updatetime ? 
+                          new Date(vehicle.lastPosition.updatetime).toLocaleString() : 
+                          'No data'
+                        }
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {!vehicle.lastPosition && (
+                  <div className="text-center py-4 text-gray-500">
+                    <MapPin className="h-6 w-6 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">No location data available</p>
+                  </div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Car className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No vehicles found</p>
+              {searchTerm && (
+                <p className="text-sm mt-1">
+                  Try adjusting your search or filters
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
