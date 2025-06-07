@@ -9,7 +9,6 @@ import EnhancedSMTPSettingsTab from '@/components/settings/EnhancedSMTPSettingsT
 import BrandingCustomizationTab from '@/components/settings/BrandingCustomizationTab';
 import GP51ApiSettingsTab from '@/components/settings/GP51ApiSettingsTab';
 import NotificationsSettingsTab from '@/components/settings/NotificationsSettingsTab';
-import ThemeCustomizationTab from '@/components/settings/ThemeCustomizationTab';
 import FleetUserManagementTab from '@/components/settings/FleetUserManagementTab';
 import { PrivacySettingsTab } from '@/components/settings/PrivacySettingsTab';
 
@@ -31,14 +30,13 @@ const Settings: React.FC = () => {
         </div>
         
         <Tabs defaultValue="company" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
             <TabsTrigger value="company">Company</TabsTrigger>
             <TabsTrigger value="gp51">GP51 API</TabsTrigger>
             <TabsTrigger value="billing">Billing</TabsTrigger>
             <TabsTrigger value="smtp">Email</TabsTrigger>
             <TabsTrigger value="branding">Branding</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="theme">Theme</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="privacy">Privacy</TabsTrigger>
           </TabsList>
@@ -65,10 +63,6 @@ const Settings: React.FC = () => {
 
           <TabsContent value="notifications" className="space-y-6">
             <NotificationsSettingsTab />
-          </TabsContent>
-
-          <TabsContent value="theme" className="space-y-6">
-            <ThemeCustomizationTab />
           </TabsContent>
 
           <TabsContent value="users" className="space-y-6">
