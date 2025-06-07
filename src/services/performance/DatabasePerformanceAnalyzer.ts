@@ -110,14 +110,14 @@ export class DatabasePerformanceAnalyzer {
   }
 
   private handleSlowQuery(metric: QueryMetrics): void {
-    const severity = metric.duration > this.criticalQueryThreshold ? 'critical' : 'warning';
+    const severity = metric.duration > this.criticalQueryThreshold ? 'critical' : 'medium';
     
     const alert: SlowQueryAlert = {
       query: metric.query,
       duration: metric.duration,
       threshold: severity === 'critical' ? this.criticalQueryThreshold : this.slowQueryThreshold,
       timestamp: metric.timestamp,
-      severity
+      severity: severity === 'critical' ? 'critical' : 'warning'
     };
 
     console.warn(`Slow query detected [${severity}]:`, alert);
@@ -132,7 +132,7 @@ export class DatabasePerformanceAnalyzer {
         .from('performance_alerts')
         .insert({
           alert_type: 'slow_query',
-          severity: alert.severity,
+          severity: alert.severity === 'warning' ? 'medium' : 'critical',
           message: `Slow query detected: ${alert.duration}ms`,
           metadata: {
             query: alert.query,
