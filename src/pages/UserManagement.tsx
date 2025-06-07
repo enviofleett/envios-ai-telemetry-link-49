@@ -2,8 +2,8 @@
 import React from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users } from 'lucide-react';
+import SimpleUserManagement from '@/components/admin/SimpleUserManagement';
 
 const UserManagement: React.FC = () => {
   return (
@@ -12,19 +12,15 @@ const UserManagement: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center gap-3">
             <Users className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">User Management</h1>
+            <div>
+              <h1 className="text-3xl font-bold">User Management</h1>
+              <p className="text-sm text-muted-foreground">
+                Manage system users, roles, and permissions
+              </p>
+            </div>
           </div>
           
-          <Card>
-            <CardHeader>
-              <CardTitle>User Management System</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                User management functionality will be implemented here.
-              </p>
-            </CardContent>
-          </Card>
+          <SimpleUserManagement />
         </div>
       </Layout>
     </ProtectedRoute>

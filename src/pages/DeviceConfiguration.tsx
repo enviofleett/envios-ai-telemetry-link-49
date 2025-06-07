@@ -2,8 +2,8 @@
 import React from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Cog } from 'lucide-react';
+import DeviceManagementTable from '@/components/devices/DeviceManagementTable';
 
 const DeviceConfiguration: React.FC = () => {
   return (
@@ -12,19 +12,15 @@ const DeviceConfiguration: React.FC = () => {
         <div className="space-y-6">
           <div className="flex items-center gap-3">
             <Cog className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold">Device Configuration</h1>
+            <div>
+              <h1 className="text-3xl font-bold">Device Configuration</h1>
+              <p className="text-sm text-muted-foreground">
+                Manage and configure fleet devices and equipment
+              </p>
+            </div>
           </div>
           
-          <Card>
-            <CardHeader>
-              <CardTitle>Device Management & Configuration</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Device configuration functionality will be implemented here.
-              </p>
-            </CardContent>
-          </Card>
+          <DeviceManagementTable />
         </div>
       </Layout>
     </ProtectedRoute>
