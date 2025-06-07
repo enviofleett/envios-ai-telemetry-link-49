@@ -1,5 +1,4 @@
-
-import { SecurityService } from './SecurityService';
+import { SecurityService, SecurityEvent } from './SecurityService';
 
 export interface SecureError {
   code: string;
@@ -20,108 +19,116 @@ export interface ErrorContext {
   requestId?: string;
 }
 
+type LogLevel = 'low' | 'medium' | 'high' | 'critical';
+
+interface ErrorConfig {
+  userMessage: string;
+  statusCode: number;
+  logLevel: LogLevel;
+}
+
 export class ErrorHandler {
-  private static readonly ERROR_CODES = {
+  private static readonly ERROR_CODES: Record<string, ErrorConfig> = {
     // Authentication & Authorization
     'AUTH_INVALID_CREDENTIALS': {
       userMessage: 'Invalid username or password',
       statusCode: 401,
-      logLevel: 'medium' as const
+      logLevel: 'medium'
     },
     'AUTH_TOKEN_EXPIRED': {
       userMessage: 'Session has expired. Please log in again',
       statusCode: 401,
-      logLevel: 'low' as const
+      logLevel: 'low'
     },
     'AUTH_INSUFFICIENT_PERMISSIONS': {
       userMessage: 'You do not have permission to perform this action',
       statusCode: 403,
-      logLevel: 'medium' as const
+      logLevel: 'medium'
     },
     'AUTH_ACCOUNT_LOCKED': {
       userMessage: 'Account temporarily locked due to multiple failed attempts',
       statusCode: 423,
-      logLevel: 'high' as const
+      logLevel: 'high'
     },
 
     // Rate Limiting
     'RATE_LIMIT_EXCEEDED': {
       userMessage: 'Too many requests. Please try again later',
       statusCode: 429,
-      logLevel: 'medium' as const
+      logLevel: 'medium'
     },
     'RATE_LIMIT_IP_BLOCKED': {
       userMessage: 'Your IP address has been temporarily blocked',
       statusCode: 429,
-      logLevel: 'high' as const
+      logLevel: 'high'
     },
 
     // Input Validation
     'VALIDATION_FAILED': {
       userMessage: 'Invalid input provided',
       statusCode: 400,
-      logLevel: 'low' as const
+      logLevel: 'low'
     },
     'VALIDATION_MALICIOUS_INPUT': {
       userMessage: 'Request rejected for security reasons',
       statusCode: 400,
-      logLevel: 'critical' as const
+      logLevel: 'critical'
     },
 
     // GP51 API Errors
     'GP51_CONNECTION_FAILED': {
       userMessage: 'Unable to connect to GPS tracking service',
       statusCode: 502,
-      logLevel: 'high' as const
+      logLevel: 'high'
     },
     'GP51_AUTHENTICATION_FAILED': {
       userMessage: 'GPS service authentication failed',
       statusCode: 401,
-      logLevel: 'high' as const
+      logLevel: 'high'
     },
     'GP51_RATE_LIMITED': {
       userMessage: 'GPS service is temporarily unavailable',
       statusCode: 503,
-      logLevel: 'medium' as const
+      logLevel: 'medium'
     },
     'GP51_INVALID_RESPONSE': {
       userMessage: 'Invalid response from GPS service',
       statusCode: 502,
-      logLevel: 'medium' as const
+      logLevel: 'medium'
     },
 
     // System Errors
     'DATABASE_ERROR': {
       userMessage: 'A database error occurred. Please try again',
       statusCode: 500,
-      logLevel: 'critical' as const
+      logLevel: 'critical'
     },
     'SYSTEM_UNAVAILABLE': {
       userMessage: 'System temporarily unavailable',
       statusCode: 503,
-      logLevel: 'critical' as const
+      logLevel: 'critical'
     },
     'CONFIGURATION_ERROR': {
       userMessage: 'System configuration error',
       statusCode: 500,
-      logLevel: 'critical' as const
+      logLevel: 'critical'
     },
 
     // Generic
     'INTERNAL_ERROR': {
       userMessage: 'An internal error occurred. Please try again',
       statusCode: 500,
-      logLevel: 'high' as const
+      logLevel: 'high'
     },
     'NOT_FOUND': {
       userMessage: 'Requested resource not found',
       statusCode: 404,
-      logLevel: 'low' as const
+      logLevel: 'low'
     },
     'METHOD_NOT_ALLOWED': {
       userMessage: 'Method not allowed',
       statusCode: 405,
-      logLevel: 'medium' as const
+      logLevel: 'medium'
     }
   };
 
@@ -145,7 +152,7 @@ export class ErrorHandler {
     context?: ErrorContext,
     additionalData?: Record<string, any>
   ): SecureError {
-    const errorConfig = this.ERROR_CODES[code as keyof typeof this.ERROR_CODES];
+    const errorConfig = this.ERROR_CODES[code];
     
     if (!errorConfig) {
       console.warn(`Unknown error code: ${code}`);
@@ -474,10 +481,10 @@ export class ErrorHandler {
   }
 
   // Configuration management
-  static updateErrorConfig(code: string, config: Partial<typeof ErrorHandler.ERROR_CODES[keyof typeof ErrorHandler.ERROR_CODES]>): void {
-    if (this.ERROR_CODES[code as keyof typeof this.ERROR_CODES]) {
-      this.ERROR_CODES[code as keyof typeof this.ERROR_CODES] = {
-        ...this.ERROR_CODES[code as keyof typeof this.ERROR_CODES],
+  static updateErrorConfig(code: string, config: Partial<ErrorConfig>): void {
+    if (this.ERROR_CODES[code]) {
+      this.ERROR_CODES[code] = {
+        ...this.ERROR_CODES[code],
         ...config
       };
       

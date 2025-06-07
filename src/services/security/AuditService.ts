@@ -1,4 +1,3 @@
-
 import { SecurityService } from './SecurityService';
 
 export interface AuditLogEntry {
@@ -572,17 +571,17 @@ export class AuditService {
     return sanitized;
   }
 
-  private static mapCategoryToEventType(category: AuditLogEntry['category']): SecurityService['logSecurityEvent'] extends (event: { type: infer T }) => any ? T : never {
-    const mapping = {
-      'authentication': 'authentication' as const,
-      'authorization': 'authorization' as const,
-      'data_access': 'input_validation' as const,
-      'system_config': 'authentication' as const,
-      'gp51_api': 'input_validation' as const,
-      'user_management': 'authentication' as const
+  private static mapCategoryToEventType(category: AuditLogEntry['category']): 'authentication' | 'authorization' | 'input_validation' | 'rate_limit' | 'suspicious_activity' {
+    const mapping: Record<AuditLogEntry['category'], 'authentication' | 'authorization' | 'input_validation' | 'rate_limit' | 'suspicious_activity'> = {
+      'authentication': 'authentication',
+      'authorization': 'authorization',
+      'data_access': 'input_validation',
+      'system_config': 'authentication',
+      'gp51_api': 'input_validation',
+      'user_management': 'authentication'
     };
 
-    return mapping[category] || 'suspicious_activity' as const;
+    return mapping[category] || 'suspicious_activity';
   }
 
   private static async handleCriticalActions(entry: AuditLogEntry): Promise<void> {
