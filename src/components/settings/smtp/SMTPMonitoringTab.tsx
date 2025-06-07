@@ -5,18 +5,32 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useProductionSMTPService } from '@/hooks/useProductionSMTPService';
+import { useGenericSMTPService } from '@/hooks/useGenericSMTPService';
 import { Activity, AlertTriangle, CheckCircle, Clock, Mail, RefreshCw, XCircle } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 const SMTPMonitoringTab: React.FC = () => {
-  const { 
-    emailLogs, 
-    smtpConfigs, 
-    refetchEmailLogs, 
-    refetchConfigs,
-    validateConfiguration,
-    isValidating 
-  } = useProductionSMTPService();
+  const { smtpConfigs } = useGenericSMTPService();
+
+  // Fetch email logs
+  const { data: emailLogs, refetch: refetchEmailLogs } = useQuery({
+    queryKey: ['email-notifications'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('email_notifications')
+        .select(`
+          *,
+          smtp_configurations(name, host)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      
+      if (error) throw error;
+      return data;
+    },
+    refetchInterval: 30000 // Refetch every 30 seconds
+  });
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -139,20 +153,17 @@ const SMTPMonitoringTab: React.FC = () => {
                       <p className="text-sm text-muted-foreground">
                         {config.host}:{config.port} • {config.from_email}
                       </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className="text-xs">
+                          {config.encryption_type?.toUpperCase() || 'UNKNOWN'}
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Badge variant={config.is_active ? 'default' : 'secondary'}>
                       {config.is_active ? 'Active' : 'Inactive'}
                     </Badge>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => validateConfiguration(config.id)}
-                      disabled={isValidating}
-                    >
-                      {isValidating ? <RefreshCw className="h-4 w-4 animate-spin" /> : 'Test'}
-                    </Button>
                   </div>
                 </div>
               ))

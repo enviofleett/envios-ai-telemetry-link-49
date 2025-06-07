@@ -1,35 +1,55 @@
 
 import React from 'react';
-import { useProductionSMTPService } from '@/hooks/useProductionSMTPService';
+import { useGenericSMTPService } from '@/hooks/useGenericSMTPService';
 
-class ProductionSMTPIntegrationService {
+class SMTPIntegrationService {
   private smtpService: any;
 
   constructor() {
     // This will be initialized when used in a React component
   }
 
-  // Integration with GP51 user creation
-  async notifyUserCreated(email: string, userName: string, isFromGP51 = false) {
+  // Send welcome email
+  async sendWelcomeEmail(email: string, userName: string) {
     try {
       if (this.smtpService && this.validateEmail(email)) {
-        await this.smtpService.sendWelcomeEmail(email, userName);
+        await this.smtpService.sendEmail({
+          recipientEmail: email,
+          subject: 'Welcome to Envio Platform!',
+          htmlContent: `
+            <h2>Welcome ${userName}!</h2>
+            <p>Thank you for joining the Envio Platform.</p>
+            <p>We're excited to have you on board and look forward to helping you manage your fleet efficiently.</p>
+            <p>Best regards,<br>The Envio Team</p>
+          `,
+          textContent: `Welcome ${userName}! Thank you for joining the Envio Platform.`
+        });
         console.log(`Welcome email sent to ${email}`);
         return true;
       }
       return false;
     } catch (error) {
       console.error('Failed to send welcome email:', error);
-      // Don't throw - email failure shouldn't break user creation
       return false;
     }
   }
 
-  // Integration with vehicle activation
-  async notifyVehicleActivated(email: string, userName: string, vehicleName: string, deviceId: string) {
+  // Send vehicle activation notification
+  async sendVehicleActivationEmail(email: string, userName: string, vehicleName: string, deviceId: string) {
     try {
       if (this.smtpService && this.validateEmail(email)) {
-        await this.smtpService.sendVehicleActivationEmail(email, userName, vehicleName, deviceId);
+        await this.smtpService.sendEmail({
+          recipientEmail: email,
+          subject: 'Vehicle Activated Successfully',
+          htmlContent: `
+            <h2>Vehicle Activation Confirmation</h2>
+            <p>Hello ${userName},</p>
+            <p>Your vehicle "${vehicleName}" (Device ID: ${deviceId}) has been successfully activated.</p>
+            <p>You can now track and manage this vehicle through your Envio dashboard.</p>
+            <p>Best regards,<br>Envio Platform</p>
+          `,
+          textContent: `Hello ${userName}, your vehicle "${vehicleName}" (Device ID: ${deviceId}) has been successfully activated.`
+        });
         console.log(`Vehicle activation email sent to ${email} for vehicle ${vehicleName}`);
         return true;
       }
@@ -40,11 +60,22 @@ class ProductionSMTPIntegrationService {
     }
   }
 
-  // Integration with OTP system
+  // Send OTP notification
   async sendOTPNotification(email: string, otpCode: string, expiryMinutes = 10) {
     try {
       if (this.smtpService && this.validateEmail(email) && this.validateOTP(otpCode)) {
-        await this.smtpService.sendOTPEmail(email, otpCode, expiryMinutes);
+        await this.smtpService.sendEmail({
+          recipientEmail: email,
+          subject: 'Your OTP Verification Code',
+          htmlContent: `
+            <h2>OTP Verification</h2>
+            <p>Hello,</p>
+            <p>Your OTP verification code is: <strong>${otpCode}</strong></p>
+            <p>This code will expire in ${expiryMinutes} minutes.</p>
+            <p>If you didn't request this code, please ignore this email.</p>
+          `,
+          textContent: `Your OTP verification code is: ${otpCode}. This code will expire in ${expiryMinutes} minutes.`
+        });
         console.log(`OTP email sent to ${email}`);
         return true;
       }
@@ -55,11 +86,23 @@ class ProductionSMTPIntegrationService {
     }
   }
 
-  // Integration with password reset
+  // Send password reset notification
   async sendPasswordResetNotification(email: string, userName: string, resetLink: string) {
     try {
       if (this.smtpService && this.validateEmail(email) && this.validateUrl(resetLink)) {
-        await this.smtpService.sendPasswordResetEmail(email, userName, resetLink);
+        await this.smtpService.sendEmail({
+          recipientEmail: email,
+          subject: 'Password Reset Request',
+          htmlContent: `
+            <h2>Password Reset</h2>
+            <p>Hello ${userName},</p>
+            <p>Click the link below to reset your password:</p>
+            <p><a href="${resetLink}">Reset Password</a></p>
+            <p>This link will expire in 30 minutes.</p>
+            <p>If you didn't request this reset, please ignore this email.</p>
+          `,
+          textContent: `Hello ${userName}, click this link to reset your password: ${resetLink}. This link will expire in 30 minutes.`
+        });
         console.log(`Password reset email sent to ${email}`);
         return true;
       }
@@ -70,12 +113,13 @@ class ProductionSMTPIntegrationService {
     }
   }
 
-  // Enhanced bulk email sending with rate limiting
+  // Send bulk emails
   async sendBulkEmails(emails: Array<{
     email: string;
     userName: string;
-    templateType: 'welcome' | 'otp' | 'password_reset' | 'vehicle_activation';
-    placeholderData?: Record<string, string>;
+    subject: string;
+    htmlContent: string;
+    textContent?: string;
   }>) {
     const results = {
       sent: 0,
@@ -99,11 +143,9 @@ class ProductionSMTPIntegrationService {
 
             await this.smtpService.sendEmail({
               recipientEmail: emailData.email,
-              templateType: emailData.templateType,
-              placeholderData: {
-                user_name: emailData.userName,
-                ...emailData.placeholderData
-              }
+              subject: emailData.subject,
+              htmlContent: emailData.htmlContent,
+              textContent: emailData.textContent
             });
             
             results.sent++;
@@ -165,59 +207,29 @@ class ProductionSMTPIntegrationService {
       return false;
     }
   }
-
-  // Get SMTP service health status
-  async getHealthStatus() {
-    try {
-      const isConfigured = await this.isSMTPConfigured();
-      const recentLogs = this.smtpService?.emailLogs?.slice(0, 10) || [];
-      const recentFailures = recentLogs.filter((log: any) => log.status === 'failed').length;
-      const successRate = recentLogs.length > 0 ? 
-        ((recentLogs.length - recentFailures) / recentLogs.length * 100).toFixed(1) : '100';
-
-      return {
-        configured: isConfigured,
-        recentSuccessRate: successRate,
-        recentFailures,
-        totalRecentEmails: recentLogs.length,
-        status: isConfigured ? 'healthy' : 'not_configured'
-      };
-    } catch (error) {
-      console.error('Failed to get SMTP health status:', error);
-      return {
-        configured: false,
-        status: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    }
-  }
 }
 
-export const productionSMTPIntegrationService = new ProductionSMTPIntegrationService();
+export const smtpIntegrationService = new SMTPIntegrationService();
 
-// React hook for using production SMTP integration in components
-export const useProductionSMTPIntegration = () => {
-  const smtpService = useProductionSMTPService();
+// React hook for using SMTP integration in components
+export const useSMTPIntegration = () => {
+  const smtpService = useGenericSMTPService();
   
   // Set email service instance
   React.useEffect(() => {
-    productionSMTPIntegrationService.setSMTPService(smtpService);
+    smtpIntegrationService.setSMTPService(smtpService);
   }, [smtpService]);
 
   return {
     // Enhanced service methods
-    notifyUserCreated: productionSMTPIntegrationService.notifyUserCreated.bind(productionSMTPIntegrationService),
-    notifyVehicleActivated: productionSMTPIntegrationService.notifyVehicleActivated.bind(productionSMTPIntegrationService),
-    sendOTPNotification: productionSMTPIntegrationService.sendOTPNotification.bind(productionSMTPIntegrationService),
-    sendPasswordResetNotification: productionSMTPIntegrationService.sendPasswordResetNotification.bind(productionSMTPIntegrationService),
-    sendBulkEmails: productionSMTPIntegrationService.sendBulkEmails.bind(productionSMTPIntegrationService),
-    isSMTPConfigured: productionSMTPIntegrationService.isSMTPConfigured.bind(productionSMTPIntegrationService),
-    getHealthStatus: productionSMTPIntegrationService.getHealthStatus.bind(productionSMTPIntegrationService),
+    sendWelcomeEmail: smtpIntegrationService.sendWelcomeEmail.bind(smtpIntegrationService),
+    sendVehicleActivationEmail: smtpIntegrationService.sendVehicleActivationEmail.bind(smtpIntegrationService),
+    sendOTPNotification: smtpIntegrationService.sendOTPNotification.bind(smtpIntegrationService),
+    sendPasswordResetNotification: smtpIntegrationService.sendPasswordResetNotification.bind(smtpIntegrationService),
+    sendBulkEmails: smtpIntegrationService.sendBulkEmails.bind(smtpIntegrationService),
+    isSMTPConfigured: smtpIntegrationService.isSMTPConfigured.bind(smtpIntegrationService),
     
     // Original service methods and data
     ...smtpService
   };
 };
-
-// Export the main hook as the primary interface
-export const useSMTPIntegration = useProductionSMTPIntegration;

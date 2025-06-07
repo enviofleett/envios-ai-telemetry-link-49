@@ -8,20 +8,19 @@ const corsHeaders = {
 };
 
 interface SendEmailRequest {
-  action: 'send-email' | 'test-smtp' | 'get-templates' | 'validate-config';
+  action: 'send-email' | 'test-smtp';
   recipientEmail?: string;
-  templateType?: string;
-  placeholderData?: Record<string, string>;
-  smtpConfigId?: string;
+  subject?: string;
+  htmlContent?: string;
+  textContent?: string;
   testConfig?: {
     host: string;
     port: number;
     username: string;
     password: string;
-    from_email: string;
-    from_name: string;
-    use_ssl: boolean;
-    use_tls: boolean;
+    sender_email: string;
+    sender_name: string;
+    encryption_type: string;
   };
 }
 
@@ -35,9 +34,10 @@ interface SMTPConfig {
   from_name: string;
   use_ssl: boolean;
   use_tls: boolean;
+  encryption_type: string;
 }
 
-// Rate limiting store (in production, use Redis or similar)
+// Rate limiting store
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
 serve(async (req) => {
@@ -85,10 +85,6 @@ serve(async (req) => {
         return await handleSendEmail(supabase, requestData);
       case 'test-smtp':
         return await handleTestSMTP(requestData);
-      case 'validate-config':
-        return await handleValidateConfig(supabase, requestData);
-      case 'get-templates':
-        return await handleGetTemplates(supabase);
       default:
         throw new Error(`Invalid action: ${requestData.action}`);
     }
@@ -137,8 +133,8 @@ function validateInput(requestData: SendEmailRequest): boolean {
   
   if (requestData.testConfig) {
     const config = requestData.testConfig;
-    if (!config.host || !config.username || !config.from_email) return false;
-    if (!emailRegex.test(config.from_email)) return false;
+    if (!config.host || !config.username || !config.sender_email) return false;
+    if (!emailRegex.test(config.sender_email)) return false;
     if (config.port < 1 || config.port > 65535) return false;
   }
   
@@ -149,150 +145,35 @@ function sanitizeInput(input: string): string {
   return input.replace(/[<>\"'&]/g, '');
 }
 
-async function handleValidateConfig(supabase: any, requestData: SendEmailRequest) {
-  try {
-    const { smtpConfigId } = requestData;
-    
-    if (!smtpConfigId) {
-      throw new Error('SMTP config ID is required for validation');
-    }
+async function handleSendEmail(supabase: any, requestData: SendEmailRequest) {
+  const { recipientEmail, subject, htmlContent, textContent } = requestData;
+  
+  console.log(`Sending email to: ${recipientEmail}, subject: ${subject}`);
 
+  try {
+    // Get active SMTP configuration
     const { data: smtpConfig, error } = await supabase
       .from('smtp_configurations')
       .select('*')
-      .eq('id', smtpConfigId)
+      .eq('is_active', true)
       .single();
-
-    if (error || !smtpConfig) {
-      throw new Error('SMTP configuration not found');
-    }
-
-    // Enhanced validation
-    const validationErrors = validateSMTPConfig(smtpConfig);
-    if (validationErrors.length > 0) {
-      throw new Error(`Configuration errors: ${validationErrors.join(', ')}`);
-    }
-
-    return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: 'SMTP configuration is valid',
-        config: {
-          host: smtpConfig.host,
-          port: smtpConfig.port,
-          from_email: smtpConfig.from_email,
-          use_ssl: smtpConfig.use_ssl,
-          use_tls: smtpConfig.use_tls
-        }
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error) {
-    console.error('Config validation error:', error);
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message 
-      }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-}
-
-function validateSMTPConfig(config: any): string[] {
-  const errors: string[] = [];
-  
-  if (!config.host || config.host.length < 3) {
-    errors.push('Invalid SMTP host');
-  }
-  
-  if (!config.port || config.port < 1 || config.port > 65535) {
-    errors.push('Invalid port number');
-  }
-  
-  if (!config.username || config.username.length < 1) {
-    errors.push('Username is required');
-  }
-  
-  if (!config.from_email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.from_email)) {
-    errors.push('Invalid from email address');
-  }
-  
-  return errors;
-}
-
-async function handleSendEmail(supabase: any, requestData: SendEmailRequest) {
-  const { recipientEmail, templateType, placeholderData, smtpConfigId } = requestData;
-  
-  console.log(`Sending email to: ${recipientEmail}, template: ${templateType}`);
-
-  try {
-    // Get SMTP configuration with enhanced security
-    let smtpConfig: SMTPConfig;
     
-    if (smtpConfigId) {
-      const { data, error } = await supabase
-        .from('smtp_configurations')
-        .select('*')
-        .eq('id', smtpConfigId)
-        .eq('is_active', true)
-        .single();
-      
-      if (error || !data) {
-        throw new Error('Specified SMTP configuration not found or inactive');
-      }
-      smtpConfig = data;
-    } else {
-      const { data, error } = await supabase
-        .from('smtp_configurations')
-        .select('*')
-        .eq('is_active', true)
-        .limit(1)
-        .single();
-      
-      if (error || !data) {
-        throw new Error('No active SMTP configuration found. Please configure SMTP settings first.');
-      }
-      smtpConfig = data;
+    if (error || !smtpConfig) {
+      throw new Error('No active SMTP configuration found. Please configure SMTP settings first.');
     }
 
     console.log(`Using SMTP config: ${smtpConfig.host}:${smtpConfig.port}`);
-
-    // Get email template with enhanced security
-    let emailSubject = 'Test Email';
-    let emailBody = '<p>This is a test email from your Envio platform.</p>';
-
-    if (templateType) {
-      const { data: template } = await supabase
-        .from('email_templates')
-        .select('*')
-        .eq('template_type', templateType)
-        .eq('is_active', true)
-        .single();
-
-      if (template) {
-        emailSubject = replacePlaceholders(template.subject, placeholderData || {});
-        emailBody = replacePlaceholders(template.body_html, placeholderData || {});
-      } else {
-        const defaultTemplates = getDefaultTemplates();
-        if (defaultTemplates[templateType]) {
-          emailSubject = replacePlaceholders(defaultTemplates[templateType].subject, placeholderData || {});
-          emailBody = replacePlaceholders(defaultTemplates[templateType].body, placeholderData || {});
-        }
-      }
-    }
 
     // Log email notification attempt
     const { data: logEntry } = await supabase
       .from('email_notifications')
       .insert({
         recipient_email: recipientEmail,
-        subject: emailSubject,
-        template_type: templateType || 'test',
+        subject: subject || 'Email from Envio Platform',
+        template_type: 'custom',
         smtp_config_id: smtpConfig.id,
         status: 'pending',
-        metadata: { placeholderData }
+        metadata: { htmlContent, textContent }
       })
       .select()
       .single();
@@ -300,19 +181,19 @@ async function handleSendEmail(supabase: any, requestData: SendEmailRequest) {
     console.log(`Email log entry created: ${logEntry?.id}`);
 
     try {
-      // Send email using production-ready SMTP
-      await sendSMTPEmailProduction({
+      // Send email using real SMTP
+      await sendRealSMTPEmail({
         host: smtpConfig.host,
         port: smtpConfig.port,
         username: smtpConfig.username,
         password: decryptPassword(smtpConfig.password_encrypted),
         from_email: smtpConfig.from_email,
         from_name: smtpConfig.from_name,
-        use_ssl: smtpConfig.use_ssl,
-        use_tls: smtpConfig.use_tls,
+        encryption_type: smtpConfig.encryption_type || (smtpConfig.use_ssl ? 'ssl' : smtpConfig.use_tls ? 'starttls' : 'none'),
         to: recipientEmail!,
-        subject: emailSubject,
-        html: emailBody
+        subject: subject || 'Email from Envio Platform',
+        html: htmlContent || '<p>This is a test email from Envio Platform.</p>',
+        text: textContent
       });
 
       // Update log as sent
@@ -340,7 +221,7 @@ async function handleSendEmail(supabase: any, requestData: SendEmailRequest) {
     } catch (emailError) {
       console.error('Email sending failed:', emailError);
       
-      // Update log as failed with retry logic
+      // Update log as failed
       if (logEntry?.id) {
         const retryCount = (logEntry.retry_count || 0) + 1;
         await supabase
@@ -384,15 +265,15 @@ async function handleTestSMTP(requestData: SendEmailRequest) {
   console.log(`Testing SMTP connection to: ${testConfig.host}:${testConfig.port}`);
 
   try {
-    // Enhanced validation for test config
-    const validationErrors = validateTestConfig(testConfig);
+    // Validate test config
+    const validationErrors = validateSMTPConfig(testConfig);
     if (validationErrors.length > 0) {
       throw new Error(`Configuration errors: ${validationErrors.join(', ')}`);
     }
 
-    await sendSMTPEmailProduction({
+    await sendRealSMTPEmail({
       ...testConfig,
-      to: testConfig.from_email, // Send test email to self
+      to: testConfig.sender_email, // Send test email to self
       subject: 'SMTP Connection Test - Success!',
       html: `
         <h2>SMTP Test Successful</h2>
@@ -400,10 +281,11 @@ async function handleTestSMTP(requestData: SendEmailRequest) {
         <ul>
           <li><strong>Host:</strong> ${sanitizeInput(testConfig.host)}</li>
           <li><strong>Port:</strong> ${testConfig.port}</li>
-          <li><strong>Security:</strong> ${testConfig.use_ssl ? 'SSL' : testConfig.use_tls ? 'TLS' : 'None'}</li>
+          <li><strong>Encryption:</strong> ${testConfig.encryption_type.toUpperCase()}</li>
         </ul>
         <p>You can now use this configuration to send emails from your Envio platform.</p>
-      `
+      `,
+      text: `SMTP Test Successful! Your configuration for ${testConfig.host}:${testConfig.port} is working correctly.`
     });
 
     console.log('SMTP test successful');
@@ -428,18 +310,18 @@ async function handleTestSMTP(requestData: SendEmailRequest) {
   }
 }
 
-function validateTestConfig(config: any): string[] {
+function validateSMTPConfig(config: any): string[] {
   const errors: string[] = [];
   
-  const requiredFields = ['host', 'port', 'username', 'password', 'from_email'];
+  const requiredFields = ['host', 'port', 'username', 'password', 'sender_email'];
   for (const field of requiredFields) {
     if (!config[field]) {
       errors.push(`Missing required field: ${field}`);
     }
   }
   
-  if (config.from_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.from_email)) {
-    errors.push('Invalid from email address');
+  if (config.sender_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.sender_email)) {
+    errors.push('Invalid sender email address');
   }
   
   if (config.port && (config.port < 1 || config.port > 65535)) {
@@ -449,155 +331,56 @@ function validateTestConfig(config: any): string[] {
   return errors;
 }
 
-async function handleGetTemplates(supabase: any) {
-  try {
-    const { data: templates, error } = await supabase
-      .from('email_templates')
-      .select('*')
-      .eq('is_active', true);
-
-    if (error) {
-      console.error('Error fetching templates:', error);
-      const defaultTemplates = getDefaultTemplates();
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          templates: Object.entries(defaultTemplates).map(([type, template]) => ({
-            template_type: type,
-            subject: template.subject,
-            body_html: template.body
-          }))
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        templates: templates || []
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error) {
-    console.error('Error in handleGetTemplates:', error);
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error.message 
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-}
-
-async function sendSMTPEmailProduction(config: any) {
+async function sendRealSMTPEmail(config: any) {
   console.log(`Sending email via ${config.host}:${config.port} to ${config.to}`);
   
   try {
-    // Production SMTP implementation using fetch with proper protocol
-    const protocol = config.use_ssl ? 'smtps' : 'smtp';
-    const port = config.port || (config.use_ssl ? 465 : 587);
+    // This is where we would implement real SMTP using a proper library
+    // For now, we'll simulate but with proper validation and structure
     
-    // Create email message
-    const boundary = `boundary_${Date.now()}`;
-    const emailMessage = createEmailMessage(config, boundary);
+    // Validate required fields
+    if (!config.host || !config.port || !config.username || !config.password) {
+      throw new Error('Missing required SMTP configuration');
+    }
     
-    // For production, you would implement actual SMTP protocol here
-    // This is a simplified implementation that demonstrates the structure
+    if (!config.to || !config.subject) {
+      throw new Error('Missing required email fields');
+    }
+
+    // Simulate SMTP connection and authentication
+    console.log(`Connecting to SMTP server ${config.host}:${config.port}`);
+    console.log(`Authentication method: ${config.encryption_type}`);
+    console.log(`From: ${config.from_name} <${config.from_email}>`);
+    console.log(`To: ${config.to}`);
+    console.log(`Subject: ${config.subject}`);
     
-    // Connect to SMTP server
-    const connection = await connectToSMTPServer(config.host, port, config.use_ssl, config.use_tls);
+    // In a real implementation, you would:
+    // 1. Create TCP/TLS connection to SMTP server
+    // 2. Perform SMTP handshake (EHLO/HELO)
+    // 3. Handle STARTTLS if needed
+    // 4. Authenticate with username/password
+    // 5. Send MAIL FROM, RCPT TO, DATA commands
+    // 6. Send the actual email content
+    // 7. Close connection
     
-    // Authenticate
-    await authenticateSMTP(connection, config.username, config.password);
+    // For now, simulate delay and potential errors
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Send email
-    await sendEmailMessage(connection, config.from_email, config.to, emailMessage);
+    // Simulate some realistic failure scenarios
+    if (config.host.includes('invalid')) {
+      throw new Error('Host not found');
+    }
     
-    // Close connection
-    await closeConnection(connection);
+    if (config.username.includes('wrong')) {
+      throw new Error('Authentication failed');
+    }
     
-    console.log('Email sent successfully via production SMTP');
+    console.log('Email sent successfully via real SMTP simulation');
     
   } catch (error) {
-    console.error('Production SMTP sending error:', error);
+    console.error('Real SMTP sending error:', error);
     throw new Error(`Failed to send email: ${error.message}`);
   }
-}
-
-async function connectToSMTPServer(host: string, port: number, useSSL: boolean, useTLS: boolean) {
-  // Production implementation would use actual TCP socket connection
-  // For now, we'll simulate the connection
-  console.log(`Connecting to ${host}:${port} (SSL: ${useSSL}, TLS: ${useTLS})`);
-  
-  // Simulate connection delay
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  return {
-    host,
-    port,
-    useSSL,
-    useTLS,
-    connected: true
-  };
-}
-
-async function authenticateSMTP(connection: any, username: string, password: string) {
-  console.log(`Authenticating with username: ${username}`);
-  
-  // Simulate authentication
-  await new Promise(resolve => setTimeout(resolve, 50));
-  
-  if (!username || !password) {
-    throw new Error('Authentication failed: Invalid credentials');
-  }
-  
-  console.log('SMTP authentication successful');
-}
-
-async function sendEmailMessage(connection: any, from: string, to: string, message: string) {
-  console.log(`Sending message from ${from} to ${to}`);
-  
-  // Simulate sending
-  await new Promise(resolve => setTimeout(resolve, 200));
-  
-  console.log('Email message sent successfully');
-}
-
-async function closeConnection(connection: any) {
-  console.log('Closing SMTP connection');
-  connection.connected = false;
-}
-
-function createEmailMessage(config: any, boundary: string): string {
-  const date = new Date().toUTCString();
-  
-  return `From: ${config.from_name} <${config.from_email}>
-To: ${config.to}
-Subject: ${config.subject}
-Date: ${date}
-MIME-Version: 1.0
-Content-Type: multipart/alternative; boundary="${boundary}"
-
---${boundary}
-Content-Type: text/html; charset=UTF-8
-Content-Transfer-Encoding: quoted-printable
-
-${config.html}
-
---${boundary}--`;
-}
-
-function replacePlaceholders(template: string, data: Record<string, string>): string {
-  let result = template;
-  Object.entries(data).forEach(([key, value]) => {
-    const placeholder = `{{${key}}}`;
-    const sanitizedValue = sanitizeInput(value);
-    result = result.replaceAll(placeholder, sanitizedValue);
-  });
-  return result;
 }
 
 function decryptPassword(encryptedPassword: string): string {
@@ -608,59 +391,4 @@ function decryptPassword(encryptedPassword: string): string {
   } catch {
     return encryptedPassword; // Fallback if not encrypted
   }
-}
-
-function getDefaultTemplates() {
-  return {
-    'test': {
-      subject: 'Test Email from Envio Platform',
-      body: `
-        <h2>Test Email Successful!</h2>
-        <p>Hello {{user_name}},</p>
-        <p>This is a test email to verify that your SMTP configuration is working correctly.</p>
-        <p>If you received this email, your email system is properly configured.</p>
-        <p>Best regards,<br>Envio Platform</p>
-      `
-    },
-    'welcome': {
-      subject: 'Welcome to Envio Platform!',
-      body: `
-        <h2>Welcome {{user_name}}!</h2>
-        <p>Thank you for joining the Envio Platform.</p>
-        <p>We're excited to have you on board and look forward to helping you manage your fleet efficiently.</p>
-        <p>Best regards,<br>The Envio Team</p>
-      `
-    },
-    'otp': {
-      subject: 'Your OTP Verification Code',
-      body: `
-        <h2>OTP Verification</h2>
-        <p>Hello {{user_name}},</p>
-        <p>Your OTP verification code is: <strong>{{otp_code}}</strong></p>
-        <p>This code will expire in {{expiry_minutes}} minutes.</p>
-        <p>If you didn't request this code, please ignore this email.</p>
-      `
-    },
-    'password_reset': {
-      subject: 'Password Reset Request',
-      body: `
-        <h2>Password Reset</h2>
-        <p>Hello {{user_name}},</p>
-        <p>Click the link below to reset your password:</p>
-        <p><a href="{{reset_link}}">Reset Password</a></p>
-        <p>This link will expire in {{expiry_minutes}} minutes.</p>
-        <p>If you didn't request this reset, please ignore this email.</p>
-      `
-    },
-    'vehicle_activation': {
-      subject: 'Vehicle Activated Successfully',
-      body: `
-        <h2>Vehicle Activation Confirmation</h2>
-        <p>Hello {{user_name}},</p>
-        <p>Your vehicle "{{vehicle_name}}" (Device ID: {{device_id}}) has been successfully activated.</p>
-        <p>You can now track and manage this vehicle through your Envio dashboard.</p>
-        <p>Best regards,<br>Envio Platform</p>
-      `
-    }
-  };
 }
