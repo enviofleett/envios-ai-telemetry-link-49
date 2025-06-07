@@ -3,7 +3,6 @@ import React from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from '@/components/AppSidebar';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import { DarkModeToggle } from '@/components/ui/DarkModeToggle';
 import { useLocation } from 'react-router-dom';
 
 interface LayoutProps {
@@ -43,7 +42,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
         <SidebarInset className="flex-1">
-          {/* Header with breadcrumb and dark mode toggle */}
+          {/* Header with breadcrumb */}
           <header className="h-16 flex items-center justify-between gap-4 bg-background border-b border-border px-6 shadow-sm">
             <div className="flex items-center gap-4 flex-1">
               <SidebarTrigger className="w-10 h-10 p-2 rounded hover:bg-accent text-foreground" />
@@ -75,11 +74,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   ))}
                 </BreadcrumbList>
               </Breadcrumb>
-            </div>
-            
-            {/* Dark Mode Toggle */}
-            <div className="flex items-center gap-2">
-              <DarkModeToggle size="md" />
             </div>
           </header>
           
