@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -7,6 +6,7 @@ import { useGenericSMTPService } from '@/hooks/useGenericSMTPService';
 import GenericSMTPForm from './smtp/GenericSMTPForm';
 import SMTPConfigurationManager from './smtp/SMTPConfigurationManager';
 import SMTPMonitoringTab from './smtp/SMTPMonitoringTab';
+import EmailTemplateManager from './smtp/EmailTemplateManager';
 import { Mail, AlertTriangle, CheckCircle, Settings } from 'lucide-react';
 
 const EnhancedSMTPSettingsTab: React.FC = () => {
@@ -112,9 +112,10 @@ const EnhancedSMTPSettingsTab: React.FC = () => {
       )}
 
       <Tabs defaultValue="configuration" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="configuration">Configuration</TabsTrigger>
           <TabsTrigger value="management">Management</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
           <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
         </TabsList>
 
@@ -135,6 +136,10 @@ const EnhancedSMTPSettingsTab: React.FC = () => {
             onToggleActive={handleToggleActive}
             isLoading={isLoading}
           />
+        </TabsContent>
+
+        <TabsContent value="templates" className="space-y-6">
+          <EmailTemplateManager />
         </TabsContent>
 
         <TabsContent value="monitoring" className="space-y-6">
