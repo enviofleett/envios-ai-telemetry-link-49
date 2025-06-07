@@ -6,9 +6,11 @@ import type { SyncMetrics } from './types';
 
 export class VehiclePositionSyncService {
   private syncInterval: NodeJS.Timeout | null = null;
+  private liveModeInterval: NodeJS.Timeout | null = null;
   private progressiveInterval: NodeJS.Timeout | null = null;
   private isSyncing = false;
   private isProgressiveSyncing = false;
+  private isLiveModeEnabled = false;
   private metrics: SyncMetrics = {
     totalVehicles: 0,
     positionsUpdated: 0,
@@ -21,9 +23,8 @@ export class VehiclePositionSyncService {
   }
 
   private async initializeSync(): Promise<void> {
-    console.log('Initializing enhanced vehicle position sync service for ALL vehicles...');
+    console.log('Initializing enhanced vehicle position sync service with 30-second intervals...');
     
-    // Check if we have an active GP51 session using improved validation
     const sessionValidation = await gp51SessionValidator.ensureValidSession();
     if (!sessionValidation.valid) {
       console.warn('GP51 session validation failed during initialization:', sessionValidation.error);
@@ -31,24 +32,44 @@ export class VehiclePositionSyncService {
       console.log('✅ GP51 session validated successfully during initialization');
     }
 
-    // Start both periodic and progressive sync
     this.startPeriodicSync();
     this.startProgressiveSync();
   }
 
-  public startPeriodicSync(intervalMs: number = 300000): void {
+  public startPeriodicSync(intervalMs: number = 30000): void {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
     }
 
-    console.log(`Starting enhanced vehicle position sync with ${intervalMs}ms interval for ALL vehicles`);
+    console.log(`Starting enhanced vehicle position sync with ${intervalMs}ms interval (30 seconds)`);
     
-    // Perform initial sync
-    this.syncAllVehiclePositions();
+    this.syncActiveVehiclePositions();
 
     this.syncInterval = setInterval(() => {
-      this.syncAllVehiclePositions();
+      this.syncActiveVehiclePositions();
     }, intervalMs);
+  }
+
+  public enableLiveMode(enabled: boolean = true): void {
+    this.isLiveModeEnabled = enabled;
+    
+    if (enabled) {
+      if (this.liveModeInterval) {
+        clearInterval(this.liveModeInterval);
+      }
+      
+      console.log('🔴 LIVE MODE ENABLED: 15-second position updates for active vehicles');
+      
+      this.liveModeInterval = setInterval(() => {
+        this.syncActiveVehiclePositionsOnly();
+      }, 15000); // 15 seconds for live mode
+    } else {
+      if (this.liveModeInterval) {
+        clearInterval(this.liveModeInterval);
+        this.liveModeInterval = null;
+      }
+      console.log('⚪ Live mode disabled');
+    }
   }
 
   private startProgressiveSync(): void {
@@ -56,11 +77,120 @@ export class VehiclePositionSyncService {
       clearInterval(this.progressiveInterval);
     }
 
-    console.log('Starting progressive sync for vehicles needing position updates');
+    console.log('Starting progressive sync for stale vehicles (60s interval)');
     
     this.progressiveInterval = setInterval(() => {
       this.syncVehiclesNeedingUpdates();
-    }, 60000); // Every minute
+    }, 60000);
+  }
+
+  private async syncActiveVehiclePositionsOnly(): Promise<void> {
+    if (this.isSyncing) {
+      console.log('Live mode sync: sync already in progress, skipping...');
+      return;
+    }
+
+    this.isSyncing = true;
+    
+    try {
+      console.log('🔴 Live mode: Syncing active vehicle positions only...');
+
+      const sessionValidation = await gp51SessionValidator.ensureValidSession();
+      if (!sessionValidation.valid) {
+        console.error('Live mode sync aborted: no valid GP51 session');
+        return;
+      }
+
+      // Get only active vehicles (updated within last 30 minutes)
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      
+      const { data: activeVehicles, error } = await supabase
+        .from('vehicles')
+        .select('device_id, device_name, is_active, gp51_username, last_position')
+        .eq('is_active', true)
+        .gte('last_position->>updatetime', thirtyMinutesAgo)
+        .limit(500); // Focus on most active vehicles
+
+      if (error) throw error;
+
+      if (!activeVehicles || activeVehicles.length === 0) {
+        console.log('🔴 Live mode: No active vehicles found for position updates');
+        return;
+      }
+
+      console.log(`🔴 Live mode: Updating ${activeVehicles.length} active vehicles`);
+
+      const result = await vehiclePositionProcessor.fetchAndUpdateVehiclePositions(activeVehicles);
+      
+      console.log(`🔴 Live mode completed: ${result.updatedCount} vehicles updated, ${result.errors} errors`);
+
+    } catch (error) {
+      console.error('Live mode vehicle sync failed:', error);
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
+  private async syncActiveVehiclePositions(): Promise<void> {
+    if (this.isSyncing) {
+      console.log('Active sync already in progress, skipping...');
+      return;
+    }
+
+    this.isSyncing = true;
+    console.log('Starting active vehicle position sync (30-second interval)...');
+
+    try {
+      const sessionValidation = await gp51SessionValidator.ensureValidSession();
+      if (!sessionValidation.valid) {
+        throw new Error(`GP51 session validation failed: ${sessionValidation.error}`);
+      }
+
+      console.log(`✅ Using valid GP51 session for ${sessionValidation.username}`);
+
+      // Get vehicles that have been active in the last 2 hours
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+      
+      const { data: vehicles, error: vehiclesError } = await supabase
+        .from('vehicles')
+        .select('device_id, device_name, is_active, gp51_username, last_position')
+        .eq('is_active', true)
+        .or(`last_position->updatetime.gte.${twoHoursAgo},last_position->updatetime.is.null`)
+        .order('last_position->>updatetime', { ascending: false })
+        .limit(1000);
+
+      if (vehiclesError) {
+        throw new Error(`Failed to fetch active vehicles: ${vehiclesError.message}`);
+      }
+
+      if (!vehicles || vehicles.length === 0) {
+        console.log('No active vehicles found for position sync');
+        this.metrics.totalVehicles = 0;
+        return;
+      }
+
+      console.log(`Found ${vehicles.length} active vehicles for position sync`);
+      this.metrics.totalVehicles = vehicles.length;
+
+      const result = await vehiclePositionProcessor.fetchAndUpdateVehiclePositions(vehicles);
+
+      this.metrics.positionsUpdated = result.updatedCount;
+      this.metrics.errors = result.errors;
+      this.metrics.lastSyncTime = new Date();
+
+      console.log(`Active vehicle sync completed: ${result.updatedCount} vehicles updated, ${result.errors} errors`);
+      console.log(`Completion rate: ${result.completionRate.toFixed(2)}%`);
+
+      await syncStatusUpdater.updateSyncStatus(true, undefined);
+
+    } catch (error) {
+      console.error('Active vehicle position sync failed:', error);
+      this.metrics.errors++;
+      await syncStatusUpdater.updateSyncStatus(false, error instanceof Error ? error.message : 'Unknown error');
+      throw error;
+    } finally {
+      this.isSyncing = false;
+    }
   }
 
   private async syncVehiclesNeedingUpdates(): Promise<void> {
@@ -72,37 +202,35 @@ export class VehiclePositionSyncService {
     this.isProgressiveSyncing = true;
     
     try {
-      console.log('Starting progressive sync for vehicles without recent positions...');
+      console.log('Starting progressive sync for stale vehicles...');
 
-      // Ensure we have a valid session before starting
       const sessionValidation = await gp51SessionValidator.ensureValidSession();
       if (!sessionValidation.valid) {
         console.error('Progressive sync aborted: no valid GP51 session');
         return;
       }
 
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
       
       const { data: staleVehicles, error } = await supabase
         .from('vehicles')
         .select('device_id, device_name, is_active, gp51_username, last_position')
         .eq('is_active', true)
-        .or(`last_position->updatetime.is.null,last_position->>updatetime.lt.${twentyFourHoursAgo}`)
-        .limit(1000);
+        .or(`last_position->updatetime.is.null,last_position->>updatetime.lt.${sixHoursAgo}`)
+        .limit(200);
 
       if (error) throw error;
 
       if (!staleVehicles || staleVehicles.length === 0) {
-        console.log('No vehicles need progressive position updates');
+        console.log('No stale vehicles need progressive position updates');
         return;
       }
 
-      console.log(`Progressive sync: updating ${staleVehicles.length} vehicles without recent positions`);
+      console.log(`Progressive sync: updating ${staleVehicles.length} stale vehicles`);
 
       const result = await vehiclePositionProcessor.fetchAndUpdateVehiclePositions(staleVehicles);
       
       console.log(`Progressive sync completed: ${result.updatedCount} vehicles updated, ${result.errors} errors`);
-      console.log(`Progressive sync completion rate: ${result.completionRate.toFixed(2)}%`);
 
     } catch (error) {
       console.error('Progressive vehicle sync failed:', error);
@@ -118,10 +246,9 @@ export class VehiclePositionSyncService {
     }
 
     this.isSyncing = true;
-    console.log('Starting comprehensive vehicle position sync for ALL 3821+ vehicles...');
+    console.log('Starting comprehensive vehicle position sync for ALL vehicles...');
 
     try {
-      // Ensure valid session before attempting sync with improved validation
       const sessionValidation = await gp51SessionValidator.ensureValidSession();
       if (!sessionValidation.valid) {
         throw new Error(`GP51 session validation failed: ${sessionValidation.error}`);
@@ -129,7 +256,6 @@ export class VehiclePositionSyncService {
 
       console.log(`✅ Using valid GP51 session for ${sessionValidation.username}`);
 
-      // Get ALL active vehicles from the database
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
         .select('device_id, device_name, is_active, gp51_username')
@@ -148,23 +274,15 @@ export class VehiclePositionSyncService {
       console.log(`Found ${vehicles.length} active vehicles for comprehensive position sync`);
       this.metrics.totalVehicles = vehicles.length;
 
-      // Process ALL vehicle positions with enhanced batch handling
       const result = await vehiclePositionProcessor.fetchAndUpdateVehiclePositions(vehicles);
 
       this.metrics.positionsUpdated = result.updatedCount;
       this.metrics.errors = result.errors;
       this.metrics.lastSyncTime = new Date();
 
-      console.log(`Comprehensive sync completed: ${result.updatedCount} vehicles updated, ${result.errors} errors, ${result.totalProcessed} processed of ${result.totalRequested} total vehicles`);
-      console.log(`Overall completion rate: ${result.completionRate.toFixed(2)}%, Average processing time: ${result.avgProcessingTime.toFixed(2)}ms per vehicle`);
+      console.log(`Comprehensive sync completed: ${result.updatedCount} vehicles updated, ${result.errors} errors`);
 
-      // Update sync status in database with detailed metrics
       await syncStatusUpdater.updateSyncStatus(true, undefined);
-
-      // Alert if completion rate is below target
-      if (result.completionRate < 95) {
-        console.warn(`⚠️  Low completion rate: ${result.completionRate.toFixed(2)}% (target: 95%+)`);
-      }
 
       return this.metrics;
 
@@ -183,6 +301,10 @@ export class VehiclePositionSyncService {
       clearInterval(this.syncInterval);
       this.syncInterval = null;
     }
+    if (this.liveModeInterval) {
+      clearInterval(this.liveModeInterval);
+      this.liveModeInterval = null;
+    }
     if (this.progressiveInterval) {
       clearInterval(this.progressiveInterval);
       this.progressiveInterval = null;
@@ -195,8 +317,8 @@ export class VehiclePositionSyncService {
   }
 
   public async forceSync(): Promise<SyncMetrics> {
-    console.log('Force syncing ALL vehicle positions...');
-    return await this.syncAllVehiclePositions();
+    console.log('Force syncing active vehicle positions...');
+    return await this.syncActiveVehiclePositions();
   }
 
   public async getSyncProgress(): Promise<{
@@ -206,7 +328,7 @@ export class VehiclePositionSyncService {
     completionPercentage: number;
   }> {
     try {
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
       const [totalResult, recentResult] = await Promise.all([
         supabase
@@ -217,7 +339,7 @@ export class VehiclePositionSyncService {
           .from('vehicles')
           .select('*', { count: 'exact', head: true })
           .eq('is_active', true)
-          .gte('last_position->>updatetime', twentyFourHoursAgo)
+          .gte('last_position->>updatetime', thirtyMinutesAgo)
       ]);
 
       const totalVehicles = totalResult.count || 0;
@@ -241,6 +363,10 @@ export class VehiclePositionSyncService {
         completionPercentage: 0
       };
     }
+  }
+
+  public isLiveModeActive(): boolean {
+    return this.isLiveModeEnabled;
   }
 }
 
