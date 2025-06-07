@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { gp51SessionManager } from './gp51SessionManager';
 import { VehicleData, VehicleDataMetrics } from './vehicleData/types';
@@ -42,11 +41,11 @@ export class EnhancedVehicleDataService {
     this.startPeriodicSync();
     
     gp51SessionManager.subscribe((session) => {
-      if (session) {
-        console.log('✅ GP51 session available, starting data sync...');
+      if (session && session.userId) {
+        console.log(`✅ GP51 session available for user ${session.userId}, starting data sync...`);
         this.forceSync();
       } else {
-        console.log('❌ GP51 session lost, marking vehicles as offline...');
+        console.log('❌ GP51 session lost or not linked to user, marking vehicles as offline...');
         this.markAllVehiclesOffline();
       }
     });
@@ -102,7 +101,14 @@ export class EnhancedVehicleDataService {
     try {
       console.log('🔄 Starting vehicle data sync with GP51...');
       
-      await gp51SessionManager.validateAndEnsureSession();
+      // Validate session and ensure it's linked to a user
+      const session = await gp51SessionManager.validateAndEnsureSession();
+      
+      if (!session.userId) {
+        throw new Error('GP51 session is not properly linked to a user account');
+      }
+      
+      console.log(`🔗 Using GP51 session linked to user: ${session.userId}`);
       
       const gp51Vehicles = await GP51ApiService.fetchVehicleList();
       console.log(`📋 Retrieved ${gp51Vehicles.length} vehicles from GP51`);
@@ -121,7 +127,7 @@ export class EnhancedVehicleDataService {
 
         console.log(`✅ Vehicle data sync completed. ${this.metrics.onlineVehicles}/${this.metrics.totalVehicles} vehicles online`);
       } else {
-        console.warn('⚠️ No vehicle device IDs found');
+        console.warn('⚠️ No vehicle device IDs found - this might indicate an account permission issue');
         this.metrics.syncStatus = 'success';
         this.metrics.lastSyncTime = new Date();
       }
@@ -129,7 +135,19 @@ export class EnhancedVehicleDataService {
     } catch (error) {
       console.error('❌ Vehicle data sync failed:', error);
       this.metrics.syncStatus = 'error';
-      this.metrics.errorMessage = error instanceof Error ? error.message : 'Unknown sync error';
+      
+      if (error instanceof Error) {
+        if (error.message.includes('not properly linked')) {
+          this.metrics.errorMessage = 'GP51 session not linked to user account. Please re-authenticate in Admin Settings.';
+        } else if (error.message.includes('No GP51 sessions found')) {
+          this.metrics.errorMessage = 'No GP51 authentication found. Please configure GP51 credentials in Admin Settings.';
+        } else {
+          this.metrics.errorMessage = error.message;
+        }
+      } else {
+        this.metrics.errorMessage = 'Unknown sync error occurred';
+      }
+      
       this.markAllVehiclesOffline();
     } finally {
       this.isSyncing = false;

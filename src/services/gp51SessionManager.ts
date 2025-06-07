@@ -1,12 +1,12 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 
 export interface GP51SessionInfo {
   token: string;
   username: string;
   expiresAt: Date;
   isValid: boolean;
+  userId?: string;
 }
 
 export class GP51SessionManager {
@@ -76,10 +76,29 @@ export class GP51SessionManager {
     console.log('🔄 Refreshing GP51 session...');
 
     try {
-      // Get latest session from database
+      // Get current user first
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        throw new Error('User not authenticated. Please log in first.');
+      }
+
+      // Get user from envio_users table
+      const { data: envioUser, error: envioUserError } = await supabase
+        .from('envio_users')
+        .select('id')
+        .eq('email', user.email)
+        .single();
+
+      if (envioUserError || !envioUser) {
+        throw new Error('User profile not found. Please contact support.');
+      }
+
+      // Get latest session for this user
       const { data: sessions, error } = await supabase
         .from('gp51_sessions')
         .select('*')
+        .eq('envio_user_id', envioUser.id)
         .order('created_at', { ascending: false })
         .limit(1);
 
@@ -101,7 +120,7 @@ export class GP51SessionManager {
 
         if (refreshError || !data?.success) {
           // Clear invalid sessions and force re-authentication
-          await this.clearInvalidSessions();
+          await this.clearInvalidSessions(envioUser.id);
           throw new Error('Session refresh failed. Please re-authenticate in Admin Settings.');
         }
 
@@ -124,7 +143,8 @@ export class GP51SessionManager {
           token: data.token,
           username: latestSession.username,
           expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000),
-          isValid: true
+          isValid: true,
+          userId: envioUser.id
         };
       } else {
         // Use existing valid session
@@ -132,7 +152,8 @@ export class GP51SessionManager {
           token: latestSession.gp51_token,
           username: latestSession.username,
           expiresAt: expiresAt,
-          isValid: true
+          isValid: true,
+          userId: envioUser.id
         };
       }
 
@@ -148,13 +169,14 @@ export class GP51SessionManager {
     }
   }
 
-  private async clearInvalidSessions(): Promise<void> {
+  private async clearInvalidSessions(userId: string): Promise<void> {
     try {
       console.log('🧹 Clearing invalid GP51 sessions...');
       
       const { error } = await supabase
         .from('gp51_sessions')
         .delete()
+        .eq('envio_user_id', userId)
         .lt('token_expires_at', new Date().toISOString());
 
       if (error) {
@@ -196,8 +218,26 @@ export class GP51SessionManager {
 
   async forceReauthentication(): Promise<void> {
     console.log('🔄 Forcing GP51 re-authentication...');
+    
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: envioUser } = await supabase
+          .from('envio_users')
+          .select('id')
+          .eq('email', user.email)
+          .single();
+        
+        if (envioUser) {
+          await this.clearInvalidSessions(envioUser.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error during force re-authentication:', error);
+    }
+    
     this.currentSession = null;
-    await this.clearInvalidSessions();
     this.notifyListeners(null);
   }
 }

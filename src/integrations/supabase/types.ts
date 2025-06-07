@@ -1661,6 +1661,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_gp51_sessions_envio_user_id"
+            columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "gp51_sessions_envio_user_id_fkey"
             columns: ["envio_user_id"]
             isOneToOne: false
