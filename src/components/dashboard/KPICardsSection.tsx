@@ -2,6 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { 
   Car, 
   Activity, 
@@ -11,16 +12,25 @@ import {
   TrendingDown,
   MoreHorizontal
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useDashboardData } from '@/hooks/useDashboardData';
+import { unifiedVehicleDataService } from '@/services/unifiedVehicleData';
 
 const KPICardsSection: React.FC = () => {
-  const { metrics, isLoading } = useDashboardData();
+  const [metrics, setMetrics] = React.useState(unifiedVehicleDataService.getVehicleMetrics());
+  const [isLoading, setIsLoading] = React.useState(!unifiedVehicleDataService.isReady());
+
+  React.useEffect(() => {
+    const unsubscribe = unifiedVehicleDataService.subscribe(() => {
+      setMetrics(unifiedVehicleDataService.getVehicleMetrics());
+      setIsLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
 
   const kpiCards = [
     {
       title: 'Total Vehicles',
-      value: metrics?.totalVehicles || 1240,
+      value: metrics.total,
       trend: '+12.5%',
       trendDirection: 'up' as const,
       subtitle: 'from last month',
@@ -31,32 +41,32 @@ const KPICardsSection: React.FC = () => {
     },
     {
       title: 'Online Vehicles',
-      value: metrics?.onlineVehicles || 1087,
-      trend: '87.7%',
+      value: metrics.online,
+      trend: metrics.total > 0 ? `${((metrics.online / metrics.total) * 100).toFixed(1)}%` : '0%',
       trendDirection: 'up' as const,
       subtitle: 'rate',
       icon: Activity,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
-      progressValue: 87.7
+      progressValue: metrics.total > 0 ? (metrics.online / metrics.total) * 100 : 0
     },
     {
       title: 'Offline Vehicles',
-      value: metrics?.totalVehicles ? metrics.totalVehicles - metrics.onlineVehicles : 153,
-      trend: 'Last: 2h ago',
+      value: metrics.offline,
+      trend: metrics.lastUpdateTime ? `Last: ${new Date(metrics.lastUpdateTime).toLocaleTimeString()}` : 'Never',
       trendDirection: 'neutral' as const,
-      subtitle: '12.3% offline',
+      subtitle: metrics.total > 0 ? `${((metrics.offline / metrics.total) * 100).toFixed(1)}% offline` : '0% offline',
       icon: WifiOff,
       color: 'text-red-600',
       bgColor: 'bg-red-50',
-      progressValue: 12.3
+      progressValue: metrics.total > 0 ? (metrics.offline / metrics.total) * 100 : 0
     },
     {
-      title: 'Active Users',
-      value: 867,
+      title: 'Active Alerts',
+      value: metrics.alerts,
       trend: '70%',
       trendDirection: 'up' as const,
-      subtitle: 'w/ vehicles',
+      subtitle: 'need attention',
       icon: Users,
       color: 'text-purple-600',
       bgColor: 'bg-purple-50',
@@ -122,7 +132,8 @@ const KPICardsSection: React.FC = () => {
                 <div className="flex items-center gap-1 text-xs">
                   {TrendIcon && (
                     <TrendIcon className={`h-3 w-3 ${
-                      card.trendDirection === 'up' ? 'text-green-600' : 'text-red-600'
+                      card.trendDirection === 'up' ? 'text-green-600' : 
+                      card.trendDirection === 'down' ? 'text-red-600' : 'text-gray-600'
                     }`} />
                   )}
                   <span className={`font-medium ${

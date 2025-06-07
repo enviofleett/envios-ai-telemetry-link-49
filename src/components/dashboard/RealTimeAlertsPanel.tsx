@@ -13,6 +13,7 @@ import {
   Calendar,
   Navigation
 } from 'lucide-react';
+import { useDashboardData } from '@/hooks/useDashboardData';
 
 interface Alert {
   id: string;
@@ -26,47 +27,25 @@ interface Alert {
 }
 
 const RealTimeAlertsPanel: React.FC = () => {
-  const [alerts, setAlerts] = useState<Alert[]>([
-    {
-      id: '1',
-      priority: 'high',
-      title: 'Vehicle #4523 battery critical',
-      description: 'Battery: 5% | Location: Downtown',
-      vehicle: '#4523',
-      location: 'Downtown',
-      timestamp: new Date(Date.now() - 2 * 60 * 1000), // 2 minutes ago
-      actionLabel: 'Dismiss'
-    },
-    {
-      id: '2',
-      priority: 'high',
-      title: 'Geofence violation detected',
-      description: 'Vehicle #7821 | Industrial Zone',
-      vehicle: '#7821',
-      location: 'Industrial Zone',
-      timestamp: new Date(Date.now() - 5 * 60 * 1000), // 5 minutes ago
-      actionLabel: 'View'
-    },
-    {
-      id: '3',
-      priority: 'medium',
-      title: 'Maintenance due Vehicle #7821',
-      description: 'Service: Oil Change | Due: Today',
-      vehicle: '#7821',
-      timestamp: new Date(Date.now() - 15 * 60 * 1000), // 15 minutes ago
-      actionLabel: 'Schedule'
-    },
-    {
-      id: '4',
-      priority: 'high',
-      title: 'GPS signal lost Vehicle #3456',
-      description: 'Last seen: Highway 101',
-      vehicle: '#3456',
-      location: 'Highway 101',
-      timestamp: new Date(Date.now() - 18 * 60 * 1000), // 18 minutes ago
-      actionLabel: 'Locate'
+  const { alerts: backendAlerts, isLoading } = useDashboardData();
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+
+  useEffect(() => {
+    if (backendAlerts && backendAlerts.length > 0) {
+      const transformedAlerts: Alert[] = backendAlerts.map((alert) => ({
+        id: alert.id,
+        priority: alert.severity === 'critical' ? 'high' : 
+                 alert.severity === 'high' ? 'high' :
+                 alert.severity === 'medium' ? 'medium' : 'low',
+        title: `${alert.alertType} - ${alert.deviceName}`,
+        description: alert.description,
+        vehicle: alert.deviceId,
+        timestamp: new Date(alert.timestamp),
+        actionLabel: alert.severity === 'critical' ? 'Urgent' : 'View'
+      }));
+      setAlerts(transformedAlerts);
     }
-  ]);
+  }, [backendAlerts]);
 
   const getPriorityConfig = (priority: string) => {
     switch (priority) {
@@ -117,18 +96,25 @@ const RealTimeAlertsPanel: React.FC = () => {
 
   const alertCount = alerts.length;
 
-  // Auto-refresh simulation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulate real-time updates
-      setAlerts(currentAlerts => currentAlerts.map(alert => ({
-        ...alert,
-        // Update timestamps to reflect passing time
-      })));
-    }, 15000); // Refresh every 15 seconds
-
-    return () => clearInterval(interval);
-  }, []);
+  if (isLoading) {
+    return (
+      <Card className="bg-white border border-gray-200 shadow-sm h-fit">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            Real-time Alerts
+            <Bell className="h-5 w-5" />
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-20 bg-gray-200 rounded-lg"></div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="bg-white border border-gray-200 shadow-sm h-fit">

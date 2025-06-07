@@ -4,16 +4,44 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { RefreshCw, Eye } from 'lucide-react';
+import { unifiedVehicleDataService } from '@/services/unifiedVehicleData';
 
 const SubscriptionBreakdownChart: React.FC = () => {
+  const [metrics, setMetrics] = React.useState(unifiedVehicleDataService.getVehicleMetrics());
+  const [isLoading, setIsLoading] = React.useState(!unifiedVehicleDataService.isReady());
+
+  React.useEffect(() => {
+    const unsubscribe = unifiedVehicleDataService.subscribe(() => {
+      setMetrics(unifiedVehicleDataService.getVehicleMetrics());
+      setIsLoading(false);
+    });
+
+    return unsubscribe;
+  }, []);
+
   const data = [
-    { name: 'End Users', value: 867, percentage: 70, color: '#0f172a' },
-    { name: 'Resellers', value: 245, percentage: 20, color: '#475569' },
-    { name: 'Admins', value: 128, percentage: 10, color: '#0d9488' }
+    { 
+      name: 'Online Vehicles', 
+      value: metrics.online, 
+      percentage: metrics.total > 0 ? Math.round((metrics.online / metrics.total) * 100) : 0, 
+      color: '#0f172a' 
+    },
+    { 
+      name: 'Offline Vehicles', 
+      value: metrics.offline, 
+      percentage: metrics.total > 0 ? Math.round((metrics.offline / metrics.total) * 100) : 0, 
+      color: '#475569' 
+    },
+    { 
+      name: 'Alert Vehicles', 
+      value: metrics.alerts, 
+      percentage: metrics.total > 0 ? Math.round((metrics.alerts / metrics.total) * 100) : 0, 
+      color: '#0d9488' 
+    }
   ];
 
-  const totalUsers = data.reduce((sum, item) => sum + item.value, 0);
-  const revenueImpact = 124000;
+  const totalVehicles = metrics.total;
+  const revenueImpact = totalVehicles * 25; // Estimate $25 per vehicle per month
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
@@ -22,7 +50,7 @@ const SubscriptionBreakdownChart: React.FC = () => {
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
           <p className="font-medium text-gray-900">{data.name}</p>
           <p className="text-sm text-gray-600">
-            {`Users: ${data.value.toLocaleString()} (${data.percentage}%)`}
+            {`Vehicles: ${data.value.toLocaleString()} (${data.percentage}%)`}
           </p>
         </div>
       );
@@ -48,12 +76,25 @@ const SubscriptionBreakdownChart: React.FC = () => {
     );
   };
 
+  if (isLoading) {
+    return (
+      <Card className="bg-white border border-gray-200 shadow-sm">
+        <CardHeader>
+          <CardTitle>Vehicle Status Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-80 animate-pulse bg-gray-200 rounded"></div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="bg-white border border-gray-200 shadow-sm">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold text-gray-900">
-            Subscription Breakdown
+            Vehicle Status Breakdown
           </CardTitle>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="text-xs">
@@ -103,7 +144,7 @@ const SubscriptionBreakdownChart: React.FC = () => {
                 dominantBaseline="middle" 
                 className="fill-gray-900 text-lg font-bold"
               >
-                {totalUsers.toLocaleString()}
+                {totalVehicles.toLocaleString()}
               </text>
               <text 
                 x="50%" 
@@ -113,7 +154,7 @@ const SubscriptionBreakdownChart: React.FC = () => {
                 dominantBaseline="middle" 
                 className="fill-gray-600 text-sm"
               >
-                Total Users
+                Total Vehicles
               </text>
             </PieChart>
           </ResponsiveContainer>
@@ -125,9 +166,9 @@ const SubscriptionBreakdownChart: React.FC = () => {
             <div className="text-center">
               <div className="font-medium text-gray-900">Total Active</div>
               <div className="text-2xl font-bold text-gray-900 mt-1">
-                {totalUsers.toLocaleString()}
+                {totalVehicles.toLocaleString()}
               </div>
-              <div className="text-gray-600">users</div>
+              <div className="text-gray-600">vehicles</div>
             </div>
             <div className="text-center">
               <div className="font-medium text-gray-900">Revenue Impact</div>
