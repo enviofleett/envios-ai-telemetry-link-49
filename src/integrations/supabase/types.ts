@@ -9,6 +9,54 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      backup_metadata: {
+        Row: {
+          backup_type: string
+          can_rollback: boolean
+          checksum_hash: string
+          created_at: string
+          description: string | null
+          expires_at: string | null
+          id: string
+          is_verified: boolean
+          name: string
+          record_count: number
+          size: number
+          tables: Json
+          tags: Json
+        }
+        Insert: {
+          backup_type?: string
+          can_rollback?: boolean
+          checksum_hash: string
+          created_at?: string
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          is_verified?: boolean
+          name: string
+          record_count?: number
+          size?: number
+          tables?: Json
+          tags?: Json
+        }
+        Update: {
+          backup_type?: string
+          can_rollback?: boolean
+          checksum_hash?: string
+          created_at?: string
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          is_verified?: boolean
+          name?: string
+          record_count?: number
+          size?: number
+          tables?: Json
+          tags?: Json
+        }
+        Relationships: []
+      }
       billing_cycles: {
         Row: {
           billing_date: string
@@ -288,6 +336,87 @@ export type Database = {
           timezone?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      data_consistency_logs: {
+        Row: {
+          checks_failed: number
+          checks_passed: number
+          checks_performed: number
+          data_health: string
+          id: string
+          overall_score: number
+          report_data: Json
+          timestamp: string
+        }
+        Insert: {
+          checks_failed?: number
+          checks_passed?: number
+          checks_performed?: number
+          data_health: string
+          id?: string
+          overall_score: number
+          report_data?: Json
+          timestamp?: string
+        }
+        Update: {
+          checks_failed?: number
+          checks_passed?: number
+          checks_performed?: number
+          data_health?: string
+          id?: string
+          overall_score?: number
+          report_data?: Json
+          timestamp?: string
+        }
+        Relationships: []
+      }
+      data_reconciliation_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_log: Json
+          failed_items: number
+          id: string
+          job_type: string
+          processed_items: number
+          progress_percentage: number
+          reconciliation_rules: Json
+          results: Json
+          started_at: string | null
+          status: string
+          total_items: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json
+          failed_items?: number
+          id?: string
+          job_type: string
+          processed_items?: number
+          progress_percentage?: number
+          reconciliation_rules?: Json
+          results?: Json
+          started_at?: string | null
+          status?: string
+          total_items?: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json
+          failed_items?: number
+          id?: string
+          job_type?: string
+          processed_items?: number
+          progress_percentage?: number
+          reconciliation_rules?: Json
+          results?: Json
+          started_at?: string | null
+          status?: string
+          total_items?: number
         }
         Relationships: []
       }
@@ -3481,13 +3610,47 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_referential_integrity: {
+        Args: {
+          source_table: string
+          source_column: string
+          target_table: string
+          target_column: string
+        }
+        Returns: {
+          id: string
+        }[]
+      }
       clean_expired_otps: {
         Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      create_incremental_backup: {
+        Args: {
+          source_table: string
+          backup_table: string
+          since_timestamp: string
+        }
         Returns: undefined
       }
       create_system_backup_for_import: {
         Args: { import_id: string }
         Returns: Json
+      }
+      create_table_backup: {
+        Args: { source_table: string; backup_table: string }
+        Returns: undefined
+      }
+      drop_table_if_exists: {
+        Args: { table_name: string }
+        Returns: undefined
+      }
+      find_duplicate_device_ids: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          device_id: string
+          count: number
+        }[]
       }
       generate_invoice_number: {
         Args: Record<PropertyKey, never>
@@ -3532,9 +3695,21 @@ export type Database = {
         Args: { config_id: string }
         Returns: undefined
       }
+      merge_table_from_backup: {
+        Args: {
+          backup_table: string
+          target_table: string
+          backup_timestamp: string
+        }
+        Returns: undefined
+      }
       perform_safe_data_cleanup: {
         Args: { preserve_admin_email?: string }
         Returns: Json
+      }
+      restore_table_from_backup: {
+        Args: { backup_table: string; target_table: string }
+        Returns: undefined
       }
       update_polling_status: {
         Args: {

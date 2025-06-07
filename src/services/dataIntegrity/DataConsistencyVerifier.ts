@@ -22,17 +22,6 @@ export interface ConsistencyReport {
   dataHealth: 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
 }
 
-export interface InconsistencyRecord {
-  id: string;
-  type: string;
-  description: string;
-  affectedRecords: any[];
-  detectedAt: string;
-  severity: string;
-  resolved: boolean;
-  autoResolution?: string;
-}
-
 export class DataConsistencyVerifier {
   private static instance: DataConsistencyVerifier;
 
@@ -96,33 +85,38 @@ export class DataConsistencyVerifier {
       }
 
       // Check for users without vehicles
-      const { data: usersWithoutVehicles } = await supabase
+      const { data: envioUsers } = await supabase
         .from('envio_users')
-        .select(`
-          id, 
-          name, 
-          gp51_username,
-          vehicles:vehicles(count)
-        `)
+        .select('id, name, gp51_username')
         .eq('is_gp51_imported', true);
 
-      const emptyUsers = usersWithoutVehicles?.filter(user => 
-        !user.vehicles || user.vehicles.length === 0
-      ) || [];
+      if (envioUsers) {
+        const usersWithoutVehicles = [];
+        for (const user of envioUsers) {
+          const { data: userVehicles } = await supabase
+            .from('vehicles')
+            .select('id')
+            .eq('envio_user_id', user.id);
+          
+          if (!userVehicles || userVehicles.length === 0) {
+            usersWithoutVehicles.push(user);
+          }
+        }
 
-      if (emptyUsers.length > 0) {
-        checks.push({
-          checkType: 'user_vehicle_link',
-          status: 'warning',
-          message: `Found ${emptyUsers.length} users without vehicles`,
-          details: { emptyUsers: emptyUsers.slice(0, 10) },
-          severity: 'medium',
-          autoFixable: false
-        });
+        if (usersWithoutVehicles.length > 0) {
+          checks.push({
+            checkType: 'user_vehicle_link',
+            status: 'warning',
+            message: `Found ${usersWithoutVehicles.length} users without vehicles`,
+            details: { emptyUsers: usersWithoutVehicles.slice(0, 10) },
+            severity: 'medium',
+            autoFixable: false
+          });
+        }
       }
 
       // Check for username mismatches
-      const { data: vehicleUserMismatches } = await supabase
+      const { data: vehicles } = await supabase
         .from('vehicles')
         .select(`
           id,
@@ -130,10 +124,13 @@ export class DataConsistencyVerifier {
           gp51_username,
           envio_user_id,
           envio_users!inner(gp51_username)
-        `)
-        .neq('gp51_username', 'envio_users.gp51_username');
+        `);
 
-      if (vehicleUserMismatches && vehicleUserMismatches.length > 0) {
+      const vehicleUserMismatches = vehicles?.filter(vehicle => 
+        vehicle.gp51_username !== vehicle.envio_users?.gp51_username
+      ) || [];
+
+      if (vehicleUserMismatches.length > 0) {
         checks.push({
           checkType: 'user_vehicle_link',
           status: 'failed',
@@ -161,55 +158,60 @@ export class DataConsistencyVerifier {
     const checks: ConsistencyCheck[] = [];
 
     try {
-      // Check for invalid coordinates
-      const { data: invalidCoordinates } = await supabase
+      // Check for vehicles with missing or invalid GPS coordinates
+      const { data: vehicles } = await supabase
         .from('vehicles')
-        .select('id, device_id, gp51_metadata')
-        .or('gp51_metadata->>latitude.eq.0,gp51_metadata->>longitude.eq.0')
-        .not('gp51_metadata->>latitude', 'is', null)
-        .not('gp51_metadata->>longitude', 'is', null);
+        .select('id, device_id, gp51_metadata');
 
-      if (invalidCoordinates && invalidCoordinates.length > 0) {
-        checks.push({
-          checkType: 'vehicle_position',
-          status: 'warning',
-          message: `Found ${invalidCoordinates.length} vehicles with invalid coordinates`,
-          details: { invalidCoordinates: invalidCoordinates.slice(0, 5) },
-          severity: 'medium',
-          autoFixable: false
+      if (vehicles) {
+        const invalidCoordinates = vehicles.filter(vehicle => {
+          const metadata = vehicle.gp51_metadata as any;
+          return metadata && (
+            !metadata.lat || !metadata.lng || 
+            metadata.lat === 0 || metadata.lng === 0
+          );
         });
-      }
 
-      // Check for duplicate device IDs
-      const { data: duplicateDevices } = await supabase
-        .rpc('find_duplicate_device_ids');
+        if (invalidCoordinates.length > 0) {
+          checks.push({
+            checkType: 'vehicle_position',
+            status: 'warning',
+            message: `Found ${invalidCoordinates.length} vehicles with invalid coordinates`,
+            details: { invalidCoordinates: invalidCoordinates.slice(0, 5) },
+            severity: 'medium',
+            autoFixable: false
+          });
+        }
 
-      if (duplicateDevices && duplicateDevices.length > 0) {
-        checks.push({
-          checkType: 'data_integrity',
-          status: 'failed',
-          message: `Found ${duplicateDevices.length} duplicate device IDs`,
-          details: { duplicates: duplicateDevices },
-          severity: 'critical',
-          autoFixable: false
-        });
-      }
+        // Check for duplicate device IDs using the new function
+        const { data: duplicateDevices } = await supabase.rpc('find_duplicate_device_ids');
 
-      // Check for vehicles with missing metadata
-      const { data: missingMetadata } = await supabase
-        .from('vehicles')
-        .select('id, device_id')
-        .or('gp51_metadata.is.null,gp51_metadata.eq.{}');
+        if (duplicateDevices && duplicateDevices.length > 0) {
+          checks.push({
+            checkType: 'data_integrity',
+            status: 'failed',
+            message: `Found ${duplicateDevices.length} duplicate device IDs`,
+            details: { duplicates: duplicateDevices },
+            severity: 'critical',
+            autoFixable: false
+          });
+        }
 
-      if (missingMetadata && missingMetadata.length > 0) {
-        checks.push({
-          checkType: 'data_integrity',
-          status: 'warning',
-          message: `Found ${missingMetadata.length} vehicles with missing metadata`,
-          details: { missingMetadata: missingMetadata.slice(0, 10) },
-          severity: 'medium',
-          autoFixable: true
-        });
+        // Check for vehicles with missing metadata
+        const missingMetadata = vehicles.filter(vehicle => 
+          !vehicle.gp51_metadata || Object.keys(vehicle.gp51_metadata).length === 0
+        );
+
+        if (missingMetadata.length > 0) {
+          checks.push({
+            checkType: 'data_integrity',
+            status: 'warning',
+            message: `Found ${missingMetadata.length} vehicles with missing metadata`,
+            details: { missingMetadata: missingMetadata.slice(0, 10) },
+            severity: 'medium',
+            autoFixable: true
+          });
+        }
       }
 
     } catch (error) {
@@ -229,35 +231,31 @@ export class DataConsistencyVerifier {
     const checks: ConsistencyCheck[] = [];
 
     try {
-      // Check foreign key relationships
-      const referentialChecks = [
-        {
-          table: 'vehicles',
-          column: 'envio_user_id',
-          referencedTable: 'envio_users',
-          referencedColumn: 'id'
-        }
-      ];
+      // Check foreign key relationships using the new function
+      const { data: violations } = await supabase.rpc('check_referential_integrity', {
+        source_table: 'vehicles',
+        source_column: 'envio_user_id',
+        target_table: 'envio_users',
+        target_column: 'id'
+      });
 
-      for (const check of referentialChecks) {
-        const { data: violations } = await supabase
-          .rpc('check_referential_integrity', {
-            source_table: check.table,
-            source_column: check.column,
-            target_table: check.referencedTable,
-            target_column: check.referencedColumn
-          });
-
-        if (violations && violations.length > 0) {
-          checks.push({
-            checkType: 'referential_integrity',
-            status: 'failed',
-            message: `Referential integrity violation in ${check.table}.${check.column}`,
-            details: { violations },
-            severity: 'critical',
-            autoFixable: true
-          });
-        }
+      if (violations && violations.length > 0) {
+        checks.push({
+          checkType: 'referential_integrity',
+          status: 'failed',
+          message: `Referential integrity violation in vehicles.envio_user_id`,
+          details: { violations },
+          severity: 'critical',
+          autoFixable: true
+        });
+      } else {
+        checks.push({
+          checkType: 'referential_integrity',
+          status: 'passed',
+          message: 'All referential integrity checks passed',
+          severity: 'low',
+          autoFixable: false
+        });
       }
 
     } catch (error) {
@@ -339,13 +337,19 @@ export class DataConsistencyVerifier {
 
     try {
       // Check for inactive vehicles with recent activity
-      const { data: inactiveWithActivity } = await supabase
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { data: vehicles } = await supabase
         .from('vehicles')
         .select('id, device_id, is_active, gp51_metadata')
-        .eq('is_active', false)
-        .gte('gp51_metadata->>lastupdate', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+        .eq('is_active', false);
 
-      if (inactiveWithActivity && inactiveWithActivity.length > 0) {
+      const inactiveWithActivity = vehicles?.filter(vehicle => {
+        const metadata = vehicle.gp51_metadata as any;
+        return metadata && metadata.lastupdate && 
+               new Date(metadata.lastupdate) > new Date(oneDayAgo);
+      }) || [];
+
+      if (inactiveWithActivity.length > 0) {
         checks.push({
           checkType: 'data_integrity',
           status: 'warning',
@@ -357,25 +361,33 @@ export class DataConsistencyVerifier {
       }
 
       // Check for users with excessive vehicle counts
-      const { data: usersWithManyVehicles } = await supabase
+      const { data: envioUsers } = await supabase
         .from('envio_users')
-        .select(`
-          id,
-          name,
-          gp51_username,
-          vehicles:vehicles(count)
-        `)
-        .gt('vehicles.count', 100); // Configurable threshold
+        .select('id, name, gp51_username');
 
-      if (usersWithManyVehicles && usersWithManyVehicles.length > 0) {
-        checks.push({
-          checkType: 'data_integrity',
-          status: 'warning',
-          message: `Found ${usersWithManyVehicles.length} users with >100 vehicles`,
-          details: { users: usersWithManyVehicles },
-          severity: 'low',
-          autoFixable: false
-        });
+      if (envioUsers) {
+        const usersWithManyVehicles = [];
+        for (const user of envioUsers) {
+          const { count } = await supabase
+            .from('vehicles')
+            .select('id', { count: 'exact', head: true })
+            .eq('envio_user_id', user.id);
+          
+          if (count && count > 100) {
+            usersWithManyVehicles.push({ ...user, vehicleCount: count });
+          }
+        }
+
+        if (usersWithManyVehicles.length > 0) {
+          checks.push({
+            checkType: 'data_integrity',
+            status: 'warning',
+            message: `Found ${usersWithManyVehicles.length} users with >100 vehicles`,
+            details: { users: usersWithManyVehicles },
+            severity: 'low',
+            autoFixable: false
+          });
+        }
       }
 
     } catch (error) {
