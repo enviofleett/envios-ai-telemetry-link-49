@@ -54,7 +54,7 @@ const KPICardsSection: React.FC = () => {
       title: 'Offline Vehicles',
       value: metrics.offline,
       trend: metrics.lastUpdateTime ? `Last: ${new Date(metrics.lastUpdateTime).toLocaleTimeString()}` : 'Never',
-      trendDirection: 'neutral' as const,
+      trendDirection: metrics.offline > metrics.online ? 'down' : 'up' as const,
       subtitle: metrics.total > 0 ? `${((metrics.offline / metrics.total) * 100).toFixed(1)}% offline` : '0% offline',
       icon: WifiOff,
       color: 'text-red-600',
@@ -94,8 +94,7 @@ const KPICardsSection: React.FC = () => {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
       {kpiCards.map((card) => {
         const IconComponent = card.icon;
-        const TrendIcon = card.trendDirection === 'up' ? TrendingUp : 
-                         card.trendDirection === 'down' ? TrendingDown : null;
+        const TrendIcon = card.trendDirection === 'up' ? TrendingUp : TrendingDown;
         
         return (
           <Card 
@@ -130,15 +129,11 @@ const KPICardsSection: React.FC = () => {
               {/* Trend and Progress */}
               <div className="space-y-2">
                 <div className="flex items-center gap-1 text-xs">
-                  {TrendIcon && (
-                    <TrendIcon className={`h-3 w-3 ${
-                      card.trendDirection === 'up' ? 'text-green-600' : 
-                      card.trendDirection === 'down' ? 'text-red-600' : 'text-gray-600'
-                    }`} />
-                  )}
+                  <TrendIcon className={`h-3 w-3 ${
+                    card.trendDirection === 'up' ? 'text-green-600' : 'text-red-600'
+                  }`} />
                   <span className={`font-medium ${
-                    card.trendDirection === 'up' ? 'text-green-600' : 
-                    card.trendDirection === 'down' ? 'text-red-600' : 'text-gray-600'
+                    card.trendDirection === 'up' ? 'text-green-600' : 'text-red-600'
                   }`}>
                     {card.trend}
                   </span>
