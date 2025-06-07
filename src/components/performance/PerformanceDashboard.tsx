@@ -40,7 +40,7 @@ export const PerformanceDashboard: React.FC = () => {
     switch (severity) {
       case 'critical': return 'destructive';
       case 'high': return 'destructive';
-      case 'medium': return 'warning';
+      case 'medium': return 'default';
       case 'low': return 'secondary';
       default: return 'secondary';
     }
@@ -111,7 +111,7 @@ export const PerformanceDashboard: React.FC = () => {
           <CardContent>
             <div className="text-2xl font-bold">{metrics.sla.errorRate.toFixed(2)}%</div>
             <Badge variant={metrics.sla.errorRate < 1 ? 'secondary' : 'destructive'} className="mt-2">
-              Target: <1%
+              Target: &lt;1%
             </Badge>
           </CardContent>
         </Card>
@@ -217,7 +217,7 @@ export const PerformanceDashboard: React.FC = () => {
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <Badge variant={getSeverityColor(alert.severity) as any}>
+                      <Badge variant={getSeverityColor(alert.severity)}>
                         {alert.severity}
                       </Badge>
                       <span className="text-sm font-medium">{alert.type}</span>
