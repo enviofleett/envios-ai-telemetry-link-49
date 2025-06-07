@@ -84,24 +84,24 @@ export function AppSidebar() {
 
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive 
-      ? "bg-blue-50 text-blue-700 font-semibold border-r-2 border-blue-700" 
-      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900";
+      ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold border-r-2 border-sidebar-primary" 
+      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground";
 
   return (
     <Sidebar 
       variant="inset" 
-      className="border-r border-gray-200 bg-white w-64"
+      className="border-r border-sidebar-border bg-sidebar"
       collapsible="icon"
     >
-      <SidebarHeader className="border-b border-gray-200 p-6">
+      <SidebarHeader className="border-b border-sidebar-border p-6">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
-            <Car className="h-5 w-5 text-white" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sidebar-primary">
+            <Car className="h-5 w-5 text-sidebar-primary-foreground" />
           </div>
           {!isCollapsed && (
             <div className="flex flex-col">
-              <span className="text-lg font-bold text-gray-900">FleetIQ</span>
-              <span className="text-sm text-gray-500">Management Platform</span>
+              <span className="text-lg font-bold text-sidebar-foreground">FleetIQ</span>
+              <span className="text-sm text-sidebar-foreground/70">Management Platform</span>
             </div>
           )}
         </div>
@@ -111,7 +111,7 @@ export function AppSidebar() {
         {navigation.map((section) => (
           <SidebarGroup key={section.title} className="mb-6">
             {!isCollapsed && (
-              <SidebarGroupLabel className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-3">
+              <SidebarGroupLabel className="text-sidebar-foreground/70 text-xs font-semibold uppercase tracking-wider mb-3">
                 {section.title}
               </SidebarGroupLabel>
             )}
