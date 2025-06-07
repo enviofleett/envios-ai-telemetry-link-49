@@ -1,4 +1,4 @@
-
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { autoLinkUserVehicles } from './autoLinking.ts';
 import { isUserAdmin } from './auth.ts';
 
@@ -81,17 +81,24 @@ export async function createUser(supabase: any, userData: any, currentUserId: st
     throw new Error('Name and email are required');
   }
 
+  console.log('Creating user with data:', { name, email, phone_number, gp51_username });
+
   // Check if current user is admin
   if (!currentUserId || !(await isUserAdmin(supabase, currentUserId))) {
     throw new Error('Admin access required');
   }
 
   // Check if email already exists
-  const { data: existingUser } = await supabase
+  const { data: existingUser, error: existingUserError } = await supabase
     .from('envio_users')
     .select('id')
     .eq('email', email)
-    .single();
+    .maybeSingle();
+
+  if (existingUserError) {
+    console.error('Error checking existing user:', existingUserError);
+    throw new Error('Failed to check if user already exists');
+  }
 
   if (existingUser) {
     throw new Error('Email already exists');
@@ -134,6 +141,7 @@ export async function createUser(supabase: any, userData: any, currentUserId: st
   }
 
   // Step 2: Create user locally
+  console.log('Creating user in local database with data:', userCreateData);
   const { data: user, error } = await supabase
     .from('envio_users')
     .insert(userCreateData)
@@ -149,21 +157,55 @@ export async function createUser(supabase: any, userData: any, currentUserId: st
       await deleteUserFromGP51(gp51_username);
     }
     
-    throw new Error(error.message);
+    throw new Error(`User creation failed: ${error.message}`);
   }
 
-  // Create default user role
-  await supabase
-    .from('user_roles')
-    .insert({
-      user_id: newUserId,
-      role: 'user'
-    });
+  console.log('User created successfully in local database:', user);
+
+  // Step 3: Create default user role with better error handling
+  try {
+    console.log('Creating default role for user:', newUserId);
+    const { error: roleError } = await supabase
+      .from('user_roles')
+      .insert({
+        user_id: newUserId,
+        role: 'user'
+      });
+
+    if (roleError) {
+      console.error('Error creating user role:', roleError);
+      
+      // Rollback user creation if role assignment fails
+      console.log('Rolling back user creation due to role assignment failure');
+      await supabase
+        .from('envio_users')
+        .delete()
+        .eq('id', newUserId);
+      
+      // Also rollback GP51 if applicable
+      if (gp51_username) {
+        await deleteUserFromGP51(gp51_username);
+      }
+      
+      throw new Error(`Failed to assign user role: ${roleError.message}`);
+    }
+    
+    console.log('Default role created successfully for user:', newUserId);
+  } catch (roleAssignmentError) {
+    console.error('Role assignment failed:', roleAssignmentError);
+    throw roleAssignmentError;
+  }
 
   // Auto-link vehicles if GP51 username is provided
   let linkedVehicles = 0;
   if (gp51_username) {
-    linkedVehicles = await autoLinkUserVehicles(supabase, newUserId, gp51_username);
+    try {
+      linkedVehicles = await autoLinkUserVehicles(supabase, newUserId, gp51_username);
+      console.log(`Auto-linked ${linkedVehicles} vehicles for user ${newUserId}`);
+    } catch (linkError) {
+      console.error('Vehicle auto-linking failed (non-critical):', linkError);
+      // Don't fail the user creation for vehicle linking issues
+    }
   }
 
   console.log(`Created user ${newUserId} and auto-linked ${linkedVehicles} vehicles`);
