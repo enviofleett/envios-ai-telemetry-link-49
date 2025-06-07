@@ -1,5 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { gp51SessionManager } from './gp51SessionManager';
+import { unifiedGP51SessionManager } from './unifiedGP51SessionManager';
 import { VehicleData, VehicleDataMetrics } from './vehicleData/types';
 import { VehicleDataProcessor } from './vehicleData/vehicleDataProcessor';
 import { MetricsCalculator } from './vehicleData/metricsCalculator';
@@ -40,12 +41,23 @@ export class EnhancedVehicleDataService {
     await this.loadVehiclesFromDatabase();
     this.startPeriodicSync();
     
-    gp51SessionManager.subscribe((session) => {
+    // Subscribe to unified session manager
+    unifiedGP51SessionManager.subscribeToSession((session) => {
       if (session && session.userId) {
         console.log(`✅ GP51 session available for user ${session.userId}, starting data sync...`);
         this.forceSync();
       } else {
         console.log('❌ GP51 session lost or not linked to user, marking vehicles as offline...');
+        this.markAllVehiclesOffline();
+      }
+    });
+
+    // Subscribe to health updates
+    unifiedGP51SessionManager.subscribeToHealth((health) => {
+      if (health.status === 'connected' || health.status === 'degraded') {
+        // Trigger sync on successful connection
+        this.forceSync();
+      } else if (health.status === 'disconnected' || health.status === 'auth_error') {
         this.markAllVehiclesOffline();
       }
     });
@@ -101,8 +113,8 @@ export class EnhancedVehicleDataService {
     try {
       console.log('🔄 Starting vehicle data sync with GP51...');
       
-      // Validate session and ensure it's linked to a user
-      const session = await gp51SessionManager.validateAndEnsureSession();
+      // Use unified session manager for session validation
+      const session = await unifiedGP51SessionManager.validateAndEnsureSession();
       
       if (!session.userId) {
         throw new Error('GP51 session is not properly linked to a user account');

@@ -1,49 +1,30 @@
 
 import { useState, useEffect } from 'react';
-import { gp51ConnectionHealthService, ConnectionHealthStatus, HealthMetric } from '@/services/gp51ConnectionHealthService';
-import { useToast } from '@/hooks/use-toast';
+import { unifiedGP51SessionManager, SessionHealth } from '@/services/unifiedGP51SessionManager';
 
-export const useGP51ConnectionHealth = (autoStart: boolean = true) => {
-  const [status, setStatus] = useState<ConnectionHealthStatus | null>(null);
-  const [healthHistory, setHealthHistory] = useState<HealthMetric[]>([]);
+export const useGP51ConnectionHealth = () => {
+  const [status, setStatus] = useState<SessionHealth | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
-    if (autoStart) {
-      startMonitoring();
-    }
-
-    const unsubscribe = gp51ConnectionHealthService.subscribe((newStatus) => {
-      setStatus(newStatus);
+    // Subscribe to health updates
+    const unsubscribe = unifiedGP51SessionManager.subscribeToHealth((health) => {
+      setStatus(health);
     });
 
-    return () => {
-      unsubscribe();
-      if (autoStart) {
-        gp51ConnectionHealthService.stopMonitoring();
-      }
-    };
-  }, [autoStart]);
+    // Get current health
+    const currentHealth = unifiedGP51SessionManager.getCurrentHealth();
+    if (currentHealth) {
+      setStatus(currentHealth);
+    }
 
-  const startMonitoring = (intervalMs?: number) => {
-    gp51ConnectionHealthService.startMonitoring(intervalMs);
-  };
-
-  const stopMonitoring = () => {
-    gp51ConnectionHealthService.stopMonitoring();
-  };
+    return unsubscribe;
+  }, []);
 
   const performHealthCheck = async () => {
     setIsLoading(true);
     try {
-      await gp51ConnectionHealthService.performHealthCheck();
-    } catch (error) {
-      toast({
-        title: "Health Check Failed",
-        description: error instanceof Error ? error.message : "Unknown error occurred",
-        variant: "destructive"
-      });
+      await unifiedGP51SessionManager.performHealthCheck();
     } finally {
       setIsLoading(false);
     }
@@ -52,35 +33,16 @@ export const useGP51ConnectionHealth = (autoStart: boolean = true) => {
   const attemptReconnection = async () => {
     setIsLoading(true);
     try {
-      const result = await gp51ConnectionHealthService.attemptReconnection();
-      toast({
-        title: result.success ? "Reconnection Successful" : "Reconnection Failed",
-        description: result.message,
-        variant: result.success ? "default" : "destructive"
-      });
-      return result;
+      return await unifiedGP51SessionManager.attemptReconnection();
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadHealthHistory = async (limit?: number) => {
-    try {
-      const history = await gp51ConnectionHealthService.getHealthHistory(limit);
-      setHealthHistory(history);
-    } catch (error) {
-      console.error('Failed to load health history:', error);
-    }
-  };
-
   return {
     status,
-    healthHistory,
     isLoading,
-    startMonitoring,
-    stopMonitoring,
     performHealthCheck,
     attemptReconnection,
-    loadHealthHistory
   };
 };

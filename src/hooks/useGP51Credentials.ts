@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { gp51SessionManager } from '@/services/gp51SessionManager';
+import { unifiedGP51SessionManager } from '@/services/unifiedGP51SessionManager';
 
 export const useGP51Credentials = () => {
   const [username, setUsername] = useState('');
@@ -41,7 +41,7 @@ export const useGP51Credentials = () => {
       }
 
       // Clear any existing sessions for this user to force fresh authentication
-      await gp51SessionManager.forceReauthentication();
+      await unifiedGP51SessionManager.forceReauthentication();
 
       const payload: any = { 
         action: 'save-gp51-credentials',
@@ -72,9 +72,9 @@ export const useGP51Credentials = () => {
         description: data.message || `Successfully connected to GP51 and linked to your account! Session will be used for vehicle data synchronization.`
       });
 
-      // Force a session refresh to get the new linked session
+      // Force a session refresh using unified manager
       setTimeout(() => {
-        gp51SessionManager.validateAndEnsureSession().catch(console.error);
+        unifiedGP51SessionManager.validateAndEnsureSession().catch(console.error);
       }, 1000);
     },
     onError: (error: any) => {

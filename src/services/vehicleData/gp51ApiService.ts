@@ -1,11 +1,11 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { gp51SessionManager } from '../gp51SessionManager';
+import { unifiedGP51SessionManager } from '../unifiedGP51SessionManager';
 import { GP51Vehicle, GP51Position } from './types';
 
 export class GP51ApiService {
   static async fetchVehicleList(): Promise<GP51Vehicle[]> {
-    const session = await gp51SessionManager.validateAndEnsureSession();
+    const session = await unifiedGP51SessionManager.validateAndEnsureSession();
     
     const { data: vehicleListData, error: listError } = await supabase.functions.invoke('gp51-service-management', {
       body: { 
