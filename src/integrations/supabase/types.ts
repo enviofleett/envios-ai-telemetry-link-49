@@ -393,35 +393,91 @@ export type Database = {
         }
         Relationships: []
       }
+      csv_import_relationships: {
+        Row: {
+          created_at: string | null
+          device_id: string
+          gp51_device_id: string | null
+          gp51_user_id: string | null
+          id: string
+          import_job_id: string | null
+          relationship_type: string
+          row_number: number
+          sync_status: string
+          user_identifier: string
+        }
+        Insert: {
+          created_at?: string | null
+          device_id: string
+          gp51_device_id?: string | null
+          gp51_user_id?: string | null
+          id?: string
+          import_job_id?: string | null
+          relationship_type?: string
+          row_number: number
+          sync_status?: string
+          user_identifier: string
+        }
+        Update: {
+          created_at?: string | null
+          device_id?: string
+          gp51_device_id?: string | null
+          gp51_user_id?: string | null
+          id?: string
+          import_job_id?: string | null
+          relationship_type?: string
+          row_number?: number
+          sync_status?: string
+          user_identifier?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "csv_import_relationships_import_job_id_fkey"
+            columns: ["import_job_id"]
+            isOneToOne: false
+            referencedRelation: "csv_import_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       csv_import_templates: {
         Row: {
+          auto_username_generation: boolean | null
           column_mappings: Json
           created_at: string
           created_by: string | null
+          gp51_sync_enabled: boolean | null
           id: string
           is_system_template: boolean | null
+          supports_user_import: boolean | null
           template_name: string
           template_type: string
           updated_at: string
           validation_rules: Json
         }
         Insert: {
+          auto_username_generation?: boolean | null
           column_mappings: Json
           created_at?: string
           created_by?: string | null
+          gp51_sync_enabled?: boolean | null
           id?: string
           is_system_template?: boolean | null
+          supports_user_import?: boolean | null
           template_name: string
           template_type?: string
           updated_at?: string
           validation_rules: Json
         }
         Update: {
+          auto_username_generation?: boolean | null
           column_mappings?: Json
           created_at?: string
           created_by?: string | null
+          gp51_sync_enabled?: boolean | null
           id?: string
           is_system_template?: boolean | null
+          supports_user_import?: boolean | null
           template_name?: string
           template_type?: string
           updated_at?: string
@@ -1992,6 +2048,59 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      gp51_sync_status: {
+        Row: {
+          conflict_data: Json | null
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          gp51_id: string | null
+          id: string
+          import_job_id: string | null
+          last_sync_attempt: string | null
+          sync_attempts: number | null
+          sync_error: string | null
+          sync_status: string
+          updated_at: string | null
+        }
+        Insert: {
+          conflict_data?: Json | null
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          gp51_id?: string | null
+          id?: string
+          import_job_id?: string | null
+          last_sync_attempt?: string | null
+          sync_attempts?: number | null
+          sync_error?: string | null
+          sync_status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          conflict_data?: Json | null
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          gp51_id?: string | null
+          id?: string
+          import_job_id?: string | null
+          last_sync_attempt?: string | null
+          sync_attempts?: number | null
+          sync_error?: string | null
+          sync_status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_sync_status_import_job_id_fkey"
+            columns: ["import_job_id"]
+            isOneToOne: false
+            referencedRelation: "csv_import_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       gp51_system_imports: {
         Row: {

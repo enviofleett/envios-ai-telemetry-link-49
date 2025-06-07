@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { CSVImportJob, CSVImportTemplate, ImportPreviewData, CSVRowData, ValidationError } from '@/types/csv-import';
 
@@ -82,6 +81,19 @@ class CSVImportService {
       .eq('id', jobId);
 
     if (error) throw error;
+  }
+
+  async startEnhancedImport(jobId: string, previewData: any, gp51SyncEnabled: boolean = true): Promise<any> {
+    const { data, error } = await supabase.functions.invoke('enhanced-csv-import', {
+      body: { 
+        jobId, 
+        previewData,
+        gp51SyncEnabled
+      }
+    });
+
+    if (error) throw error;
+    return data;
   }
 
   parseCSV(csvContent: string): Record<string, any>[] {
@@ -248,6 +260,29 @@ class CSVImportService {
     const sampleData = [
       'DEV001,Sample Vehicle 1,GPS Tracker,1234567890,active,Sample notes,user@example.com,true',
       'DEV002,Sample Vehicle 2,GPS Tracker,0987654321,active,Another sample,user2@example.com,true'
+    ];
+
+    return [headers.join(','), ...sampleData].join('\n');
+  }
+
+  generateEnhancedCSVTemplate(): string {
+    const headers = [
+      'user_name',
+      'user_email',
+      'user_phone',
+      'gp51_username',
+      'device_id',
+      'device_name',
+      'device_type',
+      'sim_number',
+      'assignment_type',
+      'notes'
+    ];
+
+    const sampleData = [
+      'John Smith,john.smith@company.com,+1234567890,jsmith,DEV001,John\'s Vehicle,GPS Tracker,1234567890,assigned,Primary vehicle',
+      'Jane Doe,jane.doe@company.com,+0987654321,,DEV002,Jane\'s Truck,GPS Tracker,0987654321,owner,Fleet truck #2',
+      'Mike Johnson,mike.j@company.com,+1122334455,mikej,DEV003,Service Van,GPS Tracker,1122334455,operator,Maintenance vehicle'
     ];
 
     return [headers.join(','), ...sampleData].join('\n');
