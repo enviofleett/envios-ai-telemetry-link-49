@@ -1315,6 +1315,39 @@ export type Database = {
         }
         Relationships: []
       }
+      gp51_connection_health: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          last_check: string
+          latency: number | null
+          session_info: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          last_check?: string
+          latency?: number | null
+          session_info?: Json | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          last_check?: string
+          latency?: number | null
+          session_info?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       gp51_data_conflicts: {
         Row: {
           conflict_details: Json | null
@@ -1399,6 +1432,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      gp51_health_metrics: {
+        Row: {
+          created_at: string
+          error_details: string | null
+          id: string
+          latency: number
+          success: boolean
+          timestamp: string
+        }
+        Insert: {
+          created_at?: string
+          error_details?: string | null
+          id?: string
+          latency: number
+          success?: boolean
+          timestamp?: string
+        }
+        Update: {
+          created_at?: string
+          error_details?: string | null
+          id?: string
+          latency?: number
+          success?: boolean
+          timestamp?: string
+        }
+        Relationships: []
       }
       gp51_import_audit_log: {
         Row: {

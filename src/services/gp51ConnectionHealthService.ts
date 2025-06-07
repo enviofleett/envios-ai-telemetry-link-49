@@ -201,7 +201,7 @@ export class GP51ConnectionHealthService {
         timestamp: new Date(record.timestamp),
         latency: record.latency,
         success: record.success,
-        errorDetails: record.error_details
+        errorDetails: record.error_details || undefined
       })) || [];
     } catch (error) {
       console.error('Error fetching health history:', error);
@@ -211,15 +211,19 @@ export class GP51ConnectionHealthService {
 
   private async storeHealthMetric(metric: HealthMetric): Promise<void> {
     try {
-      await supabase
+      const { error } = await supabase
         .from('gp51_health_metrics')
         .insert({
           timestamp: metric.timestamp.toISOString(),
           latency: metric.latency,
           success: metric.success,
-          error_details: metric.errorDetails,
+          error_details: metric.errorDetails || null,
           created_at: new Date().toISOString()
         });
+
+      if (error) {
+        console.error('Failed to store health metric:', error);
+      }
     } catch (error) {
       console.error('Failed to store health metric:', error);
     }
