@@ -3,7 +3,7 @@ import React from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { Users } from 'lucide-react';
-import SimpleUserManagement from '@/components/admin/SimpleUserManagement';
+import SimpleUserManagement from '@/components/users/SimpleUserManagement';
 
 const UserManagement: React.FC = () => {
   return (
