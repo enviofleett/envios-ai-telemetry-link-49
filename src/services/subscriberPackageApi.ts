@@ -19,7 +19,7 @@ export const subscriberPackageApi = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as SubscriberPackage[];
   },
 
   async getPackage(id: string): Promise<SubscriberPackage | null> {
@@ -30,7 +30,7 @@ export const subscriberPackageApi = {
       .single();
 
     if (error && error.code !== 'PGRST116') throw error;
-    return data;
+    return data as SubscriberPackage | null;
   },
 
   async createPackage(packageData: CreatePackageRequest): Promise<SubscriberPackage> {
@@ -73,7 +73,7 @@ export const subscriberPackageApi = {
       if (menuError) throw menuError;
     }
 
-    return packageResult;
+    return packageResult as SubscriberPackage;
   },
 
   async updatePackage(packageData: UpdatePackageRequest): Promise<SubscriberPackage> {
@@ -135,7 +135,7 @@ export const subscriberPackageApi = {
       }
     }
 
-    return packageResult;
+    return packageResult as SubscriberPackage;
   },
 
   async deletePackage(id: string): Promise<void> {
@@ -156,7 +156,7 @@ export const subscriberPackageApi = {
       .order('category', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as PackageFeature[];
   },
 
   async getPackageFeatures(packageId: string): Promise<PackageFeature[]> {
@@ -168,7 +168,7 @@ export const subscriberPackageApi = {
       .eq('package_id', packageId);
 
     if (error) throw error;
-    return data?.map(item => item.package_features).filter(Boolean) || [];
+    return data?.map(item => item.package_features).filter(Boolean) as PackageFeature[] || [];
   },
 
   // Menu permissions
@@ -180,7 +180,7 @@ export const subscriberPackageApi = {
       .order('menu_name', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as MenuPermission[];
   },
 
   async getPackageMenuPermissions(packageId: string): Promise<MenuPermission[]> {
@@ -192,7 +192,7 @@ export const subscriberPackageApi = {
       .eq('package_id', packageId);
 
     if (error) throw error;
-    return data?.map(item => item.menu_permissions).filter(Boolean) || [];
+    return data?.map(item => item.menu_permissions).filter(Boolean) as MenuPermission[] || [];
   },
 
   // Referral codes
@@ -203,10 +203,10 @@ export const subscriberPackageApi = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as ReferralCode[];
   },
 
-  async createReferralCode(codeData: Partial<ReferralCode>): Promise<ReferralCode> {
+  async createReferralCode(codeData: Pick<ReferralCode, 'code' | 'discount_percentage'> & Partial<Omit<ReferralCode, 'code' | 'discount_percentage'>>): Promise<ReferralCode> {
     const { data, error } = await supabase
       .from('referral_codes')
       .insert(codeData)
@@ -214,7 +214,7 @@ export const subscriberPackageApi = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as ReferralCode;
   },
 
   async validateReferralCode(code: string): Promise<ReferralCode | null> {
@@ -239,7 +239,7 @@ export const subscriberPackageApi = {
       }
     }
 
-    return data;
+    return data as ReferralCode | null;
   },
 
   // User subscriptions
@@ -256,10 +256,10 @@ export const subscriberPackageApi = {
     const { data, error } = await query;
 
     if (error) throw error;
-    return data || [];
+    return (data || []) as UserSubscription[];
   },
 
-  async createUserSubscription(subscriptionData: Partial<UserSubscription>): Promise<UserSubscription> {
+  async createUserSubscription(subscriptionData: Pick<UserSubscription, 'user_id' | 'package_id'> & Partial<Omit<UserSubscription, 'user_id' | 'package_id'>>): Promise<UserSubscription> {
     const { data, error } = await supabase
       .from('user_subscriptions')
       .insert(subscriptionData)
@@ -267,6 +267,6 @@ export const subscriberPackageApi = {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as UserSubscription;
   }
 };
