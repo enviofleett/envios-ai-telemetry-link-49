@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { gp51SessionValidator } from './sessionValidator';
 import { vehiclePositionProcessor } from './positionProcessor';
@@ -24,10 +23,12 @@ export class VehiclePositionSyncService {
   private async initializeSync(): Promise<void> {
     console.log('Initializing enhanced vehicle position sync service for ALL vehicles...');
     
-    // Check if we have an active GP51 session
-    const sessionValidation = await gp51SessionValidator.validateGP51Session();
+    // Check if we have an active GP51 session using improved validation
+    const sessionValidation = await gp51SessionValidator.ensureValidSession();
     if (!sessionValidation.valid) {
-      console.warn('GP51 session validation failed:', sessionValidation.error);
+      console.warn('GP51 session validation failed during initialization:', sessionValidation.error);
+    } else {
+      console.log('✅ GP51 session validated successfully during initialization');
     }
 
     // Start both periodic and progressive sync
@@ -35,7 +36,7 @@ export class VehiclePositionSyncService {
     this.startProgressiveSync();
   }
 
-  public startPeriodicSync(intervalMs: number = 300000): void { // 5 minutes for full sync
+  public startPeriodicSync(intervalMs: number = 300000): void {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
     }
@@ -50,7 +51,6 @@ export class VehiclePositionSyncService {
     }, intervalMs);
   }
 
-  // Progressive sync for vehicles that need urgent updates
   private startProgressiveSync(): void {
     if (this.progressiveInterval) {
       clearInterval(this.progressiveInterval);
@@ -74,8 +74,13 @@ export class VehiclePositionSyncService {
     try {
       console.log('Starting progressive sync for vehicles without recent positions...');
 
-      // Get vehicles that haven't been updated in the last 24 hours
-      // Fixed the JSON query syntax error
+      // Ensure we have a valid session before starting
+      const sessionValidation = await gp51SessionValidator.ensureValidSession();
+      if (!sessionValidation.valid) {
+        console.error('Progressive sync aborted: no valid GP51 session');
+        return;
+      }
+
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
       
       const { data: staleVehicles, error } = await supabase
@@ -83,7 +88,7 @@ export class VehiclePositionSyncService {
         .select('device_id, device_name, is_active, gp51_username, last_position')
         .eq('is_active', true)
         .or(`last_position->updatetime.is.null,last_position->>updatetime.lt.${twentyFourHoursAgo}`)
-        .limit(1000); // Focus on first 1000 stale vehicles
+        .limit(1000);
 
       if (error) throw error;
 
@@ -116,17 +121,19 @@ export class VehiclePositionSyncService {
     console.log('Starting comprehensive vehicle position sync for ALL 3821+ vehicles...');
 
     try {
-      // Validate session before attempting sync
-      const sessionValidation = await gp51SessionValidator.validateGP51Session();
+      // Ensure valid session before attempting sync with improved validation
+      const sessionValidation = await gp51SessionValidator.ensureValidSession();
       if (!sessionValidation.valid) {
-        throw new Error(`GP51 session invalid: ${sessionValidation.error}`);
+        throw new Error(`GP51 session validation failed: ${sessionValidation.error}`);
       }
 
-      // Get ALL active vehicles from the database (remove any limits)
+      console.log(`✅ Using valid GP51 session for ${sessionValidation.username}`);
+
+      // Get ALL active vehicles from the database
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
         .select('device_id, device_name, is_active, gp51_username')
-        .eq('is_active', true); // No limit - get ALL vehicles
+        .eq('is_active', true);
 
       if (vehiclesError) {
         throw new Error(`Failed to fetch vehicles: ${vehiclesError.message}`);
@@ -151,7 +158,7 @@ export class VehiclePositionSyncService {
       console.log(`Comprehensive sync completed: ${result.updatedCount} vehicles updated, ${result.errors} errors, ${result.totalProcessed} processed of ${result.totalRequested} total vehicles`);
       console.log(`Overall completion rate: ${result.completionRate.toFixed(2)}%, Average processing time: ${result.avgProcessingTime.toFixed(2)}ms per vehicle`);
 
-      // Update sync status in database with detailed metrics - fix: use correct number of arguments
+      // Update sync status in database with detailed metrics
       await syncStatusUpdater.updateSyncStatus(true, undefined);
 
       // Alert if completion rate is below target
@@ -192,7 +199,6 @@ export class VehiclePositionSyncService {
     return await this.syncAllVehiclePositions();
   }
 
-  // Get sync progress for monitoring
   public async getSyncProgress(): Promise<{
     totalVehicles: number;
     vehiclesWithRecentUpdates: number;
