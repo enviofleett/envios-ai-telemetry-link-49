@@ -51,7 +51,7 @@ class EnhancedGeofencingService {
     try {
       const { data: vehicle, error } = await supabase
         .from('vehicles')
-        .select('id, device_id, plate_number')
+        .select('id, device_id, device_name')
         .eq('device_id', deviceId)
         .maybeSingle();
 
@@ -63,7 +63,7 @@ class EnhancedGeofencingService {
       return {
         id: vehicle.id,
         device_id: vehicle.device_id,
-        name: vehicle.plate_number || `Vehicle ${vehicle.device_id}`
+        name: vehicle.device_name || `Vehicle ${vehicle.device_id}`
       };
     } catch (error) {
       console.error('Error getting vehicle info:', error);
