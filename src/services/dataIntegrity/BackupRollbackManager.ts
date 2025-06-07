@@ -106,15 +106,19 @@ export class BackupRollbackManager {
       
       // Use the existing backup function for core tables
       job.progress = 20;
-      const backupResult = await supabase.rpc('create_system_backup_for_import', {
+      const { data: backupResult, error } = await supabase.rpc('create_system_backup_for_import', {
         import_id: backupId
       });
 
-      if (!backupResult.data) {
-        throw new Error('Failed to create system backup');
+      if (error || !backupResult) {
+        throw new Error(error?.message || 'Failed to create system backup');
       }
 
       job.progress = 80;
+
+      // Safely access backup result properties
+      const backupData = backupResult as any;
+      const backupTables = Array.isArray(backupData.backup_tables) ? backupData.backup_tables : [];
 
       // Create backup metadata
       const metadata: BackupMetadata = {
@@ -123,10 +127,10 @@ export class BackupRollbackManager {
         description: options.description || `Automated backup created at ${new Date().toISOString()}`,
         backupType: options.backupType || 'full',
         createdAt: new Date().toISOString(),
-        size: this.estimateBackupSize(backupResult.data),
-        tables: backupResult.data.backup_tables || [],
-        recordCount: this.calculateTotalRecords(backupResult.data),
-        checksumHash: this.generateChecksum(backupResult.data),
+        size: this.estimateBackupSize(backupData),
+        tables: backupTables,
+        recordCount: this.calculateTotalRecords(backupData),
+        checksumHash: this.generateChecksum(backupData),
         isVerified: true,
         canRollback: true,
         expiresAt: options.retention?.days ? 
@@ -195,17 +199,22 @@ export class BackupRollbackManager {
       }
 
       // Perform simplified rollback using existing cleanup function
-      const cleanupResult = await supabase.rpc('perform_safe_data_cleanup');
+      const { data: cleanupResult, error } = await supabase.rpc('perform_safe_data_cleanup');
       
-      if (!cleanupResult.data) {
-        throw new Error('Failed to perform rollback cleanup');
+      if (error || !cleanupResult) {
+        throw new Error(error?.message || 'Failed to perform rollback cleanup');
       }
+
+      // Safely access cleanup result properties
+      const cleanupData = cleanupResult as any;
+      const deletedUsers = typeof cleanupData.deleted_users === 'number' ? cleanupData.deleted_users : 0;
+      const deletedVehicles = typeof cleanupData.deleted_vehicles === 'number' ? cleanupData.deleted_vehicles : 0;
 
       return {
         success: true,
         backupId: options.targetBackupId,
         tablesRestored: this.CORE_TABLES,
-        recordsRestored: cleanupResult.data.deleted_users + cleanupResult.data.deleted_vehicles,
+        recordsRestored: deletedUsers + deletedVehicles,
         duration: Date.now() - startTime,
         rollbackPointCreated: rollbackPointId,
         warnings
@@ -312,10 +321,12 @@ export class BackupRollbackManager {
   }
 
   private calculateTotalRecords(backupData: any): number {
-    return (backupData.backed_up_users || 0) + 
-           (backupData.backed_up_vehicles || 0) + 
-           (backupData.backed_up_sessions || 0) + 
-           (backupData.backed_up_roles || 0);
+    const backedUpUsers = typeof backupData.backed_up_users === 'number' ? backupData.backed_up_users : 0;
+    const backedUpVehicles = typeof backupData.backed_up_vehicles === 'number' ? backupData.backed_up_vehicles : 0;
+    const backedUpSessions = typeof backupData.backed_up_sessions === 'number' ? backupData.backed_up_sessions : 0;
+    const backedUpRoles = typeof backupData.backed_up_roles === 'number' ? backupData.backed_up_roles : 0;
+    
+    return backedUpUsers + backedUpVehicles + backedUpSessions + backedUpRoles;
   }
 
   private generateChecksum(data: any): string {

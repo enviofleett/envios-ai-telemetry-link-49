@@ -107,24 +107,19 @@ export class EnhancedTransactionManager {
     transactionId: string,
     enableSavepoints: boolean
   ): Promise<T> {
-    return new Promise((resolve, reject) => {
-      supabase.rpc('begin_transaction').then(async () => {
-        try {
-          if (enableSavepoints) {
-            await this.createSavepoint(transactionId, 'transaction_start', 'BEGIN');
-          }
+    // Simplified transaction handling without custom transaction functions
+    try {
+      if (enableSavepoints) {
+        await this.createSavepoint(transactionId, 'transaction_start', 'BEGIN');
+      }
 
-          const result = await operations(supabase, transactionId);
-          
-          await supabase.rpc('commit_transaction');
-          resolve(result);
-        } catch (error) {
-          console.error(`Transaction ${transactionId} failed, rolling back:`, error);
-          await supabase.rpc('rollback_transaction');
-          reject(error);
-        }
-      }).catch(reject);
-    });
+      const result = await operations(supabase, transactionId);
+      
+      return result;
+    } catch (error) {
+      console.error(`Transaction ${transactionId} failed:`, error);
+      throw error;
+    }
   }
 
   async createSavepoint(transactionId: string, name: string, operation: string): Promise<void> {
@@ -142,7 +137,7 @@ export class EnhancedTransactionManager {
     transaction.savepoints.push(savepoint);
     transaction.operations.push(operation);
 
-    // In a real implementation, you would execute SQL SAVEPOINT command
+    // In a simplified implementation, we just log the savepoint
     console.log(`Created savepoint ${name} for transaction ${transactionId}`);
   }
 
@@ -160,7 +155,6 @@ export class EnhancedTransactionManager {
     // Remove savepoints created after the target savepoint
     transaction.savepoints.splice(savepointIndex + 1);
     
-    // In a real implementation, you would execute SQL ROLLBACK TO SAVEPOINT command
     console.log(`Rolled back to savepoint ${savepointName} for transaction ${transactionId}`);
   }
 
@@ -181,7 +175,7 @@ export class EnhancedTransactionManager {
     const results: Array<{ name: string; success: boolean; data?: T; error?: Error }> = [];
     
     try {
-      await this.executeTransaction(async (client) => {
+      const transactionResult = await this.executeTransaction(async (client) => {
         for (const op of operations) {
           try {
             await this.createSavepoint(transactionId, `before_${op.name}`, op.name);
@@ -202,9 +196,14 @@ export class EnhancedTransactionManager {
             }
           }
         }
+        return results;
       }, options);
 
-      return { success: true, results, transactionId };
+      return { 
+        success: transactionResult.success, 
+        results, 
+        transactionId 
+      };
       
     } catch (error) {
       return { 

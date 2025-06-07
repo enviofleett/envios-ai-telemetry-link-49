@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 
 // Base GP51 Response Schema
@@ -155,7 +154,7 @@ export class GP51ResponseValidator {
           field: err.path.join('.'),
           message: err.message,
           code: err.code,
-          receivedValue: err.received
+          receivedValue: 'received' in err ? err.received : undefined
         }));
 
         console.error(`GP51 ${context} validation failed:`, errors);

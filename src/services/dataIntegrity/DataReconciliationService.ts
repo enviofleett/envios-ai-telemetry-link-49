@@ -1,7 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { dataConsistencyVerifier, ConsistencyCheck } from './DataConsistencyVerifier';
-import { enhancedTransactionManager } from './EnhancedTransactionManager';
 import { gp51ApiService } from '@/services/gp51ApiService';
 
 export interface ReconciliationRule {
@@ -239,9 +237,9 @@ export class DataReconciliationService {
   private async fixOrphanedVehicles(): Promise<ReconciliationResult> {
     const startTime = Date.now();
     
-    return enhancedTransactionManager.executeTransaction(async (client) => {
+    try {
       // Find orphaned vehicles
-      const { data: orphanedVehicles } = await client
+      const { data: orphanedVehicles } = await supabase
         .from('vehicles')
         .select('id, device_id, gp51_username')
         .is('envio_user_id', null)
@@ -265,7 +263,7 @@ export class DataReconciliationService {
       for (const vehicle of orphanedVehicles) {
         try {
           // Find the user with matching GP51 username
-          const { data: user } = await client
+          const { data: user } = await supabase
             .from('envio_users')
             .select('id')
             .eq('gp51_username', vehicle.gp51_username)
@@ -273,7 +271,7 @@ export class DataReconciliationService {
 
           if (user) {
             // Link vehicle to user
-            await client
+            await supabase
               .from('vehicles')
               .update({ envio_user_id: user.id })
               .eq('id', vehicle.id);
@@ -301,15 +299,26 @@ export class DataReconciliationService {
           failed: recordsFailed
         }
       };
-    });
+    } catch (error) {
+      return {
+        ruleId: 'fix_orphaned_vehicles',
+        success: false,
+        recordsProcessed: 0,
+        recordsFixed: 0,
+        recordsFailed: 0,
+        duration: Date.now() - startTime,
+        details: {},
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   }
 
   private async fixUsernameMismatches(): Promise<ReconciliationResult> {
     const startTime = Date.now();
 
-    return enhancedTransactionManager.executeTransaction(async (client) => {
+    try {
       // Find username mismatches
-      const { data: mismatches } = await client
+      const { data: mismatches } = await supabase
         .from('vehicles')
         .select(`
           id,
@@ -317,10 +326,13 @@ export class DataReconciliationService {
           gp51_username,
           envio_user_id,
           envio_users!inner(id, gp51_username)
-        `)
-        .neq('gp51_username', 'envio_users.gp51_username');
+        `);
 
-      if (!mismatches || mismatches.length === 0) {
+      const actualMismatches = mismatches?.filter(vehicle => 
+        vehicle.gp51_username !== vehicle.envio_users?.gp51_username
+      ) || [];
+
+      if (actualMismatches.length === 0) {
         return {
           ruleId: 'fix_username_mismatches',
           success: true,
@@ -335,10 +347,10 @@ export class DataReconciliationService {
       let recordsFixed = 0;
       let recordsFailed = 0;
 
-      for (const mismatch of mismatches) {
+      for (const mismatch of actualMismatches) {
         try {
           // Update vehicle username to match user
-          await client
+          await supabase
             .from('vehicles')
             .update({ gp51_username: mismatch.envio_users.gp51_username })
             .eq('id', mismatch.id);
@@ -353,17 +365,28 @@ export class DataReconciliationService {
       return {
         ruleId: 'fix_username_mismatches',
         success: true,
-        recordsProcessed: mismatches.length,
+        recordsProcessed: actualMismatches.length,
         recordsFixed,
         recordsFailed,
         duration: Date.now() - startTime,
         details: {
-          mismatches: mismatches.length,
+          mismatches: actualMismatches.length,
           fixed: recordsFixed,
           failed: recordsFailed
         }
       };
-    });
+    } catch (error) {
+      return {
+        ruleId: 'fix_username_mismatches',
+        success: false,
+        recordsProcessed: 0,
+        recordsFixed: 0,
+        recordsFailed: 0,
+        duration: Date.now() - startTime,
+        details: {},
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
   }
 
   private async updateMissingMetadata(): Promise<ReconciliationResult> {

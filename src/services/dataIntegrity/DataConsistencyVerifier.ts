@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { gp51Validator } from './GP51ValidationSchemas';
 
@@ -492,13 +491,12 @@ export class DataConsistencyVerifier {
       await supabase
         .from('data_consistency_logs')
         .insert({
-          timestamp: report.timestamp,
           overall_score: report.overallScore,
           checks_performed: report.checksPerformed,
           checks_passed: report.checksPassed,
           checks_failed: report.checksFailed,
           data_health: report.dataHealth,
-          report_data: report
+          report_data: report as any
         });
     } catch (error) {
       console.error('Failed to store consistency metrics:', error);
