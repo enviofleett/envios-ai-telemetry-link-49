@@ -66,7 +66,7 @@ export const useBrandingSettings = () => {
           logo_url: data.logo_url || '',
           favicon_url: data.favicon_url || '',
           custom_css: data.custom_css || '',
-          is_active: data.is_active !== undefined ? data.is_active : true,
+          is_active: true, // Default to true since column doesn't exist yet
         });
       }
     } catch (error) {

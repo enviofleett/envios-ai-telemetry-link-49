@@ -117,27 +117,11 @@ export const useFleetUserManagement = () => {
 
   const fetchInvitations = async () => {
     try {
-      // Try to fetch from fleet_user_invitations table, but handle if it doesn't exist
-      const { data, error } = await supabase
-        .rpc('get_fleet_invitations')
-        .select('*');
-
-      if (error && error.message?.includes('function') && error.message?.includes('does not exist')) {
-        // Table doesn't exist yet, return empty array
-        console.log('Fleet invitations table not available yet');
-        setInvitations([]);
-        return;
-      }
-
-      if (error) {
-        console.error('Error fetching invitations:', error);
-        return;
-      }
-
-      setInvitations(data || []);
+      // Since the fleet_user_invitations table doesn't exist yet, we'll simulate it
+      console.log('Fleet invitations table not available yet');
+      setInvitations([]);
     } catch (error) {
       console.error('Error in fetchInvitations:', error);
-      // Set empty array as fallback
       setInvitations([]);
     }
   };
