@@ -1,6 +1,6 @@
-
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { notificationPreferencesService } from '@/services/notificationPreferencesService';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface NotificationPreferences {
@@ -71,20 +71,20 @@ export const useNotificationPreferences = () => {
         return;
       }
 
-      // Try to fetch from company_settings table first
-      const { data: companyData } = await supabase
-        .from('company_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (companyData) {
-        // Map basic settings and use defaults for the rest
+      // Try to fetch from notification_preferences table
+      const userPrefs = await notificationPreferencesService.getUserPreferences(user.id);
+      
+      if (userPrefs) {
+        // Map database preferences to UI preferences
         setPreferences({
           ...defaultPreferences,
-          email_notifications: true,
-          system_updates: true,
-          billing_alerts: true,
+          email_notifications: userPrefs.email_notifications,
+          geofence_violations: userPrefs.geofence_alerts,
+          maintenance_due: userPrefs.maintenance_alerts,
+          system_updates: userPrefs.system_notifications,
+          vehicle_online_offline: userPrefs.vehicle_alerts,
+          // Keep other preferences as defaults or load from localStorage
+          ...JSON.parse(localStorage.getItem('notificationPreferences') || '{}')
         });
       } else {
         // Use default preferences if no data found
@@ -111,6 +111,21 @@ export const useNotificationPreferences = () => {
       // Store in localStorage for persistence
       localStorage.setItem('notificationPreferences', JSON.stringify(updatedPreferences));
 
+      // Update database if user is logged in
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Map UI preferences to database preferences
+        const dbPreferences = {
+          email_notifications: updatedPreferences.email_notifications,
+          vehicle_alerts: updatedPreferences.vehicle_online_offline,
+          geofence_alerts: updatedPreferences.geofence_violations,
+          maintenance_alerts: updatedPreferences.maintenance_due,
+          system_notifications: updatedPreferences.system_updates,
+        };
+
+        await notificationPreferencesService.updateUserPreferences(user.id, dbPreferences);
+      }
+
       toast({
         title: "Success",
         description: "Notification preferences updated",
@@ -135,6 +150,20 @@ export const useNotificationPreferences = () => {
       
       // Store in localStorage
       localStorage.setItem('notificationPreferences', JSON.stringify(preferences));
+
+      // Update database if user is logged in
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const dbPreferences = {
+          email_notifications: preferences.email_notifications,
+          vehicle_alerts: preferences.vehicle_online_offline,
+          geofence_alerts: preferences.geofence_violations,
+          maintenance_alerts: preferences.maintenance_due,
+          system_notifications: preferences.system_updates,
+        };
+
+        await notificationPreferencesService.updateUserPreferences(user.id, dbPreferences);
+      }
 
       toast({
         title: "Success",

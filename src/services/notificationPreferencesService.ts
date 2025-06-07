@@ -17,10 +17,11 @@ class NotificationPreferencesService {
         .from('notification_preferences')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') { // Not found error
-        throw error;
+      if (error) {
+        console.error('Failed to get user preferences:', error);
+        return null;
       }
 
       // Return default preferences if none found
@@ -48,7 +49,10 @@ class NotificationPreferencesService {
           updated_at: new Date().toISOString()
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Failed to update user preferences:', error);
+        return false;
+      }
       return true;
     } catch (error) {
       console.error('Failed to update user preferences:', error);
@@ -74,15 +78,14 @@ class NotificationPreferencesService {
 
   async getVehicleAlertRecipients(vehicleId: string): Promise<string[]> {
     try {
-      // Get vehicle owners and fleet managers
+      console.log('Getting vehicle alert recipients for vehicle:', vehicleId);
+      
+      // Get vehicle owner information
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select(`
-          *,
-          envio_users!vehicles_owner_id_fkey(email, id)
-        `)
+        .select('owner_id, device_id')
         .eq('id', vehicleId)
-        .single();
+        .maybeSingle();
 
       if (vehicleError || !vehicle) {
         console.error('Failed to get vehicle data:', vehicleError);
@@ -91,49 +94,50 @@ class NotificationPreferencesService {
 
       const recipients: string[] = [];
 
-      // Add vehicle owner if they have notifications enabled
-      if (vehicle.envio_users?.email) {
-        const canNotify = await this.canSendEmailNotification(
-          vehicle.envio_users.id, 
-          'vehicle_alerts'
-        );
-        if (canNotify) {
-          recipients.push(vehicle.envio_users.email);
+      // Get vehicle owner email if owner exists
+      if (vehicle.owner_id) {
+        const { data: owner, error: ownerError } = await supabase
+          .from('envio_users')
+          .select('email, id')
+          .eq('id', vehicle.owner_id)
+          .maybeSingle();
+
+        if (owner && !ownerError) {
+          const canNotify = await this.canSendEmailNotification(
+            owner.id, 
+            'vehicle_alerts'
+          );
+          if (canNotify && owner.email) {
+            recipients.push(owner.email);
+          }
         }
       }
 
-      // Get fleet managers for this vehicle's groups
-      const { data: groupAssignments } = await supabase
-        .from('device_group_assignments')
+      // Get users with admin or manager roles for additional notifications
+      const { data: adminUsers, error: adminError } = await supabase
+        .from('envio_users')
         .select(`
-          device_groups(
-            user_group_assignments(
-              envio_users(email, id)
-            )
-          )
+          email, 
+          id,
+          user_roles!inner(role)
         `)
-        .eq('device_id', vehicleId);
+        .in('user_roles.role', ['admin', 'manager']);
 
-      if (groupAssignments) {
-        for (const assignment of groupAssignments) {
-          const deviceGroups = assignment.device_groups as any;
-          if (deviceGroups?.user_group_assignments) {
-            for (const userAssignment of deviceGroups.user_group_assignments) {
-              const user = userAssignment.envio_users;
-              if (user?.email) {
-                const canNotify = await this.canSendEmailNotification(
-                  user.id, 
-                  'vehicle_alerts'
-                );
-                if (canNotify && !recipients.includes(user.email)) {
-                  recipients.push(user.email);
-                }
-              }
+      if (adminUsers && !adminError) {
+        for (const user of adminUsers) {
+          if (user.email) {
+            const canNotify = await this.canSendEmailNotification(
+              user.id, 
+              'vehicle_alerts'
+            );
+            if (canNotify && !recipients.includes(user.email)) {
+              recipients.push(user.email);
             }
           }
         }
       }
 
+      console.log('Found recipients for vehicle alerts:', recipients);
       return recipients;
     } catch (error) {
       console.error('Failed to get vehicle alert recipients:', error);

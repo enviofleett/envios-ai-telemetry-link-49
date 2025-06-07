@@ -1,7 +1,7 @@
 
 import { geofencingService } from './geofencing';
-import { useVehicleManagementEmails } from '@/hooks/useVehicleManagementEmails';
 import { notificationPreferencesService } from './notificationPreferencesService';
+import { supabase } from '@/integrations/supabase/client';
 
 class EnhancedGeofencingService {
   private geofencingService = geofencingService;
@@ -28,10 +28,8 @@ class EnhancedGeofencingService {
         // Send emails to all recipients
         for (const recipientEmail of recipients) {
           try {
-            // Use the email service (we'll need to access this differently in a service)
             console.log(`Sending geofence alert email to ${recipientEmail} for vehicle ${vehicle.name}`);
             
-            // This would normally be called through a hook, but in a service we need to use the direct service
             await this.sendGeofenceAlertEmail(
               recipientEmail,
               vehicle.name || vehicle.device_id,
@@ -50,14 +48,27 @@ class EnhancedGeofencingService {
   }
 
   private async getVehicleInfo(deviceId: string) {
-    // This would typically query the vehicles table
-    // For now, return a mock response
-    return {
-      id: deviceId,
-      device_id: deviceId,
-      name: `Vehicle ${deviceId}`,
-      license_plate: `LP-${deviceId}`
-    };
+    try {
+      const { data: vehicle, error } = await supabase
+        .from('vehicles')
+        .select('id, device_id, plate_number')
+        .eq('device_id', deviceId)
+        .maybeSingle();
+
+      if (error || !vehicle) {
+        console.error('Failed to get vehicle info:', error);
+        return null;
+      }
+
+      return {
+        id: vehicle.id,
+        device_id: vehicle.device_id,
+        name: vehicle.plate_number || `Vehicle ${vehicle.device_id}`
+      };
+    } catch (error) {
+      console.error('Error getting vehicle info:', error);
+      return null;
+    }
   }
 
   private async getGeofenceInfo(geofenceId: string) {
@@ -72,11 +83,32 @@ class EnhancedGeofencingService {
     alertType: 'enter' | 'exit',
     location: { lat: number; lng: number }
   ) {
-    // Direct email sending without hooks (for service usage)
-    const actionText = alertType === 'enter' ? 'entered' : 'exited';
-    
-    // This would use the SMTP service directly
-    console.log(`Geofence Alert: ${vehicleName} has ${actionText} ${geofenceName} at ${location.lat}, ${location.lng}`);
+    try {
+      // Call the SMTP service to send the email
+      const { error } = await supabase.functions.invoke('smtp-email-service', {
+        body: {
+          action: 'send-email',
+          recipientEmail,
+          subject: `Geofence Alert: ${vehicleName} ${alertType === 'enter' ? 'entered' : 'exited'} ${geofenceName}`,
+          htmlContent: `
+            <h2>Geofence Alert</h2>
+            <p><strong>Vehicle:</strong> ${vehicleName}</p>
+            <p><strong>Action:</strong> ${alertType === 'enter' ? 'Entered' : 'Exited'}</p>
+            <p><strong>Geofence:</strong> ${geofenceName}</p>
+            <p><strong>Location:</strong> ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}</p>
+            <p><strong>Time:</strong> ${new Date().toLocaleString()}</p>
+            <p>Please review and take appropriate action if required.</p>
+          `,
+          textContent: `Geofence Alert: ${vehicleName} has ${alertType === 'enter' ? 'entered' : 'exited'} ${geofenceName} at ${location.lat.toFixed(6)}, ${location.lng.toFixed(6)} on ${new Date().toLocaleString()}`
+        }
+      });
+
+      if (error) {
+        console.error('Failed to send geofence alert email:', error);
+      }
+    } catch (error) {
+      console.error('Error sending geofence alert email:', error);
+    }
   }
 
   async monitorVehicleLocation(deviceId: string, lat: number, lng: number) {

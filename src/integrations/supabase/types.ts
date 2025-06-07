@@ -2316,6 +2316,50 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_preferences: {
+        Row: {
+          created_at: string
+          email_notifications: boolean
+          geofence_alerts: boolean
+          id: string
+          maintenance_alerts: boolean
+          system_notifications: boolean
+          updated_at: string
+          user_id: string
+          vehicle_alerts: boolean
+        }
+        Insert: {
+          created_at?: string
+          email_notifications?: boolean
+          geofence_alerts?: boolean
+          id?: string
+          maintenance_alerts?: boolean
+          system_notifications?: boolean
+          updated_at?: string
+          user_id: string
+          vehicle_alerts?: boolean
+        }
+        Update: {
+          created_at?: string
+          email_notifications?: boolean
+          geofence_alerts?: boolean
+          id?: string
+          maintenance_alerts?: boolean
+          system_notifications?: boolean
+          updated_at?: string
+          user_id?: string
+          vehicle_alerts?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_settings: {
         Row: {
           created_at: string | null
