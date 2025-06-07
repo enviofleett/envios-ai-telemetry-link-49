@@ -3,7 +3,7 @@ export async function createHash(input: string): Promise<string> {
   try {
     console.log(`Hashing password of length: ${input.length}`);
     
-    // Use MD5 hashing like the working passwordless import function
+    // Use MD5 hashing like the working passwordless import function for GP51 compatibility
     const md5Hash = await hashMD5(input);
     console.log('MD5 hash generated successfully');
     return md5Hash;
@@ -45,4 +45,29 @@ async function fallbackMD5Hash(text: string): Promise<string> {
   
   console.log('Fallback MD5 hash generated successfully');
   return md5Hash;
+}
+
+// GP51-compatible password hashing function
+export async function createGP51CompatibleHash(password: string): Promise<string> {
+  console.log('Creating GP51-compatible password hash');
+  return await hashMD5(password);
+}
+
+// For internal use, we can still use secure hashing when not interfacing with GP51
+export async function createSecureHash(input: string): Promise<string> {
+  try {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input + saltHex);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    return `${saltHex}:${hashHex}`;
+  } catch (error) {
+    console.error('Secure hashing failed:', error);
+    throw new Error('Failed to create secure hash');
+  }
 }

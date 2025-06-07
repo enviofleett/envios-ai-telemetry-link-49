@@ -7,18 +7,38 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Secure hash function to replace MD5
-async function secureHash(input: string): Promise<string> {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+// MD5 hash function to match GP51 API requirements
+async function hashMD5(input: string): Promise<string> {
+  try {
+    console.log(`Hashing password of length: ${input.length}`);
+    
+    // Try Web Crypto API MD5 first
+    const encoder = new TextEncoder();
+    const data = encoder.encode(input);
+    const hashBuffer = await crypto.subtle.digest('MD5', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const md5Hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    console.log('MD5 hash generated successfully');
+    return md5Hash;
+    
+  } catch (error) {
+    console.error('MD5 hashing failed, using fallback:', error);
+    
+    // Fallback MD5 implementation for environments where Web Crypto MD5 isn't available
+    return await fallbackMD5Hash(input);
+  }
+}
+
+async function fallbackMD5Hash(text: string): Promise<string> {
+  // Import MD5 from a reliable source for Deno environment
+  const { createHash } = await import('https://deno.land/std@0.168.0/node/crypto.ts');
+  const hash = createHash('md5');
+  hash.update(text);
+  const md5Hash = hash.digest('hex');
   
-  const encoder = new TextEncoder();
-  const data = encoder.encode(input + saltHex);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  return `${saltHex}:${hashHex}`;
+  console.log('Fallback MD5 hash generated successfully');
+  return md5Hash;
 }
 
 // Input validation function
@@ -149,7 +169,7 @@ serve(async (req) => {
     const token = adminSession.gp51_token;
     let apiPayload = { ...payload };
 
-    // Handle password encryption for user creation/editing with secure hashing
+    // Handle password encryption for user creation/editing with MD5 hashing for GP51 compatibility
     if ((action === 'adduser' || action === 'edituser') && payload.password) {
       // Validate password strength
       if (payload.password.length < 8) {
@@ -159,7 +179,9 @@ serve(async (req) => {
         );
       }
       
-      apiPayload.password = await secureHash(payload.password);
+      // Use MD5 hash for GP51 API compatibility
+      apiPayload.password = await hashMD5(payload.password);
+      console.log('Password hashed with MD5 for GP51 compatibility');
     }
 
     console.log('Calling GP51 API with action:', action);
