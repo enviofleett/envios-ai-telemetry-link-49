@@ -26,6 +26,23 @@ export interface VehicleDataMetrics {
   errorMessage?: string;
 }
 
+// Type definitions for GP51 API responses
+interface GP51Vehicle {
+  deviceid: number;
+  devicename: string;
+  [key: string]: any;
+}
+
+interface GP51Position {
+  deviceid: number;
+  servertime: number;
+  lat: number;
+  lng: number;
+  speed?: number;
+  course?: number;
+  [key: string]: any;
+}
+
 export class EnhancedVehicleDataService {
   private static instance: EnhancedVehicleDataService;
   private vehicles: VehicleData[] = [];
@@ -93,7 +110,7 @@ export class EnhancedVehicleDataService {
         deviceName: vehicle.device_name || `Vehicle ${vehicle.device_id}`,
         status: 'unknown' as const,
         lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
-        additionalData: vehicle.gp51_metadata || {}
+        additionalData: (vehicle.gp51_metadata as Record<string, any>) || {}
       }));
 
       this.updateMetrics();
@@ -149,11 +166,11 @@ export class EnhancedVehicleDataService {
         throw new Error(`Failed to get vehicle list: ${listError?.message || vehicleListData?.cause}`);
       }
 
-      const gp51Vehicles = vehicleListData.records || vehicleListData.monitors || [];
+      const gp51Vehicles: GP51Vehicle[] = vehicleListData.records || vehicleListData.monitors || [];
       console.log(`📋 Retrieved ${gp51Vehicles.length} vehicles from GP51`);
 
       // Get position data for all vehicles
-      const deviceIds = gp51Vehicles.map((v: any) => v.deviceid).filter(Boolean);
+      const deviceIds = gp51Vehicles.map((v: GP51Vehicle) => v.deviceid).filter(Boolean);
       
       if (deviceIds.length > 0) {
         const { data: positionData, error: positionError } = await supabase.functions.invoke('gp51-service-management', {
@@ -164,11 +181,11 @@ export class EnhancedVehicleDataService {
         });
 
         // Process vehicle data (even if position fetch partially fails)
-        const positions = positionData?.status === 0 ? (positionData.positions || []) : [];
-        const positionMap = new Map(positions.map((pos: any) => [pos.deviceid, pos]));
+        const positions: GP51Position[] = positionData?.status === 0 ? (positionData.positions || []) : [];
+        const positionMap = new Map<number, GP51Position>(positions.map((pos: GP51Position) => [pos.deviceid, pos]));
 
         // Update vehicle data
-        this.vehicles = gp51Vehicles.map((vehicle: any) => {
+        this.vehicles = gp51Vehicles.map((vehicle: GP51Vehicle) => {
           const position = positionMap.get(vehicle.deviceid);
           const lastUpdate = position?.servertime ? new Date(position.servertime * 1000) : new Date();
           const timeSinceUpdate = Date.now() - lastUpdate.getTime();
@@ -216,7 +233,7 @@ export class EnhancedVehicleDataService {
     }
   }
 
-  private determineVehicleStatus(timeSinceUpdate: number, position: any): 'online' | 'offline' | 'unknown' {
+  private determineVehicleStatus(timeSinceUpdate: number, position?: GP51Position): 'online' | 'offline' | 'unknown' {
     if (!position) return 'unknown';
     
     // Consider vehicle online if updated within last 15 minutes
