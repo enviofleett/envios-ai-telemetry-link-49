@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { 
   EnhancedCSVRowData, 
@@ -21,9 +20,19 @@ class EnhancedCSVImportService {
     if (error) throw error;
     
     return (data || []).map(template => ({
-      ...template,
+      id: template.id,
+      template_name: template.template_name,
+      template_type: template.template_type,
       column_mappings: template.column_mappings as Record<string, any>,
-      validation_rules: template.validation_rules as Record<string, any>
+      validation_rules: {
+        max_rows: (template.validation_rules as any)?.max_rows || 1000,
+        allowed_formats: (template.validation_rules as any)?.allowed_formats || ['csv'],
+        required_columns: (template.validation_rules as any)?.required_columns || []
+      },
+      is_system_template: template.is_system_template || false,
+      created_by: template.created_by,
+      created_at: template.created_at,
+      updated_at: template.updated_at
     })) as CSVImportTemplate[];
   }
 
@@ -157,11 +166,18 @@ class EnhancedCSVImportService {
 
         if (gp51Result.isValid) {
           const enhancedRow: EnhancedCSVRowData = {
-            ...row,
-            generated_username: gp51Result.generatedUsername,
-            validation_flags: gp51Result.validationFlags,
+            user_name: row.user_name,
+            user_email: row.user_email,
+            user_phone: row.user_phone,
+            gp51_username: row.gp51_username,
+            device_id: row.device_id,
+            device_name: row.device_name,
             device_type: gp51Result.deviceTypeMapping || row.device_type,
-            assignment_type: (row.assignment_type as any) || 'assigned'
+            sim_number: row.sim_number,
+            assignment_type: (row.assignment_type as 'assigned' | 'owner' | 'operator') || 'assigned',
+            notes: row.notes,
+            generated_username: gp51Result.generatedUsername,
+            validation_flags: gp51Result.validationFlags
           };
           
           validRows.push(enhancedRow);
@@ -277,7 +293,13 @@ class EnhancedCSVImportService {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    
+    return (data || []).map(item => ({
+      ...item,
+      entity_type: item.entity_type as 'user' | 'vehicle',
+      sync_status: item.sync_status as 'pending' | 'syncing' | 'synced' | 'failed' | 'conflict',
+      conflict_data: item.conflict_data as Record<string, any>
+    })) as GP51SyncStatus[];
   }
 
   async getImportRelationships(importJobId: string): Promise<CSVImportRelationship[]> {
@@ -288,7 +310,12 @@ class EnhancedCSVImportService {
       .order('row_number', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    
+    return (data || []).map(item => ({
+      ...item,
+      relationship_type: item.relationship_type as 'assigned' | 'owner' | 'operator',
+      sync_status: item.sync_status as 'pending' | 'synced' | 'failed'
+    })) as CSVImportRelationship[];
   }
 
   private parseCSV(csvContent: string): Record<string, any>[] {

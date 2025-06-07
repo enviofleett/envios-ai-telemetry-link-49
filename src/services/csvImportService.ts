@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { CSVImportJob, CSVImportTemplate, ImportPreviewData, CSVRowData, ValidationError } from '@/types/csv-import';
 
@@ -10,11 +11,21 @@ class CSVImportService {
 
     if (error) throw error;
     
-    // Type cast the Supabase data to our types
+    // Type cast the Supabase data to our types with proper handling
     return (data || []).map(template => ({
-      ...template,
+      id: template.id,
+      template_name: template.template_name,
+      template_type: template.template_type,
       column_mappings: template.column_mappings as Record<string, any>,
-      validation_rules: template.validation_rules as Record<string, any>
+      validation_rules: {
+        max_rows: (template.validation_rules as any)?.max_rows || 1000,
+        allowed_formats: (template.validation_rules as any)?.allowed_formats || ['csv'],
+        required_columns: (template.validation_rules as any)?.required_columns || []
+      },
+      is_system_template: template.is_system_template || false,
+      created_by: template.created_by,
+      created_at: template.created_at,
+      updated_at: template.updated_at
     })) as CSVImportTemplate[];
   }
 
