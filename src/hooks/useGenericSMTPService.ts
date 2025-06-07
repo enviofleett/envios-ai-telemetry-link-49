@@ -14,6 +14,7 @@ interface GenericSMTPConfig {
   sender_name: string;
   encryption_type: 'none' | 'ssl' | 'tls' | 'starttls';
   is_active: boolean;
+  created_at?: string;
 }
 
 interface DatabaseSMTPConfig {
@@ -61,7 +62,8 @@ const transformToComponentFormat = (dbConfig: DatabaseSMTPConfig): GenericSMTPCo
   sender_email: dbConfig.from_email,
   sender_name: dbConfig.from_name,
   encryption_type: dbConfig.encryption_type as 'none' | 'ssl' | 'tls' | 'starttls',
-  is_active: dbConfig.is_active
+  is_active: dbConfig.is_active,
+  created_at: dbConfig.created_at
 });
 
 export const useGenericSMTPService = () => {
