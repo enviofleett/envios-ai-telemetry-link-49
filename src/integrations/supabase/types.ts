@@ -2664,6 +2664,7 @@ export type Database = {
       smtp_configurations: {
         Row: {
           created_at: string | null
+          encryption_type: string
           from_email: string
           from_name: string
           host: string
@@ -2679,6 +2680,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          encryption_type?: string
           from_email: string
           from_name: string
           host: string
@@ -2694,6 +2696,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          encryption_type?: string
           from_email?: string
           from_name?: string
           host?: string

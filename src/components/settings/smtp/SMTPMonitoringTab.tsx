@@ -151,7 +151,7 @@ const SMTPMonitoringTab: React.FC = () => {
                     <div>
                       <p className="font-medium">{config.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {config.host}:{config.port} • {config.from_email}
+                        {config.host}:{config.port} • {config.sender_email}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant="outline" className="text-xs">

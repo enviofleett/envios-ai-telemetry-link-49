@@ -16,6 +16,23 @@ interface GenericSMTPConfig {
   is_active: boolean;
 }
 
+interface DatabaseSMTPConfig {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  password_encrypted: string;
+  from_email: string;
+  from_name: string;
+  use_ssl: boolean;
+  use_tls: boolean;
+  encryption_type: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 interface SendEmailParams {
   recipientEmail: string;
   subject: string;
@@ -33,12 +50,26 @@ interface TestConnectionParams {
   encryption_type: string;
 }
 
+// Transform database config to component format
+const transformToComponentFormat = (dbConfig: DatabaseSMTPConfig): GenericSMTPConfig => ({
+  id: dbConfig.id,
+  name: dbConfig.name,
+  host: dbConfig.host,
+  port: dbConfig.port,
+  username: dbConfig.username,
+  password: '', // Don't expose encrypted password
+  sender_email: dbConfig.from_email,
+  sender_name: dbConfig.from_name,
+  encryption_type: dbConfig.encryption_type as 'none' | 'ssl' | 'tls' | 'starttls',
+  is_active: dbConfig.is_active
+});
+
 export const useGenericSMTPService = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch SMTP configurations
-  const { data: smtpConfigs, isLoading } = useQuery({
+  const { data: rawSmtpConfigs, isLoading } = useQuery({
     queryKey: ['generic-smtp-configurations'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -47,9 +78,12 @@ export const useGenericSMTPService = () => {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data;
+      return data as DatabaseSMTPConfig[];
     },
   });
+
+  // Transform data for component consumption
+  const smtpConfigs = rawSmtpConfigs ? rawSmtpConfigs.map(transformToComponentFormat) : [];
 
   // Save SMTP configuration
   const saveConfigMutation = useMutation({
@@ -68,7 +102,7 @@ export const useGenericSMTPService = () => {
           .neq('id', config.id || '');
       }
 
-      // Prepare configuration data
+      // Prepare configuration data for database
       const configData = {
         name: config.name,
         host: config.host,
@@ -79,8 +113,8 @@ export const useGenericSMTPService = () => {
         from_name: config.sender_name,
         use_ssl: config.encryption_type === 'ssl',
         use_tls: config.encryption_type === 'tls' || config.encryption_type === 'starttls',
-        is_active: config.is_active,
-        encryption_type: config.encryption_type
+        encryption_type: config.encryption_type,
+        is_active: config.is_active
       };
 
       if (config.id) {
@@ -248,7 +282,7 @@ export const useGenericSMTPService = () => {
 
   return {
     // Data
-    smtpConfigs: smtpConfigs || [],
+    smtpConfigs,
     isLoading,
     
     // Actions
