@@ -8,12 +8,12 @@ const DeviceConfiguration: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Page Title Section */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200">
+      <div className="bg-card border border-border p-6 rounded-lg">
         <div className="flex items-center gap-3 mb-2">
-          <Cog className="h-6 w-6 text-gray-700" />
-          <h1 className="text-2xl font-bold text-gray-900">Device Configuration</h1>
+          <Cog className="h-6 w-6 text-foreground" />
+          <h1 className="text-2xl font-bold text-foreground">Device Configuration</h1>
         </div>
-        <p className="text-gray-600">
+        <p className="text-muted-foreground">
           Manage GPS tracking devices, monitor status, and configure settings
         </p>
       </div>
