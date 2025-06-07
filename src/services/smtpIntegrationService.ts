@@ -219,6 +219,5 @@ export const useProductionSMTPIntegration = () => {
   };
 };
 
-// Export the original service for backward compatibility
-export { smtpIntegrationService } from './smtpIntegrationService';
+// Export the main hook as the primary interface
 export const useSMTPIntegration = useProductionSMTPIntegration;
