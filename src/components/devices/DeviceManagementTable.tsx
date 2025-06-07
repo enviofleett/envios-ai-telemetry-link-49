@@ -23,7 +23,7 @@ import DeviceStatusBadge from '@/components/devices/DeviceStatusBadge';
 import BatteryIndicator from '@/components/devices/BatteryIndicator';
 import SignalIndicator from '@/components/devices/SignalIndicator';
 import DeviceDetailsModal from '@/components/devices/DeviceDetailsModal';
-import AddDeviceModal from '@/components/devices/AddDeviceModal';
+import { EnhancedVehicleCreationModal } from '@/components/vehicles/EnhancedVehicleCreationModal';
 import { useDeviceManagement } from '@/hooks/useDeviceManagement';
 
 const DeviceManagementTable: React.FC = () => {
@@ -31,7 +31,13 @@ const DeviceManagementTable: React.FC = () => {
   const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   
-  const { devices, isLoading } = useDeviceManagement(searchQuery);
+  const { devices, isLoading, refetch } = useDeviceManagement(searchQuery);
+
+  const handleVehicleCreated = (vehicleId: string) => {
+    console.log('Vehicle created with ID:', vehicleId);
+    // Refresh the device list to show the new vehicle
+    refetch();
+  };
 
   if (isLoading) {
     return (
@@ -60,7 +66,7 @@ const DeviceManagementTable: React.FC = () => {
             </CardTitle>
             <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
-              Add Device
+              Create Vehicle
             </Button>
           </div>
           
@@ -182,10 +188,11 @@ const DeviceManagementTable: React.FC = () => {
         />
       )}
 
-      {/* Add Device Modal */}
-      <AddDeviceModal
+      {/* Enhanced Vehicle Creation Modal */}
+      <EnhancedVehicleCreationModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
+        onSuccess={handleVehicleCreated}
       />
     </>
   );
