@@ -1,136 +1,85 @@
 
-import React from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User, Building2, CreditCard, Bell, Settings as SettingsIcon, Mail, Palette } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import CompanySettingsTab from "@/components/settings/CompanySettingsTab";
-import FleetUserManagementTab from "@/components/settings/FleetUserManagementTab";
-import BillingSettingsTab from "@/components/settings/BillingSettingsTab";
-import NotificationsSettingsTab from "@/components/settings/NotificationsSettingsTab";
-import GP51ApiSettingsTab from "@/components/settings/GP51ApiSettingsTab";
-import EnhancedSMTPSettingsTab from "@/components/settings/EnhancedSMTPSettingsTab";
-import ThemeCustomizationTab from "@/components/settings/ThemeCustomizationTab";
-import AdminSettings from "@/components/AdminSettings";
+import React from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Navigate } from 'react-router-dom';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { CompanySettingsTab } from '@/components/settings/CompanySettingsTab';
+import { BillingSettingsTab } from '@/components/settings/BillingSettingsTab';
+import { EnhancedSMTPSettingsTab } from '@/components/settings/EnhancedSMTPSettingsTab';
+import { BrandingCustomizationTab } from '@/components/settings/BrandingCustomizationTab';
+import { GP51ApiSettingsTab } from '@/components/settings/GP51ApiSettingsTab';
+import { NotificationsSettingsTab } from '@/components/settings/NotificationsSettingsTab';
+import { ThemeCustomizationTab } from '@/components/settings/ThemeCustomizationTab';
+import { FleetUserManagementTab } from '@/components/settings/FleetUserManagementTab';
+import { PrivacySettingsTab } from '@/components/settings/PrivacySettingsTab';
 
-const Settings = () => {
-  const { user, isAdmin, userRole } = useAuth();
+const Settings: React.FC = () => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Settings & Configurations</h1>
-          <p className="text-gray-600 mt-1">
-            Manage your Envio GPS tracking platform settings and customizations
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Settings</h1>
+          <p className="text-gray-600">
+            Manage your account, company, and system preferences
           </p>
         </div>
+        
+        <Tabs defaultValue="company" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4 lg:grid-cols-9">
+            <TabsTrigger value="company">Company</TabsTrigger>
+            <TabsTrigger value="gp51">GP51 API</TabsTrigger>
+            <TabsTrigger value="billing">Billing</TabsTrigger>
+            <TabsTrigger value="smtp">Email</TabsTrigger>
+            <TabsTrigger value="branding">Branding</TabsTrigger>
+            <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="theme">Theme</TabsTrigger>
+            <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="privacy">Privacy</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="company" className="space-y-6">
+            <CompanySettingsTab />
+          </TabsContent>
+
+          <TabsContent value="gp51" className="space-y-6">
+            <GP51ApiSettingsTab />
+          </TabsContent>
+
+          <TabsContent value="billing" className="space-y-6">
+            <BillingSettingsTab />
+          </TabsContent>
+
+          <TabsContent value="smtp" className="space-y-6">
+            <EnhancedSMTPSettingsTab />
+          </TabsContent>
+
+          <TabsContent value="branding" className="space-y-6">
+            <BrandingCustomizationTab />
+          </TabsContent>
+
+          <TabsContent value="notifications" className="space-y-6">
+            <NotificationsSettingsTab />
+          </TabsContent>
+
+          <TabsContent value="theme" className="space-y-6">
+            <ThemeCustomizationTab />
+          </TabsContent>
+
+          <TabsContent value="users" className="space-y-6">
+            <FleetUserManagementTab />
+          </TabsContent>
+
+          <TabsContent value="privacy" className="space-y-6">
+            <PrivacySettingsTab />
+          </TabsContent>
+        </Tabs>
       </div>
-
-      {/* User Profile Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            User Profile
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <label className="text-sm font-medium text-gray-700">Email</label>
-            <div className="mt-1 text-sm text-gray-900">{user?.email}</div>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-700">Role</label>
-            <div className="mt-1">
-              <Badge variant={userRole === 'admin' ? 'default' : 'secondary'}>
-                {userRole === 'admin' ? 'Administrator' : 'User'}
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Tabs defaultValue="company" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="company" className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            Company
-          </TabsTrigger>
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Users
-          </TabsTrigger>
-          <TabsTrigger value="billing" className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            Billing
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            Notifications
-          </TabsTrigger>
-          <TabsTrigger value="gp51" className="flex items-center gap-2">
-            <SettingsIcon className="h-4 w-4" />
-            GPS51 API
-          </TabsTrigger>
-          <TabsTrigger value="smtp" className="flex items-center gap-2">
-            <Mail className="h-4 w-4" />
-            Email
-          </TabsTrigger>
-          <TabsTrigger value="theme" className="flex items-center gap-2">
-            <Palette className="h-4 w-4" />
-            Theme
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="company">
-          <CompanySettingsTab />
-        </TabsContent>
-
-        <TabsContent value="users">
-          <FleetUserManagementTab />
-        </TabsContent>
-
-        <TabsContent value="billing">
-          <BillingSettingsTab />
-        </TabsContent>
-
-        <TabsContent value="notifications">
-          <NotificationsSettingsTab />
-        </TabsContent>
-
-        <TabsContent value="gp51">
-          <GP51ApiSettingsTab />
-        </TabsContent>
-
-        <TabsContent value="smtp">
-          <EnhancedSMTPSettingsTab />
-        </TabsContent>
-
-        <TabsContent value="theme">
-          <ThemeCustomizationTab />
-        </TabsContent>
-      </Tabs>
-
-      {/* Admin-Only Advanced Settings */}
-      {isAdmin && (
-        <div className="mt-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Advanced Administration</h2>
-          <AdminSettings />
-        </div>
-      )}
-
-      {!isAdmin && (
-        <Card className="border-gray-200 bg-gray-50">
-          <CardContent className="pt-6">
-            <p className="text-gray-600 text-center">
-              Advanced administration settings are available to administrators only.
-              Contact your system administrator for access to advanced platform configuration.
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };
