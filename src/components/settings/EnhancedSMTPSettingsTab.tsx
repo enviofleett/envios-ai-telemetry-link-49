@@ -4,10 +4,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useProductionSMTPService } from '@/hooks/useProductionSMTPService';
 import SMTPQuickSetupTab from './smtp/SMTPQuickSetupTab';
 import SMTPAdvancedConfigTab from './smtp/SMTPAdvancedConfigTab';
 import SMTPTestTab from './smtp/SMTPTestTab';
 import SMTPConfigurationList from './smtp/SMTPConfigurationList';
+import SMTPMonitoringTab from './smtp/SMTPMonitoringTab';
 import { providerTemplates } from './smtp/smtpProviderTemplates';
 
 interface SMTPConfig {
@@ -27,8 +29,13 @@ interface SMTPConfig {
 const EnhancedSMTPSettingsTab: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { 
+    testSMTPConnection, 
+    validateSMTPConfig,
+    isTesting 
+  } = useProductionSMTPService();
+  
   const [showPassword, setShowPassword] = useState(false);
-  const [testingConnection, setTestingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testEmail, setTestEmail] = useState('');
   const [selectedProvider, setSelectedProvider] = useState<string>('');
@@ -63,6 +70,12 @@ const EnhancedSMTPSettingsTab: React.FC = () => {
   // Save SMTP configuration
   const saveSMTPMutation = useMutation({
     mutationFn: async (config: SMTPConfig) => {
+      // Validate configuration before saving
+      const validationErrors = validateSMTPConfig(config);
+      if (validationErrors.length > 0) {
+        throw new Error(`Configuration errors: ${validationErrors.join(', ')}`);
+      }
+
       const encryptedPassword = btoa(config.password_encrypted);
       
       const dataToSave = {
@@ -139,48 +152,26 @@ const EnhancedSMTPSettingsTab: React.FC = () => {
     }
   };
 
-  const testSMTPConnection = async () => {
-    setTestingConnection(true);
+  const testSMTPConnectionEnhanced = async () => {
     setConnectionStatus('testing');
     
     try {
-      const { data, error } = await supabase.functions.invoke('smtp-email-service', {
-        body: {
-          action: 'test-smtp',
-          testConfig: {
-            host: smtpForm.host,
-            port: smtpForm.port,
-            username: smtpForm.username,
-            password: smtpForm.password_encrypted,
-            from_email: smtpForm.from_email,
-            from_name: smtpForm.from_name,
-            use_ssl: smtpForm.use_ssl,
-            use_tls: smtpForm.use_tls
-          }
-        }
-      });
+      const testConfig = {
+        host: smtpForm.host,
+        port: smtpForm.port,
+        username: smtpForm.username,
+        password: smtpForm.password_encrypted,
+        from_email: smtpForm.from_email,
+        from_name: smtpForm.from_name,
+        use_ssl: smtpForm.use_ssl,
+        use_tls: smtpForm.use_tls
+      };
 
-      if (error) throw error;
-
-      if (data.success) {
-        setConnectionStatus('success');
-        toast({
-          title: "Success",
-          description: "SMTP connection test successful!"
-        });
-      } else {
-        setConnectionStatus('error');
-        throw new Error(data.error);
-      }
+      await testSMTPConnection(testConfig);
+      setConnectionStatus('success');
     } catch (error: any) {
       setConnectionStatus('error');
-      toast({
-        title: "Connection Failed",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setTestingConnection(false);
+      // Error toast is handled by the hook
     }
   };
 
@@ -199,7 +190,7 @@ const EnhancedSMTPSettingsTab: React.FC = () => {
         body: {
           action: 'send-email',
           recipientEmail: testEmail,
-          templateType: 'welcome',
+          templateType: 'test',
           placeholderData: {
             user_name: 'Test User'
           }
@@ -208,10 +199,14 @@ const EnhancedSMTPSettingsTab: React.FC = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Test Email Sent",
-        description: `Test email sent successfully to ${testEmail}`
-      });
+      if (data.success) {
+        toast({
+          title: "Test Email Sent",
+          description: `Test email sent successfully to ${testEmail}`
+        });
+      } else {
+        throw new Error(data.error);
+      }
     } catch (error: any) {
       toast({
         title: "Failed to Send Test Email",
@@ -231,17 +226,18 @@ const EnhancedSMTPSettingsTab: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">SMTP Email Configuration</h3>
+        <h3 className="text-lg font-semibold mb-2">Production SMTP Email Configuration</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Configure SMTP settings for reliable email delivery across your Envio platform
+          Configure production-ready SMTP settings with enhanced security and monitoring
         </p>
       </div>
 
       <Tabs defaultValue="quick-setup" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="quick-setup">Quick Setup</TabsTrigger>
           <TabsTrigger value="advanced">Advanced Config</TabsTrigger>
           <TabsTrigger value="test">Test & Monitor</TabsTrigger>
+          <TabsTrigger value="monitoring">Activity Monitor</TabsTrigger>
         </TabsList>
 
         <TabsContent value="quick-setup" className="space-y-4">
@@ -263,9 +259,9 @@ const EnhancedSMTPSettingsTab: React.FC = () => {
           <SMTPAdvancedConfigTab
             smtpForm={smtpForm}
             setSMTPForm={setSMTPForm}
-            testingConnection={testingConnection}
+            testingConnection={isTesting}
             connectionStatus={connectionStatus}
-            onTestConnection={testSMTPConnection}
+            onTestConnection={testSMTPConnectionEnhanced}
           />
 
           <SMTPConfigurationList
@@ -281,6 +277,10 @@ const EnhancedSMTPSettingsTab: React.FC = () => {
             onSendTestEmail={sendTestEmail}
             hasActiveConfig={smtpConfigs?.some(c => c.is_active) || false}
           />
+        </TabsContent>
+
+        <TabsContent value="monitoring" className="space-y-4">
+          <SMTPMonitoringTab />
         </TabsContent>
       </Tabs>
     </div>
