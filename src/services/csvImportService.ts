@@ -10,7 +10,13 @@ class CSVImportService {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    
+    // Type cast the Supabase data to our types
+    return (data || []).map(template => ({
+      ...template,
+      column_mappings: template.column_mappings as Record<string, any>,
+      validation_rules: template.validation_rules as Record<string, any>
+    })) as CSVImportTemplate[];
   }
 
   async createImportJob(jobData: {
@@ -31,7 +37,14 @@ class CSVImportService {
       .single();
 
     if (error) throw error;
-    return data;
+    
+    // Type cast the result
+    return {
+      ...data,
+      status: data.status as 'pending' | 'processing' | 'completed' | 'failed',
+      error_log: (data.error_log as any) || [],
+      import_results: (data.import_results as any) || {}
+    } as CSVImportJob;
   }
 
   async getImportJobs(): Promise<CSVImportJob[]> {
@@ -41,16 +54,31 @@ class CSVImportService {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    
+    // Type cast the results
+    return (data || []).map(job => ({
+      ...job,
+      status: job.status as 'pending' | 'processing' | 'completed' | 'failed',
+      error_log: (job.error_log as any) || [],
+      import_results: (job.import_results as any) || {}
+    })) as CSVImportJob[];
   }
 
   async updateImportJobProgress(jobId: string, updates: Partial<CSVImportJob>): Promise<void> {
+    // Convert our types to Supabase-compatible types
+    const supabaseUpdates: any = {
+      ...updates,
+      updated_at: new Date().toISOString()
+    };
+    
+    // Convert error_log to JSON if present
+    if (updates.error_log) {
+      supabaseUpdates.error_log = updates.error_log;
+    }
+
     const { error } = await supabase
       .from('csv_import_jobs')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
+      .update(supabaseUpdates)
       .eq('id', jobId);
 
     if (error) throw error;
