@@ -44,7 +44,16 @@ export const useBillingSettings = () => {
         throw error;
       }
 
-      setSettings(data);
+      if (data) {
+        // Transform the data to ensure proper types
+        const transformedData: BillingSettings = {
+          ...data,
+          current_usage: (data.current_usage as any) || {},
+          usage_limits: (data.usage_limits as any) || {},
+          payment_methods: (data.payment_methods as any) || []
+        };
+        setSettings(transformedData);
+      }
     } catch (error) {
       console.error('Error fetching billing settings:', error);
       toast({
@@ -75,7 +84,17 @@ export const useBillingSettings = () => {
 
       if (error) throw error;
 
-      setSettings(data);
+      if (data) {
+        // Transform the data to ensure proper types
+        const transformedData: BillingSettings = {
+          ...data,
+          current_usage: (data.current_usage as any) || {},
+          usage_limits: (data.usage_limits as any) || {},
+          payment_methods: (data.payment_methods as any) || []
+        };
+        setSettings(transformedData);
+      }
+      
       toast({
         title: "Settings updated",
         description: "Billing settings have been successfully updated."
