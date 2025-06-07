@@ -86,8 +86,6 @@ export const PerformanceDashboard: React.FC = () => {
             <Progress 
               value={metrics.sla.uptime} 
               className="mt-2"
-              // @ts-ignore
-              indicatorClassName={metrics.sla.uptime >= 99.9 ? 'bg-green-500' : metrics.sla.uptime >= 99 ? 'bg-yellow-500' : 'bg-red-500'}
             />
           </CardContent>
         </Card>
