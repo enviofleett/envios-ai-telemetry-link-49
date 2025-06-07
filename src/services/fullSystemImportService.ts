@@ -1,29 +1,13 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { gp51SessionManager } from './systemImport/gp51SessionManager';
 import { importErrorHandler } from './systemImport/errorHandler';
-import { SystemImportOptions } from '@/types/system-import';
 
-export interface ImportProgress {
-  phase: string;
-  percentage: number;
-  message: string;
-  details?: any;
-}
+// Import types from the types file
+import type { SystemImportOptions, ImportProgress, SystemImportResult } from '@/types/system-import';
 
-export interface ImportResult {
-  success: boolean;
-  importId: string;
-  totalUsers: number;
-  successfulUsers: number;
-  totalVehicles: number;
-  successfulVehicles: number;
-  conflicts: number;
-  backupTables: string[];
-  error?: string;
-}
-
-// Export SystemImportOptions for component use
-export { SystemImportOptions };
+// Re-export types for component use
+export type { SystemImportOptions, ImportProgress, SystemImportResult };
 
 class FullSystemImportService {
   private currentImportId: string | null = null;
@@ -34,7 +18,7 @@ class FullSystemImportService {
   async startFullSystemImport(
     options: SystemImportOptions,
     onProgress?: (progress: ImportProgress) => void
-  ): Promise<ImportResult> {
+  ): Promise<SystemImportResult> {
     this.progressCallback = onProgress;
     this.errors = [];
     this.criticalErrors = [];
@@ -195,7 +179,10 @@ class FullSystemImportService {
         phase,
         percentage,
         message,
-        details
+        details,
+        overallProgress: percentage,
+        phaseProgress: 100,
+        currentOperation: message
       });
     }
 
@@ -207,6 +194,20 @@ class FullSystemImportService {
     console.log(`🛑 Cancelling import: ${importId}`);
     
     try {
+      // Update the import record to cancelled status
+      const { error } = await supabase
+        .from('gp51_system_imports')
+        .update({
+          status: 'cancelled',
+          current_phase: 'cancelled',
+          phase_details: 'Import cancelled by user'
+        })
+        .eq('id', importId);
+
+      if (error) {
+        throw new Error(`Failed to cancel import: ${error.message}`);
+      }
+      
       // Cleanup session management
       gp51SessionManager.cleanupAfterImport();
       
@@ -228,15 +229,21 @@ class FullSystemImportService {
     console.log(`🔄 Rolling back import: ${importId}`);
     
     try {
-      const { data, error } = await supabase.rpc('rollback_system_import', {
-        import_id: importId
-      });
+      // For now, we'll mark the import as requiring manual rollback
+      // since the RPC function doesn't exist yet
+      const { error } = await supabase
+        .from('gp51_system_imports')
+        .update({
+          status: 'rollback_requested',
+          phase_details: 'Manual rollback requested - contact administrator'
+        })
+        .eq('id', importId);
 
       if (error) {
-        throw new Error(`Rollback failed: ${error.message}`);
+        throw new Error(`Rollback request failed: ${error.message}`);
       }
 
-      console.log('✅ Import rollback completed successfully');
+      console.log('✅ Import rollback requested - manual intervention required');
       
     } catch (error) {
       console.error('Error during import rollback:', error);

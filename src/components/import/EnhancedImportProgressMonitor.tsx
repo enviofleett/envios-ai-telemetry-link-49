@@ -15,7 +15,7 @@ import {
   Users,
   Car
 } from 'lucide-react';
-import { ImportProgress } from '@/services/fullSystemImportService';
+import { ImportProgress } from '@/types/system-import';
 import { supabase } from '@/integrations/supabase/client';
 
 interface EnhancedImportProgressMonitorProps {
@@ -150,8 +150,10 @@ const EnhancedImportProgressMonitor: React.FC<EnhancedImportProgressMonitorProps
     
     const progressData: ImportProgress = {
       phase: importJob.current_phase || 'Unknown',
-      phaseProgress: 100,
+      percentage: importJob.progress_percentage || 0,
+      message: importJob.phase_details || 'Processing...',
       overallProgress: importJob.progress_percentage || 0,
+      phaseProgress: 100,
       currentOperation: importJob.phase_details || 'Processing...'
     };
     
