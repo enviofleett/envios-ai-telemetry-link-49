@@ -83,6 +83,7 @@ export async function handlePostRequest(supabase: any, req: Request, currentUser
 
 export async function handlePutRequest(supabase: any, req: Request, url: URL, currentUserId: string | null) {
   const pathSegments = url.pathname.split('/').filter(Boolean);
+  const userId = pathSegments[pathSegments.length - 1];
   const requestBody = await req.text();
   
   if (!requestBody) {
@@ -91,30 +92,15 @@ export async function handlePutRequest(supabase: any, req: Request, url: URL, cu
 
   const bodyData = JSON.parse(requestBody);
 
-  console.log('PUT request path segments:', pathSegments);
-  console.log('PUT request body:', bodyData);
-
-  // Handle role updates - check for pattern: user-management/{userId}/role
-  const userManagementIndex = pathSegments.indexOf('user-management');
-  if (userManagementIndex !== -1 && pathSegments.length >= userManagementIndex + 3) {
-    const potentialUserId = pathSegments[userManagementIndex + 1];
-    const roleSegment = pathSegments[userManagementIndex + 2];
+  // Handle role updates
+  if (pathSegments.includes('role')) {
+    const { role } = bodyData;
+    await updateUserRole(supabase, userId, role, currentUserId!);
     
-    if (roleSegment === 'role' && potentialUserId) {
-      console.log('Processing role update for user:', potentialUserId);
-      const { role } = bodyData;
-      
-      if (!role) {
-        throw new Error('Role is required for role update');
-      }
-      
-      await updateUserRole(supabase, potentialUserId, role, currentUserId!);
-      
-      return new Response(
-        JSON.stringify({ message: 'User role updated successfully' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    return new Response(
+      JSON.stringify({ message: 'User role updated successfully' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   // Handle system import job updates
@@ -123,14 +109,13 @@ export async function handlePutRequest(supabase: any, req: Request, url: URL, cu
       throw new Error('Authentication required');
     }
 
-    const jobId = pathSegments[pathSegments.length - 1];
     const { data: job, error } = await supabase
       .from('gp51_system_imports')
       .update({
         ...bodyData,
         updated_at: new Date().toISOString()
       })
-      .eq('id', jobId)
+      .eq('id', userId)
       .select()
       .single();
 
@@ -145,8 +130,7 @@ export async function handlePutRequest(supabase: any, req: Request, url: URL, cu
     );
   }
 
-  // Handle regular user updates - fallback for other update patterns
-  const userId = pathSegments[pathSegments.length - 1];
+  // Handle regular user updates
   const user = await updateUser(supabase, userId, bodyData, currentUserId!);
   
   return new Response(

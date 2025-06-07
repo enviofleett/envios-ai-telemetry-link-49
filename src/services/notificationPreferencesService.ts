@@ -80,31 +80,26 @@ class NotificationPreferencesService {
     try {
       console.log('Getting vehicle alert recipients for vehicle:', vehicleId);
       
-      // Get vehicle information - using available columns from vehicles table
+      // Get vehicle owner information
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('id, device_id, envio_user_id')
+        .select('owner_id, device_id')
         .eq('id', vehicleId)
         .maybeSingle();
 
-      if (vehicleError) {
+      if (vehicleError || !vehicle) {
         console.error('Failed to get vehicle data:', vehicleError);
-        return [];
-      }
-
-      if (!vehicle) {
-        console.error('Vehicle not found:', vehicleId);
         return [];
       }
 
       const recipients: string[] = [];
 
-      // Get vehicle owner email if owner exists (using envio_user_id field)
-      if (vehicle.envio_user_id) {
+      // Get vehicle owner email if owner exists
+      if (vehicle.owner_id) {
         const { data: owner, error: ownerError } = await supabase
           .from('envio_users')
           .select('email, id')
-          .eq('id', vehicle.envio_user_id)
+          .eq('id', vehicle.owner_id)
           .maybeSingle();
 
         if (owner && !ownerError) {
@@ -118,7 +113,7 @@ class NotificationPreferencesService {
         }
       }
 
-      // Get users with admin role for additional notifications
+      // Get users with admin or manager roles for additional notifications
       const { data: adminUsers, error: adminError } = await supabase
         .from('envio_users')
         .select(`
@@ -126,7 +121,7 @@ class NotificationPreferencesService {
           id,
           user_roles!inner(role)
         `)
-        .eq('user_roles.role', 'admin');
+        .in('user_roles.role', ['admin', 'manager']);
 
       if (adminUsers && !adminError) {
         for (const user of adminUsers) {

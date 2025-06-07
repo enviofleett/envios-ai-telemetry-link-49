@@ -2,8 +2,6 @@
 import { isUserAdmin } from './auth.ts';
 
 export async function getCurrentUserRole(supabase: any, currentUserId: string) {
-  console.log('Getting role for user:', currentUserId);
-  
   const { data: userRole, error } = await supabase
     .rpc('get_user_role', { _user_id: currentUserId });
 
@@ -12,7 +10,6 @@ export async function getCurrentUserRole(supabase: any, currentUserId: string) {
     throw new Error('Failed to fetch user role');
   }
 
-  console.log('User role fetched:', userRole);
   return { role: userRole || 'user' };
 }
 
@@ -23,14 +20,6 @@ export async function updateUserRole(supabase: any, userId: string, role: string
 
   if (!(await isUserAdmin(supabase, currentUserId))) {
     throw new Error('Admin access required');
-  }
-
-  console.log('Updating role for user:', userId, 'to role:', role);
-
-  // Validate role is one of the allowed enum values
-  const allowedRoles = ['admin', 'user'];
-  if (!allowedRoles.includes(role)) {
-    throw new Error(`Invalid role: ${role}. Allowed roles are: ${allowedRoles.join(', ')}`);
   }
 
   const { error } = await supabase
@@ -45,8 +34,6 @@ export async function updateUserRole(supabase: any, userId: string, role: string
 
   if (error) {
     console.error('Error updating user role:', error);
-    throw new Error(`Failed to update user role: ${error.message}`);
+    throw new Error(error.message);
   }
-
-  console.log('User role updated successfully for user:', userId);
 }
