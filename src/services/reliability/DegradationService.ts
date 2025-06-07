@@ -1,4 +1,3 @@
-
 export type ServiceLevel = 'full' | 'degraded' | 'minimal' | 'offline';
 
 export interface DegradationConfig {
@@ -9,6 +8,9 @@ export interface DegradationConfig {
   lastUpdated: number;
   autoRecovery: boolean;
   recoveryThreshold: number;
+  consecutiveFailures?: number;
+  lastError?: string;
+  lastSuccessTime?: number;
 }
 
 export interface ServiceStatus {
