@@ -1,10 +1,9 @@
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface GenericSMTPConfig {
-  id?: string;
+  id: string; // Made required instead of optional
   name: string;
   host: string;
   port: number;
@@ -14,7 +13,7 @@ interface GenericSMTPConfig {
   sender_name: string;
   encryption_type: 'none' | 'ssl' | 'tls' | 'starttls';
   is_active: boolean;
-  created_at?: string;
+  created_at: string; // Made required and not optional
 }
 
 interface DatabaseSMTPConfig {
