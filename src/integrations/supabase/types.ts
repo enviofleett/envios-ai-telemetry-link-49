@@ -461,6 +461,45 @@ export type Database = {
           },
         ]
       }
+      device_group_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          device_group_id: string
+          device_id: string
+          id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          device_group_id: string
+          device_id: string
+          id?: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          device_group_id?: string
+          device_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_group_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "device_group_assignments_device_group_id_fkey"
+            columns: ["device_group_id"]
+            isOneToOne: false
+            referencedRelation: "device_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_groups: {
         Row: {
           color_code: string | null
@@ -2734,6 +2773,90 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_group_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          id: string
+          user_group_id: string
+          user_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          user_group_id: string
+          user_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          id?: string
+          user_group_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_group_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_group_assignments_user_group_id_fkey"
+            columns: ["user_group_id"]
+            isOneToOne: false
+            referencedRelation: "user_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_group_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_groups: {
+        Row: {
+          created_at: string
+          description: string | null
+          gp51_group_id: number
+          id: string
+          name: string
+          parent_group_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          gp51_group_id: number
+          id?: string
+          name: string
+          parent_group_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          gp51_group_id?: number
+          id?: string
+          name?: string
+          parent_group_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_groups_parent_group_id_fkey"
+            columns: ["parent_group_id"]
+            isOneToOne: false
+            referencedRelation: "user_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_import_jobs: {
         Row: {

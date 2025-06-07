@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { 
   CreateUserRequest, 
@@ -102,7 +101,7 @@ export class GP51UserManagementApi {
     }
   }
 
-  // NEW: User Group Assignment Methods
+  // Enhanced User Group Assignment Methods
   async assignUserToGroup(username: string, groupId: number): Promise<any> {
     console.log('Assigning user to group in GP51:', { username, groupId });
     
@@ -116,7 +115,7 @@ export class GP51UserManagementApi {
         console.log('User assigned to group successfully:', { username, groupId });
         
         // Update local database
-        await this.updateLocalUserGroup(username, groupId);
+        await this.syncUserGroupAssignment(username, groupId, 'assign');
       }
       
       return response;
@@ -139,7 +138,7 @@ export class GP51UserManagementApi {
         console.log('User removed from group successfully:', { username, groupId });
         
         // Update local database
-        await this.removeLocalUserGroup(username, groupId);
+        await this.syncUserGroupAssignment(username, groupId, 'remove');
       }
       
       return response;
@@ -157,6 +156,11 @@ export class GP51UserManagementApi {
       
       if (response.status === 0) {
         console.log('User groups retrieved successfully:', username);
+        
+        // Sync groups to local database
+        if (response.groups) {
+          await this.syncUserGroupsToLocal(username, response.groups);
+        }
       }
       
       return response;
@@ -166,7 +170,7 @@ export class GP51UserManagementApi {
     }
   }
 
-  // NEW: Vehicle Group Assignment Methods
+  // Vehicle Group Assignment Methods
   async assignVehicleToGroup(deviceId: string, groupId: number): Promise<any> {
     console.log('Assigning vehicle to group in GP51:', { deviceId, groupId });
     
@@ -180,7 +184,7 @@ export class GP51UserManagementApi {
         console.log('Vehicle assigned to group successfully:', { deviceId, groupId });
         
         // Update local database
-        await this.updateLocalVehicleGroup(deviceId, groupId);
+        await this.syncVehicleGroupAssignment(deviceId, groupId, 'assign');
       }
       
       return response;
@@ -203,13 +207,120 @@ export class GP51UserManagementApi {
         console.log('Vehicle removed from group successfully:', { deviceId, groupId });
         
         // Update local database
-        await this.removeLocalVehicleGroup(deviceId, groupId);
+        await this.syncVehicleGroupAssignment(deviceId, groupId, 'remove');
       }
       
       return response;
     } catch (error) {
       console.error('Failed to remove vehicle from group:', error);
       throw error;
+    }
+  }
+
+  // Enhanced Local Database Sync Methods
+  private async syncUserGroupAssignment(username: string, groupId: number, action: 'assign' | 'remove'): Promise<void> {
+    try {
+      // Get the local user ID
+      const { data: user } = await supabase
+        .from('envio_users')
+        .select('id')
+        .eq('gp51_username', username)
+        .single();
+
+      if (!user) {
+        console.warn(`User not found in local database: ${username}`);
+        return;
+      }
+
+      // Get or create the user group
+      const { data: userGroup } = await supabase
+        .from('user_groups')
+        .select('id')
+        .eq('gp51_group_id', groupId)
+        .maybeSingle();
+
+      if (!userGroup) {
+        console.warn(`User group not found in local database: ${groupId}`);
+        return;
+      }
+
+      if (action === 'assign') {
+        // Insert assignment if not exists
+        await supabase
+          .from('user_group_assignments')
+          .upsert({
+            user_id: user.id,
+            user_group_id: userGroup.id
+          });
+      } else {
+        // Remove assignment
+        await supabase
+          .from('user_group_assignments')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('user_group_id', userGroup.id);
+      }
+
+      console.log(`User group assignment ${action}ed successfully in local DB:`, { username, groupId });
+    } catch (error) {
+      console.error(`Failed to ${action} user group assignment in local DB:`, error);
+    }
+  }
+
+  private async syncUserGroupsToLocal(username: string, groups: any[]): Promise<void> {
+    try {
+      // Sync user groups to local database
+      for (const group of groups) {
+        await supabase
+          .from('user_groups')
+          .upsert({
+            gp51_group_id: group.groupid,
+            name: group.groupname,
+            description: group.description || '',
+            updated_at: new Date().toISOString()
+          });
+      }
+
+      console.log(`Synced ${groups.length} user groups to local database`);
+    } catch (error) {
+      console.error('Failed to sync user groups to local database:', error);
+    }
+  }
+
+  private async syncVehicleGroupAssignment(deviceId: string, groupId: number, action: 'assign' | 'remove'): Promise<void> {
+    try {
+      // Get the device group
+      const { data: deviceGroup } = await supabase
+        .from('device_groups')
+        .select('id')
+        .eq('gp51_group_id', groupId)
+        .maybeSingle();
+
+      if (!deviceGroup) {
+        console.warn(`Device group not found in local database: ${groupId}`);
+        return;
+      }
+
+      if (action === 'assign') {
+        // Insert assignment if not exists
+        await supabase
+          .from('device_group_assignments')
+          .upsert({
+            device_id: deviceId,
+            device_group_id: deviceGroup.id
+          });
+      } else {
+        // Remove assignment
+        await supabase
+          .from('device_group_assignments')
+          .delete()
+          .eq('device_id', deviceId)
+          .eq('device_group_id', deviceGroup.id);
+      }
+
+      console.log(`Vehicle group assignment ${action}ed successfully in local DB:`, { deviceId, groupId });
+    } catch (error) {
+      console.error(`Failed to ${action} vehicle group assignment in local DB:`, error);
     }
   }
 
@@ -260,7 +371,6 @@ export class GP51UserManagementApi {
     }
   }
 
-  // NEW: Local database sync methods for group assignments
   private async updateLocalUserGroup(username: string, groupId: number): Promise<void> {
     try {
       // This would typically update a user_groups table or similar
