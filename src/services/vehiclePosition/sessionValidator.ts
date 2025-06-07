@@ -64,6 +64,37 @@ export class GP51SessionValidator {
       };
     }
   }
+
+  async refreshGP51Session(): Promise<SessionValidationResult> {
+    try {
+      console.log('Attempting to refresh GP51 session...');
+      
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'get-gp51-status' }
+      });
+
+      if (error || !data?.connected) {
+        console.error('Failed to refresh GP51 session:', error || 'Not connected');
+        return {
+          valid: false,
+          error: 'Failed to refresh GP51 session. Please re-authenticate in Admin Settings.'
+        };
+      }
+
+      return {
+        valid: true,
+        username: data.username,
+        expiresAt: data.expiresAt
+      };
+
+    } catch (error) {
+      console.error('Session refresh error:', error);
+      return {
+        valid: false,
+        error: `Session refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
+  }
 }
 
 export const gp51SessionValidator = new GP51SessionValidator();

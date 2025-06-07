@@ -75,11 +75,14 @@ export class VehiclePositionSyncService {
       console.log('Starting progressive sync for vehicles without recent positions...');
 
       // Get vehicles that haven't been updated in the last 24 hours
+      // Fixed the JSON query syntax error
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      
       const { data: staleVehicles, error } = await supabase
         .from('vehicles')
         .select('device_id, device_name, is_active, gp51_username, last_position')
         .eq('is_active', true)
-        .or('last_position->updatetime.is.null,last_position->updatetime.lt.' + new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .or(`last_position->updatetime.is.null,last_position->>updatetime.lt.${twentyFourHoursAgo}`)
         .limit(1000); // Focus on first 1000 stale vehicles
 
       if (error) throw error;
@@ -197,7 +200,7 @@ export class VehiclePositionSyncService {
     completionPercentage: number;
   }> {
     try {
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
       const [totalResult, recentResult] = await Promise.all([
         supabase
@@ -208,7 +211,7 @@ export class VehiclePositionSyncService {
           .from('vehicles')
           .select('*', { count: 'exact', head: true })
           .eq('is_active', true)
-          .gte('last_position->updatetime', twentyFourHoursAgo.toISOString())
+          .gte('last_position->>updatetime', twentyFourHoursAgo)
       ]);
 
       const totalVehicles = totalResult.count || 0;
@@ -222,6 +225,7 @@ export class VehiclePositionSyncService {
         vehiclesNeedingUpdates,
         completionPercentage
       };
+
     } catch (error) {
       console.error('Failed to get sync progress:', error);
       return {

@@ -3,6 +3,7 @@ import React from 'react';
 import { Cog } from 'lucide-react';
 import DeviceStatsCards from '@/components/devices/DeviceStatsCards';
 import DeviceManagementTable from '@/components/devices/DeviceManagementTable';
+import GP51AuthenticationHelper from '@/components/admin/GP51AuthenticationHelper';
 
 const DeviceConfiguration: React.FC = () => {
   return (
@@ -17,6 +18,9 @@ const DeviceConfiguration: React.FC = () => {
           Manage GPS tracking devices, monitor status, and configure settings
         </p>
       </div>
+
+      {/* GP51 Authentication Status */}
+      <GP51AuthenticationHelper />
 
       {/* Device Statistics Cards */}
       <DeviceStatsCards />
