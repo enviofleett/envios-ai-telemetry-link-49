@@ -22,6 +22,7 @@ import {
 import { MerchantAnalytics } from './MerchantAnalytics';
 import { MerchantOrderManagement } from './MerchantOrderManagement';
 import { MerchantProductManagement } from './MerchantProductManagement';
+import { MerchantSettings } from './MerchantSettings';
 
 interface MerchantStats {
   totalSales: number;
@@ -179,27 +180,7 @@ export const MerchantDashboard: React.FC = () => {
   }
 
   if (activeTab === 'settings') {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Merchant Settings</h2>
-            <p className="text-muted-foreground">Configure your merchant account</p>
-          </div>
-          <Button onClick={() => setActiveTab('overview')}>
-            Back to Dashboard
-          </Button>
-        </div>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center py-8 text-muted-foreground">
-              <Settings className="h-12 w-12 mx-auto mb-4" />
-              <p>Merchant settings interface coming soon</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <MerchantSettings />;
   }
 
   return (
