@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client'
 import { userRegistrationSchema, otpVerificationSchema, passwordSetupSchema } from './validationSchemas'
 import { z } from 'zod'
@@ -61,7 +62,7 @@ export async function registerUser(formData: FormData) {
         phone_number: validatedData.phone,
         city: validatedData.city,
         subscription_package: validatedData.subscriptionPackage,
-        generated_username: username,
+        gp51_username: username,
         registration_source: 'admin_portal',
         status: 'pending_otp'
       })
@@ -280,7 +281,7 @@ export async function setPassword(formData: FormData) {
         email: registration.email,
         phone_number: registration.phone_number,
         city: registration.city,
-        gp51_username: registration.generated_username,
+        gp51_username: registration.gp51_username,
         registration_type: 'admin_portal',
         registration_status: 'completed',
         needs_password_set: false
