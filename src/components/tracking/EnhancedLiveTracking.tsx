@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
-import { gp51ProductionService } from '@/services/gp51ProductionService';
+import { GP51ProductionService } from '@/services/gp51ProductionService';
 import { useToast } from '@/hooks/use-toast';
 import { 
   MapPin, 
@@ -58,8 +58,8 @@ export function EnhancedLiveTracking() {
     const newLockState: Record<string, boolean> = {};
 
     vehicles.forEach((vehicle) => {
-      newEngineState[vehicle.device_id] = vehicle.last_position?.acc_status === 1;
-      newLockState[vehicle.device_id] = true; // Default to locked
+      newEngineState[vehicle.deviceid] = vehicle.lastPosition?.acc_status === 1;
+      newLockState[vehicle.deviceid] = true; // Default to locked
     });
 
     setControlStates({
@@ -102,7 +102,7 @@ export function EnhancedLiveTracking() {
       const newState = !controlStates.engineState[deviceId];
       
       // Simulate GP51 command
-      const result = await gp51ProductionService.performRealDeviceHandshake(
+      const result = await GP51ProductionService.performRealDeviceHandshake(
         deviceId,
         'admin-token' // Would use actual token
       );
@@ -227,11 +227,11 @@ export function EnhancedLiveTracking() {
             {/* Vehicle Info */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">{selectedVehicle.device_id}</h3>
+                <h3 className="text-lg font-semibold">{selectedVehicle.deviceid}</h3>
                 {getStatusBadge(selectedVehicle.status)}
               </div>
 
-              <div className="text-sm">{selectedVehicle.device_name}</div>
+              <div className="text-sm">{selectedVehicle.devicename}</div>
 
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -240,8 +240,8 @@ export function EnhancedLiveTracking() {
                     <span className="text-sm">Location</span>
                   </div>
                   <span className="text-sm font-medium">
-                    {selectedVehicle.last_position ? 
-                      `${selectedVehicle.last_position.latitude?.toFixed(4)}, ${selectedVehicle.last_position.longitude?.toFixed(4)}` : 
+                    {selectedVehicle.lastPosition ? 
+                      `${selectedVehicle.lastPosition.latitude?.toFixed(4)}, ${selectedVehicle.lastPosition.longitude?.toFixed(4)}` : 
                       'No location data'
                     }
                   </span>
@@ -253,7 +253,7 @@ export function EnhancedLiveTracking() {
                     <span className="text-sm">Speed</span>
                   </div>
                   <span className="text-sm font-medium">
-                    {selectedVehicle.last_position?.speed || 0} km/h
+                    {selectedVehicle.lastPosition?.speed || 0} km/h
                   </span>
                 </div>
 
@@ -263,7 +263,7 @@ export function EnhancedLiveTracking() {
                     <span className="text-sm">Ignition</span>
                   </div>
                   <span className="text-sm font-medium">
-                    {getIgnitionStatus(selectedVehicle.device_id)}
+                    {getIgnitionStatus(selectedVehicle.deviceid)}
                   </span>
                 </div>
 
@@ -273,7 +273,7 @@ export function EnhancedLiveTracking() {
                     <span className="text-sm">Fuel Level</span>
                   </div>
                   <span className="text-sm font-medium">
-                    {selectedVehicle.last_position?.oil_level || 'N/A'}%
+                    {selectedVehicle.lastPosition?.oil_level || 'N/A'}%
                   </span>
                 </div>
               </div>
@@ -290,7 +290,7 @@ export function EnhancedLiveTracking() {
                     <span className="text-sm">Temperature</span>
                   </div>
                   <span className="text-sm font-medium">
-                    {selectedVehicle.last_position?.temperature || 'N/A'}°C
+                    {selectedVehicle.lastPosition?.temperature || 'N/A'}°C
                   </span>
                 </div>
 
@@ -300,8 +300,8 @@ export function EnhancedLiveTracking() {
                     <span className="text-sm">Last Update</span>
                   </div>
                   <span className="text-sm font-medium">
-                    {selectedVehicle.last_position?.updatetime ? 
-                      new Date(selectedVehicle.last_position.updatetime).toLocaleString() : 
+                    {selectedVehicle.lastPosition?.updatetime ? 
+                      new Date(selectedVehicle.lastPosition.updatetime).toLocaleString() : 
                       'No data'
                     }
                   </span>
@@ -313,7 +313,7 @@ export function EnhancedLiveTracking() {
                     <span className="text-sm">Door Status</span>
                   </div>
                   <span className="text-sm font-medium">
-                    {controlStates.lockState[selectedVehicle.device_id] ? "Locked" : "Unlocked"}
+                    {controlStates.lockState[selectedVehicle.deviceid] ? "Locked" : "Unlocked"}
                   </span>
                 </div>
               </div>
@@ -330,13 +330,13 @@ export function EnhancedLiveTracking() {
                       <span className="text-sm">Engine Control</span>
                     </div>
                     <Switch
-                      checked={controlStates.engineState[selectedVehicle.device_id] || false}
-                      onCheckedChange={() => toggleEngine(selectedVehicle.device_id)}
+                      checked={controlStates.engineState[selectedVehicle.deviceid] || false}
+                      onCheckedChange={() => toggleEngine(selectedVehicle.deviceid)}
                       disabled={isUpdating}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {controlStates.engineState[selectedVehicle.device_id]
+                    {controlStates.engineState[selectedVehicle.deviceid]
                       ? "Engine is running. Toggle to shut down."
                       : "Engine is off. Toggle to start remotely."}
                   </p>
@@ -351,13 +351,13 @@ export function EnhancedLiveTracking() {
                       <span className="text-sm">Door Control</span>
                     </div>
                     <Switch
-                      checked={controlStates.lockState[selectedVehicle.device_id] || false}
-                      onCheckedChange={() => toggleLock(selectedVehicle.device_id)}
+                      checked={controlStates.lockState[selectedVehicle.deviceid] || false}
+                      onCheckedChange={() => toggleLock(selectedVehicle.deviceid)}
                       disabled={isUpdating}
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {controlStates.lockState[selectedVehicle.device_id]
+                    {controlStates.lockState[selectedVehicle.deviceid]
                       ? "Doors are locked. Toggle to unlock."
                       : "Doors are unlocked. Toggle to lock."}
                   </p>
@@ -402,17 +402,17 @@ export function EnhancedLiveTracking() {
             <TableBody>
               {vehicles.map((vehicle) => (
                 <TableRow 
-                  key={vehicle.device_id} 
-                  className={selectedVehicle?.device_id === vehicle.device_id ? "bg-muted/50" : ""}
+                  key={vehicle.deviceid} 
+                  className={selectedVehicle?.deviceid === vehicle.deviceid ? "bg-muted/50" : ""}
                 >
-                  <TableCell className="font-medium">{vehicle.device_id}</TableCell>
-                  <TableCell>{vehicle.device_name}</TableCell>
+                  <TableCell className="font-medium">{vehicle.deviceid}</TableCell>
+                  <TableCell>{vehicle.devicename}</TableCell>
                   <TableCell>{getStatusBadge(vehicle.status)}</TableCell>
-                  <TableCell>{vehicle.last_position?.speed || 0} km/h</TableCell>
-                  <TableCell>{getIgnitionStatus(vehicle.device_id)}</TableCell>
+                  <TableCell>{vehicle.lastPosition?.speed || 0} km/h</TableCell>
+                  <TableCell>{getIgnitionStatus(vehicle.deviceid)}</TableCell>
                   <TableCell>
-                    {vehicle.last_position?.updatetime ? 
-                      new Date(vehicle.last_position.updatetime).toLocaleString() : 
+                    {vehicle.lastPosition?.updatetime ? 
+                      new Date(vehicle.lastPosition.updatetime).toLocaleString() : 
                       'No data'
                     }
                   </TableCell>
