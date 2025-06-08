@@ -20,6 +20,7 @@ import WorkshopManagement from "./pages/WorkshopManagement";
 import Marketplace from "./pages/Marketplace";
 import Reports from "./pages/Reports";
 import VehicleManagement from "./pages/VehicleManagement";
+import SetupPasswordRoute from "./pages/SetupPassword";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ function App() {
                 <Route path="/marketplace" element={<Marketplace />} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/vehicles" element={<VehicleManagement />} />
+                <Route path="/setup-password" element={<SetupPasswordRoute />} />
               </Routes>
             </BrowserRouter>
           </TooltipProvider>
