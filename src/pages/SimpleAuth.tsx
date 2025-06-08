@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -15,6 +14,7 @@ import { errorHandler } from '@/services/errorHandling';
 const SimpleAuth: React.FC = () => {
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -33,16 +33,16 @@ const SimpleAuth: React.FC = () => {
     confirmPassword: ''
   });
 
-  console.log('SimpleAuth component mounted, user:', user?.email || 'none');
+  console.log('SimpleAuth component mounted, user:', user?.email || 'none', 'path:', location.pathname);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated - but prevent infinite loops
   useEffect(() => {
-    console.log('SimpleAuth useEffect - user check:', user?.email);
-    if (user) {
+    console.log('SimpleAuth useEffect - user check:', user?.email, 'current path:', location.pathname);
+    if (user && location.pathname !== '/') {
       console.log('User authenticated, redirecting to dashboard');
-      navigate('/');
+      navigate('/', { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, navigate, location.pathname]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,12 +71,11 @@ const SimpleAuth: React.FC = () => {
           { email: loginData.email }
         );
       } else {
-        console.log('Login successful');
+        console.log('Login successful, will redirect via useEffect');
         toast({
           title: "Welcome back!",
           description: "Successfully signed in.",
         });
-        navigate('/');
       }
     } catch (error) {
       console.error('Unexpected login error:', error);

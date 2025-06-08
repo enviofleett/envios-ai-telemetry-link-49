@@ -9,6 +9,7 @@ import { GP51SessionProvider } from "@/contexts/GP51SessionContext";
 import { navItems } from "./nav-items";
 import Index from "./pages/Index";
 import SimpleAuth from "./pages/SimpleAuth";
+import Register from "./pages/Register";
 import MinimalAuth from "./components/MinimalAuth";
 import NotFound from "./pages/NotFound";
 import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
@@ -41,6 +42,14 @@ const App = () => {
                       } 
                     />
                     <Route 
+                      path="/register" 
+                      element={
+                        <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
+                          <Register />
+                        </StableErrorBoundary>
+                      } 
+                    />
+                    <Route 
                       path="/minimal-auth" 
                       element={
                         <StableErrorBoundary>
@@ -49,11 +58,6 @@ const App = () => {
                       } 
                     />
                     <Route path="/login" element={
-                      <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
-                        <SimpleAuth />
-                      </StableErrorBoundary>
-                    } />
-                    <Route path="/register" element={
                       <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
                         <SimpleAuth />
                       </StableErrorBoundary>
