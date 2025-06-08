@@ -30,6 +30,30 @@ interface MaintenanceItem {
   priority: 'low' | 'medium' | 'high';
 }
 
+interface Workshop {
+  id: string;
+  name: string;
+  representativeName: string;
+  email: string;
+  phone: string;
+  city: string;
+  country: string;
+  serviceTypes: string[];
+  rating: number;
+  reviewCount: number;
+  activationFee: number;
+  operatingHours: string;
+  verified: boolean;
+}
+
+interface Vehicle {
+  id: string;
+  plateNumber: string;
+  model: string;
+  year: number;
+  status: 'active' | 'inactive' | 'maintenance';
+}
+
 const mockMaintenanceItems: MaintenanceItem[] = [
   {
     id: '1',
@@ -65,9 +89,67 @@ const mockMaintenanceItems: MaintenanceItem[] = [
   }
 ];
 
+const mockWorkshops: Workshop[] = [
+  {
+    id: '1',
+    name: 'AutoCare Plus',
+    representativeName: 'John Smith',
+    email: 'john@autocare.com',
+    phone: '+1-555-0123',
+    city: 'New York',
+    country: 'USA',
+    serviceTypes: ['Oil Change', 'Brake Service', 'Engine Repair'],
+    rating: 4.8,
+    reviewCount: 120,
+    activationFee: 50,
+    operatingHours: '8:00 AM - 6:00 PM',
+    verified: true
+  },
+  {
+    id: '2',
+    name: 'Fleet Masters',
+    representativeName: 'Sarah Johnson',
+    email: 'sarah@fleetmasters.com',
+    phone: '+1-555-0456',
+    city: 'Los Angeles',
+    country: 'USA',
+    serviceTypes: ['General Maintenance', 'Tire Service', 'Air Conditioning'],
+    rating: 4.6,
+    reviewCount: 95,
+    activationFee: 45,
+    operatingHours: '7:00 AM - 7:00 PM',
+    verified: true
+  }
+];
+
+const mockVehicles: Vehicle[] = [
+  {
+    id: 'FL-001',
+    plateNumber: 'ABC-1234',
+    model: 'Ford Transit',
+    year: 2022,
+    status: 'active'
+  },
+  {
+    id: 'FL-002',
+    plateNumber: 'XYZ-5678',
+    model: 'Mercedes Sprinter',
+    year: 2023,
+    status: 'active'
+  },
+  {
+    id: 'FL-003',
+    plateNumber: 'DEF-9012',
+    model: 'Iveco Daily',
+    year: 2021,
+    status: 'active'
+  }
+];
+
 const Maintenance: React.FC = () => {
-  const [selectedWorkshop, setSelectedWorkshop] = useState<any>(null);
+  const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
   const [showWorkshopMarketplace, setShowWorkshopMarketplace] = useState(false);
+  const [showWorkshopConnection, setShowWorkshopConnection] = useState(false);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -97,9 +179,17 @@ const Maintenance: React.FC = () => {
     }
   };
 
-  const handleWorkshopSelect = (workshop: any) => {
+  const handleWorkshopSelect = (workshop: Workshop) => {
     setSelectedWorkshop(workshop);
     setShowWorkshopMarketplace(false);
+    setShowWorkshopConnection(true);
+  };
+
+  const handleWorkshopConnect = (data: any) => {
+    console.log('Workshop connection data:', data);
+    setShowWorkshopConnection(false);
+    setSelectedWorkshop(null);
+    // Here you would typically send the data to your backend
   };
 
   return (
@@ -223,7 +313,43 @@ const Maintenance: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="workshops" className="space-y-4">
-            <WorkshopConnection />
+            <Card>
+              <CardHeader>
+                <CardTitle>Connected Workshops</CardTitle>
+                <CardDescription>
+                  Workshops you're connected to for maintenance services
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {mockWorkshops.map((workshop) => (
+                    <div key={workshop.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <Wrench className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <div className="font-medium">{workshop.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {workshop.city}, {workshop.country} • Rating: {workshop.rating}★
+                          </div>
+                          <div className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Phone className="h-3 w-3" />
+                            {workshop.phone}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className="bg-green-100 text-green-800">Connected</Badge>
+                        <Button variant="outline" size="sm">
+                          View Details
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
@@ -260,6 +386,20 @@ const Maintenance: React.FC = () => {
               <WorkshopMarketplace onWorkshopSelect={handleWorkshopSelect} />
             </div>
           </div>
+        )}
+
+        {/* Workshop Connection Modal */}
+        {showWorkshopConnection && selectedWorkshop && (
+          <WorkshopConnection
+            workshop={selectedWorkshop}
+            userVehicles={mockVehicles}
+            isOpen={showWorkshopConnection}
+            onClose={() => {
+              setShowWorkshopConnection(false);
+              setSelectedWorkshop(null);
+            }}
+            onConnect={handleWorkshopConnect}
+          />
         )}
       </div>
     </Layout>
