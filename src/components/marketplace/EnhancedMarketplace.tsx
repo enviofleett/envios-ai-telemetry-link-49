@@ -13,7 +13,7 @@ import { ProductDetailsModal } from './ProductDetailsModal';
 import { VehicleSelectionModal } from './VehicleSelectionModal';
 import { PaymentModal } from './PaymentModal';
 import { MerchantOnboardingModal } from './MerchantOnboardingModal';
-import { MerchantLoginModal } from './MerchantLoginModal';
+import { EnhancedMerchantLogin } from './EnhancedMerchantLogin';
 import { MerchantAnalytics } from './MerchantAnalytics';
 import { MerchantDashboard } from './MerchantDashboard';
 import { useToast } from '@/hooks/use-toast';
@@ -254,10 +254,10 @@ export const EnhancedMarketplace: React.FC = () => {
         onSubmit={handleMerchantRegistration}
       />
 
-      <MerchantLoginModal
+      <EnhancedMerchantLogin
         isOpen={showMerchantLogin}
         onClose={() => setShowMerchantLogin(false)}
-        onSubmit={handleMerchantLogin}
+        onLogin={handleMerchantLogin}
       />
     </div>
   );
