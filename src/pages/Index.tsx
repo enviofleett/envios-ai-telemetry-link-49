@@ -1,24 +1,21 @@
 
-import { useAuth } from "@/contexts/AuthContext";
-import { Navigate } from "react-router-dom";
-import Layout from "@/components/Layout";
-import { DashboardContent } from "@/components/dashboard/DashboardContent";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import React from 'react';
+import { Layout } from '@/components/Layout';
+import { UnifiedDashboard } from '@/components/UnifiedDashboard';
+import { PerformanceWidget } from '@/components/performance/PerformanceWidget';
 
 const Index = () => {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
-
   return (
     <Layout>
-      <DashboardContent />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <div className="w-80">
+            <PerformanceWidget />
+          </div>
+        </div>
+        <UnifiedDashboard />
+      </div>
     </Layout>
   );
 };
