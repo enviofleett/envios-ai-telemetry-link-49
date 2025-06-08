@@ -14,6 +14,7 @@ import {
   ShoppingCart,
   Zap,
   Building2,
+  CreditCard,
 } from "lucide-react"
 
 import {
@@ -42,6 +43,11 @@ const menuItems = [
     title: "Vehicles",
     url: "/vehicles",
     icon: Car,
+  },
+  {
+    title: "Active Services",
+    url: "/services",
+    icon: CreditCard,
   },
   {
     title: "Maintenance",

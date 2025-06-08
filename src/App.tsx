@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -21,6 +22,7 @@ import Reports from "./pages/Reports";
 import VehicleManagement from "./pages/VehicleManagement";
 import SetupPasswordRoute from "./pages/SetupPassword";
 import VerifyOTPRoute from "./pages/VerifyOTP";
+import ActiveServices from "./pages/ActiveServices";
 
 const queryClient = new QueryClient();
 
@@ -49,6 +51,7 @@ function App() {
                 <Route path="/vehicles" element={<VehicleManagement />} />
                 <Route path="/setup-password" element={<SetupPasswordRoute />} />
                 <Route path="/verify-otp" element={<VerifyOTPRoute />} />
+                <Route path="/services" element={<ActiveServices />} />
               </Routes>
             </BrowserRouter>
           </TooltipProvider>

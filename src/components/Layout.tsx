@@ -28,7 +28,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       'workshop-management': 'Workshop Management',
       'marketplace': 'Workshop Marketplace',
       'reports': 'Reports & Analytics',
-      'packages': 'Package Management'
+      'packages': 'Package Management',
+      'services': 'Active Services'
     };
 
     pathSegments.forEach((segment, index) => {
