@@ -16,12 +16,11 @@ interface EnvioUser {
   updated_at: string;
 }
 
-interface VehicleAssignment {
-  id: string;
+interface VehicleData {
   device_id: string;
-  owner_id: string;
-  assigned_at: string;
-  assigned_by: string;
+  device_name: string;
+  status: string;
+  created_at: string;
 }
 
 export const useOwnerManagement = () => {
@@ -29,13 +28,9 @@ export const useOwnerManagement = () => {
   const { toast } = useToast();
 
   // Fetch all owners (users who have vehicles assigned)
-  const {
-    data: owners = [],
-    isLoading: isLoadingOwners,
-    error: ownersError
-  } = useQuery({
+  const ownersQuery = useQuery({
     queryKey: ['vehicle-owners'],
-    queryFn: async (): Promise<EnvioUser[]> => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('envio_users')
         .select(`
@@ -58,7 +53,7 @@ export const useOwnerManagement = () => {
         throw error;
       }
 
-      return data || [];
+      return (data || []) as EnvioUser[];
     },
     refetchInterval: 30000,
   });
@@ -83,7 +78,7 @@ export const useOwnerManagement = () => {
           throw error;
         }
 
-        return data || [];
+        return (data || []) as VehicleData[];
       },
       enabled: !!ownerId,
     });
@@ -112,9 +107,9 @@ export const useOwnerManagement = () => {
         throw error;
       }
 
-      return data;
+      return data as EnvioUser;
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
       queryClient.invalidateQueries({ queryKey: ['enhanced-user-data'] });
       toast({
@@ -122,7 +117,7 @@ export const useOwnerManagement = () => {
         description: "Owner profile has been successfully updated",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error('Failed to update owner:', error);
       toast({
         title: "Update Failed",
@@ -134,14 +129,14 @@ export const useOwnerManagement = () => {
 
   // Assign vehicle to owner mutation
   const assignVehicleMutation = useMutation({
-    mutationFn: async ({ deviceId, ownerId }: { deviceId: string; ownerId: string }) => {
+    mutationFn: async (params: { deviceId: string; ownerId: string }) => {
       const { data, error } = await supabase
         .from('vehicles')
         .update({
-          owner_id: ownerId,
+          owner_id: params.ownerId,
           updated_at: new Date().toISOString(),
         })
-        .eq('device_id', deviceId)
+        .eq('device_id', params.deviceId)
         .select()
         .single();
 
@@ -160,7 +155,7 @@ export const useOwnerManagement = () => {
         description: "Vehicle has been successfully assigned to owner",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error('Failed to assign vehicle:', error);
       toast({
         title: "Assignment Failed",
@@ -198,7 +193,7 @@ export const useOwnerManagement = () => {
         description: "Vehicle has been successfully unassigned from owner",
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       console.error('Failed to unassign vehicle:', error);
       toast({
         title: "Unassignment Failed",
@@ -209,9 +204,9 @@ export const useOwnerManagement = () => {
   });
 
   return {
-    owners,
-    isLoadingOwners,
-    ownersError,
+    owners: ownersQuery.data || [],
+    isLoadingOwners: ownersQuery.isLoading,
+    ownersError: ownersQuery.error,
     useOwnerVehicles,
     updateOwner: updateOwnerMutation.mutate,
     isUpdatingOwner: updateOwnerMutation.isPending,
