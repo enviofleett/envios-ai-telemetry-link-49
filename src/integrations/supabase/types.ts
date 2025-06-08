@@ -9,6 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_role_requests: {
+        Row: {
+          created_at: string
+          id: string
+          request_reason: string | null
+          requested_role: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          request_reason?: string | null
+          requested_role?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          request_reason?: string | null
+          requested_role?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       backup_metadata: {
         Row: {
           backup_type: string
@@ -3082,12 +3115,18 @@ export type Database = {
           created_at: string
           id: string
           ip_address: unknown | null
+          metadata: Json | null
           new_values: Json | null
           old_values: Json | null
+          otp_verified: boolean | null
           performed_by: string | null
           registration_id: string | null
+          registration_status: string | null
+          selected_role: string | null
           user_agent: string | null
+          user_email: string | null
           user_id: string | null
+          user_name: string | null
         }
         Insert: {
           action_description?: string | null
@@ -3095,12 +3134,18 @@ export type Database = {
           created_at?: string
           id?: string
           ip_address?: unknown | null
+          metadata?: Json | null
           new_values?: Json | null
           old_values?: Json | null
+          otp_verified?: boolean | null
           performed_by?: string | null
           registration_id?: string | null
+          registration_status?: string | null
+          selected_role?: string | null
           user_agent?: string | null
+          user_email?: string | null
           user_id?: string | null
+          user_name?: string | null
         }
         Update: {
           action_description?: string | null
@@ -3108,12 +3153,18 @@ export type Database = {
           created_at?: string
           id?: string
           ip_address?: unknown | null
+          metadata?: Json | null
           new_values?: Json | null
           old_values?: Json | null
+          otp_verified?: boolean | null
           performed_by?: string | null
           registration_id?: string | null
+          registration_status?: string | null
+          selected_role?: string | null
           user_agent?: string | null
+          user_email?: string | null
           user_id?: string | null
+          user_name?: string | null
         }
         Relationships: [
           {

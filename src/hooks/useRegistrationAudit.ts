@@ -29,7 +29,7 @@ export const useRegistrationAudit = () => {
   ) => {
     try {
       const { error } = await supabase
-        .from('registration_audit_log')
+        .from('registration_audit_log' as any)
         .insert({
           user_email: email,
           user_name: name,
@@ -55,13 +55,27 @@ export const useRegistrationAudit = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('registration_audit_log')
+        .from('registration_audit_log' as any)
         .select('*')
         .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
-      setAuditEntries(data || []);
+      
+      // Transform the data to match our interface
+      const transformedData = (data || []).map((entry: any) => ({
+        id: entry.id,
+        user_email: entry.user_email || '',
+        user_name: entry.user_name || '',
+        selected_role: entry.selected_role || '',
+        registration_status: entry.registration_status || '',
+        otp_verified: entry.otp_verified || false,
+        created_at: entry.created_at,
+        ip_address: entry.ip_address,
+        user_agent: entry.user_agent
+      }));
+      
+      setAuditEntries(transformedData);
     } catch (error) {
       console.error('Failed to load audit entries:', error);
       toast({
@@ -80,7 +94,7 @@ export const useRegistrationAudit = () => {
       startDate.setDate(startDate.getDate() - days);
 
       const { data, error } = await supabase
-        .from('registration_audit_log')
+        .from('registration_audit_log' as any)
         .select('registration_status, selected_role, created_at')
         .gte('created_at', startDate.toISOString());
 
@@ -88,9 +102,9 @@ export const useRegistrationAudit = () => {
 
       const stats = {
         total_attempts: data?.length || 0,
-        completed_registrations: data?.filter(entry => entry.registration_status === 'completed').length || 0,
-        failed_registrations: data?.filter(entry => entry.registration_status === 'failed').length || 0,
-        admin_requests: data?.filter(entry => entry.selected_role === 'admin').length || 0,
+        completed_registrations: data?.filter((entry: any) => entry.registration_status === 'completed').length || 0,
+        failed_registrations: data?.filter((entry: any) => entry.registration_status === 'failed').length || 0,
+        admin_requests: data?.filter((entry: any) => entry.selected_role === 'admin').length || 0,
         success_rate: 0
       };
 

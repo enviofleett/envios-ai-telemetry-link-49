@@ -29,20 +29,32 @@ const AdminRoleRequestsManager: React.FC = () => {
 
   const loadRequests = async () => {
     try {
+      // Query admin_role_requests and join with envio_users for user details
       const { data, error } = await supabase
-        .from('admin_role_requests')
+        .from('admin_role_requests' as any)
         .select(`
           *,
-          envio_users!inner(name, email)
+          envio_users!admin_role_requests_user_id_fkey (
+            name,
+            email
+          )
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const formattedRequests = (data || []).map(request => ({
-        ...request,
-        user_name: request.envio_users.name,
-        user_email: request.envio_users.email
+      // Transform the data to match our interface
+      const formattedRequests = (data || []).map((request: any) => ({
+        id: request.id,
+        user_id: request.user_id,
+        requested_role: request.requested_role,
+        status: request.status,
+        request_reason: request.request_reason,
+        created_at: request.created_at,
+        reviewed_at: request.reviewed_at,
+        reviewed_by: request.reviewed_by,
+        user_name: request.envio_users?.name || 'Unknown',
+        user_email: request.envio_users?.email || 'Unknown'
       }));
 
       setRequests(formattedRequests);
@@ -71,7 +83,7 @@ const AdminRoleRequestsManager: React.FC = () => {
 
       // Update the request status
       const { error: updateError } = await supabase
-        .from('admin_role_requests')
+        .from('admin_role_requests' as any)
         .update({
           status: action === 'approve' ? 'approved' : 'rejected',
           reviewed_at: new Date().toISOString(),
@@ -85,7 +97,7 @@ const AdminRoleRequestsManager: React.FC = () => {
       if (action === 'approve') {
         const { error: roleError } = await supabase
           .from('user_roles')
-          .update({ role: 'admin' })
+          .update({ role: 'admin' as any })
           .eq('user_id', request.user_id);
 
         if (roleError) throw roleError;

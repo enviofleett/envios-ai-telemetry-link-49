@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .from('user_roles')
             .insert({
               user_id: authUserId,
-              role: 'user'
+              role: 'user' as any
             });
         }
 
@@ -182,13 +182,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .from('user_roles')
         .insert({
           user_id: data.user.id, // Use auth user ID directly
-          role: finalRole
+          role: finalRole as any
         });
 
       // If admin role was requested, create admin request record
       if (role === 'admin') {
         await supabase
-          .from('admin_role_requests')
+          .from('admin_role_requests' as any)
           .insert({
             user_id: data.user.id,
             requested_role: 'admin',
