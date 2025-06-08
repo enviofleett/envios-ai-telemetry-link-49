@@ -29,6 +29,7 @@ const WorkshopManagement: React.FC = () => {
     rating: 4.5,
     reviewCount: 128,
     activationFee: 99.99,
+    connectionFee: 99.99,
     operatingHours: '8:00 AM - 6:00 PM',
     verified: true
   };
