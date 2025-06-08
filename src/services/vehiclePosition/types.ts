@@ -6,3 +6,10 @@ export interface SessionValidationResult {
   expiresAt?: string;
   token?: string;
 }
+
+export interface SyncMetrics {
+  totalVehicles: number;
+  positionsUpdated: number;
+  errors: number;
+  lastSyncTime: Date;
+}

@@ -86,15 +86,33 @@ export const useOptimizedVehicleData = (params: UseOptimizedVehicleDataParams = 
 
         console.log(`✅ Vehicle data fetched via direct access: ${vehicles?.length || 0} vehicles`);
 
-        // Transform vehicle data with proper type checking
-        const optimizedVehicles: OptimizedVehicle[] = (vehicles || []).map(vehicle => ({
-          id: vehicle.id,
-          device_id: vehicle.device_id || '',
-          device_name: vehicle.device_name || 'Unknown Device',
-          status: (vehicle.status === 'online' || vehicle.status === 'offline') ? vehicle.status : 'offline',
-          last_position: vehicle.last_position || undefined,
-          assigned_user: vehicle.assigned_user || undefined
-        }));
+        // Transform vehicle data with proper type checking and safe parsing
+        const optimizedVehicles: OptimizedVehicle[] = (vehicles || []).map(vehicle => {
+          // Safely parse last_position if it's a JSON string or object
+          let lastPosition: OptimizedVehicle['last_position'] = undefined;
+          
+          if (vehicle.last_position) {
+            try {
+              if (typeof vehicle.last_position === 'string') {
+                lastPosition = JSON.parse(vehicle.last_position);
+              } else if (typeof vehicle.last_position === 'object') {
+                lastPosition = vehicle.last_position as OptimizedVehicle['last_position'];
+              }
+            } catch (error) {
+              console.warn('Failed to parse last_position for vehicle:', vehicle.device_id, error);
+              lastPosition = undefined;
+            }
+          }
+
+          return {
+            id: vehicle.id,
+            device_id: vehicle.device_id || '',
+            device_name: vehicle.device_name || 'Unknown Device',
+            status: (vehicle.status === 'online' || vehicle.status === 'offline') ? vehicle.status : 'offline',
+            last_position: lastPosition,
+            assigned_user: vehicle.assigned_user || undefined
+          };
+        });
 
         return {
           vehicles: optimizedVehicles,
