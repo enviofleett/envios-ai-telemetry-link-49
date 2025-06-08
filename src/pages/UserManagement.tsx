@@ -3,7 +3,7 @@ import React from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { Users } from 'lucide-react';
-import SimpleUserManagement from '@/components/users/SimpleUserManagement';
+import EnhancedUserManagement from '@/components/users/EnhancedUserManagement';
 
 const UserManagement: React.FC = () => {
   return (
@@ -15,12 +15,12 @@ const UserManagement: React.FC = () => {
             <div>
               <h1 className="text-3xl font-bold">User Management</h1>
               <p className="text-sm text-muted-foreground">
-                Manage system users, roles, and permissions
+                Manage user registrations, roles, and permissions
               </p>
             </div>
           </div>
           
-          <SimpleUserManagement />
+          <EnhancedUserManagement />
         </div>
       </Layout>
     </ProtectedRoute>
