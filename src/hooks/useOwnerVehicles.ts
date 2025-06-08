@@ -4,9 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData } from '@/types/owner';
 
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery<VehicleData[], Error>({
+  const queryResult = useQuery({
     queryKey: ['owner-vehicles', ownerId],
-    queryFn: async (): Promise<VehicleData[]> => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('vehicles')
         .select('device_id, device_name, status, created_at')
@@ -21,4 +21,6 @@ export const useOwnerVehicles = (ownerId: string) => {
     },
     enabled: !!ownerId,
   });
+
+  return queryResult;
 };
