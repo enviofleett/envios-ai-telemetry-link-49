@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +20,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { MerchantAnalytics } from './MerchantAnalytics';
+import { MerchantOrderManagement } from './MerchantOrderManagement';
 
 interface MerchantStats {
   totalSales: number;
@@ -194,27 +194,7 @@ export const MerchantDashboard: React.FC = () => {
   }
 
   if (activeTab === 'orders') {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Order Management</h2>
-            <p className="text-muted-foreground">Manage customer orders and validations</p>
-          </div>
-          <Button onClick={() => setActiveTab('overview')}>
-            Back to Dashboard
-          </Button>
-        </div>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center py-8 text-muted-foreground">
-              <ShoppingCart className="h-12 w-12 mx-auto mb-4" />
-              <p>Order management interface coming soon</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <MerchantOrderManagement />;
   }
 
   if (activeTab === 'settings') {
