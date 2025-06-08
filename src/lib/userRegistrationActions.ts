@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client'
 import { userRegistrationSchema, otpVerificationSchema, passwordSetupSchema } from './validationSchemas'
 import { z } from 'zod'

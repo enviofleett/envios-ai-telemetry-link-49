@@ -19,11 +19,13 @@ const UserRegistrationForm: React.FC = () => {
   const [error, setError] = useState('');
   const { toast } = useToast();
 
-  const handleRegistration = async (formData: FormData) => {
+  const handleRegistration = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setIsLoading(true);
     setError('');
     
     try {
+      const formData = new FormData(event.currentTarget);
       const result = await registerUser(formData);
       
       if (result.success) {
@@ -47,11 +49,13 @@ const UserRegistrationForm: React.FC = () => {
     }
   };
 
-  const handleOTPVerification = async (formData: FormData) => {
+  const handleOTPVerification = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setIsLoading(true);
     setError('');
     
     try {
+      const formData = new FormData(event.currentTarget);
       formData.append('email', email);
       const result = await verifyOTP(formData);
       
@@ -72,11 +76,13 @@ const UserRegistrationForm: React.FC = () => {
     }
   };
 
-  const handlePasswordSetup = async (formData: FormData) => {
+  const handlePasswordSetup = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setIsLoading(true);
     setError('');
     
     try {
+      const formData = new FormData(event.currentTarget);
       formData.append('email', email);
       const result = await setPassword(formData);
       
@@ -133,7 +139,7 @@ const UserRegistrationForm: React.FC = () => {
         )}
 
         {currentStep === 'registration' && (
-          <form action={handleRegistration} className="space-y-4">
+          <form onSubmit={handleRegistration} className="space-y-4">
             <div>
               <Label htmlFor="name">Full Name</Label>
               <Input id="name" name="name" required />
@@ -177,7 +183,7 @@ const UserRegistrationForm: React.FC = () => {
         )}
 
         {currentStep === 'otp' && (
-          <form action={handleOTPVerification} className="space-y-4">
+          <form onSubmit={handleOTPVerification} className="space-y-4">
             <div>
               <Label htmlFor="otp">OTP Code</Label>
               <Input 
@@ -202,7 +208,7 @@ const UserRegistrationForm: React.FC = () => {
         )}
 
         {currentStep === 'password' && (
-          <form action={handlePasswordSetup} className="space-y-4">
+          <form onSubmit={handlePasswordSetup} className="space-y-4">
             <div>
               <Label htmlFor="password">Password</Label>
               <Input 
