@@ -1,8 +1,9 @@
 
-import { HomeIcon, Settings, Car, Navigation, BarChart3, ShoppingCart, Users, FileText } from "lucide-react";
+import { HomeIcon, Settings, Car, Navigation, BarChart3, ShoppingCart, Users, FileText, CheckCircle } from "lucide-react";
 import Index from "./pages/Index";
 import UserManagement from "./pages/UserManagement";
 import VehicleManagement from "./pages/VehicleManagement";
+import VehicleInspection from "./pages/VehicleInspection";
 import LiveTracking from "./pages/LiveTracking";
 import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
 import Reports from "./pages/Reports";
@@ -26,6 +27,12 @@ export const navItems = [
     to: "/vehicles",
     icon: <Car className="h-4 w-4" />,
     page: <VehicleManagement />,
+  },
+  {
+    title: "Vehicle Inspections",
+    to: "/vehicle-inspections",
+    icon: <CheckCircle className="h-4 w-4" />,
+    page: <VehicleInspection />,
   },
   {
     title: "Live Tracking",
