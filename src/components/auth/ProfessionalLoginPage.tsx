@@ -315,26 +315,11 @@ const ProfessionalLoginPage: React.FC = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="company">Company</Label>
+                        
                         
                       </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="userType">User Type</Label>
-                        <Select value={signupData.userType} onValueChange={value => setSignupData({
-                      ...signupData,
-                      userType: value
-                    })} disabled={isLoading}>
-                          <SelectTrigger className="h-11">
-                            <SelectValue placeholder="Select your role" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {userTypes.map(type => <SelectItem key={type.value} value={type.value}>
-                                {type.label}
-                              </SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      
 
                       <div className="space-y-2">
                         <Label htmlFor="package">Package</Label>
