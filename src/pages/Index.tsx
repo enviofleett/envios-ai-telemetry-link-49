@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { Layout } from '@/components/Layout';
-import { UnifiedDashboard } from '@/components/UnifiedDashboard';
+import Layout from '@/components/Layout';
+import UnifiedDashboard from '@/components/UnifiedDashboard';
 import { PerformanceWidget } from '@/components/performance/PerformanceWidget';
 
 const Index = () => {

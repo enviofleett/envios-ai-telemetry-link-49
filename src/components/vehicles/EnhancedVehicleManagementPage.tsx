@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { VehicleStatsCards } from './VehicleStatsCards';
 import { VehicleFilters } from './VehicleFilters';
 import { VehicleTable } from './VehicleTable';
