@@ -1,9 +1,9 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { unifiedGP51SessionManager, GP51SessionInfo, SessionHealth } from '@/services/unifiedGP51SessionManager';
+import { unifiedGP51SessionManager, GP51Session, SessionHealth } from '@/services/gp51/UnifiedSessionManager';
 
 interface GP51SessionContextType {
-  session: GP51SessionInfo | null;
+  session: GP51Session | null;
   health: SessionHealth | null;
   isLoading: boolean;
   error: string | null;
@@ -19,7 +19,7 @@ interface GP51SessionProviderProps {
 }
 
 export const GP51SessionProvider: React.FC<GP51SessionProviderProps> = ({ children }) => {
-  const [session, setSession] = useState<GP51SessionInfo | null>(null);
+  const [session, setSession] = useState<GP51Session | null>(null);
   const [health, setHealth] = useState<SessionHealth | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

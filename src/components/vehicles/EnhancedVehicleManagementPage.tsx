@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +11,7 @@ import { QuickActionsPanel } from './QuickActionsPanel';
 import { useOptimizedVehicleData } from '@/hooks/useOptimizedVehicleData';
 import { useEnhancedVehicleData } from '@/hooks/useEnhancedVehicleData';
 import { useClientPerformanceMonitor } from '@/hooks/useClientPerformanceMonitor';
+import { logger } from '@/services/logging/ProductionLogger';
 
 export interface EnhancedVehicle {
   deviceid: string;
@@ -54,10 +54,10 @@ export const EnhancedVehicleManagementPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
 
-  // Performance monitoring
+  // Performance monitoring with reduced logging
   const { trackComponentRender } = useClientPerformanceMonitor();
 
-  // Track component render performance
+  // Track component render performance (only in development)
   useEffect(() => {
     const startTime = performance.now();
     return () => {
@@ -149,10 +149,15 @@ export const EnhancedVehicleManagementPage: React.FC = () => {
   };
 
   const handleRefresh = async () => {
-    await Promise.all([
-      refetch(),
-      forceSync()
-    ]);
+    try {
+      await Promise.all([
+        refetch(),
+        forceSync()
+      ]);
+      logger.info('VehicleManagement', 'Data refresh completed successfully');
+    } catch (error) {
+      logger.error('VehicleManagement', 'Failed to refresh data', error);
+    }
   };
 
   return (

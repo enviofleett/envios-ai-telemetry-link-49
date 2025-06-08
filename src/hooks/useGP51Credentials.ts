@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { unifiedGP51SessionManager } from '@/services/unifiedGP51SessionManager';
+import { unifiedGP51SessionManager } from '@/services/gp51/UnifiedSessionManager';
 
 export const useGP51Credentials = () => {
   const [username, setUsername] = useState('');
@@ -47,7 +47,7 @@ export const useGP51Credentials = () => {
         action: 'save-gp51-credentials',
         username,
         password,
-        userId: envioUser.id // Include user ID for proper linking
+        userId: envioUser.id
       };
 
       if (apiUrl && apiUrl.trim()) {
@@ -69,7 +69,7 @@ export const useGP51Credentials = () => {
       
       toast({ 
         title: 'GP51 Credentials Saved',
-        description: data.message || `Successfully connected to GP51 and linked to your account! Session will be used for vehicle data synchronization.`
+        description: data.message || `Successfully connected to GP51 and linked to your account!`
       });
 
       // Force a session refresh using unified manager

@@ -11,12 +11,12 @@ export const useClientPerformanceMonitor = () => {
     // Initialize performance monitoring
     clientPerformanceMonitor.initialize();
 
-    // Update metrics periodically
+    // Update metrics periodically - reduced frequency for production
     const interval = setInterval(() => {
       setMetrics(clientPerformanceMonitor.getMetrics());
       setComponentMetrics(clientPerformanceMonitor.getComponentMetrics());
       setSummary(clientPerformanceMonitor.getPerformanceSummary());
-    }, 5000);
+    }, 10000); // Increased from 5000 to 10000
 
     return () => {
       clearInterval(interval);
@@ -25,7 +25,10 @@ export const useClientPerformanceMonitor = () => {
   }, []);
 
   const trackComponentRender = (componentName: string, renderTime: number) => {
-    clientPerformanceMonitor.trackComponentRender(componentName, renderTime);
+    // Only track in development to reduce production overhead
+    if (process.env.NODE_ENV === 'development') {
+      clientPerformanceMonitor.trackComponentRender(componentName, renderTime);
+    }
   };
 
   return {
