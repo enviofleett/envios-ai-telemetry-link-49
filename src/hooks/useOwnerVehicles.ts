@@ -10,9 +10,9 @@ export interface OwnerVehicleData {
 }
 
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery<OwnerVehicleData[]>({
+  return useQuery({
     queryKey: ['owner-vehicles', ownerId],
-    queryFn: async () => {
+    queryFn: async (): Promise<OwnerVehicleData[]> => {
       const { data, error } = await supabase
         .from('vehicles')
         .select('device_id, device_name, status, created_at')
@@ -27,8 +27,8 @@ export const useOwnerVehicles = (ownerId: string) => {
         return [];
       }
 
-      // Use explicit type assertion to avoid deep type instantiation
-      return (data as any[]).map((item: any): OwnerVehicleData => ({
+      // Direct mapping without complex type inference
+      return data.map((item): OwnerVehicleData => ({
         device_id: item.device_id || '',
         device_name: item.device_name || '',
         status: item.status || '',
