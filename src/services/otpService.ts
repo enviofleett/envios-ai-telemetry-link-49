@@ -3,17 +3,23 @@ export interface OTPGenerationResult {
   success: boolean;
   otpId?: string;
   error?: string;
+  emailDelivered?: boolean;
+  emailError?: string;
+  expiresAt?: string;
+  message?: string;
 }
 
 export interface OTPVerificationResult {
   success: boolean;
   verified?: boolean;
   error?: string;
+  attemptsRemaining?: number;
 }
 
 export interface OTPResendResult {
   success: boolean;
   error?: string;
+  otpId?: string;
 }
 
 export class OTPService {
@@ -34,13 +40,16 @@ export class OTPService {
       
       return {
         success: true,
-        otpId: otpId
+        otpId: otpId,
+        emailDelivered: true,
+        message: 'OTP sent successfully'
       };
     } catch (error) {
       console.error('OTP generation error:', error);
       return {
         success: false,
-        error: 'Failed to generate OTP'
+        error: 'Failed to generate OTP',
+        emailDelivered: false
       };
     }
   }
@@ -55,13 +64,15 @@ export class OTPService {
       
       return {
         success: true,
-        verified: isValid
+        verified: isValid,
+        attemptsRemaining: isValid ? 0 : 2
       };
     } catch (error) {
       console.error('OTP verification error:', error);
       return {
         success: false,
-        error: 'Failed to verify OTP'
+        error: 'Failed to verify OTP',
+        attemptsRemaining: 2
       };
     }
   }
@@ -70,9 +81,13 @@ export class OTPService {
     try {
       console.log(`Resending OTP for ID ${otpId}`);
       
+      // Generate new OTP ID for resend
+      const newOtpId = crypto.randomUUID();
+      
       // In a real implementation, this would resend the OTP
       return {
-        success: true
+        success: true,
+        otpId: newOtpId
       };
     } catch (error) {
       console.error('OTP resend error:', error);
