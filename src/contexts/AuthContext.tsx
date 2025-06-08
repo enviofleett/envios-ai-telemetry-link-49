@@ -8,6 +8,8 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  isAdmin: boolean;
+  userRole: string | null;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, fullName: string, packageId: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -20,7 +22,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { toast } = useToast();
+
+  // Function to fetch user role
+  const fetchUserRole = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        console.log('No role found for user, defaulting to user role');
+        setUserRole('user');
+        setIsAdmin(false);
+        return;
+      }
+
+      const role = data?.role || 'user';
+      setUserRole(role);
+      setIsAdmin(role === 'admin');
+    } catch (error) {
+      console.error('Error fetching user role:', error);
+      setUserRole('user');
+      setIsAdmin(false);
+    }
+  };
 
   useEffect(() => {
     // Set up auth state listener first
@@ -29,6 +59,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('Auth event:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
+        
+        // Fetch user role when user signs in
+        if (session?.user) {
+          await fetchUserRole(session.user.id);
+        } else {
+          setUserRole(null);
+          setIsAdmin(false);
+        }
+        
         setLoading(false);
 
         // Handle specific auth events
@@ -49,12 +88,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (error) {
         console.error('Error getting session:', error);
       }
       setSession(session);
       setUser(session?.user ?? null);
+      
+      // Fetch user role for existing session
+      if (session?.user) {
+        await fetchUserRole(session.user.id);
+      }
+      
       setLoading(false);
     });
 
@@ -120,6 +165,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (profileError) {
           console.error('Profile creation error:', profileError);
         }
+
+        // Set default role as 'user'
+        const { error: roleError } = await supabase
+          .from('user_roles')
+          .insert({
+            user_id: data.user.id,
+            role: 'user'
+          });
+
+        if (roleError) {
+          console.error('Role creation error:', roleError);
+        }
       }
 
       return { error: null };
@@ -139,6 +196,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('Sign out error:', error);
         throw error;
       }
+      // Clear role state on sign out
+      setUserRole(null);
+      setIsAdmin(false);
     } catch (error) {
       console.error('Unexpected sign out error:', error);
       throw error;
@@ -170,6 +230,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     session,
     loading,
+    isAdmin,
+    userRole,
     signIn,
     signUp,
     signOut,
