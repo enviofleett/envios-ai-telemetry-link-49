@@ -1,58 +1,16 @@
 
 import React, { useState } from 'react';
 import Layout from '@/components/Layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WorkshopMarketplace } from '@/components/admin/WorkshopMarketplace';
 import { WorkshopConnection } from '@/components/admin/WorkshopConnection';
-import { 
-  Calendar, 
-  Wrench, 
-  Clock, 
-  AlertTriangle, 
-  CheckCircle, 
-  Plus,
-  MapPin,
-  Phone
-} from 'lucide-react';
-
-interface MaintenanceItem {
-  id: string;
-  vehicleId: string;
-  plateNumber: string;
-  model: string;
-  serviceType: string;
-  scheduledDate: string;
-  status: 'scheduled' | 'in-progress' | 'completed' | 'overdue';
-  workshop?: string;
-  priority: 'low' | 'medium' | 'high';
-}
-
-interface Workshop {
-  id: string;
-  name: string;
-  representativeName: string;
-  email: string;
-  phone: string;
-  city: string;
-  country: string;
-  serviceTypes: string[];
-  rating: number;
-  reviewCount: number;
-  activationFee: number;
-  operatingHours: string;
-  verified: boolean;
-}
-
-interface Vehicle {
-  id: string;
-  plateNumber: string;
-  model: string;
-  year: number;
-  status: 'active' | 'inactive' | 'maintenance';
-}
+import { MaintenanceStats } from '@/components/maintenance/MaintenanceStats';
+import { MaintenanceList } from '@/components/maintenance/MaintenanceList';
+import { ConnectedWorkshopsList } from '@/components/maintenance/ConnectedWorkshopsList';
+import { MaintenanceHistory } from '@/components/maintenance/MaintenanceHistory';
+import { Plus, MapPin } from 'lucide-react';
+import type { MaintenanceItem, Workshop, Vehicle } from '@/components/maintenance/types';
 
 const mockMaintenanceItems: MaintenanceItem[] = [
   {
@@ -151,34 +109,6 @@ const Maintenance: React.FC = () => {
   const [showWorkshopMarketplace, setShowWorkshopMarketplace] = useState(false);
   const [showWorkshopConnection, setShowWorkshopConnection] = useState(false);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'scheduled':
-        return <Badge className="bg-blue-100 text-blue-800">Scheduled</Badge>;
-      case 'in-progress':
-        return <Badge className="bg-orange-100 text-orange-800">In Progress</Badge>;
-      case 'completed':
-        return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
-      case 'overdue':
-        return <Badge variant="destructive">Overdue</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
-  };
-
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return <Badge variant="destructive">High</Badge>;
-      case 'medium':
-        return <Badge className="bg-yellow-100 text-yellow-800">Medium</Badge>;
-      case 'low':
-        return <Badge className="bg-green-100 text-green-800">Low</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
-  };
-
   const handleWorkshopSelect = (workshop: Workshop) => {
     setSelectedWorkshop(workshop);
     setShowWorkshopMarketplace(false);
@@ -214,53 +144,7 @@ const Maintenance: React.FC = () => {
           </div>
         </div>
 
-        {/* Statistics Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Scheduled</CardTitle>
-              <Calendar className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {mockMaintenanceItems.filter(item => item.status === 'scheduled').length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-              <Wrench className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {mockMaintenanceItems.filter(item => item.status === 'in-progress').length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Overdue</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {mockMaintenanceItems.filter(item => item.status === 'overdue').length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {mockMaintenanceItems.filter(item => item.status === 'completed').length}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <MaintenanceStats maintenanceItems={mockMaintenanceItems} />
 
         <Tabs defaultValue="maintenance" className="w-full">
           <TabsList className="grid w-full grid-cols-3">
@@ -270,103 +154,15 @@ const Maintenance: React.FC = () => {
           </TabsList>
 
           <TabsContent value="maintenance" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Upcoming Maintenance</CardTitle>
-                <CardDescription>
-                  Scheduled maintenance activities for your fleet
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {mockMaintenanceItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Wrench className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">{item.plateNumber} - {item.serviceType}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {item.model} • Scheduled: {item.scheduledDate}
-                          </div>
-                          {item.workshop && (
-                            <div className="text-sm text-muted-foreground flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              {item.workshop}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {getPriorityBadge(item.priority)}
-                        {getStatusBadge(item.status)}
-                        <Button variant="outline" size="sm">
-                          View Details
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <MaintenanceList maintenanceItems={mockMaintenanceItems} />
           </TabsContent>
 
           <TabsContent value="workshops" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Connected Workshops</CardTitle>
-                <CardDescription>
-                  Workshops you're connected to for maintenance services
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {mockWorkshops.map((workshop) => (
-                    <div key={workshop.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Wrench className="h-5 w-5 text-primary" />
-                        </div>
-                        <div>
-                          <div className="font-medium">{workshop.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {workshop.city}, {workshop.country} • Rating: {workshop.rating}★
-                          </div>
-                          <div className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            {workshop.phone}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge className="bg-green-100 text-green-800">Connected</Badge>
-                        <Button variant="outline" size="sm">
-                          View Details
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <ConnectedWorkshopsList workshops={mockWorkshops} />
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Maintenance History</CardTitle>
-                <CardDescription>
-                  Previous maintenance activities and reports
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No maintenance history available</p>
-                </div>
-              </CardContent>
-            </Card>
+            <MaintenanceHistory />
           </TabsContent>
         </Tabs>
 
