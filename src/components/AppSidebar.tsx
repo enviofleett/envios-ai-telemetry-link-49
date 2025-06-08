@@ -1,9 +1,25 @@
 
-import React, { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+"use client"
+
+import {
+  BarChart3,
+  Calendar,
+  Car,
+  Home,
+  Settings,
+  Wrench,
+  Map,
+  Users,
+  Bell,
+  ShoppingCart,
+  Zap,
+  Building2,
+} from "lucide-react"
+
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -11,139 +27,136 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarTrigger,
-  SidebarRail,
   useSidebar,
-  SidebarFooter,
-} from '@/components/ui/sidebar';
-import { 
-  BarChart3, 
-  Navigation, 
-  Users, 
-  Settings, 
-  Database,
-  Car,
-  Home,
-  Cog
-} from 'lucide-react';
-import UserProfile from './UserProfile';
+} from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
 
-const navigation = [
+const menuItems = [
   {
-    title: "Overview",
-    items: [
-      {
-        title: "Dashboard",
-        url: "/",
-        icon: Home,
-      },
-    ],
+    title: "Dashboard",
+    url: "#dashboard",
+    icon: Home,
   },
   {
-    title: "Management",
-    items: [
-      {
-        title: "User Management",
-        url: "/users",
-        icon: Users,
-      },
-      {
-        title: "Live Tracking",
-        url: "/tracking",
-        icon: Navigation,
-      },
-      {
-        title: "Device Configuration",
-        url: "/device-configuration",
-        icon: Cog,
-      },
-      {
-        title: "System Import",
-        url: "/system-import",
-        icon: Database,
-      },
-    ],
+    title: "Vehicles",
+    url: "#vehicles",
+    icon: Car,
   },
   {
-    title: "System",
-    items: [
-      {
-        title: "Settings",
-        url: "/settings",
-        icon: Settings,
-      },
-    ],
+    title: "Maintenance",
+    url: "#maintenance",
+    icon: Wrench,
   },
-];
+  {
+    title: "Workshop Management",
+    url: "#workshop-management",
+    icon: Building2,
+  },
+  {
+    title: "Reports",
+    url: "#reports",
+    icon: BarChart3,
+  },
+  {
+    title: "Tracking",
+    url: "#tracking",
+    icon: Map,
+  },
+  {
+    title: "Marketplace",
+    url: "#marketplace",
+    icon: ShoppingCart,
+  },
+  {
+    title: "Active Services",
+    url: "#active-services",
+    icon: Zap,
+  },
+  {
+    title: "Settings",
+    url: "#settings",
+    icon: Settings,
+  },
+]
+
+const quickActions = [
+  {
+    title: "Schedule Maintenance",
+    icon: Calendar,
+  },
+  {
+    title: "Add Vehicle",
+    icon: Car,
+  },
+  {
+    title: "View Alerts",
+    icon: Bell,
+  },
+]
 
 export function AppSidebar() {
-  const { state } = useSidebar();
-  const location = useLocation();
-  const currentPath = location.pathname;
-
-  const isCollapsed = state === "collapsed";
-  const isActive = (path: string) => currentPath === path;
-
-  const getNavCls = ({ isActive }: { isActive: boolean }) =>
-    isActive 
-      ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold border-r-2 border-sidebar-primary" 
-      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground";
+  const { state } = useSidebar()
 
   return (
-    <Sidebar 
-      variant="inset" 
-      className="border-r border-sidebar-border bg-sidebar"
-      collapsible="icon"
-    >
-      <SidebarHeader className="border-b border-sidebar-border p-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sidebar-primary">
-            <Car className="h-5 w-5 text-sidebar-primary-foreground" />
+    <Sidebar variant="inset">
+      <SidebarHeader>
+        <div className="flex items-center gap-2 px-2 py-2">
+          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">E</span>
           </div>
-          {!isCollapsed && (
-            <div className="flex flex-col">
-              <span className="text-lg font-bold text-sidebar-foreground">FleetIQ</span>
-              <span className="text-sm text-sidebar-foreground/70">Management Platform</span>
+          {state === "expanded" && (
+            <div>
+              <p className="text-sm font-semibold">Envio Fleet</p>
+              <p className="text-xs text-muted-foreground">Management Platform</p>
             </div>
           )}
         </div>
       </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {menuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <a href={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </a>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-      <SidebarContent className="p-4">
-        {navigation.map((section) => (
-          <SidebarGroup key={section.title} className="mb-6">
-            {!isCollapsed && (
-              <SidebarGroupLabel className="text-sidebar-foreground/70 text-xs font-semibold uppercase tracking-wider mb-3">
-                {section.title}
-              </SidebarGroupLabel>
-            )}
+        {state === "expanded" && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Quick Actions</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className="space-y-1">
-                {section.items.map((item) => (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive(item.url)}
-                      className={`h-10 px-3 rounded-lg transition-all duration-200 ${getNavCls({ isActive: isActive(item.url) })}`}
-                    >
-                      <NavLink to={item.url} end className="flex items-center gap-3">
-                        <item.icon className="h-5 w-5 flex-shrink-0" />
-                        {!isCollapsed && <span className="font-medium">{item.title}</span>}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+              <div className="space-y-2 px-2">
+                {quickActions.map((action) => (
+                  <Button key={action.title} variant="outline" size="sm" className="w-full justify-start">
+                    <action.icon className="h-4 w-4 mr-2" />
+                    {action.title}
+                  </Button>
                 ))}
-              </SidebarMenu>
+              </div>
             </SidebarGroupContent>
           </SidebarGroup>
-        ))}
+        )}
       </SidebarContent>
-
-      <SidebarFooter className="p-4 border-t border-sidebar-border">
-        {!isCollapsed && <UserProfile />}
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton>
+              <Users />
+              <span>Fleet Manager</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarFooter>
-      
-      <SidebarRail />
     </Sidebar>
-  );
+  )
 }
