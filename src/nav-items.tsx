@@ -1,61 +1,29 @@
 
-import { HomeIcon, Settings, Car, Navigation, BarChart3, ShoppingCart, Users, FileText, CheckCircle } from "lucide-react";
-import Index from "./pages/Index";
-import UserManagement from "./pages/UserManagement";
-import VehicleManagement from "./pages/VehicleManagement";
-import VehicleInspection from "./pages/VehicleInspection";
-import LiveTracking from "./pages/LiveTracking";
-import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
-import Reports from "./pages/Reports";
-import Marketplace from "./pages/Marketplace";
+import { HomeIcon, Users, Settings, BarChart3 } from "lucide-react";
 
 export const navItems = [
   {
     title: "Dashboard",
     to: "/",
     icon: <HomeIcon className="h-4 w-4" />,
-    page: <Index />,
+    page: null, // Will be handled by the Index route
   },
   {
-    title: "User Management",
+    title: "Users",
     to: "/users",
     icon: <Users className="h-4 w-4" />,
-    page: <UserManagement />,
+    page: null, // Add user management page when needed
   },
   {
-    title: "Vehicle Management",
-    to: "/vehicles",
-    icon: <Car className="h-4 w-4" />,
-    page: <VehicleManagement />,
+    title: "Analytics",
+    to: "/analytics", 
+    icon: <BarChart3 className="h-4 w-4" />,
+    page: null, // Add analytics page when needed
   },
   {
-    title: "Vehicle Inspections",
-    to: "/vehicle-inspections",
-    icon: <CheckCircle className="h-4 w-4" />,
-    page: <VehicleInspection />,
-  },
-  {
-    title: "Live Tracking",
-    to: "/tracking",
-    icon: <Navigation className="h-4 w-4" />,
-    page: <LiveTracking />,
-  },
-  {
-    title: "Enhanced Tracking",
-    to: "/enhanced-tracking",
-    icon: <Navigation className="h-4 w-4" />,
-    page: <EnhancedLiveTracking />,
-  },
-  {
-    title: "Reports",
-    to: "/reports",
-    icon: <FileText className="h-4 w-4" />,
-    page: <Reports />,
-  },
-  {
-    title: "Marketplace",
-    to: "/marketplace",
-    icon: <ShoppingCart className="h-4 w-4" />,
-    page: <Marketplace />,
+    title: "Settings",
+    to: "/settings",
+    icon: <Settings className="h-4 w-4" />,
+    page: null, // Add settings page when needed
   },
 ];
