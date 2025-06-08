@@ -1,0 +1,191 @@
+
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import SystemHealthIndicator from '@/components/admin/SystemHealthIndicator';
+import { useOptimizedVehicleData } from '@/hooks/useOptimizedVehicleData';
+import VehicleDataTable from '@/components/dashboard/VehicleDataTable';
+import { Search, RefreshCw, AlertTriangle, Car, Wifi, WifiOff } from 'lucide-react';
+
+const EnhancedVehicleManagement: React.FC = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showOfflineOnly, setShowOfflineOnly] = useState(false);
+
+  const { 
+    data: vehiclesData, 
+    isLoading, 
+    error, 
+    refetch 
+  } = useOptimizedVehicleData({
+    enabled: true,
+    refreshInterval: 30000
+  });
+
+  const vehicles = vehiclesData?.vehicles || [];
+  
+  // Filter vehicles based on search term and offline filter
+  const filteredVehicles = vehicles.filter(vehicle => {
+    const matchesSearch = !searchTerm || 
+      vehicle.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle.device_id?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesOfflineFilter = !showOfflineOnly || vehicle.status === 'offline';
+    
+    return matchesSearch && matchesOfflineFilter;
+  });
+
+  // Calculate stats
+  const totalVehicles = vehicles.length;
+  const onlineVehicles = vehicles.filter(v => v.status === 'online').length;
+  const offlineVehicles = vehicles.filter(v => v.status === 'offline').length;
+  const vehiclesWithRecentData = vehicles.filter(v => {
+    if (!v.last_position?.updatetime) return false;
+    const lastUpdate = new Date(v.last_position.updatetime);
+    const hoursSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60);
+    return hoursSinceUpdate < 1;
+  }).length;
+
+  const handleRefresh = () => {
+    refetch();
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* System Health Indicator */}
+      <SystemHealthIndicator />
+
+      {/* Enhanced Header with Search and Controls */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Car className="h-6 w-6" />
+              Enhanced Vehicle Management
+              <Badge variant={error ? 'destructive' : 'secondary'}>
+                {isLoading ? 'Loading...' : `${totalVehicles} vehicles`}
+              </Badge>
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant={showOfflineOnly ? "default" : "outline"}
+                size="sm"
+                onClick={() => setShowOfflineOnly(!showOfflineOnly)}
+              >
+                {showOfflineOnly ? <WifiOff className="h-4 w-4 mr-1" /> : <Wifi className="h-4 w-4 mr-1" />}
+                {showOfflineOnly ? 'Show All' : 'Offline Only'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Refresh
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search vehicles by name or ID..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                className="pl-10"
+              />
+            </div>
+            <div className="text-sm text-gray-500">
+              {filteredVehicles.length} of {totalVehicles} vehicles
+            </div>
+          </div>
+
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Failed to load vehicle data. This may be due to GP51 connectivity issues.
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleRefresh}
+                  className="ml-2"
+                >
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {/* Vehicle Stats */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Vehicles</p>
+                  <p className="text-2xl font-bold">{totalVehicles}</p>
+                </div>
+                <Car className="h-8 w-8 text-blue-600" />
+              </div>
+            </div>
+
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Online</p>
+                  <p className="text-2xl font-bold text-green-600">{onlineVehicles}</p>
+                </div>
+                <Wifi className="h-8 w-8 text-green-600" />
+              </div>
+            </div>
+
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Offline</p>
+                  <p className="text-2xl font-bold text-red-600">{offlineVehicles}</p>
+                </div>
+                <WifiOff className="h-8 w-8 text-red-600" />
+              </div>
+            </div>
+
+            <div className="p-4 border rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Recent Data</p>
+                  <p className="text-2xl font-bold text-purple-600">{vehiclesWithRecentData}</p>
+                </div>
+                <RefreshCw className="h-8 w-8 text-purple-600" />
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Enhanced Vehicle Data Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Vehicle Status & Tracking</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <VehicleDataTable vehicles={filteredVehicles} isLoading={isLoading} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+export default EnhancedVehicleManagement;
