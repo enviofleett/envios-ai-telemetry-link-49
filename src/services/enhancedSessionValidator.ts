@@ -20,14 +20,14 @@ export class EnhancedSessionValidator {
   async validateGP51Session(): Promise<EnhancedSessionResult> {
     // Return cached result if recent and valid
     if (this.isCacheValid()) {
-      return this.cachedResult!;
+      return EnhancedSessionValidator.cachedResult!;
     }
 
     // Prevent concurrent validations
     if (EnhancedSessionValidator.validationInProgress) {
       console.log('Session validation already in progress, waiting...');
       await this.waitForValidation();
-      return this.cachedResult || this.createFailureResult('Validation timeout');
+      return EnhancedSessionValidator.cachedResult || this.createFailureResult('Validation timeout');
     }
 
     EnhancedSessionValidator.validationInProgress = true;
@@ -46,7 +46,8 @@ export class EnhancedSessionValidator {
           type: 'connectivity',
           message: 'Database connection failed during session validation',
           details: sessionError,
-          severity: 'critical'
+          severity: 'critical',
+          timestamp: new Date()
         });
 
         return this.createFailureResult('Database connection failed');
@@ -56,7 +57,8 @@ export class EnhancedSessionValidator {
         GP51ErrorHandler.logError({
           type: 'session',
           message: 'No GP51 sessions found in database',
-          severity: 'critical'
+          severity: 'critical',
+          timestamp: new Date()
         });
 
         return this.createFailureResult('No GP51 sessions configured');
@@ -95,7 +97,8 @@ export class EnhancedSessionValidator {
         type: 'authentication',
         message: 'All GP51 sessions failed validation',
         details: { sessionCount: sessions.length },
-        severity: 'critical'
+        severity: 'critical',
+        timestamp: new Date()
       });
 
       return this.createFailureResult('All GP51 sessions failed validation');
@@ -105,7 +108,8 @@ export class EnhancedSessionValidator {
         type: 'api',
         message: 'Session validation failed with exception',
         details: error,
-        severity: 'critical'
+        severity: 'critical',
+        timestamp: new Date()
       });
 
       return this.createFailureResult(`Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -133,7 +137,8 @@ export class EnhancedSessionValidator {
               type: 'api',
               message: `Session validation failed for ${username}`,
               details: error,
-              severity: 'high'
+              severity: 'high',
+              timestamp: new Date()
             });
           }
           continue;
@@ -150,7 +155,8 @@ export class EnhancedSessionValidator {
             type: 'authentication',
             message: `Session authentication failed for ${username}`,
             details: data,
-            severity: 'high'
+            severity: 'high',
+            timestamp: new Date()
           });
         }
 
@@ -161,7 +167,8 @@ export class EnhancedSessionValidator {
             type: 'connectivity',
             message: `Session test connection failed for ${username}`,
             details: testError,
-            severity: 'high'
+            severity: 'high',
+            timestamp: new Date()
           });
         }
       }
@@ -176,12 +183,12 @@ export class EnhancedSessionValidator {
   }
 
   private isCacheValid(): boolean {
-    if (!this.cachedResult || !EnhancedSessionValidator.lastValidation) {
+    if (!EnhancedSessionValidator.cachedResult || !EnhancedSessionValidator.lastValidation) {
       return false;
     }
 
     const cacheAge = Date.now() - EnhancedSessionValidator.lastValidation.getTime();
-    const maxCacheAge = this.cachedResult.valid ? 30000 : 10000; // 30s for valid, 10s for invalid
+    const maxCacheAge = EnhancedSessionValidator.cachedResult.valid ? 30000 : 10000; // 30s for valid, 10s for invalid
 
     return cacheAge < maxCacheAge;
   }

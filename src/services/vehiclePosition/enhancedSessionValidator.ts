@@ -43,7 +43,8 @@ export class GP51SessionValidator {
           type: 'connectivity',
           message: 'Database query failed during session validation',
           details: sessionError,
-          severity: 'critical'
+          severity: 'critical',
+          timestamp: new Date()
         });
         return this.cacheAndReturn(this.createErrorResult('Database connection failed'));
       }
@@ -52,7 +53,8 @@ export class GP51SessionValidator {
         GP51ErrorHandler.logError({
           type: 'session',
           message: 'No GP51 sessions found',
-          severity: 'critical'
+          severity: 'critical',
+          timestamp: new Date()
         });
         return this.cacheAndReturn(this.createErrorResult('No GP51 sessions configured'));
       }
@@ -88,7 +90,8 @@ export class GP51SessionValidator {
         type: 'session',
         message: 'All GP51 sessions expired or invalid',
         details: { sessionCount: sessions.length },
-        severity: 'critical'
+        severity: 'critical',
+        timestamp: new Date()
       });
 
       return this.cacheAndReturn(this.createErrorResult('All GP51 sessions expired'));
@@ -98,7 +101,8 @@ export class GP51SessionValidator {
         type: 'api',
         message: 'Session validation exception',
         details: error,
-        severity: 'critical'
+        severity: 'critical',
+        timestamp: new Date()
       });
 
       return this.cacheAndReturn(this.createErrorResult(`Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
@@ -120,7 +124,8 @@ export class GP51SessionValidator {
           type: 'authentication',
           message: 'Session refresh failed',
           details: error || data,
-          severity: 'high'
+          severity: 'high',
+          timestamp: new Date()
         });
         return this.createErrorResult('Session refresh failed');
       }
@@ -140,7 +145,8 @@ export class GP51SessionValidator {
         type: 'api',
         message: 'Session refresh exception',
         details: error,
-        severity: 'high'
+        severity: 'high',
+        timestamp: new Date()
       });
       return this.createErrorResult(`Refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

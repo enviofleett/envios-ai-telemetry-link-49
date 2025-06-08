@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import SystemHealthIndicator from '@/components/admin/SystemHealthIndicator';
 import { useOptimizedVehicleData } from '@/hooks/useOptimizedVehicleData';
-import VehicleDataTable from '@/components/dashboard/VehicleDataTable';
 import { Search, RefreshCw, AlertTriangle, Car, Wifi, WifiOff } from 'lucide-react';
 
 const EnhancedVehicleManagement: React.FC = () => {
@@ -181,7 +180,41 @@ const EnhancedVehicleManagement: React.FC = () => {
           <CardTitle>Vehicle Status & Tracking</CardTitle>
         </CardHeader>
         <CardContent>
-          <VehicleDataTable vehicles={filteredVehicles} isLoading={isLoading} />
+          {isLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-4"></div>
+              <span>Loading vehicles...</span>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredVehicles.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  {searchTerm || showOfflineOnly ? 'No vehicles match your filters' : 'No vehicles found'}
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {filteredVehicles.map((vehicle) => (
+                    <div key={vehicle.id} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-medium">{vehicle.device_name}</h3>
+                          <p className="text-sm text-gray-500">ID: {vehicle.device_id}</p>
+                        </div>
+                        <Badge variant={vehicle.status === 'online' ? 'default' : 'secondary'}>
+                          {vehicle.status}
+                        </Badge>
+                      </div>
+                      {vehicle.last_position && (
+                        <div className="mt-2 text-xs text-gray-500">
+                          Last update: {new Date(vehicle.last_position.updatetime).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
