@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -173,7 +172,7 @@ export const AdminMerchantManagement: React.FC = () => {
           m.id === selectedMerchant.id
             ? {
                 ...m,
-                status: approvalAction,
+                status: approvalAction === "approve" ? "approved" : "rejected",
                 rejectionReason: approvalAction === "reject" ? rejectionReason : undefined,
               }
             : m,

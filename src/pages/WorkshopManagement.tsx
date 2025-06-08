@@ -4,11 +4,11 @@ import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { Wrench } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import WorkshopDashboard from '@/components/admin/WorkshopDashboard';
-import WorkshopRegistration from '@/components/admin/WorkshopRegistration';
-import WorkshopConnection from '@/components/admin/WorkshopConnection';
-import WorkshopActivation from '@/components/admin/WorkshopActivation';
-import WorkshopMarketplace from '@/components/admin/WorkshopMarketplace';
+import { WorkshopDashboard } from '@/components/admin/WorkshopDashboard';
+import { WorkshopRegistration } from '@/components/admin/WorkshopRegistration';
+import { WorkshopConnection } from '@/components/admin/WorkshopConnection';
+import { WorkshopActivation } from '@/components/admin/WorkshopActivation';
+import { WorkshopMarketplace } from '@/components/admin/WorkshopMarketplace';
 import AdminMerchantManagement from '@/components/admin/AdminMerchantManagement';
 
 const WorkshopManagement: React.FC = () => {
