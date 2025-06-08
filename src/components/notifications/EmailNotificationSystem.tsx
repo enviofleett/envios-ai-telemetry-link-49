@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useState, useEffect } from 'react';
@@ -212,6 +211,14 @@ export function EmailNotificationSystem() {
     }
   }, [serviceEmailLogs]);
 
+  const handleRefreshLogs = async () => {
+    try {
+      await refreshLogs();
+    } catch (error) {
+      console.error('Failed to refresh logs:', error);
+    }
+  };
+
   const handleEditTemplate = (template: EmailTemplate) => {
     setEditingTemplate({ ...template });
     setShowTemplateEditor(true);
@@ -379,7 +386,7 @@ export function EmailNotificationSystem() {
           <p className="text-muted-foreground">Manage email templates and notification settings for Envio platform</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={refreshLogs} disabled={isLoadingLogs}>
+          <Button variant="outline" onClick={handleRefreshLogs} disabled={isLoadingLogs}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingLogs ? 'animate-spin' : ''}`} />
             Refresh Logs
           </Button>

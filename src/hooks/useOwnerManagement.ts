@@ -30,7 +30,7 @@ export const useOwnerManagement = () => {
   // Fetch all owners (users who have vehicles assigned)
   const ownersQuery = useQuery({
     queryKey: ['vehicle-owners'],
-    queryFn: async () => {
+    queryFn: async (): Promise<EnvioUser[]> => {
       const { data, error } = await supabase
         .from('envio_users')
         .select(`
@@ -62,7 +62,7 @@ export const useOwnerManagement = () => {
   const useOwnerVehicles = (ownerId: string) => {
     return useQuery({
       queryKey: ['owner-vehicles', ownerId],
-      queryFn: async () => {
+      queryFn: async (): Promise<VehicleData[]> => {
         const { data, error } = await supabase
           .from('vehicles')
           .select(`

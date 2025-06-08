@@ -41,7 +41,12 @@ export const useEnhancedEmailService = () => {
         throw error;
       }
 
-      return (data || []) as EmailLog[];
+      // Transform data to match interface, providing defaults for missing fields
+      return (data || []).map(log => ({
+        ...log,
+        delivered_at: log.delivered_at || null,
+        updated_at: log.updated_at || log.created_at
+      })) as EmailLog[];
     },
     refetchInterval: 30000, // Refresh every 30 seconds
   });
