@@ -192,7 +192,7 @@ export const useOwnerManagement = () => {
 
 // Separate hook for owner vehicles to avoid type conflicts
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery({
+  return useQuery<VehicleData[], Error>({
     queryKey: ['owner-vehicles', ownerId] as const,
     queryFn: async (): Promise<VehicleData[]> => {
       const { data, error } = await supabase
