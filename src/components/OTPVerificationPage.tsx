@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { OTPService } from '@/services/otpService';
-import { Loader2, Shield, Clock, RefreshCw } from 'lucide-react';
+import { Mail, Shield, Timer, RefreshCw } from 'lucide-react';
 import Loading from '@/components/Loading';
 
 interface OTPVerificationPageProps {
@@ -21,46 +22,62 @@ export default function OTPVerificationPage({
   onVerificationSuccess 
 }: OTPVerificationPageProps) {
   const { toast } = useToast();
-  const [otpCode, setOtpCode] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes
+  const [canResend, setCanResend] = useState(false);
   const [attemptsRemaining, setAttemptsRemaining] = useState(3);
   const [currentOtpId, setCurrentOtpId] = useState(otpId);
 
+  // Timer countdown
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+    if (timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
+      return () => clearTimeout(timer);
+    } else {
+      setCanResend(true);
+    }
+  }, [timeLeft]);
 
-    return () => clearInterval(timer);
-  }, [currentOtpId]);
-
+  // Format time display
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleOtpChange = (value: string) => {
-    // Only allow digits and limit to 6 characters
-    const numericValue = value.replace(/\D/g, '').slice(0, 6);
-    setOtpCode(numericValue);
+  // Handle OTP input
+  const handleOtpChange = (index: number, value: string) => {
+    if (value.length > 1) return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      const nextInput = document.getElementById(`otp-${index + 1}`);
+      nextInput?.focus();
+    }
   };
 
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  // Handle backspace
+  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      const prevInput = document.getElementById(`otp-${index - 1}`);
+      prevInput?.focus();
+    }
+  };
+
+  // Verify OTP
+  const handleVerifyOTP = async () => {
+    const otpCode = otp.join('');
+
     if (otpCode.length !== 6) {
       toast({
         title: "Invalid OTP",
-        description: "Please enter a 6-digit verification code",
+        description: "Please enter the complete 6-digit code",
         variant: "destructive"
       });
       return;
@@ -98,7 +115,7 @@ export default function OTPVerificationPage({
           setAttemptsRemaining(result.attemptsRemaining);
         }
         
-        setOtpCode('');
+        setOtp(['', '', '', '', '', '']);
       }
     } catch (error) {
       console.error('OTP verification error:', error);
@@ -112,6 +129,7 @@ export default function OTPVerificationPage({
     }
   };
 
+  // Resend OTP
   const handleResendOTP = async () => {
     if (!currentOtpId) {
       toast({
@@ -131,7 +149,8 @@ export default function OTPVerificationPage({
         setCurrentOtpId(result.otpId);
         setTimeLeft(600); // Reset timer
         setAttemptsRemaining(3); // Reset attempts
-        setOtpCode('');
+        setOtp(['', '', '', '', '', '']);
+        setCanResend(false);
         
         toast({
           title: "OTP Resent",
@@ -163,92 +182,104 @@ export default function OTPVerificationPage({
   const maskedEmail = email.replace(/(.{2})(.*)(@.*)/, '$1***$3');
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900">Verify Your Email</h1>
-          <p className="mt-2 text-gray-600">
-            Enter the verification code sent to your email
-          </p>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-blue-500" />
-              Email Verification
-            </CardTitle>
-            <p className="text-sm text-gray-600">
-              Code sent to {maskedEmail}
-            </p>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleVerifyOTP} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="otpCode">Verification Code</Label>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Shield className="h-6 w-6" />
+          </div>
+          <CardTitle>Verify Your Email</CardTitle>
+          <CardDescription>
+            We've sent a 6-digit verification code to
+            <br />
+            <strong>{maskedEmail}</strong>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* OTP Input */}
+          <div>
+            <Label className="text-center block mb-4">Enter Verification Code</Label>
+            <div className="flex justify-center gap-2">
+              {otp.map((digit, index) => (
                 <Input
-                  id="otpCode"
+                  key={index}
+                  id={`otp-${index}`}
                   type="text"
-                  value={otpCode}
-                  onChange={(e) => handleOtpChange(e.target.value)}
-                  placeholder="Enter 6-digit code"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleOtpChange(index, e.target.value)}
+                  onKeyDown={(e) => handleKeyDown(index, e)}
+                  className="w-12 h-12 text-center text-lg font-semibold"
                   disabled={isVerifying}
-                  className="text-center text-lg tracking-widest font-mono"
-                  maxLength={6}
-                  required
                 />
-              </div>
+              ))}
+            </div>
+          </div>
 
-              <div className="flex items-center justify-between text-sm text-gray-500">
-                <div className="flex items-center gap-1">
-                  <Clock className="h-4 w-4" />
-                  <span>Expires in {formatTime(timeLeft)}</span>
-                </div>
-                <span>Attempts: {attemptsRemaining}/3</span>
-              </div>
+          {/* Timer and Attempts */}
+          <div className="text-center space-y-2">
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Timer className="h-4 w-4" />
+              {timeLeft > 0 ? (
+                <span>Code expires in {formatTime(timeLeft)}</span>
+              ) : (
+                <span className="text-red-500">Code has expired</span>
+              )}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Attempts remaining: {attemptsRemaining}/3
+            </div>
+          </div>
 
-              <Button 
-                type="submit" 
-                className="w-full" 
-                disabled={isVerifying || otpCode.length !== 6 || timeLeft === 0}
-              >
-                {isVerifying ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Verifying...
-                  </>
-                ) : (
-                  'Verify Code'
-                )}
-              </Button>
+          {/* Verify Button */}
+          <Button 
+            onClick={handleVerifyOTP} 
+            disabled={isVerifying || otp.join('').length !== 6 || timeLeft === 0}
+            className="w-full"
+          >
+            {isVerifying ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              'Verify Code'
+            )}
+          </Button>
 
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={handleResendOTP}
-                disabled={isResending || timeLeft > 540} // Allow resend only after 1 minute
-                className="w-full"
-              >
-                {isResending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Resending...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Resend Code
-                  </>
-                )}
-              </Button>
+          {/* Resend OTP */}
+          <div className="text-center">
+            <p className="text-sm text-muted-foreground mb-2">Didn't receive the code?</p>
+            <Button
+              variant="ghost"
+              onClick={handleResendOTP}
+              disabled={!canResend || isResending || timeLeft > 540} // Allow resend only after 1 minute
+              className="text-blue-600 hover:text-blue-700"
+            >
+              {isResending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Mail className="h-4 w-4 mr-2" />
+                  Resend Code
+                </>
+              )}
+            </Button>
+          </div>
 
-              <div className="text-xs text-gray-500 text-center">
-                Didn't receive the code? Check your email or try resending after 1 minute.
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+          {/* Help Text */}
+          <Alert>
+            <Mail className="h-4 w-4" />
+            <AlertDescription>
+              Check your spam folder if you don't see the email. The code is valid for 10 minutes.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
     </div>
   );
 }
