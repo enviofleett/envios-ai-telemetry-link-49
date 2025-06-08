@@ -86,12 +86,12 @@ export const useOptimizedVehicleData = (params: UseOptimizedVehicleDataParams = 
 
         console.log(`✅ Vehicle data fetched via direct access: ${vehicles?.length || 0} vehicles`);
 
-        // Transform vehicle data
+        // Transform vehicle data with proper type checking
         const optimizedVehicles: OptimizedVehicle[] = (vehicles || []).map(vehicle => ({
           id: vehicle.id,
           device_id: vehicle.device_id || '',
           device_name: vehicle.device_name || 'Unknown Device',
-          status: vehicle.status || 'offline',
+          status: (vehicle.status === 'online' || vehicle.status === 'offline') ? vehicle.status : 'offline',
           last_position: vehicle.last_position || undefined,
           assigned_user: vehicle.assigned_user || undefined
         }));
