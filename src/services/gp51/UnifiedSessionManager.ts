@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GP51Session {
@@ -34,9 +33,39 @@ export class UnifiedGP51SessionManager {
 
   async validateAndEnsureSession(): Promise<GP51Session | null> {
     try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        this.updateHealth({
+          status: 'auth_error',
+          lastCheck: new Date(),
+          errorMessage: 'User not authenticated',
+          needsRefresh: true
+        });
+        return null;
+      }
+
+      // Get user from envio_users table
+      const { data: envioUser, error: envioUserError } = await supabase
+        .from('envio_users')
+        .select('id, email')
+        .eq('email', user.email)
+        .single();
+
+      if (envioUserError || !envioUser) {
+        this.updateHealth({
+          status: 'auth_error',
+          lastCheck: new Date(),
+          errorMessage: 'User profile not found',
+          needsRefresh: true
+        });
+        return null;
+      }
+
       const { data: sessions, error } = await supabase
         .from('gp51_sessions')
         .select('username, gp51_token, token_expires_at, api_url')
+        .eq('envio_user_id', envioUser.id)
         .order('token_expires_at', { ascending: false })
         .limit(1);
 
@@ -69,6 +98,7 @@ export class UnifiedGP51SessionManager {
         username: session.username,
         expiresAt,
         isValid: true,
+        userId: envioUser.id,
         apiUrl: session.api_url
       };
 
