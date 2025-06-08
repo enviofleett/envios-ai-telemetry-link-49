@@ -1,11 +1,12 @@
 
 import { useMemo } from 'react';
-import { Activity, Shield, Wrench, Settings } from 'lucide-react';
 import { useBillingManagement } from '@/hooks/useBillingManagement';
 import { useOptimizedVehicleData } from '@/hooks/useOptimizedVehicleData';
 import { ActiveService, ServiceUpdateRequest } from '@/types/active-services';
-import { DeviceSubscription } from '@/types/billing';
 import { toast } from 'sonner';
+import { transformSubscriptionToActiveService } from '@/utils/service-data-transformer';
+import { calculateServiceStats } from '@/utils/service-statistics';
+import { mapActiveServiceToSubscriptionStatus } from '@/utils/service-status-mapping';
 
 export const useActiveServices = () => {
   const {
@@ -27,144 +28,24 @@ export const useActiveServices = () => {
   const activeServices = useMemo((): ActiveService[] => {
     if (!subscriptions || !vehicles) return [];
 
-    return subscriptions.map((subscription): ActiveService => {
-      const servicePlan = subscription.service_plan;
-      const subscriptionVehicles = vehicles.filter(v => v.device_id === subscription.device_id);
+    const context = {
+      subscriptions,
+      vehicles,
+      invoices: invoices || [],
+      servicePlans: servicePlans || []
+    };
 
-      // Determine service type based on plan features or name
-      let serviceType: 'telemetry' | 'insurance' | 'parts' | 'platform' = 'telemetry';
-      if (servicePlan?.plan_name.toLowerCase().includes('insurance')) {
-        serviceType = 'insurance';
-      } else if (servicePlan?.plan_name.toLowerCase().includes('parts') || 
-                 servicePlan?.plan_name.toLowerCase().includes('maintenance')) {
-        serviceType = 'parts';
-      } else if (servicePlan?.plan_name.toLowerCase().includes('platform') || 
-                 servicePlan?.plan_name.toLowerCase().includes('api')) {
-        serviceType = 'platform';
-      }
-
-      // Get icon based on service type
-      const getServiceIcon = (type: string) => {
-        switch (type) {
-          case 'telemetry': return Activity;
-          case 'insurance': return Shield;
-          case 'parts': return Wrench;
-          case 'platform': return Settings;
-          default: return Activity;
-        }
-      };
-
-      // Calculate pricing based on billing cycle
-      let monthlyFee = 0;
-      if (servicePlan) {
-        switch (subscription.billing_cycle) {
-          case 'monthly':
-            monthlyFee = servicePlan.price_1_year ? servicePlan.price_1_year / 12 : 0;
-            break;
-          case 'quarterly':
-            monthlyFee = servicePlan.price_1_year ? servicePlan.price_1_year / 4 : 0;
-            break;
-          case 'annual':
-            monthlyFee = servicePlan.price_1_year || 0;
-            break;
-        }
-      }
-
-      // Override with custom pricing if set
-      if (subscription.price_override) {
-        monthlyFee = subscription.price_override;
-      }
-
-      // Apply discount
-      if (subscription.discount_percentage > 0) {
-        monthlyFee = monthlyFee * (1 - subscription.discount_percentage / 100);
-      }
-
-      // Calculate total spent from invoices
-      const serviceInvoices = invoices?.filter(inv => 
-        inv.invoice_data && 
-        JSON.stringify(inv.invoice_data).includes(subscription.id)
-      ) || [];
-      
-      const totalSpent = serviceInvoices
-        .filter(inv => inv.status === 'paid')
-        .reduce((sum, inv) => sum + inv.total_amount, 0);
-
-      // Extract features from service plan
-      const features = servicePlan?.features ? 
-        Object.values(servicePlan.features).filter(f => typeof f === 'string') as string[] :
-        ['Basic monitoring', 'Standard support'];
-
-      // Calculate next billing date
-      const startDate = new Date(subscription.start_date);
-      const nextBillingDate = new Date(startDate);
-      switch (subscription.billing_cycle) {
-        case 'monthly':
-          nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
-          break;
-        case 'quarterly':
-          nextBillingDate.setMonth(nextBillingDate.getMonth() + 3);
-          break;
-        case 'annual':
-          nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
-          break;
-      }
-
-      // Map subscription status to active service status
-      const mapSubscriptionStatus = (status: typeof subscription.subscription_status): ActiveService['status'] => {
-        switch (status) {
-          case 'active': return 'active';
-          case 'suspended': return 'paused';
-          case 'cancelled': return 'expired';
-          case 'expired': return 'expired';
-          default: return 'pending';
-        }
-      };
-
-      return {
-        id: subscription.id,
-        serviceName: servicePlan?.plan_name || 'Unknown Service',
-        serviceType,
-        vehicles: subscriptionVehicles.map(v => ({
-          id: v.id,
-          plateNumber: v.device_name || v.device_id,
-          model: 'Unknown Model',
-          activatedDate: subscription.start_date,
-          status: subscription.subscription_status === 'active' ? 'active' : 'paused'
-        })),
-        status: mapSubscriptionStatus(subscription.subscription_status),
-        activatedDate: subscription.start_date,
-        expiryDate: subscription.end_date,
-        monthlyFee,
-        totalSpent,
-        lastUsed: subscription.subscription_status === 'active' ? '2 hours ago' : '1 week ago',
-        features,
-        icon: getServiceIcon(serviceType),
-        autoRenew: subscription.auto_renewal,
-        nextBillingDate: nextBillingDate.toISOString().split('T')[0],
-        deviceSubscription: subscription,
-        servicePlan
-      };
-    });
+    return subscriptions.map(subscription => 
+      transformSubscriptionToActiveService(subscription, context)
+    );
   }, [subscriptions, servicePlans, vehicles, invoices]);
 
   // Service management functions
   const handleServiceUpdate = async (serviceId: string, updates: ServiceUpdateRequest) => {
     try {
-      // Map active service status back to subscription status
-      const mapActiveServiceStatus = (status: ActiveService['status']): typeof subscriptions[0]['subscription_status'] => {
-        switch (status) {
-          case 'active': return 'active';
-          case 'paused': return 'suspended';
-          case 'expired': return 'expired';
-          case 'pending': return 'suspended';
-          default: return 'active';
-        }
-      };
-
       await updateSubscription(serviceId, {
         auto_renewal: updates.autoRenew,
-        subscription_status: updates.status ? mapActiveServiceStatus(updates.status) : undefined
+        subscription_status: updates.status ? mapActiveServiceToSubscriptionStatus(updates.status) : undefined
       });
       toast.success('Service updated successfully');
     } catch (error) {
@@ -194,30 +75,7 @@ export const useActiveServices = () => {
   };
 
   // Calculate statistics
-  const stats = useMemo(() => {
-    const totalMonthlySpend = activeServices
-      .filter(service => service.status === 'active')
-      .reduce((sum, service) => sum + service.monthlyFee, 0);
-
-    const totalSpent = activeServices
-      .reduce((sum, service) => sum + service.totalSpent, 0);
-
-    const allVehicles = Array.from(
-      new Set(
-        activeServices.flatMap(service =>
-          service.vehicles.map(v => ({ id: v.id, plateNumber: v.plateNumber, model: v.model }))
-        )
-      )
-    );
-
-    return {
-      totalMonthlySpend,
-      totalSpent,
-      allVehicles,
-      activeCount: activeServices.filter(s => s.status === 'active').length,
-      pausedCount: activeServices.filter(s => s.status === 'paused').length
-    };
-  }, [activeServices]);
+  const stats = useMemo(() => calculateServiceStats(activeServices), [activeServices]);
 
   return {
     activeServices,
