@@ -10,9 +10,9 @@ export interface OwnerVehicleData {
 }
 
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery({
+  return useQuery<OwnerVehicleData[], Error>({
     queryKey: ['owner-vehicles', ownerId],
-    queryFn: async () => {
+    queryFn: async (): Promise<OwnerVehicleData[]> => {
       const { data, error } = await supabase
         .from('vehicles')
         .select('device_id, device_name, status, created_at')
@@ -23,15 +23,15 @@ export const useOwnerVehicles = (ownerId: string) => {
         throw error;
       }
 
-      // Transform the data to match our interface without explicit typing that could cause circular references
-      const transformedData = data?.map(item => ({
+      // Simple transformation without complex type inference
+      const result: OwnerVehicleData[] = data ? data.map((item: any) => ({
         device_id: item.device_id,
         device_name: item.device_name,
         status: item.status,
         created_at: item.created_at
-      })) || [];
+      })) : [];
 
-      return transformedData;
+      return result;
     },
     enabled: !!ownerId,
   });
