@@ -40,7 +40,18 @@ const EmailTemplateManager: React.FC = () => {
         .order('template_type');
 
       if (error) throw error;
-      setTemplates(data || []);
+      
+      // Transform the data to match our interface, handling the Json type for placeholders
+      const transformedTemplates = (data || []).map((template: any) => ({
+        ...template,
+        placeholders: Array.isArray(template.placeholders) 
+          ? template.placeholders 
+          : template.placeholders 
+            ? JSON.parse(template.placeholders as string)
+            : []
+      }));
+      
+      setTemplates(transformedTemplates);
     } catch (error) {
       console.error('Failed to load email templates:', error);
       toast({

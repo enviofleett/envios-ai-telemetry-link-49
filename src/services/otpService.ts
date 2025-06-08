@@ -6,6 +6,8 @@ export interface OTPGenerationResult {
   otpId?: string;
   expiresAt?: string;
   error?: string;
+  emailDelivered?: boolean;
+  emailError?: string;
 }
 
 export interface OTPVerificationResult {
