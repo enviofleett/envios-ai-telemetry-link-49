@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -56,6 +55,13 @@ export function DashboardContent({ activeTab }: DashboardContentProps) {
   const activeVehicles = vehicles.filter(v => v.status === 'online').length
   const maintenanceDue = vehicles.filter(v => v.status?.toLowerCase().includes('maintenance')).length
   const offlineVehicles = totalVehicles - activeVehicles
+
+  // Helper function to format location
+  const formatLocation = (location?: { latitude: number; longitude: number } | string) => {
+    if (!location) return 'Unknown';
+    if (typeof location === 'string') return location;
+    return `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`;
+  };
 
   // Default dashboard content
   return (
@@ -160,7 +166,7 @@ export function DashboardContent({ activeTab }: DashboardContentProps) {
               <CardContent>
                 <div className="space-y-4">
                   {vehicles.slice(0, 4).map((vehicle, index) => (
-                    <div key={vehicle.id} className="flex items-center space-x-4">
+                    <div key={vehicle.deviceId} className="flex items-center space-x-4">
                       <div className={`w-2 h-2 rounded-full ${vehicle.status === 'online' ? 'bg-green-500' : 'bg-red-500'}`}></div>
                       <div className="flex-1">
                         <p className="text-sm font-medium">Vehicle {vehicle.deviceName} {vehicle.status === 'online' ? 'is online' : 'went offline'}</p>
@@ -268,7 +274,7 @@ export function DashboardContent({ activeTab }: DashboardContentProps) {
               </TableHeader>
               <TableBody>
                 {vehicles.slice(0, 5).map((vehicle) => (
-                  <TableRow key={vehicle.id}>
+                  <TableRow key={vehicle.deviceId}>
                     <TableCell className="font-medium">{vehicle.deviceName}</TableCell>
                     <TableCell>
                       <Badge className={vehicle.status === 'online' ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
@@ -278,7 +284,7 @@ export function DashboardContent({ activeTab }: DashboardContentProps) {
                     <TableCell>
                       <div className="flex items-center">
                         <MapPin className="mr-2 h-4 w-4 text-muted-foreground" />
-                        {vehicle.location || 'Unknown'}
+                        {formatLocation(vehicle.location)}
                       </div>
                     </TableCell>
                     <TableCell>{vehicle.lastUpdate ? new Date(vehicle.lastUpdate).toLocaleString() : 'No data'}</TableCell>
@@ -559,3 +565,5 @@ export function DashboardContent({ activeTab }: DashboardContentProps) {
     </div>
   )
 }
+
+export default DashboardContent
