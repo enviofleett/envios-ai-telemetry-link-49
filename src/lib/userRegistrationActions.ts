@@ -236,7 +236,7 @@ export async function setPassword(formData: FormData) {
     // Validate data
     const validatedData = passwordSetupSchema.parse(data)
 
-    // Get pending registration
+    // Get pending registration - select all needed columns
     const { data: registration, error: registrationError } = await supabase
       .from('pending_user_registrations')
       .select('*')
