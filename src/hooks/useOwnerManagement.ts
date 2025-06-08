@@ -28,9 +28,9 @@ export const useOwnerManagement = () => {
   const { toast } = useToast();
 
   // Fetch all owners (users who have vehicles assigned)
-  const ownersQuery = useQuery({
+  const ownersQuery = useQuery<EnvioUser[], Error>({
     queryKey: ['vehicle-owners'],
-    queryFn: async (): Promise<EnvioUser[]> => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('envio_users')
         .select(`
@@ -192,9 +192,9 @@ export const useOwnerManagement = () => {
 
 // Separate hook for owner vehicles to avoid type conflicts
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery({
+  return useQuery<VehicleData[], Error>({
     queryKey: ['owner-vehicles', ownerId],
-    queryFn: async (): Promise<VehicleData[]> => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('vehicles')
         .select(`
