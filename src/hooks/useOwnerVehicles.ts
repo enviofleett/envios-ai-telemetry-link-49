@@ -10,7 +10,7 @@ export interface OwnerVehicleData {
 }
 
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery({
+  return useQuery<OwnerVehicleData[]>({
     queryKey: ['owner-vehicles', ownerId],
     queryFn: async () => {
       const { data, error } = await supabase
