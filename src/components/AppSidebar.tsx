@@ -1,24 +1,9 @@
-"use client"
 
-import {
-  BarChart3,
-  Calendar,
-  Car,
-  Home,
-  Settings,
-  Wrench,
-  Map,
-  Users,
-  Bell,
-  ShoppingCart,
-  Building2,
-  CreditCard,
-} from "lucide-react"
-
+import React, { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -26,180 +11,132 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
+  SidebarRail,
   useSidebar,
-} from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
-import { Link, useLocation } from "react-router-dom"
+} from '@/components/ui/sidebar';
+import { 
+  BarChart3, 
+  Navigation, 
+  Users, 
+  Settings, 
+  Database,
+  Car,
+  Home,
+  Cog
+} from 'lucide-react';
 
-const menuItems = [
+const navigation = [
   {
-    title: "Dashboard",
-    url: "/",
-    hash: "#dashboard",
-    icon: Home,
+    title: "Overview",
+    items: [
+      {
+        title: "Dashboard",
+        url: "/",
+        icon: Home,
+      },
+    ],
   },
   {
-    title: "Vehicles",
-    url: "/vehicles",
-    hash: "#vehicles",
-    icon: Car,
+    title: "Management",
+    items: [
+      {
+        title: "User Management",
+        url: "/users",
+        icon: Users,
+      },
+      {
+        title: "Live Tracking",
+        url: "/tracking",
+        icon: Navigation,
+      },
+      {
+        title: "Device Configuration",
+        url: "/device-configuration",
+        icon: Cog,
+      },
+      {
+        title: "System Import",
+        url: "/system-import",
+        icon: Database,
+      },
+    ],
   },
   {
-    title: "Active Services",
-    url: "/services",
-    hash: "#active-services",
-    icon: CreditCard,
+    title: "System",
+    items: [
+      {
+        title: "Settings",
+        url: "/settings",
+        icon: Settings,
+      },
+    ],
   },
-  {
-    title: "Maintenance",
-    url: "/maintenance",
-    hash: "#maintenance",
-    icon: Wrench,
-  },
-  {
-    title: "Workshop Management",
-    url: "/workshop-management",
-    icon: Building2,
-  },
-  {
-    title: "Reports",
-    url: "/reports",
-    hash: "#reports",
-    icon: BarChart3,
-  },
-  {
-    title: "Tracking",
-    url: "/tracking",
-    hash: "#tracking",
-    icon: Map,
-  },
-  {
-    title: "Marketplace",
-    url: "/marketplace",
-    hash: "#marketplace",
-    icon: ShoppingCart,
-  },
-  {
-    title: "Users",
-    url: "/users",
-    icon: Users,
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    hash: "#settings",
-    icon: Settings,
-  },
-]
-
-const quickActions = [
-  {
-    title: "Schedule Maintenance",
-    icon: Calendar,
-    action: () => window.location.hash = '#maintenance'
-  },
-  {
-    title: "Add Vehicle",
-    icon: Car,
-    action: () => window.location.hash = '#vehicles'
-  },
-  {
-    title: "View Alerts",
-    icon: Bell,
-    action: () => console.log('View alerts')
-  },
-]
+];
 
 export function AppSidebar() {
-  const { state } = useSidebar()
-  const location = useLocation()
+  const { state } = useSidebar();
+  const location = useLocation();
+  const currentPath = location.pathname;
 
-  const handleMenuClick = (item: typeof menuItems[0]) => {
-    if (location.pathname === "/" && item.hash) {
-      // If we're on the main dashboard page and the item has a hash, use hash navigation
-      window.location.hash = item.hash
-    } else {
-      // Otherwise, use regular routing
-      window.location.href = item.url
-    }
-  }
+  const isCollapsed = state === "collapsed";
+  const isActive = (path: string) => currentPath === path;
+
+  const getNavCls = ({ isActive }: { isActive: boolean }) =>
+    isActive 
+      ? "bg-blue-50 text-blue-700 font-semibold border-r-2 border-blue-700" 
+      : "text-gray-700 hover:bg-gray-100 hover:text-gray-900";
 
   return (
-    <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-2">
-          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">E</span>
+    <Sidebar 
+      variant="inset" 
+      className="border-r border-gray-200 bg-white w-64"
+      collapsible="icon"
+    >
+      <SidebarHeader className="border-b border-gray-200 p-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600">
+            <Car className="h-5 w-5 text-white" />
           </div>
-          {state === "expanded" && (
-            <div>
-              <p className="text-sm font-semibold">Envio Fleet</p>
-              <p className="text-xs text-muted-foreground">Management Platform</p>
+          {!isCollapsed && (
+            <div className="flex flex-col">
+              <span className="text-lg font-bold text-gray-900">FleetIQ</span>
+              <span className="text-sm text-gray-500">Management Platform</span>
             </div>
           )}
         </div>
       </SidebarHeader>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild={!item.hash || location.pathname !== "/"} 
-                    isActive={location.pathname === item.url}
-                  >
-                    {item.hash && location.pathname === "/" ? (
-                      <button onClick={() => handleMenuClick(item)} className="w-full flex items-center">
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </button>
-                    ) : (
-                      <Link to={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    )}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
 
-        {state === "expanded" && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Quick Actions</SidebarGroupLabel>
+      <SidebarContent className="p-4">
+        {navigation.map((section) => (
+          <SidebarGroup key={section.title} className="mb-6">
+            {!isCollapsed && (
+              <SidebarGroupLabel className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-3">
+                {section.title}
+              </SidebarGroupLabel>
+            )}
             <SidebarGroupContent>
-              <div className="space-y-2 px-2">
-                {quickActions.map((action) => (
-                  <Button 
-                    key={action.title} 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full justify-start"
-                    onClick={action.action}
-                  >
-                    <action.icon className="h-4 w-4 mr-2" />
-                    {action.title}
-                  </Button>
+              <SidebarMenu className="space-y-1">
+                {section.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive(item.url)}
+                      className={`h-10 px-3 rounded-lg transition-all duration-200 ${getNavCls({ isActive: isActive(item.url) })}`}
+                    >
+                      <NavLink to={item.url} end className="flex items-center gap-3">
+                        <item.icon className="h-5 w-5 flex-shrink-0" />
+                        {!isCollapsed && <span className="font-medium">{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 ))}
-              </div>
+              </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        )}
+        ))}
       </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton>
-              <Users />
-              <span>Fleet Manager</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
-  )
+  );
 }

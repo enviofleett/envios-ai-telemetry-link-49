@@ -1,29 +1,31 @@
 
 import React from 'react';
-import Layout from '@/components/Layout';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import { Database } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Navigate } from 'react-router-dom';
 import SystemImportManager from '@/components/admin/SystemImportManager';
 
 const SystemImport: React.FC = () => {
+  const { user } = useAuth();
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
   return (
-    <ProtectedRoute requireAdmin>
-      <Layout>
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <Database className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-3xl font-bold">System Import</h1>
-              <p className="text-sm text-muted-foreground">
-                Import data from GP51 and manage system migrations
-              </p>
-            </div>
-          </div>
-          
-          <SystemImportManager />
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            GP51 System Import
+          </h1>
+          <p className="text-gray-600">
+            Comprehensive data import and management for GP51 platform integration
+          </p>
         </div>
-      </Layout>
-    </ProtectedRoute>
+        
+        <SystemImportManager />
+      </div>
+    </div>
   );
 };
 

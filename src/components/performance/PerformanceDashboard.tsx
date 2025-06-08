@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -198,6 +197,10 @@ export const PerformanceDashboard: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Cache Size</span>
                   <span className="font-mono">{metrics.cache.totalSize} entries</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm">Avg Access Time</span>
+                  <span className="font-mono">{metrics.cache.averageAccessTime.toFixed(2)}ms</span>
                 </div>
               </CardContent>
             </Card>

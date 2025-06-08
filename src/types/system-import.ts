@@ -7,17 +7,6 @@ export interface SystemImportOptions {
   batchSize?: number;
 }
 
-export interface ImportProgress {
-  phase: string;
-  percentage: number;
-  message: string;
-  details?: any;
-  // Additional properties expected by components
-  overallProgress: number;
-  phaseProgress: number;
-  currentOperation: string;
-}
-
 export interface SystemImportProgress {
   phase: string;
   phaseProgress: number;

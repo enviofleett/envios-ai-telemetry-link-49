@@ -8,17 +8,22 @@ import {
 } from 'lucide-react';
 import type { VehicleMetrics } from '@/services/unifiedVehicleData';
 import type { SyncMetrics } from '@/services/vehiclePosition/types';
+import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface LiveTrackingStatsProps {
   metrics: VehicleMetrics;
   syncMetrics: SyncMetrics;
-  liveModeEnabled: boolean;
+  vehiclesByStatus: {
+    online: Vehicle[];
+    offline: Vehicle[];
+    alerts: Vehicle[];
+  };
 }
 
 const LiveTrackingStats: React.FC<LiveTrackingStatsProps> = ({
   metrics,
   syncMetrics,
-  liveModeEnabled
+  vehiclesByStatus
 }) => {
   // Calculate unactivated vehicles (vehicles that have never been online)
   const unactivatedCount = Math.max(0, metrics.total - metrics.online - metrics.offline);
@@ -58,11 +63,6 @@ const LiveTrackingStats: React.FC<LiveTrackingStatsProps> = ({
               <div className="text-2xl font-bold text-primary-dark mb-1">
                 {card.value}
               </div>
-              {liveModeEnabled && index === 0 && (
-                <div className="text-xs text-red-500 font-medium">
-                  LIVE MODE
-                </div>
-              )}
             </CardContent>
           </Card>
         );

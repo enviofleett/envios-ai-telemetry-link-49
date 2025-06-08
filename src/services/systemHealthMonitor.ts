@@ -1,181 +1,346 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { enhancedPollingService } from './enhancedPollingService';
+import { vehiclePositionSyncService } from './vehiclePosition/vehiclePositionSyncService';
+import { unifiedVehicleDataService } from './unifiedVehicleData';
+import { gp51HealthMonitor } from './gp51HealthMonitor';
 
-export interface SystemHealthStatus {
-  database: 'healthy' | 'degraded' | 'down';
-  smtp: 'healthy' | 'degraded' | 'down';
-  gp51: 'healthy' | 'degraded' | 'down';
-  auth: 'healthy' | 'degraded' | 'down';
-  emailVerification: 'healthy' | 'degraded' | 'down';
-  overall: 'healthy' | 'degraded' | 'down';
-  lastChecked: string;
+interface HealthMetric {
+  name: string;
+  status: 'healthy' | 'warning' | 'critical';
+  value: number | string;
+  threshold?: number;
+  lastChecked: Date;
+  message?: string;
+}
+
+interface SystemHealthStatus {
+  overall: 'healthy' | 'warning' | 'critical';
+  metrics: HealthMetric[];
+  alerts: HealthAlert[];
+  uptime: number;
+  responseTime: number;
+}
+
+interface HealthAlert {
+  id: string;
+  type: 'error' | 'warning' | 'info';
+  message: string;
+  timestamp: Date;
+  resolved: boolean;
 }
 
 export class SystemHealthMonitor {
-  static async checkSystemHealth(): Promise<SystemHealthStatus> {
-    const results = await Promise.allSettled([
-      this.checkDatabaseHealth(),
-      this.checkSMTPHealth(),
-      this.checkGP51Health(),
-      this.checkAuthHealth(),
-      this.checkEmailVerificationHealth()
-    ]);
+  private metrics: HealthMetric[] = [];
+  private alerts: HealthAlert[] = [];
+  private monitoringInterval: NodeJS.Timeout | null = null;
+  private startTime = new Date();
+  private subscribers: ((status: SystemHealthStatus) => void)[] = [];
 
-    const [database, smtp, gp51, auth, emailVerification] = results.map(result => 
-      result.status === 'fulfilled' ? result.value : 'down'
-    ) as [string, string, string, string, string];
+  constructor() {
+    this.initializeMonitoring();
+  }
 
-    const healthStatuses = [database, smtp, gp51, auth, emailVerification];
-    const overall = this.calculateOverallHealth(healthStatuses);
+  private initializeMonitoring(): void {
+    console.log('Initializing enhanced system health monitoring...');
+    this.startMonitoring();
+  }
+
+  public startMonitoring(): void {
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+    }
+
+    // Monitor every 30 seconds with enhanced checks
+    this.monitoringInterval = setInterval(() => {
+      this.performHealthChecks();
+    }, 30000);
+
+    // Perform initial check
+    this.performHealthChecks();
+  }
+
+  public stopMonitoring(): void {
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = null;
+    }
+  }
+
+  private async performHealthChecks(): Promise<void> {
+    const startTime = Date.now();
+
+    try {
+      // Check enhanced GP51 platform health
+      await this.checkEnhancedGP51PlatformHealth();
+      
+      // Check database connectivity with enhanced metrics
+      await this.checkEnhancedDatabaseHealth();
+      
+      // Check sync service health
+      await this.checkSyncServiceHealth();
+      
+      // Check memory usage
+      await this.checkMemoryUsage();
+      
+      // Check polling service health
+      await this.checkPollingServiceHealth();
+
+      // Check enhanced vehicle data integrity
+      await this.checkEnhancedVehicleDataIntegrity();
+
+      const responseTime = Date.now() - startTime;
+      this.updateMetric('system_response_time', responseTime, responseTime < 5000 ? 'healthy' : 'warning');
+
+    } catch (error) {
+      console.error('Enhanced health check failed:', error);
+      this.addAlert('error', `Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    this.notifySubscribers();
+  }
+
+  private async checkEnhancedGP51PlatformHealth(): Promise<void> {
+    try {
+      const healthResult = await gp51HealthMonitor.performHealthCheck();
+      
+      // Update GP51 connection status with enhanced details
+      const connectionStatus = healthResult.checks.sessionValidity && healthResult.checks.gp51Connection && healthResult.checks.apiConnectivity ? 'healthy' : 'critical';
+      this.updateMetric('gp51_connection', healthResult.overall, connectionStatus, 
+        `Session: ${healthResult.checks.sessionValidity}, API: ${healthResult.checks.gp51Connection}, Connectivity: ${healthResult.checks.apiConnectivity}`);
+
+      // Update vehicle sync status with position data
+      const syncStatus = healthResult.checks.vehicleSync ? 'healthy' : 'warning';
+      this.updateMetric('gp51_vehicle_sync', `${healthResult.metrics.activeVehicles} active`, syncStatus,
+        `${healthResult.metrics.totalVehicles} total, ${healthResult.metrics.vehiclesWithPositions} with positions`);
+
+      // Update position data quality metric
+      const positionRate = healthResult.metrics.totalVehicles > 0 ? 
+        (healthResult.metrics.vehiclesWithPositions / healthResult.metrics.totalVehicles) * 100 : 0;
+      const positionStatus = positionRate >= 80 ? 'healthy' : positionRate >= 50 ? 'warning' : 'critical';
+      this.updateMetric('vehicle_position_coverage', `${positionRate.toFixed(1)}%`, positionStatus,
+        `${healthResult.metrics.vehiclesWithPositions}/${healthResult.metrics.totalVehicles} vehicles have position data`);
+
+      // Add alerts for critical issues
+      if (healthResult.overall === 'critical') {
+        this.addAlert('error', `GP51 platform critical: ${healthResult.errors.join(', ')}`);
+      } else if (healthResult.overall === 'warning') {
+        this.addAlert('warning', `GP51 platform warning: ${healthResult.errors.join(', ')}`);
+      }
+
+    } catch (error) {
+      this.updateMetric('gp51_connection', 'Error', 'critical', error instanceof Error ? error.message : 'Unknown error');
+      this.addAlert('error', `Enhanced GP51 platform health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async checkEnhancedDatabaseHealth(): Promise<void> {
+    try {
+      const startTime = Date.now();
+      
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('id, gp51_username')
+        .limit(10);
+
+      const queryTime = Date.now() - startTime;
+
+      if (error) {
+        this.updateMetric('database', 'Error', 'critical', error.message);
+        this.addAlert('error', `Enhanced database health check failed: ${error.message}`);
+        return;
+      }
+
+      const status = queryTime < 1000 ? 'healthy' : queryTime < 3000 ? 'warning' : 'critical';
+      this.updateMetric('database', `${queryTime}ms`, status, `Query response time: ${queryTime}ms`);
+
+      // Check user-vehicle association health
+      const uniqueUsers = new Set(data?.map(v => v.gp51_username).filter(Boolean)).size;
+      const associationStatus = uniqueUsers > 0 ? 'healthy' : 'warning';
+      this.updateMetric('user_vehicle_associations', `${uniqueUsers} users`, associationStatus,
+        `Vehicles are associated with ${uniqueUsers} different GP51 users`);
+
+    } catch (error) {
+      this.updateMetric('database', 'Error', 'critical', error instanceof Error ? error.message : 'Unknown error');
+      this.addAlert('error', `Enhanced database unreachable: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async checkEnhancedVehicleDataIntegrity(): Promise<void> {
+    try {
+      const { data: vehicles, error } = await supabase
+        .from('vehicles')
+        .select('id, is_active, updated_at, last_position, gp51_username')
+        .limit(2000); // Increased for better sampling
+
+      if (error) {
+        this.updateMetric('vehicle_data_integrity', 'Error', 'critical', error.message);
+        return;
+      }
+
+      const totalVehicles = vehicles?.length || 0;
+      const activeVehicles = vehicles?.filter(v => v.is_active)?.length || 0;
+      const vehiclesWithUsers = vehicles?.filter(v => v.gp51_username)?.length || 0;
+      const vehiclesWithPositions = vehicles?.filter(v => v.last_position)?.length || 0;
+      
+      const recentlyUpdated = vehicles?.filter(v => {
+        const lastUpdate = new Date(v.updated_at);
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+        return lastUpdate > oneHourAgo;
+      })?.length || 0;
+
+      // Calculate comprehensive integrity score
+      const userAssociationScore = totalVehicles > 0 ? (vehiclesWithUsers / totalVehicles) * 100 : 0;
+      const positionDataScore = totalVehicles > 0 ? (vehiclesWithPositions / totalVehicles) * 100 : 0;
+      const freshnessScore = totalVehicles > 0 ? (recentlyUpdated / totalVehicles) * 100 : 0;
+      
+      const overallIntegrityScore = (userAssociationScore + positionDataScore + freshnessScore) / 3;
+      const status = overallIntegrityScore >= 80 ? 'healthy' : overallIntegrityScore >= 50 ? 'warning' : 'critical';
+      
+      this.updateMetric('vehicle_data_integrity', `${overallIntegrityScore.toFixed(1)}%`, status,
+        `Users: ${userAssociationScore.toFixed(1)}%, Positions: ${positionDataScore.toFixed(1)}%, Freshness: ${freshnessScore.toFixed(1)}%`);
+
+      if (overallIntegrityScore < 50 && totalVehicles > 0) {
+        this.addAlert('warning', `Low vehicle data integrity: ${overallIntegrityScore.toFixed(1)}%`);
+      }
+
+    } catch (error) {
+      this.updateMetric('vehicle_data_integrity', 'Error', 'warning', error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  private async checkSyncServiceHealth(): Promise<void> {
+    try {
+      const syncMetrics = vehiclePositionSyncService.getMetrics();
+      const timeSinceLastSync = Date.now() - syncMetrics.lastSyncTime.getTime();
+      
+      // Consider sync healthy if last sync was within 2 minutes
+      const status = timeSinceLastSync < 120000 ? 'healthy' : timeSinceLastSync < 300000 ? 'warning' : 'critical';
+      
+      this.updateMetric('sync_service', `${Math.round(timeSinceLastSync / 1000)}s ago`, status, 
+        `Last sync: ${syncMetrics.lastSyncTime.toLocaleTimeString()}`);
+
+      if (syncMetrics.errors > 0) {
+        this.addAlert('warning', `Sync service has ${syncMetrics.errors} errors`);
+      }
+
+    } catch (error) {
+      this.updateMetric('sync_service', 'Error', 'critical', error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  private async checkMemoryUsage(): Promise<void> {
+    try {
+      // Estimate memory usage based on data service
+      const vehicleCount = unifiedVehicleDataService.getAllVehicles().length;
+      const estimatedMemory = vehicleCount * 0.5; // Rough estimate in KB
+      
+      const status = estimatedMemory < 1000 ? 'healthy' : estimatedMemory < 5000 ? 'warning' : 'critical';
+      this.updateMetric('memory_usage', `~${estimatedMemory.toFixed(1)}KB`, status, 
+        `Estimated usage for ${vehicleCount} vehicles`);
+
+    } catch (error) {
+      this.updateMetric('memory_usage', 'Error', 'warning', error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  private async checkPollingServiceHealth(): Promise<void> {
+    try {
+      const pollingMetrics = enhancedPollingService.getMetrics();
+      const successRate = pollingMetrics.totalPolls > 0 ? 
+        (pollingMetrics.successfulPolls / pollingMetrics.totalPolls) * 100 : 100;
+      
+      const status = successRate >= 90 ? 'healthy' : successRate >= 70 ? 'warning' : 'critical';
+      
+      this.updateMetric('polling_service', `${successRate.toFixed(1)}%`, status, 
+        `${pollingMetrics.successfulPolls}/${pollingMetrics.totalPolls} successful`);
+
+    } catch (error) {
+      this.updateMetric('polling_service', 'Error', 'critical', error instanceof Error ? error.message : 'Unknown error');
+    }
+  }
+
+  private updateMetric(name: string, value: number | string, status: 'healthy' | 'warning' | 'critical', message?: string): void {
+    const existingIndex = this.metrics.findIndex(m => m.name === name);
+    const metric: HealthMetric = {
+      name,
+      value,
+      status,
+      lastChecked: new Date(),
+      message
+    };
+
+    if (existingIndex >= 0) {
+      this.metrics[existingIndex] = metric;
+    } else {
+      this.metrics.push(metric);
+    }
+  }
+
+  private addAlert(type: 'error' | 'warning' | 'info', message: string): void {
+    const alert: HealthAlert = {
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      message,
+      timestamp: new Date(),
+      resolved: false
+    };
+
+    this.alerts.unshift(alert);
+    
+    // Keep only last 50 alerts
+    if (this.alerts.length > 50) {
+      this.alerts = this.alerts.slice(0, 50);
+    }
+  }
+
+  public getHealthStatus(): SystemHealthStatus {
+    const criticalCount = this.metrics.filter(m => m.status === 'critical').length;
+    const warningCount = this.metrics.filter(m => m.status === 'warning').length;
+    
+    const overall = criticalCount > 0 ? 'critical' : warningCount > 0 ? 'warning' : 'healthy';
+    
+    const uptime = Date.now() - this.startTime.getTime();
+    const responseTimeMetric = this.metrics.find(m => m.name === 'system_response_time');
+    const responseTime = responseTimeMetric ? Number(responseTimeMetric.value) : 0;
 
     return {
-      database: database as any,
-      smtp: smtp as any,
-      gp51: gp51 as any,
-      auth: auth as any,
-      emailVerification: emailVerification as any,
-      overall: overall as any,
-      lastChecked: new Date().toISOString()
+      overall,
+      metrics: [...this.metrics],
+      alerts: this.alerts.filter(a => !a.resolved),
+      uptime,
+      responseTime
     };
   }
 
-  private static async checkDatabaseHealth(): Promise<string> {
-    try {
-      const { data, error } = await supabase
-        .from('envio_users')
-        .select('count(*)', { count: 'exact', head: true });
-      
-      return error ? 'degraded' : 'healthy';
-    } catch (error) {
-      console.error('Database health check failed:', error);
-      return 'down';
-    }
-  }
-
-  private static async checkSMTPHealth(): Promise<string> {
-    try {
-      const { data, error } = await supabase
-        .from('smtp_configurations')
-        .select('is_active')
-        .eq('is_active', true)
-        .single();
-      
-      if (error || !data) return 'down';
-      return 'healthy';
-    } catch (error) {
-      console.error('SMTP health check failed:', error);
-      return 'down';
-    }
-  }
-
-  private static async checkGP51Health(): Promise<string> {
-    try {
-      // This would normally check GP51 API connectivity
-      // For now, we'll check if we have any recent successful sessions
-      const { data, error } = await supabase
-        .from('gp51_sessions')
-        .select('id')
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-        .limit(1);
-      
-      if (error) return 'degraded';
-      return data && data.length > 0 ? 'healthy' : 'degraded';
-    } catch (error) {
-      console.error('GP51 health check failed:', error);
-      return 'down';
-    }
-  }
-
-  private static async checkAuthHealth(): Promise<string> {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      return 'healthy';
-    } catch (error) {
-      console.error('Auth health check failed:', error);
-      return 'down';
-    }
-  }
-
-  private static async checkEmailVerificationHealth(): Promise<string> {
-    try {
-      // Check if email notification system is working
-      const { data, error } = await supabase
-        .from('email_notifications')
-        .select('count(*)', { count: 'exact', head: true });
-      
-      return error ? 'degraded' : 'healthy';
-    } catch (error) {
-      console.error('Email verification health check failed:', error);
-      return 'down';
-    }
-  }
-
-  private static calculateOverallHealth(statuses: string[]): string {
-    const downCount = statuses.filter(s => s === 'down').length;
-    const degradedCount = statuses.filter(s => s === 'degraded').length;
+  public subscribe(callback: (status: SystemHealthStatus) => void): () => void {
+    this.subscribers.push(callback);
     
-    if (downCount > 0) return 'down';
-    if (degradedCount > 0) return 'degraded';
-    return 'healthy';
+    // Send initial status
+    callback(this.getHealthStatus());
+    
+    return () => {
+      const index = this.subscribers.indexOf(callback);
+      if (index > -1) {
+        this.subscribers.splice(index, 1);
+      }
+    };
   }
 
-  static async getHealthMetrics() {
-    try {
-      const health = await this.checkSystemHealth();
-      
-      // Get additional metrics
-      const [userCount, vehicleCount, emailCount] = await Promise.all([
-        this.getUserCount(),
-        this.getVehicleCount(),
-        this.getEmailCount()
-      ]);
+  private notifySubscribers(): void {
+    const status = this.getHealthStatus();
+    this.subscribers.forEach(callback => callback(status));
+  }
 
-      return {
-        ...health,
-        metrics: {
-          totalUsers: userCount,
-          totalVehicles: vehicleCount,
-          emailsSentToday: emailCount
-        }
-      };
-    } catch (error) {
-      console.error('Failed to get health metrics:', error);
-      return null;
+  public resolveAlert(alertId: string): void {
+    const alert = this.alerts.find(a => a.id === alertId);
+    if (alert) {
+      alert.resolved = true;
     }
   }
 
-  private static async getUserCount(): Promise<number> {
-    try {
-      const { count, error } = await supabase
-        .from('envio_users')
-        .select('*', { count: 'exact', head: true });
-      return error ? 0 : count || 0;
-    } catch {
-      return 0;
-    }
-  }
-
-  private static async getVehicleCount(): Promise<number> {
-    try {
-      const { count, error } = await supabase
-        .from('vehicles')
-        .select('*', { count: 'exact', head: true });
-      return error ? 0 : count || 0;
-    } catch {
-      return 0;
-    }
-  }
-
-  private static async getEmailCount(): Promise<number> {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const { count, error } = await supabase
-        .from('email_notifications')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', today);
-      return error ? 0 : count || 0;
-    } catch {
-      return 0;
-    }
+  public clearResolvedAlerts(): void {
+    this.alerts = this.alerts.filter(a => !a.resolved);
   }
 }
+
+export const systemHealthMonitor = new SystemHealthMonitor();

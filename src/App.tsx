@@ -4,100 +4,48 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { GP51AuthProvider } from "@/contexts/GP51AuthContext";
-import { GP51SessionProvider } from "@/contexts/GP51SessionContext";
-import { navItems } from "./nav-items";
+import { AuthProvider } from "@/contexts/AuthContext";
+import Layout from "@/components/Layout";
 import Index from "./pages/Index";
-import GP51Auth from "./pages/GP51Auth";
-import NotFound from "./pages/NotFound";
-import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
-import ProtectedRoute from "./components/ProtectedRoute";
-import StableErrorBoundary from "./components/StableErrorBoundary";
+import Auth from "./pages/Auth";
+import Register from "./pages/Register";
+import UserManagement from "./pages/UserManagement";
+import LiveTracking from "./pages/LiveTracking";
+import Settings from "./pages/Settings";
+import SystemImport from "./pages/SystemImport";
+import PublicRegistration from "./pages/PublicRegistration";
+import SetPassword from "./pages/SetPassword";
+import DeviceConfiguration from "./pages/DeviceConfiguration";
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 
 const queryClient = new QueryClient();
 
-const App = () => {
+function App() {
   return (
-    <StableErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <GP51AuthProvider>
-          <GP51SessionProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <StableErrorBoundary>
-                  <Routes>
-                    {/* GP51 Authentication routes */}
-                    <Route 
-                      path="/auth" 
-                      element={
-                        <StableErrorBoundary>
-                          <GP51Auth />
-                        </StableErrorBoundary>
-                      } 
-                    />
-                    <Route 
-                      path="/login" 
-                      element={
-                        <StableErrorBoundary>
-                          <GP51Auth />
-                        </StableErrorBoundary>
-                      } 
-                    />
-                    
-                    {/* Protected routes */}
-                    <Route path="/enhanced-tracking" element={
-                      <StableErrorBoundary>
-                        <ProtectedRoute>
-                          <EnhancedLiveTracking />
-                        </ProtectedRoute>
-                      </StableErrorBoundary>
-                    } />
-                    
-                    {/* Main navigation items */}
-                    {navItems.map(({ to, page }) => {
-                      return (
-                        <Route 
-                          key={to} 
-                          path={to} 
-                          element={
-                            <StableErrorBoundary>
-                              {page ? (
-                                <ProtectedRoute>
-                                  {page}
-                                </ProtectedRoute>
-                              ) : <NotFound />}
-                            </StableErrorBoundary>
-                          } 
-                        />
-                      );
-                    })}
-                    
-                    {/* Default protected route */}
-                    <Route path="/" element={
-                      <StableErrorBoundary>
-                        <ProtectedRoute>
-                          <Index />
-                        </ProtectedRoute>
-                      </StableErrorBoundary>
-                    } />
-                    
-                    {/* Catch-all for 404 */}
-                    <Route path="*" element={
-                      <StableErrorBoundary>
-                        <NotFound />
-                      </StableErrorBoundary>
-                    } />
-                  </Routes>
-                </StableErrorBoundary>
-              </BrowserRouter>
-            </TooltipProvider>
-          </GP51SessionProvider>
-        </GP51AuthProvider>
-      </QueryClientProvider>
-    </StableErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <Toaster />
+            <ReactQueryDevtools initialIsOpen={false} />
+            <Routes>
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/public-registration" element={<PublicRegistration />} />
+              <Route path="/set-password" element={<SetPassword />} />
+              <Route path="/" element={<Layout><Index /></Layout>} />
+              <Route path="/users" element={<Layout><UserManagement /></Layout>} />
+              <Route path="/tracking" element={<Layout><LiveTracking /></Layout>} />
+              <Route path="/device-configuration" element={<Layout><DeviceConfiguration /></Layout>} />
+              <Route path="/settings" element={<Layout><Settings /></Layout>} />
+              <Route path="/system-import" element={<Layout><SystemImport /></Layout>} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
-};
+}
 
 export default App;

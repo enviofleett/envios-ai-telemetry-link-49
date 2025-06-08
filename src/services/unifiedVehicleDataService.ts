@@ -1,4 +1,4 @@
 
-// Re-export everything from the unified structure for backward compatibility
+// Re-export everything from the new modular structure for backward compatibility
 export { unifiedVehicleDataService, UnifiedVehicleDataService } from './unifiedVehicleData';
-export type { Vehicle, VehicleMetrics as VehicleMetrics, VehicleDataMetrics } from './unifiedVehicleData';
+export type { Vehicle, VehicleMetrics } from './unifiedVehicleData';

@@ -1,7 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { importErrorHandler } from './errorHandler';
-import { gp51SessionValidator } from '../vehiclePosition/sessionValidator';
 
 export interface GP51Session {
   token: string;
@@ -17,32 +16,33 @@ export class GP51SessionManager {
   private isLongRunningOperation = false;
 
   async validateSession(): Promise<boolean> {
+    if (!this.currentSession) {
+      return false;
+    }
+
+    // Check if token is expired or about to expire (within 5 minutes)
+    const now = new Date();
+    const expiryBuffer = new Date(this.currentSession.expiresAt.getTime() - 5 * 60 * 1000);
+    
+    if (now >= expiryBuffer) {
+      console.log('GP51 session expired or about to expire, needs refresh');
+      return false;
+    }
+
+    // Test actual connectivity using the improved test_connection
     try {
-      console.log('GP51SessionManager: Validating session using improved validator...');
-      
-      // Use the improved session validator
-      const validation = await gp51SessionValidator.validateGP51Session();
-      
-      if (validation.valid && validation.token) {
-        // Update our current session with the validated session
-        this.currentSession = {
-          token: validation.token,
-          username: validation.username!,
-          expiresAt: new Date(validation.expiresAt!),
-          isValid: true
-        };
-        
-        console.log(`✅ Session validated successfully for ${validation.username}`);
-        return true;
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: { action: 'test_connection' }
+      });
+
+      if (error || !data?.success) {
+        console.warn('GP51 session validation failed:', error || data);
+        return false;
       }
 
-      console.warn('Session validation failed:', validation.error);
-      this.currentSession = null;
-      return false;
-      
+      return true;
     } catch (error) {
       console.error('GP51 session validation error:', error);
-      this.currentSession = null;
       return false;
     }
   }
@@ -58,8 +58,8 @@ export class GP51SessionManager {
       return this.currentSession;
     }
 
-    // Start session refresh/acquisition
-    this.refreshPromise = this.acquireValidSession();
+    // Start session refresh
+    this.refreshPromise = this.refreshSession();
     
     try {
       const session = await this.refreshPromise;
@@ -71,58 +71,21 @@ export class GP51SessionManager {
     }
   }
 
-  private async acquireValidSession(): Promise<GP51Session> {
-    console.log('Acquiring valid GP51 session...');
-    
-    try {
-      // Use the improved session validator to get a valid session
-      const validation = await gp51SessionValidator.ensureValidSession();
-      
-      if (!validation.valid || !validation.token) {
-        throw new Error(validation.error || 'Failed to acquire valid GP51 session');
-      }
-
-      // Create session object
-      this.currentSession = {
-        token: validation.token,
-        username: validation.username!,
-        expiresAt: new Date(validation.expiresAt!),
-        isValid: true
-      };
-
-      console.log(`✅ Valid GP51 session acquired for user: ${validation.username}`);
-      return this.currentSession;
-
-    } catch (error) {
-      importErrorHandler.logError(
-        'GP51_SESSION_ACQUISITION_FAILED',
-        `Failed to acquire valid GP51 session: ${error.message}`,
-        { error },
-        true
-      );
-      throw error;
-    }
-  }
-
   startLongRunningOperation(): void {
-    console.log('Starting long-running operation with periodic session validation...');
+    console.log('Starting long-running operation with periodic session refresh...');
     this.isLongRunningOperation = true;
     
-    // Validate session every 10 minutes during long operations
+    // Refresh session every 10 minutes during long operations
     this.refreshInterval = window.setInterval(async () => {
       try {
-        console.log('Performing periodic session validation for long-running operation...');
-        const isValid = await this.validateSession();
-        if (!isValid) {
-          console.warn('Session became invalid during long-running operation, attempting to reacquire...');
-          await this.ensureValidSession();
-        }
-        console.log('Periodic session validation completed successfully');
+        console.log('Performing periodic session refresh for long-running operation...');
+        await this.ensureValidSession();
+        console.log('Periodic session refresh completed successfully');
       } catch (error) {
-        console.error('Periodic session validation failed:', error);
+        console.error('Periodic session refresh failed:', error);
         importErrorHandler.logError(
-          'GP51_PERIODIC_VALIDATION_FAILED',
-          `Periodic session validation failed: ${error.message}`,
+          'GP51_PERIODIC_REFRESH_FAILED',
+          `Periodic session refresh failed: ${error.message}`,
           { error },
           true
         );
@@ -140,6 +103,124 @@ export class GP51SessionManager {
     }
   }
 
+  private async refreshSession(): Promise<GP51Session> {
+    console.log('Refreshing GP51 session...');
+    
+    try {
+      // Get the most recent valid GP51 session (not hardcoded to any specific username)
+      const { data: sessionData, error } = await supabase
+        .from('gp51_sessions')
+        .select('username, gp51_token, token_expires_at')
+        .order('created_at', { ascending: false })
+        .order('token_expires_at', { ascending: false })
+        .limit(5); // Get multiple sessions to find a valid one
+
+      if (error || !sessionData || sessionData.length === 0) {
+        throw new Error('No GP51 sessions found. Please authenticate first.');
+      }
+
+      // Find the first non-expired session
+      let validSession = null;
+      const now = new Date();
+      
+      for (const session of sessionData) {
+        const expiresAt = new Date(session.token_expires_at);
+        if (expiresAt > now) {
+          validSession = session;
+          break;
+        }
+      }
+
+      if (!validSession) {
+        throw new Error('All GP51 sessions are expired. Please re-authenticate.');
+      }
+
+      console.log('Using GP51 session for user:', validSession.username);
+      
+      // Try to refresh the existing session
+      const { data: refreshResult, error: refreshError } = await supabase.functions.invoke('gp51-service-management', {
+        body: { 
+          action: 'refresh_session',
+          username: validSession.username,
+          currentToken: validSession.gp51_token
+        }
+      });
+
+      if (refreshError || !refreshResult?.success) {
+        // If refresh fails, try re-authentication
+        console.log('Session refresh failed, attempting re-authentication');
+        return await this.reAuthenticate(validSession.username);
+      }
+
+      // Update current session
+      this.currentSession = {
+        token: refreshResult.token,
+        username: validSession.username,
+        expiresAt: new Date(refreshResult.expiresAt),
+        isValid: true
+      };
+
+      // Update database
+      await supabase
+        .from('gp51_sessions')
+        .update({
+          gp51_token: refreshResult.token,
+          token_expires_at: refreshResult.expiresAt,
+          updated_at: new Date().toISOString()
+        })
+        .eq('username', validSession.username);
+
+      console.log('GP51 session refreshed successfully for user:', validSession.username);
+      return this.currentSession;
+
+    } catch (error) {
+      importErrorHandler.logError(
+        'GP51_SESSION_REFRESH_FAILED',
+        `Failed to refresh GP51 session: ${error.message}`,
+        { error },
+        true
+      );
+      throw error;
+    }
+  }
+
+  private async reAuthenticate(username: string): Promise<GP51Session> {
+    console.log('Re-authenticating with GP51 for user:', username);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: { 
+          action: 'authenticate',
+          username: username,
+          forceReauth: true
+        }
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error || 'GP51 re-authentication failed');
+      }
+
+      this.currentSession = {
+        token: data.token,
+        username: username,
+        expiresAt: new Date(data.expiresAt),
+        isValid: true
+      };
+
+      console.log('GP51 re-authentication successful for user:', username);
+      return this.currentSession;
+
+    } catch (error) {
+      importErrorHandler.logError(
+        'GP51_REAUTH_FAILED',
+        `Failed to re-authenticate with GP51: ${error.message}`,
+        { username, error },
+        false
+      );
+      throw error;
+    }
+  }
+
   async withRetry<T>(operation: (session: GP51Session) => Promise<T>, maxRetries: number = 3): Promise<T> {
     let lastError: Error;
     
@@ -153,7 +234,6 @@ export class GP51SessionManager {
         
         // If it's a session-related error, invalidate current session
         if (this.isSessionError(error)) {
-          console.log('Session error detected, clearing current session');
           this.currentSession = null;
         }
         
@@ -174,8 +254,7 @@ export class GP51SessionManager {
     return errorMessage.includes('session') || 
            errorMessage.includes('authentication') || 
            errorMessage.includes('token') ||
-           errorMessage.includes('unauthorized') ||
-           errorMessage.includes('expired');
+           errorMessage.includes('unauthorized');
   }
 
   getCurrentSession(): GP51Session | null {
@@ -190,31 +269,6 @@ export class GP51SessionManager {
 
   isInLongRunningOperation(): boolean {
     return this.isLongRunningOperation;
-  }
-
-  // Enhanced method for import operations
-  async prepareForImport(): Promise<GP51Session> {
-    console.log('Preparing GP51 session for import operation...');
-    
-    try {
-      // Ensure we have a valid session before starting import
-      const session = await this.ensureValidSession();
-      
-      // Start long-running operation management
-      this.startLongRunningOperation();
-      
-      console.log(`✅ GP51 session ready for import operation (user: ${session.username})`);
-      return session;
-      
-    } catch (error) {
-      console.error('Failed to prepare GP51 session for import:', error);
-      throw new Error(`Import preparation failed: ${error.message}`);
-    }
-  }
-
-  cleanupAfterImport(): void {
-    console.log('Cleaning up GP51 session after import operation...');
-    this.stopLongRunningOperation();
   }
 }
 

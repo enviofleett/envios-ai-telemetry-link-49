@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -23,7 +24,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { fullSystemImportService, SystemImportOptions, ImportProgress } from '@/services/fullSystemImportService';
+import { fullSystemImportService, SystemImportOptions, SystemImportProgress } from '@/services/fullSystemImportService';
 import { validateGP51Configuration } from '@/utils/gp51-validator';
 import ImportProgressMonitor from '@/components/import/ImportProgressMonitor';
 
@@ -46,8 +47,8 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
     batchSize: 50
   });
   const [validationResult, setValidationResult] = useState<any>(null);
-  const [importProgress, setImportProgress] = useState<ImportProgress[]>([]);
-  const [currentProgress, setCurrentProgress] = useState<ImportProgress | null>(null);
+  const [importProgress, setImportProgress] = useState<SystemImportProgress[]>([]);
+  const [currentProgress, setCurrentProgress] = useState<SystemImportProgress | null>(null);
   const [importResult, setImportResult] = useState<any>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [selectedUsernames, setSelectedUsernames] = useState<string>('');
@@ -495,7 +496,16 @@ const FullGP51ImportDialog: React.FC<FullGP51ImportDialogProps> = ({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        {getStepContent()}
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Database className="w-5 h-5" />
+            Full GP51 System Import
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="mt-6">
+          {getStepContent()}
+        </div>
       </DialogContent>
     </Dialog>
   );

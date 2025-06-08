@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -13,7 +14,7 @@ import {
   X,
   RotateCcw
 } from 'lucide-react';
-import { ImportProgress } from '@/types/system-import';
+import { SystemImportProgress } from '@/services/fullSystemImportService';
 import { supabase } from '@/integrations/supabase/client';
 
 interface ImportProgressMonitorProps {
@@ -27,7 +28,7 @@ const ImportProgressMonitor: React.FC<ImportProgressMonitorProps> = ({
   onComplete,
   onCancel
 }) => {
-  const [progress, setProgress] = useState<ImportProgress | null>(null);
+  const [progress, setProgress] = useState<SystemImportProgress | null>(null);
   const [importStatus, setImportStatus] = useState<string>('processing');
   const [error, setError] = useState<string | null>(null);
   const [isMonitoring, setIsMonitoring] = useState(true);
@@ -96,12 +97,10 @@ const ImportProgressMonitor: React.FC<ImportProgressMonitorProps> = ({
   const handleImportUpdate = (importJob: any) => {
     setImportStatus(importJob.status);
     
-    const progressData: ImportProgress = {
+    const progressData: SystemImportProgress = {
       phase: importJob.current_phase || 'Unknown',
-      percentage: importJob.progress_percentage || 0,
-      message: importJob.phase_details || 'Processing...',
-      overallProgress: importJob.progress_percentage || 0,
       phaseProgress: 100,
+      overallProgress: importJob.progress_percentage || 0,
       currentOperation: importJob.phase_details || 'Processing...'
     };
     

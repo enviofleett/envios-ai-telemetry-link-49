@@ -1,197 +1,175 @@
 
 import { corsHeaders } from './cors.ts';
+import { getCurrentUser } from './auth.ts';
+import { getUserWithDetails, getUsersWithPagination, getSystemImportJobs, createSystemImportJob } from './userQueries.ts';
+import { createUser, updateUser, deleteUser } from './userOperations.ts';
+import { getCurrentUserRole, updateUserRole } from './roleOperations.ts';
 
-export async function handleGetRequest(supabase: any, url: URL, currentUserId: string) {
+export async function handleGetRequest(supabase: any, url: URL, currentUserId: string | null) {
+  const pathSegments = url.pathname.split('/').filter(Boolean);
+  
+  // Get pagination parameters
   const page = parseInt(url.searchParams.get('page') || '1');
   const limit = parseInt(url.searchParams.get('limit') || '50');
   const search = url.searchParams.get('search') || '';
-  
-  console.log(`Getting users - page: ${page}, limit: ${limit}, search: ${search}`);
-  
-  try {
-    // Build the base query
-    let query = supabase
-      .from('envio_users')
-      .select(`
-        id,
-        name,
-        email,
-        phone_number,
-        created_at,
-        gp51_username,
-        gp51_user_type,
-        registration_status,
-        user_roles!inner(role),
-        gp51_sessions(
-          id,
-          username,
-          token_expires_at
-        )
-      `)
-      .order('created_at', { ascending: false });
 
-    // Add search filter if provided
-    if (search && search.length >= 2) {
-      query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,gp51_username.ilike.%${search}%`);
+  console.log('Request params:', { page, limit, search, pathSegments });
+
+  // Handle system import jobs endpoint
+  if (pathSegments.includes('system-imports')) {
+    if (!currentUserId) {
+      throw new Error('Authentication required');
+    }
+    return await getSystemImportJobs(supabase, page, limit);
+  }
+
+  // Handle role-specific endpoints
+  if (pathSegments.includes('roles')) {
+    if (!currentUserId) {
+      throw new Error('Authentication required');
     }
 
-    // Get total count for pagination
-    const { count } = await supabase
-      .from('envio_users')
-      .select('*', { count: 'exact', head: true });
-
-    // Apply pagination
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
-    query = query.range(from, to);
-
-    const { data: users, error } = await query;
-
-    if (error) {
-      console.error('Database error:', error);
-      throw new Error(`Database query failed: ${error.message}`);
+    const userId = pathSegments[pathSegments.length - 1];
+    
+    if (userId === 'current') {
+      return getCurrentUserRole(supabase, currentUserId);
     }
+  }
 
-    console.log(`Retrieved ${users?.length || 0} users from database`);
-
-    // Transform the data to match the expected frontend format
-    const transformedUsers = (users || []).map((user: any) => ({
-      id: user.id,
-      name: user.name || 'Unknown',
-      email: user.email || '',
-      phone_number: user.phone_number || '',
-      created_at: user.created_at,
-      gp51_username: user.gp51_username || '',
-      gp51_user_type: user.gp51_user_type || 3,
-      registration_status: user.registration_status || 'pending',
-      assigned_vehicles: [], // Will be populated later if needed
-      user_roles: user.user_roles ? [{ role: user.user_roles.role }] : [{ role: 'user' }],
-      gp51_sessions: user.gp51_sessions || []
-    }));
-
-    const totalPages = Math.ceil((count || 0) / limit);
-
-    return {
-      users: transformedUsers,
-      pagination: {
-        page,
-        limit,
-        total: count || 0,
-        totalPages
-      }
-    };
-  } catch (error: any) {
-    console.error('Error in handleGetRequest:', error);
-    throw new Error(`Failed to fetch users: ${error.message}`);
+  // Get all users or specific user
+  const userId = pathSegments[pathSegments.length - 1];
+  
+  if (userId && userId !== 'user-management') {
+    const user = await getUserWithDetails(supabase, userId);
+    return { user };
+  } else {
+    return await getUsersWithPagination(supabase, page, limit, search);
   }
 }
 
-export async function handlePostRequest(supabase: any, req: Request, currentUserId: string) {
-  const body = await req.json();
-  const { name, email, phone_number, gp51_user_type, role } = body;
+export async function handlePostRequest(supabase: any, req: Request, currentUserId: string | null) {
+  const url = new URL(req.url);
+  const pathSegments = url.pathname.split('/').filter(Boolean);
+  const requestBody = await req.text();
+  
+  if (!requestBody) {
+    throw new Error('Request body is required');
+  }
 
-  console.log('Creating new user:', { name, email, phone_number, gp51_user_type, role });
+  const bodyData = JSON.parse(requestBody);
 
-  try {
-    // Create user in envio_users
-    const { data: newUser, error: userError } = await supabase
-      .from('envio_users')
-      .insert({
-        name,
-        email,
-        phone_number,
-        gp51_user_type: gp51_user_type || 3,
-        registration_status: 'approved',
-        registration_type: 'admin_created'
-      })
-      .select()
-      .single();
-
-    if (userError) throw userError;
-
-    // Create user role
-    const { error: roleError } = await supabase
-      .from('user_roles')
-      .insert({
-        user_id: newUser.id,
-        role: role || 'user'
-      });
-
-    if (roleError) throw roleError;
-
+  // Handle system import job creation
+  if (pathSegments.includes('system-imports')) {
+    if (!currentUserId) {
+      throw new Error('Authentication required');
+    }
+    
+    const job = await createSystemImportJob(supabase, bodyData, currentUserId);
+    
     return new Response(
-      JSON.stringify({ success: true, user: newUser }),
+      JSON.stringify(job),
       { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error: any) {
-    console.error('Error creating user:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   }
+
+  // Handle regular user creation
+  const result = await createUser(supabase, bodyData, currentUserId!);
+  
+  return new Response(
+    JSON.stringify(result),
+    { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
 
-export async function handlePutRequest(supabase: any, req: Request, url: URL, currentUserId: string) {
-  const pathParts = url.pathname.split('/');
-  const userId = pathParts[pathParts.length - 1];
-  const body = await req.json();
+export async function handlePutRequest(supabase: any, req: Request, url: URL, currentUserId: string | null) {
+  const pathSegments = url.pathname.split('/').filter(Boolean);
+  const userId = pathSegments[pathSegments.length - 1];
+  const requestBody = await req.text();
+  
+  if (!requestBody) {
+    throw new Error('Request body is required');
+  }
 
-  console.log('Updating user:', userId, body);
+  const bodyData = JSON.parse(requestBody);
 
-  try {
-    const { data: updatedUser, error } = await supabase
-      .from('envio_users')
-      .update(body)
+  // Handle role updates
+  if (pathSegments.includes('role')) {
+    const { role } = bodyData;
+    await updateUserRole(supabase, userId, role, currentUserId!);
+    
+    return new Response(
+      JSON.stringify({ message: 'User role updated successfully' }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Handle system import job updates
+  if (pathSegments.includes('system-imports')) {
+    if (!currentUserId) {
+      throw new Error('Authentication required');
+    }
+
+    const { data: job, error } = await supabase
+      .from('gp51_system_imports')
+      .update({
+        ...bodyData,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', userId)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error updating system import job:', error);
+      throw new Error(error.message);
+    }
 
     return new Response(
-      JSON.stringify({ success: true, user: updatedUser }),
+      JSON.stringify({ job }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error: any) {
-    console.error('Error updating user:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   }
+
+  // Handle regular user updates
+  const user = await updateUser(supabase, userId, bodyData, currentUserId!);
+  
+  return new Response(
+    JSON.stringify({ user }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
 
-export async function handleDeleteRequest(supabase: any, url: URL, currentUserId: string) {
-  const pathParts = url.pathname.split('/');
-  const userId = pathParts[pathParts.length - 1];
+export async function handleDeleteRequest(supabase: any, url: URL, currentUserId: string | null) {
+  const pathSegments = url.pathname.split('/').filter(Boolean);
+  const userId = pathSegments[pathSegments.length - 1];
 
-  console.log('Deleting user:', userId);
+  // Handle system import job deletion
+  if (pathSegments.includes('system-imports')) {
+    if (!currentUserId) {
+      throw new Error('Authentication required');
+    }
 
-  try {
-    // Delete user roles first
-    await supabase
-      .from('user_roles')
-      .delete()
-      .eq('user_id', userId);
-
-    // Delete user
     const { error } = await supabase
-      .from('envio_users')
+      .from('gp51_system_imports')
       .delete()
       .eq('id', userId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error deleting system import job:', error);
+      throw new Error(error.message);
+    }
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ message: 'System import job deleted successfully' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (error: any) {
-    console.error('Error deleting user:', error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   }
+
+  // Handle regular user deletion
+  await deleteUser(supabase, userId, currentUserId!);
+
+  return new Response(
+    JSON.stringify({ message: 'User deleted successfully' }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }

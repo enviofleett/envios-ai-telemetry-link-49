@@ -42,8 +42,6 @@ export interface ThemeConfig {
 
 interface ThemeContextType {
   currentTheme: ThemeConfig;
-  isDarkMode: boolean;
-  toggleDarkMode: () => void;
   setTheme: (theme: ThemeConfig) => Promise<void>;
   applyTheme: (theme: ThemeConfig) => void;
   resetTheme: () => void;
@@ -114,12 +112,6 @@ const hexToHsl = (hex: string): string => {
   return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
 };
 
-// Detect system preference for dark mode
-const getSystemPreference = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
-};
-
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentTheme, setCurrentTheme] = useState<ThemeConfig>(defaultThemeConfig);
   const [isLoading, setIsLoading] = useState(false);
@@ -167,13 +159,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     // Apply font family to body
     document.body.style.fontFamily = `${theme.typography.fontFamily}, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
 
-    // Handle dark mode with smooth transition
-    document.documentElement.style.transition = 'background-color 0.3s ease, color 0.3s ease';
-    
+    // Handle dark mode
     if (theme.darkMode) {
-      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
     } else {
-      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
     }
 
     // Apply custom CSS if provided
@@ -190,14 +180,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentTheme(theme);
   };
 
-  const toggleDarkMode = () => {
-    const newTheme = {
-      ...currentTheme,
-      darkMode: !currentTheme.darkMode
-    };
-    saveTheme(newTheme);
-  };
-
   const saveTheme = async (theme: ThemeConfig) => {
     setIsLoading(true);
     try {
@@ -208,7 +190,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       toast({
         title: "Theme Saved",
-        description: `Switched to ${theme.darkMode ? 'dark' : 'light'} mode.`
+        description: "Your theme settings have been saved successfully."
       });
     } catch (error) {
       console.error('Failed to save theme:', error);
@@ -235,7 +217,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  // Load saved theme on mount with system preference detection
+  // Load saved theme on mount
   useEffect(() => {
     const loadTheme = async () => {
       try {
@@ -245,13 +227,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           const theme = JSON.parse(savedTheme);
           applyTheme(theme);
         } else {
-          // If no saved theme, detect system preference
-          const systemPrefersDark = getSystemPreference();
-          const initialTheme = {
-            ...defaultThemeConfig,
-            darkMode: systemPrefersDark
-          };
-          applyTheme(initialTheme);
+          applyTheme(defaultThemeConfig);
         }
       } catch (error) {
         console.error('Failed to load saved theme:', error);
@@ -260,30 +236,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     loadTheme();
-
-    // Listen for system preference changes
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e: MediaQueryListEvent) => {
-      const savedTheme = localStorage.getItem('envio-theme');
-      if (!savedTheme) {
-        // Only auto-switch if user hasn't manually set a preference
-        const newTheme = {
-          ...currentTheme,
-          darkMode: e.matches
-        };
-        applyTheme(newTheme);
-      }
-    };
-
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
   return (
     <ThemeContext.Provider value={{
       currentTheme,
-      isDarkMode: currentTheme.darkMode,
-      toggleDarkMode,
       setTheme,
       applyTheme,
       resetTheme,

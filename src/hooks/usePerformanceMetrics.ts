@@ -25,6 +25,7 @@ export interface PerformanceMetricsData {
     hitRate: number;
     totalSize: number;
     evictions: number;
+    averageAccessTime: number;
   };
   alerts: any[];
   trends: Record<string, number>;
@@ -38,31 +39,7 @@ export const usePerformanceMetrics = (refreshInterval = 30000) => {
   const fetchMetrics = async () => {
     try {
       const dashboardData = performanceMonitoringService.getPerformanceDashboardData();
-      const dbMetrics = databasePerformanceAnalyzer.getPerformanceMetrics();
-      const cacheStats = enhancedCachingService.getStats();
-      
-      // Transform data to match expected interface
-      const transformedMetrics: PerformanceMetricsData = {
-        sla: dashboardData.sla,
-        database: {
-          totalQueries: dbMetrics.totalQueries,
-          averageQueryTime: dbMetrics.averageQueryTime,
-          slowQueries: dbMetrics.slowQueries.length,
-          errorRate: 0, // Calculate from actual data
-          connectionStats: {}
-        },
-        cache: {
-          hits: cacheStats.totalHits,
-          misses: cacheStats.totalMisses,
-          hitRate: cacheStats.hitRate,
-          totalSize: cacheStats.totalSize,
-          evictions: 0 // Add this to cache stats if needed
-        },
-        alerts: dashboardData.alerts,
-        trends: dashboardData.trends
-      };
-      
-      setMetrics(transformedMetrics);
+      setMetrics(dashboardData as PerformanceMetricsData);
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Failed to fetch performance metrics:', error);

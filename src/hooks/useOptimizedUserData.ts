@@ -2,32 +2,26 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-interface UserRole {
-  role: string;
-}
-
-interface GP51Session {
+interface User {
   id: string;
-  username: string | null;
-  token_expires_at: string | null;
-}
-
-interface EnvioUser {
-  id: string;
-  name: string | null;
-  email: string | null;
-  phone_number: string | null;
+  name: string;
+  email: string;
+  phone_number?: string;
   created_at: string;
-  gp51_username: string | null;
-  gp51_user_type: number;
-  registration_status: string;
-  assigned_vehicles: any[];
-  user_roles: UserRole[];
-  gp51_sessions: GP51Session[];
+  user_roles: Array<{ role: string }>;
+  gp51_sessions: Array<{
+    id: string;
+    username: string;
+    token_expires_at: string;
+  }>;
+  gp51_username?: string;
+  gp51_user_type?: number;
+  registration_status?: string;
+  assigned_vehicles?: string[];
 }
 
-interface UserDataResponse {
-  users: EnvioUser[];
+interface UsersResponse {
+  users: User[];
   pagination: {
     page: number;
     limit: number;
@@ -36,87 +30,72 @@ interface UserDataResponse {
   };
 }
 
-interface UseOptimizedUserDataParams {
+interface UseOptimizedUserDataOptions {
   page?: number;
   limit?: number;
   search?: string;
   enabled?: boolean;
 }
 
-export const useOptimizedUserData = (params: UseOptimizedUserDataParams = {}) => {
-  const { page = 1, limit = 50, search = '', enabled = true } = params;
-  
+export const useOptimizedUserData = ({
+  page = 1,
+  limit = 50,
+  search = '',
+  enabled = true
+}: UseOptimizedUserDataOptions = {}) => {
   return useQuery({
-    queryKey: ['optimized-user-data', page, limit, search],
-    queryFn: async (): Promise<UserDataResponse> => {
+    queryKey: ['users-optimized', page, limit, search],
+    queryFn: async (): Promise<UsersResponse> => {
+      console.log('Fetching users with params:', { page, limit, search });
+      
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+      
+      if (search.length >= 2) {
+        params.append('search', search);
+      }
+
       const { data, error } = await supabase.functions.invoke('user-management', {
-        body: {
-          page: page.toString(), 
-          limit: limit.toString(), 
-          search: search 
-        },
+        method: 'GET',
+        body: null,
         headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         }
       });
 
       if (error) {
-        console.error('User data fetch error:', error);
-        throw new Error(`Failed to fetch user data: ${error.message}`);
+        console.error('Error fetching users:', error);
+        throw new Error(`Failed to fetch users: ${error.message}`);
       }
 
-      // Ensure the response matches our expected format
-      if (!data || typeof data !== 'object') {
-        console.error('Invalid response format:', data);
-        throw new Error('Invalid response format from user management API');
-      }
-
-      // Handle both direct response and nested response formats
-      const responseData = data.users ? data : { users: data, pagination: { page, limit, total: 0, totalPages: 0 } };
-      
-      // Validate users array
-      if (!Array.isArray(responseData.users)) {
-        console.error('Users is not an array:', responseData.users);
-        return {
-          users: [],
-          pagination: {
-            page,
-            limit,
-            total: 0,
-            totalPages: 0
-          }
-        };
-      }
-
-      // Transform users to ensure consistent format
-      const transformedUsers = responseData.users.map((user: any) => ({
-        id: user.id || '',
-        name: user.name || 'Unknown',
-        email: user.email || '',
-        phone_number: user.phone_number || '',
-        created_at: user.created_at || new Date().toISOString(),
-        gp51_username: user.gp51_username || '',
-        gp51_user_type: user.gp51_user_type || 3,
-        registration_status: user.registration_status || 'pending',
-        assigned_vehicles: user.assigned_vehicles || [],
-        user_roles: Array.isArray(user.user_roles) ? user.user_roles : [{ role: 'user' }],
-        gp51_sessions: Array.isArray(user.gp51_sessions) ? user.gp51_sessions : []
-      }));
-
-      return {
-        users: transformedUsers,
-        pagination: responseData.pagination || {
-          page,
-          limit,
-          total: transformedUsers.length,
-          totalPages: Math.ceil(transformedUsers.length / limit)
-        }
-      };
+      console.log('Users data received:', data);
+      return data as UsersResponse;
     },
     enabled,
-    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus: false,
+    retry: 2,
+  });
+};
+
+// Hook for fetching a single user
+export const useOptimizedSingleUser = (userId: string, enabled = true) => {
+  return useQuery({
+    queryKey: ['user-single', userId],
+    queryFn: async (): Promise<User> => {
+      const { data, error } = await supabase.functions.invoke(`user-management/${userId}`);
+      
+      if (error) {
+        throw new Error(`Failed to fetch user: ${error.message}`);
+      }
+
+      return data.user;
+    },
+    enabled: enabled && !!userId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 };

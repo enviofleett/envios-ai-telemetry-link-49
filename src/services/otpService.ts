@@ -1,12 +1,11 @@
 
+import { supabase } from '@/integrations/supabase/client';
+
 export interface OTPGenerationResult {
   success: boolean;
   otpId?: string;
-  error?: string;
-  emailDelivered?: boolean;
-  emailError?: string;
   expiresAt?: string;
-  message?: string;
+  error?: string;
 }
 
 export interface OTPVerificationResult {
@@ -16,84 +15,103 @@ export interface OTPVerificationResult {
   attemptsRemaining?: number;
 }
 
-export interface OTPResendResult {
-  success: boolean;
-  error?: string;
-  otpId?: string;
-}
-
 export class OTPService {
+  private static readonly OTP_EXPIRY_MINUTES = 10;
+  private static readonly MAX_ATTEMPTS = 3;
+
   static async generateOTP(
     phoneNumber: string,
     email: string,
-    type: 'registration' | 'password_reset'
+    otpType: 'registration' | 'login' | 'password_reset' = 'registration',
+    userId?: string
   ): Promise<OTPGenerationResult> {
     try {
-      // Generate a random 6-digit OTP
-      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpId = crypto.randomUUID();
-      
-      console.log(`Generated OTP ${otpCode} for ${email} (type: ${type})`);
-      
-      // In a real implementation, this would send the OTP via email/SMS
-      // For now, we'll just log it and return success
-      
+      const { data, error } = await supabase.functions.invoke('otp-service', {
+        body: {
+          action: 'generate',
+          phoneNumber,
+          email,
+          otpType,
+          userId,
+          expiryMinutes: this.OTP_EXPIRY_MINUTES
+        }
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        return { success: false, error: data.error };
+      }
+
       return {
         success: true,
-        otpId: otpId,
-        emailDelivered: true,
-        message: 'OTP sent successfully'
+        otpId: data.otpId,
+        expiresAt: data.expiresAt
       };
     } catch (error) {
-      console.error('OTP generation error:', error);
+      console.error('OTP generation failed:', error);
       return {
         success: false,
-        error: 'Failed to generate OTP',
-        emailDelivered: false
+        error: error instanceof Error ? error.message : 'Failed to generate OTP'
       };
     }
   }
 
-  static async verifyOTP(otpId: string, otpCode: string): Promise<OTPVerificationResult> {
+  static async verifyOTP(
+    otpId: string,
+    otpCode: string
+  ): Promise<OTPVerificationResult> {
     try {
-      // In a real implementation, this would verify against stored OTP
-      // For now, we'll accept any 6-digit code as valid
-      const isValid = /^\d{6}$/.test(otpCode);
-      
-      console.log(`Verifying OTP ${otpCode} for ID ${otpId}: ${isValid ? 'valid' : 'invalid'}`);
-      
+      const { data, error } = await supabase.functions.invoke('otp-service', {
+        body: {
+          action: 'verify',
+          otpId,
+          otpCode
+        }
+      });
+
+      if (error) throw error;
+
       return {
-        success: true,
-        verified: isValid,
-        attemptsRemaining: isValid ? 0 : 2
+        success: data.success,
+        verified: data.verified,
+        error: data.error,
+        attemptsRemaining: data.attemptsRemaining
       };
     } catch (error) {
-      console.error('OTP verification error:', error);
+      console.error('OTP verification failed:', error);
       return {
         success: false,
-        error: 'Failed to verify OTP',
-        attemptsRemaining: 2
+        error: error instanceof Error ? error.message : 'Failed to verify OTP'
       };
     }
   }
 
-  static async resendOTP(otpId: string): Promise<OTPResendResult> {
+  static async resendOTP(otpId: string): Promise<OTPGenerationResult> {
     try {
-      console.log(`Resending OTP for ID ${otpId}`);
-      
-      // Generate new OTP ID for resend
-      const newOtpId = crypto.randomUUID();
-      
-      // In a real implementation, this would resend the OTP
+      const { data, error } = await supabase.functions.invoke('otp-service', {
+        body: {
+          action: 'resend',
+          otpId
+        }
+      });
+
+      if (error) throw error;
+
+      if (!data.success) {
+        return { success: false, error: data.error };
+      }
+
       return {
         success: true,
-        otpId: newOtpId
+        otpId: data.otpId,
+        expiresAt: data.expiresAt
       };
     } catch (error) {
-      console.error('OTP resend error:', error);
+      console.error('OTP resend failed:', error);
       return {
         success: false,
-        error: 'Failed to resend OTP'
+        error: error instanceof Error ? error.message : 'Failed to resend OTP'
       };
     }
   }

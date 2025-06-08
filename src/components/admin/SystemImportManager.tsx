@@ -24,11 +24,6 @@ const SystemImportManager: React.FC = () => {
   const [currentImportId, setCurrentImportId] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
-  const [importProgress, setImportProgress] = useState<{
-    phase: string;
-    percentage: number;
-    message: string;
-  } | null>(null);
   const [importOptions, setImportOptions] = useState<SystemImportOptions>({
     importType: 'complete_system',
     performCleanup: false,
@@ -51,32 +46,29 @@ const SystemImportManager: React.FC = () => {
     try {
       setIsImporting(true);
       setLastError(null);
-      setImportProgress(null);
       
-      console.log('🚀 Starting enhanced system import with improved session management');
+      console.log('Starting enhanced system import with options:', importOptions);
       
       const result = await fullSystemImportService.startFullSystemImport(
         importOptions,
         (progress) => {
-          console.log('📈 Import progress update:', progress);
-          setImportProgress(progress);
-          setCurrentImportId(fullSystemImportService.getCurrentImportId());
+          console.log('Import progress update:', progress);
+          // Progress updates are handled by the enhanced monitor component
         }
       );
 
-      console.log('✅ Enhanced import completed successfully:', result);
+      console.log('Enhanced import completed:', result);
       
       toast({
-        title: "Enhanced Import Completed Successfully! 🎉",
-        description: `Imported ${result.successfulUsers} users and ${result.successfulVehicles} vehicles with enhanced reliability and session management.`
+        title: "Import Completed Successfully",
+        description: `Imported ${result.successfulUsers} users and ${result.successfulVehicles} vehicles with enhanced reliability.`
       });
 
       // Reset state after successful completion
       setCurrentImportId(null);
-      setImportProgress(null);
 
     } catch (error: any) {
-      console.error('❌ Enhanced import failed:', error);
+      console.error('Enhanced import failed:', error);
       
       // Set detailed error information
       setLastError(error.message || 'An unexpected error occurred during import');
@@ -96,15 +88,14 @@ const SystemImportManager: React.FC = () => {
   };
 
   const handleImportComplete = (result: any) => {
-    console.log('✅ Enhanced import monitoring completed:', result);
+    console.log('Enhanced import monitoring completed:', result);
     setIsImporting(false);
     setCurrentImportId(null);
-    setImportProgress(null);
     setLastError(null);
     
     toast({
-      title: "Enhanced Import Completed! 🚀",
-      description: `Successfully imported data with enhanced reliability and session management features.`
+      title: "Enhanced Import Completed",
+      description: `Successfully imported data with enhanced reliability features.`
     });
   };
 
@@ -114,7 +105,7 @@ const SystemImportManager: React.FC = () => {
         await fullSystemImportService.cancelImport(currentImportId);
         toast({
           title: "Import Cancelled",
-          description: "The import has been safely cancelled and cleaned up."
+          description: "The import has been safely cancelled and rolled back."
         });
       } catch (error: any) {
         toast({
@@ -126,7 +117,6 @@ const SystemImportManager: React.FC = () => {
     }
     setIsImporting(false);
     setCurrentImportId(null);
-    setImportProgress(null);
     setLastError(null);
   };
 
@@ -154,58 +144,19 @@ const SystemImportManager: React.FC = () => {
     return icons[type] || <Database className="w-5 h-5" />;
   };
 
-  // Show progress monitor if importing
-  if (isImporting) {
+  if (isImporting && currentImportId) {
     return (
       <div className="space-y-6">
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2 flex items-center justify-center gap-2">
-            <Shield className="w-6 h-6 text-blue-600" />
-            Enhanced Import in Progress
-          </h2>
-          <p className="text-gray-600">Monitoring import with enhanced session management and error recovery</p>
+          <h2 className="text-2xl font-bold mb-2">Enhanced Import in Progress</h2>
+          <p className="text-gray-600">Monitoring import with real-time progress tracking and error recovery</p>
         </div>
         
-        {/* Progress Display */}
-        {importProgress && (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <RefreshCw className="w-5 h-5 animate-spin text-blue-600" />
-                    <span className="font-semibold text-blue-800">
-                      {importProgress.phase.charAt(0).toUpperCase() + importProgress.phase.slice(1)}
-                    </span>
-                  </div>
-                  <Badge variant="secondary">
-                    {importProgress.percentage >= 0 ? `${importProgress.percentage}%` : 'Processing...'}
-                  </Badge>
-                </div>
-                <p className="text-blue-700">{importProgress.message}</p>
-                {importProgress.percentage >= 0 && (
-                  <div className="w-full bg-blue-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${importProgress.percentage}%` }}
-                    />
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* Cancel Button */}
-        <div className="text-center">
-          <Button
-            variant="outline"
-            onClick={handleCancelImport}
-            className="text-red-600 border-red-300 hover:bg-red-50"
-          >
-            Cancel Import
-          </Button>
-        </div>
+        <EnhancedImportProgressMonitor
+          importId={currentImportId}
+          onComplete={handleImportComplete}
+          onCancel={handleCancelImport}
+        />
       </div>
     );
   }
@@ -219,7 +170,7 @@ const SystemImportManager: React.FC = () => {
           Enhanced GP51 System Import
         </h2>
         <p className="text-gray-600">
-          Comprehensive data import with enhanced session management, transaction safety, and automatic error recovery
+          Comprehensive data import with transaction safety, real-time monitoring, and automatic error recovery
         </p>
       </div>
 
@@ -249,7 +200,7 @@ const SystemImportManager: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-green-600" />
-                <span>Enhanced GP51 session management with auto-refresh</span>
+                <span>Transaction-safe operations with automatic rollback</span>
               </div>
               <div className="flex items-center gap-2">
                 <Database className="w-4 h-4 text-green-600" />
@@ -263,15 +214,15 @@ const SystemImportManager: React.FC = () => {
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 text-green-600" />
-                <span>Advanced error handling with recovery suggestions</span>
+                <span>Enhanced error handling with recovery suggestions</span>
               </div>
               <div className="flex items-center gap-2">
                 <Settings className="w-4 h-4 text-green-600" />
-                <span>Session validation and automatic token refresh</span>
+                <span>GP51 session management with auto-refresh</span>
               </div>
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-green-600" />
-                <span>Uses existing valid sessions (like your Octopus session)</span>
+                <span>Data integrity verification and scoring</span>
               </div>
             </div>
           </div>
@@ -328,12 +279,15 @@ const SystemImportManager: React.FC = () => {
                   <input
                     type="checkbox"
                     checked={importOptions.performCleanup}
-                    onChange={(e) => setImportOptions(prev => ({ ...prev, performCleanup: e.target.checked }))}
+                    onChange={(e) => setImportOptions(prev => ({ 
+                      ...prev, 
+                      performCleanup: e.target.checked 
+                    }))}
                   />
-                  <span className="text-sm">Perform data cleanup before import</span>
+                  <span className="text-sm font-medium">Perform data cleanup before import</span>
                 </label>
                 <p className="text-xs text-gray-600 ml-6">
-                  This will safely remove existing data while preserving the admin account
+                  Remove existing data before import (admin user will be preserved)
                 </p>
               </div>
 
@@ -342,64 +296,70 @@ const SystemImportManager: React.FC = () => {
                 <input
                   type="email"
                   value={importOptions.preserveAdminEmail}
-                  onChange={(e) => setImportOptions(prev => ({ ...prev, preserveAdminEmail: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  onChange={(e) => setImportOptions(prev => ({ 
+                    ...prev, 
+                    preserveAdminEmail: e.target.value 
+                  }))}
+                  className="w-full p-2 border rounded text-sm"
                   placeholder="admin@example.com"
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Batch Size:</label>
-                <select
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
                   value={importOptions.batchSize}
-                  onChange={(e) => setImportOptions(prev => ({ ...prev, batchSize: parseInt(e.target.value) }))}
-                  className="w-full px-3 py-2 border rounded-md text-sm"
-                >
-                  <option value={5}>5 (Safer, Slower)</option>
-                  <option value={10}>10 (Recommended)</option>
-                  <option value={20}>20 (Faster, Higher Risk)</option>
-                </select>
+                  onChange={(e) => setImportOptions(prev => ({ 
+                    ...prev, 
+                    batchSize: parseInt(e.target.value) || 10 
+                  }))}
+                  className="w-full p-2 border rounded text-sm"
+                />
+                <p className="text-xs text-gray-600">
+                  Number of records to process in each batch (1-100)
+                </p>
               </div>
             </div>
           )}
-
-          {/* Start Import Button */}
-          <Button
-            onClick={handleStartImport}
-            disabled={isImporting}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3"
-            size="lg"
-          >
-            {isImporting ? (
-              <>
-                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                Starting Enhanced Import...
-              </>
-            ) : (
-              <>
-                <Shield className="w-4 h-4 mr-2" />
-                Start Enhanced Import
-              </>
-            )}
-          </Button>
         </CardContent>
       </Card>
 
-      {/* Additional Information */}
-      <Card className="border-blue-200 bg-blue-50">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5" />
-            <div className="text-sm text-blue-800">
-              <p className="font-medium mb-1">Ready for Enhanced Import</p>
-              <p>
-                This enhanced version uses your existing valid GP51 session (Octopus, expires June 8) 
-                and includes advanced session management to prevent authentication failures.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Warning for cleanup */}
+      {importOptions.performCleanup && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Warning:</strong> Data cleanup will remove existing users and vehicles from the system.
+            Only the admin user ({importOptions.preserveAdminEmail}) will be preserved.
+            A complete backup will be created before any operations.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Start Import Button */}
+      <div className="flex justify-center">
+        <Button
+          onClick={handleStartImport}
+          disabled={isImporting || !importOptions.importType}
+          size="lg"
+          className="px-8"
+        >
+          {isImporting ? (
+            <>
+              <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+              Starting Import...
+            </>
+          ) : (
+            <>
+              <Database className="w-5 h-5 mr-2" />
+              Start Enhanced Import
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 };

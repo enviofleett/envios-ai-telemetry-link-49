@@ -1,93 +1,184 @@
 
-import { useState, useEffect } from 'react';
-import { enhancedVehicleDataService, VehicleData, VehicleDataMetrics } from '@/services/enhancedVehicleDataService';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { Vehicle, FilterState, VehiclePosition } from '@/types/vehicle';
+
+// Type guard to safely cast Json to VehiclePosition
+const isVehiclePosition = (data: any): data is VehiclePosition => {
+  return data && typeof data === 'object' && 
+         typeof data.lat === 'number' && 
+         typeof data.lon === 'number' && 
+         typeof data.speed === 'number' && 
+         typeof data.course === 'number' && 
+         typeof data.updatetime === 'string' && 
+         typeof data.statusText === 'string';
+};
 
 export const useEnhancedVehicleData = () => {
-  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
-  const [metrics, setMetrics] = useState<VehicleDataMetrics>({
-    totalVehicles: 0,
-    onlineVehicles: 0,
-    offlineVehicles: 0,
-    recentlyActiveVehicles: 0,
-    lastSyncTime: new Date(),
-    syncStatus: 'success'
+  const [filters, setFilters] = useState<FilterState>({
+    search: '',
+    status: 'all',
+    user: 'all',
+    online: 'all'
   });
-  const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
 
-  useEffect(() => {
-    // Subscribe to vehicle data updates
-    const unsubscribe = enhancedVehicleDataService.subscribe(() => {
-      const newVehicles = enhancedVehicleDataService.getVehicles();
-      const newMetrics = enhancedVehicleDataService.getMetrics();
+  // Fetch vehicles with user information
+  const { data: vehicles = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['enhanced-vehicles'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select(`
+          *,
+          envio_users (
+            name,
+            email
+          )
+        `)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
       
-      setVehicles(newVehicles);
-      setMetrics(newMetrics);
-      setIsLoading(false);
+      // Transform the data to match our Vehicle interface
+      const transformedData: Vehicle[] = data.map(vehicle => ({
+        ...vehicle,
+        last_position: vehicle.last_position && isVehiclePosition(vehicle.last_position) ? {
+          lat: vehicle.last_position.lat,
+          lon: vehicle.last_position.lon,
+          speed: vehicle.last_position.speed,
+          course: vehicle.last_position.course,
+          updatetime: vehicle.last_position.updatetime,
+          statusText: vehicle.last_position.statusText
+        } : undefined
+      }));
 
-      // Show error toast if sync failed
-      if (newMetrics.syncStatus === 'error' && newMetrics.errorMessage) {
-        toast({
-          title: "Vehicle Data Sync Failed",
-          description: newMetrics.errorMessage,
-          variant: "destructive"
-        });
+      return transformedData;
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  // Get unique users for filter options
+  const userOptions = useMemo(() => {
+    const users = vehicles
+      .filter(v => v.envio_users)
+      .map(v => ({
+        id: v.envio_user_id!,
+        name: v.envio_users!.name
+      }));
+    
+    // Remove duplicates
+    const uniqueUsers = users.filter((user, index, self) => 
+      index === self.findIndex(u => u.id === user.id)
+    );
+    
+    return uniqueUsers;
+  }, [vehicles]);
+
+  // Filter vehicles based on current filters
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter(vehicle => {
+      // Search filter
+      if (filters.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const matchesSearch = 
+          vehicle.device_name.toLowerCase().includes(searchTerm) ||
+          vehicle.device_id.toLowerCase().includes(searchTerm) ||
+          (vehicle.sim_number && vehicle.sim_number.toLowerCase().includes(searchTerm));
+        
+        if (!matchesSearch) return false;
       }
+
+      // Status filter
+      if (filters.status !== 'all') {
+        const status = vehicle.status?.toLowerCase() || '';
+        switch (filters.status) {
+          case 'active':
+            if (!vehicle.is_active) return false;
+            break;
+          case 'moving':
+            if (!status.includes('moving')) return false;
+            break;
+          case 'stopped':
+            if (!status.includes('stopped') && !status.includes('idle')) return false;
+            break;
+          case 'alert':
+            if (!status.includes('alert') && !status.includes('alarm')) return false;
+            break;
+          case 'offline':
+            if (vehicle.is_active) return false;
+            break;
+        }
+      }
+
+      // Online filter
+      if (filters.online !== 'all') {
+        const isOnline = vehicle.last_position?.updatetime ? 
+          new Date(vehicle.last_position.updatetime) > new Date(Date.now() - 30 * 60 * 1000) : 
+          false;
+        
+        if (filters.online === 'online' && !isOnline) return false;
+        if (filters.online === 'offline' && isOnline) return false;
+      }
+
+      // User filter
+      if (filters.user !== 'all') {
+        if (filters.user === 'unassigned' && vehicle.envio_user_id) return false;
+        if (filters.user !== 'unassigned' && vehicle.envio_user_id !== filters.user) return false;
+      }
+
+      return true;
     });
+  }, [vehicles, filters]);
 
-    // Initial data load
-    setVehicles(enhancedVehicleDataService.getVehicles());
-    setMetrics(enhancedVehicleDataService.getMetrics());
-    setIsLoading(false);
+  // Vehicle statistics
+  const statistics = useMemo(() => {
+    const total = vehicles.length;
+    const active = vehicles.filter(v => v.is_active).length;
+    const online = vehicles.filter(v => {
+      if (!v.last_position?.updatetime) return false;
+      return new Date(v.last_position.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
+    }).length;
+    const alerts = vehicles.filter(v => 
+      v.status?.toLowerCase().includes('alert') || 
+      v.status?.toLowerCase().includes('alarm')
+    ).length;
 
-    return unsubscribe;
-  }, [toast]);
+    return { total, active, online, alerts };
+  }, [vehicles]);
 
-  const forceSync = async () => {
-    setIsLoading(true);
-    try {
-      await enhancedVehicleDataService.forceSync();
-      toast({
-        title: "Data Sync Completed",
-        description: "Vehicle data has been refreshed from GP51"
-      });
-    } catch (error) {
-      toast({
-        title: "Sync Failed",
-        description: error instanceof Error ? error.message : "Unknown error occurred",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
+  const handleVehicleAction = {
+    viewMap: (vehicle: Vehicle) => {
+      console.log('View map for vehicle:', vehicle.device_id);
+      // TODO: Implement map view
+    },
+    
+    viewHistory: (vehicle: Vehicle) => {
+      console.log('View history for vehicle:', vehicle.device_id);
+      // TODO: Implement history view
+    },
+    
+    viewDetails: (vehicle: Vehicle) => {
+      console.log('View details for vehicle:', vehicle.device_id);
+      // TODO: Implement details view
+    },
+    
+    sendCommand: (vehicle: Vehicle) => {
+      console.log('Send command to vehicle:', vehicle.device_id);
+      // TODO: Implement command sending
     }
-  };
-
-  const getVehicleById = (deviceId: string) => {
-    return enhancedVehicleDataService.getVehicleById(deviceId);
-  };
-
-  const getOnlineVehicles = () => {
-    return vehicles.filter(v => v.status === 'online');
-  };
-
-  const getOfflineVehicles = () => {
-    return vehicles.filter(v => v.status === 'offline');
-  };
-
-  const getRecentlyActiveVehicles = () => {
-    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
-    return vehicles.filter(v => v.lastUpdate.getTime() > thirtyMinutesAgo);
   };
 
   return {
     vehicles,
-    metrics,
+    filteredVehicles,
+    userOptions,
+    statistics,
+    filters,
+    setFilters,
     isLoading,
-    forceSync,
-    getVehicleById,
-    getOnlineVehicles,
-    getOfflineVehicles,
-    getRecentlyActiveVehicles
+    error,
+    refetch,
+    handleVehicleAction
   };
 };

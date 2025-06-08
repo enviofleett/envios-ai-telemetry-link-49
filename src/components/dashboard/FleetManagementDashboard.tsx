@@ -2,10 +2,11 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
-import EnhancedKPICardsSection from './EnhancedKPICardsSection';
-import GP51HealthDashboard from '../GP51HealthDashboard';
-import VehicleDataTable from './VehicleDataTable';
+import DashboardHeader from './DashboardHeader';
+import KPICardsSection from './KPICardsSection';
+import SystemHealthPanel from './SystemHealthPanel';
 import RealTimeAlertsPanel from './RealTimeAlertsPanel';
+import AnalyticsChartsRow from './AnalyticsChartsRow';
 
 const FleetManagementDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -16,14 +17,14 @@ const FleetManagementDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Enhanced KPI Cards Section with System Status */}
-      <EnhancedKPICardsSection />
+      {/* KPI Cards Section */}
+      <KPICardsSection />
 
-      {/* Main Content Grid */}
+      {/* Main Content Grid - System Health + Alerts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* GP51 Health Dashboard - 2/3 width */}
+        {/* System Health Panel - 2/3 width */}
         <div className="lg:col-span-2">
-          <GP51HealthDashboard />
+          <SystemHealthPanel />
         </div>
         
         {/* Real-time Alerts Panel - 1/3 width */}
@@ -32,8 +33,8 @@ const FleetManagementDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Vehicle Data Table - Full Width */}
-      <VehicleDataTable />
+      {/* Analytics Charts Row */}
+      <AnalyticsChartsRow />
     </div>
   );
 };

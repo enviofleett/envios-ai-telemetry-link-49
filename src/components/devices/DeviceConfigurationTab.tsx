@@ -94,7 +94,7 @@ const DeviceConfigurationTab: React.FC<DeviceConfigurationTabProps> = ({ deviceI
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <Label htmlFor="geofence-alerts">Enable Geo-fence Alerts</Label>
-                <p className="text-sm text-muted-foreground">Get notified when vehicle enters/exits geofences</p>
+                <p className="text-sm text-gray-500">Get notified when vehicle enters/exits geofences</p>
               </div>
               <Switch
                 id="geofence-alerts"
@@ -106,7 +106,7 @@ const DeviceConfigurationTab: React.FC<DeviceConfigurationTabProps> = ({ deviceI
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <Label htmlFor="speed-monitoring">Enable Speed Monitoring</Label>
-                <p className="text-sm text-muted-foreground">Monitor and alert for speed violations</p>
+                <p className="text-sm text-gray-500">Monitor and alert for speed violations</p>
               </div>
               <Switch
                 id="speed-monitoring"
@@ -118,7 +118,7 @@ const DeviceConfigurationTab: React.FC<DeviceConfigurationTabProps> = ({ deviceI
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <Label htmlFor="battery-alerts">Enable Battery Alerts</Label>
-                <p className="text-sm text-muted-foreground">Get notified when battery level is low</p>
+                <p className="text-sm text-gray-500">Get notified when battery level is low</p>
               </div>
               <Switch
                 id="battery-alerts"
@@ -130,7 +130,7 @@ const DeviceConfigurationTab: React.FC<DeviceConfigurationTabProps> = ({ deviceI
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <Label htmlFor="maintenance-reminders">Enable Maintenance Reminders</Label>
-                <p className="text-sm text-muted-foreground">Receive scheduled maintenance notifications</p>
+                <p className="text-sm text-gray-500">Receive scheduled maintenance notifications</p>
               </div>
               <Switch
                 id="maintenance-reminders"

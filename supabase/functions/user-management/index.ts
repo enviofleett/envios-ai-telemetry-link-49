@@ -22,91 +22,55 @@ serve(async (req) => {
     );
 
     const url = new URL(req.url);
-    const authHeader = req.headers.get('Authorization');
-    
-    // Verify authentication for all requests
-    const currentUserId = await getCurrentUser(supabase, authHeader);
-    
-    console.log(`User Management API - ${req.method} ${url.pathname} - User: ${currentUserId}`);
+    const method = req.method;
 
-    switch (req.method) {
+    console.log(`User Management API: ${method} ${url.pathname}`);
+
+    // Get current user from auth header
+    const authHeader = req.headers.get('authorization');
+    const currentUserId = await getCurrentUser(supabase, authHeader);
+
+    let response;
+
+    switch (method) {
       case 'GET':
         const result = await handleGetRequest(supabase, url, currentUserId);
-        return new Response(
+        response = new Response(
           JSON.stringify(result),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
+        break;
 
       case 'POST':
-        // Check if this is a user creation with email verification
-        const body = await req.json();
-        if (body.email && body.send_verification) {
-          // Send verification email through our SMTP system
-          await sendVerificationEmail(supabase, body.email, body.name || 'User');
-        }
-        return await handlePostRequest(supabase, req, currentUserId);
+        response = await handlePostRequest(supabase, req, currentUserId);
+        break;
 
       case 'PUT':
-        return await handlePutRequest(supabase, req, url, currentUserId);
+        response = await handlePutRequest(supabase, req, url, currentUserId);
+        break;
 
       case 'DELETE':
-        return await handleDeleteRequest(supabase, url, currentUserId);
+        response = await handleDeleteRequest(supabase, url, currentUserId);
+        break;
 
       default:
-        return new Response(
+        response = new Response(
           JSON.stringify({ error: 'Method not allowed' }),
           { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }
 
-  } catch (error: any) {
-    console.error('User Management API error:', error);
+    return response;
+
+  } catch (error) {
+    console.error('User management error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: error.message.includes('Authentication failed') || error.message.includes('Admin access required') ? 401 : 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: error.message || 'Internal server error' }),
+      { 
+        status: error.message?.includes('required') ? 400 : 
+               error.message?.includes('not found') ? 404 : 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });
-
-async function sendVerificationEmail(supabase: any, email: string, userName: string) {
-  try {
-    // Generate verification token
-    const verificationToken = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-    
-    // Store verification token in database
-    await supabase
-      .from('email_verifications')
-      .insert({
-        email: email,
-        token: verificationToken,
-        expires_at: expiresAt.toISOString(),
-        verified: false
-      });
-
-    // Send verification email through our SMTP service
-    const { data, error } = await supabase.functions.invoke('smtp-email-service', {
-      body: {
-        action: 'send-email',
-        recipientEmail: email,
-        templateType: 'verification',
-        placeholderData: {
-          user_name: userName,
-          verification_link: `${Deno.env.get('SUPABASE_URL')}/verify-email?token=${verificationToken}`,
-          company_name: 'Envio Platform'
-        }
-      }
-    });
-
-    if (error) {
-      console.error('Failed to send verification email:', error);
-      throw error;
-    }
-
-    console.log(`Verification email sent successfully to ${email}`);
-    return { success: true };
-  } catch (error) {
-    console.error('Error sending verification email:', error);
-    throw error;
-  }
-}

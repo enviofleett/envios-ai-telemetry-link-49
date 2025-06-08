@@ -7,6 +7,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface SendEmailRequest {
+  action: 'send-email' | 'test-smtp' | 'get-templates';
+  recipientEmail?: string;
+  templateType?: string;
+  placeholderData?: Record<string, string>;
+  smtpConfigId?: string;
+  testConfig?: {
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    from_email: string;
+    from_name: string;
+    use_ssl: boolean;
+    use_tls: boolean;
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -18,16 +36,15 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { action, recipientEmail, subject, htmlContent, textContent, templateType, placeholderData, testConfig } = await req.json();
-
-    console.log(`SMTP Email Service - Action: ${action}`);
+    const requestData: SendEmailRequest = await req.json();
+    const { action } = requestData;
 
     if (action === 'send-email') {
-      return await handleSendEmail(supabase, recipientEmail, subject, htmlContent, textContent, templateType, placeholderData);
-    }
-
-    if (action === 'test-smtp') {
-      return await handleTestSMTP(testConfig);
+      return await handleSendEmail(supabase, requestData);
+    } else if (action === 'test-smtp') {
+      return await handleTestSMTP(requestData);
+    } else if (action === 'get-templates') {
+      return await handleGetTemplates(supabase);
     }
 
     return new Response(
@@ -36,7 +53,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('SMTP Email Service error:', error);
+    console.error('SMTP service error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -44,175 +61,193 @@ serve(async (req) => {
   }
 });
 
-async function handleSendEmail(supabase: any, recipientEmail: string, subject: string, htmlContent: string, textContent: string, templateType?: string, placeholderData?: any) {
-  try {
-    // Get active SMTP configuration
-    const { data: smtpConfig, error: configError } = await supabase
+async function handleSendEmail(supabase: any, requestData: SendEmailRequest) {
+  const { recipientEmail, templateType, placeholderData, smtpConfigId } = requestData;
+
+  // Get SMTP configuration
+  const { data: smtpConfig, error: smtpError } = await supabase
+    .from('smtp_configurations')
+    .select('*')
+    .eq('id', smtpConfigId || '')
+    .eq('is_active', true)
+    .single();
+
+  if (smtpError || !smtpConfig) {
+    // Fallback to active SMTP config
+    const { data: fallbackConfig } = await supabase
       .from('smtp_configurations')
       .select('*')
       .eq('is_active', true)
+      .limit(1)
       .single();
-
-    if (configError || !smtpConfig) {
-      console.error('No active SMTP configuration found:', configError);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'No active SMTP configuration found. Please configure SMTP settings first.' 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    
+    if (!fallbackConfig) {
+      throw new Error('No active SMTP configuration found');
     }
+    smtpConfig = fallbackConfig;
+  }
 
-    // If template type is provided, get template and replace placeholders
-    let finalSubject = subject;
-    let finalHtmlContent = htmlContent;
-    let finalTextContent = textContent;
+  // Get email template
+  const { data: template, error: templateError } = await supabase
+    .from('email_templates')
+    .select('*')
+    .eq('template_type', templateType)
+    .eq('is_active', true)
+    .single();
 
-    if (templateType) {
-      const { data: template } = await supabase
-        .from('email_templates')
-        .select('*')
-        .eq('template_type', templateType)
-        .eq('is_active', true)
-        .single();
+  if (templateError || !template) {
+    throw new Error(`Email template not found for type: ${templateType}`);
+  }
 
-      if (template) {
-        finalSubject = template.subject;
-        finalHtmlContent = template.body_html;
-        finalTextContent = template.body_text;
+  // Process template with placeholders
+  const processedSubject = replacePlaceholders(template.subject, placeholderData || {});
+  const processedBody = replacePlaceholders(template.body_html, placeholderData || {});
 
-        // Replace placeholders
-        if (placeholderData) {
-          Object.keys(placeholderData).forEach(key => {
-            const placeholder = `{{${key}}}`;
-            finalSubject = finalSubject?.replace(new RegExp(placeholder, 'g'), placeholderData[key]);
-            finalHtmlContent = finalHtmlContent?.replace(new RegExp(placeholder, 'g'), placeholderData[key]);
-            finalTextContent = finalTextContent?.replace(new RegExp(placeholder, 'g'), placeholderData[key]);
-          });
-        }
-      }
-    }
+  // Log email notification
+  const { data: logEntry } = await supabase
+    .from('email_notifications')
+    .insert({
+      recipient_email: recipientEmail,
+      subject: processedSubject,
+      template_type: templateType,
+      smtp_config_id: smtpConfig.id,
+      status: 'pending',
+      metadata: { placeholderData }
+    })
+    .select()
+    .single();
 
-    // Decode password (simple base64 for now)
-    const decodedPassword = atob(smtpConfig.password_encrypted);
-
-    // Send email using native SMTP
-    const emailResult = await sendSMTPEmail({
+  try {
+    // Send email using SMTP
+    await sendSMTPEmail({
       host: smtpConfig.host,
       port: smtpConfig.port,
       username: smtpConfig.username,
-      password: decodedPassword,
-      fromEmail: smtpConfig.from_email,
-      fromName: smtpConfig.from_name,
-      toEmail: recipientEmail,
-      subject: finalSubject,
-      htmlContent: finalHtmlContent,
-      textContent: finalTextContent,
-      encryptionType: smtpConfig.encryption_type
+      password: decrypt(smtpConfig.password_encrypted),
+      from_email: smtpConfig.from_email,
+      from_name: smtpConfig.from_name,
+      use_ssl: smtpConfig.use_ssl,
+      use_tls: smtpConfig.use_tls,
+      to: recipientEmail!,
+      subject: processedSubject,
+      html: processedBody
     });
 
-    if (emailResult.success) {
-      // Log successful email
-      await supabase
-        .from('email_notifications')
-        .insert({
-          recipient_email: recipientEmail,
-          subject: finalSubject,
-          template_type: templateType || 'custom',
-          smtp_config_id: smtpConfig.id,
-          status: 'sent',
-          sent_at: new Date().toISOString()
-        });
+    // Update log as sent
+    await supabase
+      .from('email_notifications')
+      .update({ 
+        status: 'sent', 
+        sent_at: new Date().toISOString() 
+      })
+      .eq('id', logEntry.id);
 
-      console.log(`Email sent successfully to ${recipientEmail}`);
-      return new Response(
-        JSON.stringify({ success: true, message: 'Email sent successfully' }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
-      // Log failed email
-      await supabase
-        .from('email_notifications')
-        .insert({
-          recipient_email: recipientEmail,
-          subject: finalSubject,
-          template_type: templateType || 'custom',
-          smtp_config_id: smtpConfig.id,
-          status: 'failed',
-          error_message: emailResult.error
-        });
-
-      console.error(`Email sending failed: ${emailResult.error}`);
-      return new Response(
-        JSON.stringify({ success: false, error: emailResult.error }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    return new Response(
+      JSON.stringify({ success: true, messageId: logEntry.id }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error) {
-    console.error('Error in handleSendEmail:', error);
+    // Update log as failed
+    await supabase
+      .from('email_notifications')
+      .update({ 
+        status: 'failed',
+        error_message: error.message,
+        retry_count: 1
+      })
+      .eq('id', logEntry.id);
+
+    throw error;
+  }
+}
+
+async function handleTestSMTP(requestData: SendEmailRequest) {
+  const { testConfig } = requestData;
+  
+  if (!testConfig) {
+    throw new Error('Test configuration is required');
+  }
+
+  try {
+    await sendSMTPEmail({
+      ...testConfig,
+      password: testConfig.password,
+      to: testConfig.from_email, // Send test email to self
+      subject: 'SMTP Test Email',
+      html: '<p>This is a test email to verify SMTP configuration.</p>'
+    });
+
+    return new Response(
+      JSON.stringify({ success: true, message: 'SMTP test successful' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 }
 
-async function handleTestSMTP(testConfig: any) {
-  try {
-    const result = await sendSMTPEmail({
-      ...testConfig,
-      toEmail: testConfig.sender_email, // Send test email to sender
-      subject: 'SMTP Configuration Test',
-      htmlContent: '<h1>SMTP Test Successful</h1><p>Your SMTP configuration is working correctly!</p>',
-      textContent: 'SMTP Test Successful - Your SMTP configuration is working correctly!'
-    });
+async function handleGetTemplates(supabase: any) {
+  const { data: templates, error } = await supabase
+    .from('email_templates')
+    .select('*')
+    .eq('is_active', true);
 
-    return new Response(
-      JSON.stringify(result),
-      { status: result.success ? 200 : 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
-    console.error('SMTP test error:', error);
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  if (error) {
+    throw error;
   }
+
+  return new Response(
+    JSON.stringify({ templates }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
 
 async function sendSMTPEmail(config: any) {
-  try {
-    console.log(`Attempting to send email via SMTP to ${config.toEmail}`);
-    
-    // For development, we'll simulate email sending
-    // In production, you would integrate with a real SMTP service like SendGrid, AWS SES, etc.
-    
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // For now, we'll use a simple validation and simulate success
-    if (!config.toEmail || !config.toEmail.includes('@')) {
-      return { success: false, error: 'Invalid email address' };
-    }
-    
-    if (!config.subject || !config.htmlContent) {
-      return { success: false, error: 'Subject and content are required' };
-    }
+  // Using nodemailer-like implementation for Deno
+  const { SMTPClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
+  
+  const client = new SMTPClient({
+    connection: {
+      hostname: config.host,
+      port: config.port,
+      tls: config.use_ssl,
+      auth: {
+        username: config.username,
+        password: config.password,
+      },
+    },
+  });
 
-    // Log the email details for debugging
-    console.log('=== EMAIL SENT (SIMULATED) ===');
-    console.log(`From: ${config.fromName} <${config.fromEmail}>`);
-    console.log(`To: ${config.toEmail}`);
-    console.log(`Subject: ${config.subject}`);
-    console.log(`Content: ${config.htmlContent}`);
-    console.log('==============================');
-    
-    return { success: true, message: 'Email sent successfully (simulated)' };
-    
-  } catch (error) {
-    console.error('SMTP sending error:', error);
-    return { success: false, error: error.message };
+  await client.send({
+    from: `${config.from_name} <${config.from_email}>`,
+    to: config.to,
+    subject: config.subject,
+    content: config.html,
+    html: config.html,
+  });
+
+  await client.close();
+}
+
+function replacePlaceholders(template: string, data: Record<string, string>): string {
+  let result = template;
+  Object.entries(data).forEach(([key, value]) => {
+    const placeholder = `{{${key}}}`;
+    result = result.replaceAll(placeholder, value);
+  });
+  return result;
+}
+
+function decrypt(encryptedPassword: string): string {
+  // Simple base64 decoding for now - in production, use proper encryption
+  try {
+    return atob(encryptedPassword);
+  } catch {
+    return encryptedPassword; // Fallback if not encrypted
   }
 }

@@ -14,10 +14,6 @@ export interface DataIntegrityState {
   lastUpdated?: string;
 }
 
-export interface DataIntegrityMetrics {
-  consistencyReport?: ConsistencyReport;
-}
-
 export interface DataIntegrityActions {
   runConsistencyCheck: () => Promise<void>;
   startAutoReconciliation: () => Promise<void>;
@@ -155,8 +151,6 @@ export const useDataIntegrity = (autoStart: boolean = false) => {
       const result = await backupRollbackManager.rollbackToBackup({
         targetBackupId: backupId,
         createRollbackPoint: true,
-        validateBeforeRollback: true,
-        dryRun: false,
         ...options
       });
       
@@ -262,11 +256,6 @@ export const useDataIntegrity = (autoStart: boolean = false) => {
     j.status === 'completed' || j.status === 'failed'
   );
 
-  // Create metrics object for the dashboard
-  const metrics: DataIntegrityMetrics = {
-    consistencyReport: state.consistencyReport
-  };
-
   const actions: DataIntegrityActions = {
     runConsistencyCheck,
     startAutoReconciliation,
@@ -279,9 +268,6 @@ export const useDataIntegrity = (autoStart: boolean = false) => {
   return {
     // State
     ...state,
-    
-    // Metrics object that the dashboard expects
-    metrics,
     
     // Derived state
     hasIntegrityIssues,

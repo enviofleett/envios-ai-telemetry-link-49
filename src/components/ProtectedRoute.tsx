@@ -1,38 +1,47 @@
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { useGP51Auth } from '@/contexts/GP51AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import ConnectionStatusBanner from '@/components/auth/ConnectionStatusBanner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
+  fallback?: React.ReactNode;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
-  requireAdmin = false
+  requireAdmin = false, 
+  fallback 
 }) => {
-  const { user, loading, authLevel, retryConnection } = useGP51Auth();
+  const { user, isAdmin, loading } = useAuth();
 
   if (loading) {
     return <LoadingSpinner />;
   }
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return fallback || (
+      <Alert>
+        <AlertDescription>
+          Please sign in to access this page.
+        </AlertDescription>
+      </Alert>
+    );
   }
 
-  return (
-    <>
-      <ConnectionStatusBanner 
-        currentLevel={authLevel} 
-        onRetryConnection={retryConnection}
-      />
-      {children}
-    </>
-  );
+  if (requireAdmin && !isAdmin) {
+    return fallback || (
+      <Alert>
+        <AlertDescription>
+          Admin access required to view this page.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;

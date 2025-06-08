@@ -1,9 +1,10 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { RefreshCw, Database } from 'lucide-react';
 import { useImportJob } from '@/hooks/useImportJob';
-import { parseErrorLog, convertToErrorLogEntries } from '@/utils/import-job-utils';
+import { parseErrorLog } from '@/utils/import-job-utils';
 import ImportStatusBadge from './ImportStatusBadge';
 import ImportStatistics from './ImportStatistics';
 import ImportErrorLog from './ImportErrorLog';
@@ -47,7 +48,7 @@ const ImportMonitor: React.FC<ImportMonitorProps> = ({ jobId, onJobComplete }) =
     );
   }
 
-  const errorLog = convertToErrorLogEntries(parseErrorLog(job.error_log));
+  const errorLog = parseErrorLog(job.error_log);
 
   return (
     <Card>

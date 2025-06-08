@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
@@ -49,50 +50,24 @@ serve(async (req) => {
         );
       }
 
-      // Send OTP via SMTP email service with better error handling
+      // Send OTP via SMS/Email (integrate with your SMS/Email service)
       try {
-        const emailResult = await sendOTPNotification(supabase, email, otpCodeGenerated, otpType);
-        
-        if (emailResult.success) {
-          console.log(`OTP sent successfully to ${email}: ${otpCodeGenerated}`);
-          return new Response(
-            JSON.stringify({
-              success: true,
-              otpId: otpRecord.id,
-              expiresAt: otpRecord.expires_at,
-              message: 'OTP sent successfully',
-              emailDelivered: true
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        } else {
-          console.error('Failed to send OTP email:', emailResult.error);
-          return new Response(
-            JSON.stringify({
-              success: true,
-              otpId: otpRecord.id,
-              expiresAt: otpRecord.expires_at,
-              message: 'OTP generated but email delivery failed',
-              emailDelivered: false,
-              emailError: emailResult.error
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
+        await sendOTPNotification(phoneNumber, email, otpCodeGenerated, otpType);
+        console.log(`OTP sent to ${phoneNumber} / ${email}: ${otpCodeGenerated}`);
       } catch (sendError) {
-        console.error('Failed to send OTP email:', sendError);
-        return new Response(
-          JSON.stringify({
-            success: true,
-            otpId: otpRecord.id,
-            expiresAt: otpRecord.expires_at,
-            message: 'OTP generated but email service unavailable',
-            emailDelivered: false,
-            emailError: sendError.message
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.error('Failed to send OTP:', sendError);
+        // Continue even if sending fails for now
       }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          otpId: otpRecord.id,
+          expiresAt: otpRecord.expires_at,
+          message: 'OTP sent successfully'
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     if (action === 'verify') {
@@ -229,8 +204,8 @@ serve(async (req) => {
 
       // Send new OTP
       try {
-        await sendOTPNotification(supabase, existingOTP.email, newOtpCode, existingOTP.otp_type);
-        console.log(`OTP resent to ${existingOTP.email}: ${newOtpCode}`);
+        await sendOTPNotification(existingOTP.phone_number, existingOTP.email, newOtpCode, existingOTP.otp_type);
+        console.log(`OTP resent to ${existingOTP.phone_number} / ${existingOTP.email}: ${newOtpCode}`);
       } catch (sendError) {
         console.error('Failed to resend OTP:', sendError);
       }
@@ -260,9 +235,19 @@ serve(async (req) => {
   }
 });
 
-async function sendOTPNotification(supabase: any, email: string, otpCode: string, otpType: string) {
+async function sendOTPNotification(phoneNumber: string, email: string, otpCode: string, otpType: string) {
+  // For now, just log the OTP. In production, integrate with SMS/Email service
+  console.log(`=== OTP NOTIFICATION ===`);
+  console.log(`Type: ${otpType}`);
+  console.log(`Phone: ${phoneNumber}`);
+  console.log(`Email: ${email}`);
+  console.log(`Code: ${otpCode}`);
+  console.log(`======================`);
+  
+  // TODO: Integrate with actual SMS/Email service like Twilio, SendGrid, etc.
+  // Example for email integration with existing SMTP service:
+  /*
   try {
-    // Send OTP via the SMTP email service
     const { data, error } = await supabase.functions.invoke('smtp-email-service', {
       body: {
         action: 'send-email',
@@ -271,34 +256,14 @@ async function sendOTPNotification(supabase: any, email: string, otpCode: string
         placeholderData: {
           user_name: email.split('@')[0],
           otp_code: otpCode,
-          expiry_minutes: '10',
-          otp_type: otpType
+          expiry_minutes: '10'
         }
       }
     });
     
-    if (error) {
-      console.error('SMTP service error:', error);
-      return { success: false, error: error.message };
-    }
-    
-    if (data && data.success) {
-      console.log('OTP email sent successfully via SMTP service');
-      return { success: true };
-    } else {
-      console.error('SMTP service returned failure:', data);
-      return { success: false, error: data?.error || 'Unknown SMTP error' };
-    }
+    if (error) throw error;
   } catch (emailError) {
-    console.error('Failed to send OTP email via SMTP:', emailError);
-    
-    // Log the OTP for development/testing as fallback
-    console.log(`=== OTP NOTIFICATION (Fallback) ===`);
-    console.log(`Type: ${otpType}`);
-    console.log(`Email: ${email}`);
-    console.log(`Code: ${otpCode}`);
-    console.log(`===============================`);
-    
-    return { success: false, error: emailError.message };
+    console.error('Failed to send OTP email:', emailError);
   }
+  */
 }

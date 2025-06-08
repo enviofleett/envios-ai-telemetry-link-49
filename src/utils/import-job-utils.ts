@@ -1,3 +1,4 @@
+
 import { Json } from '@/integrations/supabase/types';
 import { ParsedErrorLog } from '@/types/import-job';
 
@@ -30,22 +31,6 @@ export const parseErrorLog = (errorLog: Json | null): ParsedErrorLog[] => {
   }
   
   return [];
-};
-
-export interface ErrorLogEntry {
-  timestamp: string;
-  level: 'error' | 'warning' | 'info';
-  message: string;
-  username?: string;
-}
-
-export const convertToErrorLogEntries = (parsedErrors: ParsedErrorLog[]): ErrorLogEntry[] => {
-  return parsedErrors.map(error => ({
-    timestamp: error.timestamp || new Date().toISOString(),
-    level: 'error' as const,
-    message: error.error,
-    username: error.username
-  }));
 };
 
 export const getCurrentStep = (jobData: any): string => {

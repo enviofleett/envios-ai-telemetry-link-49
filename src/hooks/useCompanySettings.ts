@@ -1,101 +1,91 @@
 
-import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-interface CompanySettings {
-  id: string;
-  user_id: string;
+export interface CompanySettings {
+  id?: string;
+  user_id?: string;
   company_name: string;
-  contact_email?: string;
-  company_address?: string;
-  phone_number?: string;
-  fleet_size?: number;
-  operational_hours?: string;
+  contact_email: string;
+  company_address: string;
+  phone_number: string;
+  fleet_size: number;
+  operational_hours: string;
   timezone: string;
-  logo_url?: string;
-  created_at: string;
-  updated_at: string;
+  logo_url: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const useCompanySettings = () => {
-  const [settings, setSettings] = useState<CompanySettings | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  const fetchSettings = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['company-settings'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('company_settings')
         .select('*')
-        .eq('user_id', user.id)
         .single();
-
+      
       if (error && error.code !== 'PGRST116') {
         throw error;
       }
-
-      setSettings(data);
-    } catch (error) {
-      console.error('Error fetching company settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load company settings.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
+      
+      return data || {
+        company_name: '',
+        contact_email: '',
+        company_address: '',
+        phone_number: '',
+        fleet_size: 0,
+        operational_hours: '',
+        timezone: 'UTC',
+        logo_url: ''
+      };
     }
-  };
+  });
 
-  const updateSettings = async (updates: Partial<CompanySettings>) => {
-    setIsUpdating(true);
-    try {
+  const updateSettings = useMutation({
+    mutationFn: async (newSettings: Partial<CompanySettings>) => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) throw new Error('Not authenticated');
 
       const { data, error } = await supabase
         .from('company_settings')
         .upsert({
           user_id: user.id,
-          ...updates,
+          ...newSettings,
           updated_at: new Date().toISOString()
         })
         .select()
         .single();
 
       if (error) throw error;
-
-      setSettings(data);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['company-settings'] });
       toast({
-        title: "Settings updated",
-        description: "Company settings have been successfully updated."
+        title: "Success",
+        description: "Company settings saved successfully"
       });
-    } catch (error) {
-      console.error('Error updating company settings:', error);
+    },
+    onError: (error) => {
+      console.error('Failed to save company settings:', error);
       toast({
         title: "Error",
-        description: "Failed to update company settings.",
+        description: "Failed to save company settings",
         variant: "destructive"
       });
-    } finally {
-      setIsUpdating(false);
     }
-  };
+  });
 
   return {
     settings,
     isLoading,
-    isUpdating,
-    updateSettings,
-    refetch: fetchSettings
+    updateSettings: updateSettings.mutate,
+    isUpdating: updateSettings.isPending
   };
 };

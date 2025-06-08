@@ -79,6 +79,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions) => {
     
     setVehicles(filteredVehicles);
     setMetrics(unifiedVehicleDataService.getVehicleMetrics());
+    setSyncMetrics(unifiedVehicleDataService.getSyncMetrics());
     setIsLoading(false);
   };
 
@@ -107,8 +108,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions) => {
   const forceRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Basic refresh implementation
-      updateData();
+      await unifiedVehicleDataService.forceSync();
     } catch (error) {
       console.error('Force refresh failed:', error);
     } finally {
@@ -119,15 +119,9 @@ export const useUnifiedVehicleData = (filters?: FilterOptions) => {
   const getVehiclesByStatus = () => {
     const allVehicles = unifiedVehicleDataService.getAllVehicles();
     return {
-      online: allVehicles.filter(v => {
-        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-        return v.lastPosition?.updatetime && new Date(v.lastPosition.updatetime) > thirtyMinutesAgo;
-      }),
-      offline: allVehicles.filter(v => {
-        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-        return !v.lastPosition?.updatetime || new Date(v.lastPosition.updatetime) <= thirtyMinutesAgo;
-      }),
-      alerts: allVehicles.filter(v => v.status?.toLowerCase().includes('alert') || v.status?.toLowerCase().includes('alarm'))
+      online: unifiedVehicleDataService.getOnlineVehicles(),
+      offline: unifiedVehicleDataService.getOfflineVehicles(),
+      alerts: unifiedVehicleDataService.getVehiclesWithAlerts()
     };
   };
 
