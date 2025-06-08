@@ -58,32 +58,6 @@ export const useOwnerManagement = () => {
     refetchInterval: 30000,
   });
 
-  // Fetch vehicle assignments for a specific owner
-  const useOwnerVehicles = (ownerId: string) => {
-    return useQuery({
-      queryKey: ['owner-vehicles', ownerId],
-      queryFn: async () => {
-        const { data, error } = await supabase
-          .from('vehicles')
-          .select(`
-            device_id,
-            device_name,
-            status,
-            created_at
-          `)
-          .eq('owner_id', ownerId);
-
-        if (error) {
-          console.error('Failed to fetch owner vehicles:', error);
-          throw error;
-        }
-
-        return (data || []) as VehicleData[];
-      },
-      enabled: !!ownerId,
-    });
-  };
-
   // Update owner mutation
   const updateOwnerMutation = useMutation({
     mutationFn: async (updatedOwner: EnvioUser) => {
@@ -207,7 +181,6 @@ export const useOwnerManagement = () => {
     owners: ownersQuery.data || [],
     isLoadingOwners: ownersQuery.isLoading,
     ownersError: ownersQuery.error,
-    useOwnerVehicles,
     updateOwner: updateOwnerMutation.mutate,
     isUpdatingOwner: updateOwnerMutation.isPending,
     assignVehicle: assignVehicleMutation.mutate,
@@ -215,4 +188,30 @@ export const useOwnerManagement = () => {
     unassignVehicle: unassignVehicleMutation.mutate,
     isUnassigningVehicle: unassignVehicleMutation.isPending,
   };
+};
+
+// Separate hook for owner vehicles to avoid type conflicts
+export const useOwnerVehicles = (ownerId: string) => {
+  return useQuery({
+    queryKey: ['owner-vehicles', ownerId],
+    queryFn: async (): Promise<VehicleData[]> => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select(`
+          device_id,
+          device_name,
+          status,
+          created_at
+        `)
+        .eq('owner_id', ownerId);
+
+      if (error) {
+        console.error('Failed to fetch owner vehicles:', error);
+        throw error;
+      }
+
+      return (data || []) as VehicleData[];
+    },
+    enabled: !!ownerId,
+  });
 };
