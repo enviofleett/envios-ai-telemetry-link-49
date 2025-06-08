@@ -2985,6 +2985,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           email: string
+          gp51_username: string | null
           id: string
           name: string
           otp_verification_id: string | null
@@ -3000,6 +3001,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           email: string
+          gp51_username?: string | null
           id?: string
           name: string
           otp_verification_id?: string | null
@@ -3015,6 +3017,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           email?: string
+          gp51_username?: string | null
           id?: string
           name?: string
           otp_verification_id?: string | null

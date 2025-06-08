@@ -251,15 +251,18 @@ export async function setPassword(formData: FormData) {
       }
     }
 
+    // Type the registration to include gp51_username
+    const typedRegistration = registration as typeof registration & { gp51_username?: string }
+
     // Create user in Supabase Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: validatedData.email,
       password: validatedData.password,
       options: {
         data: {
-          name: registration.name,
-          phone: registration.phone_number,
-          city: registration.city,
+          name: typedRegistration.name,
+          phone: typedRegistration.phone_number,
+          city: typedRegistration.city,
         }
       }
     })
@@ -277,11 +280,11 @@ export async function setPassword(formData: FormData) {
       .from('envio_users')
       .insert({
         id: authData.user?.id,
-        name: registration.name,
-        email: registration.email,
-        phone_number: registration.phone_number,
-        city: registration.city,
-        gp51_username: registration.gp51_username,
+        name: typedRegistration.name,
+        email: typedRegistration.email,
+        phone_number: typedRegistration.phone_number,
+        city: typedRegistration.city,
+        gp51_username: typedRegistration.gp51_username,
         registration_type: 'admin_portal',
         registration_status: 'completed',
         needs_password_set: false
@@ -307,7 +310,7 @@ export async function setPassword(formData: FormData) {
     await supabase
       .from('pending_user_registrations')
       .update({ status: 'completed' })
-      .eq('id', registration.id)
+      .eq('id', typedRegistration.id)
 
     return {
       success: true,
