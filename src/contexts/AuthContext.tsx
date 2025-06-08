@@ -8,7 +8,7 @@ interface AuthContextType {
   isAdmin: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, name: string, role?: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshUserRole: () => Promise<void>;
 }
@@ -152,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signUp = async (email: string, password: string, name: string, role: string = 'user') => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { data, error } = await supabase.auth.signUp({
@@ -171,16 +171,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .insert({
           id: data.user.id, // Use auth user ID directly
           name,
-          email
+          email,
+          registration_status: role === 'admin' ? 'pending_approval' : 'approved'
         });
 
-      // Create default user role with auth user ID
+      // Create user role with auth user ID
+      // For admin requests, create pending role that requires approval
+      const finalRole = role === 'admin' ? 'user' : role; // Start as user until admin approval
       await supabase
         .from('user_roles')
         .insert({
           user_id: data.user.id, // Use auth user ID directly
-          role: 'user'
+          role: finalRole
         });
+
+      // If admin role was requested, create admin request record
+      if (role === 'admin') {
+        await supabase
+          .from('admin_role_requests')
+          .insert({
+            user_id: data.user.id,
+            requested_role: 'admin',
+            status: 'pending',
+            request_reason: 'Admin access requested during registration'
+          });
+      }
     }
     
     return { error };

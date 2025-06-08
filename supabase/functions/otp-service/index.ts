@@ -50,10 +50,10 @@ serve(async (req) => {
         );
       }
 
-      // Send OTP via SMS/Email (integrate with your SMS/Email service)
+      // Send OTP via SMTP email service
       try {
-        await sendOTPNotification(phoneNumber, email, otpCodeGenerated, otpType);
-        console.log(`OTP sent to ${phoneNumber} / ${email}: ${otpCodeGenerated}`);
+        await sendOTPNotification(supabase, email, otpCodeGenerated, otpType);
+        console.log(`OTP sent to ${email}: ${otpCodeGenerated}`);
       } catch (sendError) {
         console.error('Failed to send OTP:', sendError);
         // Continue even if sending fails for now
@@ -204,8 +204,8 @@ serve(async (req) => {
 
       // Send new OTP
       try {
-        await sendOTPNotification(existingOTP.phone_number, existingOTP.email, newOtpCode, existingOTP.otp_type);
-        console.log(`OTP resent to ${existingOTP.phone_number} / ${existingOTP.email}: ${newOtpCode}`);
+        await sendOTPNotification(supabase, existingOTP.email, newOtpCode, existingOTP.otp_type);
+        console.log(`OTP resent to ${existingOTP.email}: ${newOtpCode}`);
       } catch (sendError) {
         console.error('Failed to resend OTP:', sendError);
       }
@@ -235,19 +235,9 @@ serve(async (req) => {
   }
 });
 
-async function sendOTPNotification(phoneNumber: string, email: string, otpCode: string, otpType: string) {
-  // For now, just log the OTP. In production, integrate with SMS/Email service
-  console.log(`=== OTP NOTIFICATION ===`);
-  console.log(`Type: ${otpType}`);
-  console.log(`Phone: ${phoneNumber}`);
-  console.log(`Email: ${email}`);
-  console.log(`Code: ${otpCode}`);
-  console.log(`======================`);
-  
-  // TODO: Integrate with actual SMS/Email service like Twilio, SendGrid, etc.
-  // Example for email integration with existing SMTP service:
-  /*
+async function sendOTPNotification(supabase: any, email: string, otpCode: string, otpType: string) {
   try {
+    // Send OTP via the SMTP email service
     const { data, error } = await supabase.functions.invoke('smtp-email-service', {
       body: {
         action: 'send-email',
@@ -256,14 +246,26 @@ async function sendOTPNotification(phoneNumber: string, email: string, otpCode: 
         placeholderData: {
           user_name: email.split('@')[0],
           otp_code: otpCode,
-          expiry_minutes: '10'
+          expiry_minutes: '10',
+          otp_type: otpType
         }
       }
     });
     
-    if (error) throw error;
+    if (error) {
+      console.error('SMTP service error:', error);
+      throw error;
+    }
+    
+    console.log('OTP email sent successfully via SMTP service');
   } catch (emailError) {
-    console.error('Failed to send OTP email:', emailError);
+    console.error('Failed to send OTP email via SMTP:', emailError);
+    // Log the OTP for development/testing
+    console.log(`=== OTP NOTIFICATION (Fallback) ===`);
+    console.log(`Type: ${otpType}`);
+    console.log(`Email: ${email}`);
+    console.log(`Code: ${otpCode}`);
+    console.log(`===============================`);
+    throw emailError;
   }
-  */
 }
