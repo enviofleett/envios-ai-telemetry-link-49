@@ -1,14 +1,17 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   MapPin,
   Navigation,
@@ -20,9 +23,22 @@ import {
   Car,
   ExternalLink,
   History,
-  Bell
+  Bell,
+  Calendar,
+  CreditCard,
+  Phone,
+  Mail,
+  CheckCircle,
+  XCircle,
+  Wrench,
+  Package,
+  Plus
 } from 'lucide-react';
 import type { Vehicle } from '@/services/unifiedVehicleData';
+import { VehicleOverviewTab } from './tabs/VehicleOverviewTab';
+import { VehicleSubscriptionTab } from './tabs/VehicleSubscriptionTab';
+import { VehicleMaintenanceTab } from './tabs/VehicleMaintenanceTab';
+import { VehicleOwnerTab } from './tabs/VehicleOwnerTab';
 
 interface VehicleDetailsModalProps {
   vehicle: Vehicle | null;
@@ -61,29 +77,19 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
     }
   };
 
-  const formatLastUpdate = (updatetime: string) => {
-    const date = new Date(updatetime);
-    const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
-    if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return date.toLocaleDateString();
-  };
-
   const status = getVehicleStatus();
   const hasAlert = vehicle.status?.toLowerCase().includes('alert') || 
                   vehicle.status?.toLowerCase().includes('alarm');
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Car className="h-5 w-5" />
             {vehicle.devicename}
           </DialogTitle>
+          <DialogDescription>Comprehensive vehicle information and management</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -127,113 +133,31 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
 
           <Separator />
 
-          {/* Basic Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold mb-3">Device Information</h4>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Device ID:</span>
-                  <span className="font-mono">{vehicle.deviceid}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Device Name:</span>
-                  <span>{vehicle.devicename}</span>
-                </div>
-                {vehicle.envio_user_id && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">User ID:</span>
-                    <span className="font-mono text-xs">{vehicle.envio_user_id}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Status:</span>
-                  <span>{vehicle.is_active ? 'Active' : 'Inactive'}</span>
-                </div>
-              </div>
-            </div>
+          {/* Tabbed Content */}
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="subscription">Subscription</TabsTrigger>
+              <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
+              <TabsTrigger value="owner">Owner Profile</TabsTrigger>
+            </TabsList>
 
-            <div>
-              <h4 className="font-semibold mb-3">Current Status</h4>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <Activity className="h-3 w-3 text-gray-400" />
-                    <span className="text-gray-600">Connection:</span>
-                  </div>
-                  <span className={`font-medium ${status === 'online' ? 'text-green-600' : 'text-gray-600'}`}>
-                    {status.charAt(0).toUpperCase() + status.slice(1)}
-                  </span>
-                </div>
-                {vehicle.status && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">System Status:</span>
-                    <span>{vehicle.status}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
+            <TabsContent value="overview" className="space-y-4">
+              <VehicleOverviewTab vehicle={vehicle} status={status} />
+            </TabsContent>
 
-          {/* Position Data */}
-          {vehicle.lastPosition && (
-            <>
-              <Separator />
-              <div>
-                <h4 className="font-semibold mb-3">Latest Position Data</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-600">Coordinates:</span>
-                      </div>
-                      <span className="font-mono text-sm">
-                        {vehicle.lastPosition.lat.toFixed(6)}, {vehicle.lastPosition.lon.toFixed(6)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Gauge className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-600">Speed:</span>
-                      </div>
-                      <span className="font-medium">{vehicle.lastPosition.speed} km/h</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Navigation className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-600">Course:</span>
-                      </div>
-                      <span className="font-medium">{vehicle.lastPosition.course}°</span>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-600">Last Update:</span>
-                      </div>
-                      <span className="text-sm">
-                        {formatLastUpdate(vehicle.lastPosition.updatetime)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600">Full Date:</span>
-                      <span className="text-sm">
-                        {new Date(vehicle.lastPosition.updatetime).toLocaleString()}
-                      </span>
-                    </div>
-                    {vehicle.lastPosition.statusText && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Status Text:</span>
-                        <span className="text-sm">{vehicle.lastPosition.statusText}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
+            <TabsContent value="subscription" className="space-y-4">
+              <VehicleSubscriptionTab vehicle={vehicle} />
+            </TabsContent>
+
+            <TabsContent value="maintenance" className="space-y-4">
+              <VehicleMaintenanceTab vehicle={vehicle} />
+            </TabsContent>
+
+            <TabsContent value="owner" className="space-y-4">
+              <VehicleOwnerTab vehicle={vehicle} />
+            </TabsContent>
+          </Tabs>
 
           {/* Action Buttons */}
           <Separator />
