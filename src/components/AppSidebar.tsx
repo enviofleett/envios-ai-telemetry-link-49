@@ -43,14 +43,14 @@ interface NavItemProps {
   title: string;
   url: string;
   active: boolean;
-  collapsed: boolean;
+  isCollapsed: boolean;
   items?: Array<{
     title: string;
     url: string;
   }>;
 }
 
-const NavItem = ({ icon: Icon, title, url, active, collapsed, items }: NavItemProps) => {
+const NavItem = ({ icon: Icon, title, url, active, isCollapsed, items }: NavItemProps) => {
   const [isOpen, setIsOpen] = React.useState(false);
 
   if (items && items.length > 0) {
@@ -66,12 +66,12 @@ const NavItem = ({ icon: Icon, title, url, active, collapsed, items }: NavItemPr
           >
             <div className="flex items-center">
               <Icon className={cn("text-xl", active ? "text-[#82AAAD]" : "text-gray-500")} />
-              {!collapsed && <span className="ml-5">{title}</span>}
+              {!isCollapsed && <span className="ml-5">{title}</span>}
             </div>
-            {!collapsed && <ChevronDown className="h-4 w-4" />}
+            {!isCollapsed && <ChevronDown className="h-4 w-4" />}
           </SidebarMenuButton>
         </CollapsibleTrigger>
-        {!collapsed && (
+        {!isCollapsed && (
           <CollapsibleContent className="space-y-1 pl-6">
             {items.map((subItem) => (
               <SidebarMenuButton key={subItem.title} asChild>
@@ -100,14 +100,15 @@ const NavItem = ({ icon: Icon, title, url, active, collapsed, items }: NavItemPr
         )}
       >
         <Icon className={cn("text-xl", active ? "text-[#82AAAD]" : "text-gray-500")} />
-        {!collapsed && <span className="ml-5">{title}</span>}
+        {!isCollapsed && <span className="ml-5">{title}</span>}
       </Link>
     </SidebarMenuButton>
   );
 };
 
 export const AppSidebar = () => {
-  const { collapsed } = useSidebar();
+  const { state } = useSidebar();
+  const isCollapsed = state === "collapsed";
   const location = useLocation();
   const { user, signOut, isAdmin } = useAuth();
 
@@ -186,23 +187,23 @@ export const AppSidebar = () => {
     <Sidebar
       className={cn(
         "fixed left-5 top-[1vh] h-[98vh] transition-all duration-300 ease-in-out rounded-xl shadow-lg bg-white border-0",
-        collapsed ? "w-[75px]" : "w-[200px]"
+        isCollapsed ? "w-[75px]" : "w-[200px]"
       )}
-      collapsible
+      collapsible="icon"
     >
       <SidebarContent className="p-4">
         {/* User Profile Section */}
-        <div className={cn("mb-6", collapsed ? "flex justify-center" : "")}>
+        <div className={cn("mb-6", isCollapsed ? "flex justify-center" : "")}>
           {user && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="outline-none focus:outline-none w-full">
-                  <div className={cn("flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50", collapsed && "justify-center")}>
+                  <div className={cn("flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50", isCollapsed && "justify-center")}>
                     <Avatar className="h-8 w-8">
                       <AvatarImage src="https://github.com/shadcn.png" alt="User" />
                       <AvatarFallback>{user?.email[0].toUpperCase()}</AvatarFallback>
                     </Avatar>
-                    {!collapsed && (
+                    {!isCollapsed && (
                       <div className="text-left flex-1">
                         <p className="text-sm font-medium truncate">{user.email}</p>
                         <p className="text-xs text-gray-500">{isAdmin ? 'Admin' : 'User'}</p>
@@ -240,7 +241,7 @@ export const AppSidebar = () => {
                     title={item.title}
                     url={item.url}
                     active={location.pathname === item.url}
-                    collapsed={collapsed}
+                    isCollapsed={isCollapsed}
                     items={item.items}
                   />
                 </SidebarMenuItem>
@@ -250,7 +251,7 @@ export const AppSidebar = () => {
         </SidebarGroup>
 
         {/* Collapse Toggle */}
-        <div className={cn("mt-auto pt-4", collapsed ? "flex justify-center" : "")}>
+        <div className={cn("mt-auto pt-4", isCollapsed ? "flex justify-center" : "")}>
           <SidebarTrigger className="w-full rounded-lg p-2 hover:bg-gray-100" />
         </div>
       </SidebarContent>
