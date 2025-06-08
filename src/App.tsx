@@ -8,7 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { GP51SessionProvider } from "@/contexts/GP51SessionContext";
 import { navItems } from "./nav-items";
 import Index from "./pages/Index";
-import SimpleAuth from "./pages/SimpleAuth";
+import Auth from "./pages/Auth";
 import MinimalAuth from "./components/MinimalAuth";
 import NotFound from "./pages/NotFound";
 import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
@@ -31,12 +31,12 @@ const App = () => {
               <BrowserRouter>
                 <StableErrorBoundary>
                   <Routes>
-                    {/* Consolidated auth routes - all use SimpleAuth */}
+                    {/* Consolidated auth routes - all use Auth component */}
                     <Route 
                       path="/auth" 
                       element={
                         <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
-                          <SimpleAuth />
+                          <Auth />
                         </StableErrorBoundary>
                       } 
                     />
@@ -44,7 +44,7 @@ const App = () => {
                       path="/login" 
                       element={
                         <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
-                          <SimpleAuth />
+                          <Auth />
                         </StableErrorBoundary>
                       } 
                     />
@@ -52,7 +52,7 @@ const App = () => {
                       path="/register" 
                       element={
                         <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
-                          <SimpleAuth />
+                          <Auth />
                         </StableErrorBoundary>
                       } 
                     />
