@@ -1,13 +1,19 @@
 
 import React from 'react';
-import Layout from '@/components/Layout';
-import { EnhancedMarketplace } from '@/components/marketplace/EnhancedMarketplace';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const Marketplace: React.FC = () => {
   return (
-    <Layout>
-      <EnhancedMarketplace />
-    </Layout>
+    <div className="container mx-auto p-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Marketplace</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p>Marketplace interface coming soon...</p>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

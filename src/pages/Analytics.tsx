@@ -2,19 +2,19 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-const Maintenance: React.FC = () => {
+const Analytics: React.FC = () => {
   return (
     <div className="container mx-auto p-6">
       <Card>
         <CardHeader>
-          <CardTitle>Maintenance Management</CardTitle>
+          <CardTitle>Analytics Dashboard</CardTitle>
         </CardHeader>
         <CardContent>
-          <p>Maintenance management interface coming soon...</p>
+          <p>Analytics dashboard coming soon...</p>
         </CardContent>
       </Card>
     </div>
   );
 };
 
-export default Maintenance;
+export default Analytics;
