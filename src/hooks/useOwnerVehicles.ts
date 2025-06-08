@@ -2,10 +2,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
+interface OwnerVehicleData {
+  device_id: string;
+  device_name: string;
+  status: string;
+  created_at: string;
+}
+
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery({
+  return useQuery<OwnerVehicleData[]>({
     queryKey: ['owner-vehicles', ownerId],
-    queryFn: async () => {
+    queryFn: async (): Promise<OwnerVehicleData[]> => {
       const { data, error } = await supabase
         .from('vehicles')
         .select('device_id, device_name, status, created_at')
