@@ -28,27 +28,47 @@ const Auth = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  console.log('🔐 Auth Component: Rendered with user:', user?.email || 'none');
+
   // Redirect if already authenticated
   useEffect(() => {
+    console.log('🔐 Auth Component: useEffect triggered');
+    console.log('🔐 Auth Component: User state:', user?.email || 'none');
+    console.log('🔐 Auth Component: Current pathname:', window.location.pathname);
+    
     if (user) {
-      navigate('/');
+      console.log('✅ Auth Component: User is authenticated, initiating redirect to dashboard');
+      console.log('📍 Auth Component: Navigating from', window.location.pathname, 'to /');
+      navigate('/', { replace: true });
+      console.log('📍 Auth Component: Navigate call completed');
+    } else {
+      console.log('❌ Auth Component: No user, staying on auth page');
     }
   }, [user, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🔐 Auth Component: Sign in form submitted');
+    console.log('🔐 Auth Component: Email:', email);
+    
     setLoading(true);
     setError('');
 
+    console.log('🔐 Auth Component: Calling signIn function...');
     const { error } = await signIn(email, password);
     
     if (error) {
+      console.error('❌ Auth Component: Sign in failed with error:', error);
       setError(error.message);
     } else {
+      console.log('✅ Auth Component: Sign in successful, preparing navigation');
+      console.log('📍 Auth Component: About to navigate to dashboard');
       navigate('/');
+      console.log('📍 Auth Component: Navigate to dashboard completed');
     }
     
     setLoading(false);
+    console.log('🏁 Auth Component: Sign in process complete');
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -174,6 +194,7 @@ const Auth = () => {
 
   // If user is logged in, show logout option
   if (user) {
+    console.log('👤 Auth Component: User is logged in, showing logout interface');
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Card className="w-full max-w-md">
@@ -185,7 +206,10 @@ const Auth = () => {
           </CardHeader>
           <CardContent className="space-y-4">
             <Button 
-              onClick={() => navigate('/')} 
+              onClick={() => {
+                console.log('📍 Auth Component: Dashboard button clicked');
+                navigate('/');
+              }} 
               className="w-full"
             >
               Go to Dashboard
@@ -203,6 +227,8 @@ const Auth = () => {
       </div>
     );
   }
+
+  console.log('🔐 Auth Component: Rendering login/signup interface');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">

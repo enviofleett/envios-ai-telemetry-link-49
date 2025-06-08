@@ -18,7 +18,7 @@ import StableErrorBoundary from "./components/StableErrorBoundary";
 const queryClient = new QueryClient();
 
 const App = () => {
-  console.log('App component rendering');
+  console.log('⚡ App: Component rendering started');
 
   return (
     <StableErrorBoundary>
@@ -75,21 +75,24 @@ const App = () => {
                     } />
                     
                     {/* Main navigation items */}
-                    {navItems.map(({ to, page }) => (
-                      <Route 
-                        key={to} 
-                        path={to} 
-                        element={
-                          <StableErrorBoundary>
-                            {page ? (
-                              <ProtectedRoute>
-                                {page}
-                              </ProtectedRoute>
-                            ) : <NotFound />}
-                          </StableErrorBoundary>
-                        } 
-                      />
-                    ))}
+                    {navItems.map(({ to, page }) => {
+                      console.log('🗺️ App: Registering route:', to, 'Has page component:', !!page);
+                      return (
+                        <Route 
+                          key={to} 
+                          path={to} 
+                          element={
+                            <StableErrorBoundary>
+                              {page ? (
+                                <ProtectedRoute>
+                                  {page}
+                                </ProtectedRoute>
+                              ) : <NotFound />}
+                            </StableErrorBoundary>
+                          } 
+                        />
+                      );
+                    })}
                     
                     {/* Default protected route */}
                     <Route path="/" element={
