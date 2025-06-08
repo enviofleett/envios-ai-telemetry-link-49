@@ -1,21 +1,21 @@
 
-import { useAuth } from "@/contexts/AuthContext";
-import { Navigate } from "react-router-dom";
-import Layout from "@/components/Layout";
-import { DashboardContent } from "@/components/dashboard/DashboardContent";
+import { useAuth } from '@/contexts/AuthContext';
+import { Navigate } from 'react-router-dom';
+import ProfessionalDashboard from '@/components/dashboard/ProfessionalDashboard';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 const Index = () => {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
-  if (!user) {
-    return <Navigate to="/auth" replace />;
+  if (loading) {
+    return <LoadingSpinner />;
   }
 
-  return (
-    <Layout>
-      <DashboardContent />
-    </Layout>
-  );
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <ProfessionalDashboard />;
 };
 
 export default Index;

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,6 +16,7 @@ import { PackageMappingService } from '@/services/packageMappingService';
 import { OTPService } from '@/services/otpService';
 import AIBrandingPanel from './AIBrandingPanel';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+
 const ProfessionalLoginPage: React.FC = () => {
   const {
     signIn,
@@ -54,6 +56,7 @@ const ProfessionalLoginPage: React.FC = () => {
       navigate('/');
     }
   }, [user, navigate]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -83,6 +86,7 @@ const ProfessionalLoginPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -109,28 +113,42 @@ const ProfessionalLoginPage: React.FC = () => {
       setIsLoading(false);
       return;
     }
+    
     try {
-      // Generate OTP for email verification
-      const otpResult = await OTPService.generateOTP('',
-      // phone number not required for email OTP
-      signupData.email, 'registration');
-      if (!otpResult.success) {
-        setError(otpResult.error || 'Failed to send verification code');
-        setIsLoading(false);
-        return;
+      // For now, skip OTP and directly create account
+      // TODO: Re-enable OTP verification once edge function is fixed
+      const fullName = `${signupData.firstName} ${signupData.lastName}`;
+      const {
+        error
+      } = await signUp(signupData.email, signupData.password, fullName, signupData.packageId);
+      
+      if (error) {
+        setError(error.message);
+      } else {
+        const packageInfo = PackageMappingService.getPackageInfo(signupData.packageId);
+        toast({
+          title: "Registration Successful!",
+          description: packageInfo?.requiresApproval ? "Your account has been created. Admin approval may be required for your selected package." : "Your account has been created successfully."
+        });
+        // Reset form
+        setSignupData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          password: '',
+          confirmPassword: '',
+          userType: '',
+          company: '',
+          packageId: 'basic'
+        });
       }
-      setOtpId(otpResult.otpId!);
-      setOtpStep(true);
-      toast({
-        title: "Verification Code Sent",
-        description: "Please check your email for the verification code"
-      });
     } catch (error) {
-      setError('Failed to send verification code');
+      setError('Registration failed');
     } finally {
       setIsLoading(false);
     }
   };
+
   const handleOTPVerification = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -177,6 +195,7 @@ const ProfessionalLoginPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
   const handleResendOTP = async () => {
     setIsLoading(true);
     try {
@@ -195,6 +214,7 @@ const ProfessionalLoginPage: React.FC = () => {
       setIsLoading(false);
     }
   };
+
   const userTypes = [{
     value: 'fleet-manager',
     label: 'Fleet Manager'
@@ -211,15 +231,19 @@ const ProfessionalLoginPage: React.FC = () => {
     value: 'maintenance',
     label: 'Maintenance Supervisor'
   }];
+
   const availablePackages = PackageMappingService.getAvailablePackages();
-  return <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 flex items-center justify-center p-4">
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-800 flex items-center justify-center p-4">
       <div className="w-full max-w-7xl grid lg:grid-cols-2 gap-12 items-center">
         {/* Left side - AI Branding */}
         <AIBrandingPanel />
 
         {/* Right side - Authentication Form */}
         <div className="w-full max-w-md mx-auto">
-          {!otpStep ? <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+          {!otpStep ? (
+            <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
               <CardHeader className="space-y-2 text-center pb-6">
                 <CardTitle className="text-2xl font-bold">Welcome to Envio</CardTitle>
                 <CardDescription className="text-base">
@@ -238,20 +262,45 @@ const ProfessionalLoginPage: React.FC = () => {
                     <form onSubmit={handleLogin} className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="login-email">Email address</Label>
-                        <Input id="login-email" type="email" placeholder="Enter your email" value={loginData.email} onChange={e => setLoginData({
-                      ...loginData,
-                      email: e.target.value
-                    })} className="h-11" required disabled={isLoading} />
+                        <Input 
+                          id="login-email" 
+                          type="email" 
+                          placeholder="Enter your email" 
+                          value={loginData.email} 
+                          onChange={e => setLoginData({
+                            ...loginData,
+                            email: e.target.value
+                          })} 
+                          className="h-11" 
+                          required 
+                          disabled={isLoading} 
+                        />
                       </div>
                       
                       <div className="space-y-2">
                         <Label htmlFor="login-password">Password</Label>
                         <div className="relative">
-                          <Input id="login-password" type={showPassword ? 'text' : 'password'} placeholder="Enter your password" value={loginData.password} onChange={e => setLoginData({
-                        ...loginData,
-                        password: e.target.value
-                      })} className="h-11 pr-10" required disabled={isLoading} />
-                          <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
+                          <Input 
+                            id="login-password" 
+                            type={showPassword ? 'text' : 'password'} 
+                            placeholder="Enter your password" 
+                            value={loginData.password} 
+                            onChange={e => setLoginData({
+                              ...loginData,
+                              password: e.target.value
+                            })} 
+                            className="h-11 pr-10" 
+                            required 
+                            disabled={isLoading} 
+                          />
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" 
+                            onClick={() => setShowPassword(!showPassword)} 
+                            disabled={isLoading}
+                          >
                             {showPassword ? <EyeOff className="h-4 w-4 text-slate-500" /> : <Eye className="h-4 w-4 text-slate-500" />}
                           </Button>
                         </div>
@@ -259,10 +308,15 @@ const ProfessionalLoginPage: React.FC = () => {
 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-2">
-                          <Checkbox id="remember" checked={loginData.rememberMe} onCheckedChange={checked => setLoginData({
-                        ...loginData,
-                        rememberMe: checked as boolean
-                      })} disabled={isLoading} />
+                          <Checkbox 
+                            id="remember" 
+                            checked={loginData.rememberMe} 
+                            onCheckedChange={checked => setLoginData({
+                              ...loginData,
+                              rememberMe: checked as boolean
+                            })} 
+                            disabled={isLoading} 
+                          />
                           <Label htmlFor="remember" className="text-sm text-slate-600">
                             Remember me
                           </Label>
@@ -272,16 +326,26 @@ const ProfessionalLoginPage: React.FC = () => {
                         </Button>
                       </div>
 
-                      {error && <Alert variant="destructive">
+                      {error && (
+                        <Alert variant="destructive">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription>{error}</AlertDescription>
-                        </Alert>}
+                        </Alert>
+                      )}
 
-                      <Button type="submit" className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" disabled={isLoading}>
-                        {isLoading ? <>
+                      <Button 
+                        type="submit" 
+                        className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" 
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             Signing In...
-                          </> : 'Sign In'}
+                          </>
+                        ) : (
+                          'Sign In'
+                        )}
                       </Button>
                     </form>
                   </TabsContent>
@@ -292,51 +356,75 @@ const ProfessionalLoginPage: React.FC = () => {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="firstName">First Name</Label>
-                          <Input id="firstName" placeholder="John" value={signupData.firstName} onChange={e => setSignupData({
-                        ...signupData,
-                        firstName: e.target.value
-                      })} className="h-11" required disabled={isLoading} />
+                          <Input 
+                            id="firstName" 
+                            placeholder="John" 
+                            value={signupData.firstName} 
+                            onChange={e => setSignupData({
+                              ...signupData,
+                              firstName: e.target.value
+                            })} 
+                            className="h-11" 
+                            required 
+                            disabled={isLoading} 
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="lastName">Last Name</Label>
-                          <Input id="lastName" placeholder="Doe" value={signupData.lastName} onChange={e => setSignupData({
-                        ...signupData,
-                        lastName: e.target.value
-                      })} className="h-11" required disabled={isLoading} />
+                          <Input 
+                            id="lastName" 
+                            placeholder="Doe" 
+                            value={signupData.lastName} 
+                            onChange={e => setSignupData({
+                              ...signupData,
+                              lastName: e.target.value
+                            })} 
+                            className="h-11" 
+                            required 
+                            disabled={isLoading} 
+                          />
                         </div>
                       </div>
 
                       <div className="space-y-2">
                         <Label htmlFor="signup-email">Email address</Label>
-                        <Input id="signup-email" type="email" placeholder="john.doe@company.com" value={signupData.email} onChange={e => setSignupData({
-                      ...signupData,
-                      email: e.target.value
-                    })} className="h-11" required disabled={isLoading} />
+                        <Input 
+                          id="signup-email" 
+                          type="email" 
+                          placeholder="john.doe@company.com" 
+                          value={signupData.email} 
+                          onChange={e => setSignupData({
+                            ...signupData,
+                            email: e.target.value
+                          })} 
+                          className="h-11" 
+                          required 
+                          disabled={isLoading} 
+                        />
                       </div>
-
-                      <div className="space-y-2">
-                        
-                        
-                      </div>
-
-                      
 
                       <div className="space-y-2">
                         <Label htmlFor="package">Package</Label>
-                        <Select value={signupData.packageId} onValueChange={value => setSignupData({
-                      ...signupData,
-                      packageId: value
-                    })} disabled={isLoading}>
+                        <Select 
+                          value={signupData.packageId} 
+                          onValueChange={value => setSignupData({
+                            ...signupData,
+                            packageId: value
+                          })} 
+                          disabled={isLoading}
+                        >
                           <SelectTrigger className="h-11">
                             <SelectValue placeholder="Select a package" />
                           </SelectTrigger>
                           <SelectContent>
-                            {availablePackages.map(pkg => <SelectItem key={pkg.packageId} value={pkg.packageId}>
+                            {availablePackages.map(pkg => (
+                              <SelectItem key={pkg.packageId} value={pkg.packageId}>
                                 <div>
                                   <div className="font-medium">{pkg.packageName}</div>
                                   <div className="text-xs text-slate-500">{pkg.description}</div>
                                 </div>
-                              </SelectItem>)}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -344,11 +432,27 @@ const ProfessionalLoginPage: React.FC = () => {
                       <div className="space-y-2">
                         <Label htmlFor="signup-password">Password</Label>
                         <div className="relative">
-                          <Input id="signup-password" type={showPassword ? 'text' : 'password'} placeholder="Create a password" value={signupData.password} onChange={e => setSignupData({
-                        ...signupData,
-                        password: e.target.value
-                      })} className="h-11 pr-10" required disabled={isLoading} />
-                          <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowPassword(!showPassword)} disabled={isLoading}>
+                          <Input 
+                            id="signup-password" 
+                            type={showPassword ? 'text' : 'password'} 
+                            placeholder="Create a password" 
+                            value={signupData.password} 
+                            onChange={e => setSignupData({
+                              ...signupData,
+                              password: e.target.value
+                            })} 
+                            className="h-11 pr-10" 
+                            required 
+                            disabled={isLoading} 
+                          />
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" 
+                            onClick={() => setShowPassword(!showPassword)} 
+                            disabled={isLoading}
+                          >
                             {showPassword ? <EyeOff className="h-4 w-4 text-slate-500" /> : <Eye className="h-4 w-4 text-slate-500" />}
                           </Button>
                         </div>
@@ -357,26 +461,52 @@ const ProfessionalLoginPage: React.FC = () => {
                       <div className="space-y-2">
                         <Label htmlFor="confirmPassword">Confirm Password</Label>
                         <div className="relative">
-                          <Input id="confirmPassword" type={showConfirmPassword ? 'text' : 'password'} placeholder="Confirm your password" value={signupData.confirmPassword} onChange={e => setSignupData({
-                        ...signupData,
-                        confirmPassword: e.target.value
-                      })} className="h-11 pr-10" required disabled={isLoading} />
-                          <Button type="button" variant="ghost" size="sm" className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" onClick={() => setShowConfirmPassword(!showConfirmPassword)} disabled={isLoading}>
+                          <Input 
+                            id="confirmPassword" 
+                            type={showConfirmPassword ? 'text' : 'password'} 
+                            placeholder="Confirm your password" 
+                            value={signupData.confirmPassword} 
+                            onChange={e => setSignupData({
+                              ...signupData,
+                              confirmPassword: e.target.value
+                            })} 
+                            className="h-11 pr-10" 
+                            required 
+                            disabled={isLoading} 
+                          />
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="sm" 
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent" 
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)} 
+                            disabled={isLoading}
+                          >
                             {showConfirmPassword ? <EyeOff className="h-4 w-4 text-slate-500" /> : <Eye className="h-4 w-4 text-slate-500" />}
                           </Button>
                         </div>
                       </div>
 
-                      {error && <Alert variant="destructive">
+                      {error && (
+                        <Alert variant="destructive">
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription>{error}</AlertDescription>
-                        </Alert>}
+                        </Alert>
+                      )}
 
-                      <Button type="submit" className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" disabled={isLoading}>
-                        {isLoading ? <>
+                      <Button 
+                        type="submit" 
+                        className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" 
+                        disabled={isLoading}
+                      >
+                        {isLoading ? (
+                          <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Sending verification...
-                          </> : 'Create Account'}
+                            Creating Account...
+                          </>
+                        ) : (
+                          'Create Account'
+                        )}
                       </Button>
                     </form>
                   </TabsContent>
@@ -409,9 +539,10 @@ const ProfessionalLoginPage: React.FC = () => {
                   </Button>
                 </div>
               </CardContent>
-            </Card> :
-        // OTP Verification Step
-        <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+            </Card>
+          ) : (
+            // OTP Verification Step
+            <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
               <CardHeader className="space-y-2 text-center pb-6">
                 <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
                 <CardDescription className="text-base">
@@ -422,36 +553,68 @@ const ProfessionalLoginPage: React.FC = () => {
                 <form onSubmit={handleOTPVerification} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="otp-code">Verification Code</Label>
-                    <Input id="otp-code" type="text" placeholder="Enter 6-digit code" value={otpCode} onChange={e => setOtpCode(e.target.value)} maxLength={6} className="text-center text-lg tracking-wider h-11" required disabled={isLoading} />
+                    <Input 
+                      id="otp-code" 
+                      type="text" 
+                      placeholder="Enter 6-digit code" 
+                      value={otpCode} 
+                      onChange={e => setOtpCode(e.target.value)} 
+                      maxLength={6} 
+                      className="text-center text-lg tracking-wider h-11" 
+                      required 
+                      disabled={isLoading} 
+                    />
                   </div>
 
-                  {error && <Alert variant="destructive">
+                  {error && (
+                    <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>{error}</AlertDescription>
-                    </Alert>}
+                    </Alert>
+                  )}
 
-                  <Button type="submit" className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" disabled={isLoading}>
-                    {isLoading ? <>
+                  <Button 
+                    type="submit" 
+                    className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700" 
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Verifying...
-                      </> : 'Complete Registration'}
+                      </>
+                    ) : (
+                      'Complete Registration'
+                    )}
                   </Button>
 
                   <div className="text-center space-y-2">
-                    <Button type="button" variant="ghost" onClick={handleResendOTP} disabled={isLoading} className="text-sm">
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      onClick={handleResendOTP} 
+                      disabled={isLoading} 
+                      className="text-sm"
+                    >
                       Resend Code
                     </Button>
-                    <Button type="button" variant="outline" onClick={() => {
-                  setOtpStep(false);
-                  setError('');
-                  setOtpCode('');
-                }} className="w-full text-sm">
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => {
+                        setOtpStep(false);
+                        setError('');
+                        setOtpCode('');
+                      }} 
+                      className="w-full text-sm"
+                    >
                       Back to Registration
                     </Button>
                   </div>
                 </form>
               </CardContent>
-            </Card>}
+            </Card>
+          )}
 
           <div className="mt-8 text-center text-xs text-blue-200">
             <p>© 2024 Envio Vehicle Management System. All rights reserved.</p>
@@ -469,6 +632,8 @@ const ProfessionalLoginPage: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default ProfessionalLoginPage;
