@@ -80,10 +80,21 @@ const Auth = () => {
 
       setOtpId(otpResult.otpId!);
       setOtpStep(true);
-      toast({
-        title: "Verification Code Sent",
-        description: "Please check your email for the verification code",
-      });
+      
+      // Show appropriate message based on email delivery status
+      if (otpResult.emailDelivered === false) {
+        toast({
+          title: "Verification Code Generated",
+          description: "Verification code created but email delivery failed. Please check your email settings or contact support.",
+          variant: "destructive"
+        });
+        setError("Email delivery failed. Please contact support if you don't receive the verification code.");
+      } else {
+        toast({
+          title: "Verification Code Sent",
+          description: "Please check your email for the verification code",
+        });
+      }
     } catch (error) {
       setError('Failed to send verification code');
     }

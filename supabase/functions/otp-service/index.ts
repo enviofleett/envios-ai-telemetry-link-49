@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
@@ -50,24 +49,50 @@ serve(async (req) => {
         );
       }
 
-      // Send OTP via SMTP email service
+      // Send OTP via SMTP email service with better error handling
       try {
-        await sendOTPNotification(supabase, email, otpCodeGenerated, otpType);
-        console.log(`OTP sent to ${email}: ${otpCodeGenerated}`);
+        const emailResult = await sendOTPNotification(supabase, email, otpCodeGenerated, otpType);
+        
+        if (emailResult.success) {
+          console.log(`OTP sent successfully to ${email}: ${otpCodeGenerated}`);
+          return new Response(
+            JSON.stringify({
+              success: true,
+              otpId: otpRecord.id,
+              expiresAt: otpRecord.expires_at,
+              message: 'OTP sent successfully',
+              emailDelivered: true
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } else {
+          console.error('Failed to send OTP email:', emailResult.error);
+          return new Response(
+            JSON.stringify({
+              success: true,
+              otpId: otpRecord.id,
+              expiresAt: otpRecord.expires_at,
+              message: 'OTP generated but email delivery failed',
+              emailDelivered: false,
+              emailError: emailResult.error
+            }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       } catch (sendError) {
-        console.error('Failed to send OTP:', sendError);
-        // Continue even if sending fails for now
+        console.error('Failed to send OTP email:', sendError);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            otpId: otpRecord.id,
+            expiresAt: otpRecord.expires_at,
+            message: 'OTP generated but email service unavailable',
+            emailDelivered: false,
+            emailError: sendError.message
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          otpId: otpRecord.id,
-          expiresAt: otpRecord.expires_at,
-          message: 'OTP sent successfully'
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
     if (action === 'verify') {
@@ -254,18 +279,26 @@ async function sendOTPNotification(supabase: any, email: string, otpCode: string
     
     if (error) {
       console.error('SMTP service error:', error);
-      throw error;
+      return { success: false, error: error.message };
     }
     
-    console.log('OTP email sent successfully via SMTP service');
+    if (data && data.success) {
+      console.log('OTP email sent successfully via SMTP service');
+      return { success: true };
+    } else {
+      console.error('SMTP service returned failure:', data);
+      return { success: false, error: data?.error || 'Unknown SMTP error' };
+    }
   } catch (emailError) {
     console.error('Failed to send OTP email via SMTP:', emailError);
-    // Log the OTP for development/testing
+    
+    // Log the OTP for development/testing as fallback
     console.log(`=== OTP NOTIFICATION (Fallback) ===`);
     console.log(`Type: ${otpType}`);
     console.log(`Email: ${email}`);
     console.log(`Code: ${otpCode}`);
     console.log(`===============================`);
-    throw emailError;
+    
+    return { success: false, error: emailError.message };
   }
 }

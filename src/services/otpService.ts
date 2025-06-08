@@ -43,10 +43,23 @@ export class OTPService {
         return { success: false, error: data.error };
       }
 
+      // Check if email was delivered successfully
+      if (!data.emailDelivered) {
+        console.warn('OTP generated but email delivery failed:', data.emailError);
+        return {
+          success: true,
+          otpId: data.otpId,
+          expiresAt: data.expiresAt,
+          emailDelivered: false,
+          emailError: data.emailError
+        };
+      }
+
       return {
         success: true,
         otpId: data.otpId,
-        expiresAt: data.expiresAt
+        expiresAt: data.expiresAt,
+        emailDelivered: true
       };
     } catch (error) {
       console.error('OTP generation failed:', error);
