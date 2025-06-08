@@ -23,7 +23,7 @@ export const useOwnerVehicles = (ownerId: string) => {
         throw error;
       }
 
-      return (data || []) as VehicleQueryResult[];
+      return data as VehicleQueryResult[];
     },
     enabled: !!ownerId,
   });
