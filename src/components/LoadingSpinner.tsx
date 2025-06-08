@@ -1,13 +1,13 @@
 
 import React from 'react';
-import { RefreshCw } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 const LoadingSpinner: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-50 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
-        <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-500" />
-        <p className="text-gray-600">Loading vehicles...</p>
+        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+        <p className="text-gray-600">Loading...</p>
       </div>
     </div>
   );
