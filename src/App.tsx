@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { navItems } from "./nav-items";
 import Index from "./pages/Index";
+import Login from "./pages/Login";
 import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
 
 const queryClient = new QueryClient();
@@ -17,6 +18,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          <Route path="/login" element={<Login />} />
           <Route path="/enhanced-tracking" element={<EnhancedLiveTracking />} />
           {navItems.map(({ to, page }) => (
             <Route key={to} path={to} element={page} />
