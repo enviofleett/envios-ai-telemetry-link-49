@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -48,7 +47,7 @@ export const EnhancedVehicleDetailsModal: React.FC<EnhancedVehicleDetailsModalPr
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Car className="h-5 w-5" />
-            Vehicle Details - {vehicle.id}
+            Vehicle Details - {vehicle.deviceid}
           </DialogTitle>
           <DialogDescription>Comprehensive vehicle information and management</DialogDescription>
         </DialogHeader>
@@ -70,7 +69,7 @@ export const EnhancedVehicleDetailsModal: React.FC<EnhancedVehicleDetailsModalPr
                 <CardContent className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Vehicle ID:</span>
-                    <span className="font-medium">{vehicle.id}</span>
+                    <span className="font-medium">{vehicle.deviceid}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Plate Number:</span>

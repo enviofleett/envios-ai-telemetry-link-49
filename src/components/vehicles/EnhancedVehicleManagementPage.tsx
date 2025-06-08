@@ -34,7 +34,6 @@ import type { Vehicle } from '@/services/unifiedVehicleData';
 // Mock enhanced vehicle data
 const mockEnhancedVehicles = [
   {
-    id: "VH-7842",
     deviceid: "VH-7842",
     devicename: "Ford Transit 2022",
     plateNumber: "ABC-123",
@@ -65,7 +64,6 @@ const mockEnhancedVehicles = [
     envio_user_id: "user-123"
   },
   {
-    id: "VH-3456",
     deviceid: "VH-3456",
     devicename: "Mercedes Sprinter 2023",
     plateNumber: "XYZ-789",
@@ -96,7 +94,6 @@ const mockEnhancedVehicles = [
     envio_user_id: "user-456"
   },
   {
-    id: "VH-9012",
     deviceid: "VH-9012",
     devicename: "Iveco Daily 2021",
     plateNumber: "DEF-456",
@@ -127,7 +124,6 @@ const mockEnhancedVehicles = [
     envio_user_id: "user-789"
   },
   {
-    id: "VH-5678",
     deviceid: "VH-5678",
     devicename: "Toyota Hilux 2023",
     plateNumber: "GHI-789",
@@ -187,7 +183,7 @@ export const EnhancedVehicleManagementPage: React.FC = () => {
 
   const filteredVehicles = mockEnhancedVehicles.filter((vehicle) => {
     const matchesSearch =
-      vehicle.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      vehicle.deviceid.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vehicle.plateNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vehicle.make.toLowerCase().includes(searchQuery.toLowerCase()) ||
       vehicle.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -276,8 +272,8 @@ export const EnhancedVehicleManagementPage: React.FC = () => {
                   </TableRow>
                 ) : (
                   filteredVehicles.map((vehicle) => (
-                    <TableRow key={vehicle.id}>
-                      <TableCell className="font-medium">{vehicle.id}</TableCell>
+                    <TableRow key={vehicle.deviceid}>
+                      <TableCell className="font-medium">{vehicle.deviceid}</TableCell>
                       <TableCell>{vehicle.plateNumber}</TableCell>
                       <TableCell>
                         {vehicle.make} {vehicle.model} ({vehicle.year})

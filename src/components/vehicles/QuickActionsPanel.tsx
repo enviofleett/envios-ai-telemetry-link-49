@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,10 +19,10 @@ export const QuickActionsPanel: React.FC<QuickActionsPanelProps> = ({ vehicles }
         </CardHeader>
         <CardContent className="space-y-2">
           {vehicles.slice(0, 3).map((vehicle) => (
-            <div key={vehicle.id} className="flex items-center justify-between">
+            <div key={vehicle.deviceid} className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">{vehicle.id} - {vehicle.make} {vehicle.model}</span>
+                <span className="text-sm">{vehicle.deviceid} - {vehicle.make} {vehicle.model}</span>
               </div>
               <Badge variant="outline">
                 {Math.ceil((new Date(vehicle.nextService).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))} days
@@ -49,10 +48,10 @@ export const QuickActionsPanel: React.FC<QuickActionsPanelProps> = ({ vehicles }
               (new Date(vehicle.insuranceExpiry).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
             );
             return (
-              <div key={vehicle.id} className="flex items-center justify-between">
+              <div key={vehicle.deviceid} className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FileText className={`h-4 w-4 ${daysUntilInsuranceExpiry < 30 ? 'text-red-500' : 'text-muted-foreground'}`} />
-                  <span className="text-sm">{vehicle.id} - Insurance</span>
+                  <span className="text-sm">{vehicle.deviceid} - Insurance</span>
                 </div>
                 <Badge 
                   variant={daysUntilInsuranceExpiry < 30 ? 'destructive' : 'outline'}
