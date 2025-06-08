@@ -10,7 +10,7 @@ export interface OwnerVehicleData {
 }
 
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery({
+  const queryResult = useQuery({
     queryKey: ['owner-vehicles', ownerId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -24,17 +24,23 @@ export const useOwnerVehicles = (ownerId: string) => {
       }
 
       if (!data) {
-        return [];
+        return [] as OwnerVehicleData[];
       }
 
-      // Simple, direct mapping without complex typing
-      return data.map(item => ({
-        device_id: String(item.device_id || ''),
-        device_name: String(item.device_name || ''),
-        status: String(item.status || ''),
-        created_at: String(item.created_at || '')
-      })) as OwnerVehicleData[];
+      const transformedData = data.map(item => {
+        const result: OwnerVehicleData = {
+          device_id: String(item.device_id || ''),
+          device_name: String(item.device_name || ''),
+          status: String(item.status || ''),
+          created_at: String(item.created_at || '')
+        };
+        return result;
+      });
+
+      return transformedData;
     },
     enabled: !!ownerId,
   });
+
+  return queryResult;
 };
