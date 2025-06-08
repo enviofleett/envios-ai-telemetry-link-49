@@ -4,12 +4,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { GP51AuthProvider } from "@/contexts/GP51AuthContext";
 import { GP51SessionProvider } from "@/contexts/GP51SessionContext";
 import { navItems } from "./nav-items";
 import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import MinimalAuth from "./components/MinimalAuth";
+import GP51Auth from "./pages/GP51Auth";
 import NotFound from "./pages/NotFound";
 import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -21,7 +20,7 @@ const App = () => {
   return (
     <StableErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
+        <GP51AuthProvider>
           <GP51SessionProvider>
             <TooltipProvider>
               <Toaster />
@@ -29,36 +28,20 @@ const App = () => {
               <BrowserRouter>
                 <StableErrorBoundary>
                   <Routes>
-                    {/* Consolidated auth routes - all use Auth component */}
+                    {/* GP51 Authentication routes */}
                     <Route 
                       path="/auth" 
                       element={
-                        <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
-                          <Auth />
+                        <StableErrorBoundary>
+                          <GP51Auth />
                         </StableErrorBoundary>
                       } 
                     />
                     <Route 
                       path="/login" 
                       element={
-                        <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
-                          <Auth />
-                        </StableErrorBoundary>
-                      } 
-                    />
-                    <Route 
-                      path="/register" 
-                      element={
-                        <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
-                          <Auth />
-                        </StableErrorBoundary>
-                      } 
-                    />
-                    <Route 
-                      path="/minimal-auth" 
-                      element={
                         <StableErrorBoundary>
-                          <MinimalAuth />
+                          <GP51Auth />
                         </StableErrorBoundary>
                       } 
                     />
@@ -111,7 +94,7 @@ const App = () => {
               </BrowserRouter>
             </TooltipProvider>
           </GP51SessionProvider>
-        </AuthProvider>
+        </GP51AuthProvider>
       </QueryClientProvider>
     </StableErrorBoundary>
   );

@@ -1,8 +1,9 @@
 
 import React from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { Navigate } from 'react-router-dom';
+import { useGP51Auth } from '@/contexts/GP51AuthContext';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import ConnectionStatusBanner from '@/components/auth/ConnectionStatusBanner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -13,8 +14,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children, 
   requireAdmin = false
 }) => {
-  const { user, isAdmin, loading } = useAuth();
-  const location = useLocation();
+  const { user, loading, authLevel, retryConnection } = useGP51Auth();
 
   if (loading) {
     return <LoadingSpinner />;
@@ -24,11 +24,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/auth" replace />;
   }
 
-  if (requireAdmin && !isAdmin) {
-    return <Navigate to="/" replace />;
-  }
-
-  return <>{children}</>;
+  return (
+    <>
+      <ConnectionStatusBanner 
+        currentLevel={authLevel} 
+        onRetryConnection={retryConnection}
+      />
+      {children}
+    </>
+  );
 };
 
 export default ProtectedRoute;
