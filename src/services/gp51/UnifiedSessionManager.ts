@@ -6,6 +6,7 @@ export interface GP51Session {
   username: string;
   expiresAt: Date;
   isValid: boolean;
+  userId: string;
   apiUrl?: string;
 }
 
