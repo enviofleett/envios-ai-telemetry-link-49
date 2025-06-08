@@ -1,8 +1,8 @@
-
 import { HomeIcon, Users, Settings, BarChart3, Car, Wrench, Map, ShoppingCart } from "lucide-react";
 import React from "react";
 
 // Import page components
+const IndexPage = React.lazy(() => import("./pages/Index"));
 const VehiclesPage = React.lazy(() => import("./pages/Vehicles"));
 const UsersPage = React.lazy(() => import("./pages/Users"));
 const SettingsPage = React.lazy(() => import("./pages/Settings"));
@@ -18,7 +18,7 @@ export const navItems = [
     title: "Dashboard",
     to: "/",
     icon: <HomeIcon className="h-4 w-4" />,
-    page: null, // Will be handled by the Index route
+    page: <React.Suspense fallback={<div>Loading...</div>}><IndexPage /></React.Suspense>,
   },
   {
     title: "Vehicles",

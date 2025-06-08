@@ -10,21 +10,13 @@ import { LogOut } from 'lucide-react';
 const Index = () => {
   const { signOut, user } = useAuth();
 
-  console.log('🏠 Index (Dashboard): Component rendered');
-  console.log('🏠 Index (Dashboard): User:', user?.email || 'none');
-  console.log('🏠 Index (Dashboard): Current URL:', window.location.href);
-
   const handleSignOut = async () => {
-    console.log('🚪 Index: Sign out initiated');
     try {
       await signOut();
-      console.log('✅ Index: Sign out successful');
     } catch (error) {
       console.error('❌ Index: Sign out error:', error);
     }
   };
-
-  console.log('🏠 Index: Rendering dashboard layout');
 
   return (
     <Layout>

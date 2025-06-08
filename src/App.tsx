@@ -18,8 +18,6 @@ import StableErrorBoundary from "./components/StableErrorBoundary";
 const queryClient = new QueryClient();
 
 const App = () => {
-  console.log('⚡ App: Component rendering started');
-
   return (
     <StableErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -76,7 +74,6 @@ const App = () => {
                     
                     {/* Main navigation items */}
                     {navItems.map(({ to, page }) => {
-                      console.log('🗺️ App: Registering route:', to, 'Has page component:', !!page);
                       return (
                         <Route 
                           key={to} 
