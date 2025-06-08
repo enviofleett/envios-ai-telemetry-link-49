@@ -12,13 +12,10 @@ export class EmailVerificationService {
   static async verifyEmail(token: string): Promise<EmailVerificationResult> {
     try {
       const { data, error } = await supabase.functions.invoke('email-verification', {
-        body: null,
-        headers: {
-          'Content-Type': 'application/json'
+        body: {
+          action: 'verify',
+          token: token
         }
-      }, {
-        method: 'GET',
-        query: { action: 'verify', token }
       });
 
       if (error) throw error;
@@ -40,13 +37,10 @@ export class EmailVerificationService {
   static async resendVerification(email: string): Promise<EmailVerificationResult> {
     try {
       const { data, error } = await supabase.functions.invoke('email-verification', {
-        body: { email },
-        headers: {
-          'Content-Type': 'application/json'
+        body: {
+          action: 'resend',
+          email: email
         }
-      }, {
-        method: 'POST',
-        query: { action: 'resend' }
       });
 
       if (error) throw error;
@@ -66,15 +60,17 @@ export class EmailVerificationService {
 
   static async checkVerificationStatus(email: string): Promise<boolean> {
     try {
+      // Use the existing email_notifications table to check for verification emails
       const { data, error } = await supabase
-        .from('email_verifications')
-        .select('verified')
-        .eq('email', email)
-        .eq('verified', true)
+        .from('email_notifications')
+        .select('status')
+        .eq('recipient_email', email)
+        .eq('template_type', 'verification')
+        .eq('status', 'sent')
         .single();
 
       if (error) return false;
-      return data?.verified || false;
+      return data?.status === 'sent' || false;
     } catch (error) {
       console.error('Failed to check verification status:', error);
       return false;

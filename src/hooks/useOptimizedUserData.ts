@@ -36,22 +36,28 @@ interface UserDataResponse {
   };
 }
 
-export const useOptimizedUserData = (page = 1, limit = 50, search = '') => {
+interface UseOptimizedUserDataParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  enabled?: boolean;
+}
+
+export const useOptimizedUserData = (params: UseOptimizedUserDataParams = {}) => {
+  const { page = 1, limit = 50, search = '', enabled = true } = params;
+  
   return useQuery({
     queryKey: ['optimized-user-data', page, limit, search],
     queryFn: async (): Promise<UserDataResponse> => {
       const { data, error } = await supabase.functions.invoke('user-management', {
-        method: 'GET',
-        body: null,
-        headers: {
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          'Content-Type': 'application/json'
-        }
-      }, {
-        query: { 
+        body: {
           page: page.toString(), 
           limit: limit.toString(), 
           search: search 
+        },
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
         }
       });
 
@@ -108,6 +114,7 @@ export const useOptimizedUserData = (page = 1, limit = 50, search = '') => {
         }
       };
     },
+    enabled,
     refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),

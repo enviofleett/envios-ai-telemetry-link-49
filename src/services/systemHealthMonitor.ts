@@ -98,9 +98,9 @@ export class SystemHealthMonitor {
 
   private static async checkEmailVerificationHealth(): Promise<string> {
     try {
-      // Check if email verification system is working
+      // Check if email notification system is working
       const { data, error } = await supabase
-        .from('email_verifications')
+        .from('email_notifications')
         .select('count(*)', { count: 'exact', head: true });
       
       return error ? 'degraded' : 'healthy';
