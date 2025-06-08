@@ -20,8 +20,16 @@ const WorkshopManagement: React.FC = () => {
   const mockWorkshop = {
     id: 'workshop-1',
     name: 'Sample Workshop',
-    logo: '',
-    connectionFee: 99.99,
+    representativeName: 'John Doe',
+    email: 'john@sampleworkshop.com',
+    phone: '+1 (555) 123-4567',
+    city: 'New York',
+    country: 'USA',
+    serviceTypes: ['Oil Change', 'Brake Service', 'Tire Replacement'],
+    rating: 4.5,
+    reviewCount: 128,
+    activationFee: 99.99,
+    operatingHours: '8:00 AM - 6:00 PM',
     verified: true
   };
 
