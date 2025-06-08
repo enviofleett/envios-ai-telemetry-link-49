@@ -10,9 +10,9 @@ export interface OwnerVehicleData {
 }
 
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery<OwnerVehicleData[], Error>({
+  return useQuery({
     queryKey: ['owner-vehicles', ownerId],
-    queryFn: async (): Promise<OwnerVehicleData[]> => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('vehicles')
         .select('device_id, device_name, status, created_at')
@@ -24,7 +24,7 @@ export const useOwnerVehicles = (ownerId: string) => {
       }
 
       if (!data) {
-        return [];
+        return [] as OwnerVehicleData[];
       }
 
       return data.map(item => ({
@@ -32,7 +32,7 @@ export const useOwnerVehicles = (ownerId: string) => {
         device_name: String(item.device_name || ''),
         status: String(item.status || ''),
         created_at: String(item.created_at || '')
-      }));
+      })) as OwnerVehicleData[];
     },
     enabled: !!ownerId,
   });
