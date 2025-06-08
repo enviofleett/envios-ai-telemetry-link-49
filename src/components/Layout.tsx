@@ -23,7 +23,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       'users': 'User Management',
       'settings': 'Settings',
       'system-import': 'System Import',
-      'device-configuration': 'Device Configuration'
+      'device-configuration': 'Device Configuration',
+      'maintenance': 'Maintenance',
+      'workshop-management': 'Workshop Management',
+      'marketplace': 'Workshop Marketplace',
+      'reports': 'Reports & Analytics',
+      'packages': 'Package Management'
     };
 
     pathSegments.forEach((segment, index) => {

@@ -30,51 +30,52 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
+import { Link, useLocation } from "react-router-dom"
 
 const menuItems = [
   {
     title: "Dashboard",
-    url: "#dashboard",
+    url: "/",
     icon: Home,
   },
   {
     title: "Vehicles",
-    url: "#vehicles",
+    url: "/vehicles",
     icon: Car,
   },
   {
     title: "Maintenance",
-    url: "#maintenance",
+    url: "/maintenance",
     icon: Wrench,
   },
   {
     title: "Workshop Management",
-    url: "#workshop-management",
+    url: "/workshop-management",
     icon: Building2,
   },
   {
     title: "Reports",
-    url: "#reports",
+    url: "/reports",
     icon: BarChart3,
   },
   {
     title: "Tracking",
-    url: "#tracking",
+    url: "/tracking",
     icon: Map,
   },
   {
     title: "Marketplace",
-    url: "#marketplace",
+    url: "/marketplace",
     icon: ShoppingCart,
   },
   {
-    title: "Active Services",
-    url: "#active-services",
-    icon: Zap,
+    title: "Users",
+    url: "/users",
+    icon: Users,
   },
   {
     title: "Settings",
-    url: "#settings",
+    url: "/settings",
     icon: Settings,
   },
 ]
@@ -83,19 +84,23 @@ const quickActions = [
   {
     title: "Schedule Maintenance",
     icon: Calendar,
+    action: () => window.location.href = '/maintenance'
   },
   {
     title: "Add Vehicle",
     icon: Car,
+    action: () => window.location.href = '/vehicles'
   },
   {
     title: "View Alerts",
     icon: Bell,
+    action: () => console.log('View alerts')
   },
 ]
 
 export function AppSidebar() {
   const { state } = useSidebar()
+  const location = useLocation()
 
   return (
     <Sidebar variant="inset">
@@ -119,11 +124,11 @@ export function AppSidebar() {
             <SidebarMenu>
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <a href={item.url}>
+                  <SidebarMenuButton asChild isActive={location.pathname === item.url}>
+                    <Link to={item.url}>
                       <item.icon />
                       <span>{item.title}</span>
-                    </a>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -137,7 +142,13 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <div className="space-y-2 px-2">
                 {quickActions.map((action) => (
-                  <Button key={action.title} variant="outline" size="sm" className="w-full justify-start">
+                  <Button 
+                    key={action.title} 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full justify-start"
+                    onClick={action.action}
+                  >
                     <action.icon className="h-4 w-4 mr-2" />
                     {action.title}
                   </Button>

@@ -15,6 +15,11 @@ import DeviceConfiguration from "./pages/DeviceConfiguration";
 import SystemImport from "./pages/SystemImport";
 import Settings from "./pages/Settings";
 import PackageManagement from "./pages/PackageManagement";
+import Maintenance from "./pages/Maintenance";
+import WorkshopManagement from "./pages/WorkshopManagement";
+import Marketplace from "./pages/Marketplace";
+import Reports from "./pages/Reports";
+import VehicleManagement from "./pages/VehicleManagement";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +41,11 @@ function App() {
                 <Route path="/system-import" element={<SystemImport />} />
                 <Route path="/packages" element={<PackageManagement />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/maintenance" element={<Maintenance />} />
+                <Route path="/workshop-management" element={<WorkshopManagement />} />
+                <Route path="/marketplace" element={<Marketplace />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/vehicles" element={<VehicleManagement />} />
               </Routes>
             </BrowserRouter>
           </TooltipProvider>
