@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -18,7 +17,7 @@ import AIBrandingPanel from './AIBrandingPanel';
 import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 
 const ProfessionalLoginPage: React.FC = () => {
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp, user, resetPassword } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -29,6 +28,7 @@ const ProfessionalLoginPage: React.FC = () => {
   const [otpStep, setOtpStep] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpId, setOtpId] = useState('');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const [loginData, setLoginData] = useState({
     email: '',
@@ -71,14 +71,34 @@ const ProfessionalLoginPage: React.FC = () => {
           setError(error.message);
         }
       } else {
-        toast({
-          title: "Welcome back!",
-          description: "Successfully signed in to Envio.",
-        });
         navigate('/');
       }
     } catch (error) {
       setError('An unexpected error occurred. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const { error } = await resetPassword(loginData.email);
+      
+      if (error) {
+        setError(error.message);
+      } else {
+        toast({
+          title: "Password Reset Email Sent",
+          description: "Check your email for password reset instructions.",
+        });
+        setShowForgotPassword(false);
+      }
+    } catch (error) {
+      setError('Failed to send password reset email');
     } finally {
       setIsLoading(false);
     }
@@ -226,7 +246,7 @@ const ProfessionalLoginPage: React.FC = () => {
 
         {/* Right side - Authentication Form */}
         <div className="w-full max-w-md mx-auto">
-          {!otpStep ? (
+          {!otpStep && !showForgotPassword ? (
             <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
               <CardHeader className="space-y-2 text-center pb-6">
                 <CardTitle className="text-2xl font-bold">Welcome to Envio</CardTitle>
@@ -302,7 +322,13 @@ const ProfessionalLoginPage: React.FC = () => {
                             Remember me
                           </Label>
                         </div>
-                        <Button variant="link" className="px-0 text-sm text-blue-600 hover:text-blue-700">
+                        <Button 
+                          type="button"
+                          variant="link" 
+                          className="px-0 text-sm text-blue-600 hover:text-blue-700"
+                          onClick={() => setShowForgotPassword(true)}
+                          disabled={isLoading}
+                        >
                           Forgot password?
                         </Button>
                       </div>
@@ -554,6 +580,65 @@ const ProfessionalLoginPage: React.FC = () => {
                     Microsoft
                   </Button>
                 </div>
+              </CardContent>
+            </Card>
+          ) : showForgotPassword ? (
+            // Forgot Password Form
+            <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+              <CardHeader className="space-y-2 text-center pb-6">
+                <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
+                <CardDescription className="text-base">
+                  Enter your email to receive password reset instructions
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="reset-email">Email address</Label>
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={loginData.email}
+                      onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
+                      className="h-11"
+                      required
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <Button
+                    type="submit"
+                    className="w-full h-11 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      'Send Reset Email'
+                    )}
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowForgotPassword(false)}
+                    className="w-full text-sm"
+                    disabled={isLoading}
+                  >
+                    Back to Sign In
+                  </Button>
+                </form>
               </CardContent>
             </Card>
           ) : (
