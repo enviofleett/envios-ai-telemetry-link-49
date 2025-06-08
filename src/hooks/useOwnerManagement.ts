@@ -30,7 +30,7 @@ export const useOwnerManagement = () => {
   // Fetch all owners (users who have vehicles assigned)
   const ownersQuery = useQuery({
     queryKey: ['vehicle-owners'],
-    queryFn: async (): Promise<EnvioUser[]> => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('envio_users')
         .select(`
@@ -190,23 +190,25 @@ export const useOwnerManagement = () => {
   };
 };
 
-// Separate hook for owner vehicles to avoid type conflicts
+// Separate hook for owner vehicles with simplified types
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery<VehicleData[], Error>({
-    queryKey: ['owner-vehicles', ownerId] as const,
-    queryFn: async (): Promise<VehicleData[]> => {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('device_id, device_name, status, created_at')
-        .eq('owner_id', ownerId);
+  const queryFn = async () => {
+    const { data, error } = await supabase
+      .from('vehicles')
+      .select('device_id, device_name, status, created_at')
+      .eq('owner_id', ownerId);
 
-      if (error) {
-        console.error('Failed to fetch owner vehicles:', error);
-        throw error;
-      }
+    if (error) {
+      console.error('Failed to fetch owner vehicles:', error);
+      throw error;
+    }
 
-      return (data || []) as VehicleData[];
-    },
+    return (data || []) as VehicleData[];
+  };
+
+  return useQuery({
+    queryKey: ['owner-vehicles', ownerId],
+    queryFn,
     enabled: !!ownerId,
   });
 };
