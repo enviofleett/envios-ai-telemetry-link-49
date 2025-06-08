@@ -1,21 +1,30 @@
+
 import { authenticateWithGP51 } from './gp51-auth.ts';
 import { saveGP51Session, getGP51Status } from './database.ts';
 import { createResponse } from './cors.ts';
 import type { GP51Credentials } from './types.ts';
 
-export async function handleSaveCredentials(credentials: GP51Credentials & { apiUrl?: string }) {
+export async function handleSaveCredentials(credentials: GP51Credentials & { apiUrl?: string; userId: string }) {
   // Trim whitespace from username
   const trimmedUsername = credentials.username?.trim();
   const trimmedPassword = credentials.password?.trim();
   const trimmedApiUrl = credentials.apiUrl?.trim();
   
-  console.log('Processing GP51 credentials save request for user:', trimmedUsername);
+  console.log('Processing GP51 credentials save request for user:', trimmedUsername, 'User ID:', credentials.userId);
   
   if (!trimmedUsername || !trimmedPassword) {
     console.error('Missing credentials: username or password not provided');
     return createResponse(
       { error: 'Username and password are required' },
       400
+    );
+  }
+
+  if (!credentials.userId) {
+    console.error('Missing user ID: user must be authenticated');
+    return createResponse(
+      { error: 'User authentication required' },
+      401
     );
   }
 
@@ -28,7 +37,7 @@ export async function handleSaveCredentials(credentials: GP51Credentials & { api
     });
     
     console.log('Saving GP51 session to database...');
-    await saveGP51Session(authResult.username, authResult.token, authResult.apiUrl);
+    await saveGP51Session(authResult.username, authResult.token, authResult.apiUrl, credentials.userId);
 
     console.log('GP51 credentials successfully validated and saved');
     return createResponse({
@@ -86,11 +95,11 @@ export async function handleSaveCredentials(credentials: GP51Credentials & { api
   }
 }
 
-export async function handleGetStatus() {
-  console.log('Checking GP51 connection status');
+export async function handleGetStatus(userId?: string) {
+  console.log('Checking GP51 connection status for user:', userId);
   
   try {
-    const status = await getGP51Status();
+    const status = await getGP51Status(userId);
     return createResponse(status);
   } catch (error) {
     console.error('Error checking GP51 status:', error);

@@ -1,7 +1,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
-export async function saveGP51Session(username: string, token: string, apiUrl?: string) {
+export async function saveGP51Session(username: string, token: string, apiUrl?: string, userId?: string) {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -15,7 +15,7 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
   expiresAt.setHours(expiresAt.getHours() + 24);
 
   try {
-    console.log('Saving GP51 session for user:', trimmedUsername);
+    console.log('Saving GP51 session for user:', trimmedUsername, 'User ID:', userId);
     
     const sessionData: any = {
       username: trimmedUsername,
@@ -24,6 +24,11 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
+
+    // Add user ID if provided
+    if (userId) {
+      sessionData.envio_user_id = userId;
+    }
 
     // Add API URL if provided and working
     if (apiUrl) {
@@ -52,20 +57,26 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
   }
 }
 
-export async function getGP51Status() {
+export async function getGP51Status(userId?: string) {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
   try {
-    console.log('Checking GP51 status...');
+    console.log('Checking GP51 status for user:', userId);
     
-    const { data: sessions, error } = await supabase
+    let query = supabase
       .from('gp51_sessions')
       .select('username, gp51_token, token_expires_at, created_at')
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .order('created_at', { ascending: false });
+
+    // If user ID is provided, filter by user
+    if (userId) {
+      query = query.eq('envio_user_id', userId);
+    }
+
+    const { data: sessions, error } = await query.limit(1);
 
     if (error) {
       console.error('Database error fetching GP51 sessions:', error);
@@ -79,13 +90,14 @@ export async function getGP51Status() {
     console.log('GP51 status check result:', {
       sessionsFound,
       hasActiveSession: sessions?.[0]?.gp51_token ? sessions[0].gp51_token.substring(0, 32) + '...' : 'none',
-      expiresAt: sessions?.[0]?.token_expires_at
+      expiresAt: sessions?.[0]?.token_expires_at,
+      userId
     });
 
     if (!sessions || sessions.length === 0) {
       return {
         connected: false,
-        error: 'No GP51 sessions found'
+        error: userId ? 'No GP51 sessions found for this user' : 'No GP51 sessions found'
       };
     }
 

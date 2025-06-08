@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,13 +7,16 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useGP51Credentials } from '@/hooks/useGP51Credentials';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { RefreshCw, TestTube, Zap } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { RefreshCw, TestTube, Zap, AlertCircle } from 'lucide-react';
 
 const GP51ApiSettingsTab: React.FC = () => {
+  const { user } = useAuth();
   const {
     username,
     setUsername,
@@ -38,7 +40,31 @@ const GP51ApiSettingsTab: React.FC = () => {
       return data;
     },
     refetchInterval: 30000,
+    enabled: !!user, // Only run when user is authenticated
   });
+
+  // Show authentication required message if user is not logged in
+  if (!user) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-amber-500" />
+            Authentication Required
+          </CardTitle>
+          <CardDescription>You must be signed in to configure GP51 API settings</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Please sign in to your account to access GP51 configuration settings. This ensures your GP51 credentials are securely linked to your user account.
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleTestConnection = async () => {
     if (!username || !password) {
