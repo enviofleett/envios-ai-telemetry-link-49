@@ -1,5 +1,5 @@
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 interface VehicleQueryResult {
@@ -9,10 +9,10 @@ interface VehicleQueryResult {
   created_at: string;
 }
 
-export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery({
+export const useOwnerVehicles = (ownerId: string): UseQueryResult<VehicleQueryResult[], Error> => {
+  return useQuery<VehicleQueryResult[], Error>({
     queryKey: ['owner-vehicles', ownerId],
-    queryFn: async () => {
+    queryFn: async (): Promise<VehicleQueryResult[]> => {
       const { data, error } = await supabase
         .from('vehicles')
         .select('device_id, device_name, status, created_at')
