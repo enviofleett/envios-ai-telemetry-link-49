@@ -13,11 +13,11 @@ export class CacheIntegrationService {
   }
 
   // Vehicle Data Caching
-  async cacheVehicleData(vehicleId: string, data: any, tags: string[] = []): Promise<void> {
+  async cacheVehicleData(vehicleId: string, data: any): Promise<void> {
     const cacheKey = `vehicle:${vehicleId}`;
-    const ttl = 300000; // 5 minutes for vehicle position data
+    const ttl = 300; // 5 minutes for vehicle position data
     
-    await enhancedCachingService.set(cacheKey, data, ttl, [...tags, 'vehicle', 'position']);
+    enhancedCachingService.set(cacheKey, data, ttl);
     console.debug(`Cached vehicle data for ${vehicleId}`);
   }
 
@@ -25,7 +25,7 @@ export class CacheIntegrationService {
     const cacheKey = `vehicle:${vehicleId}`;
     const startTime = performance.now();
     
-    const data = await enhancedCachingService.get(cacheKey);
+    const data = enhancedCachingService.get(cacheKey);
     
     // Track cache performance
     const accessTime = performance.now() - startTime;
@@ -41,52 +41,52 @@ export class CacheIntegrationService {
     const cacheKey = `gp51:${endpoint}:${JSON.stringify(params)}`;
     const ttl = this.getGP51CacheTTL(endpoint);
     
-    await enhancedCachingService.set(cacheKey, data, ttl, ['gp51', endpoint]);
+    enhancedCachingService.set(cacheKey, data, ttl);
     console.debug(`Cached GP51 response for ${endpoint}`);
   }
 
   async getCachedGP51Response(endpoint: string, params: Record<string, any>): Promise<any> {
     const cacheKey = `gp51:${endpoint}:${JSON.stringify(params)}`;
-    return await enhancedCachingService.get(cacheKey);
+    return enhancedCachingService.get(cacheKey);
   }
 
   private getGP51CacheTTL(endpoint: string): number {
     const ttlMap: Record<string, number> = {
-      'authenticate': 3600000, // 1 hour
-      'get_devices': 1800000,  // 30 minutes
-      'get_positions': 30000,  // 30 seconds
-      'get_users': 1800000,    // 30 minutes
-      'get_groups': 3600000,   // 1 hour
-      'get_geofences': 1800000 // 30 minutes
+      'authenticate': 3600, // 1 hour
+      'get_devices': 1800,  // 30 minutes
+      'get_positions': 30,  // 30 seconds
+      'get_users': 1800,    // 30 minutes
+      'get_groups': 3600,   // 1 hour
+      'get_geofences': 1800 // 30 minutes
     };
     
-    return ttlMap[endpoint] || 300000; // Default 5 minutes
+    return ttlMap[endpoint] || 300; // Default 5 minutes
   }
 
   // User Session Caching
   async cacheUserSession(userId: string, sessionData: any): Promise<void> {
     const cacheKey = `session:${userId}`;
-    const ttl = 1800000; // 30 minutes
+    const ttl = 1800; // 30 minutes
     
-    await enhancedCachingService.set(cacheKey, sessionData, ttl, ['session', 'user']);
+    enhancedCachingService.set(cacheKey, sessionData, ttl);
   }
 
   async getCachedUserSession(userId: string): Promise<any> {
     const cacheKey = `session:${userId}`;
-    return await enhancedCachingService.get(cacheKey);
+    return enhancedCachingService.get(cacheKey);
   }
 
   // Dashboard Data Caching
   async cacheDashboardData(userId: string, dashboardType: string, data: any): Promise<void> {
     const cacheKey = `dashboard:${userId}:${dashboardType}`;
-    const ttl = 120000; // 2 minutes
+    const ttl = 120; // 2 minutes
     
-    await enhancedCachingService.set(cacheKey, data, ttl, ['dashboard', dashboardType]);
+    enhancedCachingService.set(cacheKey, data, ttl);
   }
 
   async getCachedDashboardData(userId: string, dashboardType: string): Promise<any> {
     const cacheKey = `dashboard:${userId}:${dashboardType}`;
-    return await enhancedCachingService.get(cacheKey);
+    return enhancedCachingService.get(cacheKey);
   }
 
   // Cache Warming Strategies
@@ -103,7 +103,7 @@ export class CacheIntegrationService {
           lastUpdate: new Date()
         };
         
-        await this.cacheVehicleData(vehicleId, vehicleData, ['warmed']);
+        await this.cacheVehicleData(vehicleId, vehicleData);
       } catch (error) {
         console.warn(`Failed to warm cache for vehicle ${vehicleId}:`, error);
       }
@@ -140,38 +140,36 @@ export class CacheIntegrationService {
   async invalidateVehicleCache(vehicleId?: string): Promise<void> {
     if (vehicleId) {
       const cacheKey = `vehicle:${vehicleId}`;
-      await enhancedCachingService.invalidateByPattern(new RegExp(`^${cacheKey}`));
+      enhancedCachingService.invalidatePattern(`^${cacheKey}`);
       console.debug(`Invalidated cache for vehicle ${vehicleId}`);
     } else {
-      await enhancedCachingService.invalidateByTag('vehicle');
+      enhancedCachingService.invalidatePattern('^vehicle:');
       console.debug('Invalidated all vehicle cache entries');
     }
   }
 
   async invalidateGP51Cache(endpoint?: string): Promise<void> {
     if (endpoint) {
-      await enhancedCachingService.invalidateByPattern(new RegExp(`^gp51:${endpoint}:`));
+      enhancedCachingService.invalidatePattern(`^gp51:${endpoint}:`);
       console.debug(`Invalidated GP51 cache for endpoint ${endpoint}`);
     } else {
-      await enhancedCachingService.invalidateByTag('gp51');
+      enhancedCachingService.invalidatePattern('^gp51:');
       console.debug('Invalidated all GP51 cache entries');
     }
   }
 
   async invalidateUserCache(userId: string): Promise<void> {
-    await enhancedCachingService.invalidateByPattern(new RegExp(`^(session|dashboard):${userId}`));
+    enhancedCachingService.invalidatePattern(`^(session|dashboard):${userId}`);
     console.debug(`Invalidated cache for user ${userId}`);
   }
 
   // Performance Monitoring Integration
   async measureCachePerformance(): Promise<{
     hitRate: number;
-    averageAccessTime: number;
     totalSize: number;
     recommendations: string[];
   }> {
     const stats = enhancedCachingService.getStats();
-    const entries = enhancedCachingService.getCacheEntries();
     
     const recommendations: string[] = [];
     
@@ -179,25 +177,12 @@ export class CacheIntegrationService {
       recommendations.push('Cache hit rate is below 70% - consider increasing TTL values');
     }
     
-    if (stats.averageAccessTime > 10) {
-      recommendations.push('Cache access time is high - consider cache size optimization');
-    }
-    
     if (stats.totalSize > 80) {
       recommendations.push('Cache is near capacity - consider increasing max size or implementing better eviction');
     }
     
-    const topAccessedEntries = entries
-      .sort((a, b) => b.accessCount - a.accessCount)
-      .slice(0, 5);
-      
-    if (topAccessedEntries.length > 0) {
-      recommendations.push(`Most accessed: ${topAccessedEntries.map(e => e.key).join(', ')}`);
-    }
-    
     return {
       hitRate: stats.hitRate,
-      averageAccessTime: stats.averageAccessTime,
       totalSize: stats.totalSize,
       recommendations
     };

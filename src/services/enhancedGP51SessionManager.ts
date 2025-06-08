@@ -13,6 +13,14 @@ export interface EnhancedGP51SessionValidation {
   error?: string;
 }
 
+export interface GP51SessionStatus {
+  connected: boolean;
+  username?: string;
+  expiresAt?: string;
+  warningMessage?: string;
+  timeUntilExpiry?: number;
+}
+
 export class EnhancedGP51SessionManager {
   private static readonly CACHE_KEY = 'gp51_session_status';
   private static readonly CACHE_TTL = 300; // 5 minutes
@@ -134,6 +142,18 @@ export class EnhancedGP51SessionManager {
       enhancedCachingService.set(this.CACHE_KEY, result, 60);
       return result;
     }
+  }
+
+  static async getSessionStatus(): Promise<GP51SessionStatus> {
+    const validation = await this.validateAndRefreshSession();
+    
+    return {
+      connected: validation.isValid,
+      username: validation.username,
+      expiresAt: validation.expiresAt,
+      timeUntilExpiry: validation.timeUntilExpiry,
+      warningMessage: validation.needsRefresh ? 'Session needs refresh' : validation.error
+    };
   }
 
   private static async testGP51Connectivity(session: any): Promise<{ success: boolean; error?: string }> {

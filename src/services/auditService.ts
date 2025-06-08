@@ -134,6 +134,31 @@ export class AuditService {
     });
   }
 
+  static async logUserCreation(
+    adminUserId: string, 
+    newUserId: string, 
+    userDetails: any, 
+    success: boolean, 
+    error?: string,
+    context?: { ipAddress?: string; userAgent?: string }
+  ): Promise<void> {
+    await this.logEvent({
+      eventType: 'user_action',
+      action: 'user_created',
+      userId: adminUserId,
+      targetEntity: 'user',
+      targetId: newUserId,
+      details: {
+        newUserDetails: userDetails,
+        success,
+        error
+      },
+      ipAddress: context?.ipAddress,
+      userAgent: context?.userAgent,
+      severity: success ? 'medium' : 'high'
+    });
+  }
+
   static async logAuthentication(
     userId: string,
     action: 'login' | 'logout' | 'failed_login',
@@ -145,6 +170,48 @@ export class AuditService {
       userId,
       details,
       severity: action === 'failed_login' ? 'medium' : 'low'
+    });
+  }
+
+  static async logSecurityEvent(
+    userId: string | undefined, 
+    eventType: string, 
+    details: any, 
+    success: boolean = true,
+    context?: { ipAddress?: string; userAgent?: string; severity?: 'low' | 'medium' | 'high' | 'critical' }
+  ): Promise<void> {
+    await this.logEvent({
+      eventType: 'security_event',
+      action: `security_${eventType}`,
+      userId,
+      details,
+      ipAddress: context?.ipAddress,
+      userAgent: context?.userAgent,
+      severity: context?.severity || (success ? 'low' : 'high')
+    });
+  }
+
+  static async logGP51ProtocolEvent(
+    deviceId: string, 
+    eventType: string, 
+    details: any, 
+    success: boolean,
+    context?: { userId?: string; ipAddress?: string }
+  ): Promise<void> {
+    await this.logEvent({
+      eventType: 'system_action',
+      action: `gp51_${eventType}`,
+      userId: context?.userId,
+      targetEntity: 'gp51_protocol',
+      targetId: deviceId,
+      details: {
+        deviceId,
+        eventType,
+        success,
+        ...details
+      },
+      ipAddress: context?.ipAddress,
+      severity: success ? 'low' : 'medium'
     });
   }
 
