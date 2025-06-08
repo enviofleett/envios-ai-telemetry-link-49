@@ -1,5 +1,5 @@
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface OwnerVehicleData {
@@ -9,10 +9,10 @@ export interface OwnerVehicleData {
   created_at: string;
 }
 
-export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery({
+export const useOwnerVehicles = (ownerId: string): UseQueryResult<OwnerVehicleData[], Error> => {
+  return useQuery<OwnerVehicleData[], Error>({
     queryKey: ['owner-vehicles', ownerId],
-    queryFn: async (): Promise<OwnerVehicleData[]> => {
+    queryFn: async function(): Promise<OwnerVehicleData[]> {
       const { data, error } = await supabase
         .from('vehicles')
         .select('device_id, device_name, status, created_at')
@@ -27,13 +27,17 @@ export const useOwnerVehicles = (ownerId: string) => {
         return [];
       }
 
-      // Direct mapping without complex type inference
-      return data.map((item): OwnerVehicleData => ({
-        device_id: item.device_id || '',
-        device_name: item.device_name || '',
-        status: item.status || '',
-        created_at: item.created_at || ''
-      }));
+      // Explicitly type the mapping to avoid inference issues
+      const result: OwnerVehicleData[] = data.map((item: any) => {
+        return {
+          device_id: String(item.device_id || ''),
+          device_name: String(item.device_name || ''),
+          status: String(item.status || ''),
+          created_at: String(item.created_at || '')
+        };
+      });
+
+      return result;
     },
     enabled: !!ownerId,
   });
