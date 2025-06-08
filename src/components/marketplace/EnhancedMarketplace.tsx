@@ -1,70 +1,60 @@
-
 import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
+import { Search, BarChart3, Package } from 'lucide-react';
+import { useMarketplaceProducts } from '@/hooks/useMarketplaceProducts';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
+import { ProductCard } from './ProductCard';
+import { MarketplaceBanner } from './MarketplaceBanner';
 import { ProductDetailsModal } from './ProductDetailsModal';
 import { VehicleSelectionModal } from './VehicleSelectionModal';
 import { PaymentModal } from './PaymentModal';
 import { MerchantOnboardingModal } from './MerchantOnboardingModal';
 import { MerchantLoginModal } from './MerchantLoginModal';
-import { MarketplaceBanner } from './MarketplaceBanner';
-import { ProductCard } from './ProductCard';
-import { useMarketplaceProducts } from '@/hooks/useMarketplaceProducts';
-import { 
-  Search, 
-  Star, 
-  UserPlus, 
-  LogIn,
-  Store 
-} from 'lucide-react';
+import { MerchantAnalytics } from './MerchantAnalytics';
+import { useToast } from '@/hooks/use-toast';
 
-interface EnhancedMarketplaceProps {
-  userRole?: 'admin' | 'subscriber' | 'merchant';
-}
+type UserRole = 'subscriber' | 'merchant' | 'admin';
 
-export function EnhancedMarketplace({ userRole = 'subscriber' }: EnhancedMarketplaceProps) {
+export const EnhancedMarketplace: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState('telemetry');
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [showProductDetails, setShowProductDetails] = useState(false);
-  const [showActivation, setShowActivation] = useState(false);
-  const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
+  const [showVehicleSelection, setShowVehicleSelection] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showMerchantOnboarding, setShowMerchantOnboarding] = useState(false);
   const [showMerchantLogin, setShowMerchantLogin] = useState(false);
+  const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [userRole, setUserRole] = useState<UserRole>('subscriber');
+  const [currentView, setCurrentView] = useState<'marketplace' | 'analytics'>('marketplace');
 
-  // Use real vehicle data from GP51
-  const { vehicles } = useUnifiedVehicleData({
-    search: '',
-    status: 'all'
+  const { products, isLoading } = useMarketplaceProducts();
+  const { vehicles } = useUnifiedVehicleData();
+  const { toast } = useToast();
+
+  const filteredProducts = products.filter(product => {
+    const matchesCategory = product.category === activeCategory;
+    const matchesSearch = searchQuery === '' || 
+      product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
   });
 
-  // Use marketplace products hook
-  const { products, isLoading } = useMarketplaceProducts();
-
-  const filteredProducts = products.filter(product => 
-    product.category === activeCategory &&
-    (searchQuery === '' || 
-     product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-     product.description.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  const handleProductClick = (product: any) => {
+  const handleProductSelect = (product: any) => {
     setSelectedProduct(product);
     setShowProductDetails(true);
   };
 
-  const handleActivate = () => {
+  const handleActivateService = () => {
     setShowProductDetails(false);
-    setShowActivation(true);
+    setShowVehicleSelection(true);
   };
 
   const handleVehicleToggle = (vehicleId: string) => {
-    setSelectedVehicles(prev =>
+    setSelectedVehicles(prev => 
       prev.includes(vehicleId) 
         ? prev.filter(id => id !== vehicleId)
         : [...prev, vehicleId]
@@ -72,7 +62,7 @@ export function EnhancedMarketplace({ userRole = 'subscriber' }: EnhancedMarketp
   };
 
   const handleProceedToPayment = () => {
-    setShowActivation(false);
+    setShowVehicleSelection(false);
     setShowPayment(true);
   };
 
@@ -80,34 +70,84 @@ export function EnhancedMarketplace({ userRole = 'subscriber' }: EnhancedMarketp
     setShowPayment(false);
     setSelectedVehicles([]);
     setSelectedProduct(null);
-    // Here you would typically integrate with your payment processing
-    console.log('Payment completed for vehicles:', selectedVehicles);
+    toast({
+      title: 'Service Activated',
+      description: 'Your service has been successfully activated for the selected vehicles.',
+    });
+  };
+
+  const handleMerchantLogin = (credentials: { email: string; password: string }) => {
+    console.log('Merchant login:', credentials);
+    setUserRole('merchant');
+    setShowMerchantLogin(false);
+    toast({
+      title: 'Login Successful',
+      description: 'Welcome back! You can now manage your products and view analytics.',
+    });
   };
 
   const handleMerchantRegistration = (data: any) => {
     console.log('Merchant registration:', data);
     setShowMerchantOnboarding(false);
+    toast({
+      title: 'Registration Submitted',
+      description: 'Your merchant application has been submitted for review.',
+    });
   };
 
-  const handleMerchantLogin = (credentials: { email: string; password: string }) => {
-    console.log('Merchant login:', credentials);
-    setShowMerchantLogin(false);
-  };
-
-  if (isLoading) {
+  // If merchant, show merchant interface
+  if (userRole === 'merchant') {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading marketplace...</p>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Merchant Dashboard</h1>
+            <p className="text-muted-foreground">
+              Manage your products and track your business performance
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as any)}>
+              <TabsList>
+                <TabsTrigger value="marketplace">Products</TabsTrigger>
+                <TabsTrigger value="analytics">
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Analytics
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Button variant="outline" onClick={() => setUserRole('subscriber')}>
+              Switch to Customer View
+            </Button>
+          </div>
         </div>
+
+        {currentView === 'analytics' ? (
+          <MerchantAnalytics />
+        ) : (
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Your Products</CardTitle>
+                <CardDescription>
+                  Manage your marketplace listings and track performance
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  <Package className="h-12 w-12 mx-auto mb-4" />
+                  <p>Product management interface coming soon</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Marketplace</h1>
@@ -115,36 +155,27 @@ export function EnhancedMarketplace({ userRole = 'subscriber' }: EnhancedMarketp
             Discover premium services and products for your fleet
           </p>
         </div>
-        
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowMerchantLogin(true)}>
-            <LogIn className="h-4 w-4 mr-2" />
-            Merchant Login
-          </Button>
-          <Button onClick={() => setShowMerchantOnboarding(true)} className="bg-green-600 hover:bg-green-700">
-            <UserPlus className="h-4 w-4 mr-2" />
-            Become a Merchant
-          </Button>
-          
+        <div className="flex items-center gap-4">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search marketplace..." 
+            <Input
+              placeholder="Search products..."
               className="pl-8 w-64"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          <Button variant="outline" onClick={() => setUserRole('merchant')}>
+            Merchant View
+          </Button>
         </div>
       </div>
 
-      {/* Merchant Banner */}
-      <MarketplaceBanner 
+      <MarketplaceBanner
         onMerchantLogin={() => setShowMerchantLogin(true)}
         onMerchantRegister={() => setShowMerchantOnboarding(true)}
       />
 
-      {/* Product Categories */}
       <Tabs value={activeCategory} onValueChange={setActiveCategory}>
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="telemetry">Premium Telemetry</TabsTrigger>
@@ -152,68 +183,87 @@ export function EnhancedMarketplace({ userRole = 'subscriber' }: EnhancedMarketp
           <TabsTrigger value="parts">Spare Parts</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="telemetry" className="space-y-6 pt-4">
+        <TabsContent value="telemetry" className="space-y-6 mt-6">
           <div>
-            <h3 className="text-xl font-semibold">Premium Telemetry Features</h3>
-            <p className="text-muted-foreground">Enhance your fleet management with advanced telemetry solutions</p>
+            <h3 className="text-xl font-semibold mb-2">Premium Telemetry Features</h3>
+            <p className="text-muted-foreground mb-6">
+              Enhance your fleet management with advanced telemetry solutions
+            </p>
+          </div>
+          {isLoading ? (
+            <div className="grid gap-6 md:grid-cols-3">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i} className="animate-pulse">
+                  <CardContent className="p-6">
+                    <div className="h-4 bg-muted rounded mb-2" />
+                    <div className="h-4 bg-muted rounded mb-4" />
+                    <div className="h-8 bg-muted rounded" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-3">
+              {filteredProducts.map(product => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  onSelect={handleProductSelect}
+                />
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="insurance" className="space-y-6 mt-6">
+          <div>
+            <h3 className="text-xl font-semibold mb-2">Fleet Insurance</h3>
+            <p className="text-muted-foreground mb-6">
+              Protect your fleet with tailored insurance packages
+            </p>
           </div>
           <div className="grid gap-6 md:grid-cols-3">
             {filteredProducts.map(product => (
-              <ProductCard 
+              <ProductCard
                 key={product.id}
                 product={product}
-                onSelect={handleProductClick}
+                onSelect={handleProductSelect}
               />
             ))}
           </div>
         </TabsContent>
 
-        <TabsContent value="insurance" className="space-y-6 pt-4">
+        <TabsContent value="parts" className="space-y-6 mt-6">
           <div>
-            <h3 className="text-xl font-semibold">Fleet Insurance</h3>
-            <p className="text-muted-foreground">Protect your fleet with tailored insurance packages</p>
+            <h3 className="text-xl font-semibold mb-2">Spare Parts & Maintenance</h3>
+            <p className="text-muted-foreground mb-6">
+              Quality parts and maintenance packages for your fleet
+            </p>
           </div>
           <div className="grid gap-6 md:grid-cols-3">
             {filteredProducts.map(product => (
-              <ProductCard 
+              <ProductCard
                 key={product.id}
                 product={product}
-                onSelect={handleProductClick}
-              />
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="parts" className="space-y-6 pt-4">
-          <div>
-            <h3 className="text-xl font-semibold">Spare Parts & Maintenance</h3>
-            <p className="text-muted-foreground">Quality parts and maintenance packages for your fleet</p>
-          </div>
-          <div className="grid gap-6 md:grid-cols-3">
-            {filteredProducts.map(product => (
-              <ProductCard 
-                key={product.id}
-                product={product}
-                onSelect={handleProductClick}
+                onSelect={handleProductSelect}
               />
             ))}
           </div>
         </TabsContent>
       </Tabs>
 
-      {/* Modals */}
       <ProductDetailsModal
         product={selectedProduct}
         isOpen={showProductDetails}
         onClose={() => setShowProductDetails(false)}
-        onActivate={handleActivate}
+        onActivate={handleActivateService}
       />
 
       <VehicleSelectionModal
         product={selectedProduct}
         vehicles={vehicles}
-        isOpen={showActivation}
-        onClose={() => setShowActivation(false)}
+        isOpen={showVehicleSelection}
+        onClose={() => setShowVehicleSelection(false)}
         selectedVehicles={selectedVehicles}
         onVehicleToggle={handleVehicleToggle}
         onProceedToPayment={handleProceedToPayment}
@@ -240,4 +290,4 @@ export function EnhancedMarketplace({ userRole = 'subscriber' }: EnhancedMarketp
       />
     </div>
   );
-}
+};
