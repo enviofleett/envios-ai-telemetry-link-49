@@ -62,7 +62,7 @@ export const useOwnerManagement = () => {
   const useOwnerVehicles = (ownerId: string) => {
     return useQuery({
       queryKey: ['owner-vehicles', ownerId],
-      queryFn: async (): Promise<VehicleData[]> => {
+      queryFn: async () => {
         const { data, error } = await supabase
           .from('vehicles')
           .select(`

@@ -43,9 +43,17 @@ export const useEnhancedEmailService = () => {
 
       // Transform data to match interface, providing defaults for missing fields
       return (data || []).map(log => ({
-        ...log,
-        delivered_at: log.delivered_at || null,
-        updated_at: log.updated_at || log.created_at
+        id: log.id,
+        recipient_email: log.recipient_email,
+        subject: log.subject,
+        template_type: log.template_type,
+        smtp_config_id: log.smtp_config_id,
+        status: log.status,
+        sent_at: log.sent_at,
+        delivered_at: null, // Set default as this field doesn't exist in DB
+        error_message: log.error_message,
+        created_at: log.created_at,
+        updated_at: log.created_at // Use created_at as fallback
       })) as EmailLog[];
     },
     refetchInterval: 30000, // Refresh every 30 seconds
