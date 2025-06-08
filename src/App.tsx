@@ -9,61 +9,106 @@ import { GP51SessionProvider } from "@/contexts/GP51SessionContext";
 import { navItems } from "./nav-items";
 import Index from "./pages/Index";
 import SimpleAuth from "./pages/SimpleAuth";
+import MinimalAuth from "./components/MinimalAuth";
 import NotFound from "./pages/NotFound";
 import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
 import ProtectedRoute from "./components/ProtectedRoute";
+import StableErrorBoundary from "./components/StableErrorBoundary";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <GP51SessionProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              {/* Public auth route */}
-              <Route path="/auth" element={<SimpleAuth />} />
-              <Route path="/login" element={<SimpleAuth />} />
-              <Route path="/register" element={<SimpleAuth />} />
-              
-              {/* Protected routes */}
-              <Route path="/enhanced-tracking" element={
-                <ProtectedRoute>
-                  <EnhancedLiveTracking />
-                </ProtectedRoute>
-              } />
-              
-              {/* Main navigation items */}
-              {navItems.map(({ to, page }) => (
-                <Route 
-                  key={to} 
-                  path={to} 
-                  element={page ? (
-                    <ProtectedRoute>
-                      {page}
-                    </ProtectedRoute>
-                  ) : <NotFound />} 
-                />
-              ))}
-              
-              {/* Default protected route */}
-              <Route path="/" element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              } />
-              
-              {/* Catch-all for 404 */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
-      </GP51SessionProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  console.log('App component rendering');
+
+  return (
+    <StableErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <GP51SessionProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <StableErrorBoundary>
+                  <Routes>
+                    {/* Public auth routes with error boundaries */}
+                    <Route 
+                      path="/auth" 
+                      element={
+                        <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
+                          <SimpleAuth />
+                        </StableErrorBoundary>
+                      } 
+                    />
+                    <Route 
+                      path="/minimal-auth" 
+                      element={
+                        <StableErrorBoundary>
+                          <MinimalAuth />
+                        </StableErrorBoundary>
+                      } 
+                    />
+                    <Route path="/login" element={
+                      <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
+                        <SimpleAuth />
+                      </StableErrorBoundary>
+                    } />
+                    <Route path="/register" element={
+                      <StableErrorBoundary fallbackComponent={<MinimalAuth />}>
+                        <SimpleAuth />
+                      </StableErrorBoundary>
+                    } />
+                    
+                    {/* Protected routes */}
+                    <Route path="/enhanced-tracking" element={
+                      <StableErrorBoundary>
+                        <ProtectedRoute>
+                          <EnhancedLiveTracking />
+                        </ProtectedRoute>
+                      </StableErrorBoundary>
+                    } />
+                    
+                    {/* Main navigation items */}
+                    {navItems.map(({ to, page }) => (
+                      <Route 
+                        key={to} 
+                        path={to} 
+                        element={
+                          <StableErrorBoundary>
+                            {page ? (
+                              <ProtectedRoute>
+                                {page}
+                              </ProtectedRoute>
+                            ) : <NotFound />}
+                          </StableErrorBoundary>
+                        } 
+                      />
+                    ))}
+                    
+                    {/* Default protected route */}
+                    <Route path="/" element={
+                      <StableErrorBoundary>
+                        <ProtectedRoute>
+                          <Index />
+                        </ProtectedRoute>
+                      </StableErrorBoundary>
+                    } />
+                    
+                    {/* Catch-all for 404 */}
+                    <Route path="*" element={
+                      <StableErrorBoundary>
+                        <NotFound />
+                      </StableErrorBoundary>
+                    } />
+                  </Routes>
+                </StableErrorBoundary>
+              </BrowserRouter>
+            </TooltipProvider>
+          </GP51SessionProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </StableErrorBoundary>
+  );
+};
 
 export default App;

@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { errorHandler } from '@/services/errorHandling';
 
 const SimpleAuth: React.FC = () => {
   const { signIn, signUp, user } = useAuth();
@@ -32,9 +33,13 @@ const SimpleAuth: React.FC = () => {
     confirmPassword: ''
   });
 
+  console.log('SimpleAuth component mounted, user:', user?.email || 'none');
+
   // Redirect if already authenticated
   useEffect(() => {
+    console.log('SimpleAuth useEffect - user check:', user?.email);
     if (user) {
+      console.log('User authenticated, redirecting to dashboard');
       navigate('/');
     }
   }, [user, navigate]);
@@ -44,10 +49,13 @@ const SimpleAuth: React.FC = () => {
     setIsLoading(true);
     setError('');
 
+    console.log('Login attempt starting for:', loginData.email);
+
     try {
       const { error } = await signIn(loginData.email, loginData.password);
       
       if (error) {
+        console.error('Login error:', error);
         if (error.message.includes('Invalid login credentials')) {
           setError('Invalid email or password. Please check your credentials and try again.');
         } else if (error.message.includes('Email not confirmed')) {
@@ -55,7 +63,15 @@ const SimpleAuth: React.FC = () => {
         } else {
           setError(error.message);
         }
+        
+        errorHandler.logError(
+          new Error(error.message),
+          'Login Error',
+          'medium',
+          { email: loginData.email }
+        );
       } else {
+        console.log('Login successful');
         toast({
           title: "Welcome back!",
           description: "Successfully signed in.",
@@ -63,7 +79,16 @@ const SimpleAuth: React.FC = () => {
         navigate('/');
       }
     } catch (error) {
-      setError('An unexpected error occurred. Please try again.');
+      console.error('Unexpected login error:', error);
+      const errorMsg = 'An unexpected error occurred. Please try again.';
+      setError(errorMsg);
+      
+      errorHandler.logError(
+        error instanceof Error ? error : new Error('Unknown login error'),
+        'Login Exception',
+        'high',
+        { email: loginData.email }
+      );
     } finally {
       setIsLoading(false);
     }
@@ -73,6 +98,8 @@ const SimpleAuth: React.FC = () => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+
+    console.log('Signup attempt starting for:', signupData.email);
 
     // Basic validation
     if (signupData.password !== signupData.confirmPassword) {
@@ -91,12 +118,21 @@ const SimpleAuth: React.FC = () => {
       const { error } = await signUp(signupData.email, signupData.password, signupData.name, 'basic');
       
       if (error) {
+        console.error('Signup error:', error);
         if (error.message.includes('User already registered')) {
           setError('An account with this email already exists. Please sign in instead.');
         } else {
           setError(error.message);
         }
+        
+        errorHandler.logError(
+          new Error(error.message),
+          'Signup Error',
+          'medium',
+          { email: signupData.email }
+        );
       } else {
+        console.log('Signup successful');
         toast({
           title: "Account Created",
           description: "Please check your email to verify your account.",
@@ -110,7 +146,16 @@ const SimpleAuth: React.FC = () => {
         });
       }
     } catch (error) {
-      setError('Registration failed. Please try again.');
+      console.error('Unexpected signup error:', error);
+      const errorMsg = 'Registration failed. Please try again.';
+      setError(errorMsg);
+      
+      errorHandler.logError(
+        error instanceof Error ? error : new Error('Unknown signup error'),
+        'Signup Exception',
+        'high',
+        { email: signupData.email }
+      );
     } finally {
       setIsLoading(false);
     }
