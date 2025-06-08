@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { Activity, Gauge, Shield, Tool } from 'lucide-react';
+import { Activity, Gauge, Shield, Wrench } from 'lucide-react';
 
 export interface MarketplaceProduct {
   id: string;
@@ -137,7 +137,7 @@ const mockProducts: MarketplaceProduct[] = [
     rating: 4.9,
     reviewCount: 456,
     popular: true,
-    icon: Tool,
+    icon: Wrench,
     category: "parts",
     features: [
       "High-performance brake pads",

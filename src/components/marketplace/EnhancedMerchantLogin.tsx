@@ -78,14 +78,18 @@ export const EnhancedMerchantLogin: React.FC<MerchantLoginProps> = ({
         additionalData: { email, userAgent: navigator.userAgent }
       });
 
-      await onLogin({ email: emailValidation.sanitizedValue || email, password });
+      // Get sanitized email
+      const emailValidation = SecurityService.validateInput(email, 'email');
+      const sanitizedEmail = emailValidation.sanitizedValue || email;
+
+      await onLogin({ email: sanitizedEmail, password });
       
       // Log successful login
       SecurityService.logSecurityEvent({
         type: 'authentication',
         severity: 'low',
         description: 'Merchant login successful',
-        additionalData: { email }
+        additionalData: { email: sanitizedEmail }
       });
 
       resetForm();
