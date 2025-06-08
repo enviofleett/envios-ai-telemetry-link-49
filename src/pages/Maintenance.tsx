@@ -10,7 +10,7 @@ import { MaintenanceList } from '@/components/maintenance/MaintenanceList';
 import { ConnectedWorkshopsList } from '@/components/maintenance/ConnectedWorkshopsList';
 import { MaintenanceHistory } from '@/components/maintenance/MaintenanceHistory';
 import { Plus, MapPin } from 'lucide-react';
-import type { MaintenanceItem, Workshop, Vehicle } from '@/components/maintenance/types';
+import type { MaintenanceItem, Workshop as MaintenanceWorkshop, Vehicle } from '@/components/maintenance/types';
 
 const mockMaintenanceItems: MaintenanceItem[] = [
   {
@@ -47,7 +47,7 @@ const mockMaintenanceItems: MaintenanceItem[] = [
   }
 ];
 
-const mockWorkshops: Workshop[] = [
+const mockWorkshops: MaintenanceWorkshop[] = [
   {
     id: '1',
     name: 'AutoCare Plus',
@@ -105,12 +105,29 @@ const mockVehicles: Vehicle[] = [
 ];
 
 const Maintenance: React.FC = () => {
-  const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
+  const [selectedWorkshop, setSelectedWorkshop] = useState<MaintenanceWorkshop | null>(null);
   const [showWorkshopMarketplace, setShowWorkshopMarketplace] = useState(false);
   const [showWorkshopConnection, setShowWorkshopConnection] = useState(false);
 
-  const handleWorkshopSelect = (workshop: Workshop) => {
-    setSelectedWorkshop(workshop);
+  const handleWorkshopSelect = (workshop: any) => {
+    // Convert the workshop from WorkshopMarketplace to our MaintenanceWorkshop type
+    const maintenanceWorkshop: MaintenanceWorkshop = {
+      id: workshop.id,
+      name: workshop.name,
+      representativeName: workshop.representativeName || 'Not provided',
+      email: workshop.email || 'Not provided',
+      phone: workshop.phone || 'Not provided',
+      city: workshop.city || 'Not provided',
+      country: workshop.country || 'Not provided',
+      serviceTypes: workshop.serviceTypes || [],
+      rating: workshop.rating || 0,
+      reviewCount: workshop.reviewCount || 0,
+      activationFee: workshop.activationFee || 0,
+      operatingHours: workshop.operatingHours || 'Not specified',
+      verified: workshop.verified || false
+    };
+    
+    setSelectedWorkshop(maintenanceWorkshop);
     setShowWorkshopMarketplace(false);
     setShowWorkshopConnection(true);
   };
