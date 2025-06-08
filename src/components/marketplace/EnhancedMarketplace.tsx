@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +15,7 @@ import { PaymentModal } from './PaymentModal';
 import { MerchantOnboardingModal } from './MerchantOnboardingModal';
 import { MerchantLoginModal } from './MerchantLoginModal';
 import { MerchantAnalytics } from './MerchantAnalytics';
+import { MerchantDashboard } from './MerchantDashboard';
 import { useToast } from '@/hooks/use-toast';
 
 type UserRole = 'subscriber' | 'merchant' | 'admin';
@@ -29,7 +31,6 @@ export const EnhancedMarketplace: React.FC = () => {
   const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [userRole, setUserRole] = useState<UserRole>('subscriber');
-  const [currentView, setCurrentView] = useState<'marketplace' | 'analytics'>('marketplace');
 
   const { products, isLoading } = useMarketplaceProducts();
   const { vehicles } = useUnifiedVehicleData();
@@ -95,53 +96,23 @@ export const EnhancedMarketplace: React.FC = () => {
     });
   };
 
-  // If merchant, show merchant interface
+  // If merchant, show merchant dashboard
   if (userRole === 'merchant') {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Merchant Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Merchant Portal</h1>
             <p className="text-muted-foreground">
               Manage your products and track your business performance
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as any)}>
-              <TabsList>
-                <TabsTrigger value="marketplace">Products</TabsTrigger>
-                <TabsTrigger value="analytics">
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Analytics
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Button variant="outline" onClick={() => setUserRole('subscriber')}>
-              Switch to Customer View
-            </Button>
-          </div>
+          <Button variant="outline" onClick={() => setUserRole('subscriber')}>
+            Switch to Customer View
+          </Button>
         </div>
 
-        {currentView === 'analytics' ? (
-          <MerchantAnalytics />
-        ) : (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Your Products</CardTitle>
-                <CardDescription>
-                  Manage your marketplace listings and track performance
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Package className="h-12 w-12 mx-auto mb-4" />
-                  <p>Product management interface coming soon</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        <MerchantDashboard />
       </div>
     );
   }
