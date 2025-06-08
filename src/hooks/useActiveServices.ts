@@ -20,7 +20,8 @@ export const useActiveServices = () => {
     renewSubscription
   } = useBillingManagement();
 
-  const { vehicles } = useOptimizedVehicleData();
+  const vehicleDataQuery = useOptimizedVehicleData();
+  const vehicles = vehicleDataQuery.data?.vehicles || [];
 
   // Transform device subscriptions to active services
   const activeServices = useMemo((): ActiveService[] => {
@@ -28,7 +29,7 @@ export const useActiveServices = () => {
 
     return subscriptions.map((subscription): ActiveService => {
       const servicePlan = subscription.service_plan;
-      const subscriptionVehicles = vehicles.filter(v => v.deviceId === subscription.device_id);
+      const subscriptionVehicles = vehicles.filter(v => v.device_id === subscription.device_id);
 
       // Determine service type based on plan features or name
       let serviceType: 'telemetry' | 'insurance' | 'parts' | 'platform' = 'telemetry';
@@ -109,18 +110,29 @@ export const useActiveServices = () => {
           break;
       }
 
+      // Map subscription status to active service status
+      const mapSubscriptionStatus = (status: typeof subscription.subscription_status): ActiveService['status'] => {
+        switch (status) {
+          case 'active': return 'active';
+          case 'suspended': return 'paused';
+          case 'cancelled': return 'expired';
+          case 'expired': return 'expired';
+          default: return 'pending';
+        }
+      };
+
       return {
         id: subscription.id,
         serviceName: servicePlan?.plan_name || 'Unknown Service',
         serviceType,
         vehicles: subscriptionVehicles.map(v => ({
           id: v.id,
-          plateNumber: v.plateNumber || v.deviceId,
-          model: v.vehicleModel || 'Unknown Model',
+          plateNumber: v.device_name || v.device_id,
+          model: 'Unknown Model',
           activatedDate: subscription.start_date,
           status: subscription.subscription_status === 'active' ? 'active' : 'paused'
         })),
-        status: subscription.subscription_status,
+        status: mapSubscriptionStatus(subscription.subscription_status),
         activatedDate: subscription.start_date,
         expiryDate: subscription.end_date,
         monthlyFee,
@@ -139,9 +151,20 @@ export const useActiveServices = () => {
   // Service management functions
   const handleServiceUpdate = async (serviceId: string, updates: ServiceUpdateRequest) => {
     try {
+      // Map active service status back to subscription status
+      const mapActiveServiceStatus = (status: ActiveService['status']): typeof subscriptions[0]['subscription_status'] => {
+        switch (status) {
+          case 'active': return 'active';
+          case 'paused': return 'suspended';
+          case 'expired': return 'expired';
+          case 'pending': return 'suspended';
+          default: return 'active';
+        }
+      };
+
       await updateSubscription(serviceId, {
         auto_renewal: updates.autoRenew,
-        subscription_status: updates.status
+        subscription_status: updates.status ? mapActiveServiceStatus(updates.status) : undefined
       });
       toast.success('Service updated successfully');
     } catch (error) {
@@ -200,7 +223,7 @@ export const useActiveServices = () => {
     activeServices,
     stats,
     paymentMethods,
-    isLoading,
+    isLoading: isLoading || vehicleDataQuery.isLoading,
     handleServiceUpdate,
     handleCancelService,
     handleRenewService
