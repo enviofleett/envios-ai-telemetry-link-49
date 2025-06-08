@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,16 +7,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mail, Lock, User, LogOut, Shield } from 'lucide-react';
+import { Mail, Lock, User, LogOut } from 'lucide-react';
 import { OTPService } from '@/services/otpService';
 import { useToast } from '@/hooks/use-toast';
+import PackageSelectionCard from '@/components/auth/PackageSelectionCard';
+import { PackageMappingService } from '@/services/packageMappingService';
 
 const Auth = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [selectedRole, setSelectedRole] = useState('user');
+  const [selectedPackage, setSelectedPackage] = useState('basic');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [otpStep, setOtpStep] = useState(false);
@@ -56,8 +56,16 @@ const Auth = () => {
     setLoading(true);
     setError('');
 
+    // Validate package selection
+    const packageValidation = PackageMappingService.validatePackage(selectedPackage);
+    if (!packageValidation.isValid) {
+      setError(packageValidation.error || 'Invalid package selection');
+      setLoading(false);
+      return;
+    }
+
     try {
-      // First generate OTP
+      // Generate OTP
       const otpResult = await OTPService.generateOTP(
         '', // phone number not required for email OTP
         email,
@@ -98,16 +106,17 @@ const Auth = () => {
         return;
       }
 
-      // OTP verified, now create the user account
-      const { error } = await signUp(email, password, name, selectedRole);
+      // OTP verified, now create the user account with package
+      const { error } = await signUp(email, password, name, selectedPackage);
       
       if (error) {
         setError(error.message);
       } else {
+        const packageInfo = PackageMappingService.getPackageInfo(selectedPackage);
         toast({
           title: "Registration Successful!",
-          description: selectedRole === 'admin' 
-            ? "Your admin role request is pending approval. You'll be contacted once reviewed."
+          description: packageInfo?.requiresApproval
+            ? "Your account has been created. Admin approval may be required for your selected package."
             : "Your account has been created successfully.",
         });
         setOtpStep(false);
@@ -115,7 +124,7 @@ const Auth = () => {
         setEmail('');
         setPassword('');
         setName('');
-        setSelectedRole('user');
+        setSelectedPackage('basic');
         setOtpCode('');
       }
     } catch (error) {
@@ -185,8 +194,8 @@ const Auth = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <Card className="w-full max-w-4xl">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Envío Console</CardTitle>
           <CardDescription>
@@ -245,37 +254,40 @@ const Auth = () => {
               </TabsContent>
 
               <TabsContent value="signup">
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-name">Name</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="signup-name"
-                        type="text"
-                        placeholder="Enter your name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
+                <form onSubmit={handleSignUp} className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-name">Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="signup-name"
+                          type="text"
+                          placeholder="Enter your name"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          className="pl-10"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-email">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                        <Input
+                          id="signup-email"
+                          type="email"
+                          placeholder="Enter your email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10"
+                          required
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="signup-email"
-                        type="email"
-                        placeholder="Enter your email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
+                  
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
                     <div className="relative">
@@ -291,29 +303,21 @@ const Auth = () => {
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="user-role">User Role</Label>
-                    <div className="relative">
-                      <Shield className="absolute left-3 top-3 h-4 w-4 text-gray-400 z-10" />
-                      <Select value={selectedRole} onValueChange={setSelectedRole}>
-                        <SelectTrigger className="pl-10">
-                          <SelectValue placeholder="Select your role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">Fleet User</SelectItem>
-                          <SelectItem value="admin">Fleet Administrator</SelectItem>
-                        </SelectContent>
-                      </Select>
+
+                  <div className="space-y-3">
+                    <Label>Select Your Package</Label>
+                    <div className="grid grid-cols-1 gap-3">
+                      {PackageMappingService.getAvailablePackages().map((packageInfo) => (
+                        <PackageSelectionCard
+                          key={packageInfo.packageId}
+                          package={packageInfo}
+                          isSelected={selectedPackage === packageInfo.packageId}
+                          onSelect={setSelectedPackage}
+                        />
+                      ))}
                     </div>
-                    {selectedRole === 'admin' && (
-                      <Alert>
-                        <Shield className="h-4 w-4" />
-                        <AlertDescription>
-                          Admin role requests require approval. You'll be contacted once your request is reviewed.
-                        </AlertDescription>
-                      </Alert>
-                    )}
                   </div>
+
                   {error && (
                     <Alert variant={error.includes('check your email') ? 'default' : 'destructive'}>
                       <AlertDescription>{error}</AlertDescription>

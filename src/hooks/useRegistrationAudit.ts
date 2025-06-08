@@ -1,4 +1,3 @@
-
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -8,6 +7,7 @@ interface RegistrationAuditEntry {
   user_email: string;
   user_name: string;
   selected_role: string;
+  selected_package?: string; // Add package tracking
   registration_status: string;
   otp_verified: boolean;
   created_at: string;
@@ -34,6 +34,7 @@ export const useRegistrationAudit = () => {
           user_email: email,
           user_name: name,
           selected_role: selectedRole,
+          selected_package: additionalData?.package || additionalData?.packageId,
           registration_status: status,
           otp_verified: status === 'otp_verified' || status === 'completed',
           metadata: {
@@ -68,6 +69,7 @@ export const useRegistrationAudit = () => {
         user_email: entry.user_email || '',
         user_name: entry.user_name || '',
         selected_role: entry.selected_role || '',
+        selected_package: entry.selected_package || entry.metadata?.package || entry.metadata?.packageId,
         registration_status: entry.registration_status || '',
         otp_verified: entry.otp_verified || false,
         created_at: entry.created_at,
@@ -95,7 +97,7 @@ export const useRegistrationAudit = () => {
 
       const { data, error } = await supabase
         .from('registration_audit_log' as any)
-        .select('registration_status, selected_role, created_at')
+        .select('registration_status, selected_role, selected_package, created_at')
         .gte('created_at', startDate.toISOString());
 
       if (error) throw error;
@@ -105,6 +107,11 @@ export const useRegistrationAudit = () => {
         completed_registrations: data?.filter((entry: any) => entry.registration_status === 'completed').length || 0,
         failed_registrations: data?.filter((entry: any) => entry.registration_status === 'failed').length || 0,
         admin_requests: data?.filter((entry: any) => entry.selected_role === 'admin').length || 0,
+        package_breakdown: data?.reduce((acc: any, entry: any) => {
+          const pkg = entry.selected_package || 'unknown';
+          acc[pkg] = (acc[pkg] || 0) + 1;
+          return acc;
+        }, {}),
         success_rate: 0
       };
 
