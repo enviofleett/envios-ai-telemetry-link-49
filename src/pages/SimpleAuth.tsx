@@ -20,6 +20,14 @@ const SimpleAuth: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  
+  // Set default tab based on route
+  const getDefaultTab = () => {
+    if (location.pathname === '/register') return 'signup';
+    return 'signin';
+  };
+  
+  const [activeTab, setActiveTab] = useState(getDefaultTab());
 
   const [loginData, setLoginData] = useState({
     email: '',
@@ -34,6 +42,11 @@ const SimpleAuth: React.FC = () => {
   });
 
   console.log('SimpleAuth component mounted, user:', user?.email || 'none', 'path:', location.pathname);
+
+  // Update tab when route changes
+  useEffect(() => {
+    setActiveTab(getDefaultTab());
+  }, [location.pathname]);
 
   // Redirect if already authenticated - but prevent infinite loops
   useEffect(() => {
@@ -170,7 +183,7 @@ const SimpleAuth: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="signin" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
