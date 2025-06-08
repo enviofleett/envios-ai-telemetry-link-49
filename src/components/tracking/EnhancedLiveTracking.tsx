@@ -58,7 +58,10 @@ export function EnhancedLiveTracking() {
     const newLockState: Record<string, boolean> = {};
 
     vehicles.forEach((vehicle) => {
-      newEngineState[vehicle.deviceid] = vehicle.lastPosition?.acc_status === 1;
+      // Check if vehicle has position data and if it has ignition info
+      const hasIgnitionData = vehicle.lastPosition?.statusText?.includes('ignition') || 
+                              vehicle.lastPosition?.statusText?.includes('engine');
+      newEngineState[vehicle.deviceid] = hasIgnitionData || false;
       newLockState[vehicle.deviceid] = true; // Default to locked
     });
 
@@ -241,7 +244,7 @@ export function EnhancedLiveTracking() {
                   </div>
                   <span className="text-sm font-medium">
                     {selectedVehicle.lastPosition ? 
-                      `${selectedVehicle.lastPosition.latitude?.toFixed(4)}, ${selectedVehicle.lastPosition.longitude?.toFixed(4)}` : 
+                      `${selectedVehicle.lastPosition.lat?.toFixed(4)}, ${selectedVehicle.lastPosition.lon?.toFixed(4)}` : 
                       'No location data'
                     }
                   </span>
@@ -273,7 +276,7 @@ export function EnhancedLiveTracking() {
                     <span className="text-sm">Fuel Level</span>
                   </div>
                   <span className="text-sm font-medium">
-                    {selectedVehicle.lastPosition?.oil_level || 'N/A'}%
+                    N/A%
                   </span>
                 </div>
               </div>
@@ -290,7 +293,7 @@ export function EnhancedLiveTracking() {
                     <span className="text-sm">Temperature</span>
                   </div>
                   <span className="text-sm font-medium">
-                    {selectedVehicle.lastPosition?.temperature || 'N/A'}°C
+                    N/A°C
                   </span>
                 </div>
 
