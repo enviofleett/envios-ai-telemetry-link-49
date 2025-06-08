@@ -12,7 +12,7 @@ interface VehicleQueryResult {
 export const useOwnerVehicles = (ownerId: string) => {
   return useQuery({
     queryKey: ['owner-vehicles', ownerId],
-    queryFn: async (): Promise<VehicleQueryResult[]> => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from('vehicles')
         .select('device_id, device_name, status, created_at')
@@ -23,7 +23,7 @@ export const useOwnerVehicles = (ownerId: string) => {
         throw error;
       }
 
-      return data || [];
+      return (data || []) as VehicleQueryResult[];
     },
     enabled: !!ownerId,
   });
