@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { MerchantAnalytics } from './MerchantAnalytics';
 import { MerchantOrderManagement } from './MerchantOrderManagement';
+import { MerchantProductManagement } from './MerchantProductManagement';
 
 interface MerchantStats {
   totalSales: number;
@@ -170,27 +171,7 @@ export const MerchantDashboard: React.FC = () => {
   }
 
   if (activeTab === 'products') {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Product Management</h2>
-            <p className="text-muted-foreground">Manage your marketplace listings</p>
-          </div>
-          <Button onClick={() => setActiveTab('overview')}>
-            Back to Dashboard
-          </Button>
-        </div>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-center py-8 text-muted-foreground">
-              <Package className="h-12 w-12 mx-auto mb-4" />
-              <p>Product management interface coming soon</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return <MerchantProductManagement />;
   }
 
   if (activeTab === 'orders') {
