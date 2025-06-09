@@ -1,12 +1,11 @@
 
 import React from 'react';
-import { TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin } from 'lucide-react';
 
 const GeofencingTab: React.FC = () => {
   return (
-    <TabsContent value="geofencing" className="space-y-4 mt-6">
+    <div className="space-y-4 mt-6">
       <div>
         <h3 className="text-lg font-semibold mb-2">Geofencing Management</h3>
         <p className="text-sm text-gray-600 mb-4">
@@ -33,7 +32,7 @@ const GeofencingTab: React.FC = () => {
           </div>
         </CardContent>
       </Card>
-    </TabsContent>
+    </div>
   );
 };
 
