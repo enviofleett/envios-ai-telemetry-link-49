@@ -4,7 +4,7 @@ import PackageManagementDashboard from '@/components/packages/PackageManagementD
 const PackagesTab: React.FC = () => {
   return <TabsContent value="packages" className="space-y-4 mt-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">Subscriber Package Management</h3>
+        
         
       </div>
       <PackageManagementDashboard />
