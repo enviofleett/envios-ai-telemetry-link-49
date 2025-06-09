@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Download } from 'lucide-react';
@@ -7,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import VehicleListPanel from './VehicleListPanel';
 import VehicleInfoPanel from './VehicleInfoPanel';
 import MapTilerMap from '@/components/map/MapTilerMap';
-import { mapTilerService } from '@/services/mapTiler/mapTilerService';
+import { unifiedGeocodingService } from '@/services/geocoding/unifiedGeocodingService';
 import { useToast } from '@/hooks/use-toast';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
@@ -56,7 +57,7 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
     return matchesSearch && vehicleStatus === statusFilter;
   });
 
-  // Load addresses for vehicles with positions
+  // Load addresses for vehicles with positions using unified geocoding
   const loadAddresses = async (forceRefresh = false) => {
     if (vehicles.length === 0) return;
     
@@ -70,7 +71,7 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
           const key = vehicle.deviceid;
           if (!newAddresses.has(key) || forceRefresh) {
             try {
-              const address = await mapTilerService.reverseGeocode(
+              const address = await unifiedGeocodingService.reverseGeocode(
                 vehicle.lastPosition.lat,
                 vehicle.lastPosition.lon
               );
@@ -92,7 +93,7 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
       if (forceRefresh && loadedCount > 0) {
         toast({
           title: "Addresses refreshed",
-          description: `Updated ${loadedCount} vehicle addresses`
+          description: `Updated ${loadedCount} vehicle addresses using enhanced geocoding`
         });
       }
     } catch (error) {

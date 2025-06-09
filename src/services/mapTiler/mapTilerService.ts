@@ -34,25 +34,73 @@ class MapTilerService {
   private apiKey: string | null = null;
   private addressCache = new Map<string, { address: string; timestamp: number }>();
   private readonly CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+  private readonly STORAGE_KEY = 'maptiler_api_key';
+  private isInitialized = false;
 
   async initialize(): Promise<void> {
     try {
-      // Get MapTiler API key from Supabase secrets
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.warn('No auth session for MapTiler API key');
-        return;
+      // First try to restore from localStorage
+      const storedKey = localStorage.getItem(this.STORAGE_KEY);
+      if (storedKey) {
+        this.apiKey = storedKey;
+        console.log('MapTiler API key restored from localStorage');
+        
+        // Validate the stored key with a quick test
+        try {
+          await this.testConnection();
+          this.isInitialized = true;
+          console.log('MapTiler service initialized with stored key');
+          return;
+        } catch (error) {
+          console.warn('Stored MapTiler key is invalid, clearing:', error);
+          localStorage.removeItem(this.STORAGE_KEY);
+          this.apiKey = null;
+        }
       }
 
-      // For now, we'll use a placeholder - the user will need to set this up
+      // Try to get from Supabase if authenticated
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log('Attempting to load MapTiler config from Supabase...');
+      }
+
+      this.isInitialized = true;
       console.log('MapTiler service initialized');
     } catch (error) {
       console.error('Failed to initialize MapTiler service:', error);
+      this.isInitialized = true; // Don't block the app
     }
   }
 
   setApiKey(key: string): void {
     this.apiKey = key;
+    // Persist to localStorage for page refresh survival
+    localStorage.setItem(this.STORAGE_KEY, key);
+    console.log('MapTiler API key set and persisted');
+  }
+
+  getApiKey(): string | null {
+    return this.apiKey;
+  }
+
+  isConfigured(): boolean {
+    return !!this.apiKey;
+  }
+
+  async testConnection(): Promise<boolean> {
+    if (!this.apiKey) {
+      throw new Error('No API key configured');
+    }
+
+    try {
+      // Test with a simple geocoding request to New York
+      const testAddress = await this.reverseGeocode(40.7128, -74.0060);
+      console.log('MapTiler connection test successful:', testAddress);
+      return true;
+    } catch (error) {
+      console.error('MapTiler connection test failed:', error);
+      throw error;
+    }
   }
 
   getMapStyle(): string {
@@ -106,7 +154,7 @@ class MapTilerService {
       
       return this.formatCoordinates(lat, lon);
     } catch (error) {
-      console.error('Reverse geocoding error:', error);
+      console.error('MapTiler reverse geocoding error:', error);
       
       // Return cached address if available, even if expired
       if (cached) {
@@ -154,7 +202,6 @@ class MapTilerService {
     
     // If we have structured parts, join them with proper formatting
     if (parts.length > 0) {
-      // Format as: Street, City, Region Postcode, Country
       let formattedAddress = parts[0]; // Street
       if (parts.length > 1) {
         formattedAddress += ', ' + parts.slice(1).join(', ');
@@ -169,6 +216,11 @@ class MapTilerService {
 
   clearCache(): void {
     this.addressCache.clear();
+  }
+
+  clearApiKey(): void {
+    this.apiKey = null;
+    localStorage.removeItem(this.STORAGE_KEY);
   }
 
   // Get cache statistics
