@@ -13,6 +13,8 @@ import VehicleStatusCard from './VehicleStatusCard';
 import VehicleStatisticsModal from './VehicleStatisticsModal';
 import VehicleProfileTab from './VehicleProfileTab';
 import CommandPalette from './CommandPalette';
+import EnhancedTrackingMap from './EnhancedTrackingMap';
+import VehicleDetailPanel from './VehicleDetailPanel';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 const EnhancedLiveTrackingPage: React.FC = () => {
@@ -22,6 +24,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
   const [showOnlineModal, setShowOnlineModal] = useState(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [isEngineControlLoading, setIsEngineControlLoading] = useState(false);
+  const [showVehiclePanel, setShowVehiclePanel] = useState(false);
   
   const { toast } = useToast();
   const {
@@ -67,6 +70,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
 
   const handleVehicleSelect = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
+    setShowVehiclePanel(true);
     console.log('Vehicle selected:', vehicle);
   };
 
@@ -168,6 +172,11 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       title: 'Export Started',
       description: 'Fleet data export has been initiated. Download will start shortly.'
     });
+  };
+
+  const handleClosePanelAndClearSelection = () => {
+    setShowVehiclePanel(false);
+    setSelectedVehicle(null);
   };
 
   const filteredVehicles = vehicles.filter(vehicle => {
@@ -290,7 +299,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="map" className="flex items-center gap-2">
             <MapPin className="h-4 w-4" />
-            Map & Live Tracking
+            Enhanced Map & Tracking
           </TabsTrigger>
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -299,22 +308,49 @@ const EnhancedLiveTrackingPage: React.FC = () => {
         </TabsList>
 
         <TabsContent value="map" className="space-y-4">
-          {/* Map and Vehicle List */}
-          <LiveMapAndVehicleList vehicles={filteredVehicles} onVehicleSelect={handleVehicleSelect} />
+          {/* Enhanced Map with Clustering */}
+          <EnhancedTrackingMap 
+            vehicles={filteredVehicles}
+            onVehicleSelect={handleVehicleSelect}
+            selectedVehicle={selectedVehicle}
+            height="500px"
+          />
 
-          {/* Vehicle Status Card */}
-          <VehicleStatusCard vehicle={selectedVehicle} onEngineShutdown={handleEngineShutdown} onEngineEnable={handleEngineEnable} canControlEngine={canControlEngine} isLoading={isEngineControlLoading} />
+          {/* Legacy Vehicle Status Card for compatibility */}
+          <VehicleStatusCard 
+            vehicle={selectedVehicle} 
+            onEngineShutdown={handleEngineShutdown} 
+            onEngineEnable={handleEngineEnable} 
+            canControlEngine={canControlEngine} 
+            isLoading={isEngineControlLoading} 
+          />
         </TabsContent>
 
         <TabsContent value="profile">
-          <VehicleProfileTab vehicle={selectedVehicle} onWorkshopAssign={handleWorkshopAssign} onReportGenerate={handleReportGenerate} />
+          <VehicleProfileTab 
+            vehicle={selectedVehicle} 
+            onWorkshopAssign={handleWorkshopAssign} 
+            onReportGenerate={handleReportGenerate} 
+          />
         </TabsContent>
       </Tabs>
 
       {/* Statistics Modals */}
-      <VehicleStatisticsModal isOpen={showOnlineModal} onClose={() => setShowOnlineModal(false)} title="Online Vehicles" vehicles={vehicles} statusType="online" />
+      <VehicleStatisticsModal 
+        isOpen={showOnlineModal} 
+        onClose={() => setShowOnlineModal(false)} 
+        title="Online Vehicles" 
+        vehicles={vehicles} 
+        statusType="online" 
+      />
 
-      <VehicleStatisticsModal isOpen={showOfflineModal} onClose={() => setShowOfflineModal(false)} title="Offline Vehicles" vehicles={vehicles} statusType="offline" />
+      <VehicleStatisticsModal 
+        isOpen={showOfflineModal} 
+        onClose={() => setShowOfflineModal(false)} 
+        title="Offline Vehicles" 
+        vehicles={vehicles} 
+        statusType="offline" 
+      />
 
       {/* Command Palette */}
       <CommandPalette
@@ -325,6 +361,24 @@ const EnhancedLiveTrackingPage: React.FC = () => {
         onRefresh={forceRefresh}
         onExport={handleExport}
         onNavigate={navigate}
+      />
+
+      {/* Enhanced Vehicle Detail Panel */}
+      <VehicleDetailPanel
+        vehicle={selectedVehicle}
+        isOpen={showVehiclePanel}
+        onClose={handleClosePanelAndClearSelection}
+        onEngineControl={(vehicleId, action) => {
+          if (action === 'shutdown') {
+            handleEngineShutdown(vehicleId);
+          } else {
+            handleEngineEnable(vehicleId);
+          }
+        }}
+        onGenerateReport={handleReportGenerate}
+        onAssignWorkshop={handleWorkshopAssign}
+        canControlEngine={canControlEngine}
+        isLoading={isEngineControlLoading}
       />
     </div>;
 };
