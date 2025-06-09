@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } = '@/components/ui/alert';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useMapConfigs } from '@/hooks/useMapTilerApi';
 import { MapProviderFactory } from '@/services/mapProviders/MapProviderFactory';
 import { toast } from 'sonner';
