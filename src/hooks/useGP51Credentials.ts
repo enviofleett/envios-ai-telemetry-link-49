@@ -131,7 +131,7 @@ export const useGP51Credentials = () => {
         errorDescription = 'Unable to connect to GP51 API. Please check your internet connection and try again.';
       } else if (error && typeof error === 'object' && 'details' in error) {
         errorDescription = String((error as any).details);
-      } else if (errorMessage) {
+      } else {
         errorDescription = errorMessage;
       }
       
