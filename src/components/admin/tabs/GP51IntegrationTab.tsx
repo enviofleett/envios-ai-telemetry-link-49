@@ -10,7 +10,7 @@ export const GP51IntegrationTab: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
 
   return (
-    <TabsContent value="gp51-integration" className="space-y-6 mt-6">
+    <TabsContent value="gp51" className="space-y-6 mt-6">
       <Card>
         <CardHeader>
           <CardTitle>GP51 Connection Status</CardTitle>
