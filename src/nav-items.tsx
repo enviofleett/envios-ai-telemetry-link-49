@@ -6,6 +6,7 @@ import VehicleManagement from "./pages/VehicleManagement";
 import LiveTracking from "./pages/LiveTracking";
 import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
 import Reports from "./pages/Reports";
+import AdminSettings from "./pages/AdminSettings";
 import Marketplace from "./pages/Marketplace";
 
 export const navItems = [
@@ -50,5 +51,11 @@ export const navItems = [
     to: "/marketplace",
     icon: <ShoppingCart className="h-4 w-4" />,
     page: <Marketplace />,
+  },
+  {
+    title: "Admin Settings",
+    to: "/admin",
+    icon: <Settings className="h-4 w-4" />,
+    page: <AdminSettings />,
   },
 ];
