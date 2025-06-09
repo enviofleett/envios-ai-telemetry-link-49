@@ -1,6 +1,7 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { gp51SessionValidator } from './sessionValidator';
+import { enhancedGP51SessionValidator } from './enhancedSessionValidator';
+import { TimestampConverter } from './timestampConverter';
+import { PollingResetService } from './pollingResetService';
 
 interface VehicleRecord {
   device_id: string;
@@ -64,15 +65,47 @@ export class VehiclePositionSyncService {
     return VehiclePositionSyncService.instance;
   }
 
+  async resetAndRestart(): Promise<void> {
+    console.log('🔄 Resetting and restarting vehicle position sync...');
+    
+    try {
+      // Stop current sync
+      this.stopPeriodicSync();
+      
+      // Reset polling status
+      await PollingResetService.forcePollingRestart();
+      
+      // Clear session cache and force revalidation
+      enhancedGP51SessionValidator.clearCache();
+      
+      // Reset sync metrics
+      this.syncMetrics = {
+        totalSyncs: 0,
+        successfulSyncs: 0,
+        failedSyncs: 0,
+        lastSyncTime: new Date(),
+        averageLatency: 0
+      };
+      
+      // Start fresh sync
+      console.log('✅ Reset complete, starting fresh sync...');
+      await this.syncActiveVehiclePositions();
+      
+    } catch (error) {
+      console.error('❌ Failed to reset and restart sync:', error);
+      throw error;
+    }
+  }
+
   startPeriodicSync(intervalMs: number = 30000): void {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
     }
 
-    console.log('Starting active vehicle position sync (30-second interval)...');
+    console.log('📡 Starting enhanced vehicle position sync with reset capability...');
     
-    // Start immediately
-    this.syncActiveVehiclePositions();
+    // Start immediately with reset
+    this.resetAndRestart();
     
     this.syncInterval = setInterval(() => {
       this.syncActiveVehiclePositions();
@@ -99,17 +132,18 @@ export class VehiclePositionSyncService {
     try {
       this.syncMetrics.totalSyncs++;
 
-      // Validate GP51 session and get API URL
-      console.log('Ensuring valid GP51 session with API URL...');
-      const sessionResult = await gp51SessionValidator.ensureValidSession();
+      // Validate GP51 session using enhanced validator
+      console.log('🔍 Validating GP51 session with enhanced validator...');
+      const sessionResult = await enhancedGP51SessionValidator.validateGP51Session();
       
       if (!sessionResult.valid) {
-        throw new Error(`GP51 session validation failed: ${sessionResult.error}`);
+        throw new Error(`Enhanced session validation failed: ${sessionResult.error}`);
       }
 
-      console.log('✅ GP51 session validated with API URL:', sessionResult.apiUrl, 'fetching active vehicles...');
+      const apiUrl = sessionResult.apiUrl || 'https://www.gps51.com';
+      console.log('✅ Enhanced session validated, API URL:', apiUrl, 'for user:', sessionResult.username);
 
-      // Get active vehicles (updated within last 2 hours to include recently active ones)
+      // Get active vehicles
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
       
       const { data: vehicles, error: vehicleError } = await supabase
@@ -133,7 +167,7 @@ export class VehiclePositionSyncService {
         return { success: true, updatedCount: 0, errorCount: 0, message: 'No active vehicles found' };
       }
 
-      console.log(`Syncing positions for ${vehicles.length} active vehicles using API URL: ${sessionResult.apiUrl}...`);
+      console.log(`🚛 Syncing positions for ${vehicles.length} active vehicles using enhanced validation...`);
       this.syncProgress = { 
         total: vehicles.length, 
         processed: 0, 
@@ -145,7 +179,7 @@ export class VehiclePositionSyncService {
         totalVehicles: vehicles.length
       };
 
-      // Fetch positions from GP51 using the session's API URL
+      // Fetch positions from GP51
       const deviceIds = vehicles.map(v => v.device_id).filter(Boolean);
       
       if (deviceIds.length === 0) {
@@ -169,15 +203,15 @@ export class VehiclePositionSyncService {
       }
 
       const positions = positionResult?.records || [];
-      console.log(`Received ${positions.length} position records from GP51 API: ${sessionResult.apiUrl}`);
+      console.log(`📍 Received ${positions.length} position records from enhanced GP51 API`);
 
       let updatedCount = 0;
       let errorCount = 0;
 
-      // Update positions in database
+      // Update positions with enhanced timestamp conversion
       for (const position of positions) {
         try {
-          const updatetime = this.convertTimestampToISO(position.updatetime);
+          const updatetime = TimestampConverter.convertToISO(position.updatetime);
           
           const { error: updateError } = await supabase
             .from('vehicles')
@@ -199,6 +233,7 @@ export class VehiclePositionSyncService {
             errorCount++;
           } else {
             updatedCount++;
+            console.log(`✅ Updated vehicle ${position.deviceid} with timestamp ${updatetime}`);
           }
 
           this.syncProgress.processed++;
@@ -221,8 +256,8 @@ export class VehiclePositionSyncService {
       this.syncMetrics.averageLatency = (this.syncMetrics.averageLatency + latency) / 2;
       this.syncMetrics.lastSyncTime = new Date();
 
-      const message = `Updated ${updatedCount} vehicles, ${errorCount} errors using API: ${sessionResult.apiUrl}`;
-      console.log(`✅ Position sync completed: ${message}`);
+      const message = `Enhanced sync: Updated ${updatedCount} vehicles, ${errorCount} errors using API: ${apiUrl}`;
+      console.log(`✅ ${message}`);
       
       if (errorCount === 0) {
         this.syncMetrics.successfulSyncs++;
@@ -235,7 +270,13 @@ export class VehiclePositionSyncService {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Active vehicle position sync failed:', error);
+      console.error('❌ Enhanced vehicle position sync failed:', error);
+      
+      // If it's a session error, clear cache and try to reset
+      if (errorMessage.includes('session') || errorMessage.includes('authentication')) {
+        console.log('🔄 Session error detected, clearing cache for next attempt...');
+        enhancedGP51SessionValidator.clearCache();
+      }
       
       this.syncMetrics.failedSyncs++;
       this.notifyListeners('failed');
@@ -243,45 +284,6 @@ export class VehiclePositionSyncService {
     } finally {
       this.isSyncing = false;
     }
-  }
-
-  private convertTimestampToISO(timestamp: any): string {
-    if (!timestamp) return new Date().toISOString();
-    
-    // If it's already a valid ISO string, return it
-    if (typeof timestamp === 'string' && timestamp.includes('T')) {
-      return timestamp;
-    }
-    
-    // Convert various timestamp formats
-    let dateValue: Date;
-    
-    if (typeof timestamp === 'number') {
-      // Handle both seconds and milliseconds timestamps
-      if (timestamp > 1000000000000) {
-        // Milliseconds timestamp
-        dateValue = new Date(timestamp);
-      } else {
-        // Seconds timestamp
-        dateValue = new Date(timestamp * 1000);
-      }
-    } else if (typeof timestamp === 'string') {
-      // Try to parse as number first
-      const numTimestamp = parseInt(timestamp);
-      if (!isNaN(numTimestamp)) {
-        if (numTimestamp > 1000000000000) {
-          dateValue = new Date(numTimestamp);
-        } else {
-          dateValue = new Date(numTimestamp * 1000);
-        }
-      } else {
-        dateValue = new Date(timestamp);
-      }
-    } else {
-      dateValue = new Date();
-    }
-    
-    return dateValue.toISOString();
   }
 
   async forceSync(): Promise<SyncResult> {
