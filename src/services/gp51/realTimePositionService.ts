@@ -22,6 +22,7 @@ export class RealTimePositionService {
   private pollingInterval: NodeJS.Timeout | null = null;
   private isPolling = false;
   private lastUpdateTime: Date | null = null;
+  private devicePositions: Map<string, PositionUpdate> = new Map();
 
   static getInstance(): RealTimePositionService {
     if (!RealTimePositionService.instance) {
@@ -30,21 +31,31 @@ export class RealTimePositionService {
     return RealTimePositionService.instance;
   }
 
-  startPolling(intervalMs: number = 30000): void {
-    if (this.pollingInterval) {
-      this.stopPolling();
-    }
+  async startPolling(intervalMs: number = 30000): Promise<{ success: boolean; error?: string }> {
+    try {
+      if (this.pollingInterval) {
+        this.stopPolling();
+      }
 
-    console.log('📡 Starting real-time position polling...');
-    this.isPolling = true;
-    
-    // Initial poll
-    this.pollPositions();
-    
-    // Schedule regular polling
-    this.pollingInterval = setInterval(() => {
-      this.pollPositions();
-    }, intervalMs);
+      console.log('📡 Starting real-time position polling...');
+      this.isPolling = true;
+      
+      // Initial poll
+      await this.pollPositions();
+      
+      // Schedule regular polling
+      this.pollingInterval = setInterval(() => {
+        this.pollPositions();
+      }, intervalMs);
+
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Failed to start polling:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
   }
 
   stopPolling(): void {
@@ -62,6 +73,10 @@ export class RealTimePositionService {
 
   getLastUpdateTime(): Date | null {
     return this.lastUpdateTime;
+  }
+
+  getDeviceLastPosition(deviceId: string): PositionUpdate | null {
+    return this.devicePositions.get(deviceId) || null;
   }
 
   private async pollPositions(): Promise<void> {
@@ -103,6 +118,9 @@ export class RealTimePositionService {
                 heading: position.heading
               }
             };
+            
+            // Store the position
+            this.devicePositions.set(vehicle.device_id, update);
             
             this.notifyCallbacks(update);
           }

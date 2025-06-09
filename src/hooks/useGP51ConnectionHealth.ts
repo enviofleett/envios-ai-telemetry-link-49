@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { sessionHealthMonitor, SessionHealth } from '@/services/gp51/sessionHealthMonitor';
+import { gp51SessionManager } from '@/services/gp51/sessionManager';
 
 export const useGP51ConnectionHealth = () => {
   const [status, setStatus] = useState<SessionHealth | null>(null);
@@ -30,6 +31,20 @@ export const useGP51ConnectionHealth = () => {
     }
   };
 
+  const attemptReconnection = async () => {
+    setIsLoading(true);
+    try {
+      // Try to refresh the session
+      await gp51SessionManager.refreshSession();
+      // Force a health check after reconnection attempt
+      await sessionHealthMonitor.forceHealthCheck();
+    } catch (error) {
+      console.error('❌ Reconnection failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const startMonitoring = () => {
     sessionHealthMonitor.startMonitoring();
   };
@@ -42,6 +57,7 @@ export const useGP51ConnectionHealth = () => {
     status,
     isLoading,
     performHealthCheck,
+    attemptReconnection,
     startMonitoring,
     stopMonitoring,
   };
