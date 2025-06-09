@@ -1,9 +1,10 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Car, MapPin, Clock, MoreHorizontal, Zap } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Car, MapPin, Clock, MoreHorizontal, Zap, Search, Copy, RefreshCw } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
@@ -11,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useToast } from '@/hooks/use-toast';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface VehicleListPanelProps {
@@ -20,6 +22,7 @@ interface VehicleListPanelProps {
   onSendAlert?: (vehicle: Vehicle) => void;
   vehicleAddresses?: Map<string, string>;
   selectedVehicle?: Vehicle | null;
+  onRefreshAddresses?: () => void;
 }
 
 const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
@@ -28,8 +31,12 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
   onTripHistory,
   onSendAlert,
   vehicleAddresses = new Map(),
-  selectedVehicle
+  selectedVehicle,
+  onRefreshAddresses
 }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const { toast } = useToast();
+
   const getVehicleStatus = (vehicle: Vehicle) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
     
@@ -46,14 +53,11 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
     const statusText = vehicle.lastPosition?.statusText?.toLowerCase() || '';
     const speed = vehicle.lastPosition?.speed || 0;
     
-    // Check status text for ignition keywords
     if (statusText.includes('ignition on') || statusText.includes('engine on')) return 'ON';
     if (statusText.includes('ignition off') || statusText.includes('engine off')) return 'OFF';
     
-    // Fallback: assume ignition is on if vehicle is moving
     if (speed > 0) return 'ON';
     
-    // For stationary vehicles, check if recently active
     if (vehicle.lastPosition?.updatetime) {
       const lastUpdate = new Date(vehicle.lastPosition.updatetime);
       const now = new Date();
@@ -116,28 +120,103 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
     return 'No location data';
   };
 
+  const getShortAddress = (address: string) => {
+    if (address.length <= 40) return address;
+    const parts = address.split(',');
+    if (parts.length >= 2) {
+      return `${parts[0]}, ${parts[1]}...`;
+    }
+    return address.substring(0, 37) + '...';
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: "Copied to clipboard",
+        description: `${label} copied successfully`
+      });
+    }).catch(() => {
+      toast({
+        title: "Copy failed",
+        description: "Unable to copy to clipboard",
+        variant: "destructive"
+      });
+    });
+  };
+
+  // Enhanced search filtering
+  const filteredVehicles = vehicles.filter(vehicle => {
+    if (!searchTerm) return true;
+    
+    const search = searchTerm.toLowerCase();
+    const plateNumber = vehicle.plateNumber || vehicle.devicename;
+    const address = getAddress(vehicle).toLowerCase();
+    const status = getVehicleStatus(vehicle);
+    const ignitionStatus = getIgnitionStatus(vehicle);
+    
+    return (
+      vehicle.devicename.toLowerCase().includes(search) ||
+      vehicle.deviceid.toLowerCase().includes(search) ||
+      plateNumber.toLowerCase().includes(search) ||
+      address.includes(search) ||
+      status.toLowerCase().includes(search) ||
+      ignitionStatus.toLowerCase().includes(search)
+    );
+  });
+
   return (
     <Card className="bg-white border border-gray-lighter shadow-sm h-full">
       <CardHeader className="p-4 border-b border-gray-lighter">
-        <CardTitle className="text-base font-semibold text-primary-dark flex items-center gap-2">
-          <Car className="h-4 w-4" />
-          Vehicle List ({vehicles.length})
+        <CardTitle className="text-base font-semibold text-primary-dark flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Car className="h-4 w-4" />
+            Vehicle List ({filteredVehicles.length}/{vehicles.length})
+          </div>
+          
+          {onRefreshAddresses && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRefreshAddresses}
+              className="h-6 w-6 p-0"
+              title="Refresh addresses"
+            >
+              <RefreshCw className="h-3 w-3" />
+            </Button>
+          )}
         </CardTitle>
+        
+        {/* Search Input */}
+        <div className="mt-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
+            <Input
+              placeholder="Search vehicles, addresses, status..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 h-8 text-xs border-gray-lighter"
+            />
+          </div>
+        </div>
       </CardHeader>
       
       <CardContent className="p-0 flex-1">
-        <ScrollArea className="h-[calc(600px-80px)]">
+        <ScrollArea className="h-[calc(600px-120px)]">
           <div className="p-2 space-y-2">
-            {vehicles.length === 0 ? (
+            {filteredVehicles.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <Car className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm">No vehicles found</p>
+                <p className="text-sm">
+                  {searchTerm ? 'No vehicles match your search' : 'No vehicles found'}
+                </p>
               </div>
             ) : (
-              vehicles.map((vehicle) => {
+              filteredVehicles.map((vehicle) => {
                 const status = getVehicleStatus(vehicle);
                 const ignitionStatus = getIgnitionStatus(vehicle);
                 const isSelected = selectedVehicle?.deviceid === vehicle.deviceid;
+                const fullAddress = getAddress(vehicle);
+                const shortAddress = getShortAddress(fullAddress);
                 
                 return (
                   <div
@@ -181,6 +260,9 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
                             <DropdownMenuItem onClick={() => onSendAlert?.(vehicle)}>
                               Send Alert
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => copyToClipboard(fullAddress, 'Address')}>
+                              Copy Address
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
@@ -197,12 +279,29 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
                         {getIgnitionBadge(ignitionStatus)}
                       </div>
                       
-                      {/* Location */}
-                      <div className="flex items-start gap-1">
+                      {/* Location with Copy Button */}
+                      <div className="flex items-start gap-1 group">
                         <MapPin className="h-3 w-3 text-gray-400 mt-0.5 flex-shrink-0" />
-                        <span className="text-xs text-gray-600 line-clamp-2">
-                          {getAddress(vehicle)}
-                        </span>
+                        <div className="flex-1 min-w-0">
+                          <span 
+                            className="text-xs text-gray-600 line-clamp-2 cursor-help"
+                            title={fullAddress}
+                          >
+                            {shortAddress}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            copyToClipboard(fullAddress, 'Address');
+                          }}
+                          title="Copy address"
+                        >
+                          <Copy className="h-2 w-2" />
+                        </Button>
                       </div>
                       
                       {/* Last Update */}

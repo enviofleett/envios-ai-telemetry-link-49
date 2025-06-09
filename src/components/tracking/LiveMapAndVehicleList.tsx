@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, Download } from 'lucide-react';
@@ -9,6 +8,7 @@ import VehicleListPanel from './VehicleListPanel';
 import VehicleInfoPanel from './VehicleInfoPanel';
 import MapTilerMap from '@/components/map/MapTilerMap';
 import { mapTilerService } from '@/services/mapTiler/mapTilerService';
+import { useToast } from '@/hooks/use-toast';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface LiveMapAndVehicleListProps {
@@ -28,6 +28,8 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'moving' | 'online' | 'offline'>('all');
   const [vehicleAddresses, setVehicleAddresses] = useState<Map<string, string>>(new Map());
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false);
+  const { toast } = useToast();
 
   const getVehicleStatus = (vehicle: Vehicle) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
@@ -55,38 +57,67 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
   });
 
   // Load addresses for vehicles with positions
-  useEffect(() => {
-    const loadAddresses = async () => {
-      const newAddresses = new Map(vehicleAddresses);
-      
+  const loadAddresses = async (forceRefresh = false) => {
+    if (vehicles.length === 0) return;
+    
+    setIsLoadingAddresses(true);
+    const newAddresses = new Map(forceRefresh ? new Map() : vehicleAddresses);
+    let loadedCount = 0;
+    
+    try {
       for (const vehicle of vehicles) {
         if (vehicle.lastPosition?.lat && vehicle.lastPosition?.lon) {
           const key = vehicle.deviceid;
-          if (!newAddresses.has(key)) {
+          if (!newAddresses.has(key) || forceRefresh) {
             try {
               const address = await mapTilerService.reverseGeocode(
                 vehicle.lastPosition.lat,
                 vehicle.lastPosition.lon
               );
               newAddresses.set(key, address);
+              loadedCount++;
             } catch (error) {
               console.error('Failed to get address for vehicle:', vehicle.deviceid, error);
+              // Keep existing address if refresh fails
+              if (!forceRefresh && vehicleAddresses.has(key)) {
+                newAddresses.set(key, vehicleAddresses.get(key)!);
+              }
             }
           }
         }
       }
       
       setVehicleAddresses(newAddresses);
-    };
-
-    if (vehicles.length > 0) {
-      loadAddresses();
+      
+      if (forceRefresh && loadedCount > 0) {
+        toast({
+          title: "Addresses refreshed",
+          description: `Updated ${loadedCount} vehicle addresses`
+        });
+      }
+    } catch (error) {
+      console.error('Address loading error:', error);
+      toast({
+        title: "Address loading failed",
+        description: "Some addresses could not be loaded",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingAddresses(false);
     }
+  };
+
+  useEffect(() => {
+    loadAddresses();
   }, [vehicles]);
 
   const handleVehicleSelect = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     onVehicleSelect?.(vehicle);
+  };
+
+  const handleRefreshAddresses = () => {
+    loadAddresses(true);
   };
 
   const handleExport = () => {
@@ -179,6 +210,7 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
             onSendAlert={onSendAlert}
             vehicleAddresses={vehicleAddresses}
             selectedVehicle={selectedVehicle}
+            onRefreshAddresses={handleRefreshAddresses}
           />
         </div>
       </div>

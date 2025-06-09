@@ -32,7 +32,8 @@ export interface ReverseGeocodingResult {
 
 class MapTilerService {
   private apiKey: string | null = null;
-  private addressCache = new Map<string, string>();
+  private addressCache = new Map<string, { address: string; timestamp: number }>();
+  private readonly CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
 
   async initialize(): Promise<void> {
     try {
@@ -63,21 +64,28 @@ class MapTilerService {
 
   async reverseGeocode(lat: number, lon: number): Promise<string> {
     if (!this.apiKey) {
-      return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+      return this.formatCoordinates(lat, lon);
     }
 
     const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
     
-    if (this.addressCache.has(cacheKey)) {
-      return this.addressCache.get(cacheKey)!;
+    // Check cache with timestamp
+    const cached = this.addressCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < this.CACHE_DURATION) {
+      return cached.address;
     }
 
     try {
       const response = await fetch(
-        `https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${this.apiKey}&limit=1`
+        `https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${this.apiKey}&limit=1&language=en`
       );
       
       if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error('Rate limit exceeded');
+        } else if (response.status === 401) {
+          throw new Error('Invalid API key');
+        }
         throw new Error(`Geocoding failed: ${response.status}`);
       }
 
@@ -86,15 +94,31 @@ class MapTilerService {
       if (data.features && data.features.length > 0) {
         const feature = data.features[0];
         const address = this.formatAddress(feature);
-        this.addressCache.set(cacheKey, address);
+        
+        // Cache with timestamp
+        this.addressCache.set(cacheKey, {
+          address,
+          timestamp: Date.now()
+        });
+        
         return address;
       }
       
-      return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+      return this.formatCoordinates(lat, lon);
     } catch (error) {
       console.error('Reverse geocoding error:', error);
-      return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+      
+      // Return cached address if available, even if expired
+      if (cached) {
+        return cached.address;
+      }
+      
+      return this.formatCoordinates(lat, lon);
     }
+  }
+
+  private formatCoordinates(lat: number, lon: number): string {
+    return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
   }
 
   private formatAddress(feature: any): string {
@@ -145,6 +169,38 @@ class MapTilerService {
 
   clearCache(): void {
     this.addressCache.clear();
+  }
+
+  // Get cache statistics
+  getCacheStats(): { size: number; oldEntries: number } {
+    const now = Date.now();
+    let oldEntries = 0;
+    
+    for (const [, value] of this.addressCache) {
+      if (now - value.timestamp > this.CACHE_DURATION) {
+        oldEntries++;
+      }
+    }
+    
+    return {
+      size: this.addressCache.size,
+      oldEntries
+    };
+  }
+
+  // Clean expired cache entries
+  cleanExpiredCache(): number {
+    const now = Date.now();
+    let removedCount = 0;
+    
+    for (const [key, value] of this.addressCache) {
+      if (now - value.timestamp > this.CACHE_DURATION) {
+        this.addressCache.delete(key);
+        removedCount++;
+      }
+    }
+    
+    return removedCount;
   }
 }
 
