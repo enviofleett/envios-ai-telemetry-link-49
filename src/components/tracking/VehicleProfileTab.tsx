@@ -104,11 +104,13 @@ const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Registration Date</label>
-                  <p>{vehicle.created_at ? new Date(vehicle.created_at).toLocaleDateString() : 'N/A'}</p>
+                  <p>Available in system</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Last Updated</label>
-                  <p>{vehicle.updated_at ? new Date(vehicle.updated_at).toLocaleDateString() : 'N/A'}</p>
+                  <p>{vehicle.lastPosition?.updatetime 
+                    ? new Date(vehicle.lastPosition.updatetime).toLocaleDateString() 
+                    : 'N/A'}</p>
                 </div>
               </div>
             </CardContent>
