@@ -1,3 +1,4 @@
+
 "use client"
 
 import {
@@ -35,25 +36,21 @@ const menuItems = [
   {
     title: "Dashboard",
     url: "/",
-    hash: "#dashboard",
     icon: Home,
   },
   {
     title: "Vehicles",
     url: "/vehicles",
-    hash: "#vehicles",
     icon: Car,
   },
   {
     title: "Active Services",
     url: "/services",
-    hash: "#active-services",
     icon: CreditCard,
   },
   {
     title: "Maintenance",
     url: "/maintenance",
-    hash: "#maintenance",
     icon: Wrench,
   },
   {
@@ -64,19 +61,16 @@ const menuItems = [
   {
     title: "Reports",
     url: "/reports",
-    hash: "#reports",
     icon: BarChart3,
   },
   {
     title: "Tracking",
     url: "/tracking",
-    hash: "#tracking",
     icon: Map,
   },
   {
     title: "Marketplace",
     url: "/marketplace",
-    hash: "#marketplace",
     icon: ShoppingCart,
   },
   {
@@ -87,7 +81,6 @@ const menuItems = [
   {
     title: "Settings",
     url: "/settings",
-    hash: "#settings",
     icon: Settings,
   },
 ]
@@ -96,12 +89,12 @@ const quickActions = [
   {
     title: "Schedule Maintenance",
     icon: Calendar,
-    action: () => window.location.hash = '#maintenance'
+    url: "/maintenance"
   },
   {
     title: "Add Vehicle",
     icon: Car,
-    action: () => window.location.hash = '#vehicles'
+    url: "/vehicles"
   },
   {
     title: "View Alerts",
@@ -113,16 +106,6 @@ const quickActions = [
 export function AppSidebar() {
   const { state } = useSidebar()
   const location = useLocation()
-
-  const handleMenuClick = (item: typeof menuItems[0]) => {
-    if (location.pathname === "/" && item.hash) {
-      // If we're on the main dashboard page and the item has a hash, use hash navigation
-      window.location.hash = item.hash
-    } else {
-      // Otherwise, use regular routing
-      window.location.href = item.url
-    }
-  }
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -147,20 +130,13 @@ export function AppSidebar() {
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
-                    asChild={!item.hash || location.pathname !== "/"} 
+                    asChild 
                     isActive={location.pathname === item.url}
                   >
-                    {item.hash && location.pathname === "/" ? (
-                      <button onClick={() => handleMenuClick(item)} className="w-full flex items-center">
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </button>
-                    ) : (
-                      <Link to={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    )}
+                    <Link to={item.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
@@ -179,10 +155,20 @@ export function AppSidebar() {
                     variant="outline" 
                     size="sm" 
                     className="w-full justify-start"
+                    asChild={!!action.url}
                     onClick={action.action}
                   >
-                    <action.icon className="h-4 w-4 mr-2" />
-                    {action.title}
+                    {action.url ? (
+                      <Link to={action.url}>
+                        <action.icon className="h-4 w-4 mr-2" />
+                        {action.title}
+                      </Link>
+                    ) : (
+                      <>
+                        <action.icon className="h-4 w-4 mr-2" />
+                        {action.title}
+                      </>
+                    )}
                   </Button>
                 ))}
               </div>
