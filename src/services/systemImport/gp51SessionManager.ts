@@ -1,7 +1,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { importErrorHandler } from './errorHandler';
-import { gp51SessionValidator } from '../vehiclePosition/sessionValidator';
+import { enhancedSessionValidator } from '../enhancedSessionValidator';
+import type { EnhancedSessionResult } from '../sessionValidation/types';
 
 export interface GP51Session {
   token: string;
@@ -18,10 +19,10 @@ export class GP51SessionManager {
 
   async validateSession(): Promise<boolean> {
     try {
-      console.log('GP51SessionManager: Validating session using improved validator...');
+      console.log('GP51SessionManager: Validating session using enhanced validator...');
       
-      // Use the improved session validator
-      const validation = await gp51SessionValidator.validateGP51Session();
+      // Use the enhanced session validator
+      const validation = await enhancedSessionValidator.validateSession();
       
       if (validation.valid && validation.token) {
         // Update our current session with the validated session
@@ -75,8 +76,8 @@ export class GP51SessionManager {
     console.log('Acquiring valid GP51 session...');
     
     try {
-      // Use the improved session validator to get a valid session
-      const validation = await gp51SessionValidator.ensureValidSession();
+      // Use the enhanced session validator to get a valid session
+      const validation = await enhancedSessionValidator.ensureValidSession();
       
       if (!validation.valid || !validation.token) {
         throw new Error(validation.error || 'Failed to acquire valid GP51 session');
