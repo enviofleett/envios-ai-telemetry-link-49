@@ -5,12 +5,12 @@ import { createResponse } from './cors.ts';
 import { GP51ErrorHandler } from './error-handling.ts';
 import type { GP51Credentials } from './types.ts';
 
-export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Credentials & { apiUrl?: string; testOnly?: boolean }) {
+export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Credentials & { apiUrl?: string; testOnly?: boolean; userId?: string }) {
   const trimmedUsername = credentials.username?.trim();
   const trimmedPassword = credentials.password?.trim();
   const trimmedApiUrl = credentials.apiUrl?.trim();
   
-  console.log(`Enhanced GP51 credentials save request for user: ${trimmedUsername}, testOnly: ${credentials.testOnly || false}`);
+  console.log(`Enhanced GP51 credentials save request for user: ${trimmedUsername}, testOnly: ${credentials.testOnly || false}, userId: ${credentials.userId || 'not provided'}`);
   
   // Input validation with detailed feedback
   if (!trimmedUsername || !trimmedPassword) {
@@ -58,35 +58,44 @@ export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Cr
       });
     }
 
-    console.log('Saving GP51 session to database...');
-    const sessionData = await saveGP51Session(authResult.username, authResult.token, authResult.apiUrl);
+    console.log('Saving GP51 session to database with user ID:', credentials.userId);
+    const sessionData = await saveGP51Session(
+      authResult.username, 
+      authResult.token, 
+      authResult.apiUrl, 
+      credentials.userId // Pass the user ID for proper linking
+    );
 
-    console.log('GP51 credentials successfully validated and saved');
+    console.log('GP51 credentials successfully validated and saved, session ID:', sessionData?.id);
     return createResponse({
       success: true,
       message: 'GP51 credentials validated and saved successfully!',
       username: authResult.username,
       apiUrl: authResult.apiUrl,
       sessionId: sessionData?.id,
+      userId: credentials.userId,
       tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       connectionDetails: {
         connectedAt: new Date().toISOString(),
         sessionCreated: true,
-        apiEndpoint: authResult.apiUrl
+        apiEndpoint: authResult.apiUrl,
+        userLinked: !!credentials.userId
       }
     });
 
   } catch (error) {
-    console.error('GP51 credential validation failed:', error);
+    console.error('GP51 credential validation or save failed:', error);
     
     const detailedError = GP51ErrorHandler.createDetailedError(error, {
       username: trimmedUsername,
       apiUrl: trimmedApiUrl,
-      testOnly: credentials.testOnly
+      testOnly: credentials.testOnly,
+      userId: credentials.userId,
+      operation: 'credential_save'
     });
     
     GP51ErrorHandler.logError(detailedError, { 
-      operation: 'credential_validation',
+      operation: 'credential_validation_and_save',
       userAgent: 'settings-management-function'
     });
     

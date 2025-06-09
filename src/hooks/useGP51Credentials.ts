@@ -22,12 +22,17 @@ export const useGP51Credentials = () => {
       password: string; 
       apiUrl?: string;
     }) => {
+      console.log('🔐 Starting GP51 credentials save mutation...');
+      
       // Get current user first
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       
       if (userError || !user) {
+        console.error('❌ User authentication failed:', userError);
         throw new Error('You must be logged in to save GP51 credentials');
       }
+
+      console.log('✅ User authenticated, fetching envio_user profile...');
 
       // Get user from envio_users table
       const { data: envioUser, error: envioUserError } = await supabase
@@ -37,8 +42,11 @@ export const useGP51Credentials = () => {
         .single();
 
       if (envioUserError || !envioUser) {
+        console.error('❌ Envio user profile not found:', envioUserError);
         throw new Error('User profile not found. Please contact support.');
       }
+
+      console.log('✅ Envio user found:', envioUser.id);
 
       const payload: any = { 
         action: 'save-gp51-credentials',
@@ -51,20 +59,28 @@ export const useGP51Credentials = () => {
         payload.apiUrl = apiUrl.trim();
       }
 
+      console.log('📡 Calling settings-management function with payload...');
       const { data, error } = await supabase.functions.invoke('settings-management', {
         body: payload
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Edge function invocation failed:', error);
+        throw error;
+      }
       
       // Validate that the save was actually successful
       if (!data.success) {
-        throw new Error(data.error || 'Failed to save GP51 credentials');
+        console.error('❌ GP51 save operation failed:', data);
+        throw new Error(data.error || data.details || 'Failed to save GP51 credentials');
       }
       
+      console.log('✅ GP51 credentials saved successfully:', data);
       return { ...data, userId: envioUser.id };
     },
     onSuccess: (data) => {
+      console.log('🎉 GP51 credentials save mutation succeeded');
+      
       queryClient.invalidateQueries({ queryKey: ['gp51-status'] });
       setUsername('');
       setPassword('');
@@ -82,14 +98,17 @@ export const useGP51Credentials = () => {
       }, 1000);
     },
     onError: (error: any) => {
-      console.error('GP51 credentials save error:', error);
+      console.error('❌ GP51 credentials save mutation failed:', error);
       
       // Clear any potentially stale cached data
       sessionHealthMonitor.clearCache?.();
       
+      // Extract meaningful error message
+      const errorMessage = error.message || error.details || 'Failed to connect to GP51. Please check your credentials and try again.';
+      
       toast({ 
         title: 'Connection Failed', 
-        description: error.message || 'Failed to connect to GP51. Please check your credentials and try again.',
+        description: errorMessage,
         variant: 'destructive' 
       });
     },
@@ -104,6 +123,8 @@ export const useGP51Credentials = () => {
       });
       return;
     }
+    
+    console.log('🚀 Initiating GP51 credentials save...');
     saveCredentialsMutation.mutate({ username, password, apiUrl });
   };
 

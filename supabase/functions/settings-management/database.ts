@@ -15,7 +15,7 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
   expiresAt.setHours(expiresAt.getHours() + 24);
 
   try {
-    console.log('Saving GP51 session for user:', trimmedUsername);
+    console.log('Saving GP51 session for user:', trimmedUsername, 'with userId:', userId);
     
     const sessionData: any = {
       username: trimmedUsername,
@@ -33,6 +33,9 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
     // Add user ID if provided for proper linking
     if (userId) {
       sessionData.envio_user_id = userId;
+      console.log('Linking session to user ID:', userId);
+    } else {
+      console.warn('No user ID provided - session will not be linked to a specific user');
     }
 
     const { data, error } = await supabase
@@ -45,10 +48,18 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
 
     if (error) {
       console.error('Database error saving GP51 session:', error);
-      throw new Error(`Failed to save GP51 session: ${error.message}`);
+      
+      // Provide more specific error messages for common issues
+      if (error.code === '23505') {
+        throw new Error('A session with this username already exists. The existing session has been updated.');
+      } else if (error.code === '23503') {
+        throw new Error('Invalid user reference. Please ensure you are logged in properly.');
+      } else {
+        throw new Error(`Failed to save GP51 session: ${error.message}`);
+      }
     }
 
-    console.log('GP51 session saved successfully for user:', trimmedUsername, 'ID:', data?.id);
+    console.log('GP51 session saved successfully for user:', trimmedUsername, 'ID:', data?.id, 'linked to user:', data?.envio_user_id);
     return data;
 
   } catch (error) {
