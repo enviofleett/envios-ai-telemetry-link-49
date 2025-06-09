@@ -1,11 +1,13 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, Download, MapPin } from 'lucide-react';
+import { Search, Download } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import VehicleListPanel from './VehicleListPanel';
+import MapTilerMap from '@/components/map/MapTilerMap';
+import { mapTilerService } from '@/services/mapTiler/mapTilerService';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface LiveMapAndVehicleListProps {
@@ -23,6 +25,7 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const [vehicleAddresses, setVehicleAddresses] = useState<Map<string, string>>(new Map());
 
   const getVehicleStatus = (vehicle: Vehicle) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
@@ -46,16 +49,50 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
     return matchesSearch && vehicleStatus === statusFilter;
   });
 
+  // Load addresses for vehicles with positions
+  useEffect(() => {
+    const loadAddresses = async () => {
+      const newAddresses = new Map(vehicleAddresses);
+      
+      for (const vehicle of vehicles) {
+        if (vehicle.lastPosition?.lat && vehicle.lastPosition?.lon) {
+          const key = vehicle.deviceid;
+          if (!newAddresses.has(key)) {
+            try {
+              const address = await mapTilerService.reverseGeocode(
+                vehicle.lastPosition.lat,
+                vehicle.lastPosition.lon
+              );
+              newAddresses.set(key, address);
+            } catch (error) {
+              console.error('Failed to get address for vehicle:', vehicle.deviceid, error);
+            }
+          }
+        }
+      }
+      
+      setVehicleAddresses(newAddresses);
+    };
+
+    if (vehicles.length > 0) {
+      loadAddresses();
+    }
+  }, [vehicles]);
+
+  const handleVehicleSelect = (vehicle: Vehicle) => {
+    onVehicleSelect?.(vehicle);
+  };
+
   const handleExport = () => {
     console.log('Export clicked');
     // TODO: Implement export functionality
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* Map Placeholder - 1/2 width */}
-      <div className="lg:col-span-1">
-        <Card className="bg-white border border-gray-lighter shadow-sm">
+    <div className="grid grid-cols-5 gap-6 h-[600px]">
+      {/* Map Section - 80% width (4/5 columns) */}
+      <div className="col-span-4">
+        <Card className="bg-white border border-gray-lighter shadow-sm h-full">
           <CardHeader className="p-6 border-b border-gray-lighter">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg font-semibold text-primary-dark">
@@ -107,25 +144,27 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
             </div>
           </CardHeader>
           
-          <CardContent className="p-0">
-            <div className="h-96 bg-gray-background rounded-b-lg flex items-center justify-center">
-              <div className="text-center">
-                <MapPin className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                <p className="text-lg font-medium text-gray-600">Map Integration Coming Soon</p>
-                <p className="text-sm text-gray-500">Vehicle tracking map will be available here</p>
-              </div>
-            </div>
+          <CardContent className="p-0 flex-1">
+            <MapTilerMap
+              vehicles={filteredVehicles}
+              height="calc(600px - 140px)"
+              onVehicleSelect={handleVehicleSelect}
+              defaultZoom={12}
+              showControls={true}
+              className="rounded-b-lg"
+            />
           </CardContent>
         </Card>
       </div>
 
-      {/* Vehicle List Panel - 1/2 width */}
-      <div className="lg:col-span-1">
+      {/* Vehicle List Panel - 20% width (1/5 columns) */}
+      <div className="col-span-1">
         <VehicleListPanel
           vehicles={filteredVehicles}
           onVehicleSelect={onVehicleSelect}
           onTripHistory={onTripHistory}
           onSendAlert={onSendAlert}
+          vehicleAddresses={vehicleAddresses}
         />
       </div>
     </div>
