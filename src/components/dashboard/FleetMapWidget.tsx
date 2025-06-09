@@ -4,15 +4,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Navigation, Maximize2, Filter } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import UniversalMapComponent from '@/components/map/UniversalMapComponent';
-import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
+import StabilizedMapProvider from '@/components/map/StabilizedMapProvider';
+import { useStableVehicleData } from '@/hooks/useStableVehicleData';
 import { useNavigate } from 'react-router-dom';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 const FleetMapWidget: React.FC = () => {
   const [showOfflineVehicles, setShowOfflineVehicles] = useState(true);
-  const { vehicles, isLoading } = useUnifiedVehicleData();
   const navigate = useNavigate();
+
+  // Use stable vehicle data
+  const { vehicles, allVehicles, isLoading } = useStableVehicleData({
+    status: showOfflineVehicles ? 'all' : 'online'
+  });
 
   const getVehicleStatus = (vehicle: Vehicle) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
@@ -26,16 +30,7 @@ const FleetMapWidget: React.FC = () => {
     return 'offline';
   };
 
-  const filteredVehicles = vehicles.filter(vehicle => {
-    const status = getVehicleStatus(vehicle);
-    return showOfflineVehicles || status !== 'offline';
-  });
-
-  const vehiclesWithPosition = filteredVehicles.filter(v => 
-    v.lastPosition?.lat && v.lastPosition?.lon
-  );
-
-  const statusCounts = vehicles.reduce((acc, vehicle) => {
+  const statusCounts = allVehicles.reduce((acc, vehicle) => {
     const status = getVehicleStatus(vehicle);
     acc[status] = (acc[status] || 0) + 1;
     return acc;
@@ -75,7 +70,7 @@ const FleetMapWidget: React.FC = () => {
             <Navigation className="h-5 w-5" />
             Fleet Distribution
             <Badge variant="outline" className="ml-2">
-              {vehiclesWithPosition.length} trackable
+              {vehicles.length} trackable
             </Badge>
           </CardTitle>
           
@@ -118,19 +113,17 @@ const FleetMapWidget: React.FC = () => {
           </div>
           <div className="flex items-center gap-2 ml-auto">
             <span className="text-sm font-medium">
-              Coverage: {vehicles.length > 0 ? 
-                ((vehiclesWithPosition.length / vehicles.length) * 100).toFixed(1) : 0}%
+              Coverage: {allVehicles.length > 0 ? 
+                ((vehicles.length / allVehicles.length) * 100).toFixed(1) : 0}%
             </span>
           </div>
         </div>
 
-        <UniversalMapComponent
-          vehicles={vehiclesWithPosition}
-          showVehicles={true}
-          showGeofences={false}
-          height="300px"
-          clustered={true}
+        <StabilizedMapProvider
+          vehicles={vehicles}
           onVehicleSelect={handleVehicleSelect}
+          height="300px"
+          enableClustering={true}
           className="rounded-lg"
         />
       </CardContent>

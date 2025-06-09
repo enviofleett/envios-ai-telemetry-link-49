@@ -1,28 +1,32 @@
 
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Navigation, Filter, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import EnhancedMapTilerMap from '@/components/map/EnhancedMapTilerMap';
+import StabilizedMapProvider from '@/components/map/StabilizedMapProvider';
+import { useStableVehicleData } from '@/hooks/useStableVehicleData';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface LiveTrackingMapProps {
-  vehicles: Vehicle[];
-  searchTerm?: string;
-  onSearchChange?: (search: string) => void;
-  statusFilter?: 'all' | 'online' | 'offline' | 'alerts';
-  onStatusFilterChange?: (status: 'all' | 'online' | 'offline' | 'alerts') => void;
+  initialSearchTerm?: string;
+  initialStatusFilter?: 'all' | 'online' | 'offline' | 'alerts';
 }
 
 const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({ 
-  vehicles,
-  searchTerm = '',
-  onSearchChange,
-  statusFilter = 'all',
-  onStatusFilterChange
+  initialSearchTerm = '',
+  initialStatusFilter = 'all'
 }) => {
+  const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
+
+  // Use stable vehicle data with filters
+  const { vehicles, allVehicles, isLoading } = useStableVehicleData({
+    search: searchTerm,
+    status: statusFilter
+  });
+
   const getVehicleStatus = (vehicle: Vehicle) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
     
@@ -35,29 +39,32 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
     return 'offline';
   };
 
-  // Filter vehicles based on search and status
-  const filteredVehicles = vehicles.filter(vehicle => {
-    const matchesSearch = vehicle.devicename.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    if (statusFilter === 'all') return matchesSearch;
-    
-    const vehicleStatus = getVehicleStatus(vehicle);
-    return matchesSearch && vehicleStatus === statusFilter;
-  });
-
-  const vehiclesWithPosition = filteredVehicles.filter(v => v.lastPosition?.lat && v.lastPosition?.lon);
-  
-  const statusCounts = vehicles.reduce((acc, vehicle) => {
-    const status = getVehicleStatus(vehicle);
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // Memoized status counts to prevent recalculation
+  const statusCounts = useMemo(() => {
+    return allVehicles.reduce((acc, vehicle) => {
+      const status = getVehicleStatus(vehicle);
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [allVehicles]);
 
   const handleVehicleSelect = (vehicle: Vehicle) => {
     console.log('Selected vehicle:', vehicle);
-    // Add custom selection logic here if needed
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardContent className="p-6">
+            <div className="animate-pulse">
+              <div className="h-64 bg-gray-200 rounded-lg"></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -68,7 +75,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
             <Navigation className="h-5 w-5" />
             Live Vehicle Tracking
             <Badge variant="outline" className="ml-2">
-              {vehiclesWithPosition.length} trackable vehicles
+              {vehicles.length} trackable vehicles
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -81,7 +88,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
                 <Input
                   placeholder="Search vehicles by name or ID..."
                   value={searchTerm}
-                  onChange={(e) => onSearchChange?.(e.target.value)}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -92,7 +99,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
               <Select 
                 value={statusFilter} 
                 onValueChange={(value: 'all' | 'online' | 'offline' | 'alerts') => 
-                  onStatusFilterChange?.(value)
+                  setStatusFilter(value)
                 }
               >
                 <SelectTrigger>
@@ -100,7 +107,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status ({vehicles.length})</SelectItem>
+                  <SelectItem value="all">All Status ({allVehicles.length})</SelectItem>
                   <SelectItem value="online">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 rounded-full bg-green-500"></div>
@@ -140,31 +147,29 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">
-                GPS Coverage: {vehicles.length > 0 ? 
-                  ((vehiclesWithPosition.length / vehicles.length) * 100).toFixed(1) : 0}%
+                GPS Coverage: {allVehicles.length > 0 ? 
+                  ((vehicles.length / allVehicles.length) * 100).toFixed(1) : 0}%
               </span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Enhanced Interactive Map */}
+      {/* Stabilized Map */}
       <Card>
         <CardContent className="p-0">
-          <EnhancedMapTilerMap
-            vehicles={filteredVehicles}
+          <StabilizedMapProvider
+            vehicles={vehicles}
             onVehicleSelect={handleVehicleSelect}
             height="600px"
             className="rounded-lg border-0"
             enableClustering={true}
-            enableGeofencing={false}
-            maxVehiclesBeforeClustering={100}
           />
         </CardContent>
       </Card>
 
-      {/* Additional Info */}
-      {filteredVehicles.length === 0 && vehicles.length > 0 && (
+      {/* No Results Message */}
+      {vehicles.length === 0 && allVehicles.length > 0 && (
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-gray-500">
