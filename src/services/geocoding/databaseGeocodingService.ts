@@ -45,7 +45,8 @@ class DatabaseGeocodingService {
         return null;
       }
 
-      return data;
+      // Type assertion since we know the provider_name will match our union type
+      return data as GeocodingConfigurationRow | null;
     } catch (error) {
       console.error('Database error fetching geocoding configuration:', error);
       return null;
