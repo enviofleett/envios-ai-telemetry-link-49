@@ -17,7 +17,8 @@ import {
   Shield, 
   Mail, 
   CheckSquare,
-  Settings
+  Settings,
+  MailOpen
 } from 'lucide-react';
 
 interface SettingsSidebarProps {
@@ -63,6 +64,7 @@ const settingsCategories = [
     title: "Communication",
     items: [
       { id: "notifications", label: "Notifications", icon: Bell },
+      { id: "email-notifications", label: "Email Management", icon: MailOpen },
     ]
   }
 ];
