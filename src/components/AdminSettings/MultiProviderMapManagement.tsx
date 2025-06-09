@@ -40,6 +40,19 @@ interface MapApiConfig {
   error_rate?: number;
   cost_per_request?: number;
   provider_specific_config?: Record<string, any>;
+  health_check_url?: string;
+  health_check_interval?: number;
+  last_health_check?: string;
+  alert_threshold_80?: number;
+  alert_threshold_90?: number;
+  alert_threshold_95?: number;
+  auto_fallback_enabled?: boolean;
+  performance_weight?: number;
+  last_alert_sent?: string;
+  map_api_usage?: Array<{
+    usage_date: string;
+    request_count: number;
+  }>;
 }
 
 const MultiProviderMapManagement = () => {

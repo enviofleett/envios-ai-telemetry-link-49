@@ -57,11 +57,22 @@ export interface MapConfig {
   threshold_value: number;
   is_active: boolean;
   fallback_priority: number;
-  health_status?: string;
-  response_time_ms?: number;
-  error_rate?: number;
-  cost_per_request?: number;
-  provider_specific_config?: Record<string, any>;
+  health_status?: string | null;
+  response_time_ms?: number | null;
+  error_rate?: number | null;
+  cost_per_request?: number | null;
+  provider_specific_config?: any; // Using any to handle Supabase Json type
+  health_check_url?: string | null;
+  health_check_interval?: number | null;
+  last_health_check?: string | null;
+  alert_threshold_80?: number | null;
+  alert_threshold_90?: number | null;
+  alert_threshold_95?: number | null;
+  auto_fallback_enabled?: boolean | null;
+  performance_weight?: number | null;
+  last_alert_sent?: string | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type MapProviderType = 'maptiler' | 'mapbox' | 'google' | 'leaflet';

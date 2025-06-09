@@ -8,7 +8,7 @@ export const useEnhancedMapApi = () => {
   const [currentProvider, setCurrentProvider] = useState<MapConfig | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [healthStatus, setHealthStatus] = useState<'healthy' | 'degraded' | 'failed'>('healthy');
+  const [healthStatus, setHealthStatus] = useState<string>('healthy');
   const { toast } = useToast();
 
   const fetchBestProvider = useCallback(async () => {
@@ -43,7 +43,13 @@ export const useEnhancedMapApi = () => {
         throw configError;
       }
 
-      setCurrentProvider(configData);
+      // Type-safe assignment
+      const typedConfig: MapConfig = {
+        ...configData,
+        provider_specific_config: configData.provider_specific_config || {}
+      };
+
+      setCurrentProvider(typedConfig);
       setHealthStatus(configData.health_status || 'healthy');
 
       // Increment usage counter
@@ -66,7 +72,7 @@ export const useEnhancedMapApi = () => {
 
   const logHealthCheck = useCallback(async (
     configId: string,
-    status: 'healthy' | 'degraded' | 'failed',
+    status: string,
     responseTime?: number,
     errorMessage?: string
   ) => {
@@ -165,10 +171,16 @@ export const useEnhancedMapApi = () => {
       // Log the failover
       await logFailover(currentConfigId, fallbackProvider.id, reason);
       
-      // Update current provider
-      setCurrentProvider(fallbackProvider);
+      // Type-safe assignment
+      const typedConfig: MapConfig = {
+        ...fallbackProvider,
+        provider_specific_config: fallbackProvider.provider_specific_config || {}
+      };
       
-      return fallbackProvider;
+      // Update current provider
+      setCurrentProvider(typedConfig);
+      
+      return typedConfig;
     } catch (error) {
       console.error('Error switching to fallback provider:', error);
       toast({
