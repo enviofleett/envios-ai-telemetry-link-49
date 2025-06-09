@@ -1,13 +1,14 @@
+
 import React from 'react';
 import { TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Package, Upload, Settings, User, Bell, Shield, Activity, Map, 
-  BarChart3, MapPin, Book, Mail 
+  BarChart3, MapPin, Book, Mail, Globe 
 } from 'lucide-react';
 
 export default function AdminTabsList() {
   return (
-    <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
+    <TabsList className="grid w-full grid-cols-6 lg:grid-cols-13">
       <TabsTrigger value="packages" className="flex items-center gap-2">
         <Package className="h-4 w-4" />
         <span className="hidden sm:inline">Packages</span>
@@ -36,6 +37,10 @@ export default function AdminTabsList() {
         <Shield className="h-4 w-4" />
         <span className="hidden sm:inline">GP51</span>
       </TabsTrigger>
+      <TabsTrigger value="api-integrations" className="flex items-center gap-2">
+        <Globe className="h-4 w-4" />
+        <span className="hidden sm:inline">API</span>
+      </TabsTrigger>
       <TabsTrigger value="health" className="flex items-center gap-2">
         <Activity className="h-4 w-4" />
         <span className="hidden sm:inline">Health</span>
@@ -59,9 +64,6 @@ export default function AdminTabsList() {
       <TabsTrigger value="smtp" className="flex items-center gap-2">
         <Mail className="h-4 w-4" />
         <span className="hidden sm:inline">SMTP Config</span>
-      </TabsTrigger>
-      <TabsTrigger value="gp51-integration" className="text-xs">
-        GP51 API
       </TabsTrigger>
     </TabsList>
   );
