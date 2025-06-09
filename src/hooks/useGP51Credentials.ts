@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { unifiedGP51SessionManager } from '@/services/unifiedGP51SessionManager';
+import { sessionHealthMonitor } from '@/services/gp51/sessionHealthMonitor';
 
 export const useGP51Credentials = () => {
   const [username, setUsername] = useState('');
@@ -40,9 +40,6 @@ export const useGP51Credentials = () => {
         throw new Error('User profile not found. Please contact support.');
       }
 
-      // Clear any existing sessions for this user to force fresh authentication
-      await unifiedGP51SessionManager.forceReauthentication();
-
       const payload: any = { 
         action: 'save-gp51-credentials',
         username,
@@ -59,6 +56,12 @@ export const useGP51Credentials = () => {
       });
       
       if (error) throw error;
+      
+      // Validate that the save was actually successful
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to save GP51 credentials');
+      }
+      
       return { ...data, userId: envioUser.id };
     },
     onSuccess: (data) => {
@@ -72,13 +75,18 @@ export const useGP51Credentials = () => {
         description: data.message || `Successfully connected to GP51 and linked to your account! Session will be used for vehicle data synchronization.`
       });
 
-      // Force a session refresh using unified manager
-      setTimeout(() => {
-        unifiedGP51SessionManager.validateAndEnsureSession().catch(console.error);
+      // Force session health check and clear any cached data
+      setTimeout(async () => {
+        sessionHealthMonitor.clearCache?.();
+        await sessionHealthMonitor.forceHealthCheck();
       }, 1000);
     },
     onError: (error: any) => {
       console.error('GP51 credentials save error:', error);
+      
+      // Clear any potentially stale cached data
+      sessionHealthMonitor.clearCache?.();
+      
       toast({ 
         title: 'Connection Failed', 
         description: error.message || 'Failed to connect to GP51. Please check your credentials and try again.',

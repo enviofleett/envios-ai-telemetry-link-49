@@ -1,7 +1,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
-export async function saveGP51Session(username: string, token: string, apiUrl?: string) {
+export async function saveGP51Session(username: string, token: string, apiUrl?: string, userId?: string) {
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -28,6 +28,11 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
     // Add API URL if provided and working
     if (apiUrl) {
       sessionData.api_url = apiUrl;
+    }
+
+    // Add user ID if provided for proper linking
+    if (userId) {
+      sessionData.envio_user_id = userId;
     }
 
     const { data, error } = await supabase

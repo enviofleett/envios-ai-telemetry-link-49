@@ -1,160 +1,186 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { sessionHealthMonitor } from '@/services/gp51/sessionHealthMonitor';
-import { realTimePositionService } from '@/services/gp51/realTimePositionService';
-import { CheckCircle, AlertCircle, Wifi, WifiOff, RefreshCw } from 'lucide-react';
-
-interface SessionHealth {
-  isValid: boolean;
-  expiresAt: Date | null;
-  username: string | null;
-  lastCheck: Date;
-  needsRefresh: boolean;
-  consecutiveFailures: number;
-}
+import { useGP51ConnectionHealth } from '@/hooks/useGP51ConnectionHealth';
+import { CheckCircle, XCircle, AlertTriangle, Loader2, RefreshCw, Activity } from 'lucide-react';
 
 export const GP51StatusIndicator: React.FC = () => {
-  const [sessionHealth, setSessionHealth] = useState<SessionHealth | null>(null);
-  const [isPolling, setIsPolling] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { status, isLoading, performHealthCheck, attemptReconnection } = useGP51ConnectionHealth();
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
   useEffect(() => {
-    // Subscribe to health updates
-    const unsubscribeHealth = sessionHealthMonitor.onHealthUpdate(setSessionHealth);
-    
-    // Get initial health status
-    setSessionHealth(sessionHealthMonitor.getHealthStatus());
-    
-    // Check polling status
-    setIsPolling(realTimePositionService.isCurrentlyPolling());
-    
-    // Start monitoring
-    sessionHealthMonitor.startMonitoring();
+    if (autoRefreshEnabled) {
+      const interval = setInterval(() => {
+        performHealthCheck();
+      }, 30000); // Check every 30 seconds
 
-    return () => {
-      unsubscribeHealth();
-    };
-  }, []);
+      return () => clearInterval(interval);
+    }
+  }, [autoRefreshEnabled, performHealthCheck]);
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await sessionHealthMonitor.forceHealthCheck();
-    } finally {
-      setIsRefreshing(false);
+  const getStatusColor = () => {
+    if (!status) return 'bg-gray-100 text-gray-800';
+    
+    switch (status.status) {
+      case 'connected':
+        return 'bg-green-100 text-green-800';
+      case 'connecting':
+        return 'bg-blue-100 text-blue-800';
+      case 'degraded':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'auth_error':
+      case 'disconnected':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getSessionStatusBadge = () => {
-    if (!sessionHealth) return null;
-
-    if (sessionHealth.isValid) {
-      return (
-        <Badge className="bg-green-100 text-green-800">
-          <CheckCircle className="h-3 w-3 mr-1" />
-          Connected
-        </Badge>
-      );
-    } else {
-      return (
-        <Badge variant="destructive">
-          <AlertCircle className="h-3 w-3 mr-1" />
-          Disconnected
-        </Badge>
-      );
+  const getStatusIcon = () => {
+    if (isLoading) {
+      return <Loader2 className="h-4 w-4 animate-spin" />;
+    }
+    
+    if (!status) return <XCircle className="h-4 w-4" />;
+    
+    switch (status.status) {
+      case 'connected':
+        return <CheckCircle className="h-4 w-4" />;
+      case 'connecting':
+        return <Loader2 className="h-4 w-4 animate-spin" />;
+      case 'degraded':
+        return <AlertTriangle className="h-4 w-4" />;
+      case 'auth_error':
+      case 'disconnected':
+        return <XCircle className="h-4 w-4" />;
+      default:
+        return <XCircle className="h-4 w-4" />;
     }
   };
 
-  const getPollingStatusBadge = () => {
-    if (isPolling) {
-      return (
-        <Badge className="bg-blue-100 text-blue-800">
-          <Wifi className="h-3 w-3 mr-1" />
-          Live Updates
-        </Badge>
-      );
-    } else {
-      return (
-        <Badge variant="outline">
-          <WifiOff className="h-3 w-3 mr-1" />
-          Offline
-        </Badge>
-      );
+  const getStatusText = () => {
+    if (!status) return 'Unknown';
+    
+    switch (status.status) {
+      case 'connected':
+        return 'Connected';
+      case 'connecting':
+        return 'Connecting...';
+      case 'degraded':
+        return 'Degraded';
+      case 'auth_error':
+        return 'Authentication Error';
+      case 'disconnected':
+        return 'Disconnected';
+      default:
+        return 'Unknown';
     }
   };
-
-  const formatTimeAgo = (date: Date) => {
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
-  };
-
-  if (!sessionHealth) {
-    return (
-      <div className="flex items-center gap-2">
-        <Badge variant="outline">Loading...</Badge>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        {getSessionStatusBadge()}
-        {getPollingStatusBadge()}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-        >
-          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-        </Button>
-      </div>
-
-      {sessionHealth.username && (
-        <div className="text-sm text-muted-foreground">
-          Connected as: <strong>{sessionHealth.username}</strong>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              GP51 Connection Status
+            </CardTitle>
+            <CardDescription>
+              Real-time monitoring of GP51 API connection health
+            </CardDescription>
+          </div>
+          <Badge className={`${getStatusColor()} flex items-center gap-1`}>
+            {getStatusIcon()}
+            {getStatusText()}
+          </Badge>
         </div>
-      )}
-
-      {sessionHealth.lastCheck && (
-        <div className="text-xs text-muted-foreground">
-          Last checked: {formatTimeAgo(sessionHealth.lastCheck)}
-        </div>
-      )}
-
-      {sessionHealth.needsRefresh && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            GP51 connection issues detected. 
-            {sessionHealth.consecutiveFailures > 0 && (
-              <span className="ml-1">
-                ({sessionHealth.consecutiveFailures} consecutive failures)
-              </span>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {status && (
+          <div className="grid gap-3">
+            {status.username && (
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Username:</span>
+                <span className="text-sm text-muted-foreground">{status.username}</span>
+              </div>
             )}
-          </AlertDescription>
-        </Alert>
-      )}
+            
+            {status.expiresAt && (
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Session Expires:</span>
+                <span className="text-sm text-muted-foreground">
+                  {status.expiresAt.toLocaleString()}
+                </span>
+              </div>
+            )}
+            
+            <div className="flex justify-between">
+              <span className="text-sm font-medium">Last Check:</span>
+              <span className="text-sm text-muted-foreground">
+                {status.lastCheck.toLocaleString()}
+              </span>
+            </div>
 
-      {sessionHealth.expiresAt && sessionHealth.isValid && (
-        <div className="text-xs text-muted-foreground">
-          Session expires: {sessionHealth.expiresAt.toLocaleString()}
+            {status.latency && (
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Response Time:</span>
+                <span className="text-sm text-muted-foreground">
+                  {status.latency}ms
+                </span>
+              </div>
+            )}
+
+            {status.consecutiveFailures > 0 && (
+              <div className="flex justify-between">
+                <span className="text-sm font-medium">Failed Attempts:</span>
+                <span className="text-sm text-red-600">
+                  {status.consecutiveFailures}
+                </span>
+              </div>
+            )}
+
+            {status.errorMessage && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded">
+                <p className="text-sm text-red-700">
+                  <strong>Error:</strong> {status.errorMessage}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-4">
+          <Button
+            onClick={performHealthCheck}
+            disabled={isLoading}
+            variant="outline"
+            size="sm"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Check Now
+          </Button>
+
+          {status?.status === 'disconnected' || status?.status === 'auth_error' ? (
+            <Button
+              onClick={attemptReconnection}
+              disabled={isLoading}
+              variant="outline"
+              size="sm"
+            >
+              <Activity className="h-4 w-4 mr-2" />
+              Reconnect
+            </Button>
+          ) : null}
         </div>
-      )}
-    </div>
+
+        <div className="text-xs text-muted-foreground">
+          Auto-refresh: {autoRefreshEnabled ? 'Enabled' : 'Disabled'} • 
+          Last updated: {status?.lastCheck.toLocaleTimeString() || 'Never'}
+        </div>
+      </CardContent>
+    </Card>
   );
 };

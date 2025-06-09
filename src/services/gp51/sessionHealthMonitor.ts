@@ -27,6 +27,8 @@ export class GP51SessionHealthMonitor {
   private callbacks: Set<HealthUpdateCallback> = new Set();
   private monitoringInterval: NodeJS.Timeout | null = null;
   private checkInProgress = false;
+  private cacheExpiry: Date | null = null;
+  private readonly CACHE_DURATION = 30000; // 30 seconds
 
   static getInstance(): GP51SessionHealthMonitor {
     if (!GP51SessionHealthMonitor.instance) {
@@ -57,6 +59,20 @@ export class GP51SessionHealthMonitor {
       this.monitoringInterval = null;
       console.log('🏥 Stopped GP51 session health monitoring');
     }
+  }
+
+  clearCache(): void {
+    console.log('🧹 Clearing GP51 health monitor cache');
+    this.cacheExpiry = null;
+    // Don't clear healthStatus immediately, let the next check update it
+  }
+
+  private isCacheValid(): boolean {
+    return this.cacheExpiry !== null && new Date() < this.cacheExpiry;
+  }
+
+  private setCacheExpiry(): void {
+    this.cacheExpiry = new Date(Date.now() + this.CACHE_DURATION);
   }
 
   async performHealthCheck(): Promise<void> {
@@ -96,6 +112,7 @@ export class GP51SessionHealthMonitor {
       }
 
       this.healthStatus = newHealth;
+      this.setCacheExpiry();
       this.notifyCallbacks();
       
     } catch (error) {
@@ -109,6 +126,7 @@ export class GP51SessionHealthMonitor {
         needsRefresh: true
       };
       
+      this.setCacheExpiry();
       this.notifyCallbacks();
       
       gp51ErrorReporter.reportError({
@@ -123,14 +141,17 @@ export class GP51SessionHealthMonitor {
   }
 
   async forceHealthCheck(): Promise<void> {
+    this.clearCache();
     await this.performHealthCheck();
   }
 
   onHealthUpdate(callback: HealthUpdateCallback): () => void {
     this.callbacks.add(callback);
     
-    // Immediately call with current status
-    callback(this.healthStatus);
+    // Immediately call with current status if not using stale cache
+    if (!this.isCacheValid() || this.healthStatus.lastCheck) {
+      callback(this.healthStatus);
+    }
     
     return () => {
       this.callbacks.delete(callback);
