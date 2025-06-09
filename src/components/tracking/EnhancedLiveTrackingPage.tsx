@@ -1,31 +1,25 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
-import { useCommandPalette } from '@/hooks/useCommandPalette';
-import { RefreshCw, Wifi, WifiOff, Car, MapPin, BarChart3, Command, Filter, Users } from 'lucide-react';
+import { Search, Filter, RefreshCw, Wifi, WifiOff, Car, MapPin, BarChart3 } from 'lucide-react';
+import LiveMapAndVehicleList from './LiveMapAndVehicleList';
 import VehicleStatusCard from './VehicleStatusCard';
 import VehicleStatisticsModal from './VehicleStatisticsModal';
 import VehicleProfileTab from './VehicleProfileTab';
-import CommandPalette from './CommandPalette';
-import ThemeAwareMap from './ThemeAwareMap';
-import VehicleDetailPanel from './VehicleDetailPanel';
-import AdvancedFilters from './AdvancedFilters';
-import GroupedVehicleList from './GroupedVehicleList';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 const EnhancedLiveTrackingPage: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [showOnlineModal, setShowOnlineModal] = useState(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [isEngineControlLoading, setIsEngineControlLoading] = useState(false);
-  const [showVehiclePanel, setShowVehiclePanel] = useState(false);
-  const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
-  const [grouping, setGrouping] = useState<'none' | 'driver' | 'status' | 'geofence'>('none');
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
   const { toast } = useToast();
   const {
@@ -35,16 +29,6 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     isRefreshing,
     forceRefresh
   } = useUnifiedVehicleData();
-
-  const {
-    isOpen: isCommandOpen,
-    open: openCommand,
-    close: closeCommand,
-    navigate
-  } = useCommandPalette();
-
-  // Use filtered vehicles or all vehicles if no filters applied
-  const displayVehicles = filteredVehicles.length > 0 ? filteredVehicles : vehicles;
 
   // Mock user role - in real implementation, this would come from auth
   const userRole = 'admin'; // 'admin', 'fleet_manager', 'user'
@@ -61,13 +45,12 @@ const EnhancedLiveTrackingPage: React.FC = () => {
   };
 
   const getStatistics = () => {
-    const vehiclesToAnalyze = displayVehicles;
-    const onlineVehicles = vehiclesToAnalyze.filter(v => getVehicleStatus(v) === 'online');
-    const offlineVehicles = vehiclesToAnalyze.filter(v => getVehicleStatus(v) === 'offline');
+    const onlineVehicles = vehicles.filter(v => getVehicleStatus(v) === 'online');
+    const offlineVehicles = vehicles.filter(v => getVehicleStatus(v) === 'offline');
     return {
       online: onlineVehicles.length,
       offline: offlineVehicles.length,
-      total: vehiclesToAnalyze.length
+      total: vehicles.length
     };
   };
 
@@ -75,7 +58,6 @@ const EnhancedLiveTrackingPage: React.FC = () => {
 
   const handleVehicleSelect = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
-    setShowVehiclePanel(true);
     console.log('Vehicle selected:', vehicle);
   };
 
@@ -90,6 +72,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     }
     setIsEngineControlLoading(true);
     try {
+      // Mock API call - in real implementation, this would call GP51 API
       await new Promise(resolve => setTimeout(resolve, 2000));
       toast({
         title: 'Engine Shutdown Initiated',
@@ -117,6 +100,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     }
     setIsEngineControlLoading(true);
     try {
+      // Mock API call - in real implementation, this would call GP51 API
       await new Promise(resolve => setTimeout(resolve, 2000));
       toast({
         title: 'Engine Enable Initiated',
@@ -133,12 +117,13 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     }
   };
 
-  const handleWorkshopAssign = async (vehicleId: string) => {
+  const handleWorkshopAssign = async (vehicleId: string, workshopId: string) => {
     try {
+      // Mock API call - in real implementation, this would save to database
       await new Promise(resolve => setTimeout(resolve, 1000));
       toast({
         title: 'Workshop Assigned',
-        description: `Vehicle ${vehicleId} has been assigned to a workshop.`
+        description: `Vehicle ${vehicleId} has been assigned to the selected workshop.`
       });
     } catch (error) {
       toast({
@@ -149,12 +134,16 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     }
   };
 
-  const handleReportGenerate = async (vehicleId: string) => {
+  const handleReportGenerate = async (vehicleId: string, reportType: string, dateRange: {
+    from: Date;
+    to: Date;
+  }) => {
     try {
+      // Mock API call - in real implementation, this would generate and download report
       await new Promise(resolve => setTimeout(resolve, 2000));
       toast({
         title: 'Report Generated',
-        description: `Report for vehicle ${vehicleId} has been generated and will be downloaded shortly.`
+        description: `${reportType} report for vehicle ${vehicleId} has been generated and will be downloaded shortly.`
       });
     } catch (error) {
       toast({
@@ -165,95 +154,46 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     }
   };
 
-  const handleExport = () => {
-    toast({
-      title: 'Export Started',
-      description: 'Fleet data export has been initiated. Download will start shortly.'
-    });
-  };
-
-  const handleClosePanelAndClearSelection = () => {
-    setShowVehiclePanel(false);
-    setSelectedVehicle(null);
-  };
-
-  const handleFiltersChange = (filtered: Vehicle[]) => {
-    setFilteredVehicles(filtered);
-  };
-
-  const handleGroupingChange = (newGrouping: 'none' | 'driver' | 'status' | 'geofence') => {
-    setGrouping(newGrouping);
-  };
+  const filteredVehicles = vehicles.filter(vehicle => {
+    const matchesSearch = vehicle.devicename.toLowerCase().includes(searchTerm.toLowerCase()) || vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase());
+    if (statusFilter === 'all') return matchesSearch;
+    const vehicleStatus = getVehicleStatus(vehicle);
+    const statusMatch = statusFilter === 'online' ? vehicleStatus === 'online' : vehicleStatus === 'offline';
+    return matchesSearch && statusMatch;
+  });
 
   if (isLoading) {
     return <div className="space-y-6 animate-pulse">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-muted rounded-lg"></div>)}
+          {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>)}
         </div>
-        <div className="h-96 bg-muted rounded-lg"></div>
+        <div className="h-96 bg-gray-200 rounded-lg"></div>
       </div>;
   }
 
-  return <div className="space-y-4 md:space-y-6 p-4 md:p-0">
-      {/* Header - Mobile Responsive */}
-      <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
-        <div className="space-y-1">
-          <h1 className="text-2xl md:text-3xl font-bold">Enhanced Live Tracking</h1>
-          <p className="text-sm text-muted-foreground">
-            Advanced fleet monitoring with filtering, grouping, and mobile support
-          </p>
+  return <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          
+          
         </div>
-        <div className="flex flex-col space-y-2 md:flex-row md:items-center md:space-y-0 md:space-x-2">
-          <Button 
-            variant="outline" 
-            onClick={openCommand}
-            className="flex items-center gap-2 w-full md:w-auto"
-            size="sm"
-          >
-            <Command className="h-4 w-4" />
-            <span className="md:hidden">Command Palette</span>
-            <span className="hidden md:inline">Command</span>
-            <kbd className="pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
-              ⌘K
-            </kbd>
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className="flex items-center gap-2 w-full md:w-auto"
-            size="sm"
-          >
-            <Filter className="h-4 w-4" />
-            Filters
-          </Button>
-          <Button onClick={forceRefresh} disabled={isRefreshing} className="flex items-center gap-2 w-full md:w-auto" size="sm">
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </Button>
-        </div>
+        <Button onClick={forceRefresh} disabled={isRefreshing} className="flex items-center gap-2">
+          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Refreshing...' : 'Refresh'}
+        </Button>
       </div>
 
-      {/* Advanced Filters (Collapsible) */}
-      {showAdvancedFilters && (
-        <AdvancedFilters
-          vehicles={vehicles}
-          onFiltersChange={handleFiltersChange}
-          onGroupingChange={handleGroupingChange}
-        />
-      )}
-
-      {/* Real-Time Statistics - Mobile Responsive */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Real-Time Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setShowOnlineModal(true)}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Vehicles Online</CardTitle>
             <Wifi className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl md:text-3xl font-bold text-green-600">{statistics.online}</div>
-            <p className="text-xs text-muted-foreground">
-              {filteredVehicles.length > 0 ? 'In filtered view' : 'Click to view details'}
-            </p>
+            <div className="text-3xl font-bold text-green-600">{statistics.online}</div>
+            <p className="text-xs text-muted-foreground">Click to view details</p>
           </CardContent>
         </Card>
 
@@ -263,131 +203,73 @@ const EnhancedLiveTrackingPage: React.FC = () => {
             <WifiOff className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl md:text-3xl font-bold text-red-600">{statistics.offline}</div>
-            <p className="text-xs text-muted-foreground">
-              {filteredVehicles.length > 0 ? 'In filtered view' : 'Click to view details'}
-            </p>
+            <div className="text-3xl font-bold text-red-600">{statistics.offline}</div>
+            <p className="text-xs text-muted-foreground">Click to view details</p>
           </CardContent>
         </Card>
 
-        <Card className="sm:col-span-2 lg:col-span-1">
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Fleet</CardTitle>
             <Car className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl md:text-3xl font-bold text-blue-600">{statistics.total}</div>
+            <div className="text-3xl font-bold text-blue-600">{statistics.total}</div>
             <p className="text-xs text-muted-foreground">
               {statistics.total > 0 ? (statistics.online / statistics.total * 100).toFixed(1) : 0}% online
-              {filteredVehicles.length > 0 && (
-                <span className="ml-1">• Filtered</span>
-              )}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Main Content Tabs - Mobile Optimized */}
+      {/* Search and Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input placeholder="Search vehicles by name or device ID..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+            </div>
+            <div className="flex gap-2">
+              {['all', 'online', 'offline'].map(status => <Button key={status} variant={statusFilter === status ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(status as any)} className="flex items-center gap-2">
+                  <Filter className="h-3 w-3" />
+                  {status.charAt(0).toUpperCase() + status.slice(1)}
+                </Button>)}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Main Content Tabs */}
       <Tabs defaultValue="map" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 h-auto">
-          <TabsTrigger value="map" className="flex flex-col items-center gap-1 py-2 text-xs md:flex-row md:gap-2 md:text-sm">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="map" className="flex items-center gap-2">
             <MapPin className="h-4 w-4" />
-            <span className="hidden md:inline">Enhanced</span> Map
+            Map & Live Tracking
           </TabsTrigger>
-          <TabsTrigger value="list" className="flex flex-col items-center gap-1 py-2 text-xs md:flex-row md:gap-2 md:text-sm">
-            <Users className="h-4 w-4" />
-            <span className="hidden md:inline">Grouped</span> List
-          </TabsTrigger>
-          <TabsTrigger value="profile" className="flex flex-col items-center gap-1 py-2 text-xs md:flex-row md:gap-2 md:text-sm">
+          <TabsTrigger value="profile" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
-            <span className="hidden md:inline">Vehicle</span> Profile
+            Vehicle Profile & Reports
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="map" className="space-y-4">
-          {/* Theme-Aware Map with Mobile Height */}
-          <ThemeAwareMap 
-            vehicles={displayVehicles}
-            onVehicleSelect={handleVehicleSelect}
-            selectedVehicle={selectedVehicle}
-            height="300px md:500px"
-            className="w-full"
-          />
+          {/* Map and Vehicle List */}
+          <LiveMapAndVehicleList vehicles={filteredVehicles} onVehicleSelect={handleVehicleSelect} />
 
-          {/* Legacy Vehicle Status Card for compatibility */}
-          <VehicleStatusCard 
-            vehicle={selectedVehicle} 
-            onEngineShutdown={handleEngineShutdown} 
-            onEngineEnable={handleEngineEnable} 
-            canControlEngine={canControlEngine} 
-            isLoading={isEngineControlLoading} 
-          />
-        </TabsContent>
-
-        <TabsContent value="list" className="space-y-4">
-          {/* Grouped Vehicle List */}
-          <GroupedVehicleList 
-            vehicles={displayVehicles}
-            grouping={grouping}
-            onVehicleSelect={handleVehicleSelect}
-            selectedVehicle={selectedVehicle}
-          />
+          {/* Vehicle Status Card */}
+          <VehicleStatusCard vehicle={selectedVehicle} onEngineShutdown={handleEngineShutdown} onEngineEnable={handleEngineEnable} canControlEngine={canControlEngine} isLoading={isEngineControlLoading} />
         </TabsContent>
 
         <TabsContent value="profile">
-          <VehicleProfileTab 
-            vehicle={selectedVehicle} 
-            onWorkshopAssign={handleWorkshopAssign} 
-            onReportGenerate={handleReportGenerate} 
-          />
+          <VehicleProfileTab vehicle={selectedVehicle} onWorkshopAssign={handleWorkshopAssign} onReportGenerate={handleReportGenerate} />
         </TabsContent>
       </Tabs>
 
       {/* Statistics Modals */}
-      <VehicleStatisticsModal 
-        isOpen={showOnlineModal} 
-        onClose={() => setShowOnlineModal(false)} 
-        title="Online Vehicles" 
-        vehicles={displayVehicles} 
-        statusType="online" 
-      />
+      <VehicleStatisticsModal isOpen={showOnlineModal} onClose={() => setShowOnlineModal(false)} title="Online Vehicles" vehicles={vehicles} statusType="online" />
 
-      <VehicleStatisticsModal 
-        isOpen={showOfflineModal} 
-        onClose={() => setShowOfflineModal(false)} 
-        title="Offline Vehicles" 
-        vehicles={displayVehicles} 
-        statusType="offline" 
-      />
-
-      {/* Command Palette */}
-      <CommandPalette
-        isOpen={isCommandOpen}
-        onClose={closeCommand}
-        vehicles={displayVehicles}
-        onVehicleSelect={handleVehicleSelect}
-        onRefresh={forceRefresh}
-        onExport={handleExport}
-        onNavigate={navigate}
-      />
-
-      {/* Enhanced Vehicle Detail Panel */}
-      <VehicleDetailPanel
-        vehicle={selectedVehicle}
-        isOpen={showVehiclePanel}
-        onClose={handleClosePanelAndClearSelection}
-        onEngineControl={(vehicleId, action) => {
-          if (action === 'shutdown') {
-            handleEngineShutdown(vehicleId);
-          } else {
-            handleEngineEnable(vehicleId);
-          }
-        }}
-        onGenerateReport={handleReportGenerate}
-        onAssignWorkshop={handleWorkshopAssign}
-        canControlEngine={canControlEngine}
-        isLoading={isEngineControlLoading}
-      />
+      <VehicleStatisticsModal isOpen={showOfflineModal} onClose={() => setShowOfflineModal(false)} title="Offline Vehicles" vehicles={vehicles} statusType="offline" />
     </div>;
 };
 

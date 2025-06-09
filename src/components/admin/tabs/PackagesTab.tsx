@@ -1,19 +1,13 @@
-
 import React from 'react';
+import { TabsContent } from '@/components/ui/tabs';
 import PackageManagementDashboard from '@/components/packages/PackageManagementDashboard';
-
 const PackagesTab: React.FC = () => {
-  return (
-    <div className="space-y-4">
+  return <TabsContent value="packages" className="space-y-4 mt-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">Package Management</h3>
-        <p className="text-sm text-gray-600 mb-4">
-          Create, manage, and configure subscription packages for your fleet management system
-        </p>
+        
+        
       </div>
       <PackageManagementDashboard />
-    </div>
-  );
+    </TabsContent>;
 };
-
 export default PackagesTab;

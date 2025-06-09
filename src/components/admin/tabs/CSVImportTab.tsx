@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +12,7 @@ const CSVImportTab: React.FC = () => {
   const [importMode, setImportMode] = useState<'standard' | 'enhanced'>('enhanced');
 
   return (
-    <div className="space-y-4">
+    <TabsContent value="csv-import" className="space-y-4 mt-6">
       <div>
         <h3 className="text-lg font-semibold mb-2">CSV Import Management</h3>
         <p className="text-sm text-gray-600 mb-4">
@@ -83,7 +84,7 @@ const CSVImportTab: React.FC = () => {
       ) : (
         <CSVVehicleImportManager />
       )}
-    </div>
+    </TabsContent>
   );
 };
 
