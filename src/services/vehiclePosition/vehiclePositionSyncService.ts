@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { enhancedGP51SessionValidator } from './enhancedSessionValidator';
 import { TimestampConverter } from './timestampConverter';
 import { PollingResetService } from './pollingResetService';
+import { liveDataMonitor } from '@/services/monitoring/liveDataMonitor';
 
 interface VehicleRecord {
   device_id: string;
@@ -90,6 +91,9 @@ export class VehiclePositionSyncService {
       // Clear session cache and force revalidation
       enhancedGP51SessionValidator.clearCache();
       
+      // Reset monitoring metrics
+      liveDataMonitor.reset();
+      
       // Reset sync metrics
       this.syncMetrics = {
         totalSyncs: 0,
@@ -105,6 +109,7 @@ export class VehiclePositionSyncService {
       
     } catch (error) {
       console.error('❌ Failed to reset and restart sync:', error);
+      liveDataMonitor.recordError('api', `Reset failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
   }
@@ -114,7 +119,7 @@ export class VehiclePositionSyncService {
       clearInterval(this.syncInterval);
     }
 
-    console.log('📡 Starting enhanced vehicle position sync with reset capability...');
+    console.log('📡 Starting enhanced vehicle position sync with monitoring...');
     
     // Start immediately with reset
     this.resetAndRestart();
@@ -145,11 +150,13 @@ export class VehiclePositionSyncService {
       this.syncMetrics.totalSyncs++;
 
       // Validate GP51 session using enhanced validator
-      console.log('🔍 Validating GP51 session with enhanced validator...');
+      console.log('🔍 Validating GP51 session with enhanced monitoring...');
       const sessionResult = await enhancedGP51SessionValidator.validateGP51Session();
       
       if (!sessionResult.valid) {
-        throw new Error(`Enhanced session validation failed: ${sessionResult.error}`);
+        const error = `Enhanced session validation failed: ${sessionResult.error}`;
+        liveDataMonitor.recordError('api', error);
+        throw new Error(error);
       }
 
       const apiUrl = sessionResult.apiUrl || 'https://www.gps51.com';
@@ -166,7 +173,9 @@ export class VehiclePositionSyncService {
         .limit(500);
 
       if (vehicleError) {
-        throw new Error(`Database error: ${vehicleError.message}`);
+        const error = `Database error: ${vehicleError.message}`;
+        liveDataMonitor.recordError('database', error);
+        throw new Error(error);
       }
 
       if (!vehicles || vehicles.length === 0) {
@@ -179,7 +188,7 @@ export class VehiclePositionSyncService {
         return { success: true, updatedCount: 0, errorCount: 0, message: 'No active vehicles found' };
       }
 
-      console.log(`🚛 Syncing positions for ${vehicles.length} active vehicles using enhanced validation...`);
+      console.log(`🚛 Syncing positions for ${vehicles.length} active vehicles with enhanced monitoring...`);
       this.syncProgress = { 
         total: vehicles.length, 
         processed: 0, 
@@ -195,7 +204,9 @@ export class VehiclePositionSyncService {
       const deviceIds = vehicles.map(v => v.device_id).filter(Boolean);
       
       if (deviceIds.length === 0) {
-        throw new Error('No valid device IDs found');
+        const error = 'No valid device IDs found';
+        liveDataMonitor.recordError('validation', error);
+        throw new Error(error);
       }
 
       const { data: positionResult, error: positionError } = await supabase.functions.invoke('gp51-service-management', {
@@ -207,31 +218,39 @@ export class VehiclePositionSyncService {
       });
 
       if (positionError) {
-        throw new Error(`GP51 API error: ${positionError.message}`);
+        const error = `GP51 API error: ${positionError.message}`;
+        liveDataMonitor.recordError('api', error);
+        throw new Error(error);
       }
 
       if (positionResult?.error) {
-        throw new Error(`GP51 service error: ${positionResult.error}`);
+        const error = `GP51 service error: ${positionResult.error}`;
+        liveDataMonitor.recordError('api', error);
+        throw new Error(error);
       }
 
       const rawPositions = positionResult?.records || [];
       console.log(`📍 Received ${rawPositions.length} position records from enhanced GP51 API`);
 
-      // Process positions with enhanced validation and field mapping
-      const processedPositions = this.processPositionsWithValidation(rawPositions);
+      // Process positions with enhanced validation and monitoring
+      const processedPositions = this.processPositionsWithEnhancedMonitoring(rawPositions);
       
       let updatedCount = 0;
       let errorCount = 0;
 
-      // Update positions with enhanced validation
+      // Update positions with enhanced monitoring
       for (const processedPosition of processedPositions) {
         try {
           if (!processedPosition.isValid) {
             console.warn(`Skipping invalid position for device ${processedPosition.deviceid}:`, processedPosition.warnings);
             errorCount++;
             this.syncProgress.errors++;
+            liveDataMonitor.recordPositionValidation(processedPosition, false);
             continue;
           }
+
+          // Record successful position validation
+          liveDataMonitor.recordPositionValidation(processedPosition, true);
 
           const { error: updateError } = await supabase
             .from('vehicles')
@@ -251,8 +270,10 @@ export class VehiclePositionSyncService {
           if (updateError) {
             console.error(`Failed to update vehicle ${processedPosition.deviceid}:`, updateError);
             errorCount++;
+            liveDataMonitor.recordDatabaseOperation(false, updateError.message);
           } else {
             updatedCount++;
+            liveDataMonitor.recordDatabaseOperation(true);
             const timeAgo = TimestampConverter.getTimeAgo(processedPosition.updatetime);
             console.log(`✅ Updated vehicle ${processedPosition.deviceid} with timestamp ${processedPosition.updatetime} (${timeAgo})`);
             
@@ -269,6 +290,7 @@ export class VehiclePositionSyncService {
           console.error(`Error processing position for ${processedPosition.deviceid}:`, positionError);
           errorCount++;
           this.syncProgress.errors++;
+          liveDataMonitor.recordError('validation', `Position processing failed: ${positionError instanceof Error ? positionError.message : 'Unknown error'}`);
         }
       }
 
@@ -277,9 +299,13 @@ export class VehiclePositionSyncService {
       this.syncProgress.vehiclesNeedingUpdates = Math.max(0, vehicles.length - updatedCount);
       this.syncProgress.completionPercentage = updatedCount > 0 ? Math.round((updatedCount / vehicles.length) * 100) : 0;
 
-      const latency = Date.now() - startTime;
+      const endTime = Date.now();
+      const latency = endTime - startTime;
       this.syncMetrics.averageLatency = (this.syncMetrics.averageLatency + latency) / 2;
       this.syncMetrics.lastSyncTime = new Date();
+
+      // Record performance metrics
+      liveDataMonitor.recordSyncPerformance(startTime, endTime);
 
       const message = `Enhanced sync: Updated ${updatedCount} vehicles, ${errorCount} errors using API: ${apiUrl}`;
       console.log(`✅ ${message}`);
@@ -304,6 +330,7 @@ export class VehiclePositionSyncService {
       }
       
       this.syncMetrics.failedSyncs++;
+      liveDataMonitor.recordError('api', errorMessage);
       this.notifyListeners('failed');
       return { success: false, updatedCount: 0, errorCount: 1, message: errorMessage };
     } finally {
@@ -312,9 +339,9 @@ export class VehiclePositionSyncService {
   }
 
   /**
-   * Process raw positions with enhanced validation and field mapping
+   * Process raw positions with enhanced validation, monitoring and field mapping
    */
-  private processPositionsWithValidation(rawPositions: any[]): ProcessedPosition[] {
+  private processPositionsWithEnhancedMonitoring(rawPositions: any[]): ProcessedPosition[] {
     return rawPositions.map(position => {
       const warnings: string[] = [];
       let isValid = true;
@@ -339,11 +366,19 @@ export class VehiclePositionSyncService {
         warnings.push(`Invalid longitude: ${lon}`);
       }
 
-      // Enhanced timestamp processing
+      // Enhanced timestamp processing with monitoring
       const rawTimestamp = position.updatetime || position.timestamp || position.time;
       let processedUpdatetime: string;
+      let timestampSuccess = true;
+      let isScientificNotation = false;
       
       try {
+        // Check if timestamp is in scientific notation
+        if (typeof rawTimestamp === 'string') {
+          const scientificPattern = /^[+-]?[0-9]*\.?[0-9]+([eE][+-]?[0-9]+)$/;
+          isScientificNotation = scientificPattern.test(rawTimestamp.trim());
+        }
+        
         processedUpdatetime = TimestampConverter.convertToISO(rawTimestamp);
         
         // Check if timestamp is recent
@@ -354,7 +389,11 @@ export class VehiclePositionSyncService {
         console.error(`Timestamp conversion failed for device ${position.deviceid}:`, error);
         processedUpdatetime = new Date().toISOString();
         warnings.push('Timestamp conversion failed, using current time');
+        timestampSuccess = false;
       }
+
+      // Record timestamp conversion monitoring
+      liveDataMonitor.recordTimestampConversion(timestampSuccess, isScientificNotation);
 
       // Extract other fields with fallbacks
       const speed = this.extractNumericValue(position, ['speed', 'velocity'], 0);

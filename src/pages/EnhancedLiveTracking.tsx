@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -7,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -22,11 +22,14 @@ import {
   Fuel,
   Wrench,
   ShoppingCart,
+  Activity
 } from 'lucide-react';
 import type { EnhancedVehicle, ReportType } from '@/types/enhancedVehicle';
 import { convertToEnhancedVehicle } from '@/utils/trackingDataGenerator';
 import { VehicleAnalyticsModal } from '@/components/tracking/VehicleAnalyticsModal';
 import { ReportGenerationModal } from '@/components/tracking/ReportGenerationModal';
+import SyncMonitoringDashboard from '@/components/monitoring/SyncMonitoringDashboard';
+import DataFreshnessIndicator from '@/components/tracking/DataFreshnessIndicator';
 
 const reportTypes: ReportType[] = [
   {
@@ -207,204 +210,242 @@ const EnhancedLiveTracking: React.FC = () => {
             </div>
           </div>
 
-          {/* Status Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
-                <Car className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{enhancedVehicles.length}</div>
-                <p className="text-xs text-muted-foreground">in fleet</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Active</CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">
-                  {enhancedVehicles.filter((v) => v.status === "active").length}
-                </div>
-                <p className="text-xs text-muted-foreground">on the road</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Idle</CardTitle>
-                <Clock className="h-4 w-4 text-yellow-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-yellow-600">
-                  {enhancedVehicles.filter((v) => v.status === "idle").length}
-                </div>
-                <p className="text-xs text-muted-foreground">stationary</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Maintenance</CardTitle>
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">
-                  {enhancedVehicles.filter((v) => v.status === "maintenance").length}
-                </div>
-                <p className="text-xs text-muted-foreground">in service</p>
-              </CardContent>
-            </Card>
-          </div>
+          {/* Main Content Tabs */}
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="overview">Fleet Overview</TabsTrigger>
+              <TabsTrigger value="monitoring">System Monitoring</TabsTrigger>
+              <TabsTrigger value="reports">Reports</TabsTrigger>
+            </TabsList>
 
-          {/* Reports Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Fleet Reports
-              </CardTitle>
-              <CardDescription>Generate comprehensive reports for fleet analysis and compliance</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                {reportTypes.map((report) => {
-                  const IconComponent = report.icon;
-                  return (
-                    <Button
-                      key={report.id}
-                      variant="outline"
-                      className="h-auto p-4 flex flex-col items-start gap-2 hover:bg-muted/50"
-                      onClick={() => handleGenerateReport(report.id)}
-                    >
-                      <div className="flex items-center gap-2 w-full">
-                        <div className={`p-2 rounded-lg ${report.color}`}>
-                          <IconComponent className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 text-left">
-                          <div className="font-medium text-sm">{report.name}</div>
-                          <div className="text-xs text-muted-foreground mt-1">{report.description}</div>
-                        </div>
-                      </div>
-                    </Button>
-                  );
-                })}
+            <TabsContent value="overview" className="space-y-6">
+              {/* Status Cards */}
+              <div className="grid gap-4 md:grid-cols-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+                    <Car className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{enhancedVehicles.length}</div>
+                    <p className="text-xs text-muted-foreground">in fleet</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Active</CardTitle>
+                    <CheckCircle className="h-4 w-4 text-green-500" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">
+                      {enhancedVehicles.filter((v) => v.status === "active").length}
+                    </div>
+                    <p className="text-xs text-muted-foreground">on the road</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Idle</CardTitle>
+                    <Clock className="h-4 w-4 text-yellow-500" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-yellow-600">
+                      {enhancedVehicles.filter((v) => v.status === "idle").length}
+                    </div>
+                    <p className="text-xs text-muted-foreground">stationary</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">Maintenance</CardTitle>
+                    <AlertTriangle className="h-4 w-4 text-red-500" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">
+                      {enhancedVehicles.filter((v) => v.status === "maintenance").length}
+                    </div>
+                    <p className="text-xs text-muted-foreground">in service</p>
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            {/* Live Map */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5" />
-                  Live Vehicle Map
-                </CardTitle>
-                <CardDescription>Real-time vehicle locations and status</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="relative h-[400px] bg-muted rounded-lg overflow-hidden">
-                  {/* Map placeholder with vehicle markers */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
-                    <div className="text-center">
-                      <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                      <p className="text-sm text-muted-foreground">Interactive Map View</p>
-                    </div>
-                  </div>
-
-                  {/* Vehicle markers */}
-                  {enhancedVehicles.slice(0, 8).map((vehicle, index) => (
-                    <button
-                      key={vehicle.id}
-                      onClick={() => handleVehicleClick(vehicle)}
-                      className="absolute transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition-transform"
-                      style={{
-                        left: `${20 + index * 10}%`,
-                        top: `${30 + (index % 3) * 20}%`,
-                      }}
-                    >
-                      <div className="relative">
-                        <div
-                          className="w-4 h-4 rounded-full border-2 border-white shadow-lg cursor-pointer"
-                          style={{ backgroundColor: getStatusColor(vehicle.status) }}
-                        />
-                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                          {vehicle.plateNumber}
+              {/* Fleet Overview */}
+              <div className="grid gap-6 lg:grid-cols-2">
+                {/* Live Map */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MapPin className="h-5 w-5" />
+                      Live Vehicle Map
+                    </CardTitle>
+                    <CardDescription>Real-time vehicle locations and status</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="relative h-[400px] bg-muted rounded-lg overflow-hidden">
+                      {/* Map placeholder with vehicle markers */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+                        <div className="text-center">
+                          <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                          <p className="text-sm text-muted-foreground">Interactive Map View</p>
                         </div>
                       </div>
-                    </button>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Vehicle List */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Vehicle List</CardTitle>
-                <CardDescription>Click on any vehicle to view detailed analytics</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Search and Filter */}
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search vehicles..."
-                        className="pl-8"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
-                    <Select value={statusFilter} onValueChange={setStatusFilter}>
-                      <SelectTrigger className="w-[120px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="idle">Idle</SelectItem>
-                        <SelectItem value="maintenance">Maintenance</SelectItem>
-                        <SelectItem value="offline">Offline</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Vehicle Cards */}
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                    {filteredVehicles.map((vehicle) => (
-                      <div
-                        key={vehicle.id}
-                        onClick={() => handleVehicleClick(vehicle)}
-                        className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
+                      {/* Vehicle markers with freshness indicators */}
+                      {enhancedVehicles.slice(0, 8).map((vehicle, index) => (
+                        <button
+                          key={vehicle.id}
+                          onClick={() => handleVehicleClick(vehicle)}
+                          className="absolute transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition-transform"
+                          style={{
+                            left: `${20 + index * 10}%`,
+                            top: `${30 + (index % 3) * 20}%`,
+                          }}
+                        >
+                          <div className="relative">
                             <div
-                              className="w-3 h-3 rounded-full"
+                              className="w-4 h-4 rounded-full border-2 border-white shadow-lg cursor-pointer"
                               style={{ backgroundColor: getStatusColor(vehicle.status) }}
                             />
-                            <div>
-                              <div className="font-medium">{vehicle.plateNumber}</div>
-                              <div className="text-sm text-muted-foreground">{vehicle.model}</div>
+                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
+                              {vehicle.plateNumber}
                             </div>
                           </div>
-                          {getStatusBadge(vehicle.status)}
+                        </button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Vehicle List */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Vehicle List</CardTitle>
+                    <CardDescription>Click on any vehicle to view detailed analytics</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {/* Search and Filter */}
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search vehicles..."
+                            className="pl-8"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                          />
                         </div>
-                        <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-                          <div>Speed: {vehicle.speed} km/h</div>
-                          <div>Fuel: {vehicle.fuel}%</div>
-                          <div>Driver: {vehicle.driver}</div>
-                        </div>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger className="w-[120px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Status</SelectItem>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="idle">Idle</SelectItem>
+                            <SelectItem value="maintenance">Maintenance</SelectItem>
+                            <SelectItem value="offline">Offline</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                    ))}
+
+                      {/* Vehicle Cards */}
+                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                        {filteredVehicles.map((vehicle) => (
+                          <div
+                            key={vehicle.id}
+                            onClick={() => handleVehicleClick(vehicle)}
+                            className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: getStatusColor(vehicle.status) }}
+                                />
+                                <div>
+                                  <div className="font-medium">{vehicle.plateNumber}</div>
+                                  <div className="text-sm text-muted-foreground">{vehicle.model}</div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {getStatusBadge(vehicle.status)}
+                                <DataFreshnessIndicator 
+                                  lastUpdate={vehicle.lastUpdate} 
+                                  size="sm"
+                                  showText={false}
+                                />
+                              </div>
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                              <div>Speed: {vehicle.speed} km/h</div>
+                              <div>Fuel: {vehicle.fuel}%</div>
+                              <div>Driver: {vehicle.driver}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="monitoring" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Real-time System Monitoring
+                  </CardTitle>
+                  <CardDescription>
+                    Live data flow monitoring and system health metrics
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SyncMonitoringDashboard />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="reports" className="space-y-6">
+              {/* Reports Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Fleet Reports
+                  </CardTitle>
+                  <CardDescription>Generate comprehensive reports for fleet analysis and compliance</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                    {reportTypes.map((report) => {
+                      const IconComponent = report.icon;
+                      return (
+                        <Button
+                          key={report.id}
+                          variant="outline"
+                          className="h-auto p-4 flex flex-col items-start gap-2 hover:bg-muted/50"
+                          onClick={() => handleGenerateReport(report.id)}
+                        >
+                          <div className="flex items-center gap-2 w-full">
+                            <div className={`p-2 rounded-lg ${report.color}`}>
+                              <IconComponent className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 text-left">
+                              <div className="font-medium text-sm">{report.name}</div>
+                              <div className="text-xs text-muted-foreground mt-1">{report.description}</div>
+                            </div>
+                          </div>
+                        </Button>
+                      );
+                    })}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
 
           {/* Vehicle Analytics Modal */}
           <VehicleAnalyticsModal

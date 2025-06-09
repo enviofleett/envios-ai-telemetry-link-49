@@ -16,6 +16,7 @@ import {
   Package
 } from 'lucide-react';
 import type { Vehicle } from '@/services/unifiedVehicleData';
+import DataFreshnessIndicator from './DataFreshnessIndicator';
 
 interface VehicleStatusCardProps {
   vehicle: Vehicle | null;
@@ -98,15 +99,41 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
             <MapPin className="h-5 w-5" />
             {vehicle.devicename}
           </CardTitle>
-          <Badge variant={status === 'online' ? 'default' : 'secondary'} className="flex items-center gap-1">
-            <div className={`w-2 h-2 rounded-full ${getStatusColor()}`}></div>
-            {status.toUpperCase()}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={status === 'online' ? 'default' : 'secondary'} className="flex items-center gap-1">
+              <div className={`w-2 h-2 rounded-full ${getStatusColor()}`}></div>
+              {status.toUpperCase()}
+            </Badge>
+            <DataFreshnessIndicator 
+              lastUpdate={vehicle.lastPosition?.updatetime} 
+              size="sm"
+              showText={false}
+            />
+          </div>
         </div>
         <p className="text-sm text-gray-600">Device ID: {vehicle.deviceid}</p>
       </CardHeader>
       
       <CardContent className="space-y-4">
+        {/* Data Freshness Status */}
+        <div className="p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Clock className="h-4 w-4 text-gray-400" />
+              Data Status
+            </div>
+            <DataFreshnessIndicator 
+              lastUpdate={vehicle.lastPosition?.updatetime} 
+              size="md"
+            />
+          </div>
+          {vehicle.lastPosition?.updatetime && (
+            <p className="text-xs text-gray-500 mt-1">
+              Last update: {new Date(vehicle.lastPosition.updatetime).toLocaleString()}
+            </p>
+          )}
+        </div>
+
         {/* Location */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -164,28 +191,13 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
           </div>
         </div>
 
-        {/* Last Update and System ID */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Clock className="h-4 w-4 text-gray-400" />
-              Last Update
-            </div>
-            <p className="text-sm">
-              {vehicle.lastPosition?.updatetime 
-                ? new Date(vehicle.lastPosition.updatetime).toLocaleString()
-                : 'No data'
-              }
-            </p>
+        {/* System ID */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <AlertTriangle className="h-4 w-4 text-gray-400" />
+            System ID
           </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <AlertTriangle className="h-4 w-4 text-gray-400" />
-              System ID
-            </div>
-            <p className="text-sm font-mono">{vehicle.deviceid}</p>
-          </div>
+          <p className="text-sm font-mono">{vehicle.deviceid}</p>
         </div>
 
         {/* Subscription Package */}
