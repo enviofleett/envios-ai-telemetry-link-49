@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { vehiclePositionSyncService } from '@/services/vehiclePosition/vehiclePositionSyncService';
 
@@ -113,7 +114,8 @@ export class EnhancedPollingService {
       const syncMetrics = await vehiclePositionSyncService.forceSync();
       
       // Get detailed progress
-      const progress = await vehiclePositionSyncService.getSyncProgress();
+      const progress = vehiclePositionSyncService.getSyncProgress();
+      const completionPercentage = progress.completionPercentage || 0;
       
       console.log(`Full poll #${this.metrics.totalPolls} completed:`, {
         ...syncMetrics,
@@ -128,8 +130,8 @@ export class EnhancedPollingService {
       await this.updatePollingStatus(true, undefined, progress);
 
       // Alert if completion rate is low
-      if (progress.completionPercentage < 90) {
-        console.warn(`⚠️  Low sync completion rate: ${progress.completionPercentage.toFixed(2)}%`);
+      if (completionPercentage < 90) {
+        console.warn(`⚠️  Low sync completion rate: ${completionPercentage.toFixed(2)}%`);
       }
 
     } catch (error) {
@@ -164,11 +166,12 @@ export class EnhancedPollingService {
     }
 
     try {
-      const progress = await vehiclePositionSyncService.getSyncProgress();
+      const progress = vehiclePositionSyncService.getSyncProgress();
+      const vehiclesNeedingUpdates = progress.vehiclesNeedingUpdates || 0;
       
       // Only perform progressive poll if there are vehicles needing updates
-      if (progress.vehiclesNeedingUpdates > 0) {
-        console.log(`Progressive poll: ${progress.vehiclesNeedingUpdates} vehicles need position updates`);
+      if (vehiclesNeedingUpdates > 0) {
+        console.log(`Progressive poll: ${vehiclesNeedingUpdates} vehicles need position updates`);
         // The progressive sync is handled automatically by the VehiclePositionSyncService
       }
     } catch (error) {
@@ -205,7 +208,12 @@ export class EnhancedPollingService {
 
       // Log progress for monitoring
       if (progress) {
-        console.log(`Sync Progress - Total: ${progress.totalVehicles}, Recent Updates: ${progress.vehiclesWithRecentUpdates}, Needing Updates: ${progress.vehiclesNeedingUpdates}, Completion: ${progress.completionPercentage.toFixed(2)}%`);
+        const totalVehicles = progress.totalVehicles || 0;
+        const vehiclesWithRecentUpdates = progress.vehiclesWithRecentUpdates || 0;
+        const vehiclesNeedingUpdates = progress.vehiclesNeedingUpdates || 0;
+        const completionPercentage = progress.completionPercentage || 0;
+        
+        console.log(`Sync Progress - Total: ${totalVehicles}, Recent Updates: ${vehiclesWithRecentUpdates}, Needing Updates: ${vehiclesNeedingUpdates}, Completion: ${completionPercentage.toFixed(2)}%`);
       }
     } catch (error) {
       console.error('Error updating polling status:', error);
@@ -240,13 +248,14 @@ export class EnhancedPollingService {
     try {
       // Test connection by attempting a sync of all vehicles
       const syncMetrics = await vehiclePositionSyncService.forceSync();
-      const progress = await vehiclePositionSyncService.getSyncProgress();
+      const progress = vehiclePositionSyncService.getSyncProgress();
+      const completionPercentage = progress.completionPercentage || 0;
       
-      const success = progress.completionPercentage > 50; // At least 50% of vehicles should sync
+      const success = completionPercentage > 50; // At least 50% of vehicles should sync
       
       return { 
         success,
-        error: success ? undefined : `Low completion rate: ${progress.completionPercentage.toFixed(2)}%`
+        error: success ? undefined : `Low completion rate: ${completionPercentage.toFixed(2)}%`
       };
     } catch (error) {
       return { 

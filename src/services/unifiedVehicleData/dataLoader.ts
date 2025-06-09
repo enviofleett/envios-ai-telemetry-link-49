@@ -34,15 +34,7 @@ export class VehicleDataLoader {
         if (error) throw error;
 
         if (data && data.length > 0) {
-          const chunkVehicles = data.map(vehicle => ({
-            deviceid: vehicle.device_id,
-            devicename: vehicle.device_name,
-            status: vehicle.status,
-            envio_user_id: vehicle.envio_user_id,
-            is_active: vehicle.is_active,
-            lastPosition: this.parseLastPosition(vehicle.last_position)
-          }));
-
+          const chunkVehicles = data.map(vehicle => this.transformDatabaseVehicle(vehicle));
           allVehicles.push(...chunkVehicles);
           console.log(`Loaded chunk: ${chunkVehicles.length} vehicles, total so far: ${allVehicles.length}`);
         }
@@ -61,6 +53,33 @@ export class VehicleDataLoader {
       console.error('Failed to load vehicles from database:', error);
       throw error;
     }
+  }
+
+  private transformDatabaseVehicle(vehicle: any): Vehicle {
+    const lastPosition = this.parseLastPosition(vehicle.last_position);
+    
+    // Determine vehicle status based on last position update
+    let status: 'online' | 'offline' | 'moving' | 'idle' = 'offline';
+    if (lastPosition?.updatetime) {
+      const lastUpdate = new Date(lastPosition.updatetime);
+      const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
+      
+      if (minutesSinceUpdate <= 5) {
+        status = lastPosition.speed > 0 ? 'moving' : 'online';
+      } else if (minutesSinceUpdate <= 30) {
+        status = 'idle';
+      }
+    }
+
+    return {
+      deviceid: vehicle.device_id,
+      devicename: vehicle.device_name,
+      plateNumber: vehicle.device_name, // Use device_name as plateNumber
+      status,
+      is_active: vehicle.is_active || true,
+      envio_user_id: vehicle.envio_user_id,
+      lastPosition: lastPosition
+    };
   }
 
   private parseLastPosition(lastPosition: any): Vehicle['lastPosition'] {
@@ -91,14 +110,7 @@ export class VehicleDataLoader {
 
       if (error) throw error;
 
-      const vehicles = (data || []).map(vehicle => ({
-        deviceid: vehicle.device_id,
-        devicename: vehicle.device_name,
-        status: vehicle.status,
-        envio_user_id: vehicle.envio_user_id,
-        is_active: vehicle.is_active,
-        lastPosition: this.parseLastPosition(vehicle.last_position)
-      }));
+      const vehicles = (data || []).map(vehicle => this.transformDatabaseVehicle(vehicle));
 
       console.log(`Found ${vehicles.length} vehicles needing position updates`);
       return vehicles;

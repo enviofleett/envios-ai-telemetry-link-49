@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
@@ -204,7 +203,8 @@ export class AnalyticsService {
       this.vehicles = (data || []).map(vehicle => ({
         deviceid: vehicle.device_id,
         devicename: vehicle.device_name,
-        status: vehicle.status,
+        plateNumber: vehicle.device_name, // Use device_name as plateNumber
+        status: this.determineVehicleStatus(vehicle.last_position),
         envio_user_id: vehicle.envio_user_id,
         is_active: vehicle.is_active,
         lastPosition: this.parseLastPosition(vehicle.last_position)
@@ -214,6 +214,20 @@ export class AnalyticsService {
     } catch (error) {
       console.error('Failed to load vehicle data for analytics:', error);
     }
+  }
+
+  private determineVehicleStatus(lastPosition: any): 'online' | 'offline' | 'moving' | 'idle' {
+    if (!lastPosition?.updatetime) return 'offline';
+    
+    const lastUpdate = new Date(lastPosition.updatetime);
+    const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
+    
+    if (minutesSinceUpdate <= 5) {
+      return lastPosition.speed > 0 ? 'moving' : 'online';
+    } else if (minutesSinceUpdate <= 30) {
+      return 'idle';
+    }
+    return 'offline';
   }
 
   private parseLastPosition(lastPosition: any): Vehicle['lastPosition'] {

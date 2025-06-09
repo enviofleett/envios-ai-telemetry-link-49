@@ -91,20 +91,22 @@ export class UnifiedVehicleDataService {
     const lastPosition = dbVehicle.last_position;
     
     // Determine vehicle status based on last position update
-    let status = 'offline';
+    let status: 'online' | 'offline' | 'moving' | 'idle' = 'offline';
     if (lastPosition?.updatetime) {
       const lastUpdate = new Date(lastPosition.updatetime);
       const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
       
       if (minutesSinceUpdate <= 5) {
         status = lastPosition.speed > 0 ? 'moving' : 'online';
+      } else if (minutesSinceUpdate <= 30) {
+        status = 'idle';
       }
     }
 
     return {
       deviceid: dbVehicle.device_id,
       devicename: dbVehicle.device_name,
-      plateNumber: dbVehicle.device_name,
+      plateNumber: dbVehicle.device_name, // Use device_name as plateNumber
       status,
       is_active: dbVehicle.is_active || true,
       envio_user_id: dbVehicle.envio_user_id,

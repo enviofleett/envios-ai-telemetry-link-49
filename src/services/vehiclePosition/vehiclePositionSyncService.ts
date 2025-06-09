@@ -19,6 +19,10 @@ interface SyncProgress {
   processed: number;
   errors: number;
   percentage: number;
+  completionPercentage: number;
+  vehiclesNeedingUpdates: number;
+  vehiclesWithRecentUpdates: number;
+  totalVehicles: number;
 }
 
 interface SyncMetrics {
@@ -34,7 +38,16 @@ export class VehiclePositionSyncService {
   private syncInterval: NodeJS.Timeout | null = null;
   private isSyncing = false;
   private listeners: Set<(status: string) => void> = new Set();
-  private syncProgress: SyncProgress = { total: 0, processed: 0, errors: 0, percentage: 0 };
+  private syncProgress: SyncProgress = { 
+    total: 0, 
+    processed: 0, 
+    errors: 0, 
+    percentage: 0,
+    completionPercentage: 0,
+    vehiclesNeedingUpdates: 0,
+    vehiclesWithRecentUpdates: 0,
+    totalVehicles: 0
+  };
   private syncMetrics: SyncMetrics = {
     totalSyncs: 0,
     successfulSyncs: 0,
@@ -111,13 +124,25 @@ export class VehiclePositionSyncService {
 
       if (!vehicles || vehicles.length === 0) {
         console.log('No active vehicles found for position sync');
+        this.syncProgress.completionPercentage = 100;
+        this.syncProgress.vehiclesNeedingUpdates = 0;
+        this.syncProgress.totalVehicles = 0;
         this.notifyListeners('success');
         this.syncMetrics.successfulSyncs++;
         return { success: true, updatedCount: 0, errorCount: 0, message: 'No active vehicles found' };
       }
 
       console.log(`Syncing positions for ${vehicles.length} active vehicles...`);
-      this.syncProgress = { total: vehicles.length, processed: 0, errors: 0, percentage: 0 };
+      this.syncProgress = { 
+        total: vehicles.length, 
+        processed: 0, 
+        errors: 0, 
+        percentage: 0,
+        completionPercentage: 0,
+        vehiclesNeedingUpdates: vehicles.length,
+        vehiclesWithRecentUpdates: 0,
+        totalVehicles: vehicles.length
+      };
 
       // Fetch positions from GP51
       const deviceIds = vehicles.map(v => v.device_id).filter(Boolean);
@@ -177,6 +202,7 @@ export class VehiclePositionSyncService {
 
           this.syncProgress.processed++;
           this.syncProgress.percentage = Math.round((this.syncProgress.processed / this.syncProgress.total) * 100);
+          this.syncProgress.completionPercentage = this.syncProgress.percentage;
 
         } catch (positionError) {
           console.error(`Error processing position for ${position.deviceid}:`, positionError);
@@ -184,6 +210,11 @@ export class VehiclePositionSyncService {
           this.syncProgress.errors++;
         }
       }
+
+      // Update final metrics
+      this.syncProgress.vehiclesWithRecentUpdates = updatedCount;
+      this.syncProgress.vehiclesNeedingUpdates = Math.max(0, vehicles.length - updatedCount);
+      this.syncProgress.completionPercentage = updatedCount > 0 ? Math.round((updatedCount / vehicles.length) * 100) : 0;
 
       const latency = Date.now() - startTime;
       this.syncMetrics.averageLatency = (this.syncMetrics.averageLatency + latency) / 2;
