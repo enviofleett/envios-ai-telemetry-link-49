@@ -3,12 +3,12 @@ import React from 'react';
 import { TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Package, Upload, Settings, User, Bell, Shield, Activity, Map, 
-  BarChart3, MapPin, Book, Mail, Navigation 
+  BarChart3, MapPin, Book, Mail 
 } from 'lucide-react';
 
 export default function AdminTabsList() {
   return (
-    <TabsList className="grid w-full grid-cols-6 lg:grid-cols-13">
+    <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
       <TabsTrigger value="packages" className="flex items-center gap-2">
         <Package className="h-4 w-4" />
         <span className="hidden sm:inline">Packages</span>
@@ -35,11 +35,7 @@ export default function AdminTabsList() {
       </TabsTrigger>
       <TabsTrigger value="gp51" className="flex items-center gap-2">
         <Shield className="h-4 w-4" />
-        <span className="hidden sm:inline">GP51</span>
-      </TabsTrigger>
-      <TabsTrigger value="gps51" className="flex items-center gap-2">
-        <Navigation className="h-4 w-4" />
-        <span className="hidden sm:inline">GPS51</span>
+        <span className="hidden sm:inline">GP51 API</span>
       </TabsTrigger>
       <TabsTrigger value="health" className="flex items-center gap-2">
         <Activity className="h-4 w-4" />
