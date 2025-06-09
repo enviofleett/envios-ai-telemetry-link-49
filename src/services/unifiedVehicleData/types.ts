@@ -2,6 +2,7 @@
 export interface Vehicle {
   deviceid: string;
   devicename: string;
+  plateNumber?: string; // Add plate number field
   status?: string;
   lastPosition?: {
     lat: number;

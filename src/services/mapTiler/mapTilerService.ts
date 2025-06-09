@@ -105,7 +105,7 @@ class MapTilerService {
     const address = feature.properties?.address || '';
     const name = feature.properties?.name || '';
     
-    // Build formatted address with better structure
+    // Build formatted address with enhanced structure
     const parts = [];
     
     // Add street number and name first
@@ -117,22 +117,29 @@ class MapTilerService {
       parts.push(address);
     }
     
-    // Add city and region from context
+    // Add city, region, and postal code from context
     const place = context.find((c: any) => c.id?.includes('place'));
     const region = context.find((c: any) => c.id?.includes('region'));
+    const postcode = context.find((c: any) => c.id?.includes('postcode'));
     const country = context.find((c: any) => c.id?.includes('country'));
     
     if (place) parts.push(place.text);
     if (region) parts.push(region.text);
+    if (postcode) parts.push(postcode.text);
     if (country && parts.length > 0) parts.push(country.text);
     
-    // If we have structured parts, join them nicely
+    // If we have structured parts, join them with proper formatting
     if (parts.length > 0) {
-      return parts.join(', ');
+      // Format as: Street, City, Region Postcode, Country
+      let formattedAddress = parts[0]; // Street
+      if (parts.length > 1) {
+        formattedAddress += ', ' + parts.slice(1).join(', ');
+      }
+      return formattedAddress;
     }
     
     // Fallback to the raw place name, but clean it up
-    const cleanPlaceName = placeName.split(',').slice(0, 3).join(', ');
+    const cleanPlaceName = placeName.split(',').slice(0, 4).join(', ');
     return cleanPlaceName || 'Unknown location';
   }
 

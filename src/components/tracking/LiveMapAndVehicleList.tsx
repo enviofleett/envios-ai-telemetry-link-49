@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import VehicleListPanel from './VehicleListPanel';
+import VehicleInfoPanel from './VehicleInfoPanel';
 import MapTilerMap from '@/components/map/MapTilerMap';
 import { mapTilerService } from '@/services/mapTiler/mapTilerService';
 import type { Vehicle } from '@/services/unifiedVehicleData';
@@ -42,8 +43,10 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
 
   // Filter vehicles based on search and status
   const filteredVehicles = vehicles.filter(vehicle => {
+    const plateNumber = vehicle.plateNumber || vehicle.devicename;
     const matchesSearch = vehicle.devicename.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase());
+                         vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         plateNumber.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (statusFilter === 'all') return matchesSearch;
     
@@ -91,87 +94,106 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
     // TODO: Implement export functionality
   };
 
+  const selectedVehicleAddress = selectedVehicle 
+    ? vehicleAddresses.get(selectedVehicle.deviceid) || 'Loading address...'
+    : '';
+
   return (
-    <div className="grid grid-cols-10 gap-6 h-[600px]">
-      {/* Map Section - 70% width (7/10 columns) */}
-      <div className="col-span-7">
-        <Card className="bg-white border border-gray-lighter shadow-sm h-full">
-          <CardHeader className="p-6 border-b border-gray-lighter">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-semibold text-primary-dark">
-                Live Vehicle Map
-              </CardTitle>
-            </div>
-            
-            {/* Controls */}
-            <div className="flex flex-col md:flex-row gap-4 mt-4">
-              {/* Search */}
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-mid" />
-                  <Input
-                    placeholder="Search vehicles..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-10 border-gray-lighter"
-                  />
+    <div className="space-y-4">
+      <div className="grid grid-cols-10 gap-6">
+        {/* Map Section - 70% width (7/10 columns) */}
+        <div className="col-span-7">
+          <Card className="bg-white border border-gray-lighter shadow-sm">
+            <CardHeader className="p-6 border-b border-gray-lighter">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg font-semibold text-primary-dark">
+                  Live Vehicle Map
+                </CardTitle>
+              </div>
+              
+              {/* Controls */}
+              <div className="flex flex-col md:flex-row gap-4 mt-4">
+                {/* Search */}
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-mid" />
+                    <Input
+                      placeholder="Search vehicles..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 h-10 border-gray-lighter"
+                    />
+                  </div>
                 </div>
-              </div>
 
-              {/* Status Filter */}
-              <div className="w-full md:w-48">
-                <Select 
-                  value={statusFilter} 
-                  onValueChange={(value: 'all' | 'moving' | 'online' | 'offline') => setStatusFilter(value)}
+                {/* Status Filter */}
+                <div className="w-full md:w-48">
+                  <Select 
+                    value={statusFilter} 
+                    onValueChange={(value: 'all' | 'moving' | 'online' | 'offline') => setStatusFilter(value)}
+                  >
+                    <SelectTrigger className="h-10 border-gray-lighter">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border border-gray-lighter">
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="moving">Moving</SelectItem>
+                      <SelectItem value="online">Online</SelectItem>
+                      <SelectItem value="offline">Offline</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Export Button */}
+                <Button
+                  variant="outline"
+                  onClick={handleExport}
+                  className="bg-white border-gray-lighter text-primary-dark hover:bg-gray-background"
                 >
-                  <SelectTrigger className="h-10 border-gray-lighter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white border border-gray-lighter">
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="moving">Moving</SelectItem>
-                    <SelectItem value="online">Online</SelectItem>
-                    <SelectItem value="offline">Offline</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
               </div>
+            </CardHeader>
+            
+            <CardContent className="p-0">
+              <MapTilerMap
+                vehicles={filteredVehicles}
+                height="400px"
+                onVehicleSelect={handleVehicleSelect}
+                selectedVehicle={selectedVehicle}
+                defaultZoom={12}
+                showControls={true}
+                className="rounded-b-lg"
+              />
+            </CardContent>
+          </Card>
+        </div>
 
-              {/* Export Button */}
-              <Button
-                variant="outline"
-                onClick={handleExport}
-                className="bg-white border-gray-lighter text-primary-dark hover:bg-gray-background"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            </div>
-          </CardHeader>
-          
-          <CardContent className="p-0 flex-1">
-            <MapTilerMap
-              vehicles={filteredVehicles}
-              height="calc(600px - 140px)"
-              onVehicleSelect={handleVehicleSelect}
-              selectedVehicle={selectedVehicle}
-              defaultZoom={12}
-              showControls={true}
-              className="rounded-b-lg"
-            />
-          </CardContent>
-        </Card>
+        {/* Vehicle List Panel - 30% width (3/10 columns) */}
+        <div className="col-span-3">
+          <VehicleListPanel
+            vehicles={filteredVehicles}
+            onVehicleSelect={handleVehicleSelect}
+            onTripHistory={onTripHistory}
+            onSendAlert={onSendAlert}
+            vehicleAddresses={vehicleAddresses}
+            selectedVehicle={selectedVehicle}
+          />
+        </div>
       </div>
 
-      {/* Vehicle List Panel - 30% width (3/10 columns) */}
-      <div className="col-span-3">
-        <VehicleListPanel
-          vehicles={filteredVehicles}
-          onVehicleSelect={handleVehicleSelect}
-          onTripHistory={onTripHistory}
-          onSendAlert={onSendAlert}
-          vehicleAddresses={vehicleAddresses}
-          selectedVehicle={selectedVehicle}
-        />
+      {/* Vehicle Info Panel - Below the map */}
+      <div className="grid grid-cols-10 gap-6">
+        <div className="col-span-7">
+          <VehicleInfoPanel 
+            vehicle={selectedVehicle} 
+            address={selectedVehicleAddress}
+          />
+        </div>
+        <div className="col-span-3">
+          {/* Empty space to align with the right panel */}
+        </div>
       </div>
     </div>
   );
