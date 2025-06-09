@@ -111,11 +111,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!isValid) {
         const restored = await enhancedGP51SessionManager.restoreSession();
         setGp51Connected(restored);
+        
+        // Start session monitoring if connected
+        if (restored) {
+          const { sessionHealthMonitor } = await import('@/services/gp51/sessionHealthMonitor');
+          sessionHealthMonitor.startMonitoring();
+        }
       } else {
         setGp51Connected(true);
+        
+        // Start session monitoring for valid sessions
+        const { sessionHealthMonitor } = await import('@/services/gp51/sessionHealthMonitor');
+        sessionHealthMonitor.startMonitoring();
       }
     } else {
       setGp51Connected(false);
+      
+      // Stop session monitoring when user logs out
+      const { sessionHealthMonitor } = await import('@/services/gp51/sessionHealthMonitor');
+      sessionHealthMonitor.stopMonitoring();
     }
   };
 
@@ -129,6 +143,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const result = await enhancedGP51SessionManager.authenticateAndPersist(username, password);
     if (result.success) {
       setGp51Connected(true);
+      
+      // Start session monitoring for new connections
+      const { sessionHealthMonitor } = await import('@/services/gp51/sessionHealthMonitor');
+      sessionHealthMonitor.startMonitoring();
     }
     return result;
   };
@@ -136,6 +154,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const disconnectGP51 = async (): Promise<void> => {
     await enhancedGP51SessionManager.clearSession();
     setGp51Connected(false);
+    
+    // Stop session monitoring when disconnecting
+    const { sessionHealthMonitor } = await import('@/services/gp51/sessionHealthMonitor');
+    sessionHealthMonitor.stopMonitoring();
   };
 
   useEffect(() => {
@@ -271,6 +293,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    // Stop GP51 services before signing out
+    const { sessionHealthMonitor } = await import('@/services/gp51/sessionHealthMonitor');
+    const { realTimePositionService } = await import('@/services/gp51/realTimePositionService');
+    
+    sessionHealthMonitor.stopMonitoring();
+    realTimePositionService.stopPolling();
+    
     await enhancedGP51SessionManager.clearSession();
     await supabase.auth.signOut();
     setUser(null);
