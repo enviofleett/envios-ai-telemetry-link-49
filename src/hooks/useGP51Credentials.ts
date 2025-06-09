@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -92,9 +93,12 @@ export const useGP51Credentials = () => {
       setPassword('');
       setApiUrl('');
       
+      // Type-safe access to data properties
+      const responseData = data as { message?: string; success?: boolean };
+      
       toast({ 
         title: 'GP51 Credentials Saved',
-        description: data?.message || `Successfully connected to GP51! Session will be used for vehicle data synchronization.`
+        description: responseData?.message || `Successfully connected to GP51! Session will be used for vehicle data synchronization.`
       });
 
       // Force session health check and clear any cached data
