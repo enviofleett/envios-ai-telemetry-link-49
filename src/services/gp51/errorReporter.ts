@@ -6,7 +6,7 @@ export interface GP51ErrorReport {
   message: string;
   details?: any;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  timestamp: Date;
+  timestamp?: Date; // Made optional since it's added automatically
   username?: string;
   endpoint?: string;
   stackTrace?: string;
@@ -31,7 +31,7 @@ export class GP51ErrorReporter {
     this.errorQueue.push({
       ...error,
       stackTrace: error.stackTrace || new Error().stack,
-      timestamp: new Date()
+      timestamp: error.timestamp || new Date() // Add timestamp if not provided
     });
 
     // Process queue if not already processing
