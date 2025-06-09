@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -22,13 +23,17 @@ import {
   Fuel,
   Wrench,
   ShoppingCart,
-  Activity
+  Activity,
+  TestTube,
+  TrendingUp
 } from 'lucide-react';
 import type { EnhancedVehicle, ReportType } from '@/types/enhancedVehicle';
 import { convertToEnhancedVehicle } from '@/utils/trackingDataGenerator';
 import { VehicleAnalyticsModal } from '@/components/tracking/VehicleAnalyticsModal';
 import { ReportGenerationModal } from '@/components/tracking/ReportGenerationModal';
 import SyncMonitoringDashboard from '@/components/monitoring/SyncMonitoringDashboard';
+import SystemHealthDashboard from '@/components/testing/SystemHealthDashboard';
+import PerformanceMetrics from '@/components/testing/PerformanceMetrics';
 import DataFreshnessIndicator from '@/components/tracking/DataFreshnessIndicator';
 
 const reportTypes: ReportType[] = [
@@ -212,9 +217,11 @@ const EnhancedLiveTracking: React.FC = () => {
 
           {/* Main Content Tabs */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="overview">Fleet Overview</TabsTrigger>
               <TabsTrigger value="monitoring">System Monitoring</TabsTrigger>
+              <TabsTrigger value="performance">Performance</TabsTrigger>
+              <TabsTrigger value="testing">System Health</TabsTrigger>
               <TabsTrigger value="reports">Reports</TabsTrigger>
             </TabsList>
 
@@ -316,7 +323,7 @@ const EnhancedLiveTracking: React.FC = () => {
                   </CardContent>
                 </Card>
 
-                {/* Vehicle List */}
+                {/* Enhanced Vehicle List */}
                 <Card>
                   <CardHeader>
                     <CardTitle>Vehicle List</CardTitle>
@@ -349,7 +356,7 @@ const EnhancedLiveTracking: React.FC = () => {
                         </Select>
                       </div>
 
-                      {/* Vehicle Cards */}
+                      {/* Enhanced Vehicle Cards with Data Freshness */}
                       <div className="space-y-2 max-h-[300px] overflow-y-auto">
                         {filteredVehicles.map((vehicle) => (
                           <div
@@ -404,6 +411,40 @@ const EnhancedLiveTracking: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                   <SyncMonitoringDashboard />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="performance" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Performance Analytics
+                  </CardTitle>
+                  <CardDescription>
+                    Detailed performance metrics and optimization insights
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PerformanceMetrics />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="testing" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TestTube className="h-5 w-5" />
+                    System Health & Testing
+                  </CardTitle>
+                  <CardDescription>
+                    End-to-end pipeline testing and system health monitoring
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SystemHealthDashboard />
                 </CardContent>
               </Card>
             </TabsContent>
