@@ -9,6 +9,15 @@ export interface EnhancedSessionResult {
   lastValidated: Date;
 }
 
+export interface SessionValidationResult {
+  valid: boolean;
+  error?: string;
+  username?: string;
+  expiresAt?: string;
+  token?: string;
+  session?: any;
+}
+
 export interface SessionCache {
   result: EnhancedSessionResult | null;
   lastValidation: Date | null;

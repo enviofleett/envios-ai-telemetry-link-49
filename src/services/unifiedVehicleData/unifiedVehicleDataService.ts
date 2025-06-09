@@ -1,7 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { vehiclePositionSyncService } from '../vehiclePosition/vehiclePositionSyncService';
-import type { Vehicle } from '../unifiedVehicleData';
+import type { Vehicle, VehicleMetrics, SyncMetrics } from './types';
 
 interface DataMetrics {
   totalVehicles: number;
@@ -22,6 +22,7 @@ export class UnifiedVehicleDataService {
     syncStatus: 'success'
   };
   private listeners: Set<() => void> = new Set();
+  private ready = false;
 
   static getInstance(): UnifiedVehicleDataService {
     if (!UnifiedVehicleDataService.instance) {
@@ -39,6 +40,7 @@ export class UnifiedVehicleDataService {
     
     // Load initial data
     await this.loadVehiclesFromDatabase();
+    this.ready = true;
     
     // Start position sync service
     vehiclePositionSyncService.startPeriodicSync();
@@ -102,8 +104,10 @@ export class UnifiedVehicleDataService {
     return {
       deviceid: dbVehicle.device_id,
       devicename: dbVehicle.device_name,
-      plateNumber: dbVehicle.device_name, // Use device name as plate number fallback
+      plateNumber: dbVehicle.device_name,
       status,
+      is_active: dbVehicle.is_active || true,
+      envio_user_id: dbVehicle.envio_user_id,
       lastPosition: lastPosition ? {
         lat: lastPosition.lat,
         lon: lastPosition.lon,
@@ -139,7 +143,12 @@ export class UnifiedVehicleDataService {
     }
   }
 
+  // Public API methods
   getVehicles(): Vehicle[] {
+    return [...this.vehicles];
+  }
+
+  getAllVehicles(): Vehicle[] {
     return [...this.vehicles];
   }
 
@@ -147,8 +156,47 @@ export class UnifiedVehicleDataService {
     return { ...this.metrics };
   }
 
+  getVehicleMetrics(): VehicleMetrics {
+    return {
+      total: this.metrics.totalVehicles,
+      online: this.metrics.onlineVehicles,
+      offline: this.metrics.offlineVehicles,
+      alerts: 0, // TODO: implement alerts counting
+      lastUpdateTime: this.metrics.lastSyncTime
+    };
+  }
+
+  getSyncMetrics(): SyncMetrics {
+    return {
+      totalVehicles: this.metrics.totalVehicles,
+      positionsUpdated: this.metrics.onlineVehicles,
+      errors: 0, // TODO: implement error counting
+      lastSyncTime: this.metrics.lastSyncTime
+    };
+  }
+
   getVehicleById(deviceId: string): Vehicle | undefined {
     return this.vehicles.find(v => v.deviceid === deviceId);
+  }
+
+  getOnlineVehicles(): Vehicle[] {
+    return this.vehicles.filter(v => v.status === 'online' || v.status === 'moving');
+  }
+
+  getOfflineVehicles(): Vehicle[] {
+    return this.vehicles.filter(v => v.status === 'offline');
+  }
+
+  getVehiclesWithAlerts(): Vehicle[] {
+    return this.vehicles.filter(v => v.status?.toLowerCase().includes('alert') || v.status?.toLowerCase().includes('alarm'));
+  }
+
+  isReady(): boolean {
+    return this.ready;
+  }
+
+  async forceSync(): Promise<void> {
+    await this.refreshData();
   }
 
   subscribe(callback: () => void): () => void {
@@ -171,6 +219,7 @@ export class UnifiedVehicleDataService {
   destroy(): void {
     vehiclePositionSyncService.destroy();
     this.listeners.clear();
+    this.ready = false;
   }
 }
 

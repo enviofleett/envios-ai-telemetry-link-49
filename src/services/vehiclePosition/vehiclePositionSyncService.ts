@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { gp51SessionValidator } from './sessionValidator';
 
@@ -15,11 +14,34 @@ interface SyncResult {
   message: string;
 }
 
+interface SyncProgress {
+  total: number;
+  processed: number;
+  errors: number;
+  percentage: number;
+}
+
+interface SyncMetrics {
+  totalSyncs: number;
+  successfulSyncs: number;
+  failedSyncs: number;
+  lastSyncTime: Date;
+  averageLatency: number;
+}
+
 export class VehiclePositionSyncService {
   private static instance: VehiclePositionSyncService;
   private syncInterval: NodeJS.Timeout | null = null;
   private isSyncing = false;
   private listeners: Set<(status: string) => void> = new Set();
+  private syncProgress: SyncProgress = { total: 0, processed: 0, errors: 0, percentage: 0 };
+  private syncMetrics: SyncMetrics = {
+    totalSyncs: 0,
+    successfulSyncs: 0,
+    failedSyncs: 0,
+    lastSyncTime: new Date(),
+    averageLatency: 0
+  };
 
   static getInstance(): VehiclePositionSyncService {
     if (!VehiclePositionSyncService.instance) {
@@ -58,8 +80,11 @@ export class VehiclePositionSyncService {
 
     this.isSyncing = true;
     this.notifyListeners('syncing');
+    const startTime = Date.now();
 
     try {
+      this.syncMetrics.totalSyncs++;
+
       // Validate GP51 session
       console.log('Ensuring valid GP51 session...');
       const sessionResult = await gp51SessionValidator.ensureValidSession();
@@ -87,10 +112,12 @@ export class VehiclePositionSyncService {
       if (!vehicles || vehicles.length === 0) {
         console.log('No active vehicles found for position sync');
         this.notifyListeners('success');
+        this.syncMetrics.successfulSyncs++;
         return { success: true, updatedCount: 0, errorCount: 0, message: 'No active vehicles found' };
       }
 
       console.log(`Syncing positions for ${vehicles.length} active vehicles...`);
+      this.syncProgress = { total: vehicles.length, processed: 0, errors: 0, percentage: 0 };
 
       // Fetch positions from GP51
       const deviceIds = vehicles.map(v => v.device_id).filter(Boolean);
@@ -147,14 +174,29 @@ export class VehiclePositionSyncService {
           } else {
             updatedCount++;
           }
+
+          this.syncProgress.processed++;
+          this.syncProgress.percentage = Math.round((this.syncProgress.processed / this.syncProgress.total) * 100);
+
         } catch (positionError) {
           console.error(`Error processing position for ${position.deviceid}:`, positionError);
           errorCount++;
+          this.syncProgress.errors++;
         }
       }
 
+      const latency = Date.now() - startTime;
+      this.syncMetrics.averageLatency = (this.syncMetrics.averageLatency + latency) / 2;
+      this.syncMetrics.lastSyncTime = new Date();
+
       const message = `Updated ${updatedCount} vehicles, ${errorCount} errors`;
       console.log(`✅ Position sync completed: ${message}`);
+      
+      if (errorCount === 0) {
+        this.syncMetrics.successfulSyncs++;
+      } else {
+        this.syncMetrics.failedSyncs++;
+      }
       
       this.notifyListeners(errorCount > 0 ? 'partial' : 'success');
       return { success: true, updatedCount, errorCount, message };
@@ -163,6 +205,7 @@ export class VehiclePositionSyncService {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error('Active vehicle position sync failed:', error);
       
+      this.syncMetrics.failedSyncs++;
       this.notifyListeners('failed');
       return { success: false, updatedCount: 0, errorCount: 1, message: errorMessage };
     } finally {
@@ -212,6 +255,14 @@ export class VehiclePositionSyncService {
   async forceSync(): Promise<SyncResult> {
     console.log('🔄 Force syncing vehicle positions...');
     return await this.syncActiveVehiclePositions();
+  }
+
+  getSyncProgress(): SyncProgress {
+    return { ...this.syncProgress };
+  }
+
+  getMetrics(): SyncMetrics {
+    return { ...this.syncMetrics };
   }
 
   subscribeToStatus(callback: (status: string) => void): () => void {
