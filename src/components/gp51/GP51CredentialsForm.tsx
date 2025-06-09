@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useGP51Credentials } from '@/hooks/useGP51Credentials';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, CheckCircle, AlertCircle, Settings, TestTube, Shield } from 'lucide-react';
+import { gp51SessionManager } from '@/services/gp51/sessionManager';
+import { gp51ErrorReporter } from '@/services/gp51/errorReporter';
 
 interface GP51CredentialsFormProps {
   onConnectionChange?: (connected: boolean) => void;
@@ -51,18 +52,30 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
     setTestResult(null);
     
     try {
-      // Real connection test via backend
+      console.log('🧪 Starting real GP51 connection test...');
+      
+      // Real connection test via backend with test-only mode
       const { data, error } = await supabase.functions.invoke('settings-management', {
         body: { 
           action: 'save-gp51-credentials',
           username: username.trim(),
           password: password.trim(),
           apiUrl: apiUrl?.trim() || undefined,
-          testOnly: true // Add flag for test-only mode
+          testOnly: true
         }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Connection test failed:', error);
+        gp51ErrorReporter.reportError({
+          type: 'connectivity',
+          message: 'GP51 connection test failed',
+          details: error,
+          severity: 'high',
+          username: username.trim()
+        });
+        throw error;
+      }
       
       const success = data.success || false;
       
@@ -73,14 +86,39 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
           : data.error || 'Connection test failed. Please verify your credentials and API URL.'
       });
       
-      toast({
-        title: success ? "Connection Test Successful" : "Connection Test Failed",
-        description: success 
-          ? "GP51 API connection is working properly" 
-          : data.error || "Failed to connect to GP51 API. Please check your credentials.",
-        variant: success ? "default" : "destructive"
-      });
+      if (success) {
+        console.log('✅ GP51 connection test successful');
+        toast({
+          title: "Connection Test Successful",
+          description: "GP51 API connection is working properly",
+        });
+      } else {
+        console.error('❌ GP51 connection test failed:', data.error);
+        gp51ErrorReporter.reportError({
+          type: 'authentication',
+          message: 'GP51 authentication failed during test',
+          details: data,
+          severity: 'medium',
+          username: username.trim()
+        });
+        
+        toast({
+          title: "Connection Test Failed",
+          description: data.error || "Failed to connect to GP51 API. Please check your credentials.",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
+      console.error('❌ Connection test exception:', error);
+      
+      gp51ErrorReporter.reportError({
+        type: 'api',
+        message: 'Connection test API call failed',
+        details: error,
+        severity: 'high',
+        username: username.trim()
+      });
+      
       setTestResult({
         success: false,
         message: 'Connection test error: ' + (error instanceof Error ? error.message : 'Unknown error')
@@ -107,13 +145,30 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
     }
 
     try {
+      console.log('💾 Saving GP51 credentials...');
       await handleSaveCredentials();
+      
+      // Clear session cache to force fresh validation
+      gp51SessionManager.clearCache();
+      
       onConnectionChange?.(true);
       setTestResult({
         success: true,
         message: 'GP51 credentials saved successfully and connection established!'
       });
+      
+      console.log('✅ GP51 credentials saved successfully');
     } catch (error) {
+      console.error('❌ Failed to save credentials:', error);
+      
+      gp51ErrorReporter.reportError({
+        type: 'api',
+        message: 'Failed to save GP51 credentials',
+        details: error,
+        severity: 'high',
+        username: username.trim()
+      });
+      
       setTestResult({
         success: false,
         message: 'Failed to save credentials: ' + (error instanceof Error ? error.message : 'Unknown error')
