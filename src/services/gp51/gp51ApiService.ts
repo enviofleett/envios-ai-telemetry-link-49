@@ -1,5 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { crossBrowserMD5 } from './crossBrowserMD5';
 
 interface GP51AuthResponse {
   status: number;
@@ -107,19 +107,12 @@ export class GP51ApiService {
     this.baseUrl = baseUrl.replace(/\/webapi\/?$/, '');
   }
 
-  private async hashMD5(text: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    const hashBuffer = await crypto.subtle.digest('MD5', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-
   async authenticate(username: string, password: string): Promise<{ success: boolean; token?: string; error?: string }> {
     try {
       console.log(`GP51 authentication attempt for user: ${username}`);
       
-      const hashedPassword = await this.hashMD5(password);
+      // Use cross-browser MD5 implementation
+      const hashedPassword = await crossBrowserMD5(password);
       
       const authUrl = `${this.baseUrl}/webapi?action=login&token=`;
       const authData = {

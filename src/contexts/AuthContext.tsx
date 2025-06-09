@@ -1,16 +1,20 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { PackageMappingService } from '@/services/packageMappingService';
+import { enhancedGP51SessionManager } from '@/services/gp51/enhancedGP51SessionManager';
 
 interface AuthContextType {
   user: any | null;
   userRole: string | null;
   isAdmin: boolean;
   loading: boolean;
+  gp51Connected: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, name: string, packageId?: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshUserRole: () => Promise<void>;
+  connectGP51: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  disconnectGP51: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -18,10 +22,13 @@ const AuthContext = createContext<AuthContextType>({
   userRole: null,
   isAdmin: false,
   loading: true,
+  gp51Connected: false,
   signIn: async () => ({ error: null }),
   signUp: async () => ({ error: null }),
   signOut: async () => {},
   refreshUserRole: async () => {},
+  connectGP51: async () => ({ success: false }),
+  disconnectGP51: async () => {},
 });
 
 export const useAuth = () => {
@@ -36,12 +43,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<any | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [gp51Connected, setGp51Connected] = useState(false);
 
   const fetchUserRole = async (authUserId: string) => {
     try {
       console.log('Fetching role for auth user ID:', authUserId);
       
-      // Use the RPC function to get user role directly with auth user ID
       const { data: roleData, error: roleError } = await supabase
         .rpc('get_user_role', { _user_id: authUserId });
 
@@ -53,50 +60,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('No role found or error:', roleError);
       
-      // If no role found, ensure user has envio_users record and default role
-      const { data: authUser } = await supabase.auth.getUser();
-      if (authUser.user) {
-        // Check if envio_users record exists
-        const { data: envioUser, error: envioError } = await supabase
-          .from('envio_users')
-          .select('id')
-          .eq('id', authUserId)
-          .single();
-        
-        if (envioError && envioError.code === 'PGRST116') {
-          // Create envio_users record with auth user ID
-          console.log('Creating envio_users record for auth user:', authUserId);
-          await supabase
+      if (authUserId) {
+        const { data: authUser } = await supabase.auth.getUser();
+        if (authUser.user) {
+          const { data: envioUser, error: envioError } = await supabase
             .from('envio_users')
-            .insert({
-              id: authUserId,
-              name: authUser.user.email?.split('@')[0] || 'User',
-              email: authUser.user.email || ''
-            });
-        }
+            .select('id')
+            .eq('id', authUserId)
+            .single();
+          
+          if (envioError && envioError.code === 'PGRST116') {
+            console.log('Creating envio_users record for auth user:', authUserId);
+            await supabase
+              .from('envio_users')
+              .insert({
+                id: authUserId,
+                name: authUser.user.email?.split('@')[0] || 'User',
+                email: authUser.user.email || ''
+              });
+          }
 
-        // Ensure user_roles record exists with auth user ID
-        const { data: existingRole } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', authUserId)
-          .single();
-
-        if (!existingRole) {
-          console.log('Creating default user role for auth user:', authUserId);
-          await supabase
+          const { data: existingRole } = await supabase
             .from('user_roles')
-            .insert({
-              user_id: authUserId,
-              role: 'user' as any
-            });
-        }
+            .select('role')
+            .eq('user_id', authUserId)
+            .single();
 
-        setUserRole(existingRole?.role || 'user');
+          if (!existingRole) {
+            console.log('Creating default user role for auth user:', authUserId);
+            await supabase
+              .from('user_roles')
+              .insert({
+                user_id: authUserId,
+                role: 'user' as any
+              });
+          }
+
+          setUserRole(existingRole?.role || 'user');
+        }
       }
     } catch (error) {
       console.error('Error in fetchUserRole:', error);
-      setUserRole('user'); // Default to user role
+      setUserRole('user');
+    }
+  };
+
+  const checkGP51Connection = async () => {
+    if (user) {
+      const isValid = enhancedGP51SessionManager.isSessionValid();
+      if (!isValid) {
+        const restored = await enhancedGP51SessionManager.restoreSession();
+        setGp51Connected(restored);
+      } else {
+        setGp51Connected(true);
+      }
+    } else {
+      setGp51Connected(false);
     }
   };
 
@@ -106,33 +125,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const connectGP51 = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const result = await enhancedGP51SessionManager.authenticateAndPersist(username, password);
+    if (result.success) {
+      setGp51Connected(true);
+    }
+    return result;
+  };
+
+  const disconnectGP51 = async (): Promise<void> => {
+    await enhancedGP51SessionManager.clearSession();
+    setGp51Connected(false);
+  };
+
   useEffect(() => {
-    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.id);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Use auth user ID directly for role operations
           setTimeout(() => {
             fetchUserRole(session.user.id);
+            checkGP51Connection();
           }, 0);
         } else {
           setUserRole(null);
+          setGp51Connected(false);
         }
         
         setLoading(false);
       }
     );
 
-    // Check for existing session and immediately refresh role
     supabase.auth.getSession().then(({ data: { session } }) => {
       console.log('Initial session check:', session?.user?.id);
       setUser(session?.user ?? null);
       if (session?.user) {
-        // Force refresh the role to get the latest admin status
         fetchUserRole(session.user.id);
+        checkGP51Connection();
       }
       setLoading(false);
     });
@@ -140,10 +171,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  // Auto-refresh role when component mounts to pick up the admin promotion
   useEffect(() => {
     if (user && !loading) {
       refreshUserRole();
+      checkGP51Connection();
     }
   }, [user, loading]);
 
@@ -155,13 +186,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, name: string, packageId: string = 'basic') => {
     const redirectUrl = `${window.location.origin}/`;
     
-    // Validate package
     const packageValidation = PackageMappingService.validatePackage(packageId);
     if (!packageValidation.isValid) {
       return { error: { message: packageValidation.error } };
     }
 
-    // Get package mapping
     const gp51UserType = PackageMappingService.getGP51UserType(packageId);
     const envioRole = PackageMappingService.getEnvioRole(packageId);
     const requiresApproval = PackageMappingService.requiresApproval(packageId);
@@ -176,7 +205,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     if (!error && data.user) {
       try {
-        // Create envio_users record with package info
         console.log('Creating envio_users record for new user with package:', packageId);
         await supabase
           .from('envio_users')
@@ -189,8 +217,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             registration_type: 'package_registration'
           });
 
-        // Create user role based on package
-        const finalRole = requiresApproval ? 'user' : envioRole; // Start as user until admin approval for enterprise
+        const finalRole = requiresApproval ? 'user' : envioRole;
         await supabase
           .from('user_roles')
           .insert({
@@ -198,9 +225,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             role: finalRole as any
           });
 
-        // Create user subscription for the package
         try {
-          // First check if we have subscriber packages in the database
           const { data: existingPackages } = await supabase
             .from('subscriber_packages')
             .select('id, package_name')
@@ -225,10 +250,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (subscriptionError) {
           console.error('Failed to create user subscription:', subscriptionError);
-          // Don't fail the registration if subscription creation fails
         }
 
-        // If enterprise package, create admin request record
         if (requiresApproval) {
           await supabase
             .from('admin_role_requests' as any)
@@ -241,7 +264,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (dbError) {
         console.error('Failed to create user records:', dbError);
-        // Continue with auth creation even if database operations fail
       }
     }
     
@@ -249,9 +271,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signOut = async () => {
+    await enhancedGP51SessionManager.clearSession();
     await supabase.auth.signOut();
     setUser(null);
     setUserRole(null);
+    setGp51Connected(false);
   };
 
   const value = {
@@ -259,10 +283,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userRole,
     isAdmin: userRole === 'admin',
     loading,
+    gp51Connected,
     signIn,
     signUp,
     signOut,
     refreshUserRole,
+    connectGP51,
+    disconnectGP51,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
