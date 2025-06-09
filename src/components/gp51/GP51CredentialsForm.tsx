@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useGP51Credentials } from '@/hooks/useGP51Credentials';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, CheckCircle, AlertCircle, Settings, TestTube, Shield } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, Settings, TestTube, Shield, Monitor } from 'lucide-react';
 import { gp51SessionManager } from '@/services/gp51/sessionManager';
 import { gp51ErrorReporter } from '@/services/gp51/errorReporter';
+import { gp51ConnectionMonitor, ConnectionStatus } from '@/services/gp51/connectionMonitor';
+import { ValidationFeedback } from './ValidationFeedback';
 
 interface GP51CredentialsFormProps {
   onConnectionChange?: (connected: boolean) => void;
@@ -20,10 +22,12 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
   onConnectionChange
 }) => {
   const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    success: boolean;
-    message: string;
+  const [validationResult, setValidationResult] = useState<{
+    success?: boolean;
+    message?: string;
+    error?: any;
   } | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
   
   const { toast } = useToast();
   
@@ -38,23 +42,45 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
     isLoading
   } = useGP51Credentials();
 
+  // Subscribe to connection monitoring
+  useEffect(() => {
+    const unsubscribe = gp51ConnectionMonitor.subscribeToStatus((status) => {
+      setConnectionStatus(status);
+    });
+
+    // Start monitoring
+    gp51ConnectionMonitor.startMonitoring();
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   const handleTestConnection = async () => {
     if (!username || !password) {
-      toast({
-        title: 'Missing Information',
-        description: 'Please provide both username and password to test the connection',
-        variant: 'destructive'
+      setValidationResult({
+        error: {
+          code: 'GP51_VALIDATION_ERROR',
+          message: 'Missing Information',
+          details: 'Please provide both username and password to test the connection',
+          suggestions: [
+            'Enter your GP51 username',
+            'Enter your GP51 password',
+            'Verify credentials are correct'
+          ],
+          category: 'validation',
+          severity: 'medium'
+        }
       });
       return;
     }
 
     setIsTestingConnection(true);
-    setTestResult(null);
+    setValidationResult(null);
     
     try {
       console.log('🧪 Starting real GP51 connection test...');
       
-      // Real connection test via backend with test-only mode
       const { data, error } = await supabase.functions.invoke('settings-management', {
         body: { 
           action: 'save-gp51-credentials',
@@ -77,34 +103,29 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
         throw error;
       }
       
-      const success = data.success || false;
-      
-      setTestResult({
-        success,
-        message: success 
-          ? 'GP51 API connection test successful! Ready to save credentials.' 
-          : data.error || 'Connection test failed. Please verify your credentials and API URL.'
-      });
-      
-      if (success) {
+      if (data.success) {
         console.log('✅ GP51 connection test successful');
+        setValidationResult({
+          success: true,
+          message: 'GP51 API connection test successful! Ready to save credentials.'
+        });
+        
         toast({
           title: "Connection Test Successful",
           description: "GP51 API connection is working properly",
         });
+
+        // Trigger connection monitoring update
+        gp51ConnectionMonitor.performConnectionCheck();
       } else {
-        console.error('❌ GP51 connection test failed:', data.error);
-        gp51ErrorReporter.reportError({
-          type: 'authentication',
-          message: 'GP51 authentication failed during test',
-          details: data,
-          severity: 'medium',
-          username: username.trim()
+        console.error('❌ GP51 connection test failed:', data);
+        setValidationResult({
+          error: data // Backend now returns detailed error information
         });
         
         toast({
           title: "Connection Test Failed",
-          description: data.error || "Failed to connect to GP51 API. Please check your credentials.",
+          description: data.details || "Failed to connect to GP51 API",
           variant: "destructive"
         });
       }
@@ -119,9 +140,20 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
         username: username.trim()
       });
       
-      setTestResult({
-        success: false,
-        message: 'Connection test error: ' + (error instanceof Error ? error.message : 'Unknown error')
+      setValidationResult({
+        error: {
+          code: 'GP51_TEST_ERROR',
+          message: 'Connection test error',
+          details: error instanceof Error ? error.message : 'An unexpected error occurred during connection testing',
+          suggestions: [
+            'Check your internet connection',
+            'Verify GP51 credentials',
+            'Try again in a few moments',
+            'Contact support if the issue persists'
+          ],
+          category: 'api',
+          severity: 'high'
+        }
       });
       
       toast({
@@ -136,10 +168,18 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
 
   const handleFormSubmit = async () => {
     if (!username || !password) {
-      toast({
-        title: 'Missing Information',
-        description: 'Please provide both username and password',
-        variant: 'destructive'
+      setValidationResult({
+        error: {
+          code: 'GP51_VALIDATION_ERROR',
+          message: 'Missing Information',
+          details: 'Please provide both username and password',
+          suggestions: [
+            'Enter your GP51 username',
+            'Enter your GP51 password'
+          ],
+          category: 'validation',
+          severity: 'medium'
+        }
       });
       return;
     }
@@ -152,10 +192,13 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
       gp51SessionManager.clearCache();
       
       onConnectionChange?.(true);
-      setTestResult({
+      setValidationResult({
         success: true,
         message: 'GP51 credentials saved successfully and connection established!'
       });
+      
+      // Trigger connection monitoring update
+      gp51ConnectionMonitor.performConnectionCheck();
       
       console.log('✅ GP51 credentials saved successfully');
     } catch (error) {
@@ -169,26 +212,67 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
         username: username.trim()
       });
       
-      setTestResult({
-        success: false,
-        message: 'Failed to save credentials: ' + (error instanceof Error ? error.message : 'Unknown error')
+      setValidationResult({
+        error: {
+          code: 'GP51_SAVE_ERROR',
+          message: 'Failed to save credentials',
+          details: error instanceof Error ? error.message : 'An unexpected error occurred while saving credentials',
+          suggestions: [
+            'Try the save operation again',
+            'Check your internet connection',
+            'Verify all credentials are correct',
+            'Contact support if the issue persists'
+          ],
+          category: 'api',
+          severity: 'high'
+        }
       });
     }
   };
 
+  const handleSuggestionClick = async (suggestion: string) => {
+    if (suggestion.includes('legacy URL') || suggestion.includes('https://www.gps51.com')) {
+      setApiUrl('https://www.gps51.com');
+      toast({
+        title: "URL Updated",
+        description: "Set to legacy GP51 URL. You can now test the connection.",
+      });
+    } else if (suggestion.includes('Try again') || suggestion.includes('retry')) {
+      if (validationResult?.error?.category === 'api') {
+        await handleTestConnection();
+      } else {
+        await handleFormSubmit();
+      }
+    }
+  };
+
   const getConnectionStatusBadge = () => {
-    if (testResult?.success) {
+    if (connectionStatus?.isConnected) {
       return (
         <Badge className="bg-green-100 text-green-800">
           <CheckCircle className="h-3 w-3 mr-1" />
           Connected
         </Badge>
       );
-    } else if (testResult?.success === false) {
+    } else if (connectionStatus?.consecutiveFailures > 0) {
       return (
         <Badge variant="destructive">
           <AlertCircle className="h-3 w-3 mr-1" />
-          Connection Failed
+          Connection Issues
+        </Badge>
+      );
+    } else if (validationResult?.success) {
+      return (
+        <Badge className="bg-green-100 text-green-800">
+          <CheckCircle className="h-3 w-3 mr-1" />
+          Test Successful
+        </Badge>
+      );
+    } else if (validationResult?.error) {
+      return (
+        <Badge variant="destructive">
+          <AlertCircle className="h-3 w-3 mr-1" />
+          Test Failed
         </Badge>
       );
     } else {
@@ -211,25 +295,35 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
               GP51 API Credentials
             </CardTitle>
             <CardDescription>
-              Configure your GP51 tracking system credentials with secure backend storage
+              Configure your GP51 tracking system credentials with enhanced error handling
             </CardDescription>
           </div>
-          {getConnectionStatusBadge()}
+          <div className="flex items-center gap-2">
+            {getConnectionStatusBadge()}
+            {connectionStatus && (
+              <Badge variant="outline" className="text-xs">
+                <Monitor className="h-3 w-3 mr-1" />
+                Monitored
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {testResult && (
-          <Alert variant={testResult.success ? "default" : "destructive"}>
-            {testResult.success ? (
-              <CheckCircle className="h-4 w-4" />
-            ) : (
-              <AlertCircle className="h-4 w-4" />
-            )}
-            <AlertDescription>
-              {testResult.message}
-            </AlertDescription>
-          </Alert>
-        )}
+        <ValidationFeedback
+          error={validationResult?.error}
+          success={validationResult?.success}
+          successMessage={validationResult?.message}
+          isLoading={isTestingConnection || isLoading}
+          onRetry={() => {
+            if (validationResult?.error?.category === 'api') {
+              handleTestConnection();
+            } else {
+              handleFormSubmit();
+            }
+          }}
+          onSuggestionClick={handleSuggestionClick}
+        />
 
         <div className="grid gap-4">
           <div className="space-y-2">
@@ -307,13 +401,16 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
             </Button>
           </div>
 
-          <Alert>
-            <Shield className="h-4 w-4" />
-            <AlertDescription>
-              Your GP51 credentials are encrypted and stored securely. The system will automatically 
-              manage sessions and handle authentication for vehicle data synchronization.
-            </AlertDescription>
-          </Alert>
+          {connectionStatus && connectionStatus.consecutiveFailures > 0 && (
+            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                <strong>Connection Issues Detected:</strong> {connectionStatus.consecutiveFailures} consecutive failures
+              </p>
+              <p className="text-xs text-yellow-700 mt-1">
+                Last error: {connectionStatus.currentError}
+              </p>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

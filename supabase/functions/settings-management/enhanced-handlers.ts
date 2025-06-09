@@ -2,6 +2,7 @@
 import { authenticateWithGP51 } from './gp51-auth.ts';
 import { saveGP51Session, getGP51Status } from './database.ts';
 import { createResponse } from './cors.ts';
+import { GP51ErrorHandler } from './error-handling.ts';
 import type { GP51Credentials } from './types.ts';
 
 export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Credentials & { apiUrl?: string; testOnly?: boolean }) {
@@ -11,16 +12,24 @@ export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Cr
   
   console.log(`Enhanced GP51 credentials save request for user: ${trimmedUsername}, testOnly: ${credentials.testOnly || false}`);
   
+  // Input validation with detailed feedback
   if (!trimmedUsername || !trimmedPassword) {
-    console.error('Missing credentials: username or password not provided');
-    return createResponse(
-      { 
-        success: false,
-        error: 'Username and password are required',
-        details: 'Both username and password must be provided for GP51 authentication'
-      },
-      400
+    const validationError = GP51ErrorHandler.createDetailedError(
+      new Error('Missing required credentials'),
+      { providedUsername: !!trimmedUsername, providedPassword: !!trimmedPassword }
     );
+    validationError.code = 'GP51_VALIDATION_ERROR';
+    validationError.category = 'validation';
+    validationError.details = 'Both username and password are required for GP51 authentication.';
+    validationError.suggestions = [
+      'Enter your GP51 username',
+      'Enter your GP51 password',
+      'Ensure no extra spaces in credentials',
+      'Verify credentials with your GP51 administrator'
+    ];
+    
+    GP51ErrorHandler.logError(validationError);
+    return createResponse(GP51ErrorHandler.formatErrorForClient(validationError), 400);
   }
 
   try {
@@ -40,7 +49,12 @@ export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Cr
         message: 'GP51 connection test successful!',
         username: authResult.username,
         apiUrl: authResult.apiUrl,
-        testMode: true
+        testMode: true,
+        connectionDetails: {
+          authenticatedAt: new Date().toISOString(),
+          responseTime: 'Connected successfully',
+          apiEndpoint: authResult.apiUrl
+        }
       });
     }
 
@@ -54,28 +68,35 @@ export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Cr
       username: authResult.username,
       apiUrl: authResult.apiUrl,
       sessionId: sessionData?.id,
-      tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      connectionDetails: {
+        connectedAt: new Date().toISOString(),
+        sessionCreated: true,
+        apiEndpoint: authResult.apiUrl
+      }
     });
 
   } catch (error) {
     console.error('GP51 credential validation failed:', error);
     
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-    const statusCode = getErrorStatusCode(errorMessage);
-    
-    return createResponse({
-      success: false,
-      error: getErrorTitle(errorMessage),
-      details: getErrorDetails(errorMessage, trimmedUsername),
+    const detailedError = GP51ErrorHandler.createDetailedError(error, {
       username: trimmedUsername,
       apiUrl: trimmedApiUrl,
-      timestamp: new Date().toISOString()
-    }, statusCode);
+      testOnly: credentials.testOnly
+    });
+    
+    GP51ErrorHandler.logError(detailedError, { 
+      operation: 'credential_validation',
+      userAgent: 'settings-management-function'
+    });
+    
+    const statusCode = getErrorStatusCode(detailedError.category, detailedError.severity);
+    return createResponse(GP51ErrorHandler.formatErrorForClient(detailedError), statusCode);
   }
 }
 
 export async function handleHealthCheck() {
-  console.log('Performing GP51 health check...');
+  console.log('Performing comprehensive GP51 health check...');
   
   try {
     const status = await getGP51Status();
@@ -87,67 +108,76 @@ export async function handleHealthCheck() {
       checks: {
         database: true,
         gp51Connection: status.connected || false,
-        sessionValid: status.connected && !status.error
-      }
+        sessionValid: status.connected && !status.error,
+        apiReachable: false // Will be updated by connection test
+      },
+      performance: {
+        responseTime: null,
+        lastSuccessfulConnection: status.lastConnected || null
+      },
+      recommendations: []
     };
+
+    // Add recommendations based on status
+    if (!status.connected) {
+      healthData.recommendations.push(
+        'Configure GP51 credentials in Settings',
+        'Verify GP51 API URL is correct',
+        'Test connection manually'
+      );
+    }
+
+    if (status.error) {
+      healthData.recommendations.push(
+        'Check error details in connection logs',
+        'Verify GP51 service availability',
+        'Review authentication credentials'
+      );
+    }
 
     console.log('Health check completed:', healthData);
     
     return createResponse({
       success: true,
       health: healthData,
-      connected: status.connected || false
+      connected: status.connected || false,
+      message: status.connected ? 'GP51 system is healthy' : 'GP51 requires attention'
     });
 
   } catch (error) {
     console.error('Health check failed:', error);
     
+    const detailedError = GP51ErrorHandler.createDetailedError(error, {
+      operation: 'health_check'
+    });
+    
+    GP51ErrorHandler.logError(detailedError);
+    
     return createResponse({
       success: false,
-      error: 'Health check failed',
-      details: error instanceof Error ? error.message : 'Unknown health check error',
-      timestamp: new Date().toISOString()
+      health: {
+        timestamp: new Date().toISOString(),
+        systemHealth: 'degraded',
+        error: detailedError.message,
+        recommendations: detailedError.suggestions
+      },
+      ...GP51ErrorHandler.formatErrorForClient(detailedError)
     }, 500);
   }
 }
 
-function getErrorStatusCode(errorMessage: string): number {
-  if (errorMessage.includes('Network error') || errorMessage.includes('connection')) {
-    return 503; // Service Unavailable
-  } else if (errorMessage.includes('authentication failed') || errorMessage.includes('Invalid')) {
-    return 401; // Unauthorized
-  } else if (errorMessage.includes('URL format') || errorMessage.includes('required')) {
-    return 400; // Bad Request
-  } else if (errorMessage.includes('API returned')) {
-    return 502; // Bad Gateway
+function getErrorStatusCode(category: string, severity: string): number {
+  switch (category) {
+    case 'network':
+      return 503; // Service Unavailable
+    case 'authentication':
+      return 401; // Unauthorized
+    case 'configuration':
+    case 'validation':
+      return 400; // Bad Request
+    case 'api':
+      return severity === 'critical' ? 503 : 502; // Service Unavailable or Bad Gateway
+    default:
+      return 500; // Internal Server Error
   }
-  return 500; // Internal Server Error
-}
-
-function getErrorTitle(errorMessage: string): string {
-  if (errorMessage.includes('Network error')) {
-    return 'GP51 Connection Failed';
-  } else if (errorMessage.includes('authentication failed')) {
-    return 'Authentication Failed';
-  } else if (errorMessage.includes('URL format')) {
-    return 'GP51 API Configuration Error';
-  } else if (errorMessage.includes('API returned')) {
-    return 'GP51 API Response Error';
-  }
-  return 'GP51 Connection Failed';
-}
-
-function getErrorDetails(errorMessage: string, username?: string): string {
-  if (errorMessage.includes('Network error connecting to GP51 API')) {
-    return 'Unable to connect to GP51 API. Please check if the GP51 API URL is correct and accessible. Try using "https://www.gps51.com/webapi" if you\'re unsure of the correct URL.';
-  } else if (errorMessage.includes('Invalid GP51 API URL format')) {
-    return 'The GP51 API URL format is invalid. Please provide a valid GP51 API URL (e.g., https://www.gps51.com/webapi or https://api.gps51.com).';
-  } else if (errorMessage.includes('GP51 API returned an empty response')) {
-    return 'The GP51 API returned an invalid or empty response. Please check the GP51 API URL configuration and try again.';
-  } else if (errorMessage.includes('GP51 authentication failed')) {
-    return `Invalid GP51 username or password for user "${username}". Please verify your credentials and try again.`;
-  } else if (errorMessage.includes('All GP51 authentication methods failed')) {
-    return 'Could not connect to GP51 using any known API endpoints. Please verify your API URL is correct or try the legacy URL: https://www.gps51.com/webapi';
-  }
-  return errorMessage;
 }
