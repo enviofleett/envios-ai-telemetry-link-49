@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Navigation, Maximize2, Filter } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import StabilizedMapProvider from '@/components/map/StabilizedMapProvider';
+import SimpleMapPlaceholder from '@/components/map/SimpleMapPlaceholder';
 import { useStableVehicleData } from '@/hooks/useStableVehicleData';
 import { useNavigate } from 'react-router-dom';
 import type { Vehicle } from '@/services/unifiedVehicleData';
@@ -119,12 +119,10 @@ const FleetMapWidget: React.FC = () => {
           </div>
         </div>
 
-        <StabilizedMapProvider
+        <SimpleMapPlaceholder
           vehicles={vehicles}
-          onVehicleSelect={handleVehicleSelect}
           height="300px"
-          enableClustering={true}
-          className="rounded-lg"
+          title="Fleet Map Coming Soon"
         />
       </CardContent>
     </Card>
