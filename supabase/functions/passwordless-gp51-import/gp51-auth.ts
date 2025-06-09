@@ -1,4 +1,5 @@
-export async function authenticateGP51(credentials: { username: string; password: string }): Promise<string> {
+
+export async function authenticateGP51(credentials: { username: string; password: string }, apiUrl?: string): Promise<string> {
   const md5Hash = await hashMD5(credentials.password);
   
   const authData = {
@@ -7,11 +8,19 @@ export async function authenticateGP51(credentials: { username: string; password
     password: md5Hash
   };
 
-  console.log(`Authenticating admin ${credentials.username} with GP51...`);
+  console.log(`Authenticating admin ${credentials.username} with GP51 using API URL: ${apiUrl}...`);
 
-  // Standardized GP51 API endpoint
-  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
-  const response = await fetch(`${GP51_API_BASE}/webapi?action=login&token=`, {
+  // Use provided API URL or fallback to environment variable or default
+  const GP51_API_BASE = apiUrl || Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+  
+  // Ensure proper URL format
+  const apiEndpoint = GP51_API_BASE.endsWith('/webapi') ? 
+    `${GP51_API_BASE}?action=login&token=` : 
+    `${GP51_API_BASE}/webapi?action=login&token=`;
+    
+  console.log(`Using GP51 API endpoint: ${apiEndpoint.replace('?action=login&token=', '?action=login&token=[REDACTED]')}`);
+
+  const response = await fetch(apiEndpoint, {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
@@ -30,7 +39,7 @@ export async function authenticateGP51(credentials: { username: string; password
   
   // Standardized success check - GP51 uses status: 0 for success
   if (result.status === 0 && result.token) {
-    console.log(`Successfully authenticated admin ${credentials.username}`);
+    console.log(`Successfully authenticated admin ${credentials.username} using API: ${GP51_API_BASE}`);
     return result.token;
   }
 

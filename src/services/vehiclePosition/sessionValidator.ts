@@ -1,175 +1,144 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
-interface GP51Session {
-  id: string;
-  username: string;
-  gp51_token: string;
-  token_expires_at: string;
-  created_at: string;
-  updated_at: string;
-}
-
 interface SessionValidationResult {
   valid: boolean;
-  session?: GP51Session;
-  error?: string;
+  token?: string;
+  username?: string;
   expiresAt?: string;
+  apiUrl?: string;
+  error?: string;
 }
 
-export class GP51SessionValidator {
-  private lastValidationTime = 0;
-  private lastValidationResult: SessionValidationResult | null = null;
-  private readonly VALIDATION_CACHE_MS = 30000; // 30 seconds
+class GP51SessionValidator {
+  private cache: { result: SessionValidationResult; timestamp: number } | null = null;
+  private readonly CACHE_DURATION = 30000; // 30 seconds
 
-  async validateGP51Session(): Promise<SessionValidationResult> {
-    const now = Date.now();
+  async ensureValidSession(): Promise<SessionValidationResult> {
+    console.log('🔍 GP51SessionValidator: Ensuring valid session...');
     
-    // Return cached result if recent
-    if (this.lastValidationResult && (now - this.lastValidationTime) < this.VALIDATION_CACHE_MS) {
-      return this.lastValidationResult;
+    // Check cache first
+    if (this.cache && (Date.now() - this.cache.timestamp) < this.CACHE_DURATION) {
+      console.log('✅ Using cached session validation result');
+      return this.cache.result;
     }
 
-    console.log('Validating GP51 session...');
-
     try {
-      // Get all sessions, ordered by creation time
+      // Get the most recent valid session
       const { data: sessions, error } = await supabase
         .from('gp51_sessions')
-        .select('*')
+        .select('username, gp51_token, token_expires_at, api_url')
         .order('created_at', { ascending: false })
-        .limit(10);
+        .order('token_expires_at', { ascending: false })
+        .limit(5);
 
       if (error) {
-        console.error('Database error fetching sessions:', error);
-        const result = { valid: false, error: 'Database error fetching sessions' };
-        this.cacheResult(result);
+        console.error('❌ Database error fetching GP51 sessions:', error);
+        const result = { valid: false, error: 'Database error accessing GP51 sessions' };
+        this.updateCache(result);
         return result;
       }
 
       if (!sessions || sessions.length === 0) {
-        console.log('No GP51 sessions found in database');
-        const result = { valid: false, error: 'No GP51 sessions found' };
-        this.cacheResult(result);
+        console.warn('⚠️ No GP51 sessions found in database');
+        const result = { valid: false, error: 'No GP51 sessions configured' };
+        this.updateCache(result);
         return result;
       }
 
-      console.log(`Found ${sessions.length} GP51 sessions, checking for valid ones...`);
-
-      // Check each session for validity
+      // Find the first non-expired session
+      const now = new Date();
+      let validSession = null;
+      
       for (const session of sessions) {
         const expiresAt = new Date(session.token_expires_at);
-        const hoursUntilExpiry = (expiresAt.getTime() - Date.now()) / (1000 * 60 * 60);
-        
-        console.log(`Checking session for ${session.username}: expires at ${expiresAt.toISOString()}, ${hoursUntilExpiry.toFixed(2)} hours from now`);
-
-        if (expiresAt > new Date()) {
-          console.log(`✅ Found valid GP51 session for username: ${session.username}`);
-          
-          // Test the session with GP51 API
-          console.log('Testing GP51 session connectivity...');
-          
-          try {
-            const { data: testResult } = await supabase.functions.invoke('gp51-service-management', {
-              body: { action: 'test_connection' }
-            });
-
-            if (testResult && testResult.success) {
-              console.log('✅ GP51 session connectivity test passed');
-              const result = { 
-                valid: true, 
-                session, 
-                expiresAt: session.token_expires_at 
-              };
-              this.cacheResult(result);
-              return result;
-            } else {
-              console.warn(`Session for ${session.username} failed connectivity test:`, testResult?.error);
-              continue; // Try next session
-            }
-          } catch (testError) {
-            console.warn(`Session for ${session.username} token appears expired despite valid timestamp`);
-            continue; // Try next session
-          }
-        } else {
-          console.log(`Session for ${session.username} is expired`);
+        if (expiresAt > now) {
+          validSession = session;
+          break;
         }
       }
 
-      // No valid sessions found
-      const latestSession = sessions[0];
-      const errorMessage = `No valid GP51 sessions found. Latest session: ${latestSession.username} expired at ${latestSession.token_expires_at}`;
-      console.error(errorMessage);
+      if (!validSession) {
+        console.warn('⚠️ All GP51 sessions are expired');
+        const result = { valid: false, error: 'All GP51 sessions expired' };
+        this.updateCache(result);
+        return result;
+      }
+
+      console.log(`✅ Valid GP51 session found for user: ${validSession.username} with API URL: ${validSession.api_url}`);
       
-      const result = { valid: false, error: errorMessage };
-      this.cacheResult(result);
+      const result = {
+        valid: true,
+        token: validSession.gp51_token,
+        username: validSession.username,
+        expiresAt: validSession.token_expires_at,
+        apiUrl: validSession.api_url || 'https://www.gps51.com'
+      };
+      
+      this.updateCache(result);
       return result;
 
     } catch (error) {
-      console.error('Error validating GP51 session:', error);
-      const result = { 
-        valid: false, 
-        error: error instanceof Error ? error.message : 'Unknown error during session validation' 
-      };
-      this.cacheResult(result);
+      console.error('❌ Exception in ensureValidSession:', error);
+      const result = { valid: false, error: `Session validation failed: ${error.message}` };
+      this.updateCache(result);
       return result;
     }
   }
 
-  async refreshGP51Session(): Promise<SessionValidationResult> {
-    console.log('Attempting to refresh GP51 session...');
-    
-    // Clear cache to force fresh validation
-    this.lastValidationResult = null;
-    this.lastValidationTime = 0;
-    
-    const validationResult = await this.validateGP51Session();
-    
-    if (!validationResult.valid) {
-      console.error('Failed to refresh GP51 session:', validationResult.error);
-      return { valid: false, error: 'Service returned failure' };
-    }
-
-    // Try to refresh the session token with GP51
-    try {
-      const { data: refreshResult } = await supabase.functions.invoke('gp51-service-management', {
-        body: { action: 'refresh_session' }
-      });
-
-      if (refreshResult && refreshResult.status === 0) {
-        console.log('✅ GP51 session refreshed successfully');
-        return validationResult;
-      } else {
-        console.warn('GP51 session refresh returned non-success status:', refreshResult);
-        return validationResult; // Return the original valid session anyway
-      }
-    } catch (refreshError) {
-      console.warn('GP51 session refresh failed, but session is still valid:', refreshError);
-      return validationResult; // Return the original valid session anyway
-    }
-  }
-
-  async ensureValidSession(): Promise<SessionValidationResult> {
-    console.log('Ensuring valid GP51 session...');
-    
-    const validationResult = await this.validateGP51Session();
-    
-    if (validationResult.valid) {
-      return validationResult;
-    }
-
-    console.log('No valid session found, attempting refresh...');
-    return await this.refreshGP51Session();
-  }
-
-  private cacheResult(result: SessionValidationResult): void {
-    this.lastValidationResult = result;
-    this.lastValidationTime = Date.now();
+  private updateCache(result: SessionValidationResult): void {
+    this.cache = {
+      result,
+      timestamp: Date.now()
+    };
   }
 
   clearCache(): void {
-    this.lastValidationResult = null;
-    this.lastValidationTime = 0;
+    this.cache = null;
+    console.log('🧹 GP51SessionValidator cache cleared');
+  }
+
+  async testConnection(): Promise<{ success: boolean; error?: string; apiUrl?: string }> {
+    console.log('🔧 Testing GP51 connection...');
+    
+    try {
+      const sessionResult = await this.ensureValidSession();
+      
+      if (!sessionResult.valid) {
+        return { 
+          success: false, 
+          error: sessionResult.error || 'No valid session available'
+        };
+      }
+
+      // Test connection using the session's API URL
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: { action: 'test_connection' }
+      });
+      
+      if (error) {
+        console.error('❌ GP51 connection test failed:', error);
+        return { 
+          success: false, 
+          error: error.message,
+          apiUrl: sessionResult.apiUrl
+        };
+      }
+      
+      console.log('✅ GP51 connection test successful');
+      return { 
+        success: data?.success || false, 
+        error: data?.error,
+        apiUrl: data?.apiUrl || sessionResult.apiUrl
+      };
+      
+    } catch (error) {
+      console.error('❌ Exception during connection test:', error);
+      return { 
+        success: false, 
+        error: `Connection test failed: ${error.message}`
+      };
+    }
   }
 }
 

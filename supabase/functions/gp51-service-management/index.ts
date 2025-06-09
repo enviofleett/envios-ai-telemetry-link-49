@@ -35,7 +35,7 @@ serve(async (req) => {
       
       const { data: sessions, error: sessionError } = await supabase
         .from('gp51_sessions')
-        .select('username, gp51_token, token_expires_at')
+        .select('username, gp51_token, token_expires_at, api_url')
         .order('created_at', { ascending: false })
         .order('token_expires_at', { ascending: false })
         .limit(1);
@@ -68,18 +68,19 @@ serve(async (req) => {
         );
       }
 
-      console.log('GP51 connection test successful for user:', latestSession.username);
+      console.log('GP51 connection test successful for user:', latestSession.username, 'using API URL:', latestSession.api_url);
       return new Response(
         JSON.stringify({ 
           success: true, 
           username: latestSession.username,
-          expiresAt: latestSession.token_expires_at
+          expiresAt: latestSession.token_expires_at,
+          apiUrl: latestSession.api_url
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get the most recent valid GP51 session
+    // Get the most recent valid GP51 session WITH API URL
     const { data: sessions, error: sessionError } = await supabase
       .from('gp51_sessions')
       .select('*')
@@ -115,13 +116,15 @@ serve(async (req) => {
       );
     }
 
-    console.log('Using GP51 session for user:', validSession.username);
+    console.log('Using GP51 session for user:', validSession.username, 'with API URL:', validSession.api_url);
     const token = validSession.gp51_token;
 
-    // Use the correct GP51 API base URL - www.gps51.com not api.gps51.com
-    const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    // Use the API URL from the session instead of environment variable
+    const GP51_API_BASE = validSession.api_url || 'https://www.gps51.com';
     
-    // Construct the API URL properly
+    console.log('GP51 API Base URL from session:', GP51_API_BASE);
+    
+    // Construct the API URL properly using the session's API URL
     let apiUrl;
     if (GP51_API_BASE.endsWith('/webapi')) {
       apiUrl = `${GP51_API_BASE}?action=${action}&token=${encodeURIComponent(token)}`;

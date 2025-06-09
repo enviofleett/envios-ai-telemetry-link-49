@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { gp51SessionValidator } from './sessionValidator';
 
@@ -98,15 +99,15 @@ export class VehiclePositionSyncService {
     try {
       this.syncMetrics.totalSyncs++;
 
-      // Validate GP51 session
-      console.log('Ensuring valid GP51 session...');
+      // Validate GP51 session and get API URL
+      console.log('Ensuring valid GP51 session with API URL...');
       const sessionResult = await gp51SessionValidator.ensureValidSession();
       
       if (!sessionResult.valid) {
         throw new Error(`GP51 session validation failed: ${sessionResult.error}`);
       }
 
-      console.log('✅ GP51 session validated, fetching active vehicles...');
+      console.log('✅ GP51 session validated with API URL:', sessionResult.apiUrl, 'fetching active vehicles...');
 
       // Get active vehicles (updated within last 2 hours to include recently active ones)
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
@@ -132,7 +133,7 @@ export class VehiclePositionSyncService {
         return { success: true, updatedCount: 0, errorCount: 0, message: 'No active vehicles found' };
       }
 
-      console.log(`Syncing positions for ${vehicles.length} active vehicles...`);
+      console.log(`Syncing positions for ${vehicles.length} active vehicles using API URL: ${sessionResult.apiUrl}...`);
       this.syncProgress = { 
         total: vehicles.length, 
         processed: 0, 
@@ -144,7 +145,7 @@ export class VehiclePositionSyncService {
         totalVehicles: vehicles.length
       };
 
-      // Fetch positions from GP51
+      // Fetch positions from GP51 using the session's API URL
       const deviceIds = vehicles.map(v => v.device_id).filter(Boolean);
       
       if (deviceIds.length === 0) {
@@ -168,7 +169,7 @@ export class VehiclePositionSyncService {
       }
 
       const positions = positionResult?.records || [];
-      console.log(`Received ${positions.length} position records from GP51`);
+      console.log(`Received ${positions.length} position records from GP51 API: ${sessionResult.apiUrl}`);
 
       let updatedCount = 0;
       let errorCount = 0;
@@ -220,7 +221,7 @@ export class VehiclePositionSyncService {
       this.syncMetrics.averageLatency = (this.syncMetrics.averageLatency + latency) / 2;
       this.syncMetrics.lastSyncTime = new Date();
 
-      const message = `Updated ${updatedCount} vehicles, ${errorCount} errors`;
+      const message = `Updated ${updatedCount} vehicles, ${errorCount} errors using API: ${sessionResult.apiUrl}`;
       console.log(`✅ Position sync completed: ${message}`);
       
       if (errorCount === 0) {

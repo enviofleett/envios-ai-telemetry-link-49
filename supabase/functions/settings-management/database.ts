@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 export async function saveGP51Session(username: string, token: string, apiUrl?: string, userId?: string) {
@@ -15,7 +14,7 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
   expiresAt.setHours(expiresAt.getHours() + 24);
 
   try {
-    console.log('Saving GP51 session for user:', trimmedUsername, 'with userId:', userId);
+    console.log('Saving GP51 session for user:', trimmedUsername, 'with API URL:', apiUrl, 'userId:', userId);
     
     const sessionData: any = {
       username: trimmedUsername,
@@ -25,10 +24,8 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
       updated_at: new Date().toISOString()
     };
 
-    // Add API URL if provided and working
-    if (apiUrl) {
-      sessionData.api_url = apiUrl;
-    }
+    // Always store the API URL - use provided URL or fallback to default
+    sessionData.api_url = apiUrl?.trim() || 'https://www.gps51.com';
 
     // Add user ID if provided for proper linking
     if (userId) {
@@ -59,7 +56,7 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
       }
     }
 
-    console.log('GP51 session saved successfully for user:', trimmedUsername, 'ID:', data?.id, 'linked to user:', data?.envio_user_id);
+    console.log('GP51 session saved successfully for user:', trimmedUsername, 'ID:', data?.id, 'linked to user:', data?.envio_user_id, 'API URL:', data?.api_url);
     return data;
 
   } catch (error) {
