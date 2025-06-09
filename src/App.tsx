@@ -16,83 +16,94 @@ import Maintenance from "./pages/Maintenance";
 import WorkshopManagement from "./pages/WorkshopManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
+import { useState } from "react";
 
-const queryClient = new QueryClient();
+const App = () => {
+  // Create QueryClient inside component to avoid hook issues
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        retry: 1,
+      },
+    },
+  }));
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            
-            {/* Main dashboard route */}
-            <Route path="/" element={
-              <ProtectedRoute>
-                <Index />
-              </ProtectedRoute>
-            } />
-            
-            {/* Settings route */}
-            <Route path="/settings" element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            } />
-            
-            {/* Active Services route */}
-            <Route path="/services" element={
-              <ProtectedRoute>
-                <ActiveServices />
-              </ProtectedRoute>
-            } />
-            
-            {/* Maintenance route */}
-            <Route path="/maintenance" element={
-              <ProtectedRoute>
-                <Maintenance />
-              </ProtectedRoute>
-            } />
-            
-            {/* Workshop Management route */}
-            <Route path="/workshop-management" element={
-              <ProtectedRoute>
-                <WorkshopManagement />
-              </ProtectedRoute>
-            } />
-            
-            {/* Tracking routes */}
-            <Route path="/tracking" element={
-              <ProtectedRoute>
-                <LiveTracking />
-              </ProtectedRoute>
-            } />
-            
-            <Route path="/enhanced-tracking" element={
-              <ProtectedRoute>
-                <EnhancedLiveTracking />
-              </ProtectedRoute>
-            } />
-            
-            {/* Dynamic routes from nav-items */}
-            {navItems.map(({ to, page }) => (
-              <Route key={to} path={to} element={
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              
+              {/* Main dashboard route */}
+              <Route path="/" element={
                 <ProtectedRoute>
-                  {page}
+                  <Index />
                 </ProtectedRoute>
               } />
-            ))}
-            
-            {/* Catch all route for 404 */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </AuthProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+              
+              {/* Settings route */}
+              <Route path="/settings" element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              } />
+              
+              {/* Active Services route */}
+              <Route path="/services" element={
+                <ProtectedRoute>
+                  <ActiveServices />
+                </ProtectedRoute>
+              } />
+              
+              {/* Maintenance route */}
+              <Route path="/maintenance" element={
+                <ProtectedRoute>
+                  <Maintenance />
+                </ProtectedRoute>
+              } />
+              
+              {/* Workshop Management route */}
+              <Route path="/workshop-management" element={
+                <ProtectedRoute>
+                  <WorkshopManagement />
+                </ProtectedRoute>
+              } />
+              
+              {/* Tracking routes */}
+              <Route path="/tracking" element={
+                <ProtectedRoute>
+                  <LiveTracking />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/enhanced-tracking" element={
+                <ProtectedRoute>
+                  <EnhancedLiveTracking />
+                </ProtectedRoute>
+              } />
+              
+              {/* Dynamic routes from nav-items */}
+              {navItems.map(({ to, page }) => (
+                <Route key={to} path={to} element={
+                  <ProtectedRoute>
+                    {page}
+                  </ProtectedRoute>
+                } />
+              ))}
+              
+              {/* Catch all route for 404 */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
