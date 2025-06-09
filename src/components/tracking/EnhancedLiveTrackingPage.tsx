@@ -6,11 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
-import { Search, Filter, RefreshCw, Wifi, WifiOff, Car, MapPin, BarChart3 } from 'lucide-react';
+import { useCommandPalette } from '@/hooks/useCommandPalette';
+import { Search, Filter, RefreshCw, Wifi, WifiOff, Car, MapPin, BarChart3, Command } from 'lucide-react';
 import LiveMapAndVehicleList from './LiveMapAndVehicleList';
 import VehicleStatusCard from './VehicleStatusCard';
 import VehicleStatisticsModal from './VehicleStatisticsModal';
 import VehicleProfileTab from './VehicleProfileTab';
+import CommandPalette from './CommandPalette';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 const EnhancedLiveTrackingPage: React.FC = () => {
@@ -29,6 +31,13 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     isRefreshing,
     forceRefresh
   } = useUnifiedVehicleData();
+
+  const {
+    isOpen: isCommandOpen,
+    open: openCommand,
+    close: closeCommand,
+    navigate
+  } = useCommandPalette();
 
   // Mock user role - in real implementation, this would come from auth
   const userRole = 'admin'; // 'admin', 'fleet_manager', 'user'
@@ -154,6 +163,13 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     }
   };
 
+  const handleExport = () => {
+    toast({
+      title: 'Export Started',
+      description: 'Fleet data export has been initiated. Download will start shortly.'
+    });
+  };
+
   const filteredVehicles = vehicles.filter(vehicle => {
     const matchesSearch = vehicle.devicename.toLowerCase().includes(searchTerm.toLowerCase()) || vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase());
     if (statusFilter === 'all') return matchesSearch;
@@ -175,13 +191,28 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          
-          
+          <h1 className="text-3xl font-bold">Live Tracking</h1>
+          <p className="text-sm text-muted-foreground">
+            Real-time vehicle location monitoring and fleet tracking
+          </p>
         </div>
-        <Button onClick={forceRefresh} disabled={isRefreshing} className="flex items-center gap-2">
-          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={openCommand}
+            className="flex items-center gap-2"
+          >
+            <Command className="h-4 w-4" />
+            Command
+            <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              ⌘K
+            </kbd>
+          </Button>
+          <Button onClick={forceRefresh} disabled={isRefreshing} className="flex items-center gap-2">
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+          </Button>
+        </div>
       </div>
 
       {/* Real-Time Statistics */}
@@ -222,19 +253,33 @@ const EnhancedLiveTrackingPage: React.FC = () => {
         </Card>
       </div>
 
-      {/* Search and Filters */}
+      {/* Enhanced Search and Filters */}
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input placeholder="Search vehicles by name or device ID..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
+              <Input 
+                placeholder="Search vehicles or press ⌘K for quick commands..." 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)}
+                onFocus={openCommand}
+                className="pl-10" 
+              />
             </div>
             <div className="flex gap-2">
-              {['all', 'online', 'offline'].map(status => <Button key={status} variant={statusFilter === status ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(status as any)} className="flex items-center gap-2">
+              {['all', 'online', 'offline'].map(status => 
+                <Button 
+                  key={status} 
+                  variant={statusFilter === status ? 'default' : 'outline'} 
+                  size="sm" 
+                  onClick={() => setStatusFilter(status as any)} 
+                  className="flex items-center gap-2"
+                >
                   <Filter className="h-3 w-3" />
                   {status.charAt(0).toUpperCase() + status.slice(1)}
-                </Button>)}
+                </Button>
+              )}
             </div>
           </div>
         </CardContent>
@@ -270,6 +315,17 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       <VehicleStatisticsModal isOpen={showOnlineModal} onClose={() => setShowOnlineModal(false)} title="Online Vehicles" vehicles={vehicles} statusType="online" />
 
       <VehicleStatisticsModal isOpen={showOfflineModal} onClose={() => setShowOfflineModal(false)} title="Offline Vehicles" vehicles={vehicles} statusType="offline" />
+
+      {/* Command Palette */}
+      <CommandPalette
+        isOpen={isCommandOpen}
+        onClose={closeCommand}
+        vehicles={vehicles}
+        onVehicleSelect={handleVehicleSelect}
+        onRefresh={forceRefresh}
+        onExport={handleExport}
+        onNavigate={navigate}
+      />
     </div>;
 };
 
