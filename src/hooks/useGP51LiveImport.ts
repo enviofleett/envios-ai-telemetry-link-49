@@ -211,12 +211,16 @@ export const useGP51LiveImport = () => {
 
       setLiveData(fetchedData);
       
-      // Update config with all available IDs by default and fix deviceTypes type
+      // Update config with all available IDs by default and properly type deviceTypes
+      const uniqueDeviceTypes: number[] = Array.from(
+        new Set(devices.map(d => parseInt(String(d.devicetype), 10)).filter(type => !isNaN(type)))
+      );
+
       setImportConfig(prev => ({
         ...prev,
         selectedUserIds: users.map(u => u.username),
         selectedDeviceIds: devices.map(d => d.deviceid),
-        deviceTypes: [...new Set(devices.map(d => Number(d.devicetype)))] // Ensure numbers
+        deviceTypes: uniqueDeviceTypes
       }));
 
       toast({
