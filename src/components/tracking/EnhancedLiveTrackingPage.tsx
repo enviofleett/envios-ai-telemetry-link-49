@@ -130,13 +130,13 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     }
   };
 
-  const handleWorkshopAssign = async (vehicleId: string, workshopId: string) => {
+  const handleWorkshopAssign = async (vehicleId: string) => {
     try {
       // Mock API call - in real implementation, this would save to database
       await new Promise(resolve => setTimeout(resolve, 1000));
       toast({
         title: 'Workshop Assigned',
-        description: `Vehicle ${vehicleId} has been assigned to the selected workshop.`
+        description: `Vehicle ${vehicleId} has been assigned to a workshop.`
       });
     } catch (error) {
       toast({
@@ -147,16 +147,13 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     }
   };
 
-  const handleReportGenerate = async (vehicleId: string, reportType: string, dateRange: {
-    from: Date;
-    to: Date;
-  }) => {
+  const handleReportGenerate = async (vehicleId: string) => {
     try {
       // Mock API call - in real implementation, this would generate and download report
       await new Promise(resolve => setTimeout(resolve, 2000));
       toast({
         title: 'Report Generated',
-        description: `${reportType} report for vehicle ${vehicleId} has been generated and will be downloaded shortly.`
+        description: `Report for vehicle ${vehicleId} has been generated and will be downloaded shortly.`
       });
     } catch (error) {
       toast({
