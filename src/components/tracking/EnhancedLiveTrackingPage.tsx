@@ -1,264 +1,319 @@
+
 import React, { useState } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
-import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
-import { Search, Filter, RefreshCw, Wifi, WifiOff, Car, MapPin, BarChart3 } from 'lucide-react';
-import LiveMapAndVehicleList from './LiveMapAndVehicleList';
-import VehicleStatusCard from './VehicleStatusCard';
-import VehicleStatisticsModal from './VehicleStatisticsModal';
-import VehicleProfileTab from './VehicleProfileTab';
+import { Navigation, Map, Route, Shield, Search, Settings } from 'lucide-react';
+import UniversalMapWidget from '@/components/map/UniversalMapWidget';
+import RouteVisualization from '@/components/map/RouteVisualization';
+import GeofenceManager from '@/components/map/GeofenceManager';
+import MapSearchPanel from '@/components/map/MapSearchPanel';
+import LiveTrackingContent from './LiveTrackingContent';
+import { useStableVehicleData } from '@/hooks/useStableVehicleData';
 import type { Vehicle } from '@/services/unifiedVehicleData';
-const EnhancedLiveTrackingPage: React.FC = () => {
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
-  const [showOnlineModal, setShowOnlineModal] = useState(false);
-  const [showOfflineModal, setShowOfflineModal] = useState(false);
-  const [isEngineControlLoading, setIsEngineControlLoading] = useState(false);
-  const {
-    toast
-  } = useToast();
-  const {
-    vehicles,
-    metrics,
-    isLoading,
-    isRefreshing,
-    forceRefresh
-  } = useUnifiedVehicleData();
 
-  // Mock user role - in real implementation, this would come from auth
-  const userRole = 'admin'; // 'admin', 'fleet_manager', 'user'
-  const canControlEngine = userRole === 'admin' || userRole === 'fleet_manager';
-  const getVehicleStatus = (vehicle: Vehicle) => {
-    if (!vehicle.lastPosition?.updatetime) return 'offline';
-    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
-    const now = new Date();
-    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-    if (minutesSinceUpdate <= 5) return 'online';
-    if (minutesSinceUpdate <= 30) return 'idle';
-    return 'offline';
-  };
-  const getStatistics = () => {
-    const onlineVehicles = vehicles.filter(v => getVehicleStatus(v) === 'online');
-    const offlineVehicles = vehicles.filter(v => getVehicleStatus(v) === 'offline');
-    return {
-      online: onlineVehicles.length,
-      offline: offlineVehicles.length,
-      total: vehicles.length
-    };
-  };
-  const statistics = getStatistics();
+const EnhancedLiveTrackingPage: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('live-tracking');
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [viewMode, setViewMode] = useState<'cards' | 'map'>('map');
+  const [mapFilters, setMapFilters] = useState({
+    search: '',
+    status: 'all' as 'all' | 'online' | 'offline' | 'alerts',
+    user: 'all'
+  });
+
+  const { vehicles, allVehicles, isLoading } = useStableVehicleData(mapFilters);
+
   const handleVehicleSelect = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     console.log('Vehicle selected:', vehicle);
   };
-  const handleEngineShutdown = async (vehicleId: string) => {
-    if (!canControlEngine) {
-      toast({
-        title: 'Access Denied',
-        description: 'You do not have permission to control vehicle engines.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    setIsEngineControlLoading(true);
-    try {
-      // Mock API call - in real implementation, this would call GP51 API
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast({
-        title: 'Engine Shutdown Initiated',
-        description: `Vehicle ${vehicleId} engine shutdown command sent successfully.`
-      });
-    } catch (error) {
-      toast({
-        title: 'Engine Control Failed',
-        description: 'Failed to send engine shutdown command. Please try again.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsEngineControlLoading(false);
-    }
+
+  const handleLocationSelect = (location: any) => {
+    console.log('Location selected:', location);
+    // TODO: Center map on selected location
   };
-  const handleEngineEnable = async (vehicleId: string) => {
-    if (!canControlEngine) {
-      toast({
-        title: 'Access Denied',
-        description: 'You do not have permission to control vehicle engines.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    setIsEngineControlLoading(true);
-    try {
-      // Mock API call - in real implementation, this would call GP51 API
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast({
-        title: 'Engine Enable Initiated',
-        description: `Vehicle ${vehicleId} engine enable command sent successfully.`
-      });
-    } catch (error) {
-      toast({
-        title: 'Engine Control Failed',
-        description: 'Failed to send engine enable command. Please try again.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsEngineControlLoading(false);
-    }
+
+  const handleNavigateToLocation = (location: any) => {
+    console.log('Navigate to location:', location);
+    // TODO: Start navigation to location
   };
-  const handleWorkshopAssign = async (vehicleId: string, workshopId: string) => {
-    try {
-      // Mock API call - in real implementation, this would save to database
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      toast({
-        title: 'Workshop Assigned',
-        description: `Vehicle ${vehicleId} has been assigned to the selected workshop.`
-      });
-    } catch (error) {
-      toast({
-        title: 'Assignment Failed',
-        description: 'Failed to assign workshop. Please try again.',
-        variant: 'destructive'
-      });
+
+  // Mock route data for demonstration
+  const mockRouteData = selectedVehicle ? {
+    vehicleId: selectedVehicle.deviceid,
+    vehicleName: selectedVehicle.devicename,
+    startTime: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    endTime: new Date().toISOString(),
+    totalDistance: 15420, // meters
+    totalDuration: 87, // minutes
+    averageSpeed: 45,
+    maxSpeed: 78,
+    points: [
+      {
+        lat: -26.2041,
+        lon: 28.0473,
+        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+        speed: 0,
+        address: "Starting Point"
+      },
+      {
+        lat: -26.1950,
+        lon: 28.0536,
+        timestamp: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+        speed: 45,
+        address: "Midway Point"
+      },
+      {
+        lat: -26.1867,
+        lon: 28.0601,
+        timestamp: new Date().toISOString(),
+        speed: 0,
+        address: "Current Location"
+      }
+    ]
+  } : undefined;
+
+  // Mock geofence zones
+  const mockGeofenceZones = [
+    {
+      id: '1',
+      name: 'Office Complex',
+      type: 'circular' as const,
+      center: { lat: -26.2041, lon: 28.0473 },
+      radius: 500,
+      alertType: 'both' as const,
+      isActive: true,
+      createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+      triggeredCount: 23
+    },
+    {
+      id: '2',
+      name: 'Warehouse District',
+      type: 'circular' as const,
+      center: { lat: -26.1950, lon: 28.0536 },
+      radius: 800,
+      alertType: 'entry' as const,
+      isActive: true,
+      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      triggeredCount: 12
+    },
+    {
+      id: '3',
+      name: 'Restricted Area',
+      type: 'circular' as const,
+      center: { lat: -26.1867, lon: 28.0601 },
+      radius: 300,
+      alertType: 'both' as const,
+      isActive: false,
+      createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      triggeredCount: 5
     }
+  ];
+
+  const getStatusCounts = () => {
+    return allVehicles.reduce((acc, vehicle) => {
+      if (!vehicle.lastPosition?.updatetime) {
+        acc.offline++;
+        return acc;
+      }
+      
+      const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+      const now = new Date();
+      const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+      
+      if (minutesSinceUpdate <= 5) {
+        acc.online++;
+      } else if (minutesSinceUpdate <= 30) {
+        acc.idle++;
+      } else {
+        acc.offline++;
+      }
+      
+      return acc;
+    }, { online: 0, idle: 0, offline: 0 });
   };
-  const handleReportGenerate = async (vehicleId: string, reportType: string, dateRange: {
-    from: Date;
-    to: Date;
-  }) => {
-    try {
-      // Mock API call - in real implementation, this would generate and download report
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast({
-        title: 'Report Generated',
-        description: `${reportType} report for vehicle ${vehicleId} has been generated and will be downloaded shortly.`
-      });
-    } catch (error) {
-      toast({
-        title: 'Report Generation Failed',
-        description: 'Failed to generate report. Please try again.',
-        variant: 'destructive'
-      });
-    }
-  };
-  const filteredVehicles = vehicles.filter(vehicle => {
-    const matchesSearch = vehicle.devicename.toLowerCase().includes(searchTerm.toLowerCase()) || vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase());
-    if (statusFilter === 'all') return matchesSearch;
-    const vehicleStatus = getVehicleStatus(vehicle);
-    const statusMatch = statusFilter === 'online' ? vehicleStatus === 'online' : vehicleStatus === 'offline';
-    return matchesSearch && statusMatch;
-  });
-  if (isLoading) {
-    return <div className="space-y-6 animate-pulse">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>)}
-        </div>
-        <div className="h-96 bg-gray-200 rounded-lg"></div>
-      </div>;
-  }
-  return <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+
+  const statusCounts = getStatusCounts();
+
+  return (
+    <div className="space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          
-          
+          <h1 className="text-2xl font-bold">Enhanced Live Tracking</h1>
+          <p className="text-muted-foreground">
+            Comprehensive fleet monitoring with maps, routes, and geofencing
+          </p>
         </div>
-        <Button onClick={forceRefresh} disabled={isRefreshing} className="flex items-center gap-2">
-          <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          {isRefreshing ? 'Refreshing...' : 'Refresh'}
-        </Button>
+        
+        <div className="flex items-center gap-2">
+          <Badge variant="outline">
+            {allVehicles.length} total vehicles
+          </Badge>
+          <Badge className="bg-green-500 text-white">
+            {statusCounts.online} online
+          </Badge>
+          <Badge className="bg-yellow-500 text-white">
+            {statusCounts.idle} idle
+          </Badge>
+          <Badge className="bg-gray-500 text-white">
+            {statusCounts.offline} offline
+          </Badge>
+        </div>
       </div>
-
-      {/* Real-Time Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setShowOnlineModal(true)}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vehicles Online</CardTitle>
-            <Wifi className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-600">{statistics.online}</div>
-            <p className="text-xs text-muted-foreground">Click to view details</p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setShowOfflineModal(true)}>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Vehicles Offline</CardTitle>
-            <WifiOff className="h-4 w-4 text-red-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-red-600">{statistics.offline}</div>
-            <p className="text-xs text-muted-foreground">Click to view details</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Fleet</CardTitle>
-            <Car className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-600">{statistics.total}</div>
-            <p className="text-xs text-muted-foreground">
-              {statistics.total > 0 ? (statistics.online / statistics.total * 100).toFixed(1) : 0}% online
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Search and Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input placeholder="Search vehicles by name or device ID..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
-            </div>
-            <div className="flex gap-2">
-              {['all', 'online', 'offline'].map(status => <Button key={status} variant={statusFilter === status ? 'default' : 'outline'} size="sm" onClick={() => setStatusFilter(status as any)} className="flex items-center gap-2">
-                  <Filter className="h-3 w-3" />
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </Button>)}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Main Content Tabs */}
-      <Tabs defaultValue="map" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="map" className="flex items-center gap-2">
-            <MapPin className="h-4 w-4" />
-            Map & Live Tracking
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="live-tracking" className="flex items-center gap-2">
+            <Navigation className="h-4 w-4" />
+            Live Tracking
           </TabsTrigger>
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Vehicle Profile & Reports
+          <TabsTrigger value="route-history" className="flex items-center gap-2">
+            <Route className="h-4 w-4" />
+            Route History
+          </TabsTrigger>
+          <TabsTrigger value="geofencing" className="flex items-center gap-2">
+            <Shield className="h-4 w-4" />
+            Geofencing
+          </TabsTrigger>
+          <TabsTrigger value="location-search" className="flex items-center gap-2">
+            <Search className="h-4 w-4" />
+            Location Search
+          </TabsTrigger>
+          <TabsTrigger value="map-settings" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Map Settings
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="map" className="space-y-4">
-          {/* Map and Vehicle List */}
-          <LiveMapAndVehicleList vehicles={filteredVehicles} onVehicleSelect={handleVehicleSelect} />
-
-          {/* Vehicle Status Card */}
-          <VehicleStatusCard vehicle={selectedVehicle} onEngineShutdown={handleEngineShutdown} onEngineEnable={handleEngineEnable} canControlEngine={canControlEngine} isLoading={isEngineControlLoading} />
+        {/* Live Tracking Tab */}
+        <TabsContent value="live-tracking" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Main Map - 3/4 width */}
+            <div className="lg:col-span-3">
+              <UniversalMapWidget
+                title="Live Fleet Tracking"
+                height="600px"
+                enableFullscreen={true}
+                enableControls={true}
+                enableClustering={true}
+                showVehicleCount={true}
+                showStatusSummary={true}
+                filters={mapFilters}
+                onVehicleSelect={handleVehicleSelect}
+                onFullscreenToggle={(isFullscreen) => {
+                  console.log('Fullscreen toggled:', isFullscreen);
+                }}
+              />
+            </div>
+            
+            {/* Side Panel - 1/4 width */}
+            <div className="lg:col-span-1">
+              <LiveTrackingContent
+                viewMode="cards"
+                vehicles={vehicles}
+              />
+            </div>
+          </div>
         </TabsContent>
 
-        <TabsContent value="profile">
-          <VehicleProfileTab vehicle={selectedVehicle} onWorkshopAssign={handleWorkshopAssign} onReportGenerate={handleReportGenerate} />
+        {/* Route History Tab */}
+        <TabsContent value="route-history" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Select Vehicle for Route History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {selectedVehicle ? (
+                <div className="flex items-center gap-2 mb-4">
+                  <Badge>Selected: {selectedVehicle.devicename}</Badge>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setSelectedVehicle(null)}
+                  >
+                    Clear Selection
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-muted-foreground mb-4">
+                  Select a vehicle from the Live Tracking tab to view its route history
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          
+          <RouteVisualization
+            route={mockRouteData}
+            isLoading={false}
+            onRouteExport={() => console.log('Export route data')}
+            height="500px"
+          />
+        </TabsContent>
+
+        {/* Geofencing Tab */}
+        <TabsContent value="geofencing">
+          <GeofenceManager
+            zones={mockGeofenceZones}
+            onZoneCreate={(zone) => console.log('Create zone:', zone)}
+            onZoneUpdate={(id, updates) => console.log('Update zone:', id, updates)}
+            onZoneDelete={(id) => console.log('Delete zone:', id)}
+            height="500px"
+          />
+        </TabsContent>
+
+        {/* Location Search Tab */}
+        <TabsContent value="location-search" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Search Panel - 1/3 width */}
+            <div className="lg:col-span-1">
+              <MapSearchPanel
+                onLocationSelect={handleLocationSelect}
+                onNavigateToLocation={handleNavigateToLocation}
+                currentLocation={{ lat: -26.2041, lon: 28.0473 }}
+              />
+            </div>
+            
+            {/* Map - 2/3 width */}
+            <div className="lg:col-span-2">
+              <UniversalMapWidget
+                title="Location Search Results"
+                height="600px"
+                enableFullscreen={true}
+                enableControls={true}
+                enableClustering={false}
+                showVehicleCount={false}
+                showStatusSummary={false}
+                filters={{ status: 'all' }}
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Map Settings Tab */}
+        <TabsContent value="map-settings">
+          <Card>
+            <CardHeader>
+              <CardTitle>Map Configuration</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-muted-foreground">
+                  Map provider settings and API configuration can be managed in the Admin Settings.
+                </p>
+                <Button onClick={() => window.open('/admin', '_blank')}>
+                  Open Admin Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
-
-      {/* Statistics Modals */}
-      <VehicleStatisticsModal isOpen={showOnlineModal} onClose={() => setShowOnlineModal(false)} title="Online Vehicles" vehicles={vehicles} statusType="online" />
-
-      <VehicleStatisticsModal isOpen={showOfflineModal} onClose={() => setShowOfflineModal(false)} title="Offline Vehicles" vehicles={vehicles} statusType="offline" />
-    </div>;
+    </div>
+  );
 };
+
 export default EnhancedLiveTrackingPage;
