@@ -104,37 +104,40 @@ export const useGP51Credentials = () => {
         await sessionHealthMonitor.forceHealthCheck();
       }, 1000);
     },
-    onError: (error: any) => {
+    onError: (error: unknown) => {
       console.error('❌ GP51 credentials save mutation failed:', error);
       
       // Clear any potentially stale cached data
       sessionHealthMonitor.clearCache?.();
       
+      // Properly handle the error type
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
       // Categorize the error
       let errorTitle = 'Connection Failed';
-      let errorMessage = 'Failed to connect to GP51. Please check your credentials and try again.';
+      let errorDescription = 'Failed to connect to GP51. Please check your credentials and try again.';
       
-      if (error.message?.includes('Authentication required') || error.message?.includes('logged in')) {
+      if (errorMessage.includes('Authentication required') || errorMessage.includes('logged in')) {
         errorTitle = 'Authentication Required';
-        errorMessage = 'Please refresh the page and ensure you are logged in before trying again.';
-      } else if (error.message?.includes('User profile not found')) {
+        errorDescription = 'Please refresh the page and ensure you are logged in before trying again.';
+      } else if (errorMessage.includes('User profile not found')) {
         errorTitle = 'Profile Error';
-        errorMessage = 'User profile not found. Please contact support.';
-      } else if (error.message?.includes('GP51 authentication failed')) {
+        errorDescription = 'User profile not found. Please contact support.';
+      } else if (errorMessage.includes('GP51 authentication failed')) {
         errorTitle = 'GP51 Authentication Failed';
-        errorMessage = 'Invalid GP51 username or password. Please check your credentials.';
-      } else if (error.message?.includes('Network error') || error.message?.includes('fetch')) {
+        errorDescription = 'Invalid GP51 username or password. Please check your credentials.';
+      } else if (errorMessage.includes('Network error') || errorMessage.includes('fetch')) {
         errorTitle = 'Network Error';
-        errorMessage = 'Unable to connect to GP51 API. Please check your internet connection and try again.';
-      } else if (error.details) {
-        errorMessage = error.details;
-      } else if (error.message) {
-        errorMessage = error.message;
+        errorDescription = 'Unable to connect to GP51 API. Please check your internet connection and try again.';
+      } else if (error && typeof error === 'object' && 'details' in error) {
+        errorDescription = String((error as any).details);
+      } else if (errorMessage) {
+        errorDescription = errorMessage;
       }
       
       toast({ 
         title: errorTitle, 
-        description: errorMessage,
+        description: errorDescription,
         variant: 'destructive' 
       });
     },
