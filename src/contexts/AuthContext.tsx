@@ -1,6 +1,6 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { PackageMappingService } from '@/services/packageMappingService';
 
 interface AuthContextType {
   user: any | null;
@@ -8,7 +8,7 @@ interface AuthContextType {
   isAdmin: boolean;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, name: string, packageId?: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshUserRole: () => Promise<void>;
 }
@@ -88,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .from('user_roles')
             .insert({
               user_id: authUserId,
-              role: 'user'
+              role: 'user' as any
             });
         }
 
@@ -152,8 +152,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signUp = async (email: string, password: string, name: string, packageId: string = 'basic') => {
     const redirectUrl = `${window.location.origin}/`;
+    
+    // Validate package
+    const packageValidation = PackageMappingService.validatePackage(packageId);
+    if (!packageValidation.isValid) {
+      return { error: { message: packageValidation.error } };
+    }
+
+    // Get package mapping
+    const gp51UserType = PackageMappingService.getGP51UserType(packageId);
+    const envioRole = PackageMappingService.getEnvioRole(packageId);
+    const requiresApproval = PackageMappingService.requiresApproval(packageId);
     
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -164,23 +175,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     
     if (!error && data.user) {
-      // Create envio_users record with the auth user ID
-      console.log('Creating envio_users record for new user:', data.user.id);
-      await supabase
-        .from('envio_users')
-        .insert({
-          id: data.user.id, // Use auth user ID directly
-          name,
-          email
-        });
+      try {
+        // Create envio_users record with package info
+        console.log('Creating envio_users record for new user with package:', packageId);
+        await supabase
+          .from('envio_users')
+          .insert({
+            id: data.user.id,
+            name,
+            email,
+            gp51_user_type: gp51UserType,
+            registration_status: requiresApproval ? 'pending_approval' : 'approved',
+            registration_type: 'package_registration'
+          });
 
-      // Create default user role with auth user ID
-      await supabase
-        .from('user_roles')
-        .insert({
-          user_id: data.user.id, // Use auth user ID directly
-          role: 'user'
-        });
+        // Create user role based on package
+        const finalRole = requiresApproval ? 'user' : envioRole; // Start as user until admin approval for enterprise
+        await supabase
+          .from('user_roles')
+          .insert({
+            user_id: data.user.id,
+            role: finalRole as any
+          });
+
+        // Create user subscription for the package
+        try {
+          // First check if we have subscriber packages in the database
+          const { data: existingPackages } = await supabase
+            .from('subscriber_packages')
+            .select('id, package_name')
+            .eq('package_name', PackageMappingService.getPackageInfo(packageId)?.packageName);
+
+          let packageDbId = null;
+          if (existingPackages && existingPackages.length > 0) {
+            packageDbId = existingPackages[0].id;
+          }
+
+          if (packageDbId) {
+            await supabase
+              .from('user_subscriptions' as any)
+              .insert({
+                user_id: data.user.id,
+                package_id: packageDbId,
+                subscription_status: 'active',
+                billing_cycle: 'monthly',
+                start_date: new Date().toISOString(),
+                discount_applied: 0
+              });
+          }
+        } catch (subscriptionError) {
+          console.error('Failed to create user subscription:', subscriptionError);
+          // Don't fail the registration if subscription creation fails
+        }
+
+        // If enterprise package, create admin request record
+        if (requiresApproval) {
+          await supabase
+            .from('admin_role_requests' as any)
+            .insert({
+              user_id: data.user.id,
+              requested_role: 'admin',
+              status: 'pending',
+              request_reason: `${PackageMappingService.getPackageInfo(packageId)?.packageName} package registration requires approval`
+            });
+        }
+      } catch (dbError) {
+        console.error('Failed to create user records:', dbError);
+        // Continue with auth creation even if database operations fail
+      }
     }
     
     return { error };

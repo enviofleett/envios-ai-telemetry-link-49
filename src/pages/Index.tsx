@@ -1,7 +1,8 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
-import FleetManagementDashboard from "@/components/dashboard/FleetManagementDashboard";
+import Layout from "@/components/Layout";
+import { DashboardContent } from "@/components/dashboard/DashboardContent";
 
 const Index = () => {
   const { user } = useAuth();
@@ -10,7 +11,11 @@ const Index = () => {
     return <Navigate to="/auth" replace />;
   }
 
-  return <FleetManagementDashboard />;
+  return (
+    <Layout>
+      <DashboardContent />
+    </Layout>
+  );
 };
 
 export default Index;

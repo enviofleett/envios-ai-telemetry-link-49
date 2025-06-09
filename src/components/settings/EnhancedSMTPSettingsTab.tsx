@@ -1,286 +1,149 @@
-
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import SMTPQuickSetupTab from './smtp/SMTPQuickSetupTab';
-import SMTPAdvancedConfigTab from './smtp/SMTPAdvancedConfigTab';
-import SMTPTestTab from './smtp/SMTPTestTab';
-import SMTPConfigurationList from './smtp/SMTPConfigurationList';
-import { providerTemplates } from './smtp/smtpProviderTemplates';
-
-interface SMTPConfig {
-  id?: string;
-  name: string;
-  host: string;
-  port: number;
-  username: string;
-  password_encrypted: string;
-  from_email: string;
-  from_name: string;
-  use_ssl: boolean;
-  use_tls: boolean;
-  is_active: boolean;
-}
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { useGenericSMTPService } from '@/hooks/useGenericSMTPService';
+import GenericSMTPForm from './smtp/GenericSMTPForm';
+import SMTPConfigurationManager from './smtp/SMTPConfigurationManager';
+import SMTPMonitoringTab from './smtp/SMTPMonitoringTab';
+import EmailTemplateManager from './smtp/EmailTemplateManager';
+import { Mail, AlertTriangle, CheckCircle, Settings } from 'lucide-react';
 
 const EnhancedSMTPSettingsTab: React.FC = () => {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [showPassword, setShowPassword] = useState(false);
-  const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [testEmail, setTestEmail] = useState('');
-  const [selectedProvider, setSelectedProvider] = useState<string>('');
+  const {
+    smtpConfigs,
+    isLoading,
+    saveConfig,
+    testConnection,
+    deleteConfig,
+    toggleActive,
+    isSaving,
+    isTesting
+  } = useGenericSMTPService();
 
-  const [smtpForm, setSMTPForm] = useState<SMTPConfig>({
-    name: '',
-    host: '',
-    port: 587,
-    username: '',
-    password_encrypted: '',
-    from_email: '',
-    from_name: '',
-    use_ssl: false,
-    use_tls: true,
-    is_active: false
-  });
+  const [editingConfig, setEditingConfig] = useState<any>(null);
 
-  // Fetch SMTP configurations
-  const { data: smtpConfigs, isLoading: smtpLoading } = useQuery({
-    queryKey: ['smtp-configurations'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('smtp_configurations')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data;
-    }
-  });
-
-  // Save SMTP configuration
-  const saveSMTPMutation = useMutation({
-    mutationFn: async (config: SMTPConfig) => {
-      const encryptedPassword = btoa(config.password_encrypted);
-      
-      const dataToSave = {
-        ...config,
-        password_encrypted: encryptedPassword
-      };
-
-      if (config.id) {
-        const { data, error } = await supabase
-          .from('smtp_configurations')
-          .update(dataToSave)
-          .eq('id', config.id)
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      } else {
-        const { data, error } = await supabase
-          .from('smtp_configurations')
-          .insert(dataToSave)
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      }
-    },
-    onSuccess: () => {
-      toast({
-        title: "Success",
-        description: "SMTP configuration saved successfully"
-      });
-      queryClient.invalidateQueries({ queryKey: ['smtp-configurations'] });
-      resetForm();
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  const resetForm = () => {
-    setSMTPForm({
-      name: '',
-      host: '',
-      port: 587,
-      username: '',
-      password_encrypted: '',
-      from_email: '',
-      from_name: '',
-      use_ssl: false,
-      use_tls: true,
-      is_active: false
-    });
-    setSelectedProvider('');
-  };
-
-  const handleProviderSelect = (provider: string) => {
-    if (provider && providerTemplates[provider as keyof typeof providerTemplates]) {
-      const template = providerTemplates[provider as keyof typeof providerTemplates];
-      setSMTPForm(prev => ({
-        ...prev,
-        name: template.name,
-        host: template.host,
-        port: template.port,
-        use_ssl: template.use_ssl,
-        use_tls: template.use_tls
-      }));
-      setSelectedProvider(provider);
-    }
-  };
-
-  const testSMTPConnection = async () => {
-    setTestingConnection(true);
-    setConnectionStatus('testing');
-    
+  const handleSaveConfig = async (config: any) => {
     try {
-      const { data, error } = await supabase.functions.invoke('smtp-email-service', {
-        body: {
-          action: 'test-smtp',
-          testConfig: {
-            host: smtpForm.host,
-            port: smtpForm.port,
-            username: smtpForm.username,
-            password: smtpForm.password_encrypted,
-            from_email: smtpForm.from_email,
-            from_name: smtpForm.from_name,
-            use_ssl: smtpForm.use_ssl,
-            use_tls: smtpForm.use_tls
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        setConnectionStatus('success');
-        toast({
-          title: "Success",
-          description: "SMTP connection test successful!"
-        });
-      } else {
-        setConnectionStatus('error');
-        throw new Error(data.error);
-      }
-    } catch (error: any) {
-      setConnectionStatus('error');
-      toast({
-        title: "Connection Failed",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setTestingConnection(false);
+      await saveConfig(config);
+      setEditingConfig(null);
+    } catch (error) {
+      // Error is handled by the hook
     }
   };
 
-  const sendTestEmail = async () => {
-    if (!testEmail) {
-      toast({
-        title: "Error",
-        description: "Please enter a test email address",
-        variant: "destructive"
-      });
-      return;
-    }
+  const handleTestConnection = async (config: any) => {
+    const testConfig = {
+      host: config.host,
+      port: config.port,
+      username: config.username,
+      password: config.password,
+      sender_email: config.sender_email,
+      sender_name: config.sender_name,
+      encryption_type: config.encryption_type
+    };
 
     try {
-      const { data, error } = await supabase.functions.invoke('smtp-email-service', {
-        body: {
-          action: 'send-email',
-          recipientEmail: testEmail,
-          templateType: 'welcome',
-          placeholderData: {
-            user_name: 'Test User'
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Test Email Sent",
-        description: `Test email sent successfully to ${testEmail}`
-      });
-    } catch (error: any) {
-      toast({
-        title: "Failed to Send Test Email",
-        description: error.message,
-        variant: "destructive"
-      });
+      await testConnection(testConfig);
+      return true;
+    } catch (error) {
+      return false;
     }
   };
 
-  const loadSMTPConfig = (config: any) => {
-    setSMTPForm({
-      ...config,
-      password_encrypted: ''
-    });
+  const handleEditConfig = (config: any) => {
+    setEditingConfig(config);
   };
+
+  const handleDeleteConfig = async (configId: string) => {
+    try {
+      await deleteConfig(configId);
+    } catch (error) {
+      // Error is handled by the hook
+    }
+  };
+
+  const handleToggleActive = async (configId: string, isActive: boolean) => {
+    try {
+      await toggleActive({ configId, isActive });
+    } catch (error) {
+      // Error is handled by the hook
+    }
+  };
+
+  const activeConfig = smtpConfigs.find(config => config.is_active);
+  const hasConfigs = smtpConfigs.length > 0;
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">SMTP Email Configuration</h3>
+        <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
+          <Mail className="h-5 w-5" />
+          Email Configuration
+          {activeConfig && (
+            <Badge variant="default" className="flex items-center gap-1">
+              <CheckCircle className="h-3 w-3" />
+              Active
+            </Badge>
+          )}
+        </h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Configure SMTP settings for reliable email delivery across your Envio platform
+          Configure any 3rd-party SMTP provider for reliable email delivery
         </p>
       </div>
 
-      <Tabs defaultValue="quick-setup" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="quick-setup">Quick Setup</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced Config</TabsTrigger>
-          <TabsTrigger value="test">Test & Monitor</TabsTrigger>
+      {/* Status Alert */}
+      {!hasConfigs && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            No SMTP configuration found. Please add a configuration below to enable email functionality.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {hasConfigs && !activeConfig && (
+        <Alert className="border-yellow-200 bg-yellow-50">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            You have SMTP configurations but none are active. Please activate a configuration to enable email sending.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <Tabs defaultValue="configuration" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="configuration">Configuration</TabsTrigger>
+          <TabsTrigger value="management">Management</TabsTrigger>
+          <TabsTrigger value="templates">Templates</TabsTrigger>
+          <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="quick-setup" className="space-y-4">
-          <SMTPQuickSetupTab
-            smtpForm={smtpForm}
-            setSMTPForm={setSMTPForm}
-            selectedProvider={selectedProvider}
-            setSelectedProvider={setSelectedProvider}
-            showPassword={showPassword}
-            setShowPassword={setShowPassword}
-            onSave={() => saveSMTPMutation.mutate(smtpForm)}
-            onReset={resetForm}
-            isSaving={saveSMTPMutation.isPending}
-            onProviderSelect={handleProviderSelect}
+        <TabsContent value="configuration" className="space-y-6">
+          <GenericSMTPForm
+            onSave={handleSaveConfig}
+            onTest={handleTestConnection}
+            isSaving={isSaving}
+            isTesting={isTesting}
           />
         </TabsContent>
 
-        <TabsContent value="advanced" className="space-y-4">
-          <SMTPAdvancedConfigTab
-            smtpForm={smtpForm}
-            setSMTPForm={setSMTPForm}
-            testingConnection={testingConnection}
-            connectionStatus={connectionStatus}
-            onTestConnection={testSMTPConnection}
-          />
-
-          <SMTPConfigurationList
-            smtpConfigs={smtpConfigs || []}
-            onLoadConfig={loadSMTPConfig}
+        <TabsContent value="management" className="space-y-6">
+          <SMTPConfigurationManager
+            configs={smtpConfigs}
+            onEdit={handleEditConfig}
+            onDelete={handleDeleteConfig}
+            onToggleActive={handleToggleActive}
+            isLoading={isLoading}
           />
         </TabsContent>
 
-        <TabsContent value="test" className="space-y-4">
-          <SMTPTestTab
-            testEmail={testEmail}
-            setTestEmail={setTestEmail}
-            onSendTestEmail={sendTestEmail}
-            hasActiveConfig={smtpConfigs?.some(c => c.is_active) || false}
-          />
+        <TabsContent value="templates" className="space-y-6">
+          <EmailTemplateManager />
+        </TabsContent>
+
+        <TabsContent value="monitoring" className="space-y-6">
+          <SMTPMonitoringTab />
         </TabsContent>
       </Tabs>
     </div>

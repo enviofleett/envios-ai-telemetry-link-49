@@ -1,29 +1,29 @@
 
 import React from 'react';
+import Layout from '@/components/Layout';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { Cog } from 'lucide-react';
-import DeviceStatsCards from '@/components/devices/DeviceStatsCards';
 import DeviceManagementTable from '@/components/devices/DeviceManagementTable';
 
 const DeviceConfiguration: React.FC = () => {
   return (
-    <div className="space-y-6">
-      {/* Page Title Section */}
-      <div className="bg-white p-6 rounded-lg border border-gray-200">
-        <div className="flex items-center gap-3 mb-2">
-          <Cog className="h-6 w-6 text-gray-700" />
-          <h1 className="text-2xl font-bold text-gray-900">Device Configuration</h1>
+    <ProtectedRoute requireAdmin>
+      <Layout>
+        <div className="space-y-6">
+          <div className="flex items-center gap-3">
+            <Cog className="h-8 w-8 text-primary" />
+            <div>
+              <h1 className="text-3xl font-bold">Device Configuration</h1>
+              <p className="text-sm text-muted-foreground">
+                Manage and configure fleet devices and equipment
+              </p>
+            </div>
+          </div>
+          
+          <DeviceManagementTable />
         </div>
-        <p className="text-gray-600">
-          Manage GPS tracking devices, monitor status, and configure settings
-        </p>
-      </div>
-
-      {/* Device Statistics Cards */}
-      <DeviceStatsCards />
-
-      {/* Device Management Table */}
-      <DeviceManagementTable />
-    </div>
+      </Layout>
+    </ProtectedRoute>
   );
 };
 

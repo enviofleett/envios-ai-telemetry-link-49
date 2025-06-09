@@ -1,92 +1,121 @@
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-export interface BillingSettings {
-  id?: string;
-  user_id?: string;
+interface BillingSettings {
+  id: string;
+  user_id: string;
   subscription_plan: string;
   billing_cycle: string;
-  next_billing_date?: string;
-  billing_amount: number;
-  currency: string;
-  payment_methods: any[];
-  usage_limits: Record<string, any>;
-  current_usage: Record<string, any>;
   auto_renewal: boolean;
-  created_at?: string;
-  updated_at?: string;
+  currency: string;
+  billing_amount?: number;
+  next_billing_date?: string;
+  current_usage?: Record<string, any>;
+  usage_limits?: Record<string, any>;
+  payment_methods?: Array<any>;
+  created_at: string;
+  updated_at: string;
 }
 
 export const useBillingSettings = () => {
+  const [settings, setSettings] = useState<BillingSettings | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUpdating, setIsUpdating] = useState(false);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: settings, isLoading } = useQuery({
-    queryKey: ['billing-settings'],
-    queryFn: async () => {
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { data, error } = await supabase
         .from('billing_settings')
         .select('*')
+        .eq('user_id', user.id)
         .single();
-      
+
       if (error && error.code !== 'PGRST116') {
         throw error;
       }
-      
-      return data || {
-        subscription_plan: 'free',
-        billing_cycle: 'monthly',
-        billing_amount: 0,
-        currency: 'USD',
-        payment_methods: [],
-        usage_limits: {},
-        current_usage: {},
-        auto_renewal: true
-      };
-    }
-  });
 
-  const updateSettings = useMutation({
-    mutationFn: async (newSettings: Partial<BillingSettings>) => {
+      if (data) {
+        // Transform the data to ensure proper types
+        const transformedData: BillingSettings = {
+          ...data,
+          current_usage: (data.current_usage as any) || {},
+          usage_limits: (data.usage_limits as any) || {},
+          payment_methods: (data.payment_methods as any) || []
+        };
+        setSettings(transformedData);
+      }
+    } catch (error) {
+      console.error('Error fetching billing settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load billing settings.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateSettings = async (updates: Partial<BillingSettings>) => {
+    setIsUpdating(true);
+    try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      if (!user) return;
 
       const { data, error } = await supabase
         .from('billing_settings')
         .upsert({
           user_id: user.id,
-          ...newSettings,
+          ...updates,
           updated_at: new Date().toISOString()
         })
         .select()
         .single();
 
       if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['billing-settings'] });
+
+      if (data) {
+        // Transform the data to ensure proper types
+        const transformedData: BillingSettings = {
+          ...data,
+          current_usage: (data.current_usage as any) || {},
+          usage_limits: (data.usage_limits as any) || {},
+          payment_methods: (data.payment_methods as any) || []
+        };
+        setSettings(transformedData);
+      }
+      
       toast({
-        title: "Success",
-        description: "Billing settings saved successfully"
+        title: "Settings updated",
+        description: "Billing settings have been successfully updated."
       });
-    },
-    onError: (error) => {
-      console.error('Failed to save billing settings:', error);
+    } catch (error) {
+      console.error('Error updating billing settings:', error);
       toast({
         title: "Error",
-        description: "Failed to save billing settings",
+        description: "Failed to update billing settings.",
         variant: "destructive"
       });
+    } finally {
+      setIsUpdating(false);
     }
-  });
+  };
 
   return {
     settings,
     isLoading,
-    updateSettings: updateSettings.mutate,
-    isUpdating: updateSettings.isPending
+    isUpdating,
+    updateSettings,
+    refetch: fetchSettings
   };
 };

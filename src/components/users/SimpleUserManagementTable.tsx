@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Search, Filter, Plus, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -27,6 +26,7 @@ interface SimpleUserManagementTableProps {
   onUserClick: (user: User) => void;
   onEditUser: (user: User) => void;
   onDeleteUser: (user: User) => void;
+  isLoading?: boolean;
 }
 
 const SimpleUserManagementTable: React.FC<SimpleUserManagementTableProps> = ({
@@ -34,7 +34,8 @@ const SimpleUserManagementTable: React.FC<SimpleUserManagementTableProps> = ({
   onAddUser,
   onUserClick,
   onEditUser,
-  onDeleteUser
+  onDeleteUser,
+  isLoading = false
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -98,6 +99,24 @@ const SimpleUserManagementTable: React.FC<SimpleUserManagementTableProps> = ({
       setSelectedUsers(selectedUsers.filter(id => id !== userId));
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white border border-gray-lighter rounded-lg shadow-sm">
+        <div className="flex items-center justify-between p-6 border-b border-gray-lighter">
+          <h2 className="text-lg font-semibold text-primary-dark">User Management</h2>
+          <Button disabled className="bg-primary-dark text-white">
+            <Plus className="w-4 h-4 mr-2" />
+            Add User
+          </Button>
+        </div>
+        <div className="p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-mid">Loading users...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white border border-gray-lighter rounded-lg shadow-sm">

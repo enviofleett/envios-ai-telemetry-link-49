@@ -1,135 +1,230 @@
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface BrandingSettings {
-  id?: string;
-  user_id?: string;
-  logo_url: string;
-  favicon_url: string;
   primary_color: string;
   secondary_color: string;
   accent_color: string;
   background_color: string;
   text_color: string;
-  border_color: string;
-  muted_color: string;
-  font_family_heading: string;
-  font_family_body: string;
-  font_size_scale: string;
-  button_style: string;
-  custom_css: string;
-  created_at?: string;
-  updated_at?: string;
+  font_family: string;
+  logo_url?: string;
+  favicon_url?: string;
+  custom_css?: string;
+  is_active: boolean;
 }
 
-export const useBrandingSettings = () => {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+const defaultBrandingSettings: BrandingSettings = {
+  primary_color: '#3B82F6',
+  secondary_color: '#64748B',
+  accent_color: '#10B981',
+  background_color: '#FFFFFF',
+  text_color: '#1F2937',
+  font_family: 'Inter',
+  logo_url: '',
+  favicon_url: '',
+  custom_css: '',
+  is_active: true,
+};
 
-  const { data: settings, isLoading } = useQuery({
-    queryKey: ['branding-settings'],
-    queryFn: async () => {
+export const useBrandingSettings = () => {
+  const [settings, setSettings] = useState<BrandingSettings>(defaultBrandingSettings);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchBrandingSettings();
+  }, []);
+
+  const fetchBrandingSettings = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { data, error } = await supabase
         .from('branding_settings')
         .select('*')
-        .single();
-      
+        .eq('user_id', user.id)
+        .maybeSingle();
+
       if (error && error.code !== 'PGRST116') {
-        throw error;
+        console.error('Error fetching branding settings:', error);
+        return;
       }
-      
-      return data || {
-        logo_url: '',
-        favicon_url: '',
-        primary_color: '#3b82f6',
-        secondary_color: '#6366f1',
-        accent_color: '#2563eb',
-        background_color: '#ffffff',
-        text_color: '#1f2937',
-        border_color: '#e5e7eb',
-        muted_color: '#6b7280',
-        font_family_heading: 'Inter',
-        font_family_body: 'Inter',
-        font_size_scale: 'medium',
-        button_style: 'rounded',
-        custom_css: ''
+
+      if (data) {
+        setSettings({
+          primary_color: data.primary_color || defaultBrandingSettings.primary_color,
+          secondary_color: data.secondary_color || defaultBrandingSettings.secondary_color,
+          accent_color: data.accent_color || defaultBrandingSettings.accent_color,
+          background_color: data.background_color || defaultBrandingSettings.background_color,
+          text_color: data.text_color || defaultBrandingSettings.text_color,
+          font_family: data.font_family_body || data.font_family_heading || defaultBrandingSettings.font_family,
+          logo_url: data.logo_url || '',
+          favicon_url: data.favicon_url || '',
+          custom_css: data.custom_css || '',
+          is_active: true, // Default to true since column doesn't exist yet
+        });
+      }
+    } catch (error) {
+      console.error('Error in fetchBrandingSettings:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateSetting = async (key: keyof BrandingSettings, value: string | boolean) => {
+    try {
+      setIsSaving(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const updatedSettings = { ...settings, [key]: value };
+      setSettings(updatedSettings);
+
+      // Map new schema to existing database columns
+      const dbPayload: any = {
+        user_id: user.id,
+        primary_color: updatedSettings.primary_color,
+        secondary_color: updatedSettings.secondary_color,
+        accent_color: updatedSettings.accent_color,
+        background_color: updatedSettings.background_color,
+        text_color: updatedSettings.text_color,
+        font_family_body: updatedSettings.font_family,
+        font_family_heading: updatedSettings.font_family,
+        logo_url: updatedSettings.logo_url,
+        favicon_url: updatedSettings.favicon_url,
+        custom_css: updatedSettings.custom_css,
+        updated_at: new Date().toISOString(),
       };
-    }
-  });
 
-  const updateSettings = useMutation({
-    mutationFn: async (newSettings: Partial<BrandingSettings>) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('branding_settings')
-        .upsert({
-          user_id: user.id,
-          ...newSettings,
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+        .upsert(dbPayload);
 
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['branding-settings'] });
-      toast({
-        title: "Success",
-        description: "Branding settings saved successfully"
-      });
-    },
-    onError: (error) => {
-      console.error('Failed to save branding settings:', error);
+      if (error) {
+        console.error('Error updating branding settings:', error);
+        // Revert the change
+        setSettings(settings);
+        toast({
+          title: "Error",
+          description: "Failed to update branding settings",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Branding settings updated",
+        });
+        
+        // Apply CSS custom properties to document root
+        applyBrandingToDocument(updatedSettings);
+      }
+    } catch (error) {
+      console.error('Error in updateSetting:', error);
+      setSettings(settings);
       toast({
         title: "Error",
-        description: "Failed to save branding settings",
+        description: "Failed to update branding settings",
         variant: "destructive"
       });
+    } finally {
+      setIsSaving(false);
     }
-  });
+  };
 
-  const uploadAsset = useMutation({
-    mutationFn: async (file: File): Promise<string> => {
+  const applyBrandingToDocument = (brandingSettings: BrandingSettings) => {
+    if (!brandingSettings.is_active) return;
+
+    const root = document.documentElement;
+    root.style.setProperty('--color-primary', brandingSettings.primary_color);
+    root.style.setProperty('--color-secondary', brandingSettings.secondary_color);
+    root.style.setProperty('--color-accent', brandingSettings.accent_color);
+    root.style.setProperty('--color-background', brandingSettings.background_color);
+    root.style.setProperty('--color-text', brandingSettings.text_color);
+    root.style.setProperty('--font-family', brandingSettings.font_family);
+
+    // Apply custom CSS if provided
+    if (brandingSettings.custom_css) {
+      let customStyleElement = document.getElementById('custom-branding-css');
+      if (!customStyleElement) {
+        customStyleElement = document.createElement('style');
+        customStyleElement.id = 'custom-branding-css';
+        document.head.appendChild(customStyleElement);
+      }
+      customStyleElement.textContent = brandingSettings.custom_css;
+    }
+  };
+
+  const resetToDefaults = async () => {
+    try {
+      setIsSaving(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      if (!user) return;
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+      setSettings(defaultBrandingSettings);
 
-      const { error: uploadError } = await supabase.storage
-        .from('company-assets')
-        .upload(fileName, file);
+      const dbPayload = {
+        user_id: user.id,
+        primary_color: defaultBrandingSettings.primary_color,
+        secondary_color: defaultBrandingSettings.secondary_color,
+        accent_color: defaultBrandingSettings.accent_color,
+        background_color: defaultBrandingSettings.background_color,
+        text_color: defaultBrandingSettings.text_color,
+        font_family_body: defaultBrandingSettings.font_family,
+        font_family_heading: defaultBrandingSettings.font_family,
+        logo_url: defaultBrandingSettings.logo_url,
+        favicon_url: defaultBrandingSettings.favicon_url,
+        custom_css: defaultBrandingSettings.custom_css,
+        updated_at: new Date().toISOString(),
+      };
 
-      if (uploadError) throw uploadError;
+      const { error } = await supabase
+        .from('branding_settings')
+        .upsert(dbPayload);
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('company-assets')
-        .getPublicUrl(fileName);
-
-      return publicUrl;
-    },
-    onError: (error) => {
-      console.error('Failed to upload asset:', error);
+      if (error) {
+        console.error('Error resetting branding settings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to reset branding settings",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Branding settings reset to defaults",
+        });
+        
+        applyBrandingToDocument(defaultBrandingSettings);
+      }
+    } catch (error) {
+      console.error('Error in resetToDefaults:', error);
       toast({
         title: "Error",
-        description: "Failed to upload file",
+        description: "Failed to reset branding settings",
         variant: "destructive"
       });
+    } finally {
+      setIsSaving(false);
     }
-  });
+  };
+
+  // Apply settings on mount if active
+  useEffect(() => {
+    if (!isLoading && settings.is_active) {
+      applyBrandingToDocument(settings);
+    }
+  }, [isLoading, settings]);
 
   return {
     settings,
     isLoading,
-    updateSettings: updateSettings.mutate,
-    isUpdating: updateSettings.isPending,
-    uploadAsset: uploadAsset.mutate,
-    isUploading: uploadAsset.isPending
+    isSaving,
+    updateSetting,
+    resetToDefaults
   };
 };

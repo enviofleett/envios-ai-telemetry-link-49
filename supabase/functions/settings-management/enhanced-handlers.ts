@@ -2,23 +2,15 @@
 import { authenticateWithGP51 } from './gp51-auth.ts';
 import { saveGP51Session, getGP51Status } from './database.ts';
 import { createResponse } from './cors.ts';
+import { createEnhancedGP51Service } from './enhanced-gp51-service.ts';
+import type { GP51Credentials } from './types.ts';
 
-export async function handleSaveCredentialsWithVehicleImport({ 
-  username, 
-  password, 
-  apiUrl,
-  userId 
-}: { 
-  username: string; 
-  password: string; 
-  apiUrl?: string;
-  userId: string;
-}) {
-  const trimmedUsername = username?.trim();
-  const trimmedPassword = password?.trim();
-  const trimmedApiUrl = apiUrl?.trim();
+export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Credentials & { apiUrl?: string }) {
+  const trimmedUsername = credentials.username?.trim();
+  const trimmedPassword = credentials.password?.trim();
+  const trimmedApiUrl = credentials.apiUrl?.trim();
   
-  console.log('Processing enhanced GP51 credentials save with vehicle import for user:', trimmedUsername, 'User ID:', userId);
+  console.log('Processing enhanced GP51 credentials save with vehicle import for user:', trimmedUsername);
   
   if (!trimmedUsername || !trimmedPassword) {
     console.error('Missing credentials: username or password not provided');
@@ -28,36 +20,62 @@ export async function handleSaveCredentialsWithVehicleImport({
     );
   }
 
-  if (!userId) {
-    console.error('Missing user ID: user must be authenticated');
-    return createResponse(
-      { error: 'User authentication required' },
-      401
-    );
-  }
-
   try {
-    console.log('Authenticating with GP51...');
-    const authResult = await authenticateWithGP51({ 
-      username: trimmedUsername, 
-      password: trimmedPassword,
-      apiUrl: trimmedApiUrl
-    });
+    // Step 1: Get API URL from existing configuration or user input
+    let finalApiUrl = trimmedApiUrl;
+    if (!finalApiUrl) {
+      finalApiUrl = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    }
     
-    console.log('Saving GP51 session to database with user linking...');
-    await saveGP51Session(authResult.username, authResult.token, authResult.apiUrl, userId);
+    console.log('Step 1: Using GP51 API URL:', finalApiUrl);
 
-    console.log('GP51 credentials successfully validated and saved with user linking');
+    // Step 2: Authenticate with GP51 using enhanced service
+    console.log('Step 2: Authenticating with enhanced GP51 service...');
+    const gp51Service = await createEnhancedGP51Service(finalApiUrl);
+    const authResult = await gp51Service.authenticate(trimmedUsername, trimmedPassword);
     
-    // Trigger vehicle import in the background (optional)
-    console.log('Enhanced save completed - vehicle import can be triggered separately');
+    if (!authResult.success) {
+      throw new Error(authResult.error || 'Authentication failed');
+    }
+
+    // Step 3: Save session to database
+    console.log('Step 3: Saving GP51 session to database...');
+    await saveGP51Session(trimmedUsername, authResult.token!, finalApiUrl);
+
+    // Step 4: Fetch vehicles using proven patterns
+    console.log('Step 4: Fetching vehicles using enhanced service...');
+    const vehiclesResult = await gp51Service.fetchVehicles();
     
+    let vehicleImportResults = {
+      vehiclesFetched: 0,
+      vehiclesImported: 0,
+      importErrors: [] as string[]
+    };
+
+    if (vehiclesResult.success && vehiclesResult.vehicles) {
+      console.log(`Step 5: Enriching ${vehiclesResult.vehicles.length} vehicles with positions...`);
+      const enrichedVehicles = await gp51Service.enrichWithPositions(vehiclesResult.vehicles);
+      
+      console.log(`Step 6: Importing ${enrichedVehicles.length} vehicles to database...`);
+      const importResult = await importVehiclesToSupabaseEnhanced(enrichedVehicles, trimmedUsername);
+      vehicleImportResults = {
+        vehiclesFetched: enrichedVehicles.length,
+        vehiclesImported: importResult.imported,
+        importErrors: importResult.errors
+      };
+    } else {
+      console.warn('Vehicle fetching failed:', vehiclesResult.error);
+      vehicleImportResults.importErrors.push(vehiclesResult.error || 'Failed to fetch vehicles');
+    }
+
+    console.log('Enhanced GP51 credentials successfully validated, session saved, and vehicles imported');
     return createResponse({
       success: true,
-      message: 'GP51 credentials validated and saved successfully! Vehicle import can now be performed.',
-      username: authResult.username,
-      apiUrl: authResult.apiUrl,
-      tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      message: 'GP51 credentials validated and vehicles imported successfully!',
+      username: trimmedUsername,
+      apiUrl: finalApiUrl,
+      tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      vehicleImport: vehicleImportResults
     });
 
   } catch (error) {
@@ -66,29 +84,186 @@ export async function handleSaveCredentialsWithVehicleImport({
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     
     return createResponse({
-      error: 'GP51 Connection Failed',
+      error: 'Enhanced GP51 Connection Failed',
       details: errorMessage,
       username: trimmedUsername
     }, 500);
   }
 }
 
+async function importVehiclesToSupabaseEnhanced(vehicles: any[], username: string): Promise<{
+  imported: number;
+  errors: string[];
+}> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  if (!supabaseUrl || !supabaseKey) {
+    return { imported: 0, errors: ['Supabase configuration missing'] };
+  }
+
+  let imported = 0;
+  const errors: string[] = [];
+
+  // Process vehicles in smaller batches for better reliability
+  const batchSize = 50;
+  for (let i = 0; i < vehicles.length; i += batchSize) {
+    const batch = vehicles.slice(i, i + batchSize);
+    
+    try {
+      const batchResult = await processBatch(batch, username, supabaseUrl, supabaseKey);
+      imported += batchResult.imported;
+      errors.push(...batchResult.errors);
+    } catch (batchError) {
+      console.error(`Batch ${i}-${i + batchSize} failed:`, batchError);
+      // Fall back to individual processing for this batch
+      const individualResult = await processIndividually(batch, username, supabaseUrl, supabaseKey);
+      imported += individualResult.imported;
+      errors.push(...individualResult.errors);
+    }
+  }
+
+  return { imported, errors };
+}
+
+async function processBatch(vehicles: any[], username: string, supabaseUrl: string, supabaseKey: string): Promise<{
+  imported: number;
+  errors: string[];
+}> {
+  const vehicleData = vehicles.map(vehicle => prepareVehicleData(vehicle, username));
+  
+  const response = await fetch(`${supabaseUrl}/rest/v1/vehicles`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${supabaseKey}`,
+      'apikey': supabaseKey,
+      'Prefer': 'resolution=merge-duplicates'
+    },
+    body: JSON.stringify(vehicleData)
+  });
+
+  if (response.ok) {
+    console.log(`Successfully imported batch of ${vehicles.length} vehicles`);
+    return { imported: vehicles.length, errors: [] };
+  } else {
+    const errorText = await response.text();
+    throw new Error(`Batch import failed: ${errorText}`);
+  }
+}
+
+async function processIndividually(vehicles: any[], username: string, supabaseUrl: string, supabaseKey: string): Promise<{
+  imported: number;
+  errors: string[];
+}> {
+  let imported = 0;
+  const errors: string[] = [];
+
+  for (const vehicle of vehicles) {
+    try {
+      const vehicleData = prepareVehicleData(vehicle, username);
+
+      const response = await fetch(`${supabaseUrl}/rest/v1/vehicles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseKey}`,
+          'apikey': supabaseKey,
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(vehicleData)
+      });
+
+      if (response.ok) {
+        imported++;
+        console.log(`Successfully imported vehicle: ${vehicle.devicename} (${vehicle.deviceid})`);
+      } else {
+        const errorText = await response.text();
+        console.error(`Failed to import vehicle ${vehicle.deviceid}:`, errorText);
+        errors.push(`Vehicle ${vehicle.deviceid}: ${errorText}`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`Error importing vehicle ${vehicle.deviceid}:`, errorMsg);
+      errors.push(`Vehicle ${vehicle.deviceid}: ${errorMsg}`);
+    }
+  }
+
+  return { imported, errors };
+}
+
+function prepareVehicleData(vehicle: any, username: string) {
+  const now = new Date().toISOString();
+  
+  return {
+    device_id: vehicle.deviceid.toString(),
+    device_name: vehicle.devicename || `Device ${vehicle.deviceid}`,
+    device_type: vehicle.devicetype,
+    group_id: vehicle.groupid,
+    gp51_username: username, // Critical for user-vehicle association
+    device_status: vehicle.devicestatus,
+    overdue_time: vehicle.overduetime,
+    timezone: vehicle.timezone,
+    icon_type: vehicle.icontype,
+    offline_delay: vehicle.offline_delay,
+    last_update: vehicle.lastupdate,
+    latitude: vehicle.lat,
+    longitude: vehicle.lng,
+    speed: vehicle.speed,
+    course: vehicle.course,
+    acc_status: vehicle.acc,
+    oil_level: vehicle.oil,
+    temperature: vehicle.temperature,
+    gsm_signal: vehicle.gsm,
+    gps_signal: vehicle.gps,
+    last_position: vehicle.lastPosition ? JSON.stringify(vehicle.lastPosition) : null,
+    is_active: true,
+    created_at: now,
+    updated_at: now
+  };
+}
+
 export async function handleHealthCheck() {
-  console.log('Performing GP51 health check');
+  console.log('Performing enhanced GP51 health check');
   
   try {
-    // Basic health check - just return system status
+    // Get current GP51 status
+    const status = await getGP51Status();
+    
+    if (!status.connected) {
+      return createResponse({
+        status: 'disconnected',
+        healthy: false,
+        details: 'GP51 not connected',
+        error: status.error
+      });
+    }
+
+    // Get API URL from session or environment
+    const apiUrl = status.apiUrl || Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    
+    // Create enhanced service and perform health check
+    const gp51Service = await createEnhancedGP51Service(apiUrl);
+    const healthResult = await gp51Service.performHealthCheck();
+
     return createResponse({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      service: 'GP51 Settings Management'
+      status: healthResult.status,
+      healthy: healthResult.success,
+      details: {
+        gp51Connected: status.connected,
+        ...healthResult.details,
+        username: status.username,
+        expiresAt: status.expiresAt
+      },
+      error: healthResult.error
     });
+    
   } catch (error) {
-    console.error('Health check failed:', error);
+    console.error('Enhanced health check error:', error);
     return createResponse({
-      status: 'unhealthy',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
+      status: 'error',
+      healthy: false,
+      error: error instanceof Error ? error.message : 'Health check failed'
     }, 500);
   }
 }
