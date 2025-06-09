@@ -1,121 +1,157 @@
+
+import { supabase } from '@/integrations/supabase/client';
 import { vehiclePositionSyncService } from '../vehiclePosition/vehiclePositionSyncService';
-import type { SyncMetrics } from '../vehiclePosition/types';
-import { VehicleDataLoader } from './dataLoader';
-import { VehicleMetricsCalculator } from './metricsCalculator';
-import type { Vehicle, VehicleMetrics } from './types';
+import type { Vehicle } from '../unifiedVehicleData';
+
+interface DataMetrics {
+  totalVehicles: number;
+  onlineVehicles: number;
+  offlineVehicles: number;
+  lastSyncTime: Date;
+  syncStatus: 'syncing' | 'success' | 'failed' | 'partial';
+}
 
 export class UnifiedVehicleDataService {
+  private static instance: UnifiedVehicleDataService;
   private vehicles: Vehicle[] = [];
-  private totalVehiclesInDatabase: number = 0;
-  private metrics: VehicleMetrics = {
-    total: 0,
-    online: 0,
-    offline: 0,
-    alerts: 0,
-    lastUpdateTime: new Date()
+  private metrics: DataMetrics = {
+    totalVehicles: 0,
+    onlineVehicles: 0,
+    offlineVehicles: 0,
+    lastSyncTime: new Date(),
+    syncStatus: 'success'
   };
-  private isInitialized = false;
-  private updateInterval: NodeJS.Timeout | null = null;
   private listeners: Set<() => void> = new Set();
-  private dataLoader = new VehicleDataLoader();
-  private metricsCalculator = new VehicleMetricsCalculator();
+
+  static getInstance(): UnifiedVehicleDataService {
+    if (!UnifiedVehicleDataService.instance) {
+      UnifiedVehicleDataService.instance = new UnifiedVehicleDataService();
+    }
+    return UnifiedVehicleDataService.instance;
+  }
 
   constructor() {
     this.initializeService();
   }
 
   private async initializeService(): Promise<void> {
-    console.log('Initializing unified vehicle data service for ALL vehicles...');
+    console.log('🚀 Initializing Unified Vehicle Data Service...');
     
-    // Load initial data from database (ALL vehicles, not limited to 1000)
-    await this.loadAllVehiclesFromDatabase();
+    // Load initial data
+    await this.loadVehiclesFromDatabase();
     
-    // Start the enhanced sync service for real-time updates
-    vehiclePositionSyncService.startPeriodicSync(300000); // 5 minutes for full sync
+    // Start position sync service
+    vehiclePositionSyncService.startPeriodicSync();
     
-    // Set up periodic data refresh for UI updates
-    this.startDataRefresh();
-    
-    this.isInitialized = true;
-    this.notifyListeners();
+    // Subscribe to sync status updates
+    vehiclePositionSyncService.subscribeToStatus((status) => {
+      this.metrics.syncStatus = status as any;
+      this.metrics.lastSyncTime = new Date();
+      this.notifyListeners();
+      
+      // Reload data after successful sync
+      if (status === 'success' || status === 'partial') {
+        this.loadVehiclesFromDatabase();
+      }
+    });
+
+    // Set up periodic data refresh (every 60 seconds)
+    setInterval(() => {
+      this.loadVehiclesFromDatabase();
+    }, 60000);
+
+    console.log('✅ Unified Vehicle Data Service initialized');
   }
 
-  private async loadAllVehiclesFromDatabase(): Promise<void> {
+  private async loadVehiclesFromDatabase(): Promise<void> {
     try {
-      console.log('Loading ALL vehicles from database (no limits)...');
-      const { vehicles, totalCount } = await this.dataLoader.loadVehiclesFromDatabase();
-      this.vehicles = vehicles;
-      this.totalVehiclesInDatabase = totalCount;
+      const { data: vehicles, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('is_active', true)
+        .order('device_name');
+
+      if (error) {
+        console.error('Failed to load vehicles from database:', error);
+        return;
+      }
+
+      this.vehicles = (vehicles || []).map(vehicle => this.transformDatabaseVehicle(vehicle));
       this.updateMetrics();
-      console.log(`Loaded ${vehicles.length} vehicles out of ${totalCount} total in database`);
+      this.notifyListeners();
+
     } catch (error) {
-      console.error('Failed to load vehicles from database:', error);
+      console.error('Error loading vehicles from database:', error);
     }
+  }
+
+  private transformDatabaseVehicle(dbVehicle: any): Vehicle {
+    const lastPosition = dbVehicle.last_position;
+    
+    // Determine vehicle status based on last position update
+    let status = 'offline';
+    if (lastPosition?.updatetime) {
+      const lastUpdate = new Date(lastPosition.updatetime);
+      const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
+      
+      if (minutesSinceUpdate <= 5) {
+        status = lastPosition.speed > 0 ? 'moving' : 'online';
+      }
+    }
+
+    return {
+      deviceid: dbVehicle.device_id,
+      devicename: dbVehicle.device_name,
+      plateNumber: dbVehicle.device_name, // Use device name as plate number fallback
+      status,
+      lastPosition: lastPosition ? {
+        lat: lastPosition.lat,
+        lon: lastPosition.lon,
+        speed: lastPosition.speed || 0,
+        course: lastPosition.course || 0,
+        updatetime: lastPosition.updatetime,
+        statusText: lastPosition.statusText || ''
+      } : undefined
+    };
   }
 
   private updateMetrics(): void {
-    this.metrics = this.metricsCalculator.calculateMetrics(this.vehicles, this.totalVehiclesInDatabase);
-    console.log(`Metrics updated - Total: ${this.metrics.total}, Online: ${this.metrics.online}, Offline: ${this.metrics.offline}, Alerts: ${this.metrics.alerts}`);
+    this.metrics.totalVehicles = this.vehicles.length;
+    this.metrics.onlineVehicles = this.vehicles.filter(v => v.status === 'online' || v.status === 'moving').length;
+    this.metrics.offlineVehicles = this.vehicles.filter(v => v.status === 'offline').length;
   }
 
-  private startDataRefresh(): void {
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
-    }
-
-    // More frequent UI updates to show sync progress
-    this.updateInterval = setInterval(async () => {
-      await this.refreshData();
-    }, 30000); // Refresh UI every 30 seconds
-  }
-
-  public async refreshData(): Promise<void> {
+  async refreshData(): Promise<void> {
+    console.log('🔄 Refreshing vehicle data...');
+    
     try {
-      // Force sync with GP51 for all vehicles
+      // Force position sync
       await vehiclePositionSyncService.forceSync();
       
-      // Reload from database to get latest positions
-      await this.loadAllVehiclesFromDatabase();
+      // Reload from database
+      await this.loadVehiclesFromDatabase();
       
-      this.notifyListeners();
+      console.log('✅ Vehicle data refreshed successfully');
     } catch (error) {
       console.error('Failed to refresh vehicle data:', error);
+      this.metrics.syncStatus = 'failed';
+      this.notifyListeners();
     }
   }
 
-  public async getSyncProgress() {
-    return await vehiclePositionSyncService.getSyncProgress();
-  }
-
-  public getAllVehicles(): Vehicle[] {
+  getVehicles(): Vehicle[] {
     return [...this.vehicles];
   }
 
-  public getVehicleMetrics(): VehicleMetrics {
+  getMetrics(): DataMetrics {
     return { ...this.metrics };
   }
 
-  public getSyncMetrics(): SyncMetrics {
-    return vehiclePositionSyncService.getMetrics();
-  }
-
-  public getVehicleById(deviceId: string): Vehicle | undefined {
+  getVehicleById(deviceId: string): Vehicle | undefined {
     return this.vehicles.find(v => v.deviceid === deviceId);
   }
 
-  public getOnlineVehicles(): Vehicle[] {
-    return this.metricsCalculator.getOnlineVehicles(this.vehicles);
-  }
-
-  public getOfflineVehicles(): Vehicle[] {
-    return this.metricsCalculator.getOfflineVehicles(this.vehicles);
-  }
-
-  public getVehiclesWithAlerts(): Vehicle[] {
-    return this.metricsCalculator.getVehiclesWithAlerts(this.vehicles);
-  }
-
-  public subscribe(callback: () => void): () => void {
+  subscribe(callback: () => void): () => void {
     this.listeners.add(callback);
     return () => {
       this.listeners.delete(callback);
@@ -123,23 +159,19 @@ export class UnifiedVehicleDataService {
   }
 
   private notifyListeners(): void {
-    this.listeners.forEach(callback => callback());
+    this.listeners.forEach(callback => {
+      try {
+        callback();
+      } catch (error) {
+        console.error('Error notifying data listener:', error);
+      }
+    });
   }
 
-  public async forceSync(): Promise<void> {
-    console.log('Force syncing ALL vehicle positions...');
-    await this.refreshData();
-  }
-
-  public isReady(): boolean {
-    return this.isInitialized;
-  }
-
-  public destroy(): void {
-    if (this.updateInterval) {
-      clearInterval(this.updateInterval);
-    }
-    vehiclePositionSyncService.stopPeriodicSync();
+  destroy(): void {
+    vehiclePositionSyncService.destroy();
     this.listeners.clear();
   }
 }
+
+export const unifiedVehicleDataService = UnifiedVehicleDataService.getInstance();

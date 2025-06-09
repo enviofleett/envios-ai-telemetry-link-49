@@ -9,7 +9,7 @@ export async function getMonitorListForUser(username: string, token: string): Pr
   await gp51RateLimiter.acquire();
 
   try {
-    // Standardized GP51 API endpoint with token as URL parameter
+    // Use the correct GP51 API endpoint - www.gps51.com not api.gps51.com
     const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
     const response = await fetch(`${GP51_API_BASE}/webapi?action=querymonitorlist&token=${encodeURIComponent(token)}`, {
       method: 'POST',
@@ -99,7 +99,7 @@ export async function enrichWithPositions(vehicles: GP51Vehicle[], token: string
   await gp51RateLimiter.acquire();
 
   try {
-    // Standardized GP51 API endpoint with token as URL parameter
+    // Use the correct GP51 API endpoint - www.gps51.com not api.gps51.com
     const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
     const response = await fetch(`${GP51_API_BASE}/webapi?action=lastposition&token=${encodeURIComponent(token)}`, {
       method: 'POST',
@@ -123,11 +123,11 @@ export async function enrichWithPositions(vehicles: GP51Vehicle[], token: string
     console.log('GP51 positions response received');
     
     // Standardized success check - GP51 uses status: 0 for success
-    if (result.status === 0 && result.positions) {
+    if (result.status === 0 && result.records) {
       const positionMap = new Map();
       
-      // Build position lookup map
-      result.positions.forEach((pos: any) => {
+      // Build position lookup map - note: GP51 uses 'records' not 'positions'
+      result.records.forEach((pos: any) => {
         if (pos.deviceid) {
           positionMap.set(pos.deviceid, pos);
         }

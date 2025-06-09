@@ -16,7 +16,8 @@ export function getEnvironment(): Environment {
   return {
     SUPABASE_URL: supabaseUrl,
     SUPABASE_SERVICE_ROLE_KEY: supabaseServiceKey,
-    GP51_API_BASE_URL: Deno.env.get('GP51_API_BASE_URL')
+    // Use the correct GP51 API base URL
+    GP51_API_BASE_URL: Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com'
   };
 }
 
@@ -52,12 +53,17 @@ export function validateEnvironment(): {
       result.errors.push('SUPABASE_SERVICE_ROLE_KEY is required');
     }
     
-    // Validate optional but recommended variables
+    // Validate GP51 API URL
     if (!env.GP51_API_BASE_URL) {
-      result.warnings.push('GP51_API_BASE_URL is not configured');
+      result.warnings.push('GP51_API_BASE_URL not configured, using default: https://www.gps51.com');
     } else {
       try {
         new URL(env.GP51_API_BASE_URL);
+        
+        // Warn if using the old incorrect URL
+        if (env.GP51_API_BASE_URL.includes('api.gps51.com')) {
+          result.warnings.push('GP51_API_BASE_URL should use www.gps51.com instead of api.gps51.com');
+        }
       } catch {
         result.warnings.push('GP51_API_BASE_URL is not a valid URL');
       }

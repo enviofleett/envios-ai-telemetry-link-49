@@ -29,7 +29,7 @@ serve(async (req) => {
 
     console.log('GP51 Service Management API call:', action);
 
-    // Handle test_connection as a special case - just validate we have a valid session
+    // Handle test_connection as a special case
     if (action === 'test_connection') {
       console.log('Testing GP51 connection by validating session...');
       
@@ -85,7 +85,7 @@ serve(async (req) => {
       .select('*')
       .order('created_at', { ascending: false })
       .order('token_expires_at', { ascending: false })
-      .limit(5); // Get top 5 to find a valid one
+      .limit(5);
 
     if (sessionError || !sessions || sessions.length === 0) {
       console.error('No GP51 sessions found:', sessionError);
@@ -118,10 +118,10 @@ serve(async (req) => {
     console.log('Using GP51 session for user:', validSession.username);
     const token = validSession.gp51_token;
 
-    // Call GP51 API with correct URL construction
+    // Use the correct GP51 API base URL - www.gps51.com not api.gps51.com
     const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
     
-    // Ensure proper URL construction - avoid double /webapi
+    // Construct the API URL properly
     let apiUrl;
     if (GP51_API_BASE.endsWith('/webapi')) {
       apiUrl = `${GP51_API_BASE}?action=${action}&token=${encodeURIComponent(token)}`;
@@ -176,6 +176,24 @@ serve(async (req) => {
     try {
       result = JSON.parse(responseText);
       console.log('GP51 API response parsed successfully');
+      
+      // Check if the response indicates an error status from GP51
+      if (result.status !== undefined && result.status !== 0) {
+        console.error('GP51 API returned error status:', result.status, result.cause || result.message);
+        
+        // Handle specific GP51 error codes
+        if (result.status === 1 || result.status === -1) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'GP51 authentication failed. Please re-authenticate in Admin Settings.',
+              gp51_status: result.status,
+              gp51_message: result.cause || result.message
+            }),
+            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+      
     } catch (parseError) {
       console.error('Failed to parse GP51 response:', parseError);
       return new Response(
