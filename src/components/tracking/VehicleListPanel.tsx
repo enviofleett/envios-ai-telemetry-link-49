@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Car, MapPin, Clock, MoreHorizontal } from 'lucide-react';
+import { Car, MapPin, Clock, MoreHorizontal, Zap } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ interface VehicleListPanelProps {
   onTripHistory?: (vehicle: Vehicle) => void;
   onSendAlert?: (vehicle: Vehicle) => void;
   vehicleAddresses?: Map<string, string>;
+  selectedVehicle?: Vehicle | null;
 }
 
 const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
@@ -26,7 +27,8 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
   onVehicleSelect,
   onTripHistory,
   onSendAlert,
-  vehicleAddresses = new Map()
+  vehicleAddresses = new Map(),
+  selectedVehicle
 }) => {
   const getVehicleStatus = (vehicle: Vehicle) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
@@ -35,19 +37,60 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
-    if (minutesSinceUpdate <= 5) return 'online';
-    if (minutesSinceUpdate <= 30) return 'idle';
-    return 'offline';
+    if (minutesSinceUpdate > 5) return 'offline';
+    if (vehicle.lastPosition.speed > 0) return 'moving';
+    return 'online';
+  };
+
+  const getIgnitionStatus = (vehicle: Vehicle) => {
+    const statusText = vehicle.lastPosition?.statusText?.toLowerCase() || '';
+    const speed = vehicle.lastPosition?.speed || 0;
+    
+    // Check status text for ignition keywords
+    if (statusText.includes('ignition on') || statusText.includes('engine on')) return 'ON';
+    if (statusText.includes('ignition off') || statusText.includes('engine off')) return 'OFF';
+    
+    // Fallback: assume ignition is on if vehicle is moving
+    if (speed > 0) return 'ON';
+    
+    // For stationary vehicles, check if recently active
+    if (vehicle.lastPosition?.updatetime) {
+      const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+      const now = new Date();
+      const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+      
+      if (minutesSinceUpdate <= 5) return 'ON';
+    }
+    
+    return 'OFF';
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case 'moving':
+        return <Badge className="bg-blue-100 text-blue-800 text-xs">Moving</Badge>;
       case 'online':
         return <Badge className="bg-green-100 text-green-800 text-xs">Online</Badge>;
-      case 'idle':
-        return <Badge className="bg-yellow-100 text-yellow-800 text-xs">Idle</Badge>;
       default:
         return <Badge variant="secondary" className="text-xs">Offline</Badge>;
+    }
+  };
+
+  const getIgnitionBadge = (ignitionStatus: string) => {
+    if (ignitionStatus === 'ON') {
+      return (
+        <div className="flex items-center gap-1 text-xs text-green-700">
+          <Zap className="h-3 w-3 text-green-500" />
+          <span>IGN ON</span>
+        </div>
+      );
+    } else {
+      return (
+        <div className="flex items-center gap-1 text-xs text-gray-500">
+          <Zap className="h-3 w-3 text-gray-400" />
+          <span>IGN OFF</span>
+        </div>
+      );
     }
   };
 
@@ -93,19 +136,25 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
             ) : (
               vehicles.map((vehicle) => {
                 const status = getVehicleStatus(vehicle);
+                const ignitionStatus = getIgnitionStatus(vehicle);
+                const isSelected = selectedVehicle?.deviceid === vehicle.deviceid;
                 
                 return (
                   <div
                     key={vehicle.deviceid}
-                    className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                    className={`p-3 border rounded-lg cursor-pointer transition-all ${
+                      isSelected 
+                        ? 'border-blue-300 bg-blue-50 shadow-md' 
+                        : 'border-gray-200 hover:bg-gray-50'
+                    }`}
                     onClick={() => onVehicleSelect?.(vehicle)}
                   >
                     {/* Header */}
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                          status === 'online' ? 'bg-green-500' :
-                          status === 'idle' ? 'bg-yellow-500' : 'bg-gray-400'
+                        <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                          status === 'moving' ? 'bg-blue-500' :
+                          status === 'online' ? 'bg-green-500' : 'bg-red-500'
                         }`} />
                         <span className="font-medium text-sm truncate">
                           {vehicle.devicename}
@@ -139,10 +188,13 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
 
                     {/* Vehicle Info */}
                     <div className="space-y-1">
-                      {/* Speed and Course */}
-                      <div className="flex justify-between text-xs text-gray-600">
-                        <span>Speed: {vehicle.lastPosition?.speed || 0} km/h</span>
-                        <span>Course: {vehicle.lastPosition?.course || 0}°</span>
+                      {/* Speed, Course, and Ignition */}
+                      <div className="flex justify-between items-center text-xs">
+                        <div className="flex gap-3">
+                          <span className="text-gray-600">Speed: {vehicle.lastPosition?.speed || 0} km/h</span>
+                          <span className="text-gray-600">Course: {vehicle.lastPosition?.course || 0}°</span>
+                        </div>
+                        {getIgnitionBadge(ignitionStatus)}
                       </div>
                       
                       {/* Location */}

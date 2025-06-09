@@ -24,8 +24,9 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
   onSendAlert
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'moving' | 'online' | 'offline'>('all');
   const [vehicleAddresses, setVehicleAddresses] = useState<Map<string, string>>(new Map());
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
 
   const getVehicleStatus = (vehicle: Vehicle) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
@@ -34,8 +35,9 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
-    if (minutesSinceUpdate <= 5) return 'online';
-    return 'offline';
+    if (minutesSinceUpdate > 5) return 'offline';
+    if (vehicle.lastPosition.speed > 0) return 'moving';
+    return 'online';
   };
 
   // Filter vehicles based on search and status
@@ -80,6 +82,7 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
   }, [vehicles]);
 
   const handleVehicleSelect = (vehicle: Vehicle) => {
+    setSelectedVehicle(vehicle);
     onVehicleSelect?.(vehicle);
   };
 
@@ -89,9 +92,9 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
   };
 
   return (
-    <div className="grid grid-cols-5 gap-6 h-[600px]">
-      {/* Map Section - 80% width (4/5 columns) */}
-      <div className="col-span-4">
+    <div className="grid grid-cols-10 gap-6 h-[600px]">
+      {/* Map Section - 70% width (7/10 columns) */}
+      <div className="col-span-7">
         <Card className="bg-white border border-gray-lighter shadow-sm h-full">
           <CardHeader className="p-6 border-b border-gray-lighter">
             <div className="flex items-center justify-between">
@@ -119,13 +122,14 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
               <div className="w-full md:w-48">
                 <Select 
                   value={statusFilter} 
-                  onValueChange={(value: 'all' | 'online' | 'offline') => setStatusFilter(value)}
+                  onValueChange={(value: 'all' | 'moving' | 'online' | 'offline') => setStatusFilter(value)}
                 >
                   <SelectTrigger className="h-10 border-gray-lighter">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-white border border-gray-lighter">
                     <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="moving">Moving</SelectItem>
                     <SelectItem value="online">Online</SelectItem>
                     <SelectItem value="offline">Offline</SelectItem>
                   </SelectContent>
@@ -149,6 +153,7 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
               vehicles={filteredVehicles}
               height="calc(600px - 140px)"
               onVehicleSelect={handleVehicleSelect}
+              selectedVehicle={selectedVehicle}
               defaultZoom={12}
               showControls={true}
               className="rounded-b-lg"
@@ -157,14 +162,15 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
         </Card>
       </div>
 
-      {/* Vehicle List Panel - 20% width (1/5 columns) */}
-      <div className="col-span-1">
+      {/* Vehicle List Panel - 30% width (3/10 columns) */}
+      <div className="col-span-3">
         <VehicleListPanel
           vehicles={filteredVehicles}
-          onVehicleSelect={onVehicleSelect}
+          onVehicleSelect={handleVehicleSelect}
           onTripHistory={onTripHistory}
           onSendAlert={onSendAlert}
           vehicleAddresses={vehicleAddresses}
+          selectedVehicle={selectedVehicle}
         />
       </div>
     </div>

@@ -9,6 +9,7 @@ interface MapTilerMapProps {
   vehicles: Vehicle[];
   height?: string;
   onVehicleSelect?: (vehicle: Vehicle) => void;
+  selectedVehicle?: Vehicle | null;
   defaultZoom?: number;
   showControls?: boolean;
   className?: string;
@@ -24,6 +25,7 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
   vehicles,
   height = '400px',
   onVehicleSelect,
+  selectedVehicle,
   defaultZoom = 12,
   showControls = true,
   className = ''
@@ -40,34 +42,36 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
-    if (minutesSinceUpdate <= 5) return 'online';
-    if (minutesSinceUpdate <= 30) return 'idle';
-    return 'offline';
+    if (minutesSinceUpdate > 5) return 'offline';
+    if (vehicle.lastPosition.speed > 0) return 'moving';
+    return 'online';
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'online': return '#22c55e';
-      case 'idle': return '#eab308';
-      default: return '#6b7280';
+      case 'moving': return '#3b82f6'; // Blue
+      case 'online': return '#22c55e'; // Green
+      default: return '#ef4444'; // Red
     }
   };
 
   const createMarkerElement = (vehicle: Vehicle) => {
     const status = getVehicleStatus(vehicle);
     const color = getStatusColor(status);
+    const isSelected = selectedVehicle?.deviceid === vehicle.deviceid;
     
     const el = document.createElement('div');
     el.className = 'vehicle-marker';
     el.style.cssText = `
       background-color: ${color};
-      width: 20px;
-      height: 20px;
+      width: ${isSelected ? '24px' : '20px'};
+      height: ${isSelected ? '24px' : '20px'};
       border-radius: 50%;
-      border: 2px solid white;
+      border: ${isSelected ? '3px' : '2px'} solid white;
       box-shadow: 0 2px 4px rgba(0,0,0,0.3);
       cursor: pointer;
       position: relative;
+      transition: all 0.2s ease;
     `;
     
     // Add tooltip
@@ -89,7 +93,7 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
       transition: opacity 0.2s;
       z-index: 1000;
     `;
-    tooltip.textContent = vehicle.devicename;
+    tooltip.textContent = `${vehicle.devicename} - ${status.toUpperCase()}`;
     el.appendChild(tooltip);
     
     // Show/hide tooltip on hover
@@ -109,6 +113,19 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
     
     return el;
   };
+
+  // Focus on selected vehicle
+  useEffect(() => {
+    if (selectedVehicle && map.current && isMapLoaded) {
+      if (selectedVehicle.lastPosition?.lat && selectedVehicle.lastPosition?.lon) {
+        map.current.flyTo({
+          center: [selectedVehicle.lastPosition.lon, selectedVehicle.lastPosition.lat],
+          zoom: 16,
+          duration: 1000
+        });
+      }
+    }
+  }, [selectedVehicle, isMapLoaded]);
 
   // Initialize map
   useEffect(() => {
@@ -139,7 +156,7 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
     };
   }, [defaultZoom, showControls]);
 
-  // Update markers when vehicles change
+  // Update markers when vehicles change or selection changes
   useEffect(() => {
     if (!map.current || !isMapLoaded) return;
 
@@ -174,19 +191,21 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
 
     markersRef.current = newMarkers;
 
-    // Fit bounds to show all vehicles
-    if (validVehicles.length === 1) {
-      const vehicle = validVehicles[0];
-      map.current.setCenter([vehicle.lastPosition!.lon, vehicle.lastPosition!.lat]);
-      map.current.setZoom(16);
-    } else if (validVehicles.length > 1) {
-      const bounds = new maplibregl.LngLatBounds();
-      validVehicles.forEach(vehicle => {
-        bounds.extend([vehicle.lastPosition!.lon, vehicle.lastPosition!.lat]);
-      });
-      map.current.fitBounds(bounds, { padding: 50 });
+    // Fit bounds to show all vehicles (only if no specific vehicle is selected)
+    if (!selectedVehicle) {
+      if (validVehicles.length === 1) {
+        const vehicle = validVehicles[0];
+        map.current.setCenter([vehicle.lastPosition!.lon, vehicle.lastPosition!.lat]);
+        map.current.setZoom(16);
+      } else if (validVehicles.length > 1) {
+        const bounds = new maplibregl.LngLatBounds();
+        validVehicles.forEach(vehicle => {
+          bounds.extend([vehicle.lastPosition!.lon, vehicle.lastPosition!.lat]);
+        });
+        map.current.fitBounds(bounds, { padding: 50 });
+      }
     }
-  }, [vehicles, isMapLoaded]);
+  }, [vehicles, isMapLoaded, selectedVehicle]);
 
   return (
     <div 
