@@ -1,11 +1,10 @@
 
 import React from 'react';
-import { TabsContent } from '@/components/ui/tabs';
 import GP51HealthDashboard from '@/components/AdminSettings/GP51HealthDashboard';
 
 const HealthTab: React.FC = () => {
   return (
-    <TabsContent value="health" className="space-y-4 mt-6">
+    <div className="space-y-4">
       <div>
         <h3 className="text-lg font-semibold mb-2">GP51 Platform Health Monitoring</h3>
         <p className="text-sm text-gray-600 mb-4">
@@ -13,7 +12,7 @@ const HealthTab: React.FC = () => {
         </p>
       </div>
       <GP51HealthDashboard />
-    </TabsContent>
+    </div>
   );
 };
 
