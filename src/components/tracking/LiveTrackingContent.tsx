@@ -16,7 +16,7 @@ const LiveTrackingContent: React.FC<LiveTrackingContentProps> = ({
   vehicles
 }) => {
   if (viewMode === 'map') {
-    return <LiveTrackingMap vehicles={vehicles} />;
+    return <LiveTrackingMap />;
   }
 
   if (vehicles.length === 0) {
