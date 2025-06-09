@@ -4485,6 +4485,340 @@ export type Database = {
         }
         Relationships: []
       }
+      workshop_activations: {
+        Row: {
+          activated_at: string | null
+          activated_by: string | null
+          activation_fee_paid: number | null
+          activation_status: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          notes: string | null
+          payment_status: string | null
+          service_duration_months: number | null
+          updated_at: string
+          vehicle_ids: Json
+          workshop_id: string
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
+          activation_fee_paid?: number | null
+          activation_status?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          payment_status?: string | null
+          service_duration_months?: number | null
+          updated_at?: string
+          vehicle_ids?: Json
+          workshop_id: string
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by?: string | null
+          activation_fee_paid?: number | null
+          activation_status?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          payment_status?: string | null
+          service_duration_months?: number | null
+          updated_at?: string
+          vehicle_ids?: Json
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_activations_activated_by_fkey"
+            columns: ["activated_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_activations_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_connections: {
+        Row: {
+          connected_at: string | null
+          connection_fee_paid: number | null
+          connection_status: string
+          created_at: string
+          id: string
+          notes: string | null
+          payment_status: string | null
+          updated_at: string
+          user_id: string
+          workshop_id: string
+        }
+        Insert: {
+          connected_at?: string | null
+          connection_fee_paid?: number | null
+          connection_status?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_status?: string | null
+          updated_at?: string
+          user_id: string
+          workshop_id: string
+        }
+        Update: {
+          connected_at?: string | null
+          connection_fee_paid?: number | null
+          connection_status?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_status?: string | null
+          updated_at?: string
+          user_id?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_connections_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_connections_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_reviews: {
+        Row: {
+          created_at: string
+          id: string
+          rating: number
+          review_text: string | null
+          service_date: string | null
+          updated_at: string
+          user_id: string
+          workshop_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          rating: number
+          review_text?: string | null
+          service_date?: string | null
+          updated_at?: string
+          user_id: string
+          workshop_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          rating?: number
+          review_text?: string | null
+          service_date?: string | null
+          updated_at?: string
+          user_id?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_reviews_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_services: {
+        Row: {
+          created_at: string
+          duration_hours: number | null
+          id: string
+          is_available: boolean | null
+          price: number | null
+          service_description: string | null
+          service_name: string
+          updated_at: string
+          workshop_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_hours?: number | null
+          id?: string
+          is_available?: boolean | null
+          price?: number | null
+          service_description?: string | null
+          service_name: string
+          updated_at?: string
+          workshop_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_hours?: number | null
+          id?: string
+          is_available?: boolean | null
+          price?: number | null
+          service_description?: string | null
+          service_name?: string
+          updated_at?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_services_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_vehicle_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          assignment_status: string
+          created_at: string
+          id: string
+          notes: string | null
+          updated_at: string
+          vehicle_id: string
+          workshop_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          assignment_status?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+          vehicle_id: string
+          workshop_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          assignment_status?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          updated_at?: string
+          vehicle_id?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_vehicle_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_vehicle_assignments_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshops: {
+        Row: {
+          activation_fee: number | null
+          address: string | null
+          city: string | null
+          connection_fee: number | null
+          country: string | null
+          created_at: string
+          created_by: string | null
+          email: string
+          id: string
+          is_active: boolean | null
+          name: string
+          operating_hours: string | null
+          phone: string | null
+          rating: number | null
+          representative_name: string
+          review_count: number | null
+          service_types: Json | null
+          updated_at: string
+          verified: boolean | null
+        }
+        Insert: {
+          activation_fee?: number | null
+          address?: string | null
+          city?: string | null
+          connection_fee?: number | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          email: string
+          id?: string
+          is_active?: boolean | null
+          name: string
+          operating_hours?: string | null
+          phone?: string | null
+          rating?: number | null
+          representative_name: string
+          review_count?: number | null
+          service_types?: Json | null
+          updated_at?: string
+          verified?: boolean | null
+        }
+        Update: {
+          activation_fee?: number | null
+          address?: string | null
+          city?: string | null
+          connection_fee?: number | null
+          country?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          operating_hours?: string | null
+          phone?: string | null
+          rating?: number | null
+          representative_name?: string
+          review_count?: number | null
+          service_types?: Json | null
+          updated_at?: string
+          verified?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshops_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

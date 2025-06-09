@@ -18,7 +18,8 @@ import {
   Mail, 
   CheckSquare,
   Settings,
-  MailOpen
+  MailOpen,
+  Wrench
 } from 'lucide-react';
 
 interface SettingsSidebarProps {
@@ -41,6 +42,12 @@ const settingsCategories = [
       { id: "company", label: "Company Settings", icon: Building },
       { id: "users", label: "User Management", icon: Users },
       { id: "billing", label: "Billing", icon: CreditCard },
+    ]
+  },
+  {
+    title: "Services & Workshops",
+    items: [
+      { id: "workshops", label: "Workshop Management", icon: Wrench },
     ]
   },
   {

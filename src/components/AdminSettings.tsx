@@ -19,6 +19,7 @@ import GeofencingTab from './admin/tabs/GeofencingTab';
 import SMTPGuideTab from './admin/tabs/SMTPGuideTab';
 import SMTPTab from './admin/tabs/SMTPTab';
 import GP51ValidationTab from './admin/tabs/GP51ValidationTab';
+import WorkshopsTab from './admin/tabs/WorkshopsTab';
 
 const AdminSettings = () => {
   return (
@@ -41,6 +42,7 @@ const AdminSettings = () => {
           <CompanyTab />
           <BillingTab />
           <UsersTab />
+          <WorkshopsTab />
           <NotificationsTab />
           <GP51IntegrationTab />
           <HealthTab />
