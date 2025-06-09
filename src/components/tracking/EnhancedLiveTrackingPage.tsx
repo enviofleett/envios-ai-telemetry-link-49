@@ -90,7 +90,6 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     }
     setIsEngineControlLoading(true);
     try {
-      // Mock API call - in real implementation, this would call GP51 API
       await new Promise(resolve => setTimeout(resolve, 2000));
       toast({
         title: 'Engine Shutdown Initiated',
@@ -118,7 +117,6 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     }
     setIsEngineControlLoading(true);
     try {
-      // Mock API call - in real implementation, this would call GP51 API
       await new Promise(resolve => setTimeout(resolve, 2000));
       toast({
         title: 'Engine Enable Initiated',
@@ -137,7 +135,6 @@ const EnhancedLiveTrackingPage: React.FC = () => {
 
   const handleWorkshopAssign = async (vehicleId: string) => {
     try {
-      // Mock API call - in real implementation, this would save to database
       await new Promise(resolve => setTimeout(resolve, 1000));
       toast({
         title: 'Workshop Assigned',
@@ -154,7 +151,6 @@ const EnhancedLiveTrackingPage: React.FC = () => {
 
   const handleReportGenerate = async (vehicleId: string) => {
     try {
-      // Mock API call - in real implementation, this would generate and download report
       await new Promise(resolve => setTimeout(resolve, 2000));
       toast({
         title: 'Report Generated',
@@ -198,36 +194,39 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       </div>;
   }
 
-  return <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Enhanced Live Tracking</h1>
+  return <div className="space-y-4 md:space-y-6 p-4 md:p-0">
+      {/* Header - Mobile Responsive */}
+      <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
+        <div className="space-y-1">
+          <h1 className="text-2xl md:text-3xl font-bold">Enhanced Live Tracking</h1>
           <p className="text-sm text-muted-foreground">
-            Advanced fleet monitoring with filtering, grouping, and theme support
+            Advanced fleet monitoring with filtering, grouping, and mobile support
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col space-y-2 md:flex-row md:items-center md:space-y-0 md:space-x-2">
           <Button 
             variant="outline" 
             onClick={openCommand}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 w-full md:w-auto"
+            size="sm"
           >
             <Command className="h-4 w-4" />
-            Command
-            <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+            <span className="md:hidden">Command Palette</span>
+            <span className="hidden md:inline">Command</span>
+            <kbd className="pointer-events-none hidden md:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
               ⌘K
             </kbd>
           </Button>
           <Button 
             variant="outline"
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 w-full md:w-auto"
+            size="sm"
           >
             <Filter className="h-4 w-4" />
             Filters
           </Button>
-          <Button onClick={forceRefresh} disabled={isRefreshing} className="flex items-center gap-2">
+          <Button onClick={forceRefresh} disabled={isRefreshing} className="flex items-center gap-2 w-full md:w-auto" size="sm">
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
@@ -243,15 +242,15 @@ const EnhancedLiveTrackingPage: React.FC = () => {
         />
       )}
 
-      {/* Real-Time Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Real-Time Statistics - Mobile Responsive */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setShowOnlineModal(true)}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Vehicles Online</CardTitle>
             <Wifi className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-green-600">{statistics.online}</div>
+            <div className="text-2xl md:text-3xl font-bold text-green-600">{statistics.online}</div>
             <p className="text-xs text-muted-foreground">
               {filteredVehicles.length > 0 ? 'In filtered view' : 'Click to view details'}
             </p>
@@ -264,20 +263,20 @@ const EnhancedLiveTrackingPage: React.FC = () => {
             <WifiOff className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-red-600">{statistics.offline}</div>
+            <div className="text-2xl md:text-3xl font-bold text-red-600">{statistics.offline}</div>
             <p className="text-xs text-muted-foreground">
               {filteredVehicles.length > 0 ? 'In filtered view' : 'Click to view details'}
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="sm:col-span-2 lg:col-span-1">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Fleet</CardTitle>
             <Car className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-blue-600">{statistics.total}</div>
+            <div className="text-2xl md:text-3xl font-bold text-blue-600">{statistics.total}</div>
             <p className="text-xs text-muted-foreground">
               {statistics.total > 0 ? (statistics.online / statistics.total * 100).toFixed(1) : 0}% online
               {filteredVehicles.length > 0 && (
@@ -288,30 +287,31 @@ const EnhancedLiveTrackingPage: React.FC = () => {
         </Card>
       </div>
 
-      {/* Main Content Tabs */}
+      {/* Main Content Tabs - Mobile Optimized */}
       <Tabs defaultValue="map" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="map" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-3 h-auto">
+          <TabsTrigger value="map" className="flex flex-col items-center gap-1 py-2 text-xs md:flex-row md:gap-2 md:text-sm">
             <MapPin className="h-4 w-4" />
-            Enhanced Map
+            <span className="hidden md:inline">Enhanced</span> Map
           </TabsTrigger>
-          <TabsTrigger value="list" className="flex items-center gap-2">
+          <TabsTrigger value="list" className="flex flex-col items-center gap-1 py-2 text-xs md:flex-row md:gap-2 md:text-sm">
             <Users className="h-4 w-4" />
-            Grouped List
+            <span className="hidden md:inline">Grouped</span> List
           </TabsTrigger>
-          <TabsTrigger value="profile" className="flex items-center gap-2">
+          <TabsTrigger value="profile" className="flex flex-col items-center gap-1 py-2 text-xs md:flex-row md:gap-2 md:text-sm">
             <BarChart3 className="h-4 w-4" />
-            Vehicle Profile
+            <span className="hidden md:inline">Vehicle</span> Profile
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="map" className="space-y-4">
-          {/* Theme-Aware Map with Advanced Features */}
+          {/* Theme-Aware Map with Mobile Height */}
           <ThemeAwareMap 
             vehicles={displayVehicles}
             onVehicleSelect={handleVehicleSelect}
             selectedVehicle={selectedVehicle}
-            height="500px"
+            height="300px md:500px"
+            className="w-full"
           />
 
           {/* Legacy Vehicle Status Card for compatibility */}

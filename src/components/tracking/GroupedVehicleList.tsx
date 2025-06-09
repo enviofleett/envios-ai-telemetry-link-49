@@ -50,13 +50,13 @@ const GroupedVehicleList: React.FC<GroupedVehicleListProps> = ({
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'online':
-        return <Badge className="bg-green-100 text-green-800">Online</Badge>;
+        return <Badge className="bg-green-100 text-green-800 text-xs">Online</Badge>;
       case 'idle':
-        return <Badge className="bg-yellow-100 text-yellow-800">Idle</Badge>;
+        return <Badge className="bg-yellow-100 text-yellow-800 text-xs">Idle</Badge>;
       case 'offline':
-        return <Badge variant="secondary">Offline</Badge>;
+        return <Badge variant="secondary" className="text-xs">Offline</Badge>;
       default:
-        return <Badge variant="outline">Unknown</Badge>;
+        return <Badge variant="outline" className="text-xs">Unknown</Badge>;
     }
   };
 
@@ -138,36 +138,38 @@ const GroupedVehicleList: React.FC<GroupedVehicleListProps> = ({
         onClick={() => onVehicleSelect(vehicle)}
       >
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div
-              className="w-3 h-3 rounded-full"
+              className="w-3 h-3 rounded-full flex-shrink-0"
               style={{ 
                 backgroundColor: status === 'online' ? '#22c55e' : 
                                 status === 'idle' ? '#eab308' : '#6b7280' 
               }}
             />
-            <div>
-              <div className="font-medium text-sm">{vehicle.devicename || 'Unknown'}</div>
-              <div className="text-xs text-muted-foreground">{vehicle.deviceid}</div>
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-sm truncate">{vehicle.devicename || 'Unknown'}</div>
+              <div className="text-xs text-muted-foreground truncate">{vehicle.deviceid}</div>
             </div>
           </div>
-          {getStatusBadge(status)}
+          <div className="flex-shrink-0">
+            {getStatusBadge(status)}
+          </div>
         </div>
         
         <div className="grid grid-cols-3 gap-2 text-xs">
-          <div className="flex items-center gap-1">
-            <Activity className="h-3 w-3 text-muted-foreground" />
-            <span>{vehicle.lastPosition?.speed || 0} km/h</span>
+          <div className="flex items-center gap-1 min-w-0">
+            <Activity className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+            <span className="truncate">{vehicle.lastPosition?.speed || 0} km/h</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Fuel className="h-3 w-3 text-muted-foreground" />
-            <span>85%</span>
+          <div className="flex items-center gap-1 min-w-0">
+            <Fuel className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+            <span className="truncate">85%</span>
           </div>
-          <div className="flex items-center gap-1">
-            <Clock className="h-3 w-3 text-muted-foreground" />
-            <span>
+          <div className="flex items-center gap-1 min-w-0">
+            <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+            <span className="truncate">
               {vehicle.lastPosition?.updatetime ? 
-                new Date(vehicle.lastPosition.updatetime).toLocaleTimeString() : 
+                new Date(vehicle.lastPosition.updatetime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 
                 'N/A'
               }
             </span>
@@ -179,14 +181,16 @@ const GroupedVehicleList: React.FC<GroupedVehicleListProps> = ({
 
   const GroupHeader: React.FC<{ group: VehicleGroup; isOpen: boolean }> = ({ group, isOpen }) => (
     <div className="flex items-center justify-between p-3 bg-muted/30 rounded-t-lg">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
         <span className={group.color}>{group.icon}</span>
-        <h3 className="font-medium text-sm">{group.name}</h3>
-        <Badge variant="outline" className="text-xs">
+        <h3 className="font-medium text-sm truncate">{group.name}</h3>
+        <Badge variant="outline" className="text-xs flex-shrink-0">
           {group.vehicles.length}
         </Badge>
       </div>
-      {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      <div className="flex-shrink-0">
+        {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      </div>
     </div>
   );
 
