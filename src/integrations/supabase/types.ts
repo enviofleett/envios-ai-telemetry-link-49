@@ -1446,6 +1446,141 @@ export type Database = {
         }
         Relationships: []
       }
+      geocoding_cache: {
+        Row: {
+          address_result: string
+          cache_key: string
+          confidence_score: number | null
+          created_at: string
+          expires_at: string
+          hit_count: number
+          id: string
+          latitude: number | null
+          longitude: number | null
+          provider_name: string
+        }
+        Insert: {
+          address_result: string
+          cache_key: string
+          confidence_score?: number | null
+          created_at?: string
+          expires_at?: string
+          hit_count?: number
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          provider_name: string
+        }
+        Update: {
+          address_result?: string
+          cache_key?: string
+          confidence_score?: number | null
+          created_at?: string
+          expires_at?: string
+          hit_count?: number
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          provider_name?: string
+        }
+        Relationships: []
+      }
+      geocoding_configurations: {
+        Row: {
+          api_key_encrypted: string | null
+          created_at: string
+          fallback_provider: boolean
+          id: string
+          is_active: boolean
+          last_tested_at: string | null
+          primary_provider: boolean
+          provider_name: string
+          rate_limit_per_day: number | null
+          test_error_message: string | null
+          test_status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key_encrypted?: string | null
+          created_at?: string
+          fallback_provider?: boolean
+          id?: string
+          is_active?: boolean
+          last_tested_at?: string | null
+          primary_provider?: boolean
+          provider_name: string
+          rate_limit_per_day?: number | null
+          test_error_message?: string | null
+          test_status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key_encrypted?: string | null
+          created_at?: string
+          fallback_provider?: boolean
+          id?: string
+          is_active?: boolean
+          last_tested_at?: string | null
+          primary_provider?: boolean
+          provider_name?: string
+          rate_limit_per_day?: number | null
+          test_error_message?: string | null
+          test_status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      geocoding_usage_logs: {
+        Row: {
+          address_input: string | null
+          address_result: string | null
+          cache_hit: boolean
+          created_at: string
+          error_message: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          provider_name: string
+          request_type: string
+          response_time_ms: number | null
+          success: boolean
+          user_id: string
+        }
+        Insert: {
+          address_input?: string | null
+          address_result?: string | null
+          cache_hit?: boolean
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          provider_name: string
+          request_type: string
+          response_time_ms?: number | null
+          success?: boolean
+          user_id: string
+        }
+        Update: {
+          address_input?: string | null
+          address_result?: string | null
+          cache_hit?: boolean
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          provider_name?: string
+          request_type?: string
+          response_time_ms?: number | null
+          success?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       geofence_alerts: {
         Row: {
           acknowledged_at: string | null
@@ -4366,6 +4501,10 @@ export type Database = {
           id: string
         }[]
       }
+      clean_expired_geocoding_cache: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       clean_expired_otps: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -4409,6 +4548,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_geocoding_statistics: {
+        Args: { p_user_id: string }
+        Returns: Json
+      }
       get_import_job_progress: {
         Args: { job_id: string }
         Returns: Json
@@ -4447,6 +4590,15 @@ export type Database = {
           p_error_message?: string
         }
         Returns: undefined
+      }
+      upsert_geocoding_configuration: {
+        Args: {
+          p_provider_name: string
+          p_api_key_encrypted: string
+          p_is_active?: boolean
+          p_primary_provider?: boolean
+        }
+        Returns: string
       }
     }
     Enums: {
