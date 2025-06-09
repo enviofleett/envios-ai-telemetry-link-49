@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -47,7 +46,7 @@ const MapSearchPanel: React.FC<MapSearchPanelProps> = ({
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Mock search results
+    // Mock search results with proper type literals
     const mockResults: SearchResult[] = [
       {
         id: '1',
@@ -55,7 +54,7 @@ const MapSearchPanel: React.FC<MapSearchPanelProps> = ({
         address: '123 Main Street, Downtown',
         lat: -26.2041,
         lon: 28.0473,
-        type: 'business'
+        type: 'business' as const
       },
       {
         id: '2',
@@ -63,7 +62,7 @@ const MapSearchPanel: React.FC<MapSearchPanelProps> = ({
         address: '456 Commerce Ave, City Center',
         lat: -26.1950,
         lon: 28.0536,
-        type: 'business'
+        type: 'business' as const
       },
       {
         id: '3',
@@ -71,7 +70,7 @@ const MapSearchPanel: React.FC<MapSearchPanelProps> = ({
         address: 'International Airport, Terminal 1',
         lat: -26.1367,
         lon: 28.2411,
-        type: 'landmark'
+        type: 'landmark' as const
       }
     ].filter(result => 
       result.name.toLowerCase().includes(query.toLowerCase()) ||
