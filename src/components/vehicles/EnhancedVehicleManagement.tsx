@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,24 +10,31 @@ import SystemHealthIndicator from '@/components/admin/SystemHealthIndicator';
 import { EnhancedVehicleRegistration } from './EnhancedVehicleRegistration';
 import { useOptimizedVehicleData } from '@/hooks/useOptimizedVehicleData';
 import { Search, RefreshCw, AlertTriangle, Car, Settings } from 'lucide-react';
+
 const EnhancedVehicleManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showOfflineOnly, setShowOfflineOnly] = useState(false);
-  const {
-    data: vehiclesData,
-    isLoading,
-    error,
-    refetch
+
+  const { 
+    data: vehiclesData, 
+    isLoading, 
+    error, 
+    refetch 
   } = useOptimizedVehicleData({
     enabled: true,
     refreshInterval: 30000
   });
-  const vehicles = vehiclesData?.vehicles || [];
 
+  const vehicles = vehiclesData?.vehicles || [];
+  
   // Filter vehicles based on search term and offline filter
   const filteredVehicles = vehicles.filter(vehicle => {
-    const matchesSearch = !searchTerm || vehicle.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) || vehicle.device_id?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = !searchTerm || 
+      vehicle.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle.device_id?.toLowerCase().includes(searchTerm.toLowerCase());
+    
     const matchesOfflineFilter = !showOfflineOnly || vehicle.status === 'offline';
+    
     return matchesSearch && matchesOfflineFilter;
   });
 
@@ -40,22 +48,26 @@ const EnhancedVehicleManagement: React.FC = () => {
     const hoursSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60);
     return hoursSinceUpdate < 1;
   }).length;
+
   const handleRefresh = () => {
     refetch();
   };
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
   };
-  return <div className="space-y-6">
+
+  return (
+    <div className="space-y-6">
       {/* System Health Indicator */}
       <SystemHealthIndicator />
 
       {/* Enhanced Tabs for Different Views */}
       <Tabs defaultValue="overview" className="w-full">
         <TabsList>
-          
-          
-          
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="registration">Vehicle Registration</TabsTrigger>
+          <TabsTrigger value="monitoring">Real-time Monitoring</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -71,12 +83,25 @@ const EnhancedVehicleManagement: React.FC = () => {
                   </Badge>
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  <Button variant={showOfflineOnly ? "default" : "outline"} size="sm" onClick={() => setShowOfflineOnly(!showOfflineOnly)}>
+                  <Button
+                    variant={showOfflineOnly ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowOfflineOnly(!showOfflineOnly)}
+                  >
                     <Settings className="h-4 w-4 mr-1" />
                     {showOfflineOnly ? 'Show All' : 'Offline Only'}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
-                    {isLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRefresh}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
                     Refresh
                   </Button>
                 </div>
@@ -86,22 +111,34 @@ const EnhancedVehicleManagement: React.FC = () => {
               <div className="flex items-center gap-4 mb-4">
                 <div className="relative flex-1 max-w-md">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input placeholder="Search vehicles by name or ID..." value={searchTerm} onChange={handleSearchChange} className="pl-10" />
+                  <Input
+                    placeholder="Search vehicles by name or ID..."
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                    className="pl-10"
+                  />
                 </div>
                 <div className="text-sm text-gray-500">
                   {filteredVehicles.length} of {totalVehicles} vehicles
                 </div>
               </div>
 
-              {error && <Alert variant="destructive" className="mb-4">
+              {error && (
+                <Alert variant="destructive" className="mb-4">
                   <AlertTriangle className="h-4 w-4" />
                   <AlertDescription>
                     Failed to load vehicle data. This may be due to GP51 connectivity issues.
-                    <Button variant="outline" size="sm" onClick={handleRefresh} className="ml-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleRefresh}
+                      className="ml-2"
+                    >
                       Retry
                     </Button>
                   </AlertDescription>
-                </Alert>}
+                </Alert>
+              )}
 
               {/* Vehicle Stats */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -154,14 +191,21 @@ const EnhancedVehicleManagement: React.FC = () => {
               <CardTitle>Vehicle Status & Tracking</CardTitle>
             </CardHeader>
             <CardContent>
-              {isLoading ? <div className="flex items-center justify-center p-8">
+              {isLoading ? (
+                <div className="flex items-center justify-center p-8">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-4"></div>
                   <span>Loading vehicles...</span>
-                </div> : <div className="space-y-4">
-                  {filteredVehicles.length === 0 ? <div className="text-center py-8 text-gray-500">
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredVehicles.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
                       {searchTerm || showOfflineOnly ? 'No vehicles match your filters' : 'No vehicles found'}
-                    </div> : <div className="grid gap-4">
-                      {filteredVehicles.map(vehicle => <div key={vehicle.id} className="border rounded-lg p-4">
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {filteredVehicles.map((vehicle) => (
+                        <div key={vehicle.id} className="border rounded-lg p-4">
                           <div className="flex items-center justify-between">
                             <div>
                               <h3 className="font-medium">{vehicle.device_name}</h3>
@@ -171,12 +215,17 @@ const EnhancedVehicleManagement: React.FC = () => {
                               {vehicle.status}
                             </Badge>
                           </div>
-                          {vehicle.last_position && <div className="mt-2 text-xs text-gray-500">
+                          {vehicle.last_position && (
+                            <div className="mt-2 text-xs text-gray-500">
                               Last update: {new Date(vehicle.last_position.updatetime).toLocaleString()}
-                            </div>}
-                        </div>)}
-                    </div>}
-                </div>}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -196,6 +245,8 @@ const EnhancedVehicleManagement: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>;
+    </div>
+  );
 };
+
 export default EnhancedVehicleManagement;
