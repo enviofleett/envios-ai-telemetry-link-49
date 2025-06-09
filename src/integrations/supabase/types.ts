@@ -2497,14 +2497,22 @@ export type Database = {
           alert_threshold_95: number | null
           api_key: string
           auto_fallback_enabled: boolean | null
+          cost_per_request: number | null
           created_at: string
+          error_rate: number | null
           fallback_priority: number
+          health_check_interval: number | null
+          health_check_url: string | null
+          health_status: string | null
           id: string
           is_active: boolean
           last_alert_sent: string | null
+          last_health_check: string | null
           name: string
           performance_weight: number | null
+          provider_specific_config: Json | null
           provider_type: string
+          response_time_ms: number | null
           threshold_type: string
           threshold_value: number
           updated_at: string
@@ -2515,14 +2523,22 @@ export type Database = {
           alert_threshold_95?: number | null
           api_key: string
           auto_fallback_enabled?: boolean | null
+          cost_per_request?: number | null
           created_at?: string
+          error_rate?: number | null
           fallback_priority?: number
+          health_check_interval?: number | null
+          health_check_url?: string | null
+          health_status?: string | null
           id?: string
           is_active?: boolean
           last_alert_sent?: string | null
+          last_health_check?: string | null
           name: string
           performance_weight?: number | null
+          provider_specific_config?: Json | null
           provider_type?: string
+          response_time_ms?: number | null
           threshold_type?: string
           threshold_value?: number
           updated_at?: string
@@ -2533,14 +2549,22 @@ export type Database = {
           alert_threshold_95?: number | null
           api_key?: string
           auto_fallback_enabled?: boolean | null
+          cost_per_request?: number | null
           created_at?: string
+          error_rate?: number | null
           fallback_priority?: number
+          health_check_interval?: number | null
+          health_check_url?: string | null
+          health_status?: string | null
           id?: string
           is_active?: boolean
           last_alert_sent?: string | null
+          last_health_check?: string | null
           name?: string
           performance_weight?: number | null
+          provider_specific_config?: Json | null
           provider_type?: string
+          response_time_ms?: number | null
           threshold_type?: string
           threshold_value?: number
           updated_at?: string
@@ -2579,6 +2603,51 @@ export type Database = {
           },
         ]
       }
+      map_failover_events: {
+        Row: {
+          from_config_id: string | null
+          id: string
+          metadata: Json | null
+          reason: string
+          resolved_at: string | null
+          to_config_id: string | null
+          triggered_at: string
+        }
+        Insert: {
+          from_config_id?: string | null
+          id?: string
+          metadata?: Json | null
+          reason: string
+          resolved_at?: string | null
+          to_config_id?: string | null
+          triggered_at?: string
+        }
+        Update: {
+          from_config_id?: string | null
+          id?: string
+          metadata?: Json | null
+          reason?: string
+          resolved_at?: string | null
+          to_config_id?: string | null
+          triggered_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_failover_events_from_config_id_fkey"
+            columns: ["from_config_id"]
+            isOneToOne: false
+            referencedRelation: "map_api_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "map_failover_events_to_config_id_fkey"
+            columns: ["to_config_id"]
+            isOneToOne: false
+            referencedRelation: "map_api_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       map_performance_metrics: {
         Row: {
           api_config_id: string | null
@@ -2611,6 +2680,44 @@ export type Database = {
           {
             foreignKeyName: "map_performance_metrics_api_config_id_fkey"
             columns: ["api_config_id"]
+            isOneToOne: false
+            referencedRelation: "map_api_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      map_provider_health_logs: {
+        Row: {
+          check_timestamp: string
+          config_id: string | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          response_time_ms: number | null
+          status: string
+        }
+        Insert: {
+          check_timestamp?: string
+          config_id?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          response_time_ms?: number | null
+          status: string
+        }
+        Update: {
+          check_timestamp?: string
+          config_id?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          response_time_ms?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "map_provider_health_logs_config_id_fkey"
+            columns: ["config_id"]
             isOneToOne: false
             referencedRelation: "map_api_configs"
             referencedColumns: ["id"]
@@ -3966,6 +4073,30 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_position_cache: {
+        Row: {
+          device_id: string
+          last_position: Json
+          last_updated: string
+          metadata: Json | null
+          status: string
+        }
+        Insert: {
+          device_id: string
+          last_position: Json
+          last_updated?: string
+          metadata?: Json | null
+          status?: string
+        }
+        Update: {
+          device_id?: string
+          last_position?: Json
+          last_updated?: string
+          metadata?: Json | null
+          status?: string
+        }
+        Relationships: []
+      }
       vehicle_routes: {
         Row: {
           avg_speed: number | null
@@ -4559,6 +4690,14 @@ export type Database = {
           config_id: string
         }[]
       }
+      get_best_map_provider: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          api_key: string
+          provider_type: string
+          config_id: string
+        }[]
+      }
       get_import_job_progress: {
         Args: { job_id: string }
         Returns: Json
@@ -4580,6 +4719,23 @@ export type Database = {
       }
       increment_map_api_usage: {
         Args: { config_id: string }
+        Returns: undefined
+      }
+      log_map_failover: {
+        Args: {
+          p_from_config_id: string
+          p_to_config_id: string
+          p_reason: string
+        }
+        Returns: undefined
+      }
+      log_map_provider_health: {
+        Args: {
+          p_config_id: string
+          p_status: string
+          p_response_time?: number
+          p_error_message?: string
+        }
         Returns: undefined
       }
       merge_table_from_backup: {

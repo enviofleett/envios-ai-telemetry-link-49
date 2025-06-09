@@ -1,18 +1,18 @@
 
 import React from 'react';
 import { TabsContent } from '@/components/ui/tabs';
-import EnhancedMapApiManagement from '@/components/AdminSettings/EnhancedMapApiManagement';
+import MultiProviderMapManagement from '@/components/AdminSettings/MultiProviderMapManagement';
 
 const MapsTab: React.FC = () => {
   return (
     <TabsContent value="maps" className="space-y-4 mt-6">
       <div>
-        <h3 className="text-lg font-semibold mb-2">Enhanced MapTiler API Management</h3>
+        <h3 className="text-lg font-semibold mb-2">Multi-Provider Map Management</h3>
         <p className="text-sm text-gray-600 mb-4">
-          Advanced API key management with auto-switching, threshold monitoring, and performance analytics
+          Configure multiple map providers with intelligent failover, usage monitoring, and cost optimization
         </p>
       </div>
-      <EnhancedMapApiManagement />
+      <MultiProviderMapManagement />
     </TabsContent>
   );
 };

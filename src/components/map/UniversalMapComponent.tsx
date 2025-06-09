@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { MapIntegrationProps } from '@/types/mapIntegration';
-import EnhancedMapTilerMap from './EnhancedMapTilerMap';
+import UniversalMapProvider from './UniversalMapProvider';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface UniversalMapComponentProps extends MapIntegrationProps {
@@ -41,21 +41,19 @@ const UniversalMapComponent: React.FC<UniversalMapComponentProps> = ({
         </div>
       )}
       
-      <EnhancedMapTilerMap
+      <UniversalMapProvider
         vehicles={displayVehicles}
         onVehicleSelect={handleVehicleSelect}
         center={center}
         zoom={zoom}
         height={height}
         enableClustering={clustered}
-        enableGeofencing={showGeofences}
-        maxVehiclesBeforeClustering={clustered ? 50 : 999999}
         className="rounded-lg border"
       />
       
       {showControls && vehicles.length > 0 && (
         <div className="mt-2 text-sm text-gray-500 text-center">
-          Showing {displayVehicles.length} vehicles on map
+          Showing {displayVehicles.length} vehicles • Multi-provider map system
         </div>
       )}
     </div>
