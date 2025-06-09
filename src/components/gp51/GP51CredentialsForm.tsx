@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useGP51Credentials } from '@/hooks/useGP51Credentials';
+import { supabase } from '@/integrations/supabase/client';
 import { Loader2, CheckCircle, AlertCircle, Settings, TestTube, Shield } from 'lucide-react';
 
 interface GP51CredentialsFormProps {
