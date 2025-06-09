@@ -1,4 +1,3 @@
-
 export async function authenticateGP51(credentials: { username: string; password: string }, apiUrl?: string): Promise<string> {
   const md5Hash = await hashMD5(credentials.password);
   
@@ -10,15 +9,22 @@ export async function authenticateGP51(credentials: { username: string; password
 
   console.log(`Authenticating admin ${credentials.username} with GP51 using API URL: ${apiUrl}...`);
 
-  // Use provided API URL or fallback to environment variable or default
-  const GP51_API_BASE = apiUrl || Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+  // Use provided API URL or fallback to environment variable or default - ensure complete URL
+  let GP51_COMPLETE_API_URL = apiUrl || Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com/webapi';
   
-  // Ensure proper URL format
-  const apiEndpoint = GP51_API_BASE.endsWith('/webapi') ? 
-    `${GP51_API_BASE}?action=login&token=` : 
-    `${GP51_API_BASE}/webapi?action=login&token=`;
+  // Ensure the URL includes /webapi
+  if (!GP51_COMPLETE_API_URL.includes('/webapi')) {
+    // Add protocol if missing
+    if (!GP51_COMPLETE_API_URL.startsWith('http://') && !GP51_COMPLETE_API_URL.startsWith('https://')) {
+      GP51_COMPLETE_API_URL = 'https://' + GP51_COMPLETE_API_URL;
+    }
+    GP51_COMPLETE_API_URL = `${GP51_COMPLETE_API_URL}/webapi`;
+  }
     
-  console.log(`Using GP51 API endpoint: ${apiEndpoint.replace('?action=login&token=', '?action=login&token=[REDACTED]')}`);
+  console.log(`Using GP51 complete API URL: ${GP51_COMPLETE_API_URL}`);
+
+  // Simply append query parameters to the complete API URL
+  const apiEndpoint = `${GP51_COMPLETE_API_URL}?action=login&token=`;
 
   const response = await fetch(apiEndpoint, {
     method: 'POST',
@@ -39,7 +45,7 @@ export async function authenticateGP51(credentials: { username: string; password
   
   // Standardized success check - GP51 uses status: 0 for success
   if (result.status === 0 && result.token) {
-    console.log(`Successfully authenticated admin ${credentials.username} using API: ${GP51_API_BASE}`);
+    console.log(`Successfully authenticated admin ${credentials.username} using API: ${GP51_COMPLETE_API_URL}`);
     return result.token;
   }
 

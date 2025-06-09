@@ -119,18 +119,13 @@ serve(async (req) => {
     console.log('Using GP51 session for user:', validSession.username, 'with API URL:', validSession.api_url);
     const token = validSession.gp51_token;
 
-    // Use the API URL from the session instead of environment variable
-    const GP51_API_BASE = validSession.api_url || 'https://www.gps51.com';
+    // Use the complete API URL from the session - no more URL construction needed!
+    const GP51_COMPLETE_API_URL = validSession.api_url || 'https://gps51.com/webapi';
     
-    console.log('GP51 API Base URL from session:', GP51_API_BASE);
+    console.log('GP51 complete API URL from session:', GP51_COMPLETE_API_URL);
     
-    // Construct the API URL properly using the session's API URL
-    let apiUrl;
-    if (GP51_API_BASE.endsWith('/webapi')) {
-      apiUrl = `${GP51_API_BASE}?action=${action}&token=${encodeURIComponent(token)}`;
-    } else {
-      apiUrl = `${GP51_API_BASE}/webapi?action=${action}&token=${encodeURIComponent(token)}`;
-    }
+    // Simply append query parameters to the complete API URL
+    const apiUrl = `${GP51_COMPLETE_API_URL}?action=${action}&token=${encodeURIComponent(token)}`;
     
     console.log('Calling GP51 API:', apiUrl.replace(token, '[TOKEN_REDACTED]'));
     

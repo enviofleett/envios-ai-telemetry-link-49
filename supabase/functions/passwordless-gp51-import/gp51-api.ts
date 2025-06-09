@@ -1,4 +1,3 @@
-
 import { GP51Vehicle } from './types.ts';
 import { gp51RateLimiter } from './rate-limiter.ts';
 
@@ -9,13 +8,16 @@ export async function getMonitorListForUser(username: string, token: string, api
   await gp51RateLimiter.acquire();
 
   try {
-    // Use provided API URL or fallback to environment variable or default
-    const GP51_API_BASE = apiUrl || Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    // Use provided API URL or fallback to environment variable or default - ensure complete URL
+    let GP51_COMPLETE_API_URL = apiUrl || Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com/webapi';
     
-    // Ensure proper URL format
-    const apiEndpoint = GP51_API_BASE.endsWith('/webapi') ? 
-      `${GP51_API_BASE}?action=querymonitorlist&token=${encodeURIComponent(token)}` : 
-      `${GP51_API_BASE}/webapi?action=querymonitorlist&token=${encodeURIComponent(token)}`;
+    // Ensure the URL includes /webapi
+    if (!GP51_COMPLETE_API_URL.includes('/webapi')) {
+      GP51_COMPLETE_API_URL = `${GP51_COMPLETE_API_URL}/webapi`;
+    }
+    
+    // Simply append query parameters to the complete API URL
+    const apiEndpoint = `${GP51_COMPLETE_API_URL}?action=querymonitorlist&token=${encodeURIComponent(token)}`;
 
     const response = await fetch(apiEndpoint, {
       method: 'POST',
@@ -34,7 +36,7 @@ export async function getMonitorListForUser(username: string, token: string, api
     }
 
     const result = await response.json();
-    console.log(`GP51 monitor list response for ${username} received from API: ${GP51_API_BASE}`);
+    console.log(`GP51 monitor list response for ${username} received from API: ${GP51_COMPLETE_API_URL}`);
     
     // Standardized success check - GP51 uses status: 0 for success
     if (result.status === 0) {
@@ -105,13 +107,16 @@ export async function enrichWithPositions(vehicles: GP51Vehicle[], token: string
   await gp51RateLimiter.acquire();
 
   try {
-    // Use provided API URL or fallback to environment variable or default
-    const GP51_API_BASE = apiUrl || Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    // Use provided API URL or fallback to environment variable or default - ensure complete URL
+    let GP51_COMPLETE_API_URL = apiUrl || Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com/webapi';
     
-    // Ensure proper URL format
-    const apiEndpoint = GP51_API_BASE.endsWith('/webapi') ? 
-      `${GP51_API_BASE}?action=lastposition&token=${encodeURIComponent(token)}` : 
-      `${GP51_API_BASE}/webapi?action=lastposition&token=${encodeURIComponent(token)}`;
+    // Ensure the URL includes /webapi
+    if (!GP51_COMPLETE_API_URL.includes('/webapi')) {
+      GP51_COMPLETE_API_URL = `${GP51_COMPLETE_API_URL}/webapi`;
+    }
+    
+    // Simply append query parameters to the complete API URL
+    const apiEndpoint = `${GP51_COMPLETE_API_URL}?action=lastposition&token=${encodeURIComponent(token)}`;
 
     const response = await fetch(apiEndpoint, {
       method: 'POST',
@@ -132,7 +137,7 @@ export async function enrichWithPositions(vehicles: GP51Vehicle[], token: string
     }
 
     const result = await response.json();
-    console.log(`GP51 positions response received from API: ${GP51_API_BASE}`);
+    console.log(`GP51 positions response received from API: ${GP51_COMPLETE_API_URL}`);
     
     // Standardized success check - GP51 uses status: 0 for success
     if (result.status === 0 && result.records) {

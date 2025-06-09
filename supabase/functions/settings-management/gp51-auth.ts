@@ -22,21 +22,37 @@ export async function authenticateWithGP51({
     throw new Error('GP51 API URL is required. Please provide an API URL or configure GP51_API_BASE_URL in Supabase secrets.');
   }
 
-  // URLs to try in order of preference
+  // URLs to try in order of preference - now using complete webapi URLs
   const urlsToTry = [];
   
   if (apiUrl?.trim()) {
-    // User provided a custom URL, try it first
-    urlsToTry.push(apiUrl.trim());
+    // User provided a custom URL, ensure it includes /webapi
+    const customUrl = apiUrl.trim();
+    if (customUrl.includes('/webapi')) {
+      urlsToTry.push(customUrl);
+    } else {
+      // Add protocol if missing
+      let cleanUrl = customUrl;
+      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+        cleanUrl = 'https://' + cleanUrl;
+      }
+      urlsToTry.push(`${cleanUrl}/webapi`);
+    }
   } else {
-    // Try legacy URL first as it's more reliable
-    urlsToTry.push('https://www.gps51.com');
+    // Try legacy URL first as it's more reliable - store complete webapi URL
+    urlsToTry.push('https://gps51.com/webapi');
+    urlsToTry.push('https://www.gps51.com/webapi');
     if (GP51_API_BASE && !urlsToTry.includes(GP51_API_BASE)) {
-      urlsToTry.push(GP51_API_BASE);
+      // Ensure the base URL includes webapi
+      if (GP51_API_BASE.includes('/webapi')) {
+        urlsToTry.push(GP51_API_BASE);
+      } else {
+        urlsToTry.push(`${GP51_API_BASE}/webapi`);
+      }
     }
   }
 
-  console.log('Will try GP51 API URLs in order:', urlsToTry);
+  console.log('Will try GP51 complete API URLs in order:', urlsToTry);
   
   try {
     // Hash the password using MD5
@@ -45,37 +61,26 @@ export async function authenticateWithGP51({
     
     let lastError: Error | null = null;
     
-    // Try each URL
+    // Try each complete API URL
     for (let urlIndex = 0; urlIndex < urlsToTry.length; urlIndex++) {
-      const baseUrl = urlsToTry[urlIndex];
-      console.log(`Trying GP51 API URL ${urlIndex + 1}/${urlsToTry.length}: ${baseUrl}`);
-      
-      // Clean up and validate the URL
-      let cleanUrl = baseUrl;
-      
-      // Add protocol if missing
-      if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
-        cleanUrl = 'https://' + cleanUrl;
-      }
-      
-      // Remove trailing /webapi if present (we'll add it back)
-      cleanUrl = cleanUrl.replace(/\/webapi\/?$/, '');
+      const completeApiUrl = urlsToTry[urlIndex];
+      console.log(`Trying GP51 complete API URL ${urlIndex + 1}/${urlsToTry.length}: ${completeApiUrl}`);
       
       // Validate URL format
       let validatedUrl: URL;
       try {
-        validatedUrl = new URL(cleanUrl);
+        validatedUrl = new URL(completeApiUrl);
         if (!validatedUrl.protocol.startsWith('http')) {
           throw new Error('Invalid protocol');
         }
       } catch (error) {
-        console.error(`Invalid URL format: ${cleanUrl}`, error);
-        lastError = new Error(`Invalid GP51 API URL format: ${cleanUrl}`);
+        console.error(`Invalid URL format: ${completeApiUrl}`, error);
+        lastError = new Error(`Invalid GP51 API URL format: ${completeApiUrl}`);
         continue; // Try next URL
       }
       
-      // Construct the final API URL with correct format
-      const finalApiUrl = `${cleanUrl}/webapi?action=login&token=`;
+      // Construct the final API URL - now just append query parameters
+      const finalApiUrl = `${completeApiUrl}?action=login&token=`;
       
       console.log(`Using final GP51 API URL: ${finalApiUrl}`);
       
@@ -153,7 +158,8 @@ export async function authenticateWithGP51({
         }
 
         console.log(`SUCCESS! GP51 authentication successful for user: ${trimmedUsername} Token length: ${token.length}`);
-        return { token, username: trimmedUsername, apiUrl: cleanUrl };
+        // Return the complete API URL (not just the base)
+        return { token, username: trimmedUsername, apiUrl: completeApiUrl };
 
       } catch (error) {
         console.error(`GP51 authentication error for user: ${trimmedUsername}`, error);

@@ -77,7 +77,7 @@ export class EnhancedGP51SessionValidator {
           continue;
         }
 
-        // Test session connectivity with retry logic
+        // Test session connectivity with retry logic using complete API URL
         const isWorking = await this.testSessionWithRetry(session.gp51_token, session.username, session.api_url);
         
         if (isWorking) {
@@ -127,7 +127,7 @@ export class EnhancedGP51SessionValidator {
         });
 
         if (!error && data?.success) {
-          console.log(`✅ Session test successful for ${username} using API: ${apiUrl || data.apiUrl}`);
+          console.log(`✅ Session test successful for ${username} using complete API URL: ${apiUrl || data.apiUrl}`);
           return true;
         }
 
@@ -165,7 +165,7 @@ export class EnhancedGP51SessionValidator {
       username: session.username,
       expiresAt: session.token_expires_at,
       token: session.gp51_token,
-      apiUrl: session.api_url || 'https://www.gps51.com'
+      apiUrl: session.api_url || 'https://gps51.com/webapi'
     };
   }
 
