@@ -3075,6 +3075,63 @@ export type Database = {
         }
         Relationships: []
       }
+      position_logs: {
+        Row: {
+          alarm: number | null
+          alarm_text: string | null
+          altitude: number | null
+          course: number | null
+          created_at: string
+          device_id: string
+          gps_time: string
+          id: string
+          latitude: number
+          longitude: number
+          server_time: string
+          speed: number | null
+          status: number | null
+          status_text: string | null
+          total_distance: number | null
+          updated_at: string
+        }
+        Insert: {
+          alarm?: number | null
+          alarm_text?: string | null
+          altitude?: number | null
+          course?: number | null
+          created_at?: string
+          device_id: string
+          gps_time: string
+          id?: string
+          latitude: number
+          longitude: number
+          server_time: string
+          speed?: number | null
+          status?: number | null
+          status_text?: string | null
+          total_distance?: number | null
+          updated_at?: string
+        }
+        Update: {
+          alarm?: number | null
+          alarm_text?: string | null
+          altitude?: number | null
+          course?: number | null
+          created_at?: string
+          device_id?: string
+          gps_time?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          server_time?: string
+          speed?: number | null
+          status?: number | null
+          status_text?: string | null
+          total_distance?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       referral_codes: {
         Row: {
           code: string

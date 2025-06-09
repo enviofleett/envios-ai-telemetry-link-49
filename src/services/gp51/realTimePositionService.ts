@@ -147,7 +147,7 @@ export class RealTimePositionService {
         created_at: new Date().toISOString()
       }));
 
-      // Store in position_logs table (create if needed)
+      // Store in position_logs table
       const { error } = await supabase
         .from('position_logs')
         .upsert(positionRecords, {
