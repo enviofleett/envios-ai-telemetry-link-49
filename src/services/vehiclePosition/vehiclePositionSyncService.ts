@@ -35,6 +35,18 @@ interface SyncMetrics {
   averageLatency: number;
 }
 
+interface ProcessedPosition {
+  deviceid: string;
+  lat: number | null;
+  lon: number | null;
+  speed: number;
+  course: number;
+  updatetime: string;
+  statusText: string;
+  isValid: boolean;
+  warnings: string[];
+}
+
 export class VehiclePositionSyncService {
   private static instance: VehiclePositionSyncService;
   private syncInterval: NodeJS.Timeout | null = null;
@@ -202,38 +214,51 @@ export class VehiclePositionSyncService {
         throw new Error(`GP51 service error: ${positionResult.error}`);
       }
 
-      const positions = positionResult?.records || [];
-      console.log(`📍 Received ${positions.length} position records from enhanced GP51 API`);
+      const rawPositions = positionResult?.records || [];
+      console.log(`📍 Received ${rawPositions.length} position records from enhanced GP51 API`);
 
+      // Process positions with enhanced validation and field mapping
+      const processedPositions = this.processPositionsWithValidation(rawPositions);
+      
       let updatedCount = 0;
       let errorCount = 0;
 
-      // Update positions with enhanced timestamp conversion
-      for (const position of positions) {
+      // Update positions with enhanced validation
+      for (const processedPosition of processedPositions) {
         try {
-          const updatetime = TimestampConverter.convertToISO(position.updatetime);
-          
+          if (!processedPosition.isValid) {
+            console.warn(`Skipping invalid position for device ${processedPosition.deviceid}:`, processedPosition.warnings);
+            errorCount++;
+            this.syncProgress.errors++;
+            continue;
+          }
+
           const { error: updateError } = await supabase
             .from('vehicles')
             .update({
               last_position: {
-                lat: position.callat,
-                lon: position.callon,
-                speed: position.speed,
-                course: position.course,
-                updatetime: updatetime,
-                statusText: position.strstatusen || position.strstatus
+                lat: processedPosition.lat,
+                lon: processedPosition.lon,
+                speed: processedPosition.speed,
+                course: processedPosition.course,
+                updatetime: processedPosition.updatetime,
+                statusText: processedPosition.statusText
               },
               updated_at: new Date().toISOString()
             })
-            .eq('device_id', position.deviceid);
+            .eq('device_id', processedPosition.deviceid);
 
           if (updateError) {
-            console.error(`Failed to update vehicle ${position.deviceid}:`, updateError);
+            console.error(`Failed to update vehicle ${processedPosition.deviceid}:`, updateError);
             errorCount++;
           } else {
             updatedCount++;
-            console.log(`✅ Updated vehicle ${position.deviceid} with timestamp ${updatetime}`);
+            const timeAgo = TimestampConverter.getTimeAgo(processedPosition.updatetime);
+            console.log(`✅ Updated vehicle ${processedPosition.deviceid} with timestamp ${processedPosition.updatetime} (${timeAgo})`);
+            
+            if (processedPosition.warnings.length > 0) {
+              console.warn(`Warnings for vehicle ${processedPosition.deviceid}:`, processedPosition.warnings);
+            }
           }
 
           this.syncProgress.processed++;
@@ -241,7 +266,7 @@ export class VehiclePositionSyncService {
           this.syncProgress.completionPercentage = this.syncProgress.percentage;
 
         } catch (positionError) {
-          console.error(`Error processing position for ${position.deviceid}:`, positionError);
+          console.error(`Error processing position for ${processedPosition.deviceid}:`, positionError);
           errorCount++;
           this.syncProgress.errors++;
         }
@@ -284,6 +309,107 @@ export class VehiclePositionSyncService {
     } finally {
       this.isSyncing = false;
     }
+  }
+
+  /**
+   * Process raw positions with enhanced validation and field mapping
+   */
+  private processPositionsWithValidation(rawPositions: any[]): ProcessedPosition[] {
+    return rawPositions.map(position => {
+      const warnings: string[] = [];
+      let isValid = true;
+
+      // Enhanced field mapping with multiple possible field names
+      const lat = this.extractCoordinate(position, ['callat', 'lat', 'latitude'], 'latitude');
+      const lon = this.extractCoordinate(position, ['callon', 'lon', 'longitude'], 'longitude');
+      
+      if (lat === null || lon === null) {
+        isValid = false;
+        warnings.push('Missing or invalid coordinates');
+      }
+
+      // Validate coordinate ranges
+      if (lat !== null && (lat < -90 || lat > 90)) {
+        isValid = false;
+        warnings.push(`Invalid latitude: ${lat}`);
+      }
+      
+      if (lon !== null && (lon < -180 || lon > 180)) {
+        isValid = false;
+        warnings.push(`Invalid longitude: ${lon}`);
+      }
+
+      // Enhanced timestamp processing
+      const rawTimestamp = position.updatetime || position.timestamp || position.time;
+      let processedUpdatetime: string;
+      
+      try {
+        processedUpdatetime = TimestampConverter.convertToISO(rawTimestamp);
+        
+        // Check if timestamp is recent
+        if (!TimestampConverter.isRecent(processedUpdatetime, 120)) { // 2 hours
+          warnings.push(`Stale position data: ${TimestampConverter.getTimeAgo(processedUpdatetime)}`);
+        }
+      } catch (error) {
+        console.error(`Timestamp conversion failed for device ${position.deviceid}:`, error);
+        processedUpdatetime = new Date().toISOString();
+        warnings.push('Timestamp conversion failed, using current time');
+      }
+
+      // Extract other fields with fallbacks
+      const speed = this.extractNumericValue(position, ['speed', 'velocity'], 0);
+      const course = this.extractNumericValue(position, ['course', 'direction', 'heading'], 0);
+      const statusText = position.strstatusen || position.strstatus || position.status || 'Unknown';
+
+      // Validate device ID
+      if (!position.deviceid) {
+        isValid = false;
+        warnings.push('Missing device ID');
+      }
+
+      return {
+        deviceid: position.deviceid || 'unknown',
+        lat,
+        lon,
+        speed,
+        course,
+        updatetime: processedUpdatetime,
+        statusText,
+        isValid,
+        warnings
+      };
+    });
+  }
+
+  /**
+   * Extract coordinate value with validation
+   */
+  private extractCoordinate(position: any, fieldNames: string[], coordinateType: string): number | null {
+    for (const fieldName of fieldNames) {
+      if (fieldName in position && position[fieldName] !== null && position[fieldName] !== undefined) {
+        const value = parseFloat(position[fieldName]);
+        if (!isNaN(value)) {
+          return value;
+        }
+      }
+    }
+    console.warn(`No valid ${coordinateType} found in position data:`, position);
+    return null;
+  }
+
+  /**
+   * Extract numeric value with fallback
+   */
+  private extractNumericValue(position: any, fieldNames: string[], defaultValue: number): number {
+    for (const fieldName of fieldNames) {
+      if (fieldName in position && position[fieldName] !== null && position[fieldName] !== undefined) {
+        const value = parseFloat(position[fieldName]);
+        if (!isNaN(value)) {
+          return value;
+        }
+      }
+    }
+    return defaultValue;
   }
 
   async forceSync(): Promise<SyncResult> {
