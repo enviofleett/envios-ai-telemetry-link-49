@@ -1,5 +1,3 @@
-
-
 import { supabase } from '@/integrations/supabase/client';
 import { importErrorHandler } from './errorHandler';
 import { enhancedSessionValidator } from '../enhancedSessionValidator';
@@ -77,14 +75,8 @@ export class GP51SessionManager {
     console.log('Acquiring valid GP51 session...');
     
     try {
-      // First try to validate existing session
-      let validation = await enhancedSessionValidator.validateGP51Session();
-      
-      // If not valid, try to refresh it
-      if (!validation.valid) {
-        console.log('Session invalid, attempting refresh...');
-        validation = await enhancedSessionValidator.refreshGP51Session();
-      }
+      // Try to validate session using enhanced validator
+      const validation = await enhancedSessionValidator.validateGP51Session();
       
       if (!validation.valid || !validation.token) {
         throw new Error(validation.error || 'Failed to acquire valid GP51 session');
