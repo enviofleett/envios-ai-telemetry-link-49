@@ -3,7 +3,7 @@ import React from 'react';
 import { TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Package, Upload, Settings, User, Bell, Shield, Activity, Map, 
-  BarChart3, MapPin, Book, Mail, Globe 
+  BarChart3, MapPin, Book, Mail, Navigation 
 } from 'lucide-react';
 
 export default function AdminTabsList() {
@@ -37,9 +37,9 @@ export default function AdminTabsList() {
         <Shield className="h-4 w-4" />
         <span className="hidden sm:inline">GP51</span>
       </TabsTrigger>
-      <TabsTrigger value="api-integrations" className="flex items-center gap-2">
-        <Globe className="h-4 w-4" />
-        <span className="hidden sm:inline">API</span>
+      <TabsTrigger value="gps51" className="flex items-center gap-2">
+        <Navigation className="h-4 w-4" />
+        <span className="hidden sm:inline">GPS51</span>
       </TabsTrigger>
       <TabsTrigger value="health" className="flex items-center gap-2">
         <Activity className="h-4 w-4" />

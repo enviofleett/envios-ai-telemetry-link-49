@@ -12,7 +12,7 @@ import BillingTab from './admin/tabs/BillingTab';
 import UsersTab from './admin/tabs/UsersTab';
 import NotificationsTab from './admin/tabs/NotificationsTab';
 import GP51IntegrationTab from './admin/tabs/GP51IntegrationTab';
-import APIIntegrationsTab from './admin/tabs/APIIntegrationsTab';
+import GPS51Tab from './admin/tabs/GPS51Tab';
 import HealthTab from './admin/tabs/HealthTab';
 import MapsTab from './admin/tabs/MapsTab';
 import AnalyticsTab from './admin/tabs/AnalyticsTab';
@@ -43,7 +43,7 @@ const AdminSettings = () => {
           <UsersTab />
           <NotificationsTab />
           <GP51IntegrationTab />
-          <APIIntegrationsTab />
+          <GPS51Tab />
           <HealthTab />
           <MapsTab />
           <AnalyticsTab />
