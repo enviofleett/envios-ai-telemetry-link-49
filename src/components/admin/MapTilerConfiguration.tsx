@@ -11,18 +11,18 @@ import { useMapTilerApi } from '@/hooks/useMapTilerApi';
 const MapTilerConfiguration: React.FC = () => {
   const [apiKey, setApiKey] = useState('');
   const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const { config, setApiKey: saveApiKey, testConnection } = useMapTilerApi();
+  const { config, setMapTilerApiKey, testConnection } = useMapTilerApi();
 
   const handleSaveApiKey = () => {
     if (apiKey.trim()) {
-      saveApiKey(apiKey.trim());
+      setMapTilerApiKey(apiKey.trim());
       setApiKey('');
     }
   };
 
   const handleTestConnection = async () => {
     setIsTestingConnection(true);
-    await testConnection();
+    await testConnection('maptiler');
     setIsTestingConnection(false);
   };
 
@@ -32,7 +32,7 @@ const MapTilerConfiguration: React.FC = () => {
         <CardTitle className="flex items-center gap-2">
           <Map className="h-5 w-5" />
           MapTiler Configuration
-          {config.isConfigured ? (
+          {config.mapTiler.isConfigured ? (
             <Badge className="bg-green-100 text-green-800">
               <CheckCircle className="h-3 w-3 mr-1" />
               Configured
@@ -88,7 +88,7 @@ const MapTilerConfiguration: React.FC = () => {
         </div>
 
         {/* Connection Test */}
-        {config.isConfigured && (
+        {config.mapTiler.isConfigured && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -115,19 +115,19 @@ const MapTilerConfiguration: React.FC = () => {
           <h4 className="text-sm font-medium">Map Features</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${config.isConfigured ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <div className={`w-2 h-2 rounded-full ${config.mapTiler.isConfigured ? 'bg-green-500' : 'bg-gray-300'}`} />
               <span className="text-sm">Interactive Maps</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${config.isConfigured ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <div className={`w-2 h-2 rounded-full ${config.mapTiler.isConfigured ? 'bg-green-500' : 'bg-gray-300'}`} />
               <span className="text-sm">Vehicle Tracking</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${config.isConfigured ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <div className={`w-2 h-2 rounded-full ${config.mapTiler.isConfigured ? 'bg-green-500' : 'bg-gray-300'}`} />
               <span className="text-sm">Address Geocoding</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${config.isConfigured ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <div className={`w-2 h-2 rounded-full ${config.mapTiler.isConfigured ? 'bg-green-500' : 'bg-gray-300'}`} />
               <span className="text-sm">Real-time Updates</span>
             </div>
           </div>
