@@ -16,43 +16,30 @@ export const useGP51Credentials = () => {
     mutationFn: async ({ 
       username, 
       password, 
-      apiUrl 
+      apiUrl,
+      retryCount = 0 
     }: { 
       username: string; 
       password: string; 
       apiUrl?: string;
+      retryCount?: number;
     }) => {
       console.log('🔐 Starting GP51 credentials save mutation...');
       
-      // Get current user first
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      // Check authentication state first
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (userError || !user) {
-        console.error('❌ User authentication failed:', userError);
-        throw new Error('You must be logged in to save GP51 credentials');
+      if (sessionError || !session) {
+        console.error('❌ No valid authentication session:', sessionError);
+        throw new Error('You must be logged in to save GP51 credentials. Please refresh the page and try again.');
       }
 
-      console.log('✅ User authenticated, fetching envio_user profile...');
-
-      // Get user from envio_users table
-      const { data: envioUser, error: envioUserError } = await supabase
-        .from('envio_users')
-        .select('id, email')
-        .eq('email', user.email)
-        .single();
-
-      if (envioUserError || !envioUser) {
-        console.error('❌ Envio user profile not found:', envioUserError);
-        throw new Error('User profile not found. Please contact support.');
-      }
-
-      console.log('✅ Envio user found:', envioUser.id);
+      console.log('✅ Valid session found, proceeding with request...');
 
       const payload: any = { 
         action: 'save-gp51-credentials',
         username,
-        password,
-        userId: envioUser.id // Include user ID for proper linking
+        password
       };
 
       if (apiUrl && apiUrl.trim()) {
@@ -60,23 +47,43 @@ export const useGP51Credentials = () => {
       }
 
       console.log('📡 Calling settings-management function with payload...');
-      const { data, error } = await supabase.functions.invoke('settings-management', {
-        body: payload
-      });
       
-      if (error) {
-        console.error('❌ Edge function invocation failed:', error);
-        throw error;
+      try {
+        const { data, error } = await supabase.functions.invoke('settings-management', {
+          body: payload
+        });
+        
+        if (error) {
+          console.error('❌ Edge function invocation failed:', error);
+          
+          // If it's a 401 error and we haven't retried yet, try once more
+          if (error.message?.includes('401') && retryCount < 1) {
+            console.log('🔄 Retrying due to authentication error...');
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+            return await saveCredentialsMutation.mutateAsync({ 
+              username, 
+              password, 
+              apiUrl, 
+              retryCount: retryCount + 1 
+            });
+          }
+          
+          throw error;
+        }
+        
+        // Validate that the save was actually successful
+        if (!data || !data.success) {
+          console.error('❌ GP51 save operation failed:', data);
+          throw new Error(data?.error || data?.details || 'Failed to save GP51 credentials');
+        }
+        
+        console.log('✅ GP51 credentials saved successfully:', data);
+        return data;
+        
+      } catch (fetchError) {
+        console.error('❌ Request failed:', fetchError);
+        throw fetchError;
       }
-      
-      // Validate that the save was actually successful
-      if (!data.success) {
-        console.error('❌ GP51 save operation failed:', data);
-        throw new Error(data.error || data.details || 'Failed to save GP51 credentials');
-      }
-      
-      console.log('✅ GP51 credentials saved successfully:', data);
-      return { ...data, userId: envioUser.id };
     },
     onSuccess: (data) => {
       console.log('🎉 GP51 credentials save mutation succeeded');
@@ -88,7 +95,7 @@ export const useGP51Credentials = () => {
       
       toast({ 
         title: 'GP51 Credentials Saved',
-        description: data.message || `Successfully connected to GP51 and linked to your account! Session will be used for vehicle data synchronization.`
+        description: data.message || `Successfully connected to GP51! Session will be used for vehicle data synchronization.`
       });
 
       // Force session health check and clear any cached data
@@ -103,11 +110,30 @@ export const useGP51Credentials = () => {
       // Clear any potentially stale cached data
       sessionHealthMonitor.clearCache?.();
       
-      // Extract meaningful error message
-      const errorMessage = error.message || error.details || 'Failed to connect to GP51. Please check your credentials and try again.';
+      // Categorize the error
+      let errorTitle = 'Connection Failed';
+      let errorMessage = 'Failed to connect to GP51. Please check your credentials and try again.';
+      
+      if (error.message?.includes('Authentication required') || error.message?.includes('logged in')) {
+        errorTitle = 'Authentication Required';
+        errorMessage = 'Please refresh the page and ensure you are logged in before trying again.';
+      } else if (error.message?.includes('User profile not found')) {
+        errorTitle = 'Profile Error';
+        errorMessage = 'User profile not found. Please contact support.';
+      } else if (error.message?.includes('GP51 authentication failed')) {
+        errorTitle = 'GP51 Authentication Failed';
+        errorMessage = 'Invalid GP51 username or password. Please check your credentials.';
+      } else if (error.message?.includes('Network error') || error.message?.includes('fetch')) {
+        errorTitle = 'Network Error';
+        errorMessage = 'Unable to connect to GP51 API. Please check your internet connection and try again.';
+      } else if (error.details) {
+        errorMessage = error.details;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
       
       toast({ 
-        title: 'Connection Failed', 
+        title: errorTitle, 
         description: errorMessage,
         variant: 'destructive' 
       });

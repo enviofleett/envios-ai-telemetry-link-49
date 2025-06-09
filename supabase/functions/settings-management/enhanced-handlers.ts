@@ -5,12 +5,12 @@ import { createResponse } from './cors.ts';
 import { GP51ErrorHandler } from './error-handling.ts';
 import type { GP51Credentials } from './types.ts';
 
-export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Credentials & { apiUrl?: string; testOnly?: boolean; userId?: string }) {
+export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Credentials & { apiUrl?: string; testOnly?: boolean; userId: string }) {
   const trimmedUsername = credentials.username?.trim();
   const trimmedPassword = credentials.password?.trim();
   const trimmedApiUrl = credentials.apiUrl?.trim();
   
-  console.log(`Enhanced GP51 credentials save request for user: ${trimmedUsername}, testOnly: ${credentials.testOnly || false}, userId: ${credentials.userId || 'not provided'}`);
+  console.log(`Enhanced GP51 credentials save request for user: ${trimmedUsername}, testOnly: ${credentials.testOnly || false}, userId: ${credentials.userId}`);
   
   // Input validation with detailed feedback
   if (!trimmedUsername || !trimmedPassword) {
@@ -30,6 +30,24 @@ export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Cr
     
     GP51ErrorHandler.logError(validationError);
     return createResponse(GP51ErrorHandler.formatErrorForClient(validationError), 400);
+  }
+
+  if (!credentials.userId) {
+    const authError = GP51ErrorHandler.createDetailedError(
+      new Error('User authentication required'),
+      { operation: 'credential_save' }
+    );
+    authError.code = 'GP51_AUTH_REQUIRED';
+    authError.category = 'authentication';
+    authError.details = 'User must be authenticated to save GP51 credentials.';
+    authError.suggestions = [
+      'Please log in and try again',
+      'Check your session status',
+      'Contact support if the issue persists'
+    ];
+    
+    GP51ErrorHandler.logError(authError);
+    return createResponse(GP51ErrorHandler.formatErrorForClient(authError), 401);
   }
 
   try {
@@ -63,7 +81,7 @@ export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Cr
       authResult.username, 
       authResult.token, 
       authResult.apiUrl, 
-      credentials.userId // Pass the user ID for proper linking
+      credentials.userId
     );
 
     console.log('GP51 credentials successfully validated and saved, session ID:', sessionData?.id);
@@ -79,7 +97,7 @@ export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Cr
         connectedAt: new Date().toISOString(),
         sessionCreated: true,
         apiEndpoint: authResult.apiUrl,
-        userLinked: !!credentials.userId
+        userLinked: true
       }
     });
 

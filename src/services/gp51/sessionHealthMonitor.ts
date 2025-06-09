@@ -10,6 +10,7 @@ export interface SessionHealth {
   lastCheck: Date;
   needsRefresh: boolean;
   consecutiveFailures: number;
+  isAuthError?: boolean; // Add flag to distinguish auth errors
 }
 
 type HealthUpdateCallback = (health: SessionHealth) => void;
@@ -22,7 +23,8 @@ export class GP51SessionHealthMonitor {
     username: null,
     lastCheck: new Date(),
     needsRefresh: false,
-    consecutiveFailures: 0
+    consecutiveFailures: 0,
+    isAuthError: false
   };
   private callbacks: Set<HealthUpdateCallback> = new Set();
   private monitoringInterval: NodeJS.Timeout | null = null;
@@ -83,6 +85,26 @@ export class GP51SessionHealthMonitor {
     try {
       console.log('🏥 Performing GP51 health check...');
       
+      // First check if user is authenticated
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      
+      if (authError || !session) {
+        console.log('⚠️ No valid authentication session during health check');
+        const newHealth: SessionHealth = {
+          isValid: false,
+          expiresAt: null,
+          username: null,
+          lastCheck: new Date(),
+          needsRefresh: false,
+          consecutiveFailures: this.healthStatus.consecutiveFailures + 1,
+          isAuthError: true
+        };
+        this.healthStatus = newHealth;
+        this.setCacheExpiry();
+        this.notifyCallbacks();
+        return;
+      }
+      
       const sessionInfo = await gp51SessionManager.validateSession();
       const currentTime = new Date();
       
@@ -92,7 +114,8 @@ export class GP51SessionHealthMonitor {
         username: sessionInfo.username || null,
         lastCheck: currentTime,
         needsRefresh: false,
-        consecutiveFailures: sessionInfo.valid ? 0 : this.healthStatus.consecutiveFailures + 1
+        consecutiveFailures: sessionInfo.valid ? 0 : this.healthStatus.consecutiveFailures + 1,
+        isAuthError: false
       };
 
       // Check if session needs refresh (within 10 minutes of expiration)
@@ -101,8 +124,8 @@ export class GP51SessionHealthMonitor {
         newHealth.needsRefresh = timeUntilExpiry < 10 * 60 * 1000; // 10 minutes
       }
 
-      // Report health issues
-      if (!newHealth.isValid) {
+      // Report health issues (but not authentication issues)
+      if (!newHealth.isValid && !newHealth.isAuthError) {
         gp51ErrorReporter.reportError({
           type: 'connectivity',
           message: `GP51 session health check failed (${newHealth.consecutiveFailures} consecutive failures)`,
@@ -123,7 +146,8 @@ export class GP51SessionHealthMonitor {
         isValid: false,
         lastCheck: new Date(),
         consecutiveFailures: this.healthStatus.consecutiveFailures + 1,
-        needsRefresh: true
+        needsRefresh: true,
+        isAuthError: false
       };
       
       this.setCacheExpiry();

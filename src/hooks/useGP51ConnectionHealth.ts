@@ -18,29 +18,55 @@ export const useGP51ConnectionHealth = () => {
     // Subscribe to health updates
     const unsubscribe = sessionHealthMonitor.onHealthUpdate((health) => {
       // Convert SessionHealth to ConnectionHealthStatus
-      const connectionStatus: ConnectionHealthStatus = {
-        ...health,
-        status: health.isValid ? 'connected' : 'disconnected',
-        latency: undefined, // Will be populated during health checks
-        errorMessage: health.consecutiveFailures > 0 
+      let connectionStatus: 'connected' | 'disconnected' | 'auth_error' | 'degraded' | 'connecting';
+      let errorMessage: string | undefined;
+
+      if (health.isAuthError) {
+        connectionStatus = 'auth_error';
+        errorMessage = 'Authentication required - please refresh the page and log in';
+      } else if (health.isValid) {
+        connectionStatus = health.needsRefresh ? 'degraded' : 'connected';
+      } else {
+        connectionStatus = 'disconnected';
+        errorMessage = health.consecutiveFailures > 0 
           ? `Connection failed (${health.consecutiveFailures} consecutive failures)`
-          : undefined
+          : undefined;
+      }
+
+      const connectionStatusObj: ConnectionHealthStatus = {
+        ...health,
+        status: connectionStatus,
+        latency: undefined, // Will be populated during health checks
+        errorMessage
       };
-      setStatus(connectionStatus);
+      setStatus(connectionStatusObj);
     });
 
     // Get current health
     const currentHealth = sessionHealthMonitor.getHealthStatus();
     if (currentHealth) {
-      const connectionStatus: ConnectionHealthStatus = {
-        ...currentHealth,
-        status: currentHealth.isValid ? 'connected' : 'disconnected',
-        latency: undefined,
-        errorMessage: currentHealth.consecutiveFailures > 0 
+      let connectionStatus: 'connected' | 'disconnected' | 'auth_error' | 'degraded' | 'connecting';
+      let errorMessage: string | undefined;
+
+      if (currentHealth.isAuthError) {
+        connectionStatus = 'auth_error';
+        errorMessage = 'Authentication required - please refresh the page and log in';
+      } else if (currentHealth.isValid) {
+        connectionStatus = currentHealth.needsRefresh ? 'degraded' : 'connected';
+      } else {
+        connectionStatus = 'disconnected';
+        errorMessage = currentHealth.consecutiveFailures > 0 
           ? `Connection failed (${currentHealth.consecutiveFailures} consecutive failures)`
-          : undefined
+          : undefined;
+      }
+
+      const connectionStatusObj: ConnectionHealthStatus = {
+        ...currentHealth,
+        status: connectionStatus,
+        latency: undefined,
+        errorMessage
       };
-      setStatus(connectionStatus);
+      setStatus(connectionStatusObj);
     }
 
     return unsubscribe;
@@ -95,7 +121,7 @@ export const useGP51ConnectionHealth = () => {
     isLoading,
     performHealthCheck,
     attemptReconnection,
-    startMonitoring,
-    stopMonitoring,
+    startMonitoring: () => sessionHealthMonitor.startMonitoring(),
+    stopMonitoring: () => sessionHealthMonitor.stopMonitoring(),
   };
 };
