@@ -1,6 +1,8 @@
 
+import { SessionValidationResult } from './types';
+
 export class SessionCacheManager {
-  private static cache: any = null;
+  private static cache: SessionValidationResult | null = null;
   private static cacheTimestamp: number = 0;
   private static readonly CACHE_DURATION = 30000; // 30 seconds
 
@@ -13,13 +15,14 @@ export class SessionCacheManager {
     return (now - this.cacheTimestamp) < this.CACHE_DURATION;
   }
 
-  static getCachedResult(): any {
+  static getCachedResult(): SessionValidationResult | null {
     return this.cache;
   }
 
-  static setCachedResult(result: any): void {
+  static setCachedResult(result: SessionValidationResult): SessionValidationResult {
     this.cache = result;
     this.cacheTimestamp = Date.now();
+    return result;
   }
 
   static clearCache(): void {

@@ -42,7 +42,9 @@ export class EnhancedGP51SessionValidator {
           severity: 'critical',
           timestamp: new Date()
         });
-        return SessionCacheManager.setCachedResult(this.createErrorResult('Database connection failed'));
+        const result = this.createErrorResult('Database connection failed');
+        SessionCacheManager.setCachedResult(result);
+        return result;
       }
 
       if (!sessions || sessions.length === 0) {
@@ -52,7 +54,9 @@ export class EnhancedGP51SessionValidator {
           severity: 'critical',
           timestamp: new Date()
         });
-        return SessionCacheManager.setCachedResult(this.createErrorResult('No GP51 sessions configured'));
+        const result = this.createErrorResult('No GP51 sessions configured');
+        SessionCacheManager.setCachedResult(result);
+        return result;
       }
 
       console.log(`Found ${sessions.length} GP51 sessions, validating...`);
@@ -92,7 +96,9 @@ export class EnhancedGP51SessionValidator {
         timestamp: new Date()
       });
 
-      return SessionCacheManager.setCachedResult(this.createErrorResult('All GP51 sessions failed validation'));
+      const result = this.createErrorResult('All GP51 sessions failed validation');
+      SessionCacheManager.setCachedResult(result);
+      return result;
 
     } catch (error) {
       GP51ErrorHandler.logError({
@@ -103,7 +109,9 @@ export class EnhancedGP51SessionValidator {
         timestamp: new Date()
       });
 
-      return SessionCacheManager.setCachedResult(this.createErrorResult(`Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      const result = this.createErrorResult(`Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      SessionCacheManager.setCachedResult(result);
+      return result;
     } finally {
       EnhancedGP51SessionValidator.checkInProgress = false;
     }

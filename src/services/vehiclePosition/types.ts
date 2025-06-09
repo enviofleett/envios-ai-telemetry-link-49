@@ -5,6 +5,7 @@ export interface SessionValidationResult {
   username?: string;
   expiresAt?: string;
   token?: string;
+  apiUrl?: string;
 }
 
 export interface SyncMetrics {
