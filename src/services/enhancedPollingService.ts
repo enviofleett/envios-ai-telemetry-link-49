@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { vehiclePositionSyncService } from '@/services/vehiclePosition/vehiclePositionSyncService';
 
@@ -74,8 +73,11 @@ export class EnhancedPollingService {
 
     console.log(`Starting enhanced polling service with ${this.config.interval}ms interval for ALL vehicles`);
     
-    // Start vehicle position sync service for all vehicles
-    vehiclePositionSyncService.startPeriodicSync(this.config.interval);
+    // Start vehicle position sync service for all vehicles with proper parameters
+    vehiclePositionSyncService.startPeriodicSync({
+      position: 15000, // 15 seconds for position-only sync
+      full: this.config.interval // Use configured interval for full sync
+    });
 
     this.pollingInterval = setInterval(() => {
       this.performFullPoll();

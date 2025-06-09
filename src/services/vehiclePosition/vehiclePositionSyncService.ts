@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { enhancedGP51SessionValidator } from './enhancedSessionValidator';
 import { TimestampConverter } from './timestampConverter';
@@ -155,6 +156,18 @@ export class VehiclePositionSyncService {
     }, fullSyncInterval);
   }
 
+  stopPeriodicSync(): void {
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
+    }
+    if (this.positionOnlyInterval) {
+      clearInterval(this.positionOnlyInterval);
+      this.positionOnlyInterval = null;
+    }
+    console.log('🛑 Vehicle position sync stopped');
+  }
+
   private async syncPositionsOnly(): Promise<void> {
     if (this.isPositionSyncing || this.isSyncing) {
       return;
@@ -272,15 +285,12 @@ export class VehiclePositionSyncService {
       // Get active vehicles with optimized query
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
       
-      const { data: vehicles, error: vehicleError } = await performanceOptimizer.executeWithRetry(
-        () => supabase
-          .from('vehicles')
-          .select('device_id, device_name, last_position')
-          .eq('is_active', true)
-          .or(`last_position->updatetime.gte.${twoHoursAgo},last_position.is.null`)
-          .limit(500),
-        'Vehicle Data Query'
-      );
+      const { data: vehicles, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('device_id, device_name, last_position')
+        .eq('is_active', true)
+        .or(`last_position->updatetime.gte.${twoHoursAgo},last_position.is.null`)
+        .limit(500);
 
       if (vehicleError) {
         const error = `Database error: ${vehicleError.message}`;
