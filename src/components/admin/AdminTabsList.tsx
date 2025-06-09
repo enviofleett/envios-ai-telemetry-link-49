@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
@@ -6,9 +5,9 @@ import {
   BarChart3, MapPin, Book, Mail 
 } from 'lucide-react';
 
-const AdminTabsList: React.FC = () => {
+export default function AdminTabsList() {
   return (
-    <TabsList className="grid w-full grid-cols-6 lg:grid-cols-13">
+    <TabsList className="grid w-full grid-cols-6 lg:grid-cols-12">
       <TabsTrigger value="packages" className="flex items-center gap-2">
         <Package className="h-4 w-4" />
         <span className="hidden sm:inline">Packages</span>
@@ -61,8 +60,9 @@ const AdminTabsList: React.FC = () => {
         <Mail className="h-4 w-4" />
         <span className="hidden sm:inline">SMTP Config</span>
       </TabsTrigger>
+      <TabsTrigger value="gp51-integration" className="text-xs">
+        GP51 API
+      </TabsTrigger>
     </TabsList>
   );
-};
-
-export default AdminTabsList;
+}

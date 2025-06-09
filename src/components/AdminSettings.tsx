@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +10,7 @@ import CompanyTab from './admin/tabs/CompanyTab';
 import BillingTab from './admin/tabs/BillingTab';
 import UsersTab from './admin/tabs/UsersTab';
 import NotificationsTab from './admin/tabs/NotificationsTab';
-import GP51Tab from './admin/tabs/GP51Tab';
+import GP51IntegrationTab from './admin/tabs/GP51IntegrationTab';
 import HealthTab from './admin/tabs/HealthTab';
 import MapsTab from './admin/tabs/MapsTab';
 import AnalyticsTab from './admin/tabs/AnalyticsTab';
@@ -41,7 +40,7 @@ const AdminSettings = () => {
           <BillingTab />
           <UsersTab />
           <NotificationsTab />
-          <GP51Tab />
+          <GP51IntegrationTab />
           <HealthTab />
           <MapsTab />
           <AnalyticsTab />
