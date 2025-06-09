@@ -1,30 +1,31 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
 import { useCommandPalette } from '@/hooks/useCommandPalette';
-import { Search, Filter, RefreshCw, Wifi, WifiOff, Car, MapPin, BarChart3, Command } from 'lucide-react';
-import LiveMapAndVehicleList from './LiveMapAndVehicleList';
+import { RefreshCw, Wifi, WifiOff, Car, MapPin, BarChart3, Command, Filter, Users } from 'lucide-react';
 import VehicleStatusCard from './VehicleStatusCard';
 import VehicleStatisticsModal from './VehicleStatisticsModal';
 import VehicleProfileTab from './VehicleProfileTab';
 import CommandPalette from './CommandPalette';
-import EnhancedTrackingMap from './EnhancedTrackingMap';
+import ThemeAwareMap from './ThemeAwareMap';
 import VehicleDetailPanel from './VehicleDetailPanel';
+import AdvancedFilters from './AdvancedFilters';
+import GroupedVehicleList from './GroupedVehicleList';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 const EnhancedLiveTrackingPage: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
   const [showOnlineModal, setShowOnlineModal] = useState(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [isEngineControlLoading, setIsEngineControlLoading] = useState(false);
   const [showVehiclePanel, setShowVehiclePanel] = useState(false);
+  const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
+  const [grouping, setGrouping] = useState<'none' | 'driver' | 'status' | 'geofence'>('none');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   
   const { toast } = useToast();
   const {
@@ -42,6 +43,9 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     navigate
   } = useCommandPalette();
 
+  // Use filtered vehicles or all vehicles if no filters applied
+  const displayVehicles = filteredVehicles.length > 0 ? filteredVehicles : vehicles;
+
   // Mock user role - in real implementation, this would come from auth
   const userRole = 'admin'; // 'admin', 'fleet_manager', 'user'
   const canControlEngine = userRole === 'admin' || userRole === 'fleet_manager';
@@ -57,12 +61,13 @@ const EnhancedLiveTrackingPage: React.FC = () => {
   };
 
   const getStatistics = () => {
-    const onlineVehicles = vehicles.filter(v => getVehicleStatus(v) === 'online');
-    const offlineVehicles = vehicles.filter(v => getVehicleStatus(v) === 'offline');
+    const vehiclesToAnalyze = displayVehicles;
+    const onlineVehicles = vehiclesToAnalyze.filter(v => getVehicleStatus(v) === 'online');
+    const offlineVehicles = vehiclesToAnalyze.filter(v => getVehicleStatus(v) === 'offline');
     return {
       online: onlineVehicles.length,
       offline: offlineVehicles.length,
-      total: vehicles.length
+      total: vehiclesToAnalyze.length
     };
   };
 
@@ -176,20 +181,20 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     setSelectedVehicle(null);
   };
 
-  const filteredVehicles = vehicles.filter(vehicle => {
-    const matchesSearch = vehicle.devicename.toLowerCase().includes(searchTerm.toLowerCase()) || vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase());
-    if (statusFilter === 'all') return matchesSearch;
-    const vehicleStatus = getVehicleStatus(vehicle);
-    const statusMatch = statusFilter === 'online' ? vehicleStatus === 'online' : vehicleStatus === 'offline';
-    return matchesSearch && statusMatch;
-  });
+  const handleFiltersChange = (filtered: Vehicle[]) => {
+    setFilteredVehicles(filtered);
+  };
+
+  const handleGroupingChange = (newGrouping: 'none' | 'driver' | 'status' | 'geofence') => {
+    setGrouping(newGrouping);
+  };
 
   if (isLoading) {
     return <div className="space-y-6 animate-pulse">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-gray-200 rounded-lg"></div>)}
+          {[...Array(3)].map((_, i) => <div key={i} className="h-24 bg-muted rounded-lg"></div>)}
         </div>
-        <div className="h-96 bg-gray-200 rounded-lg"></div>
+        <div className="h-96 bg-muted rounded-lg"></div>
       </div>;
   }
 
@@ -197,9 +202,9 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Live Tracking</h1>
+          <h1 className="text-3xl font-bold">Enhanced Live Tracking</h1>
           <p className="text-sm text-muted-foreground">
-            Real-time vehicle location monitoring and fleet tracking
+            Advanced fleet monitoring with filtering, grouping, and theme support
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -214,12 +219,29 @@ const EnhancedLiveTrackingPage: React.FC = () => {
               ⌘K
             </kbd>
           </Button>
+          <Button 
+            variant="outline"
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className="flex items-center gap-2"
+          >
+            <Filter className="h-4 w-4" />
+            Filters
+          </Button>
           <Button onClick={forceRefresh} disabled={isRefreshing} className="flex items-center gap-2">
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Refreshing...' : 'Refresh'}
           </Button>
         </div>
       </div>
+
+      {/* Advanced Filters (Collapsible) */}
+      {showAdvancedFilters && (
+        <AdvancedFilters
+          vehicles={vehicles}
+          onFiltersChange={handleFiltersChange}
+          onGroupingChange={handleGroupingChange}
+        />
+      )}
 
       {/* Real-Time Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -230,7 +252,9 @@ const EnhancedLiveTrackingPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-green-600">{statistics.online}</div>
-            <p className="text-xs text-muted-foreground">Click to view details</p>
+            <p className="text-xs text-muted-foreground">
+              {filteredVehicles.length > 0 ? 'In filtered view' : 'Click to view details'}
+            </p>
           </CardContent>
         </Card>
 
@@ -241,7 +265,9 @@ const EnhancedLiveTrackingPage: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-red-600">{statistics.offline}</div>
-            <p className="text-xs text-muted-foreground">Click to view details</p>
+            <p className="text-xs text-muted-foreground">
+              {filteredVehicles.length > 0 ? 'In filtered view' : 'Click to view details'}
+            </p>
           </CardContent>
         </Card>
 
@@ -254,60 +280,35 @@ const EnhancedLiveTrackingPage: React.FC = () => {
             <div className="text-3xl font-bold text-blue-600">{statistics.total}</div>
             <p className="text-xs text-muted-foreground">
               {statistics.total > 0 ? (statistics.online / statistics.total * 100).toFixed(1) : 0}% online
+              {filteredVehicles.length > 0 && (
+                <span className="ml-1">• Filtered</span>
+              )}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Enhanced Search and Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <Input 
-                placeholder="Search vehicles or press ⌘K for quick commands..." 
-                value={searchTerm} 
-                onChange={e => setSearchTerm(e.target.value)}
-                onFocus={openCommand}
-                className="pl-10" 
-              />
-            </div>
-            <div className="flex gap-2">
-              {['all', 'online', 'offline'].map(status => 
-                <Button 
-                  key={status} 
-                  variant={statusFilter === status ? 'default' : 'outline'} 
-                  size="sm" 
-                  onClick={() => setStatusFilter(status as any)} 
-                  className="flex items-center gap-2"
-                >
-                  <Filter className="h-3 w-3" />
-                  {status.charAt(0).toUpperCase() + status.slice(1)}
-                </Button>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Main Content Tabs */}
       <Tabs defaultValue="map" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="map" className="flex items-center gap-2">
             <MapPin className="h-4 w-4" />
-            Enhanced Map & Tracking
+            Enhanced Map
+          </TabsTrigger>
+          <TabsTrigger value="list" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Grouped List
           </TabsTrigger>
           <TabsTrigger value="profile" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
-            Vehicle Profile & Reports
+            Vehicle Profile
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="map" className="space-y-4">
-          {/* Enhanced Map with Clustering */}
-          <EnhancedTrackingMap 
-            vehicles={filteredVehicles}
+          {/* Theme-Aware Map with Advanced Features */}
+          <ThemeAwareMap 
+            vehicles={displayVehicles}
             onVehicleSelect={handleVehicleSelect}
             selectedVehicle={selectedVehicle}
             height="500px"
@@ -320,6 +321,16 @@ const EnhancedLiveTrackingPage: React.FC = () => {
             onEngineEnable={handleEngineEnable} 
             canControlEngine={canControlEngine} 
             isLoading={isEngineControlLoading} 
+          />
+        </TabsContent>
+
+        <TabsContent value="list" className="space-y-4">
+          {/* Grouped Vehicle List */}
+          <GroupedVehicleList 
+            vehicles={displayVehicles}
+            grouping={grouping}
+            onVehicleSelect={handleVehicleSelect}
+            selectedVehicle={selectedVehicle}
           />
         </TabsContent>
 
@@ -337,7 +348,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
         isOpen={showOnlineModal} 
         onClose={() => setShowOnlineModal(false)} 
         title="Online Vehicles" 
-        vehicles={vehicles} 
+        vehicles={displayVehicles} 
         statusType="online" 
       />
 
@@ -345,7 +356,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
         isOpen={showOfflineModal} 
         onClose={() => setShowOfflineModal(false)} 
         title="Offline Vehicles" 
-        vehicles={vehicles} 
+        vehicles={displayVehicles} 
         statusType="offline" 
       />
 
@@ -353,7 +364,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       <CommandPalette
         isOpen={isCommandOpen}
         onClose={closeCommand}
-        vehicles={vehicles}
+        vehicles={displayVehicles}
         onVehicleSelect={handleVehicleSelect}
         onRefresh={forceRefresh}
         onExport={handleExport}
