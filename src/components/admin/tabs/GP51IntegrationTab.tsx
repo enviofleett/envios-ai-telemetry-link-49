@@ -58,20 +58,7 @@ export const GP51IntegrationTab: React.FC = () => {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                🔐 GP51 API Configuration
-              </CardTitle>
-              <CardDescription>
-                Configure your GP51 tracking system credentials with secure storage and automatic session management
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <GP51CredentialsForm onConnectionChange={setIsConnected} />
-            </CardContent>
-          </Card>
+          <GP51CredentialsForm onConnectionChange={setIsConnected} />
         </TabsContent>
 
         <TabsContent value="devices" className="space-y-6">

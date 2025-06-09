@@ -50,24 +50,33 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
     setTestResult(null);
     
     try {
-      // Test connection logic would go here
-      // For now, we'll simulate a test
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Real connection test via backend
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: { 
+          action: 'save-gp51-credentials',
+          username: username.trim(),
+          password: password.trim(),
+          apiUrl: apiUrl?.trim() || undefined,
+          testOnly: true // Add flag for test-only mode
+        }
+      });
       
-      const success = Math.random() > 0.3; // 70% success rate for demo
+      if (error) throw error;
+      
+      const success = data.success || false;
       
       setTestResult({
         success,
         message: success 
           ? 'GP51 API connection test successful! Ready to save credentials.' 
-          : 'Connection test failed. Please verify your credentials and API URL.'
+          : data.error || 'Connection test failed. Please verify your credentials and API URL.'
       });
       
       toast({
         title: success ? "Connection Test Successful" : "Connection Test Failed",
         description: success 
           ? "GP51 API connection is working properly" 
-          : "Failed to connect to GP51 API. Please check your credentials.",
+          : data.error || "Failed to connect to GP51 API. Please check your credentials.",
         variant: success ? "default" : "destructive"
       });
     } catch (error) {
