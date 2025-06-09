@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw, TestTube, Zap, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import GP51ConnectionInfo from '@/components/AdminSettings/GP51ConnectionInfo';
+import { GP51CredentialsForm } from '@/components/gp51/GP51CredentialsForm';
 
 const GP51ApiSettingsTab: React.FC = () => {
   const { toast } = useToast();
