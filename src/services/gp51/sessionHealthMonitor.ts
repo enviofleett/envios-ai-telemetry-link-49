@@ -1,6 +1,7 @@
 
-import { enhancedGP51SessionManager } from './enhancedGP51SessionManager';
-import { gp51ApiService } from './gp51ApiService';
+import { supabase } from '@/integrations/supabase/client';
+import { gp51SessionManager } from './sessionManager';
+import { gp51ErrorReporter } from './errorReporter';
 
 interface SessionHealth {
   isValid: boolean;
@@ -11,154 +12,144 @@ interface SessionHealth {
   consecutiveFailures: number;
 }
 
-export class SessionHealthMonitor {
-  private static instance: SessionHealthMonitor;
-  private healthCheckInterval: NodeJS.Timeout | null = null;
-  private readonly CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
-  private readonly MAX_FAILURES = 3;
-  private consecutiveFailures = 0;
-  private healthCallbacks: ((health: SessionHealth) => void)[] = [];
+type HealthUpdateCallback = (health: SessionHealth) => void;
 
-  private constructor() {}
+export class GP51SessionHealthMonitor {
+  private static instance: GP51SessionHealthMonitor;
+  private healthStatus: SessionHealth = {
+    isValid: false,
+    expiresAt: null,
+    username: null,
+    lastCheck: new Date(),
+    needsRefresh: false,
+    consecutiveFailures: 0
+  };
+  private callbacks: Set<HealthUpdateCallback> = new Set();
+  private monitoringInterval: NodeJS.Timeout | null = null;
+  private checkInProgress = false;
 
-  static getInstance(): SessionHealthMonitor {
-    if (!SessionHealthMonitor.instance) {
-      SessionHealthMonitor.instance = new SessionHealthMonitor();
+  static getInstance(): GP51SessionHealthMonitor {
+    if (!GP51SessionHealthMonitor.instance) {
+      GP51SessionHealthMonitor.instance = new GP51SessionHealthMonitor();
     }
-    return SessionHealthMonitor.instance;
+    return GP51SessionHealthMonitor.instance;
   }
 
-  startMonitoring(): void {
-    if (this.healthCheckInterval) {
-      return; // Already monitoring
+  startMonitoring(intervalMs: number = 30000): void {
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
     }
 
-    console.log('Starting GP51 session health monitoring...');
-
-    // Initial health check
+    console.log('🏥 Starting GP51 session health monitoring...');
+    
+    // Initial check
     this.performHealthCheck();
-
-    // Set up periodic health checks
-    this.healthCheckInterval = setInterval(() => {
+    
+    // Schedule regular checks
+    this.monitoringInterval = setInterval(() => {
       this.performHealthCheck();
-    }, this.CHECK_INTERVAL);
+    }, intervalMs);
   }
 
   stopMonitoring(): void {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-      this.healthCheckInterval = null;
-      console.log('Stopped GP51 session health monitoring');
+    if (this.monitoringInterval) {
+      clearInterval(this.monitoringInterval);
+      this.monitoringInterval = null;
+      console.log('🏥 Stopped GP51 session health monitoring');
     }
   }
 
-  private async performHealthCheck(): Promise<void> {
+  async performHealthCheck(): Promise<void> {
+    if (this.checkInProgress) return;
+    
+    this.checkInProgress = true;
+    
     try {
-      const sessionInfo = enhancedGP51SessionManager.getSessionInfo();
-      const isValid = enhancedGP51SessionManager.isSessionValid();
-
-      if (!isValid && sessionInfo) {
-        console.log('Session expired, attempting restoration...');
-        
-        const restored = await enhancedGP51SessionManager.restoreSession();
-        if (!restored) {
-          this.consecutiveFailures++;
-          console.error(`Session restoration failed. Consecutive failures: ${this.consecutiveFailures}`);
-        } else {
-          console.log('Session successfully restored');
-          this.consecutiveFailures = 0;
-        }
-      } else if (isValid) {
-        // Test the session with a lightweight API call
-        const deviceListResult = await gp51ApiService.getDeviceList();
-        
-        if (deviceListResult.success) {
-          this.consecutiveFailures = 0;
-        } else {
-          this.consecutiveFailures++;
-          console.warn(`GP51 API test failed. Consecutive failures: ${this.consecutiveFailures}`);
-          
-          // If API calls are failing, try to refresh the session
-          if (this.consecutiveFailures >= 2) {
-            console.log('Multiple API failures detected, attempting session refresh...');
-            await enhancedGP51SessionManager.restoreSession();
-          }
-        }
-      }
-
-      // Notify health status
-      const health: SessionHealth = {
-        isValid: enhancedGP51SessionManager.isSessionValid(),
-        expiresAt: sessionInfo?.expiresAt || null,
-        username: sessionInfo?.username || null,
-        lastCheck: new Date(),
-        needsRefresh: this.consecutiveFailures > 0,
-        consecutiveFailures: this.consecutiveFailures
+      console.log('🏥 Performing GP51 health check...');
+      
+      const sessionInfo = await gp51SessionManager.validateSession();
+      const currentTime = new Date();
+      
+      const newHealth: SessionHealth = {
+        isValid: sessionInfo.valid,
+        expiresAt: sessionInfo.expiresAt ? new Date(sessionInfo.expiresAt) : null,
+        username: sessionInfo.username || null,
+        lastCheck: currentTime,
+        needsRefresh: false,
+        consecutiveFailures: sessionInfo.valid ? 0 : this.healthStatus.consecutiveFailures + 1
       };
 
-      this.notifyHealthUpdate(health);
-
-      // If too many consecutive failures, stop monitoring and alert
-      if (this.consecutiveFailures >= this.MAX_FAILURES) {
-        console.error('Maximum consecutive failures reached. Stopping health monitoring.');
-        this.stopMonitoring();
-        
-        // Clear the session to force re-authentication
-        await enhancedGP51SessionManager.clearSession();
+      // Check if session needs refresh (within 10 minutes of expiration)
+      if (newHealth.expiresAt) {
+        const timeUntilExpiry = newHealth.expiresAt.getTime() - currentTime.getTime();
+        newHealth.needsRefresh = timeUntilExpiry < 10 * 60 * 1000; // 10 minutes
       }
 
+      // Report health issues
+      if (!newHealth.isValid) {
+        gp51ErrorReporter.reportError({
+          type: 'connectivity',
+          message: `GP51 session health check failed (${newHealth.consecutiveFailures} consecutive failures)`,
+          details: sessionInfo.error || 'Session validation failed',
+          severity: newHealth.consecutiveFailures > 3 ? 'high' : 'medium'
+        });
+      }
+
+      this.healthStatus = newHealth;
+      this.notifyCallbacks();
+      
     } catch (error) {
-      console.error('Error during session health check:', error);
-      this.consecutiveFailures++;
+      console.error('❌ Health check failed:', error);
+      
+      this.healthStatus = {
+        ...this.healthStatus,
+        isValid: false,
+        lastCheck: new Date(),
+        consecutiveFailures: this.healthStatus.consecutiveFailures + 1,
+        needsRefresh: true
+      };
+      
+      this.notifyCallbacks();
+      
+      gp51ErrorReporter.reportError({
+        type: 'api',
+        message: 'GP51 health check exception',
+        details: error,
+        severity: 'high'
+      });
+    } finally {
+      this.checkInProgress = false;
     }
   }
 
-  onHealthUpdate(callback: (health: SessionHealth) => void): () => void {
-    this.healthCallbacks.push(callback);
+  async forceHealthCheck(): Promise<void> {
+    await this.performHealthCheck();
+  }
+
+  onHealthUpdate(callback: HealthUpdateCallback): () => void {
+    this.callbacks.add(callback);
+    
+    // Immediately call with current status
+    callback(this.healthStatus);
     
     return () => {
-      const index = this.healthCallbacks.indexOf(callback);
-      if (index > -1) {
-        this.healthCallbacks.splice(index, 1);
-      }
-    };
-  }
-
-  private notifyHealthUpdate(health: SessionHealth): void {
-    this.healthCallbacks.forEach(callback => {
-      try {
-        callback(health);
-      } catch (error) {
-        console.error('Error in health update callback:', error);
-      }
-    });
-  }
-
-  async forceHealthCheck(): Promise<SessionHealth> {
-    await this.performHealthCheck();
-    
-    const sessionInfo = enhancedGP51SessionManager.getSessionInfo();
-    return {
-      isValid: enhancedGP51SessionManager.isSessionValid(),
-      expiresAt: sessionInfo?.expiresAt || null,
-      username: sessionInfo?.username || null,
-      lastCheck: new Date(),
-      needsRefresh: this.consecutiveFailures > 0,
-      consecutiveFailures: this.consecutiveFailures
+      this.callbacks.delete(callback);
     };
   }
 
   getHealthStatus(): SessionHealth {
-    const sessionInfo = enhancedGP51SessionManager.getSessionInfo();
-    return {
-      isValid: enhancedGP51SessionManager.isSessionValid(),
-      expiresAt: sessionInfo?.expiresAt || null,
-      username: sessionInfo?.username || null,
-      lastCheck: new Date(),
-      needsRefresh: this.consecutiveFailures > 0,
-      consecutiveFailures: this.consecutiveFailures
-    };
+    return { ...this.healthStatus };
+  }
+
+  private notifyCallbacks(): void {
+    this.callbacks.forEach(callback => {
+      try {
+        callback(this.healthStatus);
+      } catch (error) {
+        console.error('❌ Health callback error:', error);
+      }
+    });
   }
 }
 
-export const sessionHealthMonitor = SessionHealthMonitor.getInstance();
+export const sessionHealthMonitor = GP51SessionHealthMonitor.getInstance();

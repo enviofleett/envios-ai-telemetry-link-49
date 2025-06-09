@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { TabsContent } from '@/components/ui/tabs';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,12 +15,14 @@ import {
   Globe,
   Lock
 } from 'lucide-react';
+import { GP51TroubleshootingGuide } from '@/components/gp51/GP51TroubleshootingGuide';
+import { GP51Documentation } from '@/components/gp51/GP51Documentation';
 
 export const GP51IntegrationTab: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
 
   return (
-    <TabsContent value="gp51" className="space-y-6 mt-6">
+    <TabsContent value="gp51-integration" className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -35,11 +36,13 @@ export const GP51IntegrationTab: React.FC = () => {
       </div>
 
       <Tabs defaultValue="connection" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="connection">Connection</TabsTrigger>
           <TabsTrigger value="devices">Devices</TabsTrigger>
           <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
+          <TabsTrigger value="troubleshooting">Troubleshooting</TabsTrigger>
+          <TabsTrigger value="documentation">Documentation</TabsTrigger>
         </TabsList>
 
         <TabsContent value="connection" className="space-y-6">
@@ -237,6 +240,14 @@ export const GP51IntegrationTab: React.FC = () => {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="troubleshooting" className="space-y-6">
+          <GP51TroubleshootingGuide />
+        </TabsContent>
+
+        <TabsContent value="documentation" className="space-y-6">
+          <GP51Documentation />
         </TabsContent>
       </Tabs>
     </TabsContent>

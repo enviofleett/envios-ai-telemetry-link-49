@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from 'react';
-import { unifiedGP51SessionManager, SessionHealth } from '@/services/unifiedGP51SessionManager';
+import { sessionHealthMonitor, SessionHealth } from '@/services/gp51/sessionHealthMonitor';
 
 export const useGP51ConnectionHealth = () => {
   const [status, setStatus] = useState<SessionHealth | null>(null);
@@ -8,12 +8,12 @@ export const useGP51ConnectionHealth = () => {
 
   useEffect(() => {
     // Subscribe to health updates
-    const unsubscribe = unifiedGP51SessionManager.subscribeToHealth((health) => {
+    const unsubscribe = sessionHealthMonitor.onHealthUpdate((health) => {
       setStatus(health);
     });
 
     // Get current health
-    const currentHealth = unifiedGP51SessionManager.getCurrentHealth();
+    const currentHealth = sessionHealthMonitor.getHealthStatus();
     if (currentHealth) {
       setStatus(currentHealth);
     }
@@ -24,25 +24,25 @@ export const useGP51ConnectionHealth = () => {
   const performHealthCheck = async () => {
     setIsLoading(true);
     try {
-      await unifiedGP51SessionManager.performHealthCheck();
+      await sessionHealthMonitor.forceHealthCheck();
     } finally {
       setIsLoading(false);
     }
   };
 
-  const attemptReconnection = async () => {
-    setIsLoading(true);
-    try {
-      return await unifiedGP51SessionManager.attemptReconnection();
-    } finally {
-      setIsLoading(false);
-    }
+  const startMonitoring = () => {
+    sessionHealthMonitor.startMonitoring();
+  };
+
+  const stopMonitoring = () => {
+    sessionHealthMonitor.stopMonitoring();
   };
 
   return {
     status,
     isLoading,
     performHealthCheck,
-    attemptReconnection,
+    startMonitoring,
+    stopMonitoring,
   };
 };
