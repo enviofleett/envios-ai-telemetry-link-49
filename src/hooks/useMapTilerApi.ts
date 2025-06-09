@@ -1,32 +1,12 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { MapConfig, isMapConfig } from '@/types/mapProviders';
 
 interface MapApiResponse {
   apiKey: string;
   providerType: string;
   configId: string;
-}
-
-interface MapApiConfig {
-  id: string;
-  name: string;
-  api_key: string;
-  provider_type: string;
-  threshold_type: string;
-  threshold_value: number;
-  is_active: boolean;
-  fallback_priority: number;
-  alert_threshold_80?: number;
-  alert_threshold_90?: number;
-  alert_threshold_95?: number;
-  auto_fallback_enabled?: boolean;
-  last_alert_sent?: string;
-  performance_weight?: number;
-  map_api_usage?: Array<{
-    usage_date: string;
-    request_count: number;
-  }>;
 }
 
 export const useMapTilerApi = () => {
@@ -85,7 +65,7 @@ export const useMapTilerApi = () => {
 };
 
 export const useMapConfigs = () => {
-  const [configs, setConfigs] = useState<MapApiConfig[]>([]);
+  const [configs, setConfigs] = useState<MapConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,7 +85,9 @@ export const useMapConfigs = () => {
         return;
       }
 
-      setConfigs(data.configs || []);
+      // Validate and filter configs
+      const validConfigs = (data.configs || []).filter(isMapConfig);
+      setConfigs(validConfigs);
     } catch (err) {
       console.error('Error fetching map configs:', err);
       setError('Failed to load map configurations');
@@ -114,7 +96,7 @@ export const useMapConfigs = () => {
     }
   };
 
-  const saveConfig = async (config: Partial<MapApiConfig>) => {
+  const saveConfig = async (config: Partial<MapConfig>) => {
     try {
       const { data, error } = await supabase.functions.invoke('map-management', {
         body: { 

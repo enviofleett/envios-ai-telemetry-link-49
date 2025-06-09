@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useMapConfigs } from '@/hooks/useMapTilerApi';
 import { MapProviderFactory } from '@/services/mapProviders/MapProviderFactory';
+import { MapConfig } from '@/types/mapProviders';
 import { toast } from 'sonner';
 import { 
   Map, 
@@ -26,46 +27,15 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
-interface MapApiConfig {
-  id?: string;
-  name: string;
-  api_key: string;
-  provider_type: string;
-  threshold_type: string;
-  threshold_value: number;
-  is_active: boolean;
-  fallback_priority: number;
-  health_status?: string | null;
-  response_time_ms?: number | null;
-  error_rate?: number | null;
-  cost_per_request?: number | null;
-  provider_specific_config?: Record<string, any>;
-  health_check_url?: string | null;
-  health_check_interval?: number | null;
-  last_health_check?: string | null;
-  alert_threshold_80?: number | null;
-  alert_threshold_90?: number | null;
-  alert_threshold_95?: number | null;
-  auto_fallback_enabled?: boolean | null;
-  performance_weight?: number | null;
-  last_alert_sent?: string | null;
-  created_at?: string;
-  updated_at?: string;
-  map_api_usage?: Array<{
-    usage_date: string;
-    request_count: number;
-  }>;
-}
-
 const MultiProviderMapManagement = () => {
   const { configs, isLoading, saveConfig, deleteConfig, refetch } = useMapConfigs();
-  const [editingConfig, setEditingConfig] = useState<MapApiConfig | null>(null);
+  const [editingConfig, setEditingConfig] = useState<MapConfig | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
 
   const supportedProviders = MapProviderFactory.getSupportedProviders();
 
-  const handleSave = async (config: MapApiConfig) => {
+  const handleSave = async (config: MapConfig) => {
     try {
       await saveConfig(config);
       toast.success('Map provider configuration saved successfully');
@@ -89,11 +59,10 @@ const MultiProviderMapManagement = () => {
     }
   };
 
-  const handleTest = async (config: any) => {
+  const handleTest = async (config: MapConfig) => {
     setTestingProvider(config.id);
     
     try {
-      // Simple test - try to validate the API key
       const testUrl = getTestUrl(config);
       
       if (!testUrl) {
@@ -122,7 +91,7 @@ const MultiProviderMapManagement = () => {
     }
   };
 
-  const getTestUrl = (config: any): string => {
+  const getTestUrl = (config: MapConfig): string => {
     switch (config.provider_type) {
       case 'maptiler':
         return `https://api.maptiler.com/maps/streets/style.json?key=${config.api_key}`;
@@ -133,7 +102,7 @@ const MultiProviderMapManagement = () => {
     }
   };
 
-  const getTodayUsage = (config: any) => {
+  const getTodayUsage = (config: MapConfig) => {
     if (!config.map_api_usage || config.map_api_usage.length === 0) return 0;
     
     const today = new Date().toISOString().split('T')[0];
@@ -144,12 +113,12 @@ const MultiProviderMapManagement = () => {
     return todayUsage?.request_count || 0;
   };
 
-  const getUsagePercentage = (config: any) => {
+  const getUsagePercentage = (config: MapConfig) => {
     const usage = getTodayUsage(config);
     return (usage / config.threshold_value) * 100;
   };
 
-  const getStatusBadge = (config: any) => {
+  const getStatusBadge = (config: MapConfig) => {
     if (!config.is_active) {
       return <Badge variant="secondary">Inactive</Badge>;
     }
@@ -206,6 +175,7 @@ const MultiProviderMapManagement = () => {
             <Button 
               onClick={() => {
                 setEditingConfig({
+                  id: '',
                   name: '',
                   api_key: '',
                   provider_type: 'maptiler',
@@ -273,6 +243,7 @@ const MultiProviderMapManagement = () => {
               <Button 
                 onClick={() => {
                   setEditingConfig({
+                    id: '',
                     name: 'Primary MapTiler',
                     api_key: '',
                     provider_type: 'maptiler',
@@ -402,9 +373,9 @@ const MultiProviderMapManagement = () => {
 };
 
 const MultiProviderConfigForm: React.FC<{
-  config: MapApiConfig;
+  config: MapConfig;
   supportedProviders: string[];
-  onSave: (config: MapApiConfig) => void;
+  onSave: (config: MapConfig) => void;
   onCancel: () => void;
 }> = ({ config, supportedProviders, onSave, onCancel }) => {
   const [formData, setFormData] = useState(config);

@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { MapConfig } from '@/types/mapProviders';
+import { MapConfig, isMapConfig } from '@/types/mapProviders';
 import { useToast } from '@/hooks/use-toast';
 
 export const useEnhancedMapApi = () => {
@@ -16,45 +16,39 @@ export const useEnhancedMapApi = () => {
       setIsLoading(true);
       setError(null);
 
-      // Use the new smart provider selection function
-      const { data, error } = await supabase.rpc('get_best_map_provider');
+      // Call the unified edge function
+      const { data, error } = await supabase.functions.invoke('map-management', {
+        body: { action: 'get-best-provider' }
+      });
 
       if (error) {
         console.error('Error fetching best provider:', error);
         throw error;
       }
 
-      if (!data || data.length === 0) {
+      if (!data?.provider) {
         setError('No active map providers configured');
         return;
       }
 
-      const provider = data[0];
+      const provider = data.provider;
       
-      // Get full config details
-      const { data: configData, error: configError } = await supabase
-        .from('map_api_configs')
-        .select('*')
-        .eq('id', provider.config_id)
-        .single();
-
-      if (configError) {
-        console.error('Error fetching config details:', configError);
-        throw configError;
+      // Validate the provider data
+      if (!isMapConfig(provider)) {
+        console.error('Invalid provider data structure:', provider);
+        setError('Invalid provider configuration');
+        return;
       }
 
-      // Type-safe assignment
-      const typedConfig: MapConfig = {
-        ...configData,
-        provider_specific_config: configData.provider_specific_config || {}
-      };
-
-      setCurrentProvider(typedConfig);
-      setHealthStatus(configData.health_status || 'healthy');
+      setCurrentProvider(provider);
+      setHealthStatus(provider.health_status || 'healthy');
 
       // Increment usage counter
-      await supabase.rpc('increment_map_api_usage', {
-        config_id: provider.config_id
+      await supabase.functions.invoke('map-management', {
+        body: { 
+          action: 'increment-usage',
+          configId: provider.id
+        }
       });
 
     } catch (err) {
@@ -77,11 +71,14 @@ export const useEnhancedMapApi = () => {
     errorMessage?: string
   ) => {
     try {
-      await supabase.rpc('log_map_provider_health', {
-        p_config_id: configId,
-        p_status: status,
-        p_response_time: responseTime,
-        p_error_message: errorMessage
+      await supabase.functions.invoke('map-management', {
+        body: {
+          action: 'health-check',
+          configId,
+          status,
+          responseTime,
+          errorMessage
+        }
       });
       
       setHealthStatus(status);
@@ -96,10 +93,13 @@ export const useEnhancedMapApi = () => {
     reason: string
   ) => {
     try {
-      await supabase.rpc('log_map_failover', {
-        p_from_config_id: fromConfigId,
-        p_to_config_id: toConfigId,
-        p_reason: reason
+      await supabase.functions.invoke('map-management', {
+        body: {
+          action: 'log-failover',
+          fromConfigId,
+          toConfigId,
+          reason
+        }
       });
       
       toast({
@@ -116,11 +116,15 @@ export const useEnhancedMapApi = () => {
     const startTime = Date.now();
     
     try {
-      // Simple health check - try to load a tile
       const testUrl = getHealthCheckUrl(config);
+      if (!testUrl) {
+        await logHealthCheck(config.id, 'failed', 0, 'Unsupported provider type');
+        return { healthy: false, responseTime: 0, error: 'Unsupported provider type' };
+      }
+
       const response = await fetch(testUrl, { 
         method: 'HEAD',
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+        signal: AbortSignal.timeout(5000)
       });
       
       const responseTime = Date.now() - startTime;
@@ -155,32 +159,31 @@ export const useEnhancedMapApi = () => {
   const switchToFallbackProvider = useCallback(async (currentConfigId: string, reason: string) => {
     try {
       // Get next available provider
-      const { data: fallbackProviders, error } = await supabase
-        .from('map_api_configs')
-        .select('*')
-        .eq('is_active', true)
-        .neq('id', currentConfigId)
-        .order('fallback_priority', { ascending: true });
+      const { data, error } = await supabase.functions.invoke('map-management', {
+        body: { 
+          action: 'get-fallback-provider',
+          excludeConfigId: currentConfigId
+        }
+      });
 
-      if (error || !fallbackProviders || fallbackProviders.length === 0) {
+      if (error || !data?.provider) {
         throw new Error('No fallback providers available');
       }
 
-      const fallbackProvider = fallbackProviders[0];
+      const fallbackProvider = data.provider;
+      
+      // Validate the fallback provider
+      if (!isMapConfig(fallbackProvider)) {
+        throw new Error('Invalid fallback provider configuration');
+      }
       
       // Log the failover
       await logFailover(currentConfigId, fallbackProvider.id, reason);
       
-      // Type-safe assignment
-      const typedConfig: MapConfig = {
-        ...fallbackProvider,
-        provider_specific_config: fallbackProvider.provider_specific_config || {}
-      };
-      
       // Update current provider
-      setCurrentProvider(typedConfig);
+      setCurrentProvider(fallbackProvider);
       
-      return typedConfig;
+      return fallbackProvider;
     } catch (error) {
       console.error('Error switching to fallback provider:', error);
       toast({
