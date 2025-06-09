@@ -1,10 +1,11 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Activity, Navigation, TrendingUp, X } from 'lucide-react';
+import { Activity, Navigation, TrendingUp, X, MapPin } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import MapTilerMap from '@/components/map/MapTilerMap';
+import SimpleMapPlaceholder from '@/components/map/SimpleMapPlaceholder';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface FleetMapViewProps {
@@ -66,11 +67,10 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <MapTilerMap
+            <SimpleMapPlaceholder
               vehicles={vehiclesWithPosition}
-              onVehicleSelect={handleVehicleSelect}
               height="500px"
-              className="rounded-none border-0"
+              title="Fleet Map Coming Soon"
             />
           </CardContent>
         </Card>
@@ -78,7 +78,7 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
 
       {/* Vehicle Status Panel */}
       <div className="space-y-4">
-        {/* ... keep existing code (status cards and fleet stats) */}
+        {/* Status Cards */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
