@@ -1,9 +1,8 @@
 
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Car } from 'lucide-react';
+import { Car, MapPin } from 'lucide-react';
 import LiveVehicleCard from './LiveVehicleCard';
-import LiveTrackingMap from './LiveTrackingMap';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
 interface LiveTrackingContentProps {
@@ -16,7 +15,21 @@ const LiveTrackingContent: React.FC<LiveTrackingContentProps> = ({
   vehicles
 }) => {
   if (viewMode === 'map') {
-    return <LiveTrackingMap />;
+    return (
+      <Card>
+        <CardContent className="p-8">
+          <div className="h-96 flex items-center justify-center bg-gray-50 rounded-lg">
+            <div className="text-center">
+              <MapPin className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">Map View Coming Soon</h3>
+              <p className="text-gray-500">
+                Map integration will be available here after restructuring
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   if (vehicles.length === 0) {

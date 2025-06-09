@@ -20,38 +20,11 @@ const FleetMapCard: React.FC<FleetMapCardProps> = ({ vehicles, onVehicleSelect }
           <div className="text-center">
             <MapPin className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <p className="text-lg font-medium text-muted-foreground">Interactive Fleet Map</p>
-            <p className="text-sm text-muted-foreground">Real-time vehicle locations from GP51</p>
+            <p className="text-sm text-muted-foreground">Map integration coming soon</p>
+            <p className="text-xs text-muted-foreground mt-2">
+              {vehicles.length} vehicles ready for tracking
+            </p>
           </div>
-
-          {/* Dynamic vehicle markers based on real data */}
-          {vehicles.slice(0, 5).map((vehicle, index) => {
-            const positions = [
-              { top: '25%', left: '25%', color: 'bg-green-500' },
-              { top: '33%', left: '50%', color: 'bg-green-500' },
-              { top: '66%', left: '33%', color: 'bg-blue-500' },
-              { top: '50%', right: '25%', color: 'bg-red-500' },
-              { bottom: '25%', right: '33%', color: 'bg-yellow-500' }
-            ];
-            
-            const position = positions[index] || positions[0];
-            
-            return (
-              <div
-                key={vehicle.deviceid}
-                className={`absolute ${position.color} text-white p-1 rounded-full h-6 w-6 flex items-center justify-center text-xs cursor-pointer`}
-                style={{ 
-                  top: position.top, 
-                  left: position.left, 
-                  right: position.right, 
-                  bottom: position.bottom 
-                }}
-                onClick={() => onVehicleSelect(vehicle)}
-                title={`${vehicle.devicename} - ${vehicle.status}`}
-              >
-                {index + 1}
-              </div>
-            );
-          })}
         </div>
       </CardContent>
     </Card>

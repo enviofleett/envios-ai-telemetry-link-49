@@ -1,11 +1,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Navigation, Filter, Search } from 'lucide-react';
+import { Navigation, Filter, Search, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import StabilizedMapProvider from '@/components/map/StabilizedMapProvider';
 import { useStableVehicleData } from '@/hooks/useStableVehicleData';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
@@ -47,10 +46,6 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
       return acc;
     }, {} as Record<string, number>);
   }, [allVehicles]);
-
-  const handleVehicleSelect = (vehicle: Vehicle) => {
-    console.log('Selected vehicle:', vehicle);
-  };
 
   if (isLoading) {
     return (
@@ -155,16 +150,18 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
         </CardContent>
       </Card>
 
-      {/* Stabilized Map */}
+      {/* Map Placeholder */}
       <Card>
-        <CardContent className="p-0">
-          <StabilizedMapProvider
-            vehicles={vehicles}
-            onVehicleSelect={handleVehicleSelect}
-            height="600px"
-            className="rounded-lg border-0"
-            enableClustering={true}
-          />
+        <CardContent className="p-6">
+          <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center">
+            <div className="text-center">
+              <MapPin className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">Map Integration Ready</h3>
+              <p className="text-gray-500">
+                Clean slate prepared for new map implementation
+              </p>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

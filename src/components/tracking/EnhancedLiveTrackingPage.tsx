@@ -12,6 +12,7 @@ import VehicleStatusCard from './VehicleStatusCard';
 import VehicleStatisticsModal from './VehicleStatisticsModal';
 import VehicleProfileTab from './VehicleProfileTab';
 import type { Vehicle } from '@/services/unifiedVehicleData';
+
 const EnhancedLiveTrackingPage: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -19,9 +20,8 @@ const EnhancedLiveTrackingPage: React.FC = () => {
   const [showOnlineModal, setShowOnlineModal] = useState(false);
   const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [isEngineControlLoading, setIsEngineControlLoading] = useState(false);
-  const {
-    toast
-  } = useToast();
+  
+  const { toast } = useToast();
   const {
     vehicles,
     metrics,
@@ -33,6 +33,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
   // Mock user role - in real implementation, this would come from auth
   const userRole = 'admin'; // 'admin', 'fleet_manager', 'user'
   const canControlEngine = userRole === 'admin' || userRole === 'fleet_manager';
+
   const getVehicleStatus = (vehicle: Vehicle) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
     const lastUpdate = new Date(vehicle.lastPosition.updatetime);
@@ -42,6 +43,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     if (minutesSinceUpdate <= 30) return 'idle';
     return 'offline';
   };
+
   const getStatistics = () => {
     const onlineVehicles = vehicles.filter(v => getVehicleStatus(v) === 'online');
     const offlineVehicles = vehicles.filter(v => getVehicleStatus(v) === 'offline');
@@ -51,11 +53,14 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       total: vehicles.length
     };
   };
+
   const statistics = getStatistics();
+
   const handleVehicleSelect = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle);
     console.log('Vehicle selected:', vehicle);
   };
+
   const handleEngineShutdown = async (vehicleId: string) => {
     if (!canControlEngine) {
       toast({
@@ -83,6 +88,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       setIsEngineControlLoading(false);
     }
   };
+
   const handleEngineEnable = async (vehicleId: string) => {
     if (!canControlEngine) {
       toast({
@@ -110,6 +116,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       setIsEngineControlLoading(false);
     }
   };
+
   const handleWorkshopAssign = async (vehicleId: string, workshopId: string) => {
     try {
       // Mock API call - in real implementation, this would save to database
@@ -126,6 +133,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       });
     }
   };
+
   const handleReportGenerate = async (vehicleId: string, reportType: string, dateRange: {
     from: Date;
     to: Date;
@@ -145,6 +153,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       });
     }
   };
+
   const filteredVehicles = vehicles.filter(vehicle => {
     const matchesSearch = vehicle.devicename.toLowerCase().includes(searchTerm.toLowerCase()) || vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase());
     if (statusFilter === 'all') return matchesSearch;
@@ -152,6 +161,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     const statusMatch = statusFilter === 'online' ? vehicleStatus === 'online' : vehicleStatus === 'offline';
     return matchesSearch && statusMatch;
   });
+
   if (isLoading) {
     return <div className="space-y-6 animate-pulse">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -160,6 +170,7 @@ const EnhancedLiveTrackingPage: React.FC = () => {
         <div className="h-96 bg-gray-200 rounded-lg"></div>
       </div>;
   }
+
   return <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -261,4 +272,5 @@ const EnhancedLiveTrackingPage: React.FC = () => {
       <VehicleStatisticsModal isOpen={showOfflineModal} onClose={() => setShowOfflineModal(false)} title="Offline Vehicles" vehicles={vehicles} statusType="offline" />
     </div>;
 };
+
 export default EnhancedLiveTrackingPage;

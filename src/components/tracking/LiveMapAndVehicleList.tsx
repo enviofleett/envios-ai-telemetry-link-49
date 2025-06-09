@@ -1,11 +1,10 @@
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Search, Download } from 'lucide-react';
+import { Search, Download, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import EnhancedMapTilerMap from '@/components/map/EnhancedMapTilerMap';
 import VehicleListPanel from './VehicleListPanel';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 
@@ -52,15 +51,10 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
     // TODO: Implement export functionality
   };
 
-  const handleVehicleMapSelect = (vehicle: Vehicle) => {
-    console.log('Vehicle selected on map:', vehicle);
-    onVehicleSelect?.(vehicle);
-  };
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* Map Card - 2/3 width */}
-      <div className="lg:col-span-2">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Map Placeholder - 1/2 width */}
+      <div className="lg:col-span-1">
         <Card className="bg-white border border-gray-lighter shadow-sm">
           <CardHeader className="p-6 border-b border-gray-lighter">
             <div className="flex items-center justify-between">
@@ -114,22 +108,18 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
           </CardHeader>
           
           <CardContent className="p-0">
-            <div className="h-96 bg-gray-background rounded-b-lg">
-              <EnhancedMapTilerMap
-                vehicles={filteredVehicles}
-                onVehicleSelect={handleVehicleMapSelect}
-                height="400px"
-                className="rounded-b-lg border-0"
-                enableClustering={true}
-                enableGeofencing={false}
-                maxVehiclesBeforeClustering={100}
-              />
+            <div className="h-96 bg-gray-background rounded-b-lg flex items-center justify-center">
+              <div className="text-center">
+                <MapPin className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                <p className="text-lg font-medium text-gray-600">Map Integration Coming Soon</p>
+                <p className="text-sm text-gray-500">Vehicle tracking map will be available here</p>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Vehicle List Panel - 1/3 width */}
+      {/* Vehicle List Panel - 1/2 width */}
       <div className="lg:col-span-1">
         <VehicleListPanel
           vehicles={filteredVehicles}
