@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -123,7 +124,7 @@ const WorkshopCard: React.FC<WorkshopCardProps> = ({ workshop, onConnect, isConn
           rating: workshop.rating,
           reviewCount: workshop.review_count,
           activationFee: workshop.activation_fee,
-          connection_fee: workshop.connection_fee,
+          connectionFee: workshop.connection_fee,
           operatingHours: workshop.operating_hours || '',
           verified: workshop.verified
         }}
