@@ -45,7 +45,7 @@ export class GP51DiagnosticService {
           timestamp
         });
       } else {
-        const session = sessions[0];
+        const session = sessions[0] as any;
         const expiresAt = new Date(session.token_expires_at);
         const now = new Date();
         
