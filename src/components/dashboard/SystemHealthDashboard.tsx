@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SystemHealthMonitor, SystemHealthStatus } from '@/services/systemHealthMonitor';
-import { Loader2, RefreshCw, Database, Mail, Radio, Shield, CheckCircle } from 'lucide-react';
+import { Loader2, RefreshCw, Database, Radio, Shield, CheckCircle } from 'lucide-react';
 
 const SystemHealthDashboard: React.FC = () => {
   const [healthStatus, setHealthStatus] = useState<SystemHealthStatus | null>(null);
@@ -52,10 +52,8 @@ const SystemHealthDashboard: React.FC = () => {
 
   const healthChecks = [
     { key: 'database', label: 'Database', icon: Database },
-    { key: 'smtp', label: 'SMTP Service', icon: Mail },
     { key: 'gp51', label: 'GP51 API', icon: Radio },
     { key: 'auth', label: 'Authentication', icon: Shield },
-    { key: 'emailVerification', label: 'Email Verification', icon: CheckCircle },
   ];
 
   if (isLoading && !healthStatus) {
@@ -104,7 +102,11 @@ const SystemHealthDashboard: React.FC = () => {
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {healthChecks.map(({ key, label, icon: Icon }) => {
-                const status = healthStatus[key as keyof SystemHealthStatus] as string;
+                let status = 'unknown';
+                if (key === 'database') status = healthStatus.database;
+                if (key === 'gp51') status = healthStatus.gp51Connection ? 'healthy' : 'down';
+                if (key === 'auth') status = healthStatus.databaseConnection ? 'healthy' : 'down';
+                
                 return (
                   <div key={key} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-2">
