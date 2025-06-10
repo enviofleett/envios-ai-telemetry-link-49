@@ -42,6 +42,98 @@ export type Database = {
         }
         Relationships: []
       }
+      appointment_conflicts: {
+        Row: {
+          appointment_id: string
+          conflict_details: Json | null
+          conflict_type: string
+          created_at: string
+          id: string
+          resolution_status: string
+          resolved_at: string | null
+          resolved_by: string | null
+        }
+        Insert: {
+          appointment_id: string
+          conflict_details?: Json | null
+          conflict_type: string
+          created_at?: string
+          id?: string
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Update: {
+          appointment_id?: string
+          conflict_details?: Json | null
+          conflict_type?: string
+          created_at?: string
+          id?: string
+          resolution_status?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_conflicts_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_conflicts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointment_notifications: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          notification_type: string
+          recipient_email: string
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          notification_type: string
+          recipient_email: string
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          notification_type?: string
+          recipient_email?: string
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_notifications_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_appointments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       backup_metadata: {
         Row: {
           backup_type: string
@@ -4788,6 +4880,179 @@ export type Database = {
           },
           {
             foreignKeyName: "workshop_activations_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_appointments: {
+        Row: {
+          actual_cost: number | null
+          appointment_status: string
+          appointment_type: string
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          completed_at: string | null
+          confirmed_at: string | null
+          created_at: string
+          created_by: string | null
+          duration_minutes: number
+          estimated_cost: number | null
+          id: string
+          notes: string | null
+          scheduled_date: string
+          service_description: string | null
+          updated_at: string
+          user_id: string
+          vehicle_id: string
+          workshop_id: string
+        }
+        Insert: {
+          actual_cost?: number | null
+          appointment_status?: string
+          appointment_type?: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number
+          estimated_cost?: number | null
+          id?: string
+          notes?: string | null
+          scheduled_date: string
+          service_description?: string | null
+          updated_at?: string
+          user_id: string
+          vehicle_id: string
+          workshop_id: string
+        }
+        Update: {
+          actual_cost?: number | null
+          appointment_status?: string
+          appointment_type?: string
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          completed_at?: string | null
+          confirmed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number
+          estimated_cost?: number | null
+          id?: string
+          notes?: string | null
+          scheduled_date?: string
+          service_description?: string | null
+          updated_at?: string
+          user_id?: string
+          vehicle_id?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_appointments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_appointments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_appointments_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_availability: {
+        Row: {
+          buffer_minutes: number | null
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          is_available: boolean
+          max_concurrent_appointments: number | null
+          start_time: string
+          updated_at: string
+          workshop_id: string
+        }
+        Insert: {
+          buffer_minutes?: number | null
+          created_at?: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          is_available?: boolean
+          max_concurrent_appointments?: number | null
+          start_time: string
+          updated_at?: string
+          workshop_id: string
+        }
+        Update: {
+          buffer_minutes?: number | null
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          is_available?: boolean
+          max_concurrent_appointments?: number | null
+          start_time?: string
+          updated_at?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_availability_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_blackout_dates: {
+        Row: {
+          blackout_date: string
+          created_at: string
+          id: string
+          is_recurring: boolean | null
+          reason: string | null
+          recurring_type: string | null
+          workshop_id: string
+        }
+        Insert: {
+          blackout_date: string
+          created_at?: string
+          id?: string
+          is_recurring?: boolean | null
+          reason?: string | null
+          recurring_type?: string | null
+          workshop_id: string
+        }
+        Update: {
+          blackout_date?: string
+          created_at?: string
+          id?: string
+          is_recurring?: boolean | null
+          reason?: string | null
+          recurring_type?: string | null
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_blackout_dates_workshop_id_fkey"
             columns: ["workshop_id"]
             isOneToOne: false
             referencedRelation: "workshops"
