@@ -31,13 +31,13 @@ export class GP51DiagnosticService {
 
     // Test 1: Check GP51 session availability
     try {
-      const response = await supabase
+      const response: any = await supabase
         .from('gp51_sessions')
         .select('gp51_token, token_expires_at, username')
         .eq('is_active', true);
 
-      const sessionData = response.data;
-      const error = response.error;
+      const sessionData: any[] | null = response.data;
+      const error: any = response.error;
 
       if (error) {
         results.push({
@@ -87,16 +87,19 @@ export class GP51DiagnosticService {
 
     // Test 2: Check vehicle data integrity
     try {
-      const { data: vehicles, error } = await supabase
+      const vehicleResponse: any = await supabase
         .from('vehicles')
         .select('device_id, last_position, updated_at')
         .limit(10);
 
-      if (error) {
+      const vehicles: any[] | null = vehicleResponse.data;
+      const vehicleError: any = vehicleResponse.error;
+
+      if (vehicleError) {
         results.push({
           test: 'Vehicle Data Integrity',
           status: 'fail',
-          message: `Database error: ${error.message}`,
+          message: `Database error: ${vehicleError.message}`,
           timestamp
         });
       } else {
@@ -145,16 +148,19 @@ export class GP51DiagnosticService {
     try {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
       
-      const { data: recentVehicles, error } = await supabase
+      const recentResponse: any = await supabase
         .from('vehicles')
         .select('device_id, updated_at')
         .gte('updated_at', oneHourAgo);
 
-      if (error) {
+      const recentVehicles: any[] | null = recentResponse.data;
+      const recentError: any = recentResponse.error;
+
+      if (recentError) {
         results.push({
           test: 'Recent Sync Activity',
           status: 'fail',
-          message: `Database error: ${error.message}`,
+          message: `Database error: ${recentError.message}`,
           timestamp
         });
       } else {
@@ -191,11 +197,13 @@ export class GP51DiagnosticService {
     const sessionTest = results.find(r => r.test === 'GP51 Session Check');
     if (sessionTest?.status === 'pass') {
       try {
-        const { data: sessionData } = await supabase
+        const tokenResponse: any = await supabase
           .from('gp51_sessions')
           .select('gp51_token')
           .eq('is_active', true)
           .single();
+
+        const sessionData: any = tokenResponse.data;
 
         if (sessionData?.gp51_token) {
           const testResponse = await fetch('https://www.gps51.com/webapi?action=validate_token&token=' + sessionData.gp51_token, {
