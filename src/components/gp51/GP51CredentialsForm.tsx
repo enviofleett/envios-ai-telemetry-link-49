@@ -284,7 +284,7 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
       return (
         <Badge className="bg-green-100 text-green-800">
           <CheckCircle className="h-3 w-3 mr-1" />
-          Connected
+          API Connected
         </Badge>
       );
     } else if (coordinatedStatus?.errorSource === 'monitor') {

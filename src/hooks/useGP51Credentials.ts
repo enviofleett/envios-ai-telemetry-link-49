@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -119,38 +118,78 @@ export const useGP51Credentials = () => {
         throw new Error('Connection failed: Unable to save GP51 credentials. Please try again.');
       }
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       console.log('🎉 GP51 credentials save mutation succeeded');
       
-      // Notify status coordinator of successful save
       const responseData = data as { message?: string; success?: boolean; testOnly?: boolean; username?: string; sessionVerified?: boolean };
-      gp51StatusCoordinator.reportSaveSuccess(responseData?.username);
+      
+      // If this was a real save (not test), verify the session works with GP51 API
+      if (!responseData?.testOnly) {
+        console.log('🧪 Auto-verifying saved credentials with GP51 API...');
+        
+        try {
+          // Test the real GP51 API to ensure credentials work
+          const { data: testData, error: testError } = await supabase.functions.invoke('gp51-service-management', {
+            body: { action: 'test_gp51_api' }
+          });
+
+          if (testError || !testData?.success) {
+            console.error('❌ Auto-verification failed:', testError || testData);
+            
+            // Report verification failure to status coordinator
+            gp51StatusCoordinator.reportSaveError(
+              `Credentials saved but API test failed: ${testData?.details || testError?.message || 'Unknown error'}`
+            );
+            
+            toast({
+              title: 'Credentials Saved with Warning',
+              description: 'Credentials saved but GP51 API verification failed. Please check your connection.',
+              variant: 'destructive'
+            });
+            return;
+          }
+
+          console.log('✅ Auto-verification successful');
+          // Notify status coordinator of successful save and verification
+          gp51StatusCoordinator.reportSaveSuccess(responseData?.username);
+          
+          toast({ 
+            title: 'GP51 Credentials Saved & Verified',
+            description: `Successfully connected and verified with GP51 API. Found ${testData.deviceCount || 0} devices.`
+          });
+
+        } catch (verificationError) {
+          console.error('❌ Auto-verification exception:', verificationError);
+          
+          // Still report success but with warning
+          gp51StatusCoordinator.reportSaveSuccess(responseData?.username);
+          
+          toast({
+            title: 'Credentials Saved',
+            description: 'Credentials saved but verification test could not be performed.',
+            variant: 'default'
+          });
+        }
+      } else {
+        // Test-only mode
+        gp51StatusCoordinator.reportSaveSuccess(responseData?.username);
+        
+        toast({ 
+          title: 'Connection Test Successful',
+          description: responseData?.message || 'GP51 connection test passed!'
+        });
+      }
       
       // Clear form fields
       setUsername('');
       setPassword('');
       setApiUrl('');
-      
-      // Show success toast
-      const message = responseData?.testOnly 
-        ? 'GP51 connection test successful!' 
-        : responseData?.message || 'Successfully connected to GP51! Session will be used for vehicle data synchronization.';
-        
-      // Add session verification confirmation to success message
-      const successMessage = responseData?.sessionVerified 
-        ? `${message} Session verified and saved to database.`
-        : message;
-        
-      toast({ 
-        title: responseData?.testOnly ? 'Connection Test Successful' : 'GP51 Credentials Saved',
-        description: successMessage
-      });
 
       // Invalidate queries after a delay to prevent conflicts
       if (!responseData?.testOnly) {
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['gp51-status'] });
-        }, 2000); // 2 second delay
+        }, 2000);
       }
     },
     onError: (error: unknown) => {

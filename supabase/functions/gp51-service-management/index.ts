@@ -103,6 +103,132 @@ serve(async (req) => {
       );
     }
 
+    if (action === 'test_gp51_api') {
+      console.log('Testing real GP51 API connectivity...');
+      
+      // Get session first
+      const { data: sessions, error: sessionError } = await supabase
+        .from('gp51_sessions')
+        .select('username, gp51_token, token_expires_at, api_url')
+        .order('token_expires_at', { ascending: false })
+        .limit(1);
+
+      if (sessionError || !sessions || sessions.length === 0) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'No valid GP51 session found',
+            code: 'NO_SESSION'
+          }),
+          { 
+            status: 401, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      const session = sessions[0];
+      const expiresAt = new Date(session.token_expires_at);
+      const now = new Date();
+
+      if (expiresAt <= now) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'GP51 session expired',
+            code: 'SESSION_EXPIRED'
+          }),
+          { 
+            status: 401, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
+      // Test actual GP51 API
+      const apiUrl = session.api_url || 'https://gps51.com/webapi';
+      const token = session.gp51_token;
+
+      try {
+        console.log('📡 Making real GP51 API call to test connectivity...');
+        const testResponse = await fetch(`${apiUrl}?action=querymonitorlist&token=${token}`, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'EnvioFleet/1.0'
+          }
+        });
+
+        if (!testResponse.ok) {
+          const errorText = await testResponse.text();
+          console.error('❌ GP51 API HTTP error:', testResponse.status, errorText);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'GP51 API HTTP error',
+              details: `HTTP ${testResponse.status}: ${errorText}`,
+              code: 'API_HTTP_ERROR'
+            }),
+            { 
+              status: 502, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
+
+        const responseText = await testResponse.text();
+        console.log('📊 Raw GP51 API response:', responseText.substring(0, 200) + '...');
+        
+        const responseData = JSON.parse(responseText);
+
+        if (responseData.status !== 0) {
+          console.error('❌ GP51 API returned error:', responseData);
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'GP51 API error',
+              details: responseData.cause || 'Unknown GP51 error',
+              code: 'API_LOGIC_ERROR'
+            }),
+            { 
+              status: 502, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
+
+        console.log('✅ GP51 API test successful');
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            username: session.username,
+            apiUrl: session.api_url,
+            message: 'GP51 API is responding correctly',
+            deviceCount: responseData.data ? responseData.data.length : 0
+          }),
+          { 
+            status: 200, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+
+      } catch (apiError) {
+        console.error('❌ GP51 API connection failed:', apiError);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'GP51 API connection failed',
+            details: apiError instanceof Error ? apiError.message : 'Network error',
+            code: 'API_CONNECTION_ERROR'
+          }),
+          { 
+            status: 502, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+    }
+
     // Handle other actions here
     return new Response(
       JSON.stringify({ 

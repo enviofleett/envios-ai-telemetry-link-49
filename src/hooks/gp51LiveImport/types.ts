@@ -3,87 +3,58 @@ export interface GP51ConnectionStatus {
   connected: boolean;
   username?: string;
   apiUrl?: string;
-  lastCheck?: string;
   error?: string;
+  lastCheck: string;
+  deviceCount?: number;
 }
 
-export interface GP51LiveData {
+export interface GP51PreviewData {
   users: GP51User[];
-  devices: GP51Device[];
-  groups: GP51Group[];
-  statistics: {
-    totalUsers: number;
-    totalDevices: number;
-    activeUsers: number;
-    activeDevices: number;
-  };
+  vehicles: GP51Vehicle[];
+  conflicts: GP51ImportConflict[];
 }
 
 export interface GP51User {
-  username: string;
-  usertype: number;
-  usertypename: string;
-  remark: string;
-  phone: string;
-  creater: string;
-  createtime: number;
-  lastactivetime: number;
-  groupids: number[];
-  deviceids: string[];
-}
-
-export interface GP51Device {
-  deviceid: string;
-  devicename: string;
-  devicetype: number;
-  simnum: string;
-  overduetime: number;
-  expirenotifytime: number;
-  remark: string;
-  creater: string;
-  videochannelcount: number;
-  lastactivetime: number;
-  isfree: number;
-  allowedit: number;
-  icon: number;
-  stared: number;
-  loginame: string;
-}
-
-export interface GP51Group {
-  groupid: number;
-  groupname: string;
-  remark: string;
-  devices: GP51Device[];
-}
-
-export interface GP51LiveImportConfig {
-  importUsers: boolean;
-  importDevices: boolean;
-  userTypes: number[];
-  deviceTypes: number[];
-  dateRange: {
-    from: Date;
-    to: Date;
-  };
-  conflictResolution: 'skip' | 'update' | 'merge';
-  selectedUserIds: string[];
-  selectedDeviceIds: string[];
-}
-
-export interface GP51LiveImportJob {
   id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  progress: number;
-  totalItems: number;
-  processedItems: number;
-  successfulItems: number;
-  failedItems: number;
-  startedAt: string;
-  completedAt?: string;
-  results: {
-    users: { created: number; updated: number; failed: number };
-    devices: { created: number; updated: number; failed: number };
-  };
-  errors: string[];
+  username: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  userType?: number;
+  groupId?: number;
+}
+
+export interface GP51Vehicle {
+  id: string;
+  deviceId: string;
+  name?: string;
+  plateNumber?: string;
+  deviceType?: string;
+  groupId?: number;
+  status?: string;
+  lastUpdate?: string;
+  latitude?: number;
+  longitude?: number;
+  speed?: number;
+  heading?: number;
+}
+
+export interface GP51ImportConflict {
+  type: 'user_exists' | 'vehicle_exists' | 'duplicate_device';
+  message: string;
+  existingRecord?: any;
+  incomingRecord?: any;
+}
+
+export interface LiveVehicleTelemetry {
+  device_id: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  heading: number;
+  timestamp: string;
+  status: string;
+  odometer?: number;
+  fuel_level?: number;
+  engine_status?: string;
 }
