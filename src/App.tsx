@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
@@ -16,6 +17,7 @@ import Marketplace from "./pages/Marketplace";
 import PackageManagement from "./pages/PackageManagement";
 import SystemImport from "./pages/SystemImport";
 import DeviceConfiguration from "./pages/DeviceConfiguration";
+import Auth from "./pages/Auth";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,28 +31,31 @@ const queryClient = new QueryClient({
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/vehicles" element={<VehicleManagement />} />
-          <Route path="/vehicle-management" element={<VehicleManagement />} />
-          <Route path="/users" element={<UserManagement />} />
-          <Route path="/user-management" element={<UserManagement />} />
-          <Route path="/reports" element={<Reports />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/marketplace" element={<Marketplace />} />
-          <Route path="/packages" element={<PackageManagement />} />
-          <Route path="/system-import" element={<SystemImport />} />
-          <Route path="/device-configuration" element={<DeviceConfiguration />} />
-          <Route path="/workshop-management" element={<WorkshopManagement />} />
-          <Route path="/workshop-analytics" element={<WorkshopAnalytics />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/vehicles" element={<VehicleManagement />} />
+            <Route path="/vehicle-management" element={<VehicleManagement />} />
+            <Route path="/users" element={<UserManagement />} />
+            <Route path="/user-management" element={<UserManagement />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/marketplace" element={<Marketplace />} />
+            <Route path="/packages" element={<PackageManagement />} />
+            <Route path="/system-import" element={<SystemImport />} />
+            <Route path="/device-configuration" element={<DeviceConfiguration />} />
+            <Route path="/workshop-management" element={<WorkshopManagement />} />
+            <Route path="/workshop-analytics" element={<WorkshopAnalytics />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 
