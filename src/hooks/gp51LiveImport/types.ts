@@ -1,4 +1,5 @@
 
+
 export interface GP51ConnectionStatus {
   connected: boolean;
   username?: string;
@@ -20,8 +21,9 @@ export interface GP51User {
   name?: string;
   email?: string;
   phone?: string;
-  userType?: number;
+  usertype: number;  // Changed from userType to usertype to match component usage
   groupId?: number;
+  deviceids: string[];  // Added deviceids property that components expect
 }
 
 export interface GP51Vehicle {
@@ -69,6 +71,7 @@ export interface GP51Device {
   createtime?: number;
   lastactivetime?: number;
   status?: string;
+  isfree?: boolean;  // Added property used in components
   lastPosition?: {
     lat: number;
     lon: number;
@@ -125,4 +128,18 @@ export interface GP51LiveImportJob {
   startedAt: string;
   completedAt?: string;
   config: GP51LiveImportConfig;
+  progress: number;  // Added progress property that components expect
+  results: {         // Added results property that components expect
+    users: {
+      created: number;
+      updated: number;
+      failed: number;
+    };
+    devices: {
+      created: number;
+      updated: number;
+      failed: number;
+    };
+  };
 }
+
