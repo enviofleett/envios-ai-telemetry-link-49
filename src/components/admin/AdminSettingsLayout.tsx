@@ -12,6 +12,8 @@ const AdminSettingsLayout: React.FC<AdminSettingsLayoutProps> = ({
   activeTab, 
   onTabChange 
 }) => {
+  console.log('AdminSettingsLayout rendering with activeTab:', activeTab);
+
   return (
     <div className="flex h-full min-h-[calc(100vh-8rem)]">
       <SettingsSidebar 

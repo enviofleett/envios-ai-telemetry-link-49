@@ -5,6 +5,8 @@ import AdminSettingsLayout from './AdminSettingsLayout';
 const AdminSettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('packages');
 
+  console.log('AdminSettings rendering with activeTab:', activeTab);
+
   return (
     <AdminSettingsLayout 
       activeTab={activeTab} 
