@@ -59,8 +59,8 @@ class EnhancedGP51SessionValidator {
       // Check GP51 sessions table with correct column names
       const { data: sessions, error: dbError } = await supabase
         .from('gp51_sessions')
-        .select('gp51_username, gp51_token, expires_at, api_url')
-        .order('expires_at', { ascending: false })
+        .select('username, gp51_token, token_expires_at, api_url')
+        .order('token_expires_at', { ascending: false })
         .limit(1);
 
       if (dbError) {
@@ -86,15 +86,15 @@ class EnhancedGP51SessionValidator {
       }
 
       const session_data = sessions[0];
-      const expiresAt = new Date(session_data.expires_at);
+      const expiresAt = new Date(session_data.token_expires_at);
       const now = new Date();
 
       if (expiresAt <= now) {
         console.log('⏰ GP51 session expired in enhanced validation');
         const result = { 
           valid: false, 
-          username: session_data.gp51_username,
-          expiresAt: session_data.expires_at,
+          username: session_data.username,
+          expiresAt: session_data.token_expires_at,
           error: 'GP51 session expired - please refresh credentials',
           retryCount 
         };
@@ -105,8 +105,8 @@ class EnhancedGP51SessionValidator {
       console.log('✅ Enhanced GP51 session validation successful');
       const result = {
         valid: true,
-        username: session_data.gp51_username,
-        expiresAt: session_data.expires_at,
+        username: session_data.username,
+        expiresAt: session_data.token_expires_at,
         token: session_data.gp51_token,
         apiUrl: session_data.api_url,
         retryCount
@@ -162,25 +162,49 @@ class EnhancedGP51SessionValidator {
 // Export the instance
 export const enhancedGP51SessionValidator = EnhancedGP51SessionValidator.getInstance();
 
-// Also create a service with additional functionality
+// Enhanced API service with proper return types
+interface SyncResult {
+  success: boolean;
+  result?: {
+    devicesFound: number;
+    positionsFetched: number;
+  };
+  error?: string;
+}
+
+interface SyncStatus {
+  isRunning: boolean;
+  lastSync: Date | null;
+  nextSync: Date | null;
+  activeLocks?: Array<{ key: string; timestamp: Date }>;
+}
+
 class EnhancedGP51ApiService {
-  async performFullSync() {
-    // Placeholder implementation
-    return {
-      success: true,
-      result: {
-        devicesFound: 0,
-        positionsFetched: 0
-      }
-    };
+  async performFullSync(): Promise<SyncResult> {
+    try {
+      // Placeholder implementation - would normally perform actual sync
+      return {
+        success: true,
+        result: {
+          devicesFound: 0,
+          positionsFetched: 0
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown sync error'
+      };
+    }
   }
 
-  getSyncStatus() {
+  getSyncStatus(): SyncStatus {
     // Placeholder implementation
     return {
       isRunning: false,
       lastSync: null,
-      nextSync: null
+      nextSync: null,
+      activeLocks: []
     };
   }
 }
