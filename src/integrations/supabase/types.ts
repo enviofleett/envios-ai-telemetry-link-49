@@ -2661,6 +2661,63 @@ export type Database = {
           },
         ]
       }
+      inspection_form_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          form_fields: Json
+          id: string
+          is_active: boolean
+          is_default: boolean
+          template_description: string | null
+          template_name: string
+          updated_at: string
+          vehicle_category: string | null
+          workshop_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          form_fields?: Json
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          template_description?: string | null
+          template_name: string
+          updated_at?: string
+          vehicle_category?: string | null
+          workshop_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          form_fields?: Json
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          template_description?: string | null
+          template_name?: string
+          updated_at?: string
+          vehicle_category?: string | null
+          workshop_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_form_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_form_templates_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       inspection_photos: {
         Row: {
           checklist_item_id: string | null
@@ -2759,6 +2816,64 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "workshop_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspector_assignments: {
+        Row: {
+          accepted_at: string | null
+          assigned_at: string
+          assigned_by: string | null
+          assignment_status: string
+          created_at: string
+          id: string
+          inspection_id: string | null
+          inspector_id: string | null
+          notes: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          assigned_at?: string
+          assigned_by?: string | null
+          assignment_status?: string
+          created_at?: string
+          id?: string
+          inspection_id?: string | null
+          inspector_id?: string | null
+          notes?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          assigned_at?: string
+          assigned_by?: string | null
+          assignment_status?: string
+          created_at?: string
+          id?: string
+          inspection_id?: string | null
+          inspector_id?: string | null
+          notes?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspector_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspector_assignments_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspector_assignments_inspector_id_fkey"
+            columns: ["inspector_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
             referencedColumns: ["id"]
           },
         ]
@@ -4975,6 +5090,48 @@ export type Database = {
           },
         ]
       }
+      workshop_approval_logs: {
+        Row: {
+          action: string
+          id: string
+          notes: string | null
+          performed_at: string
+          performed_by: string | null
+          workshop_id: string | null
+        }
+        Insert: {
+          action: string
+          id?: string
+          notes?: string | null
+          performed_at?: string
+          performed_by?: string | null
+          workshop_id?: string | null
+        }
+        Update: {
+          action?: string
+          id?: string
+          notes?: string | null
+          performed_at?: string
+          performed_by?: string | null
+          workshop_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_approval_logs_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_approval_logs_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workshop_availability: {
         Row: {
           buffer_minutes: number | null
@@ -5114,6 +5271,67 @@ export type Database = {
           },
         ]
       }
+      workshop_permissions: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          permissions: Json
+          role: string
+          updated_at: string
+          user_id: string | null
+          workshop_id: string | null
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          permissions?: Json
+          role: string
+          updated_at?: string
+          user_id?: string | null
+          workshop_id?: string | null
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          permissions?: Json
+          role?: string
+          updated_at?: string
+          user_id?: string | null
+          workshop_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_permissions_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_permissions_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workshop_reviews: {
         Row: {
           created_at: string
@@ -5244,6 +5462,85 @@ export type Database = {
             columns: ["workshop_user_id"]
             isOneToOne: false
             referencedRelation: "workshop_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          customer_id: string | null
+          id: string
+          metadata: Json | null
+          payment_method: string | null
+          payment_status: string
+          service_description: string | null
+          stripe_charge_id: string | null
+          stripe_payment_intent_id: string | null
+          transaction_date: string
+          transaction_type: string
+          updated_at: string
+          vehicle_id: string | null
+          workshop_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          customer_id?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_method?: string | null
+          payment_status?: string
+          service_description?: string | null
+          stripe_charge_id?: string | null
+          stripe_payment_intent_id?: string | null
+          transaction_date?: string
+          transaction_type: string
+          updated_at?: string
+          vehicle_id?: string | null
+          workshop_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          customer_id?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_method?: string | null
+          payment_status?: string
+          service_description?: string | null
+          stripe_charge_id?: string | null
+          stripe_payment_intent_id?: string | null
+          transaction_date?: string
+          transaction_type?: string
+          updated_at?: string
+          vehicle_id?: string | null
+          workshop_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_transactions_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_transactions_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
