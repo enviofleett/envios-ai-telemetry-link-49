@@ -2,7 +2,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import Layout from "@/components/Layout";
-import { DashboardContent } from "@/components/dashboard/DashboardContent";
+import ProfessionalDashboard from "@/components/dashboard/ProfessionalDashboard";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 const Index = () => {
@@ -18,7 +18,7 @@ const Index = () => {
 
   return (
     <Layout>
-      <DashboardContent />
+      <ProfessionalDashboard />
     </Layout>
   );
 };

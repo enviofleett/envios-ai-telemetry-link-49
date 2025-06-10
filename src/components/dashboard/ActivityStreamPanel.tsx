@@ -2,67 +2,90 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Activity, Car, User, MapPin, AlertTriangle, CheckCircle } from 'lucide-react';
+import { 
+  Activity, 
+  AlertTriangle, 
+  CheckCircle, 
+  Clock, 
+  Car, 
+  Users,
+  Wrench,
+  MapPin
+} from 'lucide-react';
 
 const ActivityStreamPanel: React.FC = () => {
-  // Mock data - in real implementation, this would come from your API
   const activities = [
     {
       id: 1,
-      type: 'device_online',
-      message: 'Vehicle VH001 came online',
+      type: 'vehicle_update',
+      title: 'Vehicle V-001 location updated',
+      description: 'Now at Downtown Office parking',
       timestamp: '2 minutes ago',
-      icon: CheckCircle,
-      color: 'text-green-600'
+      icon: <MapPin className="h-4 w-4" />,
+      status: 'info'
     },
     {
       id: 2,
-      type: 'user_login',
-      message: 'John Doe signed in',
+      type: 'alert',
+      title: 'Low fuel alert - Vehicle V-004',
+      description: 'Fuel level at 30%, refuel recommended',
       timestamp: '5 minutes ago',
-      icon: User,
-      color: 'text-blue-600'
+      icon: <AlertTriangle className="h-4 w-4" />,
+      status: 'warning'
     },
     {
       id: 3,
-      type: 'location_update',
-      message: 'Vehicle VH002 location updated',
-      timestamp: '8 minutes ago',
-      icon: MapPin,
-      color: 'text-purple-600'
+      type: 'maintenance',
+      title: 'Scheduled maintenance completed',
+      description: 'Vehicle V-002 service completed successfully',
+      timestamp: '15 minutes ago',
+      icon: <Wrench className="h-4 w-4" />,
+      status: 'success'
     },
     {
       id: 4,
-      type: 'alert',
-      message: 'Low battery alert for VH003',
-      timestamp: '12 minutes ago',
-      icon: AlertTriangle,
-      color: 'text-orange-600'
+      type: 'user',
+      title: 'New driver assigned',
+      description: 'John Smith assigned to Vehicle V-003',
+      timestamp: '1 hour ago',
+      icon: <Users className="h-4 w-4" />,
+      status: 'info'
     },
     {
       id: 5,
-      type: 'device_added',
-      message: 'New vehicle VH004 registered',
-      timestamp: '1 hour ago',
-      icon: Car,
-      color: 'text-green-600'
+      type: 'system',
+      title: 'GPS tracking resumed',
+      description: 'All vehicles back online after maintenance window',
+      timestamp: '2 hours ago',
+      icon: <CheckCircle className="h-4 w-4" />,
+      status: 'success'
+    },
+    {
+      id: 6,
+      type: 'vehicle_update',
+      title: 'Route optimization applied',
+      description: 'Estimated 15% efficiency improvement',
+      timestamp: '3 hours ago',
+      icon: <Activity className="h-4 w-4" />,
+      status: 'info'
     }
   ];
 
-  const getActivityBadge = (type: string) => {
-    switch (type) {
-      case 'device_online':
-        return <Badge className="bg-green-100 text-green-800 border-green-200">Online</Badge>;
-      case 'user_login':
-        return <Badge className="bg-blue-100 text-blue-800 border-blue-200">Login</Badge>;
-      case 'location_update':
-        return <Badge className="bg-purple-100 text-purple-800 border-purple-200">Location</Badge>;
-      case 'alert':
-        return <Badge className="bg-orange-100 text-orange-800 border-orange-200">Alert</Badge>;
-      case 'device_added':
-        return <Badge className="bg-green-100 text-green-800 border-green-200">New Device</Badge>;
-      default:
-        return <Badge variant="secondary">Activity</Badge>;
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'success': return 'text-green-600';
+      case 'warning': return 'text-yellow-600';
+      case 'error': return 'text-red-600';
+      default: return 'text-blue-600';
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'success': return 'bg-green-100 text-green-800';
+      case 'warning': return 'bg-yellow-100 text-yellow-800';
+      case 'error': return 'bg-red-100 text-red-800';
+      default: return 'bg-blue-100 text-blue-800';
     }
   };
 
@@ -71,25 +94,47 @@ const ActivityStreamPanel: React.FC = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Activity className="h-5 w-5" />
-          Recent Activity
+          Activity Stream
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <div className="space-y-4 max-h-96 overflow-y-auto">
           {activities.map((activity) => (
-            <div key={activity.id} className="flex items-start gap-3">
-              <div className={`p-1.5 rounded-full bg-gray-100 ${activity.color}`}>
-                <activity.icon className="h-3 w-3" />
+            <div
+              key={activity.id}
+              className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors"
+            >
+              <div className={`mt-1 ${getStatusColor(activity.status)}`}>
+                {activity.icon}
               </div>
+              
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900">{activity.message}</p>
-                <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-gray-500">{activity.timestamp}</p>
-                  {getActivityBadge(activity.type)}
+                <div className="flex items-center justify-between gap-2">
+                  <h4 className="text-sm font-medium text-gray-900 truncate">
+                    {activity.title}
+                  </h4>
+                  <Badge className={`${getStatusBadge(activity.status)} text-xs`}>
+                    {activity.type.replace('_', ' ')}
+                  </Badge>
+                </div>
+                
+                <p className="text-sm text-gray-600 mt-1">
+                  {activity.description}
+                </p>
+                
+                <div className="flex items-center gap-1 mt-2 text-xs text-gray-500">
+                  <Clock className="h-3 w-3" />
+                  <span>{activity.timestamp}</span>
                 </div>
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-4 pt-4 border-t">
+          <button className="w-full text-sm text-blue-600 hover:text-blue-800 font-medium">
+            View All Activity
+          </button>
         </div>
       </CardContent>
     </Card>

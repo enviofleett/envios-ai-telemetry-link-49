@@ -1,251 +1,150 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Car, 
-  Search, 
-  Filter, 
-  Download,
-  RefreshCw,
-  MapPin,
-  Gauge,
-  Clock
-} from 'lucide-react';
-import { useVehicleData } from '@/hooks/useVehicleData';
-import { useAdvancedExport } from '@/hooks/useAdvancedExport';
-import { Progress } from '@/components/ui/progress';
+import { Car, MapPin, Clock, AlertTriangle, Eye } from 'lucide-react';
 
 const VehicleManagementPanel: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  
-  const { 
-    data: vehicles, 
-    isLoading, 
-    error,
-    refetch 
-  } = useVehicleData({ search: searchTerm, status: statusFilter });
-  
-  const { exportVehicles, isExporting, progress } = useAdvancedExport();
-
-  const handleExport = (format: 'csv' | 'json' | 'excel') => {
-    exportVehicles(format, {
-      search: searchTerm,
-      status: statusFilter,
-      includePositions: true
-    });
-  };
-
-  const toggleStatusFilter = (status: string) => {
-    setStatusFilter(prev => 
-      prev.includes(status) 
-        ? prev.filter(s => s !== status)
-        : [...prev, status]
-    );
-  };
+  // Mock vehicle data
+  const vehicles = [
+    {
+      id: 'V001',
+      name: 'Fleet Vehicle 001',
+      status: 'active',
+      location: 'Downtown Office',
+      lastUpdate: '2 minutes ago',
+      speed: '45 km/h',
+      fuel: 85,
+      alerts: 0
+    },
+    {
+      id: 'V002',
+      name: 'Fleet Vehicle 002',
+      status: 'idle',
+      location: 'North Warehouse',
+      lastUpdate: '5 minutes ago',
+      speed: '0 km/h',
+      fuel: 62,
+      alerts: 1
+    },
+    {
+      id: 'V003',
+      name: 'Fleet Vehicle 003',
+      status: 'active',
+      location: 'Highway 101',
+      lastUpdate: '1 minute ago',
+      speed: '78 km/h',
+      fuel: 45,
+      alerts: 0
+    },
+    {
+      id: 'V004',
+      name: 'Fleet Vehicle 004',
+      status: 'maintenance',
+      location: 'Service Center',
+      lastUpdate: '1 hour ago',
+      speed: '0 km/h',
+      fuel: 30,
+      alerts: 2
+    }
+  ];
 
   const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'online': return 'bg-green-100 text-green-800';
-      case 'offline': return 'bg-gray-100 text-gray-800';
-      case 'moving': return 'bg-blue-100 text-blue-800';
+    switch (status) {
+      case 'active': return 'bg-green-100 text-green-800';
       case 'idle': return 'bg-yellow-100 text-yellow-800';
+      case 'maintenance': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Car className="h-5 w-5" />
-            Vehicle Management
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="h-16 bg-gray-200 rounded"></div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const getFuelColor = (fuel: number) => {
+    if (fuel > 50) return 'text-green-600';
+    if (fuel > 25) return 'text-yellow-600';
+    return 'text-red-600';
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Car className="h-5 w-5" />
-            Vehicle Management
-            <Badge variant="outline">{vehicles?.length || 0} vehicles</Badge>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            >
-              <Filter className="h-4 w-4 mr-1" />
-              Filters
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleExport('csv')}
-              disabled={isExporting}
-            >
-              <Download className="h-4 w-4 mr-1" />
-              Export
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
+        <CardTitle className="flex items-center gap-2">
+          <Car className="h-5 w-5" />
+          Vehicle Fleet Management
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Export Progress */}
-        {isExporting && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Exporting vehicle data...</span>
-              <span>{progress}%</span>
-            </div>
-            <Progress value={progress} className="h-2" />
-          </div>
-        )}
-
-        {/* Search and Filters */}
+      <CardContent>
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search vehicles..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          {showAdvancedFilters && (
-            <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Status Filters:</label>
-                <div className="flex gap-2 flex-wrap">
-                  {['online', 'offline', 'moving', 'idle'].map((status) => (
-                    <Button
-                      key={status}
-                      variant={statusFilter.includes(status) ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => toggleStatusFilter(status)}
-                    >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </Button>
-                  ))}
+          {vehicles.map((vehicle) => (
+            <div
+              key={vehicle.id}
+              className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Car className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold">{vehicle.name}</h3>
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <MapPin className="h-3 w-3" />
+                    <span>{vehicle.location}</span>
+                  </div>
                 </div>
               </div>
-              
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport('json')}
-                  disabled={isExporting}
-                >
-                  Export JSON
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport('excel')}
-                  disabled={isExporting}
-                >
-                  Export Excel
-                </Button>
+
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <div className="text-sm font-medium">{vehicle.speed}</div>
+                  <div className="text-xs text-gray-500">Speed</div>
+                </div>
+                
+                <div className="text-center">
+                  <div className={`text-sm font-medium ${getFuelColor(vehicle.fuel)}`}>
+                    {vehicle.fuel}%
+                  </div>
+                  <div className="text-xs text-gray-500">Fuel</div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Badge className={getStatusColor(vehicle.status)}>
+                    {vehicle.status}
+                  </Badge>
+                  {vehicle.alerts > 0 && (
+                    <Badge variant="destructive" className="flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      {vehicle.alerts}
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="text-right">
+                  <div className="flex items-center gap-1 text-xs text-gray-500 mb-1">
+                    <Clock className="h-3 w-3" />
+                    {vehicle.lastUpdate}
+                  </div>
+                  <Button size="sm" variant="outline">
+                    <Eye className="h-3 w-3 mr-1" />
+                    View
+                  </Button>
+                </div>
               </div>
             </div>
-          )}
+          ))}
         </div>
 
-        {/* Vehicle List */}
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {vehicles && vehicles.length > 0 ? (
-            vehicles.map((vehicle: any) => (
-              <div key={vehicle.id} className="border rounded-lg p-3 hover:bg-gray-50">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h4 className="font-medium">{vehicle.device_name || `Device ${vehicle.device_id}`}</h4>
-                    <p className="text-sm text-gray-600">ID: {vehicle.device_id}</p>
-                  </div>
-                  <Badge className={getStatusColor(vehicle.status)}>
-                    {vehicle.status || 'Unknown'}
-                  </Badge>
-                </div>
-
-                {vehicle.lastPosition && (
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-gray-400" />
-                      <span className="text-gray-600">Location:</span>
-                      <span className="font-mono text-xs">
-                        {vehicle.lastPosition.lat?.toFixed(4)}, {vehicle.lastPosition.lon?.toFixed(4)}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center gap-1">
-                      <Gauge className="h-3 w-3 text-gray-400" />
-                      <span className="text-gray-600">Speed:</span>
-                      <span className="font-medium">
-                        {vehicle.lastPosition.speed || 0} km/h
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1 col-span-2">
-                      <Clock className="h-3 w-3 text-gray-400" />
-                      <span className="text-gray-600">Last Update:</span>
-                      <span className="text-xs">
-                        {vehicle.lastPosition.updatetime ? 
-                          new Date(vehicle.lastPosition.updatetime).toLocaleString() : 
-                          'No data'
-                        }
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {!vehicle.lastPosition && (
-                  <div className="text-center py-4 text-gray-500">
-                    <MapPin className="h-6 w-6 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm">No location data available</p>
-                  </div>
-                )}
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Car className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No vehicles found</p>
-              {searchTerm && (
-                <p className="text-sm mt-1">
-                  Try adjusting your search or filters
-                </p>
-              )}
-            </div>
-          )}
+        <div className="mt-6 flex justify-between items-center">
+          <div className="text-sm text-gray-600">
+            Showing {vehicles.length} vehicles
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm">
+              View All Vehicles
+            </Button>
+            <Button size="sm">
+              Add Vehicle
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>
