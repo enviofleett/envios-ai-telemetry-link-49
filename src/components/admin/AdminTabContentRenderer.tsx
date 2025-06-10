@@ -7,7 +7,6 @@ import { Shield } from 'lucide-react';
 // Import existing components
 import UsersTab from './tabs/UsersTab';
 import WorkshopsTab from './tabs/WorkshopsTab';
-import SMTPTab from './tabs/SMTPTab';
 import HealthTab from './tabs/HealthTab';
 import AnalyticsTab from './tabs/AnalyticsTab';
 import GP51IntegrationTab from './tabs/GP51IntegrationTab';
@@ -18,9 +17,7 @@ import BillingTab from './tabs/BillingTab';
 import NotificationsTab from './tabs/NotificationsTab';
 import MapsTab from './tabs/MapsTab';
 import GeofencingTab from './tabs/GeofencingTab';
-import SMTPGuideTab from './tabs/SMTPGuideTab';
 import GP51ValidationTab from './tabs/GP51ValidationTab';
-import EmailNotificationsTab from './tabs/EmailNotificationsTab';
 
 // Import enhanced component
 import AdminWorkshopManagementEnhanced from './AdminWorkshopManagementEnhanced';
@@ -77,8 +74,6 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
       );
     case 'notifications':
       return renderTabWithCard('Notification Settings', NotificationsTab);
-    case 'email-notifications':
-      return renderTabWithCard('Email Notifications', EmailNotificationsTab);
     case 'gp51-integration':
       return renderTabWithCard('GP51 Integration', GP51IntegrationTab);
     case 'health':
@@ -89,10 +84,6 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
       return renderTabWithCard('Analytics', AnalyticsTab);
     case 'geofencing':
       return renderTabWithCard('Geofencing', GeofencingTab);
-    case 'smtp-guide':
-      return renderTabWithCard('SMTP Setup Guide', SMTPGuideTab);
-    case 'smtp':
-      return renderTabWithCard('SMTP Configuration', SMTPTab);
     case 'gp51-validation':
       return renderTabWithCard('GP51 Validation', GP51ValidationTab);
     default:
