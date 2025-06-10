@@ -86,13 +86,13 @@ const WorkshopPaymentSystem: React.FC<WorkshopPaymentSystemProps> = ({
     }
   });
 
-  // Fetch vehicles
+  // Fetch vehicles - only select existing columns
   const { data: vehicles } = useQuery({
     queryKey: ['workshop-vehicles'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('id, device_id, plate_number')
+        .select('id, device_id')
         .limit(100);
 
       if (error) throw error;
@@ -405,7 +405,7 @@ const WorkshopPaymentSystem: React.FC<WorkshopPaymentSystemProps> = ({
                   <SelectItem value="">No vehicle</SelectItem>
                   {vehicles?.map((vehicle) => (
                     <SelectItem key={vehicle.id} value={vehicle.id}>
-                      {vehicle.device_id} {vehicle.plate_number && `(${vehicle.plate_number})`}
+                      {vehicle.device_id}
                     </SelectItem>
                   ))}
                 </SelectContent>

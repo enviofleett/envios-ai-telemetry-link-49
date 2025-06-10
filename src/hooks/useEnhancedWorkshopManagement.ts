@@ -124,8 +124,14 @@ export const useEnhancedWorkshopManagement = (workshopId: string) => {
 
   // Check if user has specific permission
   const hasPermission = (permission: string) => {
-    if (!userPermissions) return false;
-    return userPermissions.permissions.includes(permission);
+    if (!userPermissions || !userPermissions.permissions) return false;
+    
+    // Handle permissions as a JSON array
+    const permissions = Array.isArray(userPermissions.permissions) 
+      ? userPermissions.permissions 
+      : [];
+    
+    return permissions.includes(permission);
   };
 
   // Check if user has specific role

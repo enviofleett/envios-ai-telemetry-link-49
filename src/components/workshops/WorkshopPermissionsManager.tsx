@@ -96,7 +96,22 @@ const WorkshopPermissionsManager: React.FC<WorkshopPermissionsManagerProps> = ({
         .eq('is_active', true);
 
       if (error) throw error;
-      return data as WorkshopPermission[];
+      
+      // Transform the data to match our interface
+      return data?.map(item => ({
+        id: item.id,
+        workshop_id: item.workshop_id,
+        user_id: item.user_id,
+        role: item.role as 'owner' | 'manager' | 'technician' | 'inspector',
+        permissions: Array.isArray(item.permissions) ? item.permissions : [],
+        assigned_by: item.assigned_by,
+        assigned_at: item.assigned_at,
+        is_active: item.is_active,
+        user: item.user && typeof item.user === 'object' && 'name' in item.user ? {
+          name: item.user.name as string,
+          email: item.user.email as string
+        } : undefined
+      })) as WorkshopPermission[];
     }
   });
 
