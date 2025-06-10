@@ -13,7 +13,6 @@ interface WorkshopGridProps {
 const WorkshopGrid: React.FC<WorkshopGridProps> = ({
   workshops,
   isLoading,
-  isConnecting,
   onConnect
 }) => {
   if (workshops?.length === 0 && !isLoading) {
@@ -33,7 +32,6 @@ const WorkshopGrid: React.FC<WorkshopGridProps> = ({
           key={workshop.id}
           workshop={workshop}
           onConnect={onConnect}
-          isConnecting={isConnecting}
         />
       ))}
     </div>

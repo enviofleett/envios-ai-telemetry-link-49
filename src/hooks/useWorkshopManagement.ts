@@ -40,17 +40,8 @@ export const useWorkshopManagement = () => {
 
       if (error) throw error;
 
-      // Log the approval action
-      if (notes) {
-        await supabase
-          .from('workshop_approval_logs')
-          .insert({
-            workshop_id: workshopId,
-            action: 'approved',
-            notes: notes,
-            performed_by: (await supabase.auth.getUser()).data.user?.id
-          });
-      }
+      // Note: Approval logging would be implemented when workshop_approval_logs table is created
+      console.log('Workshop approved:', workshopId, notes ? `with notes: ${notes}` : '');
 
       return data;
     },
@@ -87,15 +78,8 @@ export const useWorkshopManagement = () => {
 
       if (error) throw error;
 
-      // Log the rejection action
-      await supabase
-        .from('workshop_approval_logs')
-        .insert({
-          workshop_id: workshopId,
-          action: 'rejected',
-          notes: reason,
-          performed_by: (await supabase.auth.getUser()).data.user?.id
-        });
+      // Note: Rejection logging would be implemented when workshop_approval_logs table is created
+      console.log('Workshop rejected:', workshopId, `reason: ${reason}`);
 
       return data;
     },
