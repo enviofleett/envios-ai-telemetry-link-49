@@ -11,19 +11,17 @@ const Settings: React.FC = () => {
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="space-y-6">
-          <h1 className="text-3xl font-bold">Settings</h1>
-          
-          {isAdmin ? (
-            <AdminSettings />
-          ) : (
+        {isAdmin ? (
+          <AdminSettings />
+        ) : (
+          <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center py-8">
               <p className="text-muted-foreground">
                 Admin access required to view settings.
               </p>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </Layout>
     </ProtectedRoute>
   );
