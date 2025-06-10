@@ -8,6 +8,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { navItems } from "./nav-items";
 import Login from "./pages/Login";
 import Index from "./pages/Index";
+import Auth from "./pages/Auth";
 import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
 import LiveTracking from "./pages/LiveTracking";
 import Settings from "./pages/Settings";
@@ -38,6 +39,7 @@ const App = () => {
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/auth" element={<Auth />} />
               
               {/* Main dashboard route */}
               <Route path="/" element={
