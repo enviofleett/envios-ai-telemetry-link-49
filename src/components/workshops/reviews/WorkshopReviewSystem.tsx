@@ -7,6 +7,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Star, ThumbsUp, MessageSquare, Filter, Search } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface WorkshopReview {
@@ -39,65 +41,81 @@ const WorkshopReviewSystem: React.FC<WorkshopReviewSystemProps> = ({
   canRespond = false 
 }) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [showResponseDialog, setShowResponseDialog] = useState(false);
   const [selectedReview, setSelectedReview] = useState<WorkshopReview | null>(null);
   const [responseText, setResponseText] = useState('');
   const [filterRating, setFilterRating] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Mock reviews data
-  const mockReviews: WorkshopReview[] = [
-    {
-      id: '1',
-      workshop_id: workshopId,
-      customer_id: 'customer-1',
-      rating: 5,
-      review_text: 'Excellent service! The team was professional and completed the oil change quickly.',
-      service_type: 'Oil Change',
-      created_at: '2024-06-08T10:00:00Z',
-      customer: {
-        name: 'John Smith',
-        email: 'john@example.com'
-      },
-      helpful_count: 3
-    },
-    {
-      id: '2',
-      workshop_id: workshopId,
-      customer_id: 'customer-2',
-      rating: 4,
-      review_text: 'Good brake service, but had to wait a bit longer than expected.',
-      service_type: 'Brake Service',
-      created_at: '2024-06-07T14:30:00Z',
-      customer: {
-        name: 'Sarah Johnson',
-        email: 'sarah@example.com'
-      },
-      helpful_count: 1,
-      response: {
-        text: 'Thank you for your feedback! We apologize for the wait and are working to improve our scheduling.',
-        responded_at: '2024-06-08T09:00:00Z',
-        responded_by: 'workshop-manager'
-      }
-    },
-    {
-      id: '3',
-      workshop_id: workshopId,
-      customer_id: 'customer-3',
-      rating: 5,
-      review_text: 'Outstanding tire replacement service. Fair pricing and excellent quality.',
-      service_type: 'Tire Replacement',
-      created_at: '2024-06-06T16:15:00Z',
-      customer: {
-        name: 'Mike Davis',
-        email: 'mike@example.com'
-      },
-      helpful_count: 5
-    }
-  ];
+  // Fetch reviews
+  const { data: reviews, isLoading } = useQuery({
+    queryKey: ['workshop-reviews', workshopId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('workshop_reviews')
+        .select(`
+          *,
+          customer:envio_users(name, email)
+        `)
+        .eq('workshop_id', workshopId)
+        .order('created_at', { ascending: false });
 
-  const reviews = mockReviews;
-  const isLoading = false;
+      if (error) throw error;
+      return data as WorkshopReview[];
+    }
+  });
+
+  // Respond to review mutation
+  const respondToReviewMutation = useMutation({
+    mutationFn: async ({ reviewId, response }: { reviewId: string; response: string }) => {
+      const { data: user } = await supabase.auth.getUser();
+      
+      const { data, error } = await supabase
+        .from('workshop_review_responses')
+        .insert({
+          review_id: reviewId,
+          response_text: response,
+          responded_by: user.user?.id
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workshop-reviews', workshopId] });
+      setShowResponseDialog(false);
+      setResponseText('');
+      setSelectedReview(null);
+      toast({
+        title: "Response Posted",
+        description: "Your response has been posted successfully"
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: `Failed to post response: ${error.message}`,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Mark review as helpful
+  const markHelpfulMutation = useMutation({
+    mutationFn: async (reviewId: string) => {
+      const { error } = await supabase.rpc('increment_review_helpful_count', {
+        review_id: reviewId
+      });
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workshop-reviews', workshopId] });
+    }
+  });
 
   const handleRespondToReview = (review: WorkshopReview) => {
     setSelectedReview(review);
@@ -107,22 +125,9 @@ const WorkshopReviewSystem: React.FC<WorkshopReviewSystemProps> = ({
   const submitResponse = () => {
     if (!selectedReview || !responseText.trim()) return;
     
-    // Mock response submission
-    toast({
-      title: "Response Posted",
-      description: "Your response has been posted successfully"
-    });
-    
-    setShowResponseDialog(false);
-    setResponseText('');
-    setSelectedReview(null);
-  };
-
-  const markAsHelpful = (reviewId: string) => {
-    // Mock helpful marking
-    toast({
-      title: "Marked as Helpful",
-      description: "Thank you for your feedback!"
+    respondToReviewMutation.mutate({
+      reviewId: selectedReview.id,
+      response: responseText
     });
   };
 
@@ -319,7 +324,7 @@ const WorkshopReviewSystem: React.FC<WorkshopReviewSystemProps> = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => markAsHelpful(review.id)}
+                      onClick={() => markHelpfulMutation.mutate(review.id)}
                       className="text-muted-foreground hover:text-foreground"
                     >
                       <ThumbsUp className="h-4 w-4 mr-1" />
