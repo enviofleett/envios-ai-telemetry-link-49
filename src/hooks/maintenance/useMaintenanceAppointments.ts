@@ -15,7 +15,7 @@ export const useMaintenanceAppointments = () => {
 
     try {
       const { data, error } = await supabase
-        .from('maintenance_appointments')
+        .from('maintenance_appointments' as any)
         .select('*')
         .eq('user_id', user.id)
         .order('scheduled_date', { ascending: true });
@@ -24,13 +24,7 @@ export const useMaintenanceAppointments = () => {
         console.error('Error fetching appointments:', error);
         return [];
       }
-      
-      // Type cast the data to ensure proper types
-      return (data || []).map(item => ({
-        ...item,
-        appointment_type: item.appointment_type as MaintenanceAppointment['appointment_type'],
-        appointment_status: item.appointment_status as MaintenanceAppointment['appointment_status']
-      }));
+      return (data as unknown as MaintenanceAppointment[]) || [];
     } catch (error) {
       console.error('Error fetching appointments:', error);
       return [];
@@ -50,7 +44,7 @@ export const useMaintenanceAppointments = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('maintenance_appointments')
+        .from('maintenance_appointments' as any)
         .insert({
           ...appointmentData,
           user_id: user.id,
@@ -73,12 +67,7 @@ export const useMaintenanceAppointments = () => {
         title: "Appointment Created",
         description: "Your maintenance appointment has been scheduled"
       });
-      
-      return {
-        ...data,
-        appointment_type: data.appointment_type as MaintenanceAppointment['appointment_type'],
-        appointment_status: data.appointment_status as MaintenanceAppointment['appointment_status']
-      };
+      return data as unknown as MaintenanceAppointment;
     } catch (error) {
       console.error('Error creating appointment:', error);
       toast({
@@ -97,20 +86,9 @@ export const useMaintenanceAppointments = () => {
     status: MaintenanceAppointment['appointment_status']
   ): Promise<boolean> => {
     try {
-      const updateData: any = { appointment_status: status };
-      
-      // Add timestamp fields based on status
-      if (status === 'confirmed') {
-        updateData.confirmed_at = new Date().toISOString();
-      } else if (status === 'completed') {
-        updateData.completed_at = new Date().toISOString();
-      } else if (status === 'cancelled') {
-        updateData.cancelled_at = new Date().toISOString();
-      }
-
       const { error } = await supabase
-        .from('maintenance_appointments')
-        .update(updateData)
+        .from('maintenance_appointments' as any)
+        .update({ appointment_status: status })
         .eq('id', appointmentId);
 
       if (error) {

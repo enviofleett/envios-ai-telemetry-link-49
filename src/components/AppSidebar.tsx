@@ -14,7 +14,6 @@ import {
   ShoppingCart,
   Building2,
   CreditCard,
-  Gauge,
 } from "lucide-react"
 
 import {
@@ -38,11 +37,6 @@ const menuItems = [
     title: "Dashboard",
     url: "/",
     icon: Home,
-  },
-  {
-    title: "Fleet Management",
-    url: "/fleet",
-    icon: Gauge,
   },
   {
     title: "Vehicles",
@@ -101,11 +95,6 @@ const quickActions = [
     title: "Add Vehicle",
     icon: Car,
     url: "/vehicles"
-  },
-  {
-    title: "View Fleet",
-    icon: Gauge,
-    url: "/fleet"
   },
   {
     title: "View Alerts",

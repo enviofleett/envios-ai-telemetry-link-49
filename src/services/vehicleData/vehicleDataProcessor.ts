@@ -1,98 +1,58 @@
 
-import { VehicleData } from './types';
+import { VehicleData, GP51Vehicle, GP51Position } from './types';
 
 export class VehicleDataProcessor {
-  static transformDatabaseVehicles(dbVehicles: any[]): VehicleData[] {
-    return dbVehicles.map(vehicle => this.transformDatabaseVehicle(vehicle));
-  }
-
-  static transformDatabaseVehicle(dbVehicle: any): VehicleData {
-    const lastPosition = dbVehicle.last_position;
-    
-    // Determine vehicle status based on last position update
-    let status: 'online' | 'offline' | 'unknown' = 'offline';
-    let lastUpdate = new Date();
-    
-    if (lastPosition?.updatetime) {
-      lastUpdate = new Date(lastPosition.updatetime);
-      const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
-      
-      if (minutesSinceUpdate <= 5) {
-        // Map moving vehicles to 'online' status since 'moving' isn't allowed in VehicleData type
-        status = 'online';
-      } else if (minutesSinceUpdate <= 30) {
-        // Map idle vehicles to 'online' status as well
-        status = 'online';
-      } else {
-        status = 'offline';
-      }
-    }
-
-    return {
-      deviceId: dbVehicle.device_id,
-      deviceName: dbVehicle.device_name,
-      status,
-      lastUpdate,
-      location: lastPosition ? {
-        latitude: lastPosition.lat || 0,
-        longitude: lastPosition.lon || 0,
-      } : undefined,
-      speed: lastPosition?.speed || 0,
-      course: lastPosition?.course || 0,
-      additionalData: {
-        plateNumber: dbVehicle.device_name,
-        isActive: dbVehicle.is_active || true,
-        position: lastPosition ? {
-          lat: lastPosition.lat || 0,
-          lng: lastPosition.lon || 0,
-          speed: lastPosition.speed || 0,
-          course: lastPosition.course || 0,
-          timestamp: lastPosition.updatetime || new Date().toISOString()
-        } : undefined
-      }
-    };
-  }
-
-  static processVehicleData(gp51Vehicles: any[], positionMap: Map<number, any>): VehicleData[] {
-    return gp51Vehicles.map(vehicle => {
+  static processVehicleData(
+    gp51Vehicles: GP51Vehicle[], 
+    positionMap: Map<number, GP51Position>
+  ): VehicleData[] {
+    return gp51Vehicles.map((vehicle: GP51Vehicle) => {
       const position = positionMap.get(vehicle.deviceid);
-      const lastUpdate = position?.updatetime ? new Date(position.updatetime) : new Date();
+      const lastUpdate = position?.servertime ? new Date(position.servertime * 1000) : new Date();
+      const timeSinceUpdate = Date.now() - lastUpdate.getTime();
       
-      let status: 'online' | 'offline' | 'unknown' = 'offline';
-      if (position) {
-        const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
-        if (minutesSinceUpdate <= 5) {
-          status = 'online';
-        } else if (minutesSinceUpdate <= 30) {
-          status = 'online';
-        } else {
-          status = 'offline';
-        }
-      }
-
       return {
-        deviceId: vehicle.deviceid?.toString() || '',
-        deviceName: vehicle.devicename || 'Unknown Device',
-        status,
+        deviceId: vehicle.deviceid.toString(),
+        deviceName: vehicle.devicename || `Vehicle ${vehicle.deviceid}`,
+        status: this.determineVehicleStatus(timeSinceUpdate, position),
         lastUpdate,
         location: position ? {
-          latitude: position.callat || position.lat || 0,
-          longitude: position.callon || position.lon || 0,
+          latitude: position.lat,
+          longitude: position.lng
         } : undefined,
         speed: position?.speed || 0,
         course: position?.course || 0,
         additionalData: {
-          plateNumber: vehicle.devicename || 'Unknown',
-          isActive: true,
-          position: position ? {
-            lat: position.callat || position.lat || 0,
-            lng: position.callon || position.lon || 0,
-            speed: position.speed || 0,
-            course: position.course || 0,
-            timestamp: position.updatetime || new Date().toISOString()
-          } : undefined
+          ...vehicle,
+          position: position || null
         }
       };
     });
+  }
+
+  static determineVehicleStatus(timeSinceUpdate: number, position?: GP51Position): 'online' | 'offline' | 'unknown' {
+    if (!position) return 'unknown';
+    
+    // Consider vehicle online if updated within last 15 minutes
+    if (timeSinceUpdate <= 15 * 60 * 1000) {
+      return 'online';
+    }
+    
+    // Consider offline if no update for more than 2 hours
+    if (timeSinceUpdate > 2 * 60 * 60 * 1000) {
+      return 'offline';
+    }
+    
+    return 'unknown';
+  }
+
+  static transformDatabaseVehicles(vehicles: any[]): VehicleData[] {
+    return vehicles.map(vehicle => ({
+      deviceId: vehicle.device_id,
+      deviceName: vehicle.device_name || `Vehicle ${vehicle.device_id}`,
+      status: 'unknown' as const,
+      lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
+      additionalData: (vehicle.gp51_metadata as Record<string, any>) || {}
+    }));
   }
 }

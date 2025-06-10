@@ -24,54 +24,33 @@ export const useEnhancedVehicleData = () => {
       
       setVehicles(newVehicles);
       setMetrics(newMetrics);
-      
-      // Set loading to false once we have data or the service is ready
-      if (newVehicles.length > 0 || enhancedVehicleDataService.isReady()) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
 
-      // Only show error toast for critical errors (database failures)
-      if (newMetrics.syncStatus === 'error' && newMetrics.errorMessage?.includes('Database')) {
+      // Show error toast if sync failed
+      if (newMetrics.syncStatus === 'error' && newMetrics.errorMessage) {
         toast({
-          title: "Database Error",
+          title: "Vehicle Data Sync Failed",
           description: newMetrics.errorMessage,
           variant: "destructive"
         });
       }
     });
 
-    // Initial data load - check if service is ready and has data
-    const initialVehicles = enhancedVehicleDataService.getVehicles();
-    const initialMetrics = enhancedVehicleDataService.getMetrics();
-    
-    setVehicles(initialVehicles);
-    setMetrics(initialMetrics);
-    
-    // Set loading to false if we have data or service is ready
-    if (initialVehicles.length > 0 || enhancedVehicleDataService.isReady()) {
-      setIsLoading(false);
-    }
+    // Initial data load
+    setVehicles(enhancedVehicleDataService.getVehicles());
+    setMetrics(enhancedVehicleDataService.getMetrics());
+    setIsLoading(false);
 
-    // Fallback: ensure loading stops after reasonable time
-    const fallbackTimer = setTimeout(() => {
-      if (isLoading) {
-        console.log('Setting loading to false after timeout');
-        setIsLoading(false);
-      }
-    }, 3000); // 3 second fallback
-
-    return () => {
-      unsubscribe();
-      clearTimeout(fallbackTimer);
-    };
+    return unsubscribe;
   }, [toast]);
 
   const forceSync = async () => {
+    setIsLoading(true);
     try {
       await enhancedVehicleDataService.forceSync();
       toast({
         title: "Data Sync Completed",
-        description: "Vehicle data has been refreshed"
+        description: "Vehicle data has been refreshed from GP51"
       });
     } catch (error) {
       toast({
@@ -79,6 +58,8 @@ export const useEnhancedVehicleData = () => {
         description: error instanceof Error ? error.message : "Unknown error occurred",
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 

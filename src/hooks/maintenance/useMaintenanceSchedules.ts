@@ -11,7 +11,7 @@ export const useMaintenanceSchedules = () => {
 
     try {
       let query = supabase
-        .from('maintenance_schedules')
+        .from('maintenance_schedules' as any)
         .select('*')
         .eq('is_active', true);
 
@@ -25,45 +25,14 @@ export const useMaintenanceSchedules = () => {
         console.error('Error fetching maintenance schedules:', error);
         return [];
       }
-      
-      // Type cast the data to ensure proper types
-      return (data || []).map(item => ({
-        ...item,
-        schedule_type: item.schedule_type as MaintenanceSchedule['schedule_type'],
-        interval_unit: item.interval_unit as MaintenanceSchedule['interval_unit']
-      }));
+      return (data as unknown as MaintenanceSchedule[]) || [];
     } catch (error) {
       console.error('Error fetching maintenance schedules:', error);
       return [];
     }
   };
 
-  const createMaintenanceSchedule = async (scheduleData: Omit<MaintenanceSchedule, 'id' | 'created_at' | 'updated_at'>): Promise<MaintenanceSchedule | null> => {
-    try {
-      const { data, error } = await supabase
-        .from('maintenance_schedules')
-        .insert(scheduleData)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating maintenance schedule:', error);
-        return null;
-      }
-      
-      return {
-        ...data,
-        schedule_type: data.schedule_type as MaintenanceSchedule['schedule_type'],
-        interval_unit: data.interval_unit as MaintenanceSchedule['interval_unit']
-      };
-    } catch (error) {
-      console.error('Error creating maintenance schedule:', error);
-      return null;
-    }
-  };
-
   return {
-    getMaintenanceSchedules,
-    createMaintenanceSchedule
+    getMaintenanceSchedules
   };
 };

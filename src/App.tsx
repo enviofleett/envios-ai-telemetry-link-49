@@ -18,7 +18,6 @@ import WorkshopManagement from "./pages/WorkshopManagement";
 import WorkshopSignup from "./pages/WorkshopSignup";
 import WorkshopLogin from "./pages/WorkshopLogin";
 import WorkshopDashboard from "./pages/WorkshopDashboard";
-import FleetManagement from "./pages/FleetManagement";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import { useState } from "react";
@@ -54,13 +53,6 @@ const App = () => {
               <Route path="/" element={
                 <ProtectedRoute>
                   <Index />
-                </ProtectedRoute>
-              } />
-              
-              {/* Fleet Management route */}
-              <Route path="/fleet" element={
-                <ProtectedRoute>
-                  <FleetManagement />
                 </ProtectedRoute>
               } />
               

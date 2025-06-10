@@ -11,7 +11,7 @@ export const useMaintenanceNotifications = () => {
 
     try {
       const { data, error } = await supabase
-        .from('maintenance_notifications')
+        .from('maintenance_notifications' as any)
         .select('*')
         .eq('user_id', user.id)
         .order('scheduled_for', { ascending: true });
@@ -20,39 +20,14 @@ export const useMaintenanceNotifications = () => {
         console.error('Error fetching notifications:', error);
         return [];
       }
-      
-      // Type cast the data to ensure proper types
-      return (data || []).map(item => ({
-        ...item,
-        notification_type: item.notification_type as MaintenanceNotification['notification_type']
-      }));
+      return (data as unknown as MaintenanceNotification[]) || [];
     } catch (error) {
       console.error('Error fetching notifications:', error);
       return [];
     }
   };
 
-  const markNotificationAsRead = async (notificationId: string): Promise<boolean> => {
-    try {
-      const { error } = await supabase
-        .from('maintenance_notifications')
-        .update({ is_read: true })
-        .eq('id', notificationId)
-        .eq('user_id', user?.id);
-
-      if (error) {
-        console.error('Error marking notification as read:', error);
-        return false;
-      }
-      return true;
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-      return false;
-    }
-  };
-
   return {
-    getMaintenanceNotifications,
-    markNotificationAsRead
+    getMaintenanceNotifications
   };
 };
