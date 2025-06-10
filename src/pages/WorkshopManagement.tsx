@@ -10,6 +10,7 @@ import { WorkshopConnection } from '@/components/admin/WorkshopConnection';
 import { WorkshopActivation } from '@/components/admin/WorkshopActivation';
 import { WorkshopMarketplace } from '@/components/admin/WorkshopMarketplace';
 import AdminMerchantManagement from '@/components/admin/AdminMerchantManagement';
+import WorkshopManagementEnhanced from '@/components/admin/WorkshopManagementEnhanced';
 
 const WorkshopManagement: React.FC = () => {
   const [showRegistration, setShowRegistration] = useState(false);
@@ -85,8 +86,9 @@ const WorkshopManagement: React.FC = () => {
             </div>
           </div>
           
-          <Tabs defaultValue="dashboard" className="w-full">
-            <TabsList className="grid grid-cols-6 w-full">
+          <Tabs defaultValue="enhanced" className="w-full">
+            <TabsList className="grid grid-cols-7 w-full">
+              <TabsTrigger value="enhanced">Enhanced Management</TabsTrigger>
               <TabsTrigger value="dashboard">Overview</TabsTrigger>
               <TabsTrigger value="registration">Registration</TabsTrigger>
               <TabsTrigger value="connection">Connection</TabsTrigger>
@@ -94,6 +96,10 @@ const WorkshopManagement: React.FC = () => {
               <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
               <TabsTrigger value="merchants">Merchants</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="enhanced" className="mt-6">
+              <WorkshopManagementEnhanced />
+            </TabsContent>
 
             <TabsContent value="dashboard" className="mt-6">
               <WorkshopDashboard />

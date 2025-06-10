@@ -15,6 +15,9 @@ import Settings from "./pages/Settings";
 import ActiveServices from "./pages/ActiveServices";
 import Maintenance from "./pages/Maintenance";
 import WorkshopManagement from "./pages/WorkshopManagement";
+import WorkshopSignup from "./pages/WorkshopSignup";
+import WorkshopLogin from "./pages/WorkshopLogin";
+import WorkshopDashboard from "./pages/WorkshopDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 import { useState } from "react";
@@ -40,6 +43,11 @@ const App = () => {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/auth" element={<Auth />} />
+              
+              {/* Workshop Routes (Public) */}
+              <Route path="/workshop-signup" element={<WorkshopSignup />} />
+              <Route path="/workshop-login" element={<WorkshopLogin />} />
+              <Route path="/workshop-dashboard" element={<WorkshopDashboard />} />
               
               {/* Main dashboard route */}
               <Route path="/" element={
