@@ -47,24 +47,25 @@ export const EmailPreferencesManager: React.FC = () => {
     }
   });
 
-  // Get email preferences - using raw query with fallback
+  // Get email preferences - using direct table query
   const { data: preferences, isLoading } = useQuery({
     queryKey: ['email-preferences', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       
       try {
-        // Try to fetch from the new table using a raw query
         const { data, error } = await supabase
-          .rpc('get_user_email_preferences_by_id', { user_uuid: user.id });
+          .from('user_email_preferences')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
         
         if (error) {
-          console.error('RPC call failed:', error);
-          // Return null so we can use default preferences
+          console.error('Direct query failed:', error);
           return null;
         }
         
-        return data?.[0] as EmailPreferences | null;
+        return data as EmailPreferences | null;
       } catch (error) {
         console.error('Error fetching email preferences:', error);
         return null;

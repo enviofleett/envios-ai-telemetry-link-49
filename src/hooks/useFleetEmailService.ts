@@ -62,16 +62,16 @@ export const useFleetEmailService = () => {
     }
   });
 
-  // Get email preferences for users - using raw query since table is new
+  // Get email preferences for users - using direct table query
   const { data: emailPreferences, refetch: refetchPreferences } = useQuery({
     queryKey: ['email-preferences'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .rpc('get_user_email_preferences');
+        .from('user_email_preferences')
+        .select('*');
       
       if (error) {
         console.error('Error fetching email preferences:', error);
-        // Fallback to empty array if function doesn't exist yet
         return [];
       }
       return data as EmailPreferences[];

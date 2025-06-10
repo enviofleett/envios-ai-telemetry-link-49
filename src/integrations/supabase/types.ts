@@ -6402,6 +6402,36 @@ export type Database = {
         Args: { job_id: string }
         Returns: Json
       }
+      get_user_email_preferences: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          created_at: string
+          email: string
+          geofence_alerts: boolean
+          id: string
+          maintenance_reminders: boolean
+          system_updates: boolean
+          updated_at: string
+          urgent_only: boolean
+          user_id: string
+          vehicle_alerts: boolean
+        }[]
+      }
+      get_user_email_preferences_by_id: {
+        Args: { user_uuid: string }
+        Returns: {
+          created_at: string
+          email: string
+          geofence_alerts: boolean
+          id: string
+          maintenance_reminders: boolean
+          system_updates: boolean
+          updated_at: string
+          urgent_only: boolean
+          user_id: string
+          vehicle_alerts: boolean
+        }[]
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
