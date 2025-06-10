@@ -36,7 +36,7 @@ export class GP51DiagnosticTests {
           test: 'GP51 Session Check',
           status: 'warning',
           message: 'Session found but no expiration time available',
-          details: { username: session.username },
+          details: { username: session.gp51_username },
           timestamp: options.timestamp
         };
       }
@@ -49,7 +49,7 @@ export class GP51DiagnosticTests {
           test: 'GP51 Session Check',
           status: 'fail',
           message: `Session expired at ${expiresAt.toISOString()}`,
-          details: { username: session.username, expiresAt: expiresAt.toISOString() },
+          details: { username: session.gp51_username, expiresAt: expiresAt.toISOString() },
           timestamp: options.timestamp
         };
       }
@@ -58,7 +58,7 @@ export class GP51DiagnosticTests {
         test: 'GP51 Session Check',
         status: 'pass',
         message: `Active session found, expires at ${expiresAt.toISOString()}`,
-        details: { username: session.username, expiresAt: expiresAt.toISOString() },
+        details: { username: session.gp51_username, expiresAt: expiresAt.toISOString() },
         timestamp: options.timestamp
       };
     } catch (error) {
