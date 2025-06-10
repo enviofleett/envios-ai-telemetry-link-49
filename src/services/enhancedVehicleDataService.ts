@@ -25,6 +25,7 @@ export class EnhancedVehicleDataService {
   private positionOnlyInterval: NodeJS.Timeout | null = null;
   private isSyncing = false;
   private isPositionSyncing = false;
+  private isInitialized = false;
 
   static getInstance(): EnhancedVehicleDataService {
     if (!EnhancedVehicleDataService.instance) {
@@ -38,19 +39,23 @@ export class EnhancedVehicleDataService {
   }
 
   private async initializeService(): Promise<void> {
-    console.log('🚀 Initializing Enhanced Vehicle Data Service with faster sync intervals...');
+    console.log('🚀 Initializing Enhanced Vehicle Data Service...');
     
+    // Load vehicles from database immediately to show data quickly
     await this.loadVehiclesFromDatabase();
-    this.startPeriodicSync();
-    this.startPositionOnlySync();
+    this.isInitialized = true;
     
+    // Start enhanced sync in background (won't block UI)
+    this.startBackgroundSync();
+    
+    // Subscribe to GP51 session changes for enhanced features
     unifiedGP51SessionManager.subscribeToSession((session) => {
       if (session && session.userId) {
-        console.log(`✅ GP51 session available for user ${session.userId}, starting enhanced data sync...`);
+        console.log(`✅ GP51 session available for user ${session.userId}, enabling enhanced sync...`);
         this.forceSync();
       } else {
-        console.log('❌ GP51 session lost or not linked to user, marking vehicles as offline...');
-        this.markAllVehiclesOffline();
+        console.log('⚠️ GP51 session not available, using database-only mode');
+        this.markVehiclesAsOfflineFromGP51();
       }
     });
 
@@ -58,7 +63,7 @@ export class EnhancedVehicleDataService {
       if (health.status === 'connected' || health.status === 'degraded') {
         this.forceSync();
       } else if (health.status === 'disconnected' || health.status === 'auth_error') {
-        this.markAllVehiclesOffline();
+        this.markVehiclesAsOfflineFromGP51();
       }
     });
   }
@@ -74,89 +79,129 @@ export class EnhancedVehicleDataService {
 
       if (error) {
         console.error('Failed to load vehicles from database:', error);
+        this.metrics.syncStatus = 'error';
+        this.metrics.errorMessage = `Database error: ${error.message}`;
+        this.notifyListeners();
         return;
       }
 
+      // Transform database vehicles to VehicleData format
       this.vehicles = VehicleDataProcessor.transformDatabaseVehicles(vehicles || []);
       this.updateMetrics();
+      this.metrics.syncStatus = 'success';
+      this.metrics.lastSyncTime = new Date();
+      
       console.log(`📊 Loaded ${this.vehicles.length} vehicles from database`);
       this.notifyListeners();
 
     } catch (error) {
       console.error('Error loading vehicles from database:', error);
+      this.metrics.syncStatus = 'error';
+      this.metrics.errorMessage = error instanceof Error ? error.message : 'Unknown database error';
+      this.notifyListeners();
     }
   }
 
-  private startPeriodicSync(intervalMs: number = 30000): void {
+  private startBackgroundSync(): void {
+    // Start background sync with conservative intervals
+    this.startPeriodicSync(60000); // 1 minute for full sync
+    this.startPositionOnlySync(30000); // 30 seconds for position updates
+  }
+
+  private startPeriodicSync(intervalMs: number = 60000): void {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
     }
 
-    console.log(`⏰ Starting periodic vehicle data sync (${intervalMs}ms = 30 seconds)`);
+    console.log(`⏰ Starting background vehicle data sync (${intervalMs}ms)`);
     
-    this.syncVehicleData();
+    // Initial sync attempt (non-blocking)
+    this.syncVehicleDataInBackground();
+    
     this.syncInterval = setInterval(() => {
-      this.syncVehicleData();
+      this.syncVehicleDataInBackground();
     }, intervalMs);
   }
 
-  private startPositionOnlySync(intervalMs: number = 15000): void {
+  private startPositionOnlySync(intervalMs: number = 30000): void {
     if (this.positionOnlyInterval) {
       clearInterval(this.positionOnlyInterval);
     }
 
-    console.log(`🎯 Starting position-only sync (${intervalMs}ms = 15 seconds)`);
+    console.log(`🎯 Starting background position sync (${intervalMs}ms)`);
     
     this.positionOnlyInterval = setInterval(() => {
-      this.syncPositionsOnly();
+      this.syncPositionsOnlyInBackground();
     }, intervalMs);
   }
 
-  private async syncPositionsOnly(): Promise<void> {
-    if (this.isPositionSyncing || this.isSyncing) {
-      console.log('Position sync: another sync in progress, skipping...');
+  private async syncVehicleDataInBackground(): Promise<void> {
+    if (this.isSyncing) {
       return;
     }
 
+    try {
+      await this.syncVehicleData();
+    } catch (error) {
+      console.warn('Background sync failed, continuing with database data:', error);
+      // Don't update UI state for background sync failures
+    }
+  }
+
+  private async syncPositionsOnlyInBackground(): Promise<void> {
+    if (this.isPositionSyncing || this.isSyncing) {
+      return;
+    }
+
+    try {
+      await this.syncPositionsOnly();
+    } catch (error) {
+      console.warn('Background position sync failed:', error);
+      // Don't update UI state for background sync failures
+    }
+  }
+
+  private async syncPositionsOnly(): Promise<void> {
     this.isPositionSyncing = true;
 
     try {
       const session = await unifiedGP51SessionManager.validateAndEnsureSession();
       if (!session.userId) {
-        console.log('Position sync: No valid session, skipping...');
-        return;
+        return; // Skip GP51 sync, keep database data
       }
 
-      // Get active vehicles only (updated within last 30 minutes)
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+      // Get recently updated vehicles for position sync
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
       
       const { data: activeVehicles, error } = await supabase
         .from('vehicles')
         .select('device_id, last_position')
         .eq('is_active', true)
-        .gte('last_position->>updatetime', thirtyMinutesAgo)
-        .limit(200);
+        .gte('last_position->>updatetime', fiveMinutesAgo)
+        .limit(100);
 
       if (error || !activeVehicles || activeVehicles.length === 0) {
-        console.log('Position sync: No active vehicles found');
         return;
       }
 
-      console.log(`🎯 Position sync: updating ${activeVehicles.length} active vehicles`);
-
       const deviceIds = activeVehicles.map(v => parseInt(v.device_id)).filter(Boolean);
+      
+      if (deviceIds.length === 0) {
+        return;
+      }
+
       const positions = await PositionOnlyApiService.fetchPositionsOnly(deviceIds);
       
       if (positions.length > 0) {
         const result = await PositionOnlyApiService.updateVehiclePositionsInDatabase(positions);
-        console.log(`🎯 Position sync completed: ${result.updated} updated, ${result.errors} errors`);
+        console.log(`🎯 Background position sync: ${result.updated} updated, ${result.errors} errors`);
         
-        // Update local cache with new positions
+        // Reload vehicles from database with updated positions
         await this.loadVehiclesFromDatabase();
       }
 
     } catch (error) {
-      console.error('Position-only sync failed:', error);
+      console.warn('Position-only sync failed:', error);
     } finally {
       this.isPositionSyncing = false;
     }
@@ -164,24 +209,21 @@ export class EnhancedVehicleDataService {
 
   public async syncVehicleData(): Promise<void> {
     if (this.isSyncing) {
-      console.log('Sync already in progress, skipping...');
       return;
     }
 
     this.isSyncing = true;
-    this.metrics.syncStatus = 'in_progress';
-    this.notifyListeners();
 
     try {
-      console.log('🔄 Starting enhanced vehicle data sync...');
-      
       const session = await unifiedGP51SessionManager.validateAndEnsureSession();
       
       if (!session.userId) {
-        throw new Error('GP51 session is not properly linked to a user account');
+        console.log('GP51 session not available, using database-only mode');
+        await this.loadVehiclesFromDatabase();
+        return;
       }
       
-      console.log(`🔗 Using GP51 session linked to user: ${session.userId}`);
+      console.log(`🔗 Using GP51 session for enhanced sync: ${session.userId}`);
       
       const gp51Vehicles = await GP51ApiService.fetchVehicleList();
       console.log(`📋 Retrieved ${gp51Vehicles.length} vehicles from GP51`);
@@ -199,41 +241,29 @@ export class EnhancedVehicleDataService {
         delete this.metrics.errorMessage;
 
         console.log(`✅ Enhanced sync completed. ${this.metrics.onlineVehicles}/${this.metrics.totalVehicles} vehicles online`);
-      } else {
-        console.warn('⚠️ No vehicle device IDs found');
-        this.metrics.syncStatus = 'success';
-        this.metrics.lastSyncTime = new Date();
       }
 
     } catch (error) {
-      console.error('❌ Enhanced vehicle data sync failed:', error);
-      this.metrics.syncStatus = 'error';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('not properly linked')) {
-          this.metrics.errorMessage = 'GP51 session not linked to user account. Please re-authenticate in Admin Settings.';
-        } else if (error.message.includes('No GP51 sessions found')) {
-          this.metrics.errorMessage = 'No GP51 authentication found. Please configure GP51 credentials in Admin Settings.';
-        } else {
-          this.metrics.errorMessage = error.message;
-        }
-      } else {
-        this.metrics.errorMessage = 'Unknown sync error occurred';
+      console.warn('Enhanced sync failed, keeping database data:', error);
+      // Don't mark as error - we have database data
+      if (this.vehicles.length === 0) {
+        // Only reload if we have no vehicles
+        await this.loadVehiclesFromDatabase();
       }
-      
-      this.markAllVehiclesOffline();
     } finally {
       this.isSyncing = false;
       this.notifyListeners();
     }
   }
 
-  private markAllVehiclesOffline(): void {
+  private markVehiclesAsOfflineFromGP51(): void {
+    // Mark vehicles as offline for GP51 status while keeping database data
     this.vehicles = this.vehicles.map(vehicle => ({
       ...vehicle,
       status: 'offline' as const
     }));
     this.updateMetrics();
+    this.notifyListeners();
   }
 
   private updateMetrics(): void {
@@ -260,6 +290,10 @@ export class EnhancedVehicleDataService {
 
   public getVehicleById(deviceId: string): VehicleData | undefined {
     return this.vehicles.find(v => v.deviceId === deviceId);
+  }
+
+  public isReady(): boolean {
+    return this.isInitialized;
   }
 
   public subscribe(callback: () => void): () => void {
