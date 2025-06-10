@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { SMTPClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
+import { SmtpClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -172,8 +172,8 @@ async function handleSendEmail(supabase: any, requestBody: any) {
     // Decrypt password
     const decodedPassword = await decryptPassword(smtpConfig.password_encrypted);
 
-    // Send email with real SMTP client
-    const emailResult = await sendEmailWithRealSMTP({
+    // Send email with denomailer SMTP client
+    const emailResult = await sendEmailWithDenomiler({
       host: smtpConfig.host,
       port: smtpConfig.port,
       username: smtpConfig.username,
@@ -242,7 +242,7 @@ async function handleTestSMTP(testConfig: any) {
       encryption: testConfig.encryption_type
     });
 
-    const result = await sendEmailWithRealSMTP({
+    const result = await sendEmailWithDenomiler({
       host: testConfig.host,
       port: testConfig.port,
       username: testConfig.username,
@@ -351,8 +351,10 @@ async function handleFleetAlert(supabase: any, alertData: any) {
   }
 }
 
-async function sendEmailWithRealSMTP(config: any, maxRetries = 3) {
+async function sendEmailWithDenomiler(config: any, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const client = new SmtpClient();
+    
     try {
       console.log(`Attempting to send email via SMTP (attempt ${attempt}/${maxRetries})`);
       
@@ -369,49 +371,63 @@ async function sendEmailWithRealSMTP(config: any, maxRetries = 3) {
         throw new Error('SMTP host and port are required');
       }
 
-      // Create SMTP client
-      const client = new SMTPClient({
-        connection: {
-          hostname: config.host,
-          port: parseInt(config.port),
-          tls: config.encryptionType === 'ssl' || config.port === 465,
-          auth: {
-            username: config.username,
-            password: config.password,
-          }
-        }
-      });
+      // Determine connection configuration based on port and encryption type
+      const connectConfig: any = {
+        hostname: config.host,
+        port: parseInt(config.port),
+        username: config.username,
+        password: config.password,
+      };
 
-      // Adjust for different encryption types
-      let secure = false;
-      if (config.encryptionType === 'ssl' || config.port === 465) {
-        secure = true;
+      // Handle encryption based on port and encryption type
+      if (config.port === 465 || config.encryptionType === 'ssl') {
+        // SSL connection (port 465)
+        connectConfig.tls = true;
+      } else if (config.port === 587 || config.encryptionType === 'starttls' || config.encryptionType === 'tls') {
+        // STARTTLS connection (port 587)
+        connectConfig.tls = false; // Start without TLS, then upgrade
       }
 
-      // Send email
-      console.log(`SMTP: Connecting to ${config.host}:${config.port} (secure: ${secure})`);
+      console.log(`SMTP: Connecting to ${config.host}:${config.port} (encryption: ${config.encryptionType})`);
       
-      const sendConfig: any = {
-        from: `${config.fromName} <${config.fromEmail}>`,
-        to: config.toEmail,
-        subject: config.subject,
-        content: config.textContent,
-        html: config.htmlContent,
-      };
+      // Connect to SMTP server
+      await client.connect(connectConfig);
+      
+      // Prepare email content
+      const emailContent = config.htmlContent || config.textContent;
       
       console.log(`SMTP: Sending email to ${config.toEmail}`);
-      const sendResult = await client.send(sendConfig);
-      console.log('SMTP: Email sent successfully:', sendResult);
+      
+      // Send email
+      await client.send({
+        from: config.fromEmail,
+        to: config.toEmail,
+        subject: config.subject,
+        content: emailContent,
+        html: config.htmlContent,
+      });
+      
+      // Close connection
+      await client.close();
+      
+      console.log('SMTP: Email sent successfully');
       
       return { 
         success: true, 
         message: 'Email sent successfully via SMTP',
-        messageId: sendResult?.id || `fleet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        messageId: `fleet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         retryCount: attempt - 1
       };
       
     } catch (error) {
       console.error(`SMTP sending error (attempt ${attempt}):`, error);
+      
+      // Always try to close the connection
+      try {
+        await client.close();
+      } catch (closeError) {
+        console.error('Error closing SMTP connection:', closeError);
+      }
       
       if (attempt === maxRetries) {
         return { 
@@ -426,7 +442,6 @@ async function sendEmailWithRealSMTP(config: any, maxRetries = 3) {
     }
   }
   
-  // This should never happen due to the check in the catch block above
   return { 
     success: false,
     error: `Failed after ${maxRetries} attempts: Unknown error`,
