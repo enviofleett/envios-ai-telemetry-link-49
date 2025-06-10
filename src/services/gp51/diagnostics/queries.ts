@@ -14,8 +14,8 @@ export async function getActiveGP51Sessions(): Promise<{ data: GP51Session[]; er
     return { data: [], error };
   }
 
-  // Map database columns to our interface
-  const mappedData: GP51Session[] = (data || []).map(row => ({
+  // Map database columns to our interface with type assertion
+  const mappedData: GP51Session[] = ((data as any[]) || []).map(row => ({
     id: row.id,
     status: row.gp51_token ? 'active' : 'inactive',
     created_at: row.created_at,
@@ -37,8 +37,8 @@ export async function getVehicleDataSample(): Promise<{ data: VehicleSample[]; e
     return { data: [], error };
   }
 
-  // Map database columns to our interface
-  const mappedData: VehicleSample[] = (data || []).map(row => ({
+  // Map database columns to our interface with type assertion
+  const mappedData: VehicleSample[] = ((data as any[]) || []).map(row => ({
     id: row.id,
     vehicle_id: row.device_id,
     sample_data: JSON.stringify(row.last_position || {}),
@@ -61,8 +61,8 @@ export async function getRecentVehicleUpdates(since: string): Promise<{ data: Ve
     return { data: [], error };
   }
 
-  // Map database columns to our interface
-  const mappedData: VehicleUpdate[] = (data || []).map(row => ({
+  // Map database columns to our interface with type assertion
+  const mappedData: VehicleUpdate[] = ((data as any[]) || []).map(row => ({
     id: row.id,
     vehicle_id: row.device_id,
     update_details: `Updated: ${row.device_name || row.device_id}`,
@@ -91,12 +91,12 @@ export async function getGP51SessionToken(): Promise<{ data: Gp51Token | null; e
     return { data: null, error: null };
   }
 
-  // Map database columns to our interface
+  // Map database columns to our interface with type assertion
   const mappedData: Gp51Token = {
-    id: data.id,
-    token: data.gp51_token || '',
-    created_at: data.created_at,
-    expires_at: data.token_expires_at || ''
+    id: (data as any).id,
+    token: (data as any).gp51_token || '',
+    created_at: (data as any).created_at,
+    expires_at: (data as any).token_expires_at || ''
   };
 
   return { data: mappedData, error: null };
