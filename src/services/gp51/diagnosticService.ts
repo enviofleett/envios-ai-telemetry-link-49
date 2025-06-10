@@ -9,6 +9,12 @@ interface DiagnosticResult {
   timestamp: string;
 }
 
+interface GP51Session {
+  gp51_token: string;
+  token_expires_at: string;
+  username: string;
+}
+
 export class GP51DiagnosticService {
   private static instance: GP51DiagnosticService;
 
@@ -25,9 +31,9 @@ export class GP51DiagnosticService {
 
     // Test 1: Check GP51 session availability
     try {
-      const { data: sessions, error } = await supabase
+      const { data: sessionData, error } = await supabase
         .from('gp51_sessions')
-        .select('*')
+        .select('gp51_token, token_expires_at, username')
         .eq('is_active', true);
 
       if (error) {
@@ -37,7 +43,7 @@ export class GP51DiagnosticService {
           message: `Database error: ${error.message}`,
           timestamp
         });
-      } else if (!sessions || sessions.length === 0) {
+      } else if (!sessionData || sessionData.length === 0) {
         results.push({
           test: 'GP51 Session Check',
           status: 'fail',
@@ -45,7 +51,7 @@ export class GP51DiagnosticService {
           timestamp
         });
       } else {
-        const session = sessions[0] as any;
+        const session: GP51Session = sessionData[0] as GP51Session;
         const expiresAt = new Date(session.token_expires_at);
         const now = new Date();
         
@@ -182,14 +188,14 @@ export class GP51DiagnosticService {
     const sessionTest = results.find(r => r.test === 'GP51 Session Check');
     if (sessionTest?.status === 'pass') {
       try {
-        const { data: session } = await supabase
+        const { data: sessionData } = await supabase
           .from('gp51_sessions')
           .select('gp51_token')
           .eq('is_active', true)
           .single();
 
-        if (session?.gp51_token) {
-          const testResponse = await fetch('https://www.gps51.com/webapi?action=validate_token&token=' + session.gp51_token, {
+        if (sessionData?.gp51_token) {
+          const testResponse = await fetch('https://www.gps51.com/webapi?action=validate_token&token=' + sessionData.gp51_token, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
           });
