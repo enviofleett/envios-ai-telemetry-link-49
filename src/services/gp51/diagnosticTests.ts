@@ -10,7 +10,8 @@ export class GP51DiagnosticTests {
         .select('gp51_token, token_expires_at, username')
         .eq('is_active', true);
 
-      const { data: sessionData, error } = response as any;
+      const sessionData: any[] = response.data || [];
+      const error = response.error;
 
       if (error) {
         return {
@@ -68,7 +69,8 @@ export class GP51DiagnosticTests {
         .select('device_id, last_position, updated_at')
         .limit(10);
 
-      const { data: vehicles, error: vehicleError } = response as any;
+      const vehicles: any[] = response.data || [];
+      const vehicleError = response.error;
 
       if (vehicleError) {
         return {
@@ -82,7 +84,7 @@ export class GP51DiagnosticTests {
       let corruptedCount = 0;
       let validCount = 0;
       
-      vehicles?.forEach((vehicle: any) => {
+      vehicles.forEach((vehicle: any) => {
         try {
           if (vehicle.last_position) {
             JSON.stringify(vehicle.last_position);
@@ -97,8 +99,8 @@ export class GP51DiagnosticTests {
         return {
           test: 'Vehicle Data Integrity',
           status: 'warning',
-          message: `${corruptedCount} vehicles have corrupted JSON data out of ${vehicles?.length || 0} checked`,
-          details: { valid: validCount, corrupted: corruptedCount, total: vehicles?.length || 0 },
+          message: `${corruptedCount} vehicles have corrupted JSON data out of ${vehicles.length} checked`,
+          details: { valid: validCount, corrupted: corruptedCount, total: vehicles.length },
           timestamp
         };
       }
@@ -107,7 +109,7 @@ export class GP51DiagnosticTests {
         test: 'Vehicle Data Integrity',
         status: 'pass',
         message: `All ${validCount} vehicles have valid JSON data`,
-        details: { valid: validCount, total: vehicles?.length || 0 },
+        details: { valid: validCount, total: vehicles.length },
         timestamp
       };
     } catch (error) {
@@ -129,7 +131,8 @@ export class GP51DiagnosticTests {
         .select('device_id, updated_at')
         .gte('updated_at', oneHourAgo);
 
-      const { data: recentVehicles, error: recentError } = response as any;
+      const recentVehicles: any[] = response.data || [];
+      const recentError = response.error;
 
       if (recentError) {
         return {
@@ -140,7 +143,7 @@ export class GP51DiagnosticTests {
         };
       }
 
-      const recentCount = recentVehicles?.length || 0;
+      const recentCount = recentVehicles.length;
       
       if (recentCount === 0) {
         return {
@@ -186,7 +189,7 @@ export class GP51DiagnosticTests {
         .eq('is_active', true)
         .single();
 
-      const { data: sessionData } = response as any;
+      const sessionData: any = response.data;
 
       if (sessionData?.gp51_token) {
         const testResponse = await fetch('https://www.gps51.com/webapi?action=validate_token&token=' + sessionData.gp51_token, {
