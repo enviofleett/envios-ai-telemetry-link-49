@@ -12,12 +12,16 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface EmailTemplate {
   id?: string;
+  user_id?: string;
   template_name: string;
   template_type: string;
   subject: string;
   body_text: string;
+  body_html?: string;
   variables: string[];
   is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 const TEMPLATE_TYPES = [
@@ -48,7 +52,14 @@ const EmailTemplatesTab: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setTemplates(data || []);
+      
+      // Convert the database response to our interface format
+      const convertedTemplates: EmailTemplate[] = (data || []).map(template => ({
+        ...template,
+        variables: Array.isArray(template.variables) ? template.variables : []
+      }));
+      
+      setTemplates(convertedTemplates);
     } catch (error: any) {
       toast({
         title: "Load Failed",
@@ -80,9 +91,19 @@ const EmailTemplatesTab: React.FC = () => {
 
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // Prepare the data for database insertion
+      const templateData = {
+        ...selectedTemplate,
+        user_id: user.id,
+        variables: selectedTemplate.variables as any // Convert to Json type for database
+      };
+
       const { error } = await supabase
         .from('email_templates')
-        .upsert(selectedTemplate);
+        .upsert(templateData);
 
       if (error) throw error;
 

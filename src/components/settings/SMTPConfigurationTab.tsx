@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface SMTPConfig {
   id?: string;
+  user_id?: string;
   provider_name: string;
   smtp_host: string;
   smtp_port: number;
@@ -21,6 +22,8 @@ interface SMTPConfig {
   use_ssl: boolean;
   is_active: boolean;
   is_default: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 const SMTP_PROVIDERS = {
@@ -105,9 +108,18 @@ const SMTPConfigurationTab: React.FC = () => {
   const handleSave = async () => {
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      // Prepare the data for database insertion
+      const configData = {
+        ...config,
+        user_id: user.id
+      };
+
       const { error } = await supabase
         .from('smtp_configurations')
-        .upsert(config, {
+        .upsert(configData, {
           onConflict: 'user_id,provider_name'
         });
 
