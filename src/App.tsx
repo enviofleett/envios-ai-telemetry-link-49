@@ -17,7 +17,15 @@ import PackageManagement from "./pages/PackageManagement";
 import SystemImport from "./pages/SystemImport";
 import DeviceConfiguration from "./pages/DeviceConfiguration";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
