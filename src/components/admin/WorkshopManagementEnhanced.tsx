@@ -30,7 +30,7 @@ interface Workshop {
   phone?: string;
   city?: string;
   country?: string;
-  service_types: string[];
+  service_types: string[] | any; // Handle both string[] and Json types
   verified: boolean;
   is_active: boolean;
   created_at: string;
@@ -56,7 +56,18 @@ const WorkshopManagementEnhanced: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setWorkshops(data || []);
+      
+      // Handle the service_types conversion from Json to string[]
+      const processedData = (data || []).map(workshop => ({
+        ...workshop,
+        service_types: Array.isArray(workshop.service_types) 
+          ? workshop.service_types 
+          : workshop.service_types 
+            ? [workshop.service_types].flat()
+            : []
+      }));
+      
+      setWorkshops(processedData);
     } catch (error: any) {
       toast({
         title: "Error",
