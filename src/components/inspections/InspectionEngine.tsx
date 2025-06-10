@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -109,11 +110,11 @@ const InspectionEngine: React.FC<InspectionEngineProps> = ({
           item_description: item.item_description,
           is_required: item.is_required,
           check_status: (item.check_status as 'pending' | 'pass' | 'fail' | 'n/a') || 'pending',
-          score: item.score || undefined,
+          score: (item as any).score || undefined,
           inspector_notes: item.inspector_notes,
           severity_level: (item.severity_level as 'low' | 'medium' | 'high' | 'critical') || undefined,
           requires_repair: item.requires_repair,
-          estimated_repair_cost: item.estimated_repair_cost
+          estimated_repair_cost: (item as any).estimated_repair_cost
         }));
         setChecklistItems(typedItems);
       } else {
