@@ -10,7 +10,7 @@ export class VehicleDataProcessor {
     const lastPosition = dbVehicle.last_position;
     
     // Determine vehicle status based on last position update
-    let status: 'online' | 'offline' | 'moving' | 'idle' = 'offline';
+    let status: 'online' | 'offline' | 'unknown' = 'offline';
     let lastUpdate = new Date();
     
     if (lastPosition?.updatetime) {
@@ -18,26 +18,38 @@ export class VehicleDataProcessor {
       const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
       
       if (minutesSinceUpdate <= 5) {
-        status = lastPosition.speed > 0 ? 'moving' : 'online';
+        // Map moving vehicles to 'online' status since 'moving' isn't allowed in VehicleData type
+        status = 'online';
       } else if (minutesSinceUpdate <= 30) {
-        status = 'idle';
+        // Map idle vehicles to 'online' status as well
+        status = 'online';
+      } else {
+        status = 'offline';
       }
     }
 
     return {
       deviceId: dbVehicle.device_id,
       deviceName: dbVehicle.device_name,
-      plateNumber: dbVehicle.device_name,
       status,
       lastUpdate,
-      position: lastPosition ? {
-        lat: lastPosition.lat || 0,
-        lng: lastPosition.lon || 0,
-        speed: lastPosition.speed || 0,
-        course: lastPosition.course || 0,
-        timestamp: lastPosition.updatetime || new Date().toISOString()
+      location: lastPosition ? {
+        latitude: lastPosition.lat || 0,
+        longitude: lastPosition.lon || 0,
       } : undefined,
-      isActive: dbVehicle.is_active || true
+      speed: lastPosition?.speed || 0,
+      course: lastPosition?.course || 0,
+      additionalData: {
+        plateNumber: dbVehicle.device_name,
+        isActive: dbVehicle.is_active || true,
+        position: lastPosition ? {
+          lat: lastPosition.lat || 0,
+          lng: lastPosition.lon || 0,
+          speed: lastPosition.speed || 0,
+          course: lastPosition.course || 0,
+          timestamp: lastPosition.updatetime || new Date().toISOString()
+        } : undefined
+      }
     };
   }
 
@@ -46,30 +58,40 @@ export class VehicleDataProcessor {
       const position = positionMap.get(vehicle.deviceid);
       const lastUpdate = position?.updatetime ? new Date(position.updatetime) : new Date();
       
-      let status: 'online' | 'offline' | 'moving' | 'idle' = 'offline';
+      let status: 'online' | 'offline' | 'unknown' = 'offline';
       if (position) {
         const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
         if (minutesSinceUpdate <= 5) {
-          status = position.speed > 0 ? 'moving' : 'online';
+          status = 'online';
         } else if (minutesSinceUpdate <= 30) {
-          status = 'idle';
+          status = 'online';
+        } else {
+          status = 'offline';
         }
       }
 
       return {
         deviceId: vehicle.deviceid?.toString() || '',
         deviceName: vehicle.devicename || 'Unknown Device',
-        plateNumber: vehicle.devicename || 'Unknown',
         status,
         lastUpdate,
-        position: position ? {
-          lat: position.callat || position.lat || 0,
-          lng: position.callon || position.lon || 0,
-          speed: position.speed || 0,
-          course: position.course || 0,
-          timestamp: position.updatetime || new Date().toISOString()
+        location: position ? {
+          latitude: position.callat || position.lat || 0,
+          longitude: position.callon || position.lon || 0,
         } : undefined,
-        isActive: true
+        speed: position?.speed || 0,
+        course: position?.course || 0,
+        additionalData: {
+          plateNumber: vehicle.devicename || 'Unknown',
+          isActive: true,
+          position: position ? {
+            lat: position.callat || position.lat || 0,
+            lng: position.callon || position.lon || 0,
+            speed: position.speed || 0,
+            course: position.course || 0,
+            timestamp: position.updatetime || new Date().toISOString()
+          } : undefined
+        }
       };
     });
   }
