@@ -111,7 +111,22 @@ const WorkshopCard: React.FC<WorkshopCardProps> = ({ workshop, onConnect, isConn
       </Card>
 
       <WorkshopConnection
-        workshop={workshop}
+        workshop={{
+          id: workshop.id,
+          name: workshop.name,
+          representativeName: workshop.representative_name,
+          email: workshop.email,
+          phone: workshop.phone || '',
+          city: workshop.city || '',
+          country: workshop.country || '',
+          serviceTypes: workshop.service_types,
+          rating: workshop.rating,
+          reviewCount: workshop.review_count,
+          activationFee: workshop.activation_fee,
+          connectionFee: workshop.connection_fee,
+          operatingHours: workshop.operating_hours || '',
+          verified: workshop.verified
+        }}
         userVehicles={[]} // This would come from a vehicles hook
         isOpen={showConnectionModal}
         onClose={() => setShowConnectionModal(false)}
