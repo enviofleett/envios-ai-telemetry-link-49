@@ -11,22 +11,6 @@ export interface MaintenanceItem {
   priority: 'low' | 'medium' | 'high';
 }
 
-export interface Workshop {
-  id: string;
-  name: string;
-  representativeName: string;
-  email: string;
-  phone: string;
-  city: string;
-  country: string;
-  serviceTypes: string[];
-  rating: number;
-  reviewCount: number;
-  activationFee: number;
-  operatingHours: string;
-  verified: boolean;
-}
-
 export interface Vehicle {
   id: string;
   plateNumber: string;
