@@ -22,10 +22,67 @@ interface Workshop {
 }
 
 interface ConnectedWorkshopsListProps {
-  workshops: Workshop[];
+  workshops?: Workshop[];
 }
 
-export const ConnectedWorkshopsList: React.FC<ConnectedWorkshopsListProps> = ({ workshops }) => {
+const ConnectedWorkshopsList: React.FC<ConnectedWorkshopsListProps> = ({ workshops = [] }) => {
+  // Mock data for demonstration if no workshops provided
+  const mockWorkshops: Workshop[] = [
+    {
+      id: '1',
+      name: 'AutoCare Pro',
+      representativeName: 'John Smith',
+      email: 'john@autocarepro.com',
+      phone: '+1-555-0123',
+      city: 'New York',
+      country: 'USA',
+      serviceTypes: ['Oil Change', 'Brake Service', 'Engine Diagnostics'],
+      rating: 4.8,
+      reviewCount: 156,
+      activationFee: 50,
+      operatingHours: '8AM - 6PM',
+      verified: true
+    },
+    {
+      id: '2',
+      name: 'Quick Fix Garage',
+      representativeName: 'Sarah Johnson',
+      email: 'sarah@quickfix.com',
+      phone: '+1-555-0456',
+      city: 'Los Angeles',
+      country: 'USA',
+      serviceTypes: ['Tire Service', 'Battery Replacement', 'Inspection'],
+      rating: 4.5,
+      reviewCount: 89,
+      activationFee: 35,
+      operatingHours: '7AM - 7PM',
+      verified: true
+    }
+  ];
+
+  const displayWorkshops = workshops.length > 0 ? workshops : mockWorkshops;
+
+  if (displayWorkshops.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Connected Workshops</CardTitle>
+          <CardDescription>
+            Workshops you're connected to for maintenance services
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="text-center py-8">
+          <Wrench className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2">No Connected Workshops</h3>
+          <p className="text-muted-foreground mb-4">
+            Connect with workshops to schedule maintenance services
+          </p>
+          <Button>Find Workshops</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -36,7 +93,7 @@ export const ConnectedWorkshopsList: React.FC<ConnectedWorkshopsListProps> = ({ 
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {workshops.map((workshop) => (
+          {displayWorkshops.map((workshop) => (
             <div key={workshop.id} className="flex items-center justify-between p-4 border rounded-lg">
               <div className="flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -66,3 +123,5 @@ export const ConnectedWorkshopsList: React.FC<ConnectedWorkshopsListProps> = ({ 
     </Card>
   );
 };
+
+export default ConnectedWorkshopsList;

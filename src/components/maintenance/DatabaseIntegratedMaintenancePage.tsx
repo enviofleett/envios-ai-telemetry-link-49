@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MaintenanceStatsCards from './MaintenanceStatsCards';
 import MaintenanceAppointmentsList from './MaintenanceAppointmentsList';
 import ConnectedWorkshopsList from './ConnectedWorkshopsList';
-import MaintenanceHistory from './MaintenanceHistory';
+import { MaintenanceHistory } from './MaintenanceHistory';
 
 const DatabaseIntegratedMaintenancePage: React.FC = () => {
   return (
