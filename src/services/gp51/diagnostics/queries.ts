@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { GP51Session, VehicleSample, VehicleUpdate, Gp51Token } from './types';
 
-// Get active GP51 sessions - map database columns to our simplified interface
+// Get active GP51 sessions - use explicit column selection and direct casting
 export async function getActiveGP51Sessions(): Promise<{ data: GP51Session[]; error: any }> {
   const { data, error } = await supabase
     .from('gp51_sessions')
@@ -14,8 +14,8 @@ export async function getActiveGP51Sessions(): Promise<{ data: GP51Session[]; er
     return { data: [], error };
   }
 
-  // Map database columns to our interface with type assertion
-  const mappedData: GP51Session[] = ((data as any[]) || []).map(row => ({
+  // Direct mapping with explicit typing
+  const mappedData: GP51Session[] = (data || []).map((row: any) => ({
     id: row.id,
     status: row.gp51_token ? 'active' : 'inactive',
     created_at: row.created_at,
@@ -25,7 +25,7 @@ export async function getActiveGP51Sessions(): Promise<{ data: GP51Session[]; er
   return { data: mappedData, error: null };
 }
 
-// Get vehicle data sample - map database columns to our simplified interface
+// Get vehicle data sample - use explicit column selection and direct casting
 export async function getVehicleDataSample(): Promise<{ data: VehicleSample[]; error: any }> {
   const { data, error } = await supabase
     .from('vehicles')
@@ -37,8 +37,8 @@ export async function getVehicleDataSample(): Promise<{ data: VehicleSample[]; e
     return { data: [], error };
   }
 
-  // Map database columns to our interface with type assertion
-  const mappedData: VehicleSample[] = ((data as any[]) || []).map(row => ({
+  // Direct mapping with explicit typing
+  const mappedData: VehicleSample[] = (data || []).map((row: any) => ({
     id: row.id,
     vehicle_id: row.device_id,
     sample_data: JSON.stringify(row.last_position || {}),
@@ -48,7 +48,7 @@ export async function getVehicleDataSample(): Promise<{ data: VehicleSample[]; e
   return { data: mappedData, error: null };
 }
 
-// Get recent vehicle updates - map database columns to our simplified interface
+// Get recent vehicle updates - use explicit column selection and direct casting
 export async function getRecentVehicleUpdates(since: string): Promise<{ data: VehicleUpdate[]; error: any }> {
   const { data, error } = await supabase
     .from('vehicles')
@@ -61,8 +61,8 @@ export async function getRecentVehicleUpdates(since: string): Promise<{ data: Ve
     return { data: [], error };
   }
 
-  // Map database columns to our interface with type assertion
-  const mappedData: VehicleUpdate[] = ((data as any[]) || []).map(row => ({
+  // Direct mapping with explicit typing
+  const mappedData: VehicleUpdate[] = (data || []).map((row: any) => ({
     id: row.id,
     vehicle_id: row.device_id,
     update_details: `Updated: ${row.device_name || row.device_id}`,
@@ -72,7 +72,7 @@ export async function getRecentVehicleUpdates(since: string): Promise<{ data: Ve
   return { data: mappedData, error: null };
 }
 
-// Get GP51 session token - map database columns to our simplified interface
+// Get GP51 session token - use explicit column selection and direct casting
 export async function getGP51SessionToken(): Promise<{ data: Gp51Token | null; error: any }> {
   const { data, error } = await supabase
     .from('gp51_sessions')
@@ -91,12 +91,12 @@ export async function getGP51SessionToken(): Promise<{ data: Gp51Token | null; e
     return { data: null, error: null };
   }
 
-  // Map database columns to our interface with type assertion
+  // Direct mapping with explicit typing
   const mappedData: Gp51Token = {
-    id: (data as any).id,
-    token: (data as any).gp51_token || '',
-    created_at: (data as any).created_at,
-    expires_at: (data as any).token_expires_at || ''
+    id: data.id,
+    token: data.gp51_token || '',
+    created_at: data.created_at,
+    expires_at: data.token_expires_at || ''
   };
 
   return { data: mappedData, error: null };
