@@ -1,13 +1,20 @@
 
 import { useState, useEffect } from 'react';
-import { sessionHealthMonitor, SessionHealth } from '@/services/gp51/sessionHealthMonitor';
+import { gp51StatusCoordinator, type GP51StatusState } from '@/services/gp51/statusCoordinator';
 import { gp51SessionManager } from '@/services/gp51/sessionManager';
 
 // Extended health status that includes connection status properties
-interface ConnectionHealthStatus extends SessionHealth {
-  status: 'connected' | 'disconnected' | 'auth_error' | 'degraded' | 'connecting';
+interface ConnectionHealthStatus {
+  status: 'connected' | 'disconnected' | 'auth_error' | 'degraded' | 'connecting' | 'saving';
+  isConnected: boolean;
+  lastSuccessfulSave?: Date;
+  lastMonitorCheck?: Date;
+  currentOperation?: string;
   latency?: number;
   errorMessage?: string;
+  errorSource?: 'save' | 'monitor';
+  username?: string;
+  shouldShowError: boolean;
 }
 
 export const useGP51ConnectionHealth = () => {
@@ -15,59 +22,35 @@ export const useGP51ConnectionHealth = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    // Subscribe to health updates
-    const unsubscribe = sessionHealthMonitor.onHealthUpdate((health) => {
-      // Convert SessionHealth to ConnectionHealthStatus
-      let connectionStatus: 'connected' | 'disconnected' | 'auth_error' | 'degraded' | 'connecting';
-      let errorMessage: string | undefined;
-
-      if (health.isAuthError) {
+    // Subscribe to coordinated status updates
+    const unsubscribe = gp51StatusCoordinator.subscribeToStatus((coordinated: GP51StatusState) => {
+      // Convert coordinated status to connection health status
+      let connectionStatus: ConnectionHealthStatus['status'];
+      
+      if (coordinated.currentOperation === 'saving') {
+        connectionStatus = 'saving';
+      } else if (coordinated.isConnected) {
+        connectionStatus = 'connected';
+      } else if (coordinated.errorSource === 'save') {
         connectionStatus = 'auth_error';
-        errorMessage = 'Authentication required - please refresh the page and log in';
-      } else if (health.isValid) {
-        connectionStatus = health.needsRefresh ? 'degraded' : 'connected';
       } else {
         connectionStatus = 'disconnected';
-        errorMessage = health.consecutiveFailures > 0 
-          ? `Connection failed (${health.consecutiveFailures} consecutive failures)`
-          : undefined;
       }
 
-      const connectionStatusObj: ConnectionHealthStatus = {
-        ...health,
+      const healthStatus: ConnectionHealthStatus = {
         status: connectionStatus,
-        latency: undefined, // Will be populated during health checks
-        errorMessage
+        isConnected: coordinated.isConnected,
+        lastSuccessfulSave: coordinated.lastSuccessfulSave,
+        lastMonitorCheck: coordinated.lastMonitorCheck,
+        currentOperation: coordinated.currentOperation,
+        errorMessage: coordinated.errorMessage,
+        errorSource: coordinated.errorSource,
+        username: coordinated.username,
+        shouldShowError: gp51StatusCoordinator.shouldShowError()
       };
-      setStatus(connectionStatusObj);
+      
+      setStatus(healthStatus);
     });
-
-    // Get current health
-    const currentHealth = sessionHealthMonitor.getHealthStatus();
-    if (currentHealth) {
-      let connectionStatus: 'connected' | 'disconnected' | 'auth_error' | 'degraded' | 'connecting';
-      let errorMessage: string | undefined;
-
-      if (currentHealth.isAuthError) {
-        connectionStatus = 'auth_error';
-        errorMessage = 'Authentication required - please refresh the page and log in';
-      } else if (currentHealth.isValid) {
-        connectionStatus = currentHealth.needsRefresh ? 'degraded' : 'connected';
-      } else {
-        connectionStatus = 'disconnected';
-        errorMessage = currentHealth.consecutiveFailures > 0 
-          ? `Connection failed (${currentHealth.consecutiveFailures} consecutive failures)`
-          : undefined;
-      }
-
-      const connectionStatusObj: ConnectionHealthStatus = {
-        ...currentHealth,
-        status: connectionStatus,
-        latency: undefined,
-        errorMessage
-      };
-      setStatus(connectionStatusObj);
-    }
 
     return unsubscribe;
   }, []);
@@ -76,11 +59,25 @@ export const useGP51ConnectionHealth = () => {
     setIsLoading(true);
     try {
       const startTime = Date.now();
-      await sessionHealthMonitor.forceHealthCheck();
+      
+      // Use session manager to test connection
+      const result = await gp51SessionManager.testConnection();
       const latency = Date.now() - startTime;
+      
+      // Report results to status coordinator
+      gp51StatusCoordinator.reportMonitorStatus(
+        result.success, 
+        result.error
+      );
       
       // Update status with latency
       setStatus(prev => prev ? { ...prev, latency } : null);
+    } catch (error) {
+      console.error('❌ Health check failed:', error);
+      gp51StatusCoordinator.reportMonitorStatus(
+        false, 
+        error instanceof Error ? error.message : 'Health check failed'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -95,25 +92,16 @@ export const useGP51ConnectionHealth = () => {
       // Try to refresh the session
       await gp51SessionManager.refreshSession();
       // Force a health check after reconnection attempt
-      await sessionHealthMonitor.forceHealthCheck();
+      await performHealthCheck();
     } catch (error) {
       console.error('❌ Reconnection failed:', error);
-      setStatus(prev => prev ? { 
-        ...prev, 
-        status: 'auth_error',
-        errorMessage: error instanceof Error ? error.message : 'Reconnection failed'
-      } : null);
+      gp51StatusCoordinator.reportMonitorStatus(
+        false,
+        error instanceof Error ? error.message : 'Reconnection failed'
+      );
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const startMonitoring = () => {
-    sessionHealthMonitor.startMonitoring();
-  };
-
-  const stopMonitoring = () => {
-    sessionHealthMonitor.stopMonitoring();
   };
 
   return {
@@ -121,7 +109,13 @@ export const useGP51ConnectionHealth = () => {
     isLoading,
     performHealthCheck,
     attemptReconnection,
-    startMonitoring: () => sessionHealthMonitor.startMonitoring(),
-    stopMonitoring: () => sessionHealthMonitor.stopMonitoring(),
+    startMonitoring: () => {
+      // Monitoring is now handled by the status coordinator
+      console.log('🔄 Monitoring managed by status coordinator');
+    },
+    stopMonitoring: () => {
+      // Monitoring is now handled by the status coordinator
+      console.log('⏹️ Monitoring managed by status coordinator');
+    },
   };
 };

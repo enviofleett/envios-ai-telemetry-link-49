@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { sessionHealthMonitor } from '@/services/gp51/sessionHealthMonitor';
+import { gp51StatusCoordinator } from '@/services/gp51/statusCoordinator';
 
 export const useGP51Credentials = () => {
   const [username, setUsername] = useState('');
@@ -27,6 +27,9 @@ export const useGP51Credentials = () => {
     }) => {
       console.log('🔐 Starting GP51 credentials save mutation...');
       setIsSaving(true);
+      
+      // Notify status coordinator that save is starting
+      gp51StatusCoordinator.startSaveOperation();
       
       // Check authentication state first
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -119,13 +122,16 @@ export const useGP51Credentials = () => {
     onSuccess: (data) => {
       console.log('🎉 GP51 credentials save mutation succeeded');
       
+      // Notify status coordinator of successful save
+      const responseData = data as { message?: string; success?: boolean; testOnly?: boolean; username?: string };
+      gp51StatusCoordinator.reportSaveSuccess(responseData?.username);
+      
       // Clear form fields
       setUsername('');
       setPassword('');
       setApiUrl('');
       
       // Show success toast
-      const responseData = data as { message?: string; success?: boolean; testOnly?: boolean };
       const message = responseData?.testOnly 
         ? 'GP51 connection test successful!' 
         : responseData?.message || 'Successfully connected to GP51! Session will be used for vehicle data synchronization.';
@@ -135,23 +141,21 @@ export const useGP51Credentials = () => {
         description: message
       });
 
-      // Invalidate queries and force health check after a delay to prevent conflicts
+      // Invalidate queries after a delay to prevent conflicts
       if (!responseData?.testOnly) {
         setTimeout(() => {
           queryClient.invalidateQueries({ queryKey: ['gp51-status'] });
-          sessionHealthMonitor.clearCache?.();
-          sessionHealthMonitor.forceHealthCheck();
-        }, 2000); // 2 second delay to prevent notification conflicts
+        }, 2000); // 2 second delay
       }
     },
     onError: (error: unknown) => {
       console.error('❌ GP51 credentials save mutation failed:', error);
       
-      // Clear any potentially stale cached data
-      sessionHealthMonitor.clearCache?.();
-      
       // Properly handle the error type
       const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Notify status coordinator of save error
+      gp51StatusCoordinator.reportSaveError(errorMessage);
       
       // Categorize the error for better user feedback
       let errorTitle = 'Connection Failed';

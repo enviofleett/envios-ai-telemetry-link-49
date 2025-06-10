@@ -9,9 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useGP51Credentials } from '@/hooks/useGP51Credentials';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, CheckCircle, AlertCircle, Settings, TestTube, Shield, Monitor } from 'lucide-react';
-import { gp51SessionManager } from '@/services/gp51/sessionManager';
+import { gp51StatusCoordinator, type GP51StatusState } from '@/services/gp51/statusCoordinator';
 import { gp51ErrorReporter } from '@/services/gp51/errorReporter';
-import { gp51ConnectionMonitor, ConnectionStatus } from '@/services/gp51/connectionMonitor';
 import { ValidationFeedback } from './ValidationFeedback';
 
 interface GP51CredentialsFormProps {
@@ -27,8 +26,7 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
     message?: string;
     error?: any;
   } | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus | null>(null);
-  const [isSaveInProgress, setIsSaveInProgress] = useState(false);
+  const [coordinatedStatus, setCoordinatedStatus] = useState<GP51StatusState | null>(null);
   
   const { toast } = useToast();
   
@@ -43,24 +41,25 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
     isLoading
   } = useGP51Credentials();
 
-  // Subscribe to connection monitoring with debouncing during save operations
+  // Subscribe to coordinated status updates
   useEffect(() => {
-    const unsubscribe = gp51ConnectionMonitor.subscribeToStatus((status) => {
-      // Don't update status during save operations to prevent conflicts
-      if (!isSaveInProgress && !isLoading) {
-        setConnectionStatus(status);
+    const unsubscribe = gp51StatusCoordinator.subscribeToStatus((status) => {
+      setCoordinatedStatus(status);
+      
+      // Call connection change callback
+      if (onConnectionChange) {
+        onConnectionChange(status.isConnected);
+      }
+      
+      // Show errors only when appropriate
+      if (status.shouldShowError && status.errorMessage && status.errorSource === 'monitor') {
+        // Only show monitor errors as non-intrusive warnings, not toast notifications
+        console.warn('🔍 Monitor detected connection issue:', status.errorMessage);
       }
     });
 
-    // Start monitoring only if not currently saving
-    if (!isSaveInProgress && !isLoading) {
-      gp51ConnectionMonitor.startMonitoring();
-    }
-
-    return () => {
-      unsubscribe();
-    };
-  }, [isSaveInProgress, isLoading]);
+    return unsubscribe;
+  }, [onConnectionChange]);
 
   const handleTestConnection = async () => {
     if (!username || !password) {
@@ -189,17 +188,8 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
 
     try {
       console.log('💾 Saving GP51 credentials...');
-      setIsSaveInProgress(true);
-      
-      // Temporarily stop connection monitoring to prevent conflicts
-      gp51ConnectionMonitor.stopMonitoring();
-      
       await handleSaveCredentials();
       
-      // Clear session cache to force fresh validation
-      gp51SessionManager.clearCache();
-      
-      onConnectionChange?.(true);
       setValidationResult({
         success: true,
         message: 'GP51 credentials saved successfully and connection established!'
@@ -207,16 +197,8 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
       
       console.log('✅ GP51 credentials saved successfully');
       
-      // Restart monitoring after a delay
-      setTimeout(() => {
-        setIsSaveInProgress(false);
-        gp51ConnectionMonitor.startMonitoring();
-        gp51ConnectionMonitor.performConnectionCheck();
-      }, 3000); // 3 second delay to prevent UI conflicts
-      
     } catch (error) {
       console.error('❌ Failed to save credentials:', error);
-      setIsSaveInProgress(false);
       
       gp51ErrorReporter.reportError({
         type: 'api',
@@ -241,9 +223,6 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
           severity: 'high'
         }
       });
-      
-      // Restart monitoring
-      gp51ConnectionMonitor.startMonitoring();
     }
   };
 
@@ -264,8 +243,8 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
   };
 
   const getConnectionStatusBadge = () => {
-    // Show save progress if currently saving
-    if (isSaveInProgress || isLoading) {
+    // Show coordinated status from status coordinator
+    if (coordinatedStatus?.currentOperation === 'saving' || isLoading) {
       return (
         <Badge className="bg-blue-100 text-blue-800">
           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -274,14 +253,21 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
       );
     }
 
-    if (connectionStatus?.isConnected) {
+    if (coordinatedStatus?.isConnected) {
       return (
         <Badge className="bg-green-100 text-green-800">
           <CheckCircle className="h-3 w-3 mr-1" />
           Connected
         </Badge>
       );
-    } else if (connectionStatus?.consecutiveFailures > 0) {
+    } else if (coordinatedStatus?.errorSource === 'monitor') {
+      return (
+        <Badge variant="secondary">
+          <AlertCircle className="h-3 w-3 mr-1" />
+          Monitor Warning
+        </Badge>
+      );
+    } else if (coordinatedStatus?.errorMessage) {
       return (
         <Badge variant="destructive">
           <AlertCircle className="h-3 w-3 mr-1" />
@@ -322,15 +308,15 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
               GP51 API Credentials
             </CardTitle>
             <CardDescription>
-              Configure your GP51 tracking system credentials with enhanced error handling
+              Configure your GP51 tracking system credentials with coordinated status management
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
             {getConnectionStatusBadge()}
-            {connectionStatus && !isSaveInProgress && (
+            {coordinatedStatus?.username && (
               <Badge variant="outline" className="text-xs">
                 <Monitor className="h-3 w-3 mr-1" />
-                Monitored
+                {coordinatedStatus.username}
               </Badge>
             )}
           </div>
@@ -341,7 +327,7 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
           error={validationResult?.error}
           success={validationResult?.success}
           successMessage={validationResult?.message}
-          isLoading={isTestingConnection || isLoading || isSaveInProgress}
+          isLoading={isTestingConnection || isLoading}
           onRetry={() => {
             if (validationResult?.error?.category === 'api') {
               handleTestConnection();
@@ -361,7 +347,7 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
               placeholder="https://www.gps51.com"
               value={apiUrl}
               onChange={(e) => setApiUrl(e.target.value)}
-              disabled={isLoading || isSaveInProgress}
+              disabled={isLoading}
             />
             <p className="text-xs text-muted-foreground">
               Default: https://www.gps51.com (leave empty for default)
@@ -376,7 +362,7 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
               placeholder="Enter your GP51 username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              disabled={isLoading || isSaveInProgress}
+              disabled={isLoading}
             />
           </div>
 
@@ -388,14 +374,14 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
               placeholder="Enter your GP51 password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              disabled={isLoading || isSaveInProgress}
+              disabled={isLoading}
             />
           </div>
 
           <div className="flex gap-2 pt-4">
             <Button
               onClick={handleTestConnection}
-              disabled={isTestingConnection || !username || !password || isLoading || isSaveInProgress}
+              disabled={isTestingConnection || !username || !password || isLoading}
               variant="outline"
               className="flex-1"
             >
@@ -414,10 +400,10 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
 
             <Button
               onClick={handleFormSubmit}
-              disabled={isLoading || !username || !password || isSaveInProgress}
+              disabled={isLoading || !username || !password}
               className="flex-1"
             >
-              {isLoading || isSaveInProgress ? (
+              {isLoading ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Saving...
@@ -431,13 +417,13 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
             </Button>
           </div>
 
-          {connectionStatus && connectionStatus.consecutiveFailures > 0 && !isSaveInProgress && (
+          {coordinatedStatus?.errorSource === 'monitor' && coordinatedStatus.errorMessage && (
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                <strong>Connection Issues Detected:</strong> {connectionStatus.consecutiveFailures} consecutive failures
+                <strong>Background Monitor Warning:</strong> {coordinatedStatus.errorMessage}
               </p>
               <p className="text-xs text-yellow-700 mt-1">
-                Last error: {connectionStatus.currentError}
+                This is a background monitoring alert and may not affect current operations.
               </p>
             </div>
           )}
