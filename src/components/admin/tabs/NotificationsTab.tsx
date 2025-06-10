@@ -4,11 +4,11 @@ import NotificationsSettingsTab from '@/components/settings/NotificationsSetting
 
 const NotificationsTab: React.FC = () => {
   return (
-    <div className="space-y-4 mt-6">
+    <div className="space-y-4">
       <div>
         <h3 className="text-lg font-semibold mb-2">Fleet Notifications & Alerts</h3>
         <p className="text-sm text-gray-600 mb-4">
-          Configure real-time alerts and notification preferences
+          Configure real-time alerts and notification preferences for your fleet management system
         </p>
       </div>
       <NotificationsSettingsTab />
