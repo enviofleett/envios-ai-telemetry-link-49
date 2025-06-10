@@ -36,6 +36,7 @@ export class GP51ConnectionMonitor {
   private monitoringInterval: NodeJS.Timeout | null = null;
   private readonly CHECK_INTERVAL = 60000; // 1 minute
   private readonly MAX_CONSECUTIVE_FAILURES = 3;
+  private isMonitoringPaused = false;
 
   static getInstance(): GP51ConnectionMonitor {
     if (!GP51ConnectionMonitor.instance) {
@@ -45,8 +46,8 @@ export class GP51ConnectionMonitor {
   }
 
   startMonitoring(): void {
-    if (this.monitoringInterval) {
-      return; // Already monitoring
+    if (this.monitoringInterval || this.isMonitoringPaused) {
+      return; // Already monitoring or paused
     }
 
     console.log('🔍 Starting GP51 connection monitoring...');
@@ -56,7 +57,9 @@ export class GP51ConnectionMonitor {
     
     // Set up periodic monitoring
     this.monitoringInterval = setInterval(() => {
-      this.performConnectionCheck();
+      if (!this.isMonitoringPaused) {
+        this.performConnectionCheck();
+      }
     }, this.CHECK_INTERVAL);
   }
 
@@ -68,7 +71,22 @@ export class GP51ConnectionMonitor {
     }
   }
 
+  pauseMonitoring(): void {
+    this.isMonitoringPaused = true;
+    console.log('⏸️ Paused GP51 connection monitoring');
+  }
+
+  resumeMonitoring(): void {
+    this.isMonitoringPaused = false;
+    console.log('▶️ Resumed GP51 connection monitoring');
+  }
+
   async performConnectionCheck(): Promise<ConnectionStatus> {
+    if (this.isMonitoringPaused) {
+      console.log('⏸️ Connection check skipped - monitoring is paused');
+      return this.currentStatus;
+    }
+
     const startTime = Date.now();
     
     try {
@@ -84,7 +102,8 @@ export class GP51ConnectionMonitor {
         throw error;
       }
 
-      const isConnected = data?.success && data?.connected;
+      // Check if the response indicates a successful connection
+      const isConnected = data?.success === true;
       
       this.currentStatus = {
         isConnected,
@@ -102,13 +121,16 @@ export class GP51ConnectionMonitor {
       } else {
         console.warn('⚠️ GP51 connection check failed:', this.currentStatus.currentError);
         
-        gp51ErrorReporter.reportError({
-          type: 'connectivity',
-          message: 'GP51 connection check failed',
-          details: data,
-          severity: this.currentStatus.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES ? 'critical' : 'medium',
-          username: this.currentStatus.username
-        });
+        // Only report errors for critical failures, not during normal operations
+        if (this.currentStatus.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
+          gp51ErrorReporter.reportError({
+            type: 'connectivity',
+            message: 'GP51 connection check failed multiple times',
+            details: data,
+            severity: 'critical',
+            username: this.currentStatus.username
+          });
+        }
       }
 
     } catch (error) {
@@ -123,12 +145,15 @@ export class GP51ConnectionMonitor {
         lastSuccessfulConnection: this.currentStatus.lastSuccessfulConnection
       };
 
-      gp51ErrorReporter.reportError({
-        type: 'connectivity',
-        message: 'GP51 connection monitoring failed',
-        details: error,
-        severity: 'high'
-      });
+      // Only report critical errors to avoid noise
+      if (this.currentStatus.consecutiveFailures >= this.MAX_CONSECUTIVE_FAILURES) {
+        gp51ErrorReporter.reportError({
+          type: 'connectivity',
+          message: 'GP51 connection monitoring failed multiple times',
+          details: error,
+          severity: 'critical'
+        });
+      }
     }
 
     // Notify listeners

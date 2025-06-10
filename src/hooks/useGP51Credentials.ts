@@ -9,6 +9,7 @@ export const useGP51Credentials = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [apiUrl, setApiUrl] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -25,6 +26,7 @@ export const useGP51Credentials = () => {
       retryCount?: number;
     }) => {
       console.log('🔐 Starting GP51 credentials save mutation...');
+      setIsSaving(true);
       
       // Check authentication state first
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -88,24 +90,24 @@ export const useGP51Credentials = () => {
     onSuccess: (data) => {
       console.log('🎉 GP51 credentials save mutation succeeded');
       
-      queryClient.invalidateQueries({ queryKey: ['gp51-status'] });
+      // Clear form fields
       setUsername('');
       setPassword('');
       setApiUrl('');
       
-      // Type-safe access to data properties
+      // Show success toast
       const responseData = data as { message?: string; success?: boolean };
-      
       toast({ 
         title: 'GP51 Credentials Saved',
         description: responseData?.message || `Successfully connected to GP51! Session will be used for vehicle data synchronization.`
       });
 
-      // Force session health check and clear any cached data
-      setTimeout(async () => {
+      // Invalidate queries and force health check after a delay to prevent conflicts
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['gp51-status'] });
         sessionHealthMonitor.clearCache?.();
-        await sessionHealthMonitor.forceHealthCheck();
-      }, 1000);
+        sessionHealthMonitor.forceHealthCheck();
+      }, 2000); // 2 second delay to prevent notification conflicts
     },
     onError: (error: unknown) => {
       console.error('❌ GP51 credentials save mutation failed:', error);
@@ -144,6 +146,9 @@ export const useGP51Credentials = () => {
         variant: 'destructive' 
       });
     },
+    onSettled: () => {
+      setIsSaving(false);
+    }
   });
 
   const handleSaveCredentials = () => {
@@ -168,6 +173,6 @@ export const useGP51Credentials = () => {
     apiUrl,
     setApiUrl,
     handleSaveCredentials,
-    isLoading: saveCredentialsMutation.isPending
+    isLoading: saveCredentialsMutation.isPending || isSaving
   };
 };
