@@ -51,8 +51,8 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
         onConnectionChange(status.isConnected);
       }
       
-      // Show errors only when appropriate
-      if (status.shouldShowError && status.errorMessage && status.errorSource === 'monitor') {
+      // Show errors only when appropriate using the shouldShowError method
+      if (gp51StatusCoordinator.shouldShowError() && status.errorMessage && status.errorSource === 'monitor') {
         // Only show monitor errors as non-intrusive warnings, not toast notifications
         console.warn('🔍 Monitor detected connection issue:', status.errorMessage);
       }

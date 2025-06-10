@@ -56,10 +56,10 @@ class EnhancedGP51SessionValidator {
         return result;
       }
 
-      // Check GP51 sessions table
+      // Check GP51 sessions table with correct column names
       const { data: sessions, error: dbError } = await supabase
         .from('gp51_sessions')
-        .select('username, gp51_token, expires_at, api_url')
+        .select('gp51_username, gp51_token, expires_at, api_url')
         .order('expires_at', { ascending: false })
         .limit(1);
 
@@ -93,7 +93,7 @@ class EnhancedGP51SessionValidator {
         console.log('⏰ GP51 session expired in enhanced validation');
         const result = { 
           valid: false, 
-          username: session_data.username,
+          username: session_data.gp51_username,
           expiresAt: session_data.expires_at,
           error: 'GP51 session expired - please refresh credentials',
           retryCount 
@@ -105,7 +105,7 @@ class EnhancedGP51SessionValidator {
       console.log('✅ Enhanced GP51 session validation successful');
       const result = {
         valid: true,
-        username: session_data.username,
+        username: session_data.gp51_username,
         expiresAt: session_data.expires_at,
         token: session_data.gp51_token,
         apiUrl: session_data.api_url,
@@ -159,4 +159,30 @@ class EnhancedGP51SessionValidator {
   }
 }
 
+// Export the instance
 export const enhancedGP51SessionValidator = EnhancedGP51SessionValidator.getInstance();
+
+// Also create a service with additional functionality
+class EnhancedGP51ApiService {
+  async performFullSync() {
+    // Placeholder implementation
+    return {
+      success: true,
+      result: {
+        devicesFound: 0,
+        positionsFetched: 0
+      }
+    };
+  }
+
+  getSyncStatus() {
+    // Placeholder implementation
+    return {
+      isRunning: false,
+      lastSync: null,
+      nextSync: null
+    };
+  }
+}
+
+export const enhancedGP51ApiService = new EnhancedGP51ApiService();

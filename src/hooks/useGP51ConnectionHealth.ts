@@ -9,12 +9,15 @@ interface ConnectionHealthStatus {
   isConnected: boolean;
   lastSuccessfulSave?: Date;
   lastMonitorCheck?: Date;
+  lastCheck?: Date; // Added for compatibility
   currentOperation?: string;
   latency?: number;
   errorMessage?: string;
   errorSource?: 'save' | 'monitor';
   username?: string;
   shouldShowError: boolean;
+  expiresAt?: Date; // Added for compatibility
+  consecutiveFailures?: number; // Added for compatibility
 }
 
 export const useGP51ConnectionHealth = () => {
@@ -42,11 +45,14 @@ export const useGP51ConnectionHealth = () => {
         isConnected: coordinated.isConnected,
         lastSuccessfulSave: coordinated.lastSuccessfulSave,
         lastMonitorCheck: coordinated.lastMonitorCheck,
+        lastCheck: coordinated.lastMonitorCheck || new Date(), // Use lastMonitorCheck or current time
         currentOperation: coordinated.currentOperation,
         errorMessage: coordinated.errorMessage,
         errorSource: coordinated.errorSource,
         username: coordinated.username,
-        shouldShowError: gp51StatusCoordinator.shouldShowError()
+        shouldShowError: gp51StatusCoordinator.shouldShowError(),
+        expiresAt: undefined, // Will be populated by session validation if needed
+        consecutiveFailures: 0 // Default value for compatibility
       };
       
       setStatus(healthStatus);
