@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, Search, FileText, DollarSign, Wrench } from 'lucide-react';
 import { useMaintenanceRecords } from '@/hooks/maintenance/useMaintenanceRecords';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import LoadingSpinner from '@/components/LoadingSpinner';
 import type { MaintenanceRecord } from '@/types/maintenance';
 
 export const MaintenanceHistory: React.FC = () => {

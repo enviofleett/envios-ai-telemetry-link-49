@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Building2, MapPin, Phone, Star, Plus, Unlink } from 'lucide-react';
 import { useWorkshops } from '@/hooks/useWorkshops';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import LoadingSpinner from '@/components/LoadingSpinner';
 import type { WorkshopConnection } from '@/types/workshop';
 
 const ConnectedWorkshopsList: React.FC = () => {

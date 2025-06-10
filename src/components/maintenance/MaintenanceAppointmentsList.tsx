@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, MapPin, Plus, AlertCircle } from 'lucide-react';
 import { useMaintenanceAppointments } from '@/hooks/maintenance/useMaintenanceAppointments';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import LoadingSpinner from '@/components/LoadingSpinner';
 import type { MaintenanceAppointment } from '@/types/maintenance';
 
 const MaintenanceAppointmentsList: React.FC = () => {

@@ -1,9 +1,8 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Calendar, AlertTriangle, CheckCircle, DollarSign } from 'lucide-react';
 import { useMaintenanceStats } from '@/hooks/maintenance/useMaintenanceStats';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 const MaintenanceStatsCards: React.FC = () => {
   const { getMaintenanceStats } = useMaintenanceStats();

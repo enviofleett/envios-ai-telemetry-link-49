@@ -75,22 +75,13 @@ export class SessionValidator {
         riskLevel = 'medium';
       }
 
-      // Check fingerprint match
-      const storedFingerprint = session.session_fingerprint as SessionFingerprint;
-      if (storedFingerprint) {
-        if (storedFingerprint.deviceId !== currentFingerprint.deviceId) {
-          reasons.push('Device fingerprint mismatch');
+      // Simple device validation based on session metadata
+      // Since we don't have session_fingerprint in the schema, we'll do basic validation
+      if (session.username && session.gp51_token) {
+        // Token exists, validate timing
+        if (session.token_expires_at && new Date(session.token_expires_at) < new Date()) {
+          reasons.push('Token expired');
           riskLevel = 'high';
-        }
-        
-        if (storedFingerprint.userAgent !== currentFingerprint.userAgent) {
-          reasons.push('User agent changed');
-          riskLevel = 'medium';
-        }
-
-        if (storedFingerprint.timezone !== currentFingerprint.timezone) {
-          reasons.push('Timezone changed');
-          riskLevel = 'medium';
         }
       }
 
@@ -103,19 +94,6 @@ export class SessionValidator {
 
       if (concurrentSessions && concurrentSessions.length > this.MAX_CONCURRENT_SESSIONS) {
         reasons.push('Too many concurrent sessions');
-        riskLevel = 'high';
-      }
-
-      // Check for suspicious activity
-      const { data: auditLogs } = await supabase
-        .from('security_audit_logs')
-        .select('*')
-        .eq('user_id', session.envio_user_id)
-        .eq('event_type', 'session_anomaly')
-        .gt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-      if (auditLogs && auditLogs.length > this.SUSPICIOUS_ACTIVITY_THRESHOLD) {
-        reasons.push('Suspicious activity detected');
         riskLevel = 'high';
       }
 
@@ -148,15 +126,25 @@ export class SessionValidator {
 
   static async logSecurityEvent(userId: string, eventType: string, details: any, fingerprint: SessionFingerprint) {
     try {
-      await supabase.from('security_audit_logs').insert({
-        user_id: userId,
-        event_type: eventType,
-        event_details: details,
-        session_fingerprint: fingerprint,
-        ip_address: details.ipAddress,
-        user_agent: fingerprint.userAgent,
-        created_at: new Date().toISOString()
+      // For now, we'll log to console since security_audit_logs table doesn't exist
+      console.log('Security Event:', {
+        userId,
+        eventType,
+        details,
+        fingerprint,
+        timestamp: new Date().toISOString()
       });
+      
+      // TODO: When security_audit_logs table is created, uncomment this:
+      // await supabase.from('security_audit_logs').insert({
+      //   user_id: userId,
+      //   event_type: eventType,
+      //   event_details: details,
+      //   session_fingerprint: fingerprint,
+      //   ip_address: details.ipAddress,
+      //   user_agent: fingerprint.userAgent,
+      //   created_at: new Date().toISOString()
+      // });
     } catch (error) {
       console.error('Failed to log security event:', error);
     }

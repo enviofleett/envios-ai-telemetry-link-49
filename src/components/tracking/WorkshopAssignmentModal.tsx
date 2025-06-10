@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -19,7 +18,7 @@ import {
   Wrench
 } from 'lucide-react';
 import { useWorkshops } from '@/hooks/useWorkshops';
-import { LoadingSpinner } from '@/components/LoadingSpinner';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 interface WorkshopAssignmentModalProps {
   isOpen: boolean;
