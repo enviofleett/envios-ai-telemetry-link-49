@@ -31,10 +31,13 @@ export class GP51DiagnosticService {
 
     // Test 1: Check GP51 session availability
     try {
-      const { data: sessionData, error } = await supabase
+      const response = await supabase
         .from('gp51_sessions')
         .select('gp51_token, token_expires_at, username')
         .eq('is_active', true);
+
+      const sessionData = response.data;
+      const error = response.error;
 
       if (error) {
         results.push({
