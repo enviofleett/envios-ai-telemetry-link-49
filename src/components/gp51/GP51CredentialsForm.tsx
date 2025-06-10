@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,8 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useGP51Credentials } from '@/hooks/useGP51Credentials';
+import { useGP51SessionRestoration } from '@/hooks/useGP51SessionRestoration';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, CheckCircle, AlertCircle, Settings, TestTube, Shield, Monitor } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, Settings, TestTube, Shield, Monitor, Clock } from 'lucide-react';
 import { gp51StatusCoordinator, type GP51StatusState } from '@/services/gp51/statusCoordinator';
 import { gp51ErrorReporter } from '@/services/gp51/errorReporter';
 import { ValidationFeedback } from './ValidationFeedback';
@@ -29,6 +29,9 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
   const [coordinatedStatus, setCoordinatedStatus] = useState<GP51StatusState | null>(null);
   
   const { toast } = useToast();
+  
+  // Use session restoration hook
+  const { sessionInfo, refreshSession } = useGP51SessionRestoration();
   
   const {
     username,
@@ -60,6 +63,19 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
 
     return unsubscribe;
   }, [onConnectionChange]);
+
+  // Handle session restoration results
+  useEffect(() => {
+    if (!sessionInfo.isLoading) {
+      if (sessionInfo.isValid && sessionInfo.username) {
+        // Session restored successfully
+        gp51StatusCoordinator.restoreFromSession(sessionInfo.username, sessionInfo.expiresAt!);
+      } else {
+        // No valid session found or error occurred
+        gp51StatusCoordinator.finishLoading();
+      }
+    }
+  }, [sessionInfo]);
 
   const handleTestConnection = async () => {
     if (!username || !password) {
@@ -243,7 +259,17 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
   };
 
   const getConnectionStatusBadge = () => {
-    // Show coordinated status from status coordinator
+    // Show loading state during session restoration
+    if (sessionInfo.isLoading || coordinatedStatus?.currentOperation === 'loading') {
+      return (
+        <Badge className="bg-blue-100 text-blue-800">
+          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          Loading...
+        </Badge>
+      );
+    }
+
+    // Show saving state
     if (coordinatedStatus?.currentOperation === 'saving' || isLoading) {
       return (
         <Badge className="bg-blue-100 text-blue-800">
@@ -253,7 +279,8 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
       );
     }
 
-    if (coordinatedStatus?.isConnected) {
+    // Show connected state (from restored session or recent save)
+    if (coordinatedStatus?.isConnected || sessionInfo.isValid) {
       return (
         <Badge className="bg-green-100 text-green-800">
           <CheckCircle className="h-3 w-3 mr-1" />
@@ -267,7 +294,7 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
           Monitor Warning
         </Badge>
       );
-    } else if (coordinatedStatus?.errorMessage) {
+    } else if (coordinatedStatus?.errorMessage || sessionInfo.error) {
       return (
         <Badge variant="destructive">
           <AlertCircle className="h-3 w-3 mr-1" />
@@ -292,10 +319,15 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
       return (
         <Badge variant="outline">
           <Settings className="h-3 w-3 mr-1" />
-          Not Tested
+          Not Configured
         </Badge>
       );
     }
+  };
+
+  const getDisplayUsername = () => {
+    // Prioritize restored session username over form username
+    return sessionInfo.username || coordinatedStatus?.username;
   };
 
   return (
@@ -308,21 +340,59 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
               GP51 API Credentials
             </CardTitle>
             <CardDescription>
-              Configure your GP51 tracking system credentials with coordinated status management
+              Configure your GP51 tracking system credentials with session persistence
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
             {getConnectionStatusBadge()}
-            {coordinatedStatus?.username && (
+            {getDisplayUsername() && (
               <Badge variant="outline" className="text-xs">
                 <Monitor className="h-3 w-3 mr-1" />
-                {coordinatedStatus.username}
+                {getDisplayUsername()}
+              </Badge>
+            )}
+            {sessionInfo.expiresAt && sessionInfo.isValid && (
+              <Badge variant="outline" className="text-xs">
+                <Clock className="h-3 w-3 mr-1" />
+                Expires {sessionInfo.expiresAt.toLocaleDateString()}
               </Badge>
             )}
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Show session restoration status */}
+        {sessionInfo.isValid && sessionInfo.username && (
+          <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-sm text-green-800">
+              <strong>✅ Session Restored:</strong> Connected as {sessionInfo.username}
+            </p>
+            {sessionInfo.expiresAt && (
+              <p className="text-xs text-green-700 mt-1">
+                Session expires: {sessionInfo.expiresAt.toLocaleString()}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Show session errors */}
+        {sessionInfo.error && !sessionInfo.isValid && (
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              <strong>⚠️ Session Issue:</strong> {sessionInfo.error}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshSession}
+              className="mt-2"
+            >
+              <Loader2 className="h-4 w-4 mr-2" />
+              Refresh Session
+            </Button>
+          </div>
+        )}
+
         <ValidationFeedback
           error={validationResult?.error}
           success={validationResult?.success}

@@ -3,7 +3,7 @@ interface GP51StatusState {
   isConnected: boolean;
   lastSuccessfulSave?: Date;
   lastMonitorCheck?: Date;
-  currentOperation?: 'saving' | 'monitoring' | 'idle';
+  currentOperation?: 'saving' | 'monitoring' | 'idle' | 'loading';
   errorMessage?: string;
   errorSource?: 'save' | 'monitor';
   username?: string;
@@ -15,7 +15,7 @@ class GP51StatusCoordinator {
   private static instance: GP51StatusCoordinator;
   private currentStatus: GP51StatusState = {
     isConnected: false,
-    currentOperation: 'idle'
+    currentOperation: 'loading' // Start with loading state instead of idle
   };
   private callbacks: Set<StatusUpdateCallback> = new Set();
   private readonly SAVE_PRIORITY_DURATION = 10000; // 10 seconds after save, ignore monitor errors
@@ -91,12 +91,35 @@ class GP51StatusCoordinator {
     });
   }
 
+  // New method to restore status from database session
+  restoreFromSession(username: string, expiresAt: Date): void {
+    console.log('🔄 GP51 Status: Restoring from saved session');
+    this.updateStatus({
+      isConnected: true,
+      currentOperation: 'idle',
+      lastSuccessfulSave: new Date(), // Set as if recently saved
+      errorMessage: undefined,
+      errorSource: undefined,
+      username
+    });
+  }
+
+  // Mark as finished loading (used when no session found)
+  finishLoading(): void {
+    console.log('✅ GP51 Status: Finished loading session check');
+    if (this.currentStatus.currentOperation === 'loading') {
+      this.updateStatus({
+        currentOperation: 'idle'
+      });
+    }
+  }
+
   // Check if we should show an error to the user
   shouldShowError(): boolean {
     const status = this.currentStatus;
     
-    // Don't show errors during save operations
-    if (status.currentOperation === 'saving') {
+    // Don't show errors during save operations or loading
+    if (status.currentOperation === 'saving' || status.currentOperation === 'loading') {
       return false;
     }
     
@@ -131,7 +154,7 @@ class GP51StatusCoordinator {
     console.log('🔄 GP51 Status: Resetting all status');
     this.currentStatus = {
       isConnected: false,
-      currentOperation: 'idle'
+      currentOperation: 'loading'
     };
     this.notifyCallbacks();
   }
