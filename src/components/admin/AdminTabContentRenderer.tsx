@@ -18,9 +18,15 @@ import NotificationsTab from './tabs/NotificationsTab';
 import MapsTab from './tabs/MapsTab';
 import GeofencingTab from './tabs/GeofencingTab';
 import GP51ValidationTab from './tabs/GP51ValidationTab';
+import SMTPGuideTab from './tabs/SMTPGuideTab';
 
 // Import enhanced component
 import AdminWorkshopManagementEnhanced from './AdminWorkshopManagementEnhanced';
+
+// Import new email management components
+import SMTPConfigurationTab from '@/components/settings/SMTPConfigurationTab';
+import EmailTemplatesTab from '@/components/settings/EmailTemplatesTab';
+import EmailQueueTab from '@/components/settings/EmailQueueTab';
 
 interface AdminTabContentRendererProps {
   activeTab: string;
@@ -86,6 +92,16 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
       return renderTabWithCard('Geofencing', GeofencingTab);
     case 'gp51-validation':
       return renderTabWithCard('GP51 Validation', GP51ValidationTab);
+    case 'smtp':
+      return renderTabWithCard('SMTP Configuration', SMTPConfigurationTab);
+    case 'email-templates':
+      return renderTabWithCard('Email Templates', EmailTemplatesTab);
+    case 'email-queue':
+      return renderTabWithCard('Email Queue', EmailQueueTab);
+    case 'smtp-guide':
+      return renderTabWithCard('SMTP Setup Guide', SMTPGuideTab);
+    case 'email-notifications':
+      return renderTabWithCard('Email Notification Preferences', NotificationsTab);
     default:
       return renderTabWithCard('Package Management', PackagesTab);
   }

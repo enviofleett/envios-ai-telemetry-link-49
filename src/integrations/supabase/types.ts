@@ -1206,6 +1206,111 @@ export type Database = {
         }
         Relationships: []
       }
+      email_notification_queue: {
+        Row: {
+          body_html: string | null
+          body_text: string
+          created_at: string
+          error_message: string | null
+          id: string
+          max_retries: number
+          priority: number
+          recipient_email: string
+          retry_count: number
+          scheduled_for: string | null
+          sender_email: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+          template_id: string | null
+          template_variables: Json | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body_html?: string | null
+          body_text: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          max_retries?: number
+          priority?: number
+          recipient_email: string
+          retry_count?: number
+          scheduled_for?: string | null
+          sender_email?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+          template_id?: string | null
+          template_variables?: Json | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body_html?: string | null
+          body_text?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          max_retries?: number
+          priority?: number
+          recipient_email?: string
+          retry_count?: number
+          scheduled_for?: string | null
+          sender_email?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          template_id?: string | null
+          template_variables?: Json | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          body_html: string | null
+          body_text: string
+          created_at: string
+          id: string
+          is_active: boolean
+          subject: string
+          template_name: string
+          template_type: string
+          updated_at: string
+          user_id: string
+          variables: Json | null
+        }
+        Insert: {
+          body_html?: string | null
+          body_text: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          subject: string
+          template_name: string
+          template_type?: string
+          updated_at?: string
+          user_id: string
+          variables?: Json | null
+        }
+        Update: {
+          body_html?: string | null
+          body_text?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          subject?: string
+          template_name?: string
+          template_type?: string
+          updated_at?: string
+          user_id?: string
+          variables?: Json | null
+        }
+        Relationships: []
+      }
       envio_users: {
         Row: {
           city: string | null
@@ -4043,6 +4148,54 @@ export type Database = {
         }
         Relationships: []
       }
+      smtp_configurations: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          provider_name: string
+          smtp_host: string
+          smtp_pass_encrypted: string
+          smtp_port: number
+          smtp_user: string
+          updated_at: string
+          use_ssl: boolean
+          use_tls: boolean
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          provider_name?: string
+          smtp_host: string
+          smtp_pass_encrypted: string
+          smtp_port?: number
+          smtp_user: string
+          updated_at?: string
+          use_ssl?: boolean
+          use_tls?: boolean
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          provider_name?: string
+          smtp_host?: string
+          smtp_pass_encrypted?: string
+          smtp_port?: number
+          smtp_user?: string
+          updated_at?: string
+          use_ssl?: boolean
+          use_tls?: boolean
+          user_id?: string
+        }
+        Relationships: []
+      }
       subscriber_packages: {
         Row: {
           created_at: string
@@ -4147,6 +4300,45 @@ export type Database = {
           theme_data?: Json
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_email_preferences: {
+        Row: {
+          created_at: string
+          email_notifications: boolean
+          id: string
+          maintenance_reminders: boolean
+          marketing_emails: boolean
+          system_updates: boolean
+          updated_at: string
+          user_id: string
+          vehicle_alerts: boolean
+          weekly_reports: boolean
+        }
+        Insert: {
+          created_at?: string
+          email_notifications?: boolean
+          id?: string
+          maintenance_reminders?: boolean
+          marketing_emails?: boolean
+          system_updates?: boolean
+          updated_at?: string
+          user_id: string
+          vehicle_alerts?: boolean
+          weekly_reports?: boolean
+        }
+        Update: {
+          created_at?: string
+          email_notifications?: boolean
+          id?: string
+          maintenance_reminders?: boolean
+          marketing_emails?: boolean
+          system_updates?: boolean
+          updated_at?: string
+          user_id?: string
+          vehicle_alerts?: boolean
+          weekly_reports?: boolean
         }
         Relationships: []
       }

@@ -19,7 +19,9 @@ import {
   CheckSquare,
   Settings,
   MailOpen,
-  Wrench
+  Wrench,
+  FileText,
+  Inbox
 } from 'lucide-react';
 
 interface SettingsSidebarProps {
@@ -55,7 +57,14 @@ const settingsCategories = [
     items: [
       { id: "maps", label: "Maps & Geocoding", icon: Map },
       { id: "gp51-integration", label: "GP51 Integration", icon: Plug },
-      { id: "smtp", label: "Email (SMTP)", icon: Mail },
+    ]
+  },
+  {
+    title: "Email Management",
+    items: [
+      { id: "smtp", label: "SMTP Configuration", icon: Mail },
+      { id: "email-templates", label: "Email Templates", icon: FileText },
+      { id: "email-queue", label: "Email Queue", icon: Inbox },
       { id: "smtp-guide", label: "SMTP Setup Guide", icon: Settings },
     ]
   },
@@ -71,7 +80,7 @@ const settingsCategories = [
     title: "Communication",
     items: [
       { id: "notifications", label: "Notifications", icon: Bell },
-      { id: "email-notifications", label: "Email Management", icon: MailOpen },
+      { id: "email-notifications", label: "Email Preferences", icon: MailOpen },
     ]
   }
 ];
