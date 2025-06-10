@@ -1,5 +1,8 @@
 
 import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Shield } from 'lucide-react';
 import { SettingsSidebar } from './SettingsSidebar';
 
 // Import existing components
@@ -29,39 +32,294 @@ const AdminSettings: React.FC = () => {
   const renderTabContent = () => {
     switch (activeTab) {
       case 'packages':
-        return <PackagesTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Package Management
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PackagesTab />
+            </CardContent>
+          </Card>
+        );
       case 'csv-import':
-        return <CSVImportTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                CSV Import
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CSVImportTab />
+            </CardContent>
+          </Card>
+        );
       case 'company':
-        return <CompanyTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Company Settings
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CompanyTab />
+            </CardContent>
+          </Card>
+        );
       case 'billing':
-        return <BillingTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Billing Management
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BillingTab />
+            </CardContent>
+          </Card>
+        );
       case 'users':
-        return <UsersTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                User Management
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <UsersTab />
+            </CardContent>
+          </Card>
+        );
       case 'workshops':
-        return <AdminWorkshopManagementEnhanced />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Workshop Management
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AdminWorkshopManagementEnhanced />
+            </CardContent>
+          </Card>
+        );
       case 'notifications':
-        return <NotificationsTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Notification Settings
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <NotificationsTab />
+            </CardContent>
+          </Card>
+        );
       case 'email-notifications':
-        return <EmailNotificationsTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Email Notifications
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <EmailNotificationsTab />
+            </CardContent>
+          </Card>
+        );
       case 'gp51-integration':
-        return <GP51IntegrationTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                GP51 Integration
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <GP51IntegrationTab />
+            </CardContent>
+          </Card>
+        );
       case 'health':
-        return <HealthTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                System Health
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <HealthTab />
+            </CardContent>
+          </Card>
+        );
       case 'maps':
-        return <MapsTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Maps Configuration
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MapsTab />
+            </CardContent>
+          </Card>
+        );
       case 'analytics':
-        return <AnalyticsTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Analytics
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AnalyticsTab />
+            </CardContent>
+          </Card>
+        );
       case 'geofencing':
-        return <GeofencingTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Geofencing
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <GeofencingTab />
+            </CardContent>
+          </Card>
+        );
       case 'smtp-guide':
-        return <SMTPGuideTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                SMTP Setup Guide
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SMTPGuideTab />
+            </CardContent>
+          </Card>
+        );
       case 'smtp':
-        return <SMTPTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                SMTP Configuration
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SMTPTab />
+            </CardContent>
+          </Card>
+        );
       case 'gp51-validation':
-        return <GP51ValidationTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                GP51 Validation
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <GP51ValidationTab />
+            </CardContent>
+          </Card>
+        );
       default:
-        return <PackagesTab />;
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Package Management
+                <Badge variant="outline" className="text-xs">
+                  Admin Only
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PackagesTab />
+            </CardContent>
+          </Card>
+        );
     }
   };
 
