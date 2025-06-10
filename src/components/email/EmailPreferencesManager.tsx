@@ -47,20 +47,28 @@ export const EmailPreferencesManager: React.FC = () => {
     }
   });
 
-  // Get email preferences
+  // Get email preferences - using raw query with fallback
   const { data: preferences, isLoading } = useQuery({
     queryKey: ['email-preferences', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       
-      const { data, error } = await supabase
-        .from('user_email_preferences')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') throw error;
-      return data as EmailPreferences | null;
+      try {
+        // Try to fetch from the new table using a raw query
+        const { data, error } = await supabase
+          .rpc('get_user_email_preferences_by_id', { user_uuid: user.id });
+        
+        if (error) {
+          console.error('RPC call failed:', error);
+          // Return null so we can use default preferences
+          return null;
+        }
+        
+        return data?.[0] as EmailPreferences | null;
+      } catch (error) {
+        console.error('Error fetching email preferences:', error);
+        return null;
+      }
     },
     enabled: !!user?.id
   });
@@ -84,22 +92,25 @@ export const EmailPreferencesManager: React.FC = () => {
     }
   }, [preferences, user]);
 
-  // Save preferences
+  // Save preferences - using edge function for now
   const savePreferences = useMutation({
     mutationFn: async (prefs: Partial<EmailPreferences>) => {
       if (!user?.id) throw new Error('User not authenticated');
 
-      const { data, error } = await supabase
-        .from('user_email_preferences')
-        .upsert({
-          ...prefs,
-          user_id: user.id,
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+      // Use edge function to save preferences
+      const { data, error } = await supabase.functions.invoke('smtp-email-service', {
+        body: {
+          action: 'save-email-preferences',
+          preferences: {
+            ...prefs,
+            user_id: user.id,
+          }
+        }
+      });
 
       if (error) throw error;
+      if (!data.success) throw new Error(data.error || 'Failed to save preferences');
+      
       return data;
     },
     onSuccess: () => {

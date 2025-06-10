@@ -13,13 +13,16 @@ interface FleetAlertParams {
 }
 
 interface EmailPreferences {
-  userId: string;
-  vehicleAlerts: boolean;
-  maintenanceReminders: boolean;
-  geofenceAlerts: boolean;
-  systemUpdates: boolean;
-  urgentOnly: boolean;
+  id?: string;
+  user_id: string;
   email: string;
+  vehicle_alerts: boolean;
+  maintenance_reminders: boolean;
+  geofence_alerts: boolean;
+  system_updates: boolean;
+  urgent_only: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export const useFleetEmailService = () => {
@@ -59,15 +62,18 @@ export const useFleetEmailService = () => {
     }
   });
 
-  // Get email preferences for users
+  // Get email preferences for users - using raw query since table is new
   const { data: emailPreferences, refetch: refetchPreferences } = useQuery({
     queryKey: ['email-preferences'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('user_email_preferences')
-        .select('*');
+        .rpc('get_user_email_preferences');
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching email preferences:', error);
+        // Fallback to empty array if function doesn't exist yet
+        return [];
+      }
       return data as EmailPreferences[];
     }
   });
@@ -169,15 +175,15 @@ export const useFleetEmailService = () => {
         case 'vehicle_online':
         case 'speed_violation':
         case 'panic_button':
-          return pref.vehicleAlerts;
+          return pref.vehicle_alerts;
         case 'maintenance':
-          return pref.maintenanceReminders;
+          return pref.maintenance_reminders;
         case 'geofence':
-          return pref.geofenceAlerts;
+          return pref.geofence_alerts;
         case 'system_update':
-          return pref.systemUpdates;
+          return pref.system_updates;
         default:
-          return !pref.urgentOnly; // Send non-urgent events unless urgentOnly is true
+          return !pref.urgent_only; // Send non-urgent events unless urgentOnly is true
       }
     });
   };

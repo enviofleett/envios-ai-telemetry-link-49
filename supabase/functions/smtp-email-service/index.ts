@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
@@ -18,20 +17,25 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { action, recipientEmail, subject, htmlContent, textContent, templateType, placeholderData, testConfig } = await req.json();
+    const requestBody = await req.json();
+    const { action } = requestBody;
 
     console.log(`SMTP Email Service - Action: ${action}`);
 
     if (action === 'send-email') {
-      return await handleSendEmail(supabase, recipientEmail, subject, htmlContent, textContent, templateType, placeholderData);
+      return await handleSendEmail(supabase, requestBody);
     }
 
     if (action === 'test-smtp') {
-      return await handleTestSMTP(testConfig);
+      return await handleTestSMTP(requestBody.testConfig);
     }
 
     if (action === 'send-fleet-alert') {
-      return await handleFleetAlert(supabase, await req.json());
+      return await handleFleetAlert(supabase, requestBody);
+    }
+
+    if (action === 'save-email-preferences') {
+      return await handleSaveEmailPreferences(supabase, requestBody);
     }
 
     return new Response(
@@ -48,8 +52,56 @@ serve(async (req) => {
   }
 });
 
-async function handleSendEmail(supabase: any, recipientEmail: string, subject: string, htmlContent: string, textContent: string, templateType?: string, placeholderData?: any) {
+async function handleSaveEmailPreferences(supabase: any, requestBody: any) {
   try {
+    const { preferences } = requestBody;
+    
+    console.log('Saving email preferences:', preferences);
+
+    // Upsert email preferences
+    const { data, error } = await supabase
+      .from('user_email_preferences')
+      .upsert({
+        user_id: preferences.user_id,
+        email: preferences.email,
+        vehicle_alerts: preferences.vehicle_alerts ?? true,
+        maintenance_reminders: preferences.maintenance_reminders ?? true,
+        geofence_alerts: preferences.geofence_alerts ?? true,
+        system_updates: preferences.system_updates ?? false,
+        urgent_only: preferences.urgent_only ?? false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving email preferences:', error);
+      throw error;
+    }
+
+    console.log('Email preferences saved successfully:', data);
+
+    return new Response(
+      JSON.stringify({ 
+        success: true, 
+        message: 'Email preferences saved successfully',
+        data
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error('Error in handleSaveEmailPreferences:', error);
+    return new Response(
+      JSON.stringify({ success: false, error: error.message }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
+async function handleSendEmail(supabase: any, requestBody: any) {
+  try {
+    const { recipientEmail, subject, htmlContent, textContent, templateType, placeholderData } = requestBody;
+
     // Get active SMTP configuration
     const { data: smtpConfig, error: configError } = await supabase
       .from('smtp_configurations')
@@ -238,18 +290,20 @@ async function handleFleetAlert(supabase: any, alertData: any) {
       recipientEmails.map((email: string) => 
         handleSendEmail(
           supabase,
-          email,
-          `Fleet Alert: ${alertType} - ${vehicleName}`,
-          generateFleetAlertHTML(vehicleName, alertType, message, vehicle, priority),
-          generateFleetAlertText(vehicleName, alertType, message, vehicle),
-          'fleet_alert',
           {
-            vehicle_name: vehicleName,
-            alert_type: alertType,
-            alert_message: message,
-            vehicle_id: vehicleId,
-            timestamp: new Date().toLocaleString(),
-            priority: priority
+            recipientEmail: email,
+            subject: `Fleet Alert: ${alertType} - ${vehicleName}`,
+            htmlContent: generateFleetAlertHTML(vehicleName, alertType, message, vehicle, priority),
+            textContent: generateFleetAlertText(vehicleName, alertType, message, vehicle),
+            templateType: 'fleet_alert',
+            placeholderData: {
+              vehicle_name: vehicleName,
+              alert_type: alertType,
+              alert_message: message,
+              vehicle_id: vehicleId,
+              timestamp: new Date().toLocaleString(),
+              priority: priority
+            }
           }
         )
       )

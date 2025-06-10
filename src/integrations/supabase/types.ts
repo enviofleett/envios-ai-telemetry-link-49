@@ -1206,6 +1206,66 @@ export type Database = {
         }
         Relationships: []
       }
+      email_notification_queue: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          html_content: string | null
+          id: string
+          max_retries: number
+          metadata: Json | null
+          priority: string
+          recipient_email: string
+          retry_count: number
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          subject: string
+          template_data: Json | null
+          template_type: string | null
+          text_content: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          html_content?: string | null
+          id?: string
+          max_retries?: number
+          metadata?: Json | null
+          priority?: string
+          recipient_email: string
+          retry_count?: number
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          subject: string
+          template_data?: Json | null
+          template_type?: string | null
+          text_content?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          html_content?: string | null
+          id?: string
+          max_retries?: number
+          metadata?: Json | null
+          priority?: string
+          recipient_email?: string
+          retry_count?: number
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          template_data?: Json | null
+          template_type?: string | null
+          text_content?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       email_notifications: {
         Row: {
           created_at: string | null
@@ -4295,6 +4355,45 @@ export type Database = {
           theme_data?: Json
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      user_email_preferences: {
+        Row: {
+          created_at: string
+          email: string
+          geofence_alerts: boolean
+          id: string
+          maintenance_reminders: boolean
+          system_updates: boolean
+          updated_at: string
+          urgent_only: boolean
+          user_id: string
+          vehicle_alerts: boolean
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          geofence_alerts?: boolean
+          id?: string
+          maintenance_reminders?: boolean
+          system_updates?: boolean
+          updated_at?: string
+          urgent_only?: boolean
+          user_id: string
+          vehicle_alerts?: boolean
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          geofence_alerts?: boolean
+          id?: string
+          maintenance_reminders?: boolean
+          system_updates?: boolean
+          updated_at?: string
+          urgent_only?: boolean
+          user_id?: string
+          vehicle_alerts?: boolean
         }
         Relationships: []
       }
