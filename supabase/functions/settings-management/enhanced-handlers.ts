@@ -1,210 +1,146 @@
 
-import { authenticateWithGP51 } from './gp51-auth.ts';
-import { saveGP51Session, getGP51Status } from './database.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { createResponse } from './cors.ts';
-import { GP51ErrorHandler } from './error-handling.ts';
-import type { GP51Credentials } from './types.ts';
+import { authenticateWithGP51 } from './gp51-auth.ts';
 
-export async function handleSaveCredentialsWithVehicleImport(credentials: GP51Credentials & { apiUrl?: string; testOnly?: boolean; userId: string }) {
-  const trimmedUsername = credentials.username?.trim();
-  const trimmedPassword = credentials.password?.trim();
-  const trimmedApiUrl = credentials.apiUrl?.trim();
+export async function handleSaveCredentialsWithVehicleImport({ 
+  username, 
+  password, 
+  apiUrl,
+  testOnly,
+  userId 
+}: { 
+  username: string; 
+  password: string; 
+  apiUrl?: string;
+  testOnly: boolean;
+  userId: string;
+}) {
+  console.log('🚀 Enhanced GP51 credential save handler');
+  console.log('📝 Parameters:', { username, testOnly, userId, hasApiUrl: !!apiUrl });
   
-  console.log(`Enhanced GP51 credentials save request for user: ${trimmedUsername}, testOnly: ${credentials.testOnly || false}, userId: ${credentials.userId}`);
-  
-  // Input validation with detailed feedback
-  if (!trimmedUsername || !trimmedPassword) {
-    const validationError = GP51ErrorHandler.createDetailedError(
-      new Error('Missing required credentials'),
-      { providedUsername: !!trimmedUsername, providedPassword: !!trimmedPassword }
-    );
-    validationError.code = 'GP51_VALIDATION_ERROR';
-    validationError.category = 'validation';
-    validationError.details = 'Both username and password are required for GP51 authentication.';
-    validationError.suggestions = [
-      'Enter your GP51 username',
-      'Enter your GP51 password',
-      'Ensure no extra spaces in credentials',
-      'Verify credentials with your GP51 administrator'
-    ];
-    
-    GP51ErrorHandler.logError(validationError);
-    return createResponse(GP51ErrorHandler.formatErrorForClient(validationError), 400);
-  }
-
-  if (!credentials.userId) {
-    const authError = GP51ErrorHandler.createDetailedError(
-      new Error('User authentication required'),
-      { operation: 'credential_save' }
-    );
-    authError.code = 'GP51_AUTH_REQUIRED';
-    authError.category = 'authentication';
-    authError.details = 'User must be authenticated to save GP51 credentials.';
-    authError.suggestions = [
-      'Please log in and try again',
-      'Check your session status',
-      'Contact support if the issue persists'
-    ];
-    
-    GP51ErrorHandler.logError(authError);
-    return createResponse(GP51ErrorHandler.formatErrorForClient(authError), 401);
-  }
-
   try {
-    console.log('Starting GP51 authentication process...');
-    const authResult = await authenticateWithGP51({ 
-      username: trimmedUsername, 
-      password: trimmedPassword,
-      apiUrl: trimmedApiUrl
+    // Test GP51 authentication
+    console.log('🔍 Testing GP51 authentication...');
+    const authResult = await authenticateWithGP51({
+      username,
+      password,
+      apiUrl
     });
-    
-    console.log(`GP51 authentication successful for user: ${authResult.username}`);
 
-    if (credentials.testOnly) {
-      console.log('Test-only mode: skipping session save');
+    if (!authResult.success) {
+      console.error('❌ GP51 authentication failed:', authResult.error);
+      return createResponse({
+        success: false,
+        error: 'GP51 authentication failed',
+        details: authResult.error || 'Invalid credentials',
+        code: 'GP51_AUTH_FAILED'
+      }, 400);
+    }
+
+    console.log('✅ GP51 authentication successful');
+
+    // If this is just a test, return success without saving
+    if (testOnly) {
+      console.log('🧪 Test-only mode, not saving credentials');
       return createResponse({
         success: true,
-        message: 'GP51 connection test successful!',
+        message: 'GP51 connection test successful',
         username: authResult.username,
         apiUrl: authResult.apiUrl,
-        testMode: true,
-        connectionDetails: {
-          authenticatedAt: new Date().toISOString(),
-          responseTime: 'Connected successfully',
-          apiEndpoint: authResult.apiUrl
-        }
+        testOnly: true
       });
     }
 
-    console.log('Saving GP51 session to database with user ID:', credentials.userId);
-    const sessionData = await saveGP51Session(
-      authResult.username, 
-      authResult.token, 
-      authResult.apiUrl, 
-      credentials.userId
+    // Save credentials to database
+    console.log('💾 Saving GP51 credentials to database...');
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    console.log('GP51 credentials successfully validated and saved, session ID:', sessionData?.id);
-    return createResponse({
-      success: true,
-      message: 'GP51 credentials validated and saved successfully!',
-      username: authResult.username,
-      apiUrl: authResult.apiUrl,
-      sessionId: sessionData?.id,
-      userId: credentials.userId,
-      tokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      connectionDetails: {
-        connectedAt: new Date().toISOString(),
-        sessionCreated: true,
-        apiEndpoint: authResult.apiUrl,
-        userLinked: true
+    // Check if session already exists for this user
+    const { data: existingSessions } = await supabase
+      .from('gp51_sessions')
+      .select('id')
+      .eq('envio_user_id', userId)
+      .limit(1);
+
+    if (existingSessions && existingSessions.length > 0) {
+      // Update existing session
+      console.log('🔄 Updating existing GP51 session');
+      const { error: updateError } = await supabase
+        .from('gp51_sessions')
+        .update({
+          gp51_token: authResult.token,
+          gp51_username: authResult.username,
+          api_url: authResult.apiUrl,
+          expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // 4 hours
+          updated_at: new Date().toISOString()
+        })
+        .eq('envio_user_id', userId);
+
+      if (updateError) {
+        console.error('❌ Failed to update GP51 session:', updateError);
+        throw new Error(`Database update failed: ${updateError.message}`);
       }
-    });
+    } else {
+      // Create new session
+      console.log('➕ Creating new GP51 session');
+      const { error: insertError } = await supabase
+        .from('gp51_sessions')
+        .insert({
+          envio_user_id: userId,
+          gp51_token: authResult.token,
+          gp51_username: authResult.username,
+          api_url: authResult.apiUrl,
+          expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // 4 hours
+        });
 
-  } catch (error) {
-    console.error('GP51 credential validation or save failed:', error);
-    
-    const detailedError = GP51ErrorHandler.createDetailedError(error, {
-      username: trimmedUsername,
-      apiUrl: trimmedApiUrl,
-      testOnly: credentials.testOnly,
-      userId: credentials.userId,
-      operation: 'credential_save'
-    });
-    
-    GP51ErrorHandler.logError(detailedError, { 
-      operation: 'credential_validation_and_save',
-      userAgent: 'settings-management-function'
-    });
-    
-    const statusCode = getErrorStatusCode(detailedError.category, detailedError.severity);
-    return createResponse(GP51ErrorHandler.formatErrorForClient(detailedError), statusCode);
-  }
-}
-
-export async function handleHealthCheck() {
-  console.log('Performing comprehensive GP51 health check...');
-  
-  try {
-    const status = await getGP51Status();
-    
-    const healthData = {
-      timestamp: new Date().toISOString(),
-      gp51Status: status,
-      systemHealth: 'operational',
-      checks: {
-        database: true,
-        gp51Connection: status.connected || false,
-        sessionValid: status.connected && !status.error,
-        apiReachable: false // Will be updated by connection test
-      },
-      performance: {
-        responseTime: null,
-        lastSuccessfulConnection: status.lastConnected || null
-      },
-      recommendations: []
-    };
-
-    // Add recommendations based on status
-    if (!status.connected) {
-      healthData.recommendations.push(
-        'Configure GP51 credentials in Settings',
-        'Verify GP51 API URL is correct',
-        'Test connection manually'
-      );
+      if (insertError) {
+        console.error('❌ Failed to create GP51 session:', insertError);
+        throw new Error(`Database insert failed: ${insertError.message}`);
+      }
     }
 
-    if (status.error) {
-      healthData.recommendations.push(
-        'Check error details in connection logs',
-        'Verify GP51 service availability',
-        'Review authentication credentials'
-      );
-    }
+    console.log('✅ GP51 credentials saved successfully');
 
-    console.log('Health check completed:', healthData);
-    
     return createResponse({
       success: true,
-      health: healthData,
-      connected: status.connected || false,
-      message: status.connected ? 'GP51 system is healthy' : 'GP51 requires attention'
+      message: 'GP51 credentials saved and connection established',
+      username: authResult.username,
+      apiUrl: authResult.apiUrl
     });
 
   } catch (error) {
-    console.error('Health check failed:', error);
-    
-    const detailedError = GP51ErrorHandler.createDetailedError(error, {
-      operation: 'health_check'
-    });
-    
-    GP51ErrorHandler.logError(detailedError);
-    
+    console.error('❌ Enhanced credential save failed:', error);
     return createResponse({
       success: false,
-      health: {
-        timestamp: new Date().toISOString(),
-        systemHealth: 'degraded',
-        error: detailedError.message,
-        recommendations: detailedError.suggestions
-      },
-      ...GP51ErrorHandler.formatErrorForClient(detailedError)
+      error: 'Failed to save GP51 credentials',
+      details: error instanceof Error ? error.message : 'Unknown error',
+      code: 'SAVE_FAILED'
     }, 500);
   }
 }
 
-function getErrorStatusCode(category: string, severity: string): number {
-  switch (category) {
-    case 'network':
-      return 503; // Service Unavailable
-    case 'authentication':
-      return 401; // Unauthorized
-    case 'configuration':
-    case 'validation':
-      return 400; // Bad Request
-    case 'api':
-      return severity === 'critical' ? 503 : 502; // Service Unavailable or Bad Gateway
-    default:
-      return 500; // Internal Server Error
+export async function handleHealthCheck() {
+  console.log('🏥 Performing GP51 health check...');
+  
+  try {
+    const timestamp = new Date().toISOString();
+    
+    return createResponse({
+      success: true,
+      timestamp,
+      status: 'healthy',
+      message: 'GP51 settings management service is operational'
+    });
+  } catch (error) {
+    console.error('❌ Health check failed:', error);
+    return createResponse({
+      success: false,
+      error: 'Health check failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
   }
 }

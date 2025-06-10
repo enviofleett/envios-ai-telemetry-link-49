@@ -8,17 +8,29 @@ import { GP51ErrorHandler } from './error-handling.ts';
 import type { SettingsRequest } from './types.ts';
 
 serve(async (req) => {
+  console.log(`🔧 Settings Management Request: ${req.method} ${req.url}`);
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log('✅ Handling CORS preflight request');
     return handleCorsPreflightRequest();
   }
 
   try {
     // Initialize Supabase client for auth validation
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('❌ Missing Supabase environment variables');
+      return createResponse({
+        success: false,
+        error: 'Server configuration error',
+        code: 'MISSING_ENV_VARS'
+      }, 500);
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
     // Extract and validate JWT token
     const authHeader = req.headers.get('Authorization');
@@ -32,12 +44,13 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
+    console.log('🔑 Validating JWT token...');
     
     // Validate the JWT token and get user
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     
     if (authError || !user) {
-      console.error('❌ JWT validation failed:', authError);
+      console.error('❌ JWT validation failed:', authError?.message || 'No user found');
       return createResponse({
         success: false,
         error: 'Invalid authentication token',
@@ -55,7 +68,7 @@ serve(async (req) => {
       .single();
 
     if (envioUserError || !envioUser) {
-      console.error('❌ Envio user profile not found:', envioUserError);
+      console.error('❌ Envio user profile not found:', envioUserError?.message || 'No user profile');
       return createResponse({
         success: false,
         error: 'User profile not found. Please contact support.',
@@ -65,7 +78,21 @@ serve(async (req) => {
 
     console.log('✅ Envio user found:', envioUser.id);
 
-    const requestData: SettingsRequest = await req.json();
+    // Parse request body
+    let requestData: SettingsRequest;
+    try {
+      const body = await req.text();
+      console.log('📝 Request body received, length:', body.length);
+      requestData = JSON.parse(body);
+    } catch (parseError) {
+      console.error('❌ Failed to parse request body:', parseError);
+      return createResponse({
+        success: false,
+        error: 'Invalid request format',
+        code: 'INVALID_JSON'
+      }, 400);
+    }
+
     const { action, username, password, apiUrl, testOnly } = requestData;
     
     console.log(`🔧 Enhanced settings management request: action=${action}, username=${username ? 'provided' : 'missing'}, testOnly=${testOnly || false}, authenticatedUser=${envioUser.id}`);
@@ -92,39 +119,28 @@ serve(async (req) => {
       });
     }
 
-    const validationError = GP51ErrorHandler.createDetailedError(
-      new Error('Invalid action received'),
-      { receivedAction: action, availableActions: ['save-gp51-credentials', 'get-gp51-status', 'health-check', 'save-gp51-credentials-basic'] }
-    );
-    validationError.code = 'INVALID_ACTION';
-    validationError.category = 'validation';
-    validationError.details = 'The requested action is not supported by this endpoint.';
-    validationError.suggestions = [
-      'Use "save-gp51-credentials" to save and test credentials',
-      'Use "get-gp51-status" to check current status',
-      'Use "health-check" for comprehensive health monitoring',
-      'Use "save-gp51-credentials-basic" for basic credential saving'
-    ];
-
     console.error('❌ Invalid action received:', action);
-    GP51ErrorHandler.logError(validationError, { endpoint: 'settings-management' });
     
-    return createResponse(GP51ErrorHandler.formatErrorForClient(validationError), 400);
+    return createResponse({
+      success: false,
+      error: 'Invalid action',
+      code: 'INVALID_ACTION',
+      availableActions: ['save-gp51-credentials', 'get-gp51-status', 'health-check', 'save-gp51-credentials-basic']
+    }, 400);
 
   } catch (error) {
     console.error('❌ Settings management function error:', error);
-    console.error('📊 Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    
-    const systemError = GP51ErrorHandler.createDetailedError(error, {
-      endpoint: 'settings-management',
-      timestamp: new Date().toISOString()
+    console.error('📊 Error details:', {
+      name: error?.name,
+      message: error?.message,
+      stack: error?.stack?.substring(0, 500)
     });
-    systemError.code = 'SYSTEM_ERROR';
-    systemError.category = 'api';
-    systemError.severity = 'critical';
-
-    GP51ErrorHandler.logError(systemError, { operation: 'request_processing' });
     
-    return createResponse(GP51ErrorHandler.formatErrorForClient(systemError), 500);
+    return createResponse({
+      success: false,
+      error: 'Internal server error',
+      code: 'SYSTEM_ERROR',
+      details: error instanceof Error ? error.message : 'Unknown error occurred'
+    }, 500);
   }
 });

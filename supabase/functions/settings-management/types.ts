@@ -1,34 +1,26 @@
 
-export interface GP51Credentials {
-  username: string;
-  password: string;
-  apiUrl?: string;
-}
-
-export interface GP51AuthPayload {
-  username: string;
-  password: string;
-  from: string;
-  type: string;
-}
-
-export interface GP51LoginResult {
-  status: number;
-  token?: string;
-  cause?: string;
-  message?: string;
-  error?: string;
-}
-
-export interface GP51Session {
-  username: string;
-  token_expires_at: string;
-  gp51_token: string;
-}
-
 export interface SettingsRequest {
   action: string;
   username?: string;
   password?: string;
   apiUrl?: string;
+  testOnly?: boolean;
+}
+
+export interface GP51AuthResult {
+  success: boolean;
+  token?: string;
+  username?: string;
+  apiUrl?: string;
+  error?: string;
+  details?: string;
+}
+
+export interface ErrorDetails {
+  code: string;
+  message: string;
+  details?: string;
+  suggestions?: string[];
+  category?: string;
+  severity?: string;
 }
