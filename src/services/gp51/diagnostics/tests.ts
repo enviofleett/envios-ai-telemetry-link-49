@@ -31,25 +31,12 @@ export class GP51DiagnosticTests {
       }
 
       const session = sessionData[0];
-      if (!session.token_expires_at) {
+      if (session.status !== 'active') {
         return {
           test: 'GP51 Session Check',
           status: 'warning',
-          message: 'Session found but no expiration time available',
-          details: { username: session.gp51_username },
-          timestamp: options.timestamp
-        };
-      }
-
-      const expiresAt = new Date(session.token_expires_at);
-      const now = new Date();
-      
-      if (expiresAt < now) {
-        return {
-          test: 'GP51 Session Check',
-          status: 'fail',
-          message: `Session expired at ${expiresAt.toISOString()}`,
-          details: { username: session.gp51_username, expiresAt: expiresAt.toISOString() },
+          message: 'Session found but not active',
+          details: { user_id: session.user_id },
           timestamp: options.timestamp
         };
       }
@@ -57,8 +44,8 @@ export class GP51DiagnosticTests {
       return {
         test: 'GP51 Session Check',
         status: 'pass',
-        message: `Active session found, expires at ${expiresAt.toISOString()}`,
-        details: { username: session.gp51_username, expiresAt: expiresAt.toISOString() },
+        message: `Active session found for user ${session.user_id}`,
+        details: { user_id: session.user_id, session_id: session.id },
         timestamp: options.timestamp
       };
     } catch (error) {
@@ -89,8 +76,8 @@ export class GP51DiagnosticTests {
       
       for (const vehicle of vehicles) {
         try {
-          if (vehicle.last_position) {
-            JSON.stringify(vehicle.last_position);
+          if (vehicle.sample_data) {
+            JSON.parse(vehicle.sample_data);
           }
           validCount++;
         } catch (jsonError) {
@@ -190,7 +177,7 @@ export class GP51DiagnosticTests {
         };
       }
 
-      if (!sessionData || !sessionData.gp51_token) {
+      if (!sessionData || !sessionData.token) {
         return {
           test: 'GP51 API Connectivity',
           status: 'fail',
@@ -199,7 +186,7 @@ export class GP51DiagnosticTests {
         };
       }
 
-      const testResponse = await fetch(`https://www.gps51.com/webapi?action=validate_token&token=${sessionData.gp51_token}`, {
+      const testResponse = await fetch(`https://www.gps51.com/webapi?action=validate_token&token=${sessionData.token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
