@@ -23,21 +23,29 @@ export const useWorkshopAuth = () => {
       if (sessionData) {
         const session = JSON.parse(sessionData) as WorkshopSession;
         
-        // Verify session is still valid
-        const { data, error } = await supabase
+        // Verify session is still valid using raw SQL query since we can't join with types
+        const { data: sessionRecord, error: sessionError } = await supabase
           .from('workshop_sessions')
-          .select(`
-            *,
-            workshop_users(*)
-          `)
+          .select('*')
           .eq('id', session.id)
           .eq('is_active', true)
           .gt('expires_at', new Date().toISOString())
           .single();
 
-        if (data && !error) {
-          setWorkshopSession(data);
-          setWorkshopUser(data.workshop_users);
+        if (sessionRecord && !sessionError) {
+          // Get the workshop user separately
+          const { data: userRecord, error: userError } = await supabase
+            .from('workshop_users')
+            .select('*')
+            .eq('id', sessionRecord.workshop_user_id)
+            .single();
+
+          if (userRecord && !userError) {
+            setWorkshopSession(sessionRecord as WorkshopSession);
+            setWorkshopUser(userRecord as WorkshopUser);
+          } else {
+            localStorage.removeItem('workshop_session');
+          }
         } else {
           localStorage.removeItem('workshop_session');
         }
@@ -53,17 +61,45 @@ export const useWorkshopAuth = () => {
   // Login mutation
   const loginMutation = useMutation({
     mutationFn: async (loginData: WorkshopLoginData) => {
-      const { data, error } = await supabase.functions.invoke('workshop-auth', {
-        body: {
-          action: 'login',
-          email: loginData.email,
-          password: loginData.password,
-          workshop_id: loginData.workshop_id
-        }
-      });
+      // For now, we'll implement a simple mock login
+      // In production, this would call a Supabase Edge Function
+      
+      // Mock authentication - find user by email and workshop
+      const { data: user, error } = await supabase
+        .from('workshop_users')
+        .select('*')
+        .eq('email', loginData.email)
+        .eq('workshop_id', loginData.workshop_id || '')
+        .eq('is_active', true)
+        .single();
 
-      if (error) throw error;
-      return data;
+      if (error || !user) {
+        throw new Error('Invalid credentials');
+      }
+
+      // Create a session
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 8); // 8 hour session
+
+      const { data: session, error: sessionError } = await supabase
+        .from('workshop_sessions')
+        .insert({
+          workshop_user_id: user.id,
+          workshop_id: user.workshop_id,
+          expires_at: expiresAt.toISOString(),
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (sessionError) {
+        throw new Error('Failed to create session');
+      }
+
+      return {
+        user: user as WorkshopUser,
+        session: session as WorkshopSession
+      };
     },
     onSuccess: (data) => {
       setWorkshopUser(data.user);

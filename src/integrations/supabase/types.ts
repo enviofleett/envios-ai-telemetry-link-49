@@ -4694,6 +4694,92 @@ export type Database = {
           },
         ]
       }
+      workshop_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          is_active: boolean
+          workshop_id: string
+          workshop_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          is_active?: boolean
+          workshop_id: string
+          workshop_user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          is_active?: boolean
+          workshop_id?: string
+          workshop_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_sessions_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_sessions_workshop_user_id_fkey"
+            columns: ["workshop_user_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_users: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          is_active: boolean
+          name: string
+          permissions: string[]
+          role: string
+          updated_at: string
+          workshop_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          is_active?: boolean
+          name: string
+          permissions?: string[]
+          role: string
+          updated_at?: string
+          workshop_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          permissions?: string[]
+          role?: string
+          updated_at?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_users_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workshop_vehicle_assignments: {
         Row: {
           assigned_at: string
