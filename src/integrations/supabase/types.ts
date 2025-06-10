@@ -9,6 +9,48 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_action_logs: {
+        Row: {
+          action_details: Json | null
+          action_type: string
+          admin_user_id: string
+          created_at: string
+          id: string
+          ip_address: unknown | null
+          performed_at: string
+          session_fingerprint: string | null
+          target_entity_id: string | null
+          target_entity_type: string
+          user_agent: string | null
+        }
+        Insert: {
+          action_details?: Json | null
+          action_type: string
+          admin_user_id: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown | null
+          performed_at?: string
+          session_fingerprint?: string | null
+          target_entity_id?: string | null
+          target_entity_type: string
+          user_agent?: string | null
+        }
+        Update: {
+          action_details?: Json | null
+          action_type?: string
+          admin_user_id?: string
+          created_at?: string
+          id?: string
+          ip_address?: unknown | null
+          performed_at?: string
+          session_fingerprint?: string | null
+          target_entity_id?: string | null
+          target_entity_type?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       admin_role_requests: {
         Row: {
           created_at: string
@@ -39,6 +81,99 @@ export type Database = {
           reviewed_by?: string | null
           status?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      api_rate_limits: {
+        Row: {
+          block_expires_at: string | null
+          created_at: string
+          endpoint: string
+          id: string
+          identifier: string
+          is_blocked: boolean
+          request_count: number
+          updated_at: string
+          window_duration_seconds: number
+          window_start: string
+        }
+        Insert: {
+          block_expires_at?: string | null
+          created_at?: string
+          endpoint: string
+          id?: string
+          identifier: string
+          is_blocked?: boolean
+          request_count?: number
+          updated_at?: string
+          window_duration_seconds?: number
+          window_start?: string
+        }
+        Update: {
+          block_expires_at?: string | null
+          created_at?: string
+          endpoint?: string
+          id?: string
+          identifier?: string
+          is_blocked?: boolean
+          request_count?: number
+          updated_at?: string
+          window_duration_seconds?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
+      application_errors: {
+        Row: {
+          component_name: string | null
+          created_at: string
+          error_context: Json | null
+          error_message: string
+          error_stack: string | null
+          error_type: string
+          id: string
+          ip_address: unknown | null
+          resolved: boolean
+          resolved_at: string | null
+          route_path: string | null
+          session_id: string | null
+          severity: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          component_name?: string | null
+          created_at?: string
+          error_context?: Json | null
+          error_message: string
+          error_stack?: string | null
+          error_type: string
+          id?: string
+          ip_address?: unknown | null
+          resolved?: boolean
+          resolved_at?: string | null
+          route_path?: string | null
+          session_id?: string | null
+          severity?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          component_name?: string | null
+          created_at?: string
+          error_context?: Json | null
+          error_message?: string
+          error_stack?: string | null
+          error_type?: string
+          id?: string
+          ip_address?: unknown | null
+          resolved?: boolean
+          resolved_at?: string | null
+          route_path?: string | null
+          session_id?: string | null
+          severity?: string
+          user_agent?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -3855,6 +3990,108 @@ export type Database = {
           },
         ]
       }
+      secure_sessions: {
+        Row: {
+          created_at: string
+          device_info: Json | null
+          expires_at: string
+          id: string
+          ip_address: unknown | null
+          is_active: boolean
+          last_activity: string | null
+          revoked_at: string | null
+          revoked_reason: string | null
+          session_fingerprint: string
+          session_token: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_info?: Json | null
+          expires_at: string
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean
+          last_activity?: string | null
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          session_fingerprint: string
+          session_token: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_info?: Json | null
+          expires_at?: string
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean
+          last_activity?: string | null
+          revoked_at?: string | null
+          revoked_reason?: string | null
+          session_fingerprint?: string
+          session_token?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      security_audit_logs: {
+        Row: {
+          action_type: string
+          created_at: string
+          error_message: string | null
+          id: string
+          ip_address: unknown | null
+          request_details: Json | null
+          resource_id: string | null
+          resource_type: string | null
+          response_status: number | null
+          risk_level: string
+          session_id: string | null
+          success: boolean
+          timestamp: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          ip_address?: unknown | null
+          request_details?: Json | null
+          resource_id?: string | null
+          resource_type?: string | null
+          response_status?: number | null
+          risk_level?: string
+          session_id?: string | null
+          success?: boolean
+          timestamp?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          ip_address?: unknown | null
+          request_details?: Json | null
+          resource_id?: string | null
+          resource_type?: string | null
+          response_status?: number | null
+          risk_level?: string
+          session_id?: string | null
+          success?: boolean
+          timestamp?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       service_plans: {
         Row: {
           created_at: string
@@ -5987,6 +6224,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_rate_limit: {
+        Args: {
+          p_identifier: string
+          p_endpoint: string
+          p_max_requests?: number
+          p_window_seconds?: number
+        }
+        Returns: boolean
+      }
       check_referential_integrity: {
         Args: {
           source_table: string
@@ -6005,6 +6251,10 @@ export type Database = {
       clean_expired_otps: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      cleanup_expired_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
       create_incremental_backup: {
         Args: {
@@ -6063,6 +6313,36 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
         }
         Returns: boolean
+      }
+      log_admin_action: {
+        Args: {
+          p_admin_user_id: string
+          p_action_type: string
+          p_target_entity_type: string
+          p_target_entity_id?: string
+          p_action_details?: Json
+          p_ip_address?: unknown
+          p_user_agent?: string
+          p_session_fingerprint?: string
+        }
+        Returns: string
+      }
+      log_security_event: {
+        Args: {
+          p_user_id: string
+          p_action_type: string
+          p_resource_type?: string
+          p_resource_id?: string
+          p_ip_address?: unknown
+          p_user_agent?: string
+          p_session_id?: string
+          p_request_details?: Json
+          p_response_status?: number
+          p_error_message?: string
+          p_risk_level?: string
+          p_success?: boolean
+        }
+        Returns: string
       }
       merge_table_from_backup: {
         Args: {
