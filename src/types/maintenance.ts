@@ -5,8 +5,7 @@ export interface MaintenanceServicePlan {
   description?: string;
   service_types: string[];
   base_price: number;
-  billing_interval: 'monthly' | 'quarterly' | 'annual';
-  features?: any;
+  duration_hours: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -17,6 +16,7 @@ export interface MaintenanceAppointment {
   workshop_id: string;
   vehicle_id: string;
   user_id: string;
+  service_plan_id?: string;
   appointment_type: 'maintenance' | 'inspection' | 'repair' | 'diagnostic' | 'consultation';
   appointment_status: 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   scheduled_date: string;
@@ -37,38 +37,29 @@ export interface MaintenanceAppointment {
 export interface MaintenanceRecord {
   id: string;
   vehicle_id: string;
-  workshop_id?: string;
   appointment_id?: string;
   maintenance_type: string;
   description: string;
-  cost?: number;
-  mileage?: number;
   performed_by?: string;
+  performed_at: string;
+  cost?: number;
+  status: 'completed' | 'pending' | 'failed';
   parts_used?: any[];
-  next_maintenance_date?: string;
-  next_maintenance_mileage?: number;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  next_maintenance_due?: string;
   created_at: string;
   updated_at: string;
-  performed_at: string;
 }
 
 export interface MaintenanceSchedule {
   id: string;
   vehicle_id: string;
-  workshop_id?: string;
   schedule_type: 'time_based' | 'mileage_based' | 'condition_based';
   maintenance_type: string;
-  interval_months?: number;
-  interval_miles?: number;
-  last_performed_date?: string;
-  last_performed_mileage?: number;
-  next_due_date?: string;
-  next_due_mileage?: number;
+  interval_value: number;
+  interval_unit: 'days' | 'weeks' | 'months' | 'years' | 'kilometers' | 'miles';
+  last_performed_at?: string;
+  next_due_date: string;
   is_active: boolean;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  notes?: string;
   created_at: string;
   updated_at: string;
 }
@@ -76,20 +67,21 @@ export interface MaintenanceSchedule {
 export interface MaintenanceNotification {
   id: string;
   user_id: string;
-  vehicle_id: string;
-  notification_type: 'due_reminder' | 'overdue_alert' | 'appointment_reminder' | 'inspection_due';
+  vehicle_id?: string;
+  appointment_id?: string;
+  notification_type: 'reminder' | 'overdue' | 'scheduled' | 'completed' | 'cancelled';
   title: string;
   message: string;
   scheduled_for: string;
   sent_at?: string;
-  status: 'pending' | 'sent' | 'failed';
-  metadata?: any;
+  is_read: boolean;
   created_at: string;
 }
 
 export interface CreateAppointmentData {
   workshop_id: string;
   vehicle_id: string;
+  service_plan_id?: string;
   appointment_type: MaintenanceAppointment['appointment_type'];
   scheduled_date: string;
   duration_minutes?: number;

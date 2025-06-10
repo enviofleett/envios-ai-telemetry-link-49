@@ -16,31 +16,32 @@ export const useMaintenanceStats = () => {
     try {
       // Get upcoming appointments
       const { data: appointments } = await supabase
-        .from('maintenance_appointments' as any)
-        .select('id')
+        .from('maintenance_appointments')
+        .select('id, actual_cost')
         .eq('user_id', user.id)
         .eq('appointment_status', 'scheduled')
         .gte('scheduled_date', new Date().toISOString());
 
-      // Get pending maintenance schedules
+      // Get pending maintenance schedules (overdue)
       const { data: schedules } = await supabase
-        .from('maintenance_schedules' as any)
+        .from('maintenance_schedules')
         .select('id')
         .eq('is_active', true)
-        .lte('next_due_date', new Date().toISOString());
+        .lte('next_due_date', new Date().toISOString().split('T')[0]);
 
-      // Get completed maintenance this month
+      // Get completed appointments this month
       const startOfMonth = new Date();
       startOfMonth.setDate(1);
       startOfMonth.setHours(0, 0, 0, 0);
 
       const { data: completed } = await supabase
-        .from('maintenance_records' as any)
-        .select('id, cost')
-        .eq('status', 'completed')
-        .gte('performed_at', startOfMonth.toISOString());
+        .from('maintenance_appointments')
+        .select('id, actual_cost')
+        .eq('user_id', user.id)
+        .eq('appointment_status', 'completed')
+        .gte('completed_at', startOfMonth.toISOString());
 
-      const totalSpent = completed?.reduce((sum: number, record: any) => sum + (record.cost || 0), 0) || 0;
+      const totalSpent = completed?.reduce((sum: number, record: any) => sum + (record.actual_cost || 0), 0) || 0;
 
       return {
         upcomingAppointments: appointments?.length || 0,

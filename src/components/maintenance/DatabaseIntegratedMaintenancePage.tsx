@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import MaintenanceStatsCards from './MaintenanceStatsCards';
 import MaintenanceAppointmentsList from './MaintenanceAppointmentsList';
 import ConnectedWorkshopsList from './ConnectedWorkshopsList';
+import ServicePlanManager from './ServicePlanManager';
 import { MaintenanceHistory } from './MaintenanceHistory';
 
 const DatabaseIntegratedMaintenancePage: React.FC = () => {
@@ -21,8 +22,9 @@ const DatabaseIntegratedMaintenancePage: React.FC = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="appointments" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="appointments">Appointments</TabsTrigger>
+          <TabsTrigger value="service-plans">Service Plans</TabsTrigger>
           <TabsTrigger value="workshops">Workshops</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="schedules">Schedules</TabsTrigger>
@@ -30,6 +32,10 @@ const DatabaseIntegratedMaintenancePage: React.FC = () => {
 
         <TabsContent value="appointments" className="space-y-4">
           <MaintenanceAppointmentsList />
+        </TabsContent>
+
+        <TabsContent value="service-plans" className="space-y-4">
+          <ServicePlanManager />
         </TabsContent>
 
         <TabsContent value="workshops" className="space-y-4">

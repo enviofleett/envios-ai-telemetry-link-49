@@ -10,7 +10,7 @@ export const useMaintenanceRecords = () => {
     if (!user?.id) return [];
 
     try {
-      let query = supabase.from('maintenance_records' as any).select('*');
+      let query = supabase.from('maintenance_records').select('*');
 
       if (vehicleId) {
         query = query.eq('vehicle_id', vehicleId);
@@ -22,14 +22,34 @@ export const useMaintenanceRecords = () => {
         console.error('Error fetching maintenance history:', error);
         return [];
       }
-      return (data as unknown as MaintenanceRecord[]) || [];
+      return data || [];
     } catch (error) {
       console.error('Error fetching maintenance history:', error);
       return [];
     }
   };
 
+  const createMaintenanceRecord = async (recordData: Omit<MaintenanceRecord, 'id' | 'created_at' | 'updated_at'>): Promise<MaintenanceRecord | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_records')
+        .insert(recordData)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating maintenance record:', error);
+        return null;
+      }
+      return data;
+    } catch (error) {
+      console.error('Error creating maintenance record:', error);
+      return null;
+    }
+  };
+
   return {
-    getMaintenanceHistory
+    getMaintenanceHistory,
+    createMaintenanceRecord
   };
 };

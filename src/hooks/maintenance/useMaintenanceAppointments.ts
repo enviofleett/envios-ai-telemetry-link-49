@@ -15,7 +15,7 @@ export const useMaintenanceAppointments = () => {
 
     try {
       const { data, error } = await supabase
-        .from('maintenance_appointments' as any)
+        .from('maintenance_appointments')
         .select('*')
         .eq('user_id', user.id)
         .order('scheduled_date', { ascending: true });
@@ -24,7 +24,7 @@ export const useMaintenanceAppointments = () => {
         console.error('Error fetching appointments:', error);
         return [];
       }
-      return (data as unknown as MaintenanceAppointment[]) || [];
+      return data || [];
     } catch (error) {
       console.error('Error fetching appointments:', error);
       return [];
@@ -44,7 +44,7 @@ export const useMaintenanceAppointments = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('maintenance_appointments' as any)
+        .from('maintenance_appointments')
         .insert({
           ...appointmentData,
           user_id: user.id,
@@ -67,7 +67,7 @@ export const useMaintenanceAppointments = () => {
         title: "Appointment Created",
         description: "Your maintenance appointment has been scheduled"
       });
-      return data as unknown as MaintenanceAppointment;
+      return data;
     } catch (error) {
       console.error('Error creating appointment:', error);
       toast({
@@ -86,9 +86,20 @@ export const useMaintenanceAppointments = () => {
     status: MaintenanceAppointment['appointment_status']
   ): Promise<boolean> => {
     try {
+      const updateData: any = { appointment_status: status };
+      
+      // Add timestamp fields based on status
+      if (status === 'confirmed') {
+        updateData.confirmed_at = new Date().toISOString();
+      } else if (status === 'completed') {
+        updateData.completed_at = new Date().toISOString();
+      } else if (status === 'cancelled') {
+        updateData.cancelled_at = new Date().toISOString();
+      }
+
       const { error } = await supabase
-        .from('maintenance_appointments' as any)
-        .update({ appointment_status: status })
+        .from('maintenance_appointments')
+        .update(updateData)
         .eq('id', appointmentId);
 
       if (error) {
