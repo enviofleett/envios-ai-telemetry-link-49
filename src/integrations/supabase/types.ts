@@ -51,6 +51,48 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_email_test_logs: {
+        Row: {
+          admin_user_id: string
+          completed_at: string | null
+          created_at: string
+          failure_count: number
+          id: string
+          recipient_emails: string[]
+          success_count: number
+          template_id: string | null
+          test_data: Json | null
+          test_results: Json | null
+          test_type: string
+        }
+        Insert: {
+          admin_user_id: string
+          completed_at?: string | null
+          created_at?: string
+          failure_count?: number
+          id?: string
+          recipient_emails: string[]
+          success_count?: number
+          template_id?: string | null
+          test_data?: Json | null
+          test_results?: Json | null
+          test_type?: string
+        }
+        Update: {
+          admin_user_id?: string
+          completed_at?: string | null
+          created_at?: string
+          failure_count?: number
+          id?: string
+          recipient_emails?: string[]
+          success_count?: number
+          template_id?: string | null
+          test_data?: Json | null
+          test_results?: Json | null
+          test_type?: string
+        }
+        Relationships: []
+      }
       admin_role_requests: {
         Row: {
           created_at: string
@@ -1206,6 +1248,48 @@ export type Database = {
         }
         Relationships: []
       }
+      email_automation_rules: {
+        Row: {
+          conditions: Json | null
+          created_at: string
+          created_by: string | null
+          delay_minutes: number | null
+          id: string
+          is_active: boolean
+          recipient_logic: Json | null
+          rule_name: string
+          template_id: string | null
+          trigger_event: string
+          updated_at: string
+        }
+        Insert: {
+          conditions?: Json | null
+          created_at?: string
+          created_by?: string | null
+          delay_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          recipient_logic?: Json | null
+          rule_name: string
+          template_id?: string | null
+          trigger_event: string
+          updated_at?: string
+        }
+        Update: {
+          conditions?: Json | null
+          created_at?: string
+          created_by?: string | null
+          delay_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          recipient_logic?: Json | null
+          rule_name?: string
+          template_id?: string | null
+          trigger_event?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       email_notification_queue: {
         Row: {
           created_at: string
@@ -1352,6 +1436,69 @@ export type Database = {
           template_type?: string
           theme?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      enhanced_email_templates: {
+        Row: {
+          auto_send_conditions: Json | null
+          body_html: string | null
+          body_text: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          is_system_template: boolean
+          language_code: string | null
+          placeholders: Json | null
+          priority_level: string | null
+          subject: string
+          template_category: string
+          template_name: string
+          template_type: string
+          template_variables: Json | null
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          auto_send_conditions?: Json | null
+          body_html?: string | null
+          body_text?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_system_template?: boolean
+          language_code?: string | null
+          placeholders?: Json | null
+          priority_level?: string | null
+          subject: string
+          template_category?: string
+          template_name: string
+          template_type: string
+          template_variables?: Json | null
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          auto_send_conditions?: Json | null
+          body_html?: string | null
+          body_text?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          is_system_template?: boolean
+          language_code?: string | null
+          placeholders?: Json | null
+          priority_level?: string | null
+          subject?: string
+          template_category?: string
+          template_name?: string
+          template_type?: string
+          template_variables?: Json | null
+          updated_at?: string
+          version?: number
         }
         Relationships: []
       }
