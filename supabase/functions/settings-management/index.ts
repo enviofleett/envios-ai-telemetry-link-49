@@ -30,7 +30,17 @@ serve(async (req) => {
       }, 500);
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    let supabase;
+    try {
+      supabase = createClient(supabaseUrl, supabaseAnonKey);
+    } catch (clientError) {
+      console.error('❌ Failed to create Supabase client:', clientError);
+      return createResponse({
+        success: false,
+        error: 'Database connection failed',
+        code: 'DB_CLIENT_ERROR'
+      }, 500);
+    }
 
     // Extract and validate JWT token
     const authHeader = req.headers.get('Authorization');
@@ -47,33 +57,57 @@ serve(async (req) => {
     console.log('🔑 Validating JWT token...');
     
     // Validate the JWT token and get user
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      console.error('❌ JWT validation failed:', authError?.message || 'No user found');
+    let user;
+    try {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+      
+      if (authError || !authUser) {
+        console.error('❌ JWT validation failed:', authError?.message || 'No user found');
+        return createResponse({
+          success: false,
+          error: 'Invalid authentication token',
+          code: 'AUTH_INVALID'
+        }, 401);
+      }
+      
+      user = authUser;
+    } catch (authException) {
+      console.error('❌ Auth validation threw exception:', authException);
       return createResponse({
         success: false,
-        error: 'Invalid authentication token',
-        code: 'AUTH_INVALID'
-      }, 401);
+        error: 'Authentication service error',
+        code: 'AUTH_EXCEPTION'
+      }, 500);
     }
 
     console.log('✅ User authenticated:', user.id);
 
     // Get user from envio_users table
-    const { data: envioUser, error: envioUserError } = await supabase
-      .from('envio_users')
-      .select('id, email')
-      .eq('email', user.email)
-      .single();
+    let envioUser;
+    try {
+      const { data: userData, error: envioUserError } = await supabase
+        .from('envio_users')
+        .select('id, email')
+        .eq('email', user.email)
+        .single();
 
-    if (envioUserError || !envioUser) {
-      console.error('❌ Envio user profile not found:', envioUserError?.message || 'No user profile');
+      if (envioUserError || !userData) {
+        console.error('❌ Envio user profile not found:', envioUserError?.message || 'No user profile');
+        return createResponse({
+          success: false,
+          error: 'User profile not found. Please contact support.',
+          code: 'USER_PROFILE_NOT_FOUND'
+        }, 404);
+      }
+      
+      envioUser = userData;
+    } catch (userQueryException) {
+      console.error('❌ User query threw exception:', userQueryException);
       return createResponse({
         success: false,
-        error: 'User profile not found. Please contact support.',
-        code: 'USER_PROFILE_NOT_FOUND'
-      }, 404);
+        error: 'User profile service error',
+        code: 'USER_QUERY_EXCEPTION'
+      }, 500);
     }
 
     console.log('✅ Envio user found:', envioUser.id);
@@ -97,36 +131,49 @@ serve(async (req) => {
     
     console.log(`🔧 Enhanced settings management request: action=${action}, username=${username ? 'provided' : 'missing'}, testOnly=${testOnly || false}, authenticatedUser=${envioUser.id}`);
     
-    if (action === 'save-gp51-credentials') {
-      // Use enhanced handler with authenticated user ID
-      return await handleSaveCredentialsWithVehicleImport({ 
-        username: username!, 
-        password: password!,
-        apiUrl: apiUrl,
-        testOnly: testOnly || false,
-        userId: envioUser.id // Pass the authenticated user ID
-      });
-    } else if (action === 'get-gp51-status') {
-      return await handleGetStatus();
-    } else if (action === 'health-check') {
-      return await handleHealthCheck();
-    } else if (action === 'save-gp51-credentials-basic') {
-      // Fallback to basic save without enhanced features
-      return await handleSaveCredentials({ 
-        username: username!, 
-        password: password!,
-        apiUrl: apiUrl 
-      });
-    }
+    try {
+      if (action === 'save-gp51-credentials') {
+        // Use enhanced handler with authenticated user ID
+        return await handleSaveCredentialsWithVehicleImport({ 
+          username: username!, 
+          password: password!,
+          apiUrl: apiUrl,
+          testOnly: testOnly || false,
+          userId: envioUser.id
+        });
+      } else if (action === 'get-gp51-status') {
+        return await handleGetStatus();
+      } else if (action === 'health-check') {
+        return await handleHealthCheck();
+      } else if (action === 'save-gp51-credentials-basic') {
+        // Fallback to basic save without enhanced features
+        return await handleSaveCredentials({ 
+          username: username!, 
+          password: password!,
+          apiUrl: apiUrl 
+        });
+      }
 
-    console.error('❌ Invalid action received:', action);
-    
-    return createResponse({
-      success: false,
-      error: 'Invalid action',
-      code: 'INVALID_ACTION',
-      availableActions: ['save-gp51-credentials', 'get-gp51-status', 'health-check', 'save-gp51-credentials-basic']
-    }, 400);
+      console.error('❌ Invalid action received:', action);
+      
+      return createResponse({
+        success: false,
+        error: 'Invalid action',
+        code: 'INVALID_ACTION',
+        availableActions: ['save-gp51-credentials', 'get-gp51-status', 'health-check', 'save-gp51-credentials-basic']
+      }, 400);
+
+    } catch (handlerError) {
+      console.error('❌ Handler execution failed:', handlerError);
+      GP51ErrorHandler.logError(handlerError, { action, userId: envioUser.id });
+      
+      return createResponse({
+        success: false,
+        error: 'Request handler failed',
+        code: 'HANDLER_ERROR',
+        details: handlerError instanceof Error ? handlerError.message : 'Handler execution error'
+      }, 500);
+    }
 
   } catch (error) {
     console.error('❌ Settings management function error:', error);
@@ -135,6 +182,8 @@ serve(async (req) => {
       message: error?.message,
       stack: error?.stack?.substring(0, 500)
     });
+    
+    GP51ErrorHandler.logError(error, { operation: 'main_handler' });
     
     return createResponse({
       success: false,

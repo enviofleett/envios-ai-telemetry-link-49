@@ -55,6 +55,7 @@ export const useGP51Credentials = () => {
           body: payload
         });
         
+        // Check for HTTP-level errors first
         if (error) {
           console.error('❌ Edge function invocation failed:', error);
           
@@ -70,13 +71,34 @@ export const useGP51Credentials = () => {
             });
           }
           
-          throw error;
+          // Check if it's a network/connection error
+          if (error.message?.includes('network') || error.message?.includes('fetch')) {
+            throw new Error('Network connection failed. Please check your internet connection and try again.');
+          }
+          
+          throw new Error(error.message || 'Edge function call failed');
         }
         
-        // Validate that the save was actually successful
-        if (!data || !data.success) {
+        // Check the response success flag
+        if (!data || data.success === false) {
           console.error('❌ GP51 save operation failed:', data);
-          throw new Error(data?.error || data?.details || 'Failed to save GP51 credentials');
+          
+          // Extract meaningful error information
+          const errorMessage = data?.details || data?.error || 'Failed to save GP51 credentials';
+          const errorCode = data?.code || 'UNKNOWN_ERROR';
+          
+          // Provide specific error messages based on error codes
+          if (errorCode === 'GP51_AUTH_FAILED') {
+            throw new Error('GP51 authentication failed: Invalid username or password');
+          } else if (errorCode === 'GP51_AUTH_EXCEPTION') {
+            throw new Error('GP51 service error: Unable to connect to GP51 servers');
+          } else if (errorCode === 'DB_CONNECTION_FAILED' || errorCode === 'DB_SAVE_FAILED') {
+            throw new Error('Database error: Unable to save credentials. Please try again.');
+          } else if (errorCode === 'AUTH_REQUIRED' || errorCode === 'AUTH_INVALID') {
+            throw new Error('Authentication required: Please refresh the page and log in again');
+          }
+          
+          throw new Error(errorMessage);
         }
         
         console.log('✅ GP51 credentials saved successfully:', data);
@@ -84,7 +106,14 @@ export const useGP51Credentials = () => {
         
       } catch (fetchError) {
         console.error('❌ Request failed:', fetchError);
-        throw fetchError;
+        
+        // Re-throw with better error context if it's our own error
+        if (fetchError instanceof Error && fetchError.message.includes('GP51')) {
+          throw fetchError;
+        }
+        
+        // For unexpected errors, provide a generic message
+        throw new Error('Connection failed: Unable to save GP51 credentials. Please try again.');
       }
     },
     onSuccess: (data) => {
@@ -96,18 +125,24 @@ export const useGP51Credentials = () => {
       setApiUrl('');
       
       // Show success toast
-      const responseData = data as { message?: string; success?: boolean };
+      const responseData = data as { message?: string; success?: boolean; testOnly?: boolean };
+      const message = responseData?.testOnly 
+        ? 'GP51 connection test successful!' 
+        : responseData?.message || 'Successfully connected to GP51! Session will be used for vehicle data synchronization.';
+        
       toast({ 
-        title: 'GP51 Credentials Saved',
-        description: responseData?.message || `Successfully connected to GP51! Session will be used for vehicle data synchronization.`
+        title: responseData?.testOnly ? 'Connection Test Successful' : 'GP51 Credentials Saved',
+        description: message
       });
 
       // Invalidate queries and force health check after a delay to prevent conflicts
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['gp51-status'] });
-        sessionHealthMonitor.clearCache?.();
-        sessionHealthMonitor.forceHealthCheck();
-      }, 2000); // 2 second delay to prevent notification conflicts
+      if (!responseData?.testOnly) {
+        setTimeout(() => {
+          queryClient.invalidateQueries({ queryKey: ['gp51-status'] });
+          sessionHealthMonitor.clearCache?.();
+          sessionHealthMonitor.forceHealthCheck();
+        }, 2000); // 2 second delay to prevent notification conflicts
+      }
     },
     onError: (error: unknown) => {
       console.error('❌ GP51 credentials save mutation failed:', error);
@@ -118,7 +153,7 @@ export const useGP51Credentials = () => {
       // Properly handle the error type
       const errorMessage = error instanceof Error ? error.message : String(error);
       
-      // Categorize the error
+      // Categorize the error for better user feedback
       let errorTitle = 'Connection Failed';
       let errorDescription = 'Failed to connect to GP51. Please check your credentials and try again.';
       
@@ -131,12 +166,17 @@ export const useGP51Credentials = () => {
       } else if (errorMessage.includes('GP51 authentication failed')) {
         errorTitle = 'GP51 Authentication Failed';
         errorDescription = 'Invalid GP51 username or password. Please check your credentials.';
-      } else if (errorMessage.includes('Network error') || errorMessage.includes('fetch')) {
+      } else if (errorMessage.includes('Network') || errorMessage.includes('fetch') || errorMessage.includes('Connection failed')) {
         errorTitle = 'Network Error';
         errorDescription = 'Unable to connect to GP51 API. Please check your internet connection and try again.';
-      } else if (error && typeof error === 'object' && 'details' in error) {
-        errorDescription = String((error as any).details);
+      } else if (errorMessage.includes('Database error')) {
+        errorTitle = 'Database Error';
+        errorDescription = 'Unable to save credentials to database. Please try again in a few moments.';
+      } else if (errorMessage.includes('GP51 service error')) {
+        errorTitle = 'GP51 Service Error';
+        errorDescription = 'GP51 servers are currently unavailable. Please try again later.';
       } else {
+        // Use the specific error message if available
         errorDescription = errorMessage;
       }
       
