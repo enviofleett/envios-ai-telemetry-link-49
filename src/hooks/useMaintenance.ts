@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -19,34 +19,44 @@ export const useMaintenance = () => {
 
   // Service Plans
   const getServicePlans = async (): Promise<MaintenanceServicePlan[]> => {
-    const { data, error } = await supabase
-      .from('maintenance_service_plans')
-      .select('*')
-      .eq('is_active', true)
-      .order('base_price', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_service_plans' as any)
+        .select('*')
+        .eq('is_active', true)
+        .order('base_price', { ascending: true });
 
-    if (error) {
+      if (error) {
+        console.error('Error fetching service plans:', error);
+        return [];
+      }
+      return (data as MaintenanceServicePlan[]) || [];
+    } catch (error) {
       console.error('Error fetching service plans:', error);
       return [];
     }
-    return data || [];
   };
 
   // Appointments
   const getUserAppointments = async (): Promise<MaintenanceAppointment[]> => {
     if (!user?.id) return [];
 
-    const { data, error } = await supabase
-      .from('maintenance_appointments')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('scheduled_date', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_appointments' as any)
+        .select('*')
+        .eq('user_id', user.id)
+        .order('scheduled_date', { ascending: true });
 
-    if (error) {
+      if (error) {
+        console.error('Error fetching appointments:', error);
+        return [];
+      }
+      return (data as MaintenanceAppointment[]) || [];
+    } catch (error) {
       console.error('Error fetching appointments:', error);
       return [];
     }
-    return data || [];
   };
 
   const createAppointment = async (appointmentData: CreateAppointmentData): Promise<MaintenanceAppointment | null> => {
@@ -60,19 +70,33 @@ export const useMaintenance = () => {
     }
 
     setLoading(true);
-    const { data, error } = await supabase
-      .from('maintenance_appointments')
-      .insert({
-        ...appointmentData,
-        user_id: user.id,
-        created_by: user.id
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_appointments' as any)
+        .insert({
+          ...appointmentData,
+          user_id: user.id,
+          created_by: user.id
+        })
+        .select()
+        .single();
 
-    setLoading(false);
+      if (error) {
+        console.error('Error creating appointment:', error);
+        toast({
+          title: "Error",
+          description: "Failed to create appointment",
+          variant: "destructive"
+        });
+        return null;
+      }
 
-    if (error) {
+      toast({
+        title: "Appointment Created",
+        description: "Your maintenance appointment has been scheduled"
+      });
+      return data as MaintenanceAppointment;
+    } catch (error) {
       console.error('Error creating appointment:', error);
       toast({
         title: "Error",
@@ -80,91 +104,103 @@ export const useMaintenance = () => {
         variant: "destructive"
       });
       return null;
+    } finally {
+      setLoading(false);
     }
-
-    toast({
-      title: "Appointment Created",
-      description: "Your maintenance appointment has been scheduled"
-    });
-    return data;
   };
 
   const updateAppointmentStatus = async (
     appointmentId: string, 
     status: MaintenanceAppointment['appointment_status']
   ): Promise<boolean> => {
-    const { error } = await supabase
-      .from('maintenance_appointments')
-      .update({ appointment_status: status })
-      .eq('id', appointmentId);
+    try {
+      const { error } = await supabase
+        .from('maintenance_appointments' as any)
+        .update({ appointment_status: status })
+        .eq('id', appointmentId);
 
-    if (error) {
+      if (error) {
+        console.error('Error updating appointment:', error);
+        return false;
+      }
+      return true;
+    } catch (error) {
       console.error('Error updating appointment:', error);
       return false;
     }
-    return true;
   };
 
   // Maintenance Records
   const getMaintenanceHistory = async (vehicleId?: string): Promise<MaintenanceRecord[]> => {
     if (!user?.id) return [];
 
-    let query = supabase
-      .from('maintenance_records')
-      .select('*');
+    try {
+      let query = supabase.from('maintenance_records' as any).select('*');
 
-    if (vehicleId) {
-      query = query.eq('vehicle_id', vehicleId);
-    }
+      if (vehicleId) {
+        query = query.eq('vehicle_id', vehicleId);
+      }
 
-    const { data, error } = await query
-      .order('performed_at', { ascending: false });
+      const { data, error } = await query.order('performed_at', { ascending: false });
 
-    if (error) {
+      if (error) {
+        console.error('Error fetching maintenance history:', error);
+        return [];
+      }
+      return (data as MaintenanceRecord[]) || [];
+    } catch (error) {
       console.error('Error fetching maintenance history:', error);
       return [];
     }
-    return data || [];
   };
 
   // Maintenance Schedules
   const getMaintenanceSchedules = async (vehicleId?: string): Promise<MaintenanceSchedule[]> => {
     if (!user?.id) return [];
 
-    let query = supabase
-      .from('maintenance_schedules')
-      .select('*')
-      .eq('is_active', true);
+    try {
+      let query = supabase
+        .from('maintenance_schedules' as any)
+        .select('*')
+        .eq('is_active', true);
 
-    if (vehicleId) {
-      query = query.eq('vehicle_id', vehicleId);
-    }
+      if (vehicleId) {
+        query = query.eq('vehicle_id', vehicleId);
+      }
 
-    const { data, error } = await query
-      .order('next_due_date', { ascending: true });
+      const { data, error } = await query.order('next_due_date', { ascending: true });
 
-    if (error) {
+      if (error) {
+        console.error('Error fetching maintenance schedules:', error);
+        return [];
+      }
+      return (data as MaintenanceSchedule[]) || [];
+    } catch (error) {
       console.error('Error fetching maintenance schedules:', error);
       return [];
     }
-    return data || [];
   };
 
   // Notifications
   const getMaintenanceNotifications = async (): Promise<MaintenanceNotification[]> => {
     if (!user?.id) return [];
 
-    const { data, error } = await supabase
-      .from('maintenance_notifications')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('scheduled_for', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('maintenance_notifications' as any)
+        .select('*')
+        .eq('user_id', user.id)
+        .order('scheduled_for', { ascending: true });
 
-    if (error) {
+      if (error) {
+        console.error('Error fetching notifications:', error);
+        return [];
+      }
+      return (data as MaintenanceNotification[]) || [];
+    } catch (error) {
       console.error('Error fetching notifications:', error);
       return [];
     }
-    return data || [];
   };
 
   // Statistics
@@ -179,7 +215,7 @@ export const useMaintenance = () => {
     try {
       // Get upcoming appointments
       const { data: appointments } = await supabase
-        .from('maintenance_appointments')
+        .from('maintenance_appointments' as any)
         .select('id')
         .eq('user_id', user.id)
         .eq('appointment_status', 'scheduled')
@@ -187,7 +223,7 @@ export const useMaintenance = () => {
 
       // Get pending maintenance schedules
       const { data: schedules } = await supabase
-        .from('maintenance_schedules')
+        .from('maintenance_schedules' as any)
         .select('id')
         .eq('is_active', true)
         .lte('next_due_date', new Date().toISOString());
@@ -198,12 +234,12 @@ export const useMaintenance = () => {
       startOfMonth.setHours(0, 0, 0, 0);
 
       const { data: completed } = await supabase
-        .from('maintenance_records')
+        .from('maintenance_records' as any)
         .select('id, cost')
         .eq('status', 'completed')
         .gte('performed_at', startOfMonth.toISOString());
 
-      const totalSpent = completed?.reduce((sum, record) => sum + (record.cost || 0), 0) || 0;
+      const totalSpent = completed?.reduce((sum: number, record: any) => sum + (record.cost || 0), 0) || 0;
 
       return {
         upcomingAppointments: appointments?.length || 0,
