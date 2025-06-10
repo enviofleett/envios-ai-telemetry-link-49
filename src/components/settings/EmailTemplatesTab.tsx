@@ -56,7 +56,9 @@ const EmailTemplatesTab: React.FC = () => {
       // Convert the database response to our interface format
       const convertedTemplates: EmailTemplate[] = (data || []).map(template => ({
         ...template,
-        variables: Array.isArray(template.variables) ? template.variables : []
+        variables: Array.isArray(template.variables) 
+          ? template.variables.filter(v => typeof v === 'string') as string[]
+          : []
       }));
       
       setTemplates(convertedTemplates);
