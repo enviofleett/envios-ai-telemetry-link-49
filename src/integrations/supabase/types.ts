@@ -2503,6 +2503,174 @@ export type Database = {
         }
         Relationships: []
       }
+      inspection_checklist_items: {
+        Row: {
+          category: string
+          check_status: string
+          checked_at: string | null
+          checked_by: string | null
+          created_at: string
+          estimated_repair_cost: number | null
+          id: string
+          inspection_id: string
+          inspector_notes: string | null
+          is_required: boolean
+          item_description: string | null
+          item_name: string
+          requires_repair: boolean | null
+          severity_level: string | null
+        }
+        Insert: {
+          category: string
+          check_status?: string
+          checked_at?: string | null
+          checked_by?: string | null
+          created_at?: string
+          estimated_repair_cost?: number | null
+          id?: string
+          inspection_id: string
+          inspector_notes?: string | null
+          is_required?: boolean
+          item_description?: string | null
+          item_name: string
+          requires_repair?: boolean | null
+          severity_level?: string | null
+        }
+        Update: {
+          category?: string
+          check_status?: string
+          checked_at?: string | null
+          checked_by?: string | null
+          created_at?: string
+          estimated_repair_cost?: number | null
+          id?: string
+          inspection_id?: string
+          inspector_notes?: string | null
+          is_required?: boolean
+          item_description?: string | null
+          item_name?: string
+          requires_repair?: boolean | null
+          severity_level?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_checklist_items_checked_by_fkey"
+            columns: ["checked_by"]
+            isOneToOne: false
+            referencedRelation: "workshop_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_checklist_items_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_inspections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspection_photos: {
+        Row: {
+          checklist_item_id: string | null
+          created_at: string
+          id: string
+          inspection_id: string
+          photo_description: string | null
+          photo_type: string | null
+          photo_url: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          checklist_item_id?: string | null
+          created_at?: string
+          id?: string
+          inspection_id: string
+          photo_description?: string | null
+          photo_type?: string | null
+          photo_url: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          checklist_item_id?: string | null
+          created_at?: string
+          id?: string
+          inspection_id?: string
+          photo_description?: string | null
+          photo_type?: string | null
+          photo_url?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_photos_checklist_item_id_fkey"
+            columns: ["checklist_item_id"]
+            isOneToOne: false
+            referencedRelation: "inspection_checklist_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_photos_inspection_id_fkey"
+            columns: ["inspection_id"]
+            isOneToOne: false
+            referencedRelation: "vehicle_inspections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inspection_photos_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "workshop_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inspection_templates: {
+        Row: {
+          checklist_items: Json
+          created_at: string
+          created_by: string | null
+          estimated_duration_hours: number | null
+          id: string
+          inspection_type: string
+          is_active: boolean
+          template_name: string
+          updated_at: string
+          vehicle_category: string | null
+        }
+        Insert: {
+          checklist_items?: Json
+          created_at?: string
+          created_by?: string | null
+          estimated_duration_hours?: number | null
+          id?: string
+          inspection_type: string
+          is_active?: boolean
+          template_name: string
+          updated_at?: string
+          vehicle_category?: string | null
+        }
+        Update: {
+          checklist_items?: Json
+          created_at?: string
+          created_by?: string | null
+          estimated_duration_hours?: number | null
+          id?: string
+          inspection_type?: string
+          is_active?: boolean
+          template_name?: string
+          updated_at?: string
+          vehicle_category?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inspection_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "workshop_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_line_items: {
         Row: {
           created_at: string
@@ -3934,6 +4102,85 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      vehicle_inspections: {
+        Row: {
+          actual_duration_minutes: number | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          estimated_duration_hours: number | null
+          id: string
+          inspection_notes: string | null
+          inspection_status: string
+          inspection_type: string
+          inspector_id: string | null
+          overall_result: string | null
+          scheduled_date: string
+          started_at: string | null
+          updated_at: string
+          vehicle_id: string
+          workshop_id: string
+        }
+        Insert: {
+          actual_duration_minutes?: number | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          estimated_duration_hours?: number | null
+          id?: string
+          inspection_notes?: string | null
+          inspection_status?: string
+          inspection_type: string
+          inspector_id?: string | null
+          overall_result?: string | null
+          scheduled_date: string
+          started_at?: string | null
+          updated_at?: string
+          vehicle_id: string
+          workshop_id: string
+        }
+        Update: {
+          actual_duration_minutes?: number | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          estimated_duration_hours?: number | null
+          id?: string
+          inspection_notes?: string | null
+          inspection_status?: string
+          inspection_type?: string
+          inspector_id?: string | null
+          overall_result?: string | null
+          scheduled_date?: string
+          started_at?: string | null
+          updated_at?: string
+          vehicle_id?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_inspections_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "workshop_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_inspections_inspector_id_fkey"
+            columns: ["inspector_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_inspections_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vehicle_position_cache: {
         Row: {
