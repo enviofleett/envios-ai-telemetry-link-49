@@ -1,6 +1,6 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { SMTPClient } from "https://deno.land/x/smtp@v0.7.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -101,6 +101,7 @@ async function handleSaveEmailPreferences(supabase: any, requestBody: any) {
 async function handleSendEmail(supabase: any, requestBody: any) {
   try {
     const { recipientEmail, subject, htmlContent, textContent, templateType, placeholderData, metadata } = requestBody;
+    console.log(`Preparing to send email to: ${recipientEmail}, subject: ${subject}`);
 
     // Get active SMTP configuration
     const { data: smtpConfig, error: configError } = await supabase
@@ -119,6 +120,8 @@ async function handleSendEmail(supabase: any, requestBody: any) {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    console.log(`Using SMTP config: ${smtpConfig.name}, host: ${smtpConfig.host}, port: ${smtpConfig.port}`);
 
     // Check rate limiting
     const rateLimitCheck = await checkEmailRateLimit(supabase, recipientEmail);
@@ -139,6 +142,7 @@ async function handleSendEmail(supabase: any, requestBody: any) {
     let finalTextContent = textContent;
 
     if (templateType) {
+      console.log(`Using template type: ${templateType}`);
       const { data: template } = await supabase
         .from('enhanced_email_templates')
         .select('*')
@@ -147,6 +151,7 @@ async function handleSendEmail(supabase: any, requestBody: any) {
         .single();
 
       if (template) {
+        console.log(`Template found: ${template.template_name}`);
         finalSubject = template.subject;
         finalHtmlContent = template.body_html;
         finalTextContent = template.body_text;
@@ -167,8 +172,8 @@ async function handleSendEmail(supabase: any, requestBody: any) {
     // Decrypt password
     const decodedPassword = await decryptPassword(smtpConfig.password_encrypted);
 
-    // Send email with retry logic
-    const emailResult = await sendEmailWithRetry({
+    // Send email with real SMTP client
+    const emailResult = await sendEmailWithRealSMTP({
       host: smtpConfig.host,
       port: smtpConfig.port,
       username: smtpConfig.username,
@@ -230,9 +235,21 @@ async function handleSendEmail(supabase: any, requestBody: any) {
 
 async function handleTestSMTP(testConfig: any) {
   try {
-    const result = await sendEmailWithRetry({
-      ...testConfig,
-      toEmail: testConfig.sender_email,
+    console.log('Testing SMTP configuration:', {
+      host: testConfig.host,
+      port: testConfig.port,
+      username: testConfig.username,
+      encryption: testConfig.encryption_type
+    });
+
+    const result = await sendEmailWithRealSMTP({
+      host: testConfig.host,
+      port: testConfig.port,
+      username: testConfig.username,
+      password: testConfig.password,
+      fromEmail: testConfig.sender_email || testConfig.username,
+      fromName: testConfig.sender_name || 'SMTP Test',
+      toEmail: testConfig.sender_email || testConfig.username,
       subject: 'SMTP Configuration Test - Fleet Management',
       htmlContent: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -244,10 +261,11 @@ async function handleTestSMTP(testConfig: any) {
               <li><strong>Host:</strong> ${testConfig.host}</li>
               <li><strong>Port:</strong> ${testConfig.port}</li>
               <li><strong>Encryption:</strong> ${testConfig.encryption_type}</li>
-              <li><strong>Sender:</strong> ${testConfig.sender_name} &lt;${testConfig.sender_email}&gt;</li>
+              <li><strong>Sender:</strong> ${testConfig.sender_name || ''} &lt;${testConfig.sender_email || testConfig.username}&gt;</li>
             </ul>
           </div>
           <p>This email was sent as a test from your Fleet Management platform's SMTP service.</p>
+          <p>Test Time: ${new Date().toISOString()}</p>
         </div>
       `,
       textContent: `SMTP Test Successful - Your SMTP configuration is working correctly for the Fleet Management platform!
@@ -256,9 +274,10 @@ Configuration Details:
 - Host: ${testConfig.host}
 - Port: ${testConfig.port} 
 - Encryption: ${testConfig.encryption_type}
-- Sender: ${testConfig.sender_name} <${testConfig.sender_email}>
+- Sender: ${testConfig.sender_name || ''} <${testConfig.sender_email || testConfig.username}>
 
-This email was sent as a test from your Fleet Management platform's SMTP service.`
+This email was sent as a test from your Fleet Management platform's SMTP service.
+Test Time: ${new Date().toISOString()}`
     });
 
     return new Response(
@@ -332,13 +351,10 @@ async function handleFleetAlert(supabase: any, alertData: any) {
   }
 }
 
-async function sendEmailWithRetry(config: any, maxRetries = 3) {
+async function sendEmailWithRealSMTP(config: any, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Attempting to send email via SMTP (attempt ${attempt}/${maxRetries})`);
-      
-      // Enhanced email sending with proper SMTP simulation
-      await new Promise(resolve => setTimeout(resolve, 500 * attempt));
       
       // Validate configuration
       if (!config.toEmail || !config.toEmail.includes('@')) {
@@ -353,19 +369,44 @@ async function sendEmailWithRetry(config: any, maxRetries = 3) {
         throw new Error('SMTP host and port are required');
       }
 
-      // Simulate successful email sending with realistic behavior
-      console.log('=== EMAIL SENT VIA SMTP ===');
-      console.log(`From: ${config.fromName} <${config.fromEmail}>`);
-      console.log(`To: ${config.toEmail}`);
-      console.log(`Subject: ${config.subject}`);
-      console.log(`SMTP: ${config.host}:${config.port} (${config.encryptionType})`);
-      console.log(`Attempt: ${attempt}/${maxRetries}`);
-      console.log('===========================');
+      // Create SMTP client
+      const client = new SMTPClient({
+        connection: {
+          hostname: config.host,
+          port: parseInt(config.port),
+          tls: config.encryptionType === 'ssl' || config.port === 465,
+          auth: {
+            username: config.username,
+            password: config.password,
+          }
+        }
+      });
+
+      // Adjust for different encryption types
+      let secure = false;
+      if (config.encryptionType === 'ssl' || config.port === 465) {
+        secure = true;
+      }
+
+      // Send email
+      console.log(`SMTP: Connecting to ${config.host}:${config.port} (secure: ${secure})`);
+      
+      const sendConfig: any = {
+        from: `${config.fromName} <${config.fromEmail}>`,
+        to: config.toEmail,
+        subject: config.subject,
+        content: config.textContent,
+        html: config.htmlContent,
+      };
+      
+      console.log(`SMTP: Sending email to ${config.toEmail}`);
+      const sendResult = await client.send(sendConfig);
+      console.log('SMTP: Email sent successfully:', sendResult);
       
       return { 
         success: true, 
         message: 'Email sent successfully via SMTP',
-        messageId: `fleet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        messageId: sendResult?.id || `fleet-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         retryCount: attempt - 1
       };
       
@@ -384,6 +425,13 @@ async function sendEmailWithRetry(config: any, maxRetries = 3) {
       await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempt - 1)));
     }
   }
+  
+  // This should never happen due to the check in the catch block above
+  return { 
+    success: false,
+    error: `Failed after ${maxRetries} attempts: Unknown error`,
+    retryCount: maxRetries
+  };
 }
 
 async function checkEmailRateLimit(supabase: any, recipientEmail: string) {

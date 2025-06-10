@@ -1,35 +1,33 @@
 
+# A string used to distinguish different Supabase projects on the same host
 project_id = "bjkqxmvjuewshomihjqm"
 
-[functions.telemetry-auth]
-verify_jwt = false
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
 
-[functions.telemetry-positions]
-verify_jwt = false
+[db]
+port = 54322
 
-[functions.user-management]
-verify_jwt = true
+[studio]
+enabled = true
+port = 54323
 
-[functions.vehicle-management]
-verify_jwt = true
+# Email testing
+[inbucket]
+enabled = true
+port = 54324
 
-[functions.settings-management]
-verify_jwt = true
+[storage]
+enabled = true
 
-[functions.passwordless-gp51-import]
-verify_jwt = true
+[auth]
+enabled = true
 
-[functions.set-initial-password]
-verify_jwt = false
+[realtime]
+enabled = true
 
-[functions.gp51-data-preview]
-verify_jwt = true
-
-[functions.gp51-user-management]
-verify_jwt = true
-
-[functions.gp51-device-management]
-verify_jwt = true
-
-[functions.gp51-service-management]
+[functions]
+[functions.smtp-email-service]
 verify_jwt = true
