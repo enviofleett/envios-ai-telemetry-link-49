@@ -1,6 +1,6 @@
+
 import React, { useState } from 'react';
-import { TabsContent } from '@/components/ui/tabs';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { GP51CredentialsForm } from '@/components/gp51/GP51CredentialsForm';
 import { GP51DeviceList } from '@/components/gp51/GP51DeviceList';
 import { GP51StatusIndicator } from '@/components/gp51/GP51StatusIndicator';
@@ -24,7 +24,7 @@ export const GP51IntegrationTab: React.FC = () => {
   const [isConnected, setIsConnected] = useState(false);
 
   return (
-    <TabsContent value="gp51-integration" className="space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -347,7 +347,7 @@ export const GP51IntegrationTab: React.FC = () => {
           <GP51Documentation />
         </TabsContent>
       </Tabs>
-    </TabsContent>
+    </div>
   );
 };
 
