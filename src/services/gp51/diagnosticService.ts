@@ -62,7 +62,7 @@ export class GP51DiagnosticService {
             test: 'GP51 Session Check',
             status: 'pass',
             message: `Active session found, expires at ${expiresAt.toISOString()}`,
-            details: { username: session.gp51_username, expiresAt },
+            details: { username: session.username, expiresAt },
             timestamp
           });
         }
@@ -97,7 +97,7 @@ export class GP51DiagnosticService {
         vehicles?.forEach(vehicle => {
           try {
             if (vehicle.last_position) {
-              JSON.stringify(vehicle.last_position); // Test JSON serialization
+              JSON.stringify(vehicle.last_position);
             }
             validCount++;
           } catch (e) {

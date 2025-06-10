@@ -100,149 +100,152 @@ export class EnhancedGP51ApiService {
     }
   }
 
-  @withSyncLock('gp51-device-list-sync')
   async fetchDeviceList(): Promise<{ success: boolean; devices?: GP51Device[]; error?: string }> {
-    try {
-      const token = await this.getValidToken();
-      if (!token) {
-        return { success: false, error: 'No valid GP51 token available' };
-      }
+    return withSyncLock('gp51-device-list-sync', async () => {
+      try {
+        const token = await this.getValidToken();
+        if (!token) {
+          return { success: false, error: 'No valid GP51 token available' };
+        }
 
-      const response = await this.makeGP51Request('querymonitorlist', token, {});
-      
-      if (response.status === 0 && response.groups) {
-        const devices: GP51Device[] = [];
+        const response = await this.makeGP51Request('querymonitorlist', token, {});
         
-        response.groups.forEach((group: any) => {
-          if (group.devices && Array.isArray(group.devices)) {
-            devices.push(...group.devices);
+        if (response.status === 0 && response.groups) {
+          const devices: GP51Device[] = [];
+          
+          response.groups.forEach((group: any) => {
+            if (group.devices && Array.isArray(group.devices)) {
+              devices.push(...group.devices);
+            }
+          });
+          
+          console.log(`Successfully fetched ${devices.length} devices from GP51`);
+          return { success: true, devices };
+        }
+
+        return { success: false, error: response.cause || 'No devices returned from GP51' };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Device list fetch failed:', errorMessage);
+        return { success: false, error: errorMessage };
+      }
+    });
+  }
+
+  async fetchPositions(deviceIds: string[]): Promise<{ success: boolean; positions?: any[]; error?: string }> {
+    return withSyncLock('gp51-position-sync', async () => {
+      try {
+        if (!deviceIds || deviceIds.length === 0) {
+          return { success: false, error: 'No device IDs provided' };
+        }
+
+        const token = await this.getValidToken();
+        if (!token) {
+          return { success: false, error: 'No valid GP51 token available' };
+        }
+
+        const response = await this.makeGP51Request('lastposition', token, {
+          deviceids: deviceIds,
+          lastquerypositiontime: 0
+        });
+
+        if (response.status === 0 && response.records) {
+          // Validate each position record
+          const { valid: validPositions, invalid: invalidPositions } = validateBatch(
+            response.records,
+            validateGP51Position
+          );
+
+          if (invalidPositions.length > 0) {
+            console.warn(`${invalidPositions.length} invalid position records detected:`, invalidPositions);
+          }
+
+          console.log(`Successfully fetched ${validPositions.length} valid positions from GP51`);
+          return { success: true, positions: validPositions };
+        }
+
+        return { success: false, error: response.cause || 'No positions returned from GP51' };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Position fetch failed:', errorMessage);
+        return { success: false, error: errorMessage };
+      }
+    });
+  }
+
+  async syncToDatabase(devices: GP51Device[], positions: any[]): Promise<{ success: boolean; stats?: any; error?: string }> {
+    return withSyncLock('gp51-database-sync', async () => {
+      try {
+        const stats = {
+          devicesProcessed: 0,
+          devicesUpdated: 0,
+          devicesFailed: 0,
+          positionsProcessed: 0,
+          positionsUpdated: 0,
+          positionsFailed: 0,
+          errors: [] as string[]
+        };
+
+        // Create position lookup map
+        const positionMap = new Map();
+        positions.forEach(pos => {
+          if (pos.deviceid) {
+            positionMap.set(String(pos.deviceid), pos);
           }
         });
-        
-        console.log(`Successfully fetched ${devices.length} devices from GP51`);
-        return { success: true, devices };
-      }
 
-      return { success: false, error: response.cause || 'No devices returned from GP51' };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Device list fetch failed:', errorMessage);
-      return { success: false, error: errorMessage };
-    }
-  }
+        // Process devices with positions
+        for (const device of devices) {
+          stats.devicesProcessed++;
+          
+          try {
+            const position = positionMap.get(String(device.deviceid));
+            const vehicleData = {
+              device_id: String(device.deviceid),
+              device_name: device.devicename || `Device ${device.deviceid}`,
+              last_position: position ? sanitizeJSON(position) : {},
+              updated_at: new Date().toISOString(),
+              is_active: true
+            };
 
-  @withSyncLock('gp51-position-sync')
-  async fetchPositions(deviceIds: string[]): Promise<{ success: boolean; positions?: any[]; error?: string }> {
-    try {
-      if (!deviceIds || deviceIds.length === 0) {
-        return { success: false, error: 'No device IDs provided' };
-      }
-
-      const token = await this.getValidToken();
-      if (!token) {
-        return { success: false, error: 'No valid GP51 token available' };
-      }
-
-      const response = await this.makeGP51Request('lastposition', token, {
-        deviceids: deviceIds,
-        lastquerypositiontime: 0
-      });
-
-      if (response.status === 0 && response.records) {
-        // Validate each position record
-        const { valid: validPositions, invalid: invalidPositions } = validateBatch(
-          response.records,
-          validateGP51Position
-        );
-
-        if (invalidPositions.length > 0) {
-          console.warn(`${invalidPositions.length} invalid position records detected:`, invalidPositions);
-        }
-
-        console.log(`Successfully fetched ${validPositions.length} valid positions from GP51`);
-        return { success: true, positions: validPositions };
-      }
-
-      return { success: false, error: response.cause || 'No positions returned from GP51' };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Position fetch failed:', errorMessage);
-      return { success: false, error: errorMessage };
-    }
-  }
-
-  @withSyncLock('gp51-database-sync')
-  async syncToDatabase(devices: GP51Device[], positions: any[]): Promise<{ success: boolean; stats?: any; error?: string }> {
-    try {
-      const stats = {
-        devicesProcessed: 0,
-        devicesUpdated: 0,
-        devicesFailed: 0,
-        positionsProcessed: 0,
-        positionsUpdated: 0,
-        positionsFailed: 0,
-        errors: [] as string[]
-      };
-
-      // Create position lookup map
-      const positionMap = new Map();
-      positions.forEach(pos => {
-        if (pos.deviceid) {
-          positionMap.set(String(pos.deviceid), pos);
-        }
-      });
-
-      // Process devices with positions
-      for (const device of devices) {
-        stats.devicesProcessed++;
-        
-        try {
-          const position = positionMap.get(String(device.deviceid));
-          const vehicleData = {
-            device_id: String(device.deviceid),
-            device_name: device.devicename || `Device ${device.deviceid}`,
-            last_position: position ? sanitizeJSON(position) : {},
-            updated_at: new Date().toISOString(),
-            is_active: true
-          };
-
-          const validation = validateVehicleData(vehicleData);
-          if (!validation.valid) {
-            stats.devicesFailed++;
-            stats.errors.push(`Device ${device.deviceid}: ${validation.error}`);
-            continue;
-          }
-
-          const { error } = await supabase
-            .from('vehicles')
-            .upsert(validation.data, { 
-              onConflict: 'device_id',
-              ignoreDuplicates: false 
-            });
-
-          if (error) {
-            stats.devicesFailed++;
-            stats.errors.push(`Database error for device ${device.deviceid}: ${error.message}`);
-          } else {
-            stats.devicesUpdated++;
-            if (position) {
-              stats.positionsUpdated++;
+            const validation = validateVehicleData(vehicleData);
+            if (!validation.valid) {
+              stats.devicesFailed++;
+              stats.errors.push(`Device ${device.deviceid}: ${validation.error}`);
+              continue;
             }
-          }
-        } catch (error) {
-          stats.devicesFailed++;
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          stats.errors.push(`Exception for device ${device.deviceid}: ${errorMessage}`);
-        }
-      }
 
-      console.log('Database sync completed:', stats);
-      return { success: true, stats };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Database sync failed:', errorMessage);
-      return { success: false, error: errorMessage };
-    }
+            const { error } = await supabase
+              .from('vehicles')
+              .upsert(validation.data, { 
+                onConflict: 'device_id',
+                ignoreDuplicates: false 
+              });
+
+            if (error) {
+              stats.devicesFailed++;
+              stats.errors.push(`Database error for device ${device.deviceid}: ${error.message}`);
+            } else {
+              stats.devicesUpdated++;
+              if (position) {
+                stats.positionsUpdated++;
+              }
+            }
+          } catch (error) {
+            stats.devicesFailed++;
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            stats.errors.push(`Exception for device ${device.deviceid}: ${errorMessage}`);
+          }
+        }
+
+        console.log('Database sync completed:', stats);
+        return { success: true, stats };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('Database sync failed:', errorMessage);
+        return { success: false, error: errorMessage };
+      }
+    });
   }
 
   // Complete sync operation

@@ -68,25 +68,22 @@ class SyncMutex {
 
 export const syncMutex = new SyncMutex();
 
-// Decorator for sync operations
-export function withSyncLock(lockKey: string) {
-  return function (target: any, propertyName: string, descriptor: PropertyDescriptor) {
-    const method = descriptor.value;
+// Helper function to wrap methods with sync lock
+export async function withSyncLock<T>(
+  lockKey: string,
+  operation: () => Promise<T>
+): Promise<T | { success: false; error: string; skipped: true }> {
+  const acquired = await syncMutex.acquireLock(lockKey);
+  
+  if (!acquired) {
+    console.log(`Sync operation skipped - lock ${lockKey} already acquired`);
+    return { success: false, error: 'Sync already in progress', skipped: true };
+  }
 
-    descriptor.value = async function (...args: any[]) {
-      const acquired = await syncMutex.acquireLock(lockKey);
-      
-      if (!acquired) {
-        console.log(`Sync operation ${propertyName} skipped - lock ${lockKey} already acquired`);
-        return { success: false, error: 'Sync already in progress', skipped: true };
-      }
-
-      try {
-        const result = await method.apply(this, args);
-        return result;
-      } finally {
-        syncMutex.releaseLock(lockKey);
-      }
-    };
-  };
+  try {
+    const result = await operation();
+    return result;
+  } finally {
+    syncMutex.releaseLock(lockKey);
+  }
 }
