@@ -14,13 +14,13 @@ export async function getActiveGP51Sessions(): Promise<{ data: GP51Session[]; er
     return { data: [], error };
   }
 
-  // Direct mapping with explicit typing
-  const mappedData: GP51Session[] = (data || []).map((row: any) => ({
+  // Direct casting and mapping
+  const mappedData = (data as any[]).map(row => ({
     id: row.id,
     status: row.gp51_token ? 'active' : 'inactive',
     created_at: row.created_at,
     user_id: row.envio_user_id || ''
-  }));
+  })) as GP51Session[];
 
   return { data: mappedData, error: null };
 }
@@ -37,13 +37,13 @@ export async function getVehicleDataSample(): Promise<{ data: VehicleSample[]; e
     return { data: [], error };
   }
 
-  // Direct mapping with explicit typing
-  const mappedData: VehicleSample[] = (data || []).map((row: any) => ({
+  // Direct casting and mapping
+  const mappedData = (data as any[]).map(row => ({
     id: row.id,
     vehicle_id: row.device_id,
     sample_data: JSON.stringify(row.last_position || {}),
     recorded_at: row.updated_at
-  }));
+  })) as VehicleSample[];
 
   return { data: mappedData, error: null };
 }
@@ -61,13 +61,13 @@ export async function getRecentVehicleUpdates(since: string): Promise<{ data: Ve
     return { data: [], error };
   }
 
-  // Direct mapping with explicit typing
-  const mappedData: VehicleUpdate[] = (data || []).map((row: any) => ({
+  // Direct casting and mapping
+  const mappedData = (data as any[]).map(row => ({
     id: row.id,
     vehicle_id: row.device_id,
     update_details: `Updated: ${row.device_name || row.device_id}`,
     updated_at: row.updated_at
-  }));
+  })) as VehicleUpdate[];
 
   return { data: mappedData, error: null };
 }
@@ -91,13 +91,13 @@ export async function getGP51SessionToken(): Promise<{ data: Gp51Token | null; e
     return { data: null, error: null };
   }
 
-  // Direct mapping with explicit typing
-  const mappedData: Gp51Token = {
-    id: data.id,
-    token: data.gp51_token || '',
-    created_at: data.created_at,
-    expires_at: data.token_expires_at || ''
-  };
+  // Direct casting and mapping
+  const mappedData = {
+    id: (data as any).id,
+    token: (data as any).gp51_token || '',
+    created_at: (data as any).created_at,
+    expires_at: (data as any).token_expires_at || ''
+  } as Gp51Token;
 
   return { data: mappedData, error: null };
 }
