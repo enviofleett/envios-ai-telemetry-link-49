@@ -24,7 +24,13 @@ export const useMaintenanceAppointments = () => {
         console.error('Error fetching appointments:', error);
         return [];
       }
-      return data || [];
+      
+      // Type cast the data to ensure proper types
+      return (data || []).map(item => ({
+        ...item,
+        appointment_type: item.appointment_type as MaintenanceAppointment['appointment_type'],
+        appointment_status: item.appointment_status as MaintenanceAppointment['appointment_status']
+      }));
     } catch (error) {
       console.error('Error fetching appointments:', error);
       return [];
@@ -67,7 +73,12 @@ export const useMaintenanceAppointments = () => {
         title: "Appointment Created",
         description: "Your maintenance appointment has been scheduled"
       });
-      return data;
+      
+      return {
+        ...data,
+        appointment_type: data.appointment_type as MaintenanceAppointment['appointment_type'],
+        appointment_status: data.appointment_status as MaintenanceAppointment['appointment_status']
+      };
     } catch (error) {
       console.error('Error creating appointment:', error);
       toast({

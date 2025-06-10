@@ -20,7 +20,12 @@ export const useMaintenanceNotifications = () => {
         console.error('Error fetching notifications:', error);
         return [];
       }
-      return data || [];
+      
+      // Type cast the data to ensure proper types
+      return (data || []).map(item => ({
+        ...item,
+        notification_type: item.notification_type as MaintenanceNotification['notification_type']
+      }));
     } catch (error) {
       console.error('Error fetching notifications:', error);
       return [];

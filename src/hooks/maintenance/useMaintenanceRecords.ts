@@ -22,7 +22,13 @@ export const useMaintenanceRecords = () => {
         console.error('Error fetching maintenance history:', error);
         return [];
       }
-      return data || [];
+      
+      // Type cast the data to ensure proper types
+      return (data || []).map(item => ({
+        ...item,
+        status: item.status as MaintenanceRecord['status'],
+        parts_used: item.parts_used as any[] || []
+      }));
     } catch (error) {
       console.error('Error fetching maintenance history:', error);
       return [];
@@ -41,7 +47,12 @@ export const useMaintenanceRecords = () => {
         console.error('Error creating maintenance record:', error);
         return null;
       }
-      return data;
+      
+      return {
+        ...data,
+        status: data.status as MaintenanceRecord['status'],
+        parts_used: data.parts_used as any[] || []
+      };
     } catch (error) {
       console.error('Error creating maintenance record:', error);
       return null;

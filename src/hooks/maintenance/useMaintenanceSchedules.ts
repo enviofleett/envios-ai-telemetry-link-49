@@ -25,7 +25,13 @@ export const useMaintenanceSchedules = () => {
         console.error('Error fetching maintenance schedules:', error);
         return [];
       }
-      return data || [];
+      
+      // Type cast the data to ensure proper types
+      return (data || []).map(item => ({
+        ...item,
+        schedule_type: item.schedule_type as MaintenanceSchedule['schedule_type'],
+        interval_unit: item.interval_unit as MaintenanceSchedule['interval_unit']
+      }));
     } catch (error) {
       console.error('Error fetching maintenance schedules:', error);
       return [];
@@ -44,7 +50,12 @@ export const useMaintenanceSchedules = () => {
         console.error('Error creating maintenance schedule:', error);
         return null;
       }
-      return data;
+      
+      return {
+        ...data,
+        schedule_type: data.schedule_type as MaintenanceSchedule['schedule_type'],
+        interval_unit: data.interval_unit as MaintenanceSchedule['interval_unit']
+      };
     } catch (error) {
       console.error('Error creating maintenance schedule:', error);
       return null;
