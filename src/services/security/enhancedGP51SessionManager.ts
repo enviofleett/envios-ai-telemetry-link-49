@@ -20,6 +20,13 @@ export interface SessionValidationResult {
   actionRequired?: 'challenge' | 'reauth' | 'block';
 }
 
+export interface SessionHealth {
+  isHealthy: boolean;
+  riskLevel: 'low' | 'medium' | 'high';
+  lastValidated: Date | null;
+  issues: string[];
+}
+
 class EnhancedGP51SessionManager {
   private static instance: EnhancedGP51SessionManager;
   private currentSession: SecureGP51Session | null = null;
@@ -54,7 +61,7 @@ class EnhancedGP51SessionManager {
   private getWebGLInfo(): string {
     try {
       const canvas = document.createElement('canvas');
-      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl') as WebGLRenderingContext;
       if (!gl) return 'no-webgl';
       
       const renderer = gl.getParameter(gl.RENDERER);
@@ -221,6 +228,52 @@ class EnhancedGP51SessionManager {
       reasons,
       actionRequired
     };
+  }
+
+  async getSessionHealth(): Promise<SessionHealth> {
+    if (!this.currentSession) {
+      return {
+        isHealthy: false,
+        riskLevel: 'high',
+        lastValidated: null,
+        issues: ['No active session']
+      };
+    }
+
+    const validation = await this.validateCurrentSession();
+    
+    return {
+      isHealthy: validation.isValid,
+      riskLevel: validation.riskLevel,
+      lastValidated: this.currentSession.lastValidated,
+      issues: validation.reasons
+    };
+  }
+
+  async invalidateSession(): Promise<void> {
+    if (!this.currentSession) return;
+
+    try {
+      // Revoke session in database
+      await supabase
+        .from('secure_sessions')
+        .update({ 
+          is_active: false, 
+          revoked_at: new Date().toISOString(),
+          revoked_reason: 'Manual invalidation'
+        })
+        .eq('id', this.currentSession.id);
+
+      await this.logSecurityEvent('logout', 'Session manually invalidated', { 
+        sessionId: this.currentSession.id 
+      });
+
+      this.currentSession = null;
+      this.stopSessionValidation();
+      this.notifySubscribers();
+    } catch (error) {
+      console.error('Failed to invalidate session:', error);
+    }
   }
 
   async terminateSession(): Promise<void> {
