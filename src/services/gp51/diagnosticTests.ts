@@ -5,10 +5,12 @@ import { DiagnosticResult, GP51Session, VehicleData } from './types';
 export class GP51DiagnosticTests {
   async checkGP51Session(timestamp: string): Promise<DiagnosticResult> {
     try {
-      const { data: sessionData, error } = await supabase
+      const response = await supabase
         .from('gp51_sessions')
         .select('gp51_token, token_expires_at, username')
         .eq('is_active', true);
+
+      const { data: sessionData, error } = response as any;
 
       if (error) {
         return {
@@ -61,10 +63,12 @@ export class GP51DiagnosticTests {
 
   async checkVehicleDataIntegrity(timestamp: string): Promise<DiagnosticResult> {
     try {
-      const { data: vehicles, error: vehicleError } = await supabase
+      const response = await supabase
         .from('vehicles')
         .select('device_id, last_position, updated_at')
         .limit(10);
+
+      const { data: vehicles, error: vehicleError } = response as any;
 
       if (vehicleError) {
         return {
@@ -78,7 +82,7 @@ export class GP51DiagnosticTests {
       let corruptedCount = 0;
       let validCount = 0;
       
-      vehicles?.forEach(vehicle => {
+      vehicles?.forEach((vehicle: any) => {
         try {
           if (vehicle.last_position) {
             JSON.stringify(vehicle.last_position);
@@ -120,10 +124,12 @@ export class GP51DiagnosticTests {
     try {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
       
-      const { data: recentVehicles, error: recentError } = await supabase
+      const response = await supabase
         .from('vehicles')
         .select('device_id, updated_at')
         .gte('updated_at', oneHourAgo);
+
+      const { data: recentVehicles, error: recentError } = response as any;
 
       if (recentError) {
         return {
@@ -174,11 +180,13 @@ export class GP51DiagnosticTests {
     }
 
     try {
-      const { data: sessionData } = await supabase
+      const response = await supabase
         .from('gp51_sessions')
         .select('gp51_token')
         .eq('is_active', true)
         .single();
+
+      const { data: sessionData } = response as any;
 
       if (sessionData?.gp51_token) {
         const testResponse = await fetch('https://www.gps51.com/webapi?action=validate_token&token=' + sessionData.gp51_token, {
