@@ -106,7 +106,12 @@ const WorkshopPermissionsManager: React.FC<WorkshopPermissionsManagerProps> = ({
         assigned_by: item.assigned_by,
         assigned_at: item.assigned_at,
         is_active: item.is_active,
-        user: item.user && typeof item.user === 'object' && item.user !== null && 'name' in item.user && 'email' in item.user ? {
+        user: item.user && 
+              typeof item.user === 'object' && 
+              item.user !== null && 
+              item.user && 
+              'name' in item.user && 
+              'email' in item.user ? {
           name: (item.user as any).name as string,
           email: (item.user as any).email as string
         } : undefined
