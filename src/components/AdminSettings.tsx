@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Shield } from 'lucide-react';
 import AdminTabsList from './admin/AdminTabsList';
 import PackagesTab from './admin/tabs/PackagesTab';
@@ -37,21 +37,65 @@ const AdminSettings = () => {
         <Tabs defaultValue="packages" className="w-full">
           <AdminTabsList />
           
-          <PackagesTab />
-          <CSVImportTab />
-          <CompanyTab />
-          <BillingTab />
-          <UsersTab />
-          <WorkshopsTab />
-          <NotificationsTab />
-          <GP51IntegrationTab />
-          <HealthTab />
-          <MapsTab />
-          <AnalyticsTab />
-          <GeofencingTab />
-          <SMTPGuideTab />
-          <SMTPTab />
-          <GP51ValidationTab />
+          <TabsContent value="packages">
+            <PackagesTab />
+          </TabsContent>
+          
+          <TabsContent value="csv-import">
+            <CSVImportTab />
+          </TabsContent>
+          
+          <TabsContent value="company">
+            <CompanyTab />
+          </TabsContent>
+          
+          <TabsContent value="billing">
+            <BillingTab />
+          </TabsContent>
+          
+          <TabsContent value="users">
+            <UsersTab />
+          </TabsContent>
+          
+          <TabsContent value="workshops">
+            <WorkshopsTab />
+          </TabsContent>
+          
+          <TabsContent value="notifications">
+            <NotificationsTab />
+          </TabsContent>
+          
+          <TabsContent value="gp51-integration">
+            <GP51IntegrationTab />
+          </TabsContent>
+          
+          <TabsContent value="health">
+            <HealthTab />
+          </TabsContent>
+          
+          <TabsContent value="maps">
+            <MapsTab />
+          </TabsContent>
+          
+          <TabsContent value="analytics">
+            <AnalyticsTab />
+          </TabsContent>
+          
+          <TabsContent value="geofencing">
+            <GeofencingTab />
+          </TabsContent>
+          
+          <TabsContent value="smtp-guide">
+            <SMTPGuideTab />
+          </TabsContent>
+          
+          <TabsContent value="smtp">
+            <SMTPTab />
+          </TabsContent>
+          
+          <TabsContent value="gp51-validation">
+            <GP51ValidationTab />
+          </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
