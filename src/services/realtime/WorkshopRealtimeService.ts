@@ -21,21 +21,12 @@ export class WorkshopRealtimeService {
     if (!this.channels.has(channelName)) {
       const channel = supabase
         .channel(channelName)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'workshop_activity_logs',
-            filter: `workshop_id=eq.${workshopId}`
-          },
-          (payload) => {
-            const subscribers = this.subscribers.get(channelName);
-            if (subscribers) {
-              subscribers.forEach(callback => callback(payload.new));
-            }
+        .on('broadcast', { event: 'workshop_activity' }, (payload) => {
+          const subscribers = this.subscribers.get(channelName);
+          if (subscribers) {
+            subscribers.forEach(callback => callback(payload.payload));
           }
-        )
+        })
         .subscribe();
 
       this.channels.set(channelName, channel);
@@ -64,21 +55,12 @@ export class WorkshopRealtimeService {
     if (!this.channels.has(channelName)) {
       const channel = supabase
         .channel(channelName)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'inspection_form_templates',
-            filter: `workshop_id=eq.${workshopId}`
-          },
-          (payload) => {
-            const subscribers = this.subscribers.get(channelName);
-            if (subscribers) {
-              subscribers.forEach(callback => callback(payload));
-            }
+        .on('broadcast', { event: 'template_change' }, (payload) => {
+          const subscribers = this.subscribers.get(channelName);
+          if (subscribers) {
+            subscribers.forEach(callback => callback(payload.payload));
           }
-        )
+        })
         .subscribe();
 
       this.channels.set(channelName, channel);
@@ -103,16 +85,32 @@ export class WorkshopRealtimeService {
 
   async logActivity(activity: WorkshopActivityData): Promise<void> {
     try {
-      // Direct insert without using the function that doesn't exist in types
+      // Use broadcast to send activity to subscribers
+      const channel = supabase.channel(`workshop_activity_${activity.workshopId}`);
+      
+      await channel.send({
+        type: 'broadcast',
+        event: 'workshop_activity',
+        payload: {
+          ...activity,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      // Also store in application_errors table as a temporary solution
       const { error } = await supabase
-        .from('workshop_activity_logs')
+        .from('application_errors')
         .insert({
-          workshop_id: activity.workshopId,
+          error_type: 'workshop_activity',
+          error_message: activity.activityType,
+          error_context: {
+            workshopId: activity.workshopId,
+            entityType: activity.entityType,
+            entityId: activity.entityId,
+            activityData: activity.activityData
+          },
           user_id: activity.userId,
-          activity_type: activity.activityType,
-          entity_type: activity.entityType,
-          entity_id: activity.entityId,
-          activity_data: activity.activityData
+          severity: 'low'
         });
 
       if (error) throw error;

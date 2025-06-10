@@ -23,24 +23,24 @@ export class WorkshopPermissionService {
     workshopId?: string
   ): Promise<PermissionCheck> {
     try {
-      // Get user's permissions - simplified query to avoid type issues
-      const { data: userPermissions, error } = await supabase
-        .from('workshop_permissions')
+      // Get user from workshop_users table
+      const { data: user, error } = await supabase
+        .from('workshop_users')
         .select('permissions, role, is_active')
-        .eq('workshop_user_id', workshopUserId)
+        .eq('id', workshopUserId)
         .eq('is_active', true)
         .single();
 
-      if (error || !userPermissions) {
+      if (error || !user) {
         return {
           hasPermission: false,
-          reason: 'No active permissions found'
+          reason: 'No active user found'
         };
       }
 
-      // Check if permission is explicitly granted
-      const permissions = Array.isArray(userPermissions.permissions) 
-        ? userPermissions.permissions 
+      // Convert permissions to string array safely
+      const permissions = Array.isArray(user.permissions) 
+        ? user.permissions.map(p => String(p))
         : [];
         
       if (permissions.includes(permission)) {
@@ -48,14 +48,14 @@ export class WorkshopPermissionService {
       }
 
       // Check role-based permissions
-      const rolePermissions = this.getRolePermissions(userPermissions.role);
+      const rolePermissions = this.getRolePermissions(user.role);
       if (rolePermissions.includes(permission)) {
         return { hasPermission: true };
       }
 
       return {
         hasPermission: false,
-        reason: `Permission '${permission}' not granted for role '${userPermissions.role}'`
+        reason: `Permission '${permission}' not granted for role '${user.role}'`
       };
     } catch (error) {
       console.error('Permission check failed:', error);
@@ -68,17 +68,15 @@ export class WorkshopPermissionService {
 
   static async grantPermissions(grant: PermissionGrant, grantedBy: string): Promise<boolean> {
     try {
+      // For now, update the workshop_users table directly
       const { error } = await supabase
-        .from('workshop_permissions')
-        .insert({
-          workshop_id: grant.workshopId,
-          user_id: grant.userId,
-          workshop_user_id: grant.workshopUserId,
+        .from('workshop_users')
+        .update({
           role: grant.role,
           permissions: grant.permissions,
-          granted_by: grantedBy,
-          expires_at: grant.expiresAt
-        });
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', grant.workshopUserId);
 
       if (error) throw error;
       return true;
@@ -91,12 +89,12 @@ export class WorkshopPermissionService {
   static async revokePermissions(workshopUserId: string, revokedBy: string): Promise<boolean> {
     try {
       const { error } = await supabase
-        .from('workshop_permissions')
+        .from('workshop_users')
         .update({
           is_active: false,
           updated_at: new Date().toISOString()
         })
-        .eq('workshop_user_id', workshopUserId);
+        .eq('id', workshopUserId);
 
       if (error) throw error;
       return true;
@@ -139,16 +137,18 @@ export class WorkshopPermissionService {
   static async getUserPermissions(workshopUserId: string): Promise<string[]> {
     try {
       const { data, error } = await supabase
-        .from('workshop_permissions')
+        .from('workshop_users')
         .select('permissions, role')
-        .eq('workshop_user_id', workshopUserId)
+        .eq('id', workshopUserId)
         .eq('is_active', true)
         .single();
 
       if (error || !data) return [];
 
       const rolePermissions = this.getRolePermissions(data.role);
-      const explicitPermissions = Array.isArray(data.permissions) ? data.permissions : [];
+      const explicitPermissions = Array.isArray(data.permissions) 
+        ? data.permissions.map(p => String(p))
+        : [];
 
       return [...new Set([...rolePermissions, ...explicitPermissions])];
     } catch (error) {

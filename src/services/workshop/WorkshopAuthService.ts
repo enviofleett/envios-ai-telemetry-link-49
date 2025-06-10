@@ -60,18 +60,18 @@ export class WorkshopAuthService {
       // Hash the password
       const { hash, salt } = await this.hashPassword(userData.password);
 
-      // Create workshop user with raw SQL query since the table structure might not be in types
-      const { data: user, error } = await supabase.rpc('exec_sql', {
-        query: `
-          INSERT INTO workshop_users (
-            workshop_id, email, name, role, permissions, 
-            password_hash, password_salt, email_verified
-          ) 
-          VALUES ($1, $2, $3, $4, $5, $6, $7, false)
-          RETURNING *
-        `,
-        params: [userData.workshopId, userData.email, userData.name, userData.role, JSON.stringify(userData.permissions), hash, salt]
-      });
+      // Create workshop user with direct insert
+      const { data: user, error } = await supabase
+        .from('workshop_users')
+        .insert({
+          workshop_id: userData.workshopId,
+          email: userData.email,
+          name: userData.name,
+          role: userData.role,
+          permissions: userData.permissions
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -82,7 +82,7 @@ export class WorkshopAuthService {
 
       return {
         success: true,
-        user: user?.[0],
+        user,
         requiresEmailVerification: true
       };
     } catch (error: any) {
