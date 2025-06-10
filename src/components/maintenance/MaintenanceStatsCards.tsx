@@ -1,77 +1,74 @@
 
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, Clock, CheckCircle, DollarSign } from 'lucide-react';
-import useMaintenance from '@/hooks/useMaintenance';
-
-interface MaintenanceStats {
-  upcomingAppointments: number;
-  pendingMaintenance: number;
-  completedThisMonth: number;
-  totalSpent: number;
-}
+import { Calendar, AlertTriangle, CheckCircle, DollarSign } from 'lucide-react';
+import { useMaintenanceStats } from '@/hooks/maintenance/useMaintenanceStats';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 const MaintenanceStatsCards: React.FC = () => {
-  const { getMaintenanceStats } = useMaintenance();
-  const [stats, setStats] = useState<MaintenanceStats>({
+  const { getMaintenanceStats } = useMaintenanceStats();
+  const [stats, setStats] = useState({
     upcomingAppointments: 0,
     pendingMaintenance: 0,
     completedThisMonth: 0,
     totalSpent: 0
   });
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadStats = async () => {
-      setLoading(true);
-      const statsData = await getMaintenanceStats();
-      setStats(statsData);
-      setLoading(false);
+    const fetchStats = async () => {
+      try {
+        const data = await getMaintenanceStats();
+        setStats(data);
+      } catch (error) {
+        console.error('Failed to fetch maintenance stats:', error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
-    loadStats();
-  }, []);
+    fetchStats();
+  }, [getMaintenanceStats]);
 
   const statsCards = [
     {
       title: 'Upcoming Appointments',
-      value: stats.upcomingAppointments.toString(),
+      value: stats.upcomingAppointments,
+      description: 'Scheduled maintenance appointments',
       icon: Calendar,
-      color: 'text-blue-600',
-      description: 'Scheduled maintenance visits'
+      color: 'text-blue-600'
     },
     {
       title: 'Pending Maintenance',
-      value: stats.pendingMaintenance.toString(),
-      icon: Clock,
-      color: 'text-orange-600',
-      description: 'Overdue or upcoming service'
+      value: stats.pendingMaintenance,
+      description: 'Items requiring attention',
+      icon: AlertTriangle,
+      color: 'text-yellow-600'
     },
     {
       title: 'Completed This Month',
-      value: stats.completedThisMonth.toString(),
+      value: stats.completedThisMonth,
+      description: 'Maintenance tasks completed',
       icon: CheckCircle,
-      color: 'text-green-600',
-      description: 'Services completed in current month'
+      color: 'text-green-600'
     },
     {
       title: 'Total Spent',
       value: `$${stats.totalSpent.toFixed(2)}`,
+      description: 'Monthly maintenance costs',
       icon: DollarSign,
-      color: 'text-purple-600',
-      description: 'Maintenance costs this month'
+      color: 'text-purple-600'
     }
   ];
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, index) => (
-          <Card key={index}>
+        {[...Array(4)].map((_, i) => (
+          <Card key={i}>
             <CardContent className="p-6">
-              <div className="animate-pulse">
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+              <div className="flex justify-center">
+                <LoadingSpinner />
               </div>
             </CardContent>
           </Card>

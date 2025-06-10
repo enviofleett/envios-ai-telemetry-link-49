@@ -1,9 +1,9 @@
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Search, MapPin, Building } from 'lucide-react';
 
 interface WorkshopSearchFiltersProps {
   searchCity: string;
@@ -24,28 +24,35 @@ const WorkshopSearchFilters: React.FC<WorkshopSearchFiltersProps> = ({
 }) => {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Search Workshops</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="flex gap-4">
-          <div className="flex-1">
+      <CardContent className="pt-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1">
+            <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Search by city..."
               value={searchCity}
               onChange={(e) => onCityChange(e.target.value)}
+              className="pl-10"
             />
           </div>
-          <div className="flex-1">
+          
+          <div className="relative flex-1">
+            <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               placeholder="Search by country..."
               value={searchCountry}
               onChange={(e) => onCountryChange(e.target.value)}
+              className="pl-10"
             />
           </div>
-          <Button onClick={onSearch} disabled={isLoading}>
+          
+          <Button 
+            onClick={onSearch} 
+            disabled={isLoading}
+            className="md:w-auto w-full"
+          >
             <Search className="h-4 w-4 mr-2" />
-            Search
+            {isLoading ? 'Searching...' : 'Search'}
           </Button>
         </div>
       </CardContent>
