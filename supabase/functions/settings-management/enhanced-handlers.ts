@@ -40,7 +40,7 @@ export async function handleSaveCredentialsWithVehicleImport({
         error: 'GP51 authentication failed',
         details: authError instanceof Error ? authError.message : 'Authentication service error',
         code: 'GP51_AUTH_EXCEPTION'
-      }, 400);
+      }, 401);
     }
 
     if (!authResult || !authResult.success) {
@@ -52,7 +52,7 @@ export async function handleSaveCredentialsWithVehicleImport({
         error: 'GP51 authentication failed',
         details: authResult?.error || 'Invalid credentials or server error',
         code: 'GP51_AUTH_FAILED'
-      }, 400);
+      }, 401);
     }
 
     console.log('✅ GP51 authentication successful');
@@ -100,16 +100,27 @@ export async function handleSaveCredentialsWithVehicleImport({
 
       if (queryError) {
         console.error('❌ Failed to query existing sessions:', queryError);
-        throw new Error(`Database query failed: ${queryError.message}`);
+        return createResponse({
+          success: false,
+          error: 'Database query failed',
+          details: queryError.message,
+          code: 'DB_QUERY_FAILED'
+        }, 500);
       }
 
+      // Use correct column names that match the database schema
       const sessionData = {
         gp51_token: authResult.token,
-        gp51_username: authResult.username,
+        username: authResult.username, // Fixed: was gp51_username
         api_url: authResult.apiUrl,
-        expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // 4 hours
+        token_expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // Fixed: was expires_at
         updated_at: new Date().toISOString()
       };
+
+      console.log('💾 Saving session with data:', { 
+        ...sessionData, 
+        gp51_token: '[REDACTED]' 
+      });
 
       if (existingSessions && existingSessions.length > 0) {
         // Update existing session
@@ -121,7 +132,12 @@ export async function handleSaveCredentialsWithVehicleImport({
 
         if (updateError) {
           console.error('❌ Failed to update GP51 session:', updateError);
-          throw new Error(`Database update failed: ${updateError.message}`);
+          return createResponse({
+            success: false,
+            error: 'Failed to update GP51 session',
+            details: updateError.message,
+            code: 'DB_UPDATE_FAILED'
+          }, 500);
         }
       } else {
         // Create new session
@@ -135,9 +151,48 @@ export async function handleSaveCredentialsWithVehicleImport({
 
         if (insertError) {
           console.error('❌ Failed to create GP51 session:', insertError);
-          throw new Error(`Database insert failed: ${insertError.message}`);
+          return createResponse({
+            success: false,
+            error: 'Failed to create GP51 session',
+            details: insertError.message,
+            code: 'DB_INSERT_FAILED'
+          }, 500);
         }
       }
+
+      // Verify the session was actually saved
+      console.log('🔍 Verifying GP51 session was saved...');
+      const { data: verificationSessions, error: verificationError } = await supabase
+        .from('gp51_sessions')
+        .select('id, username, token_expires_at')
+        .eq('envio_user_id', userId)
+        .limit(1);
+
+      if (verificationError) {
+        console.error('❌ Failed to verify session save:', verificationError);
+        return createResponse({
+          success: false,
+          error: 'Failed to verify session creation',
+          details: verificationError.message,
+          code: 'DB_VERIFICATION_FAILED'
+        }, 500);
+      }
+
+      if (!verificationSessions || verificationSessions.length === 0) {
+        console.error('❌ GP51 session not found after save operation');
+        return createResponse({
+          success: false,
+          error: 'GP51 session not created after saving credentials',
+          details: 'Session verification failed - no session found in database',
+          code: 'SESSION_CREATION_FAILED'
+        }, 500);
+      }
+
+      console.log('✅ GP51 session verified successfully:', {
+        sessionId: verificationSessions[0].id,
+        username: verificationSessions[0].username,
+        expiresAt: verificationSessions[0].token_expires_at
+      });
 
       console.log('✅ GP51 credentials saved successfully');
 
@@ -145,7 +200,8 @@ export async function handleSaveCredentialsWithVehicleImport({
         success: true,
         message: 'GP51 credentials saved and connection established',
         username: authResult.username,
-        apiUrl: authResult.apiUrl
+        apiUrl: authResult.apiUrl,
+        sessionVerified: true
       });
 
     } catch (dbError) {

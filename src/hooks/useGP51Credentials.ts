@@ -82,7 +82,7 @@ export const useGP51Credentials = () => {
           throw new Error(error.message || 'Edge function call failed');
         }
         
-        // Check the response success flag
+        // Check the response success flag - this is the critical fix
         if (!data || data.success === false) {
           console.error('❌ GP51 save operation failed:', data);
           
@@ -95,7 +95,7 @@ export const useGP51Credentials = () => {
             throw new Error('GP51 authentication failed: Invalid username or password');
           } else if (errorCode === 'GP51_AUTH_EXCEPTION') {
             throw new Error('GP51 service error: Unable to connect to GP51 servers');
-          } else if (errorCode === 'DB_CONNECTION_FAILED' || errorCode === 'DB_SAVE_FAILED') {
+          } else if (errorCode === 'DB_CONNECTION_FAILED' || errorCode === 'DB_SAVE_FAILED' || errorCode === 'SESSION_CREATION_FAILED') {
             throw new Error('Database error: Unable to save credentials. Please try again.');
           } else if (errorCode === 'AUTH_REQUIRED' || errorCode === 'AUTH_INVALID') {
             throw new Error('Authentication required: Please refresh the page and log in again');
@@ -123,7 +123,7 @@ export const useGP51Credentials = () => {
       console.log('🎉 GP51 credentials save mutation succeeded');
       
       // Notify status coordinator of successful save
-      const responseData = data as { message?: string; success?: boolean; testOnly?: boolean; username?: string };
+      const responseData = data as { message?: string; success?: boolean; testOnly?: boolean; username?: string; sessionVerified?: boolean };
       gp51StatusCoordinator.reportSaveSuccess(responseData?.username);
       
       // Clear form fields
@@ -136,9 +136,14 @@ export const useGP51Credentials = () => {
         ? 'GP51 connection test successful!' 
         : responseData?.message || 'Successfully connected to GP51! Session will be used for vehicle data synchronization.';
         
+      // Add session verification confirmation to success message
+      const successMessage = responseData?.sessionVerified 
+        ? `${message} Session verified and saved to database.`
+        : message;
+        
       toast({ 
         title: responseData?.testOnly ? 'Connection Test Successful' : 'GP51 Credentials Saved',
-        description: message
+        description: successMessage
       });
 
       // Invalidate queries after a delay to prevent conflicts
