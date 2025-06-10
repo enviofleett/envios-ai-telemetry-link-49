@@ -4,59 +4,106 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider } from "./contexts/AuthContext";
+import { navItems } from "./nav-items";
+import Login from "./pages/Login";
 import Index from "./pages/Index";
-import Dashboard from "./pages/Dashboard";
-import Reports from "./pages/Reports";
+import EnhancedLiveTracking from "./pages/EnhancedLiveTracking";
+import LiveTracking from "./pages/LiveTracking";
 import Settings from "./pages/Settings";
-import UserManagement from "./pages/UserManagement";
+import ActiveServices from "./pages/ActiveServices";
+import Maintenance from "./pages/Maintenance";
 import WorkshopManagement from "./pages/WorkshopManagement";
-import WorkshopAnalytics from "./pages/WorkshopAnalytics";
-import VehicleManagement from "./pages/VehicleManagement";
-import Marketplace from "./pages/Marketplace";
-import PackageManagement from "./pages/PackageManagement";
-import SystemImport from "./pages/SystemImport";
-import DeviceConfiguration from "./pages/DeviceConfiguration";
-import Auth from "./pages/Auth";
+import ProtectedRoute from "./components/ProtectedRoute";
+import NotFound from "./pages/NotFound";
+import { useState } from "react";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      retry: 1,
-      refetchOnWindowFocus: false,
+const App = () => {
+  // Create QueryClient inside component to avoid hook issues
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        retry: 1,
+      },
     },
-  },
-});
+  }));
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <AuthProvider>
+  return (
+    <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/vehicles" element={<VehicleManagement />} />
-            <Route path="/vehicle-management" element={<VehicleManagement />} />
-            <Route path="/users" element={<UserManagement />} />
-            <Route path="/user-management" element={<UserManagement />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/marketplace" element={<Marketplace />} />
-            <Route path="/packages" element={<PackageManagement />} />
-            <Route path="/system-import" element={<SystemImport />} />
-            <Route path="/device-configuration" element={<DeviceConfiguration />} />
-            <Route path="/workshop-management" element={<WorkshopManagement />} />
-            <Route path="/workshop-analytics" element={<WorkshopAnalytics />} />
-          </Routes>
-        </BrowserRouter>
+        <AuthProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              
+              {/* Main dashboard route */}
+              <Route path="/" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
+              
+              {/* Settings route */}
+              <Route path="/settings" element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              } />
+              
+              {/* Active Services route */}
+              <Route path="/services" element={
+                <ProtectedRoute>
+                  <ActiveServices />
+                </ProtectedRoute>
+              } />
+              
+              {/* Maintenance route */}
+              <Route path="/maintenance" element={
+                <ProtectedRoute>
+                  <Maintenance />
+                </ProtectedRoute>
+              } />
+              
+              {/* Workshop Management route */}
+              <Route path="/workshop-management" element={
+                <ProtectedRoute>
+                  <WorkshopManagement />
+                </ProtectedRoute>
+              } />
+              
+              {/* Tracking routes */}
+              <Route path="/tracking" element={
+                <ProtectedRoute>
+                  <LiveTracking />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/enhanced-tracking" element={
+                <ProtectedRoute>
+                  <EnhancedLiveTracking />
+                </ProtectedRoute>
+              } />
+              
+              {/* Dynamic routes from nav-items */}
+              {navItems.map(({ to, page }) => (
+                <Route key={to} path={to} element={
+                  <ProtectedRoute>
+                    {page}
+                  </ProtectedRoute>
+                } />
+              ))}
+              
+              {/* Catch all route for 404 */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </AuthProvider>
       </TooltipProvider>
-    </AuthProvider>
-  </QueryClientProvider>
-);
+    </QueryClientProvider>
+  );
+};
 
 export default App;
