@@ -103,6 +103,7 @@ export class WorkshopRealtimeService {
 
   async logActivity(activity: WorkshopActivityData): Promise<void> {
     try {
+      // Direct insert without using the function that doesn't exist in types
       const { error } = await supabase
         .from('workshop_activity_logs')
         .insert({

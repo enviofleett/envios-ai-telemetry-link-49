@@ -258,7 +258,7 @@ const WorkshopDashboard: React.FC<WorkshopDashboardProps> = ({
                         {template.is_default && (
                           <Badge variant="default">Default</Badge>
                         )}
-                        <Badge variant={template.is_active ? "success" : "secondary"}>
+                        <Badge variant={template.is_active ? "default" : "secondary"}>
                           {template.is_active ? 'Active' : 'Inactive'}
                         </Badge>
                       </div>
