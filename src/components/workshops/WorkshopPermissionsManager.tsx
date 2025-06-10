@@ -97,7 +97,7 @@ const WorkshopPermissionsManager: React.FC<WorkshopPermissionsManagerProps> = ({
 
       if (error) throw error;
       
-      // Transform the data to match our interface
+      // Transform the data to match our interface with proper null checking
       return data?.map(item => ({
         id: item.id,
         workshop_id: item.workshop_id,
@@ -107,9 +107,9 @@ const WorkshopPermissionsManager: React.FC<WorkshopPermissionsManagerProps> = ({
         assigned_by: item.assigned_by,
         assigned_at: item.assigned_at,
         is_active: item.is_active,
-        user: item.user && typeof item.user === 'object' && 'name' in item.user ? {
-          name: item.user.name as string,
-          email: item.user.email as string
+        user: item.user && typeof item.user === 'object' && item.user !== null && 'name' in item.user ? {
+          name: (item.user as any).name as string,
+          email: (item.user as any).email as string
         } : undefined
       })) as WorkshopPermission[];
     }
@@ -310,8 +310,8 @@ const WorkshopPermissionsManager: React.FC<WorkshopPermissionsManagerProps> = ({
                         <IconComponent className="h-4 w-4" />
                       </div>
                       <div>
-                        <div className="font-medium">{permission.user?.name}</div>
-                        <div className="text-sm text-muted-foreground">{permission.user?.email}</div>
+                        <div className="font-medium">{permission.user?.name || 'Unknown User'}</div>
+                        <div className="text-sm text-muted-foreground">{permission.user?.email || 'No email'}</div>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge className={role.color}>{role.label}</Badge>
                           <span className="text-xs text-muted-foreground">
