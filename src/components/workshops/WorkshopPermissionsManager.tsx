@@ -82,7 +82,19 @@ const WorkshopPermissionsManager: React.FC<WorkshopPermissionsManagerProps> = ({
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setUsers(data || []);
+      
+      // Cast the database data to match our interface types
+      const typedUsers: WorkshopUser[] = (data || []).map(user => ({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: (user.role as 'owner' | 'manager' | 'technician' | 'inspector') || 'inspector',
+        permissions: Array.isArray(user.permissions) ? user.permissions : [],
+        is_active: user.is_active,
+        created_at: user.created_at
+      }));
+      
+      setUsers(typedUsers);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -135,7 +147,18 @@ const WorkshopPermissionsManager: React.FC<WorkshopPermissionsManagerProps> = ({
 
       if (error) throw error;
 
-      setUsers([data, ...users]);
+      // Cast the returned data to match our interface
+      const typedUser: WorkshopUser = {
+        id: data.id,
+        email: data.email,
+        name: data.name,
+        role: (data.role as 'owner' | 'manager' | 'technician' | 'inspector') || 'inspector',
+        permissions: Array.isArray(data.permissions) ? data.permissions : [],
+        is_active: data.is_active,
+        created_at: data.created_at
+      };
+
+      setUsers([typedUser, ...users]);
       setNewUser({ email: '', name: '', role: 'inspector', permissions: [] });
       setIsAddingUser(false);
 

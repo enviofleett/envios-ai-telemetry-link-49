@@ -102,7 +102,21 @@ const InspectionEngine: React.FC<InspectionEngineProps> = ({
       if (error) throw error;
 
       if (existingItems && existingItems.length > 0) {
-        setChecklistItems(existingItems);
+        // Cast the database data to match our interface types
+        const typedItems: ChecklistItem[] = existingItems.map(item => ({
+          id: item.id,
+          category: item.category,
+          item_name: item.item_name,
+          item_description: item.item_description,
+          is_required: item.is_required,
+          check_status: (item.check_status as 'pending' | 'pass' | 'fail' | 'n/a') || 'pending',
+          score: item.score,
+          inspector_notes: item.inspector_notes,
+          severity_level: (item.severity_level as 'low' | 'medium' | 'high' | 'critical') || undefined,
+          requires_repair: item.requires_repair,
+          estimated_repair_cost: item.estimated_repair_cost
+        }));
+        setChecklistItems(typedItems);
       } else {
         // Create default checklist items
         const defaultItems: ChecklistItem[] = DEFAULT_CHECKLIST_ITEMS.map((item, index) => ({
