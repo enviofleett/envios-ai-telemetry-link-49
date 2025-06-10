@@ -30,7 +30,7 @@ export const useMaintenance = () => {
         console.error('Error fetching service plans:', error);
         return [];
       }
-      return (data as MaintenanceServicePlan[]) || [];
+      return (data as unknown as MaintenanceServicePlan[]) || [];
     } catch (error) {
       console.error('Error fetching service plans:', error);
       return [];
@@ -52,7 +52,7 @@ export const useMaintenance = () => {
         console.error('Error fetching appointments:', error);
         return [];
       }
-      return (data as MaintenanceAppointment[]) || [];
+      return (data as unknown as MaintenanceAppointment[]) || [];
     } catch (error) {
       console.error('Error fetching appointments:', error);
       return [];
@@ -95,7 +95,7 @@ export const useMaintenance = () => {
         title: "Appointment Created",
         description: "Your maintenance appointment has been scheduled"
       });
-      return data as MaintenanceAppointment;
+      return data as unknown as MaintenanceAppointment;
     } catch (error) {
       console.error('Error creating appointment:', error);
       toast({
@@ -147,7 +147,7 @@ export const useMaintenance = () => {
         console.error('Error fetching maintenance history:', error);
         return [];
       }
-      return (data as MaintenanceRecord[]) || [];
+      return (data as unknown as MaintenanceRecord[]) || [];
     } catch (error) {
       console.error('Error fetching maintenance history:', error);
       return [];
@@ -174,7 +174,7 @@ export const useMaintenance = () => {
         console.error('Error fetching maintenance schedules:', error);
         return [];
       }
-      return (data as MaintenanceSchedule[]) || [];
+      return (data as unknown as MaintenanceSchedule[]) || [];
     } catch (error) {
       console.error('Error fetching maintenance schedules:', error);
       return [];
@@ -196,7 +196,7 @@ export const useMaintenance = () => {
         console.error('Error fetching notifications:', error);
         return [];
       }
-      return (data as MaintenanceNotification[]) || [];
+      return (data as unknown as MaintenanceNotification[]) || [];
     } catch (error) {
       console.error('Error fetching notifications:', error);
       return [];
