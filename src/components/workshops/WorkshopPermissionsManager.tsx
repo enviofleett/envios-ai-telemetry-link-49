@@ -1,276 +1,198 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Users, UserPlus, Settings, Shield, Eye, Wrench } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { 
+  Users, 
+  UserPlus, 
+  Shield, 
+  Settings, 
+  Eye,
+  Edit,
+  Trash2,
+  CheckCircle,
+  XCircle
+} from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
-interface WorkshopPermission {
+interface WorkshopUser {
   id: string;
-  workshop_id: string;
-  user_id: string;
+  email: string;
+  name: string;
   role: 'owner' | 'manager' | 'technician' | 'inspector';
   permissions: string[];
-  assigned_by: string;
-  assigned_at: string;
   is_active: boolean;
-  user?: {
-    name: string;
-    email: string;
-  };
+  created_at: string;
 }
 
 interface WorkshopPermissionsManagerProps {
   workshopId: string;
 }
 
+const AVAILABLE_PERMISSIONS = [
+  { id: 'manage_staff', label: 'Manage Staff', description: 'Add, edit, and remove staff members' },
+  { id: 'manage_settings', label: 'Manage Settings', description: 'Update workshop settings and configuration' },
+  { id: 'view_transactions', label: 'View Transactions', description: 'Access financial transactions and reports' },
+  { id: 'manage_inspections', label: 'Manage Inspections', description: 'Create and schedule inspections' },
+  { id: 'assign_inspectors', label: 'Assign Inspectors', description: 'Assign inspectors to vehicles and tasks' },
+  { id: 'view_inspections', label: 'View Inspections', description: 'View inspection reports and data' },
+  { id: 'conduct_inspections', label: 'Conduct Inspections', description: 'Perform vehicle inspections' },
+  { id: 'update_inspections', label: 'Update Inspections', description: 'Edit inspection details' },
+  { id: 'update_inspection_results', label: 'Update Results', description: 'Modify inspection results and scores' }
+];
+
+const ROLE_DEFAULTS = {
+  owner: ['manage_staff', 'manage_settings', 'view_transactions', 'manage_inspections', 'assign_inspectors', 'view_inspections'],
+  manager: ['manage_inspections', 'assign_inspectors', 'view_inspections', 'view_transactions'],
+  technician: ['conduct_inspections', 'update_inspections', 'view_inspections'],
+  inspector: ['conduct_inspections', 'view_inspections', 'update_inspection_results']
+};
+
 const WorkshopPermissionsManager: React.FC<WorkshopPermissionsManagerProps> = ({
   workshopId
 }) => {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [showAddUser, setShowAddUser] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<WorkshopPermission | null>(null);
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [newUserRole, setNewUserRole] = useState<'manager' | 'technician' | 'inspector'>('technician');
-  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [users, setUsers] = useState<WorkshopUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAddingUser, setIsAddingUser] = useState(false);
+  const [newUser, setNewUser] = useState({
+    email: '',
+    name: '',
+    role: 'inspector' as WorkshopUser['role'],
+    permissions: [] as string[]
+  });
 
-  const roleConfig = {
-    owner: {
-      label: 'Owner',
-      icon: Shield,
-      color: 'bg-red-100 text-red-800',
-      defaultPermissions: ['manage_staff', 'manage_settings', 'view_transactions', 'manage_inspections', 'assign_inspectors']
-    },
-    manager: {
-      label: 'Manager', 
-      icon: Settings,
-      color: 'bg-blue-100 text-blue-800',
-      defaultPermissions: ['manage_staff', 'view_transactions', 'manage_inspections', 'assign_inspectors']
-    },
-    technician: {
-      label: 'Technician',
-      icon: Wrench,
-      color: 'bg-green-100 text-green-800',
-      defaultPermissions: ['view_inspections', 'update_inspections']
-    },
-    inspector: {
-      label: 'Inspector',
-      icon: Eye,
-      color: 'bg-purple-100 text-purple-800',
-      defaultPermissions: ['view_inspections', 'conduct_inspections', 'update_inspection_results']
+  useEffect(() => {
+    loadWorkshopUsers();
+  }, [workshopId]);
+
+  const loadWorkshopUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('workshop_users')
+        .select('*')
+        .eq('workshop_id', workshopId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setUsers(data || []);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to load workshop users",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const allPermissions = [
-    { id: 'manage_staff', label: 'Manage Staff', description: 'Add, remove, and modify staff permissions' },
-    { id: 'manage_settings', label: 'Manage Settings', description: 'Modify workshop settings and configuration' },
-    { id: 'view_transactions', label: 'View Transactions', description: 'Access financial transactions and payments' },
-    { id: 'manage_inspections', label: 'Manage Inspections', description: 'Create and manage inspection templates' },
-    { id: 'assign_inspectors', label: 'Assign Inspectors', description: 'Assign inspectors to inspection tasks' },
-    { id: 'view_inspections', label: 'View Inspections', description: 'View inspection records and results' },
-    { id: 'conduct_inspections', label: 'Conduct Inspections', description: 'Perform vehicle inspections' },
-    { id: 'update_inspections', label: 'Update Inspections', description: 'Modify inspection records' },
-    { id: 'update_inspection_results', label: 'Update Results', description: 'Update inspection results and reports' }
-  ];
+  const handleRoleChange = (role: WorkshopUser['role']) => {
+    setNewUser({
+      ...newUser,
+      role,
+      permissions: ROLE_DEFAULTS[role] || []
+    });
+  };
 
-  // Fetch workshop permissions
-  const { data: permissions, isLoading } = useQuery({
-    queryKey: ['workshop-permissions', workshopId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('workshop_permissions')
-        .select(`
-          *,
-          user:envio_users(name, email)
-        `)
-        .eq('workshop_id', workshopId)
-        .eq('is_active', true);
+  const handlePermissionToggle = (permissionId: string) => {
+    const updated = newUser.permissions.includes(permissionId)
+      ? newUser.permissions.filter(p => p !== permissionId)
+      : [...newUser.permissions, permissionId];
+    
+    setNewUser({ ...newUser, permissions: updated });
+  };
 
-      if (error) throw error;
-      
-      // Transform the data to match our interface with proper null checking
-      return data?.map(item => ({
-        id: item.id,
-        workshop_id: item.workshop_id,
-        user_id: item.user_id,
-        role: item.role as 'owner' | 'manager' | 'technician' | 'inspector',
-        permissions: Array.isArray(item.permissions) ? item.permissions : [],
-        assigned_by: item.assigned_by,
-        assigned_at: item.assigned_at,
-        is_active: item.is_active,
-        user: item.user && 
-              typeof item.user === 'object' && 
-              item.user !== null && 
-              item.user && 
-              'name' in item.user && 
-              'email' in item.user ? {
-          name: (item.user as any).name as string,
-          email: (item.user as any).email as string
-        } : undefined
-      })) as WorkshopPermission[];
+  const addUser = async () => {
+    if (!newUser.email || !newUser.name) {
+      toast({
+        title: "Validation Error",
+        description: "Email and name are required",
+        variant: "destructive"
+      });
+      return;
     }
-  });
 
-  // Add user mutation
-  const addUserMutation = useMutation({
-    mutationFn: async ({ email, role, permissions }: { 
-      email: string; 
-      role: string; 
-      permissions: string[] 
-    }) => {
-      // First, find or create the user
-      const { data: existingUser } = await supabase
-        .from('envio_users')
-        .select('id')
-        .eq('email', email)
-        .single();
-
-      let userId = existingUser?.id;
-
-      if (!existingUser) {
-        // Create new user if doesn't exist
-        const { data: newUser, error: userError } = await supabase
-          .from('envio_users')
-          .insert({
-            email,
-            name: email.split('@')[0],
-            registration_type: 'workshop_staff',
-            registration_status: 'pending'
-          })
-          .select()
-          .single();
-
-        if (userError) throw userError;
-        userId = newUser.id;
-      }
-
-      // Get current user for assignment tracking
-      const { data: currentUser } = await supabase.auth.getUser();
-      
-      // Add workshop permission
+    try {
       const { data, error } = await supabase
-        .from('workshop_permissions')
+        .from('workshop_users')
         .insert({
           workshop_id: workshopId,
-          user_id: userId,
-          role,
-          permissions,
-          assigned_by: currentUser.user?.id
+          email: newUser.email,
+          name: newUser.name,
+          role: newUser.role,
+          permissions: newUser.permissions
         })
         .select()
         .single();
 
       if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workshop-permissions', workshopId] });
-      setShowAddUser(false);
-      setNewUserEmail('');
-      setNewUserRole('technician');
-      setSelectedPermissions([]);
+
+      setUsers([data, ...users]);
+      setNewUser({ email: '', name: '', role: 'inspector', permissions: [] });
+      setIsAddingUser(false);
+
       toast({
         title: "User Added",
-        description: "User has been successfully added to the workshop"
+        description: `${newUser.name} has been added to the workshop`
       });
-    },
-    onError: (error) => {
+    } catch (error: any) {
       toast({
         title: "Error",
         description: `Failed to add user: ${error.message}`,
         variant: "destructive"
       });
     }
-  });
-
-  // Update permissions mutation
-  const updatePermissionsMutation = useMutation({
-    mutationFn: async ({ permissionId, role, permissions }: {
-      permissionId: string;
-      role: string;
-      permissions: string[];
-    }) => {
-      const { data, error } = await supabase
-        .from('workshop_permissions')
-        .update({ role, permissions })
-        .eq('id', permissionId)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workshop-permissions', workshopId] });
-      setSelectedUser(null);
-      toast({
-        title: "Permissions Updated",
-        description: "User permissions have been updated successfully"
-      });
-    }
-  });
-
-  // Remove user mutation
-  const removeUserMutation = useMutation({
-    mutationFn: async (permissionId: string) => {
-      const { error } = await supabase
-        .from('workshop_permissions')
-        .update({ is_active: false })
-        .eq('id', permissionId);
-
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workshop-permissions', workshopId] });
-      toast({
-        title: "User Removed",
-        description: "User has been removed from the workshop"
-      });
-    }
-  });
-
-  const handleRoleChange = (role: string) => {
-    setNewUserRole(role as any);
-    setSelectedPermissions(roleConfig[role as keyof typeof roleConfig].defaultPermissions);
   };
 
-  const handleAddUser = () => {
-    if (!newUserEmail.trim()) {
+  const toggleUserStatus = async (userId: string, isActive: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('workshop_users')
+        .update({ is_active: !isActive })
+        .eq('id', userId);
+
+      if (error) throw error;
+
+      setUsers(users.map(user => 
+        user.id === userId ? { ...user, is_active: !isActive } : user
+      ));
+
       toast({
-        title: "Validation Error",
-        description: "Email is required",
+        title: isActive ? "User Deactivated" : "User Activated",
+        description: `User has been ${isActive ? 'deactivated' : 'activated'}`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to update user status",
         variant: "destructive"
       });
-      return;
     }
-
-    addUserMutation.mutate({
-      email: newUserEmail,
-      role: newUserRole,
-      permissions: selectedPermissions
-    });
   };
 
-  if (isLoading) {
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'owner': return 'bg-purple-100 text-purple-800';
+      case 'manager': return 'bg-blue-100 text-blue-800';
+      case 'technician': return 'bg-green-100 text-green-800';
+      case 'inspector': return 'bg-orange-100 text-orange-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (loading) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-            <div className="space-y-2">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-16 bg-gray-200 rounded"></div>
-              ))}
-            </div>
-          </div>
+        <CardContent className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </CardContent>
       </Card>
     );
@@ -278,156 +200,182 @@ const WorkshopPermissionsManager: React.FC<WorkshopPermissionsManagerProps> = ({
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Workshop Staff Management
-              </CardTitle>
-              <CardDescription>
-                Manage staff roles and permissions for this workshop
-              </CardDescription>
-            </div>
-            <Button onClick={() => setShowAddUser(true)}>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">Staff Management</h2>
+          <p className="text-muted-foreground">
+            Manage workshop staff, roles, and permissions
+          </p>
+        </div>
+        <Dialog open={isAddingUser} onOpenChange={setIsAddingUser}>
+          <DialogTrigger asChild>
+            <Button>
               <UserPlus className="h-4 w-4 mr-2" />
-              Add Staff Member
+              Add User
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {permissions?.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No staff members found. Add your first team member to get started.
-            </div>
-          ) : (
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add New Workshop User</DialogTitle>
+              <DialogDescription>
+                Add a new staff member to your workshop
+              </DialogDescription>
+            </DialogHeader>
+            
             <div className="space-y-4">
-              {permissions?.map((permission) => {
-                const role = roleConfig[permission.role];
-                const IconComponent = role.icon;
-                
-                return (
-                  <div key={permission.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-2 rounded-full ${role.color}`}>
-                        <IconComponent className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <div className="font-medium">{permission.user?.name || 'Unknown User'}</div>
-                        <div className="text-sm text-muted-foreground">{permission.user?.email || 'No email'}</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge className={role.color}>{role.label}</Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {permission.permissions.length} permissions
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedUser(permission)}
-                      >
-                        Edit
-                      </Button>
-                      {permission.role !== 'owner' && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => removeUserMutation.mutate(permission.id)}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          Remove
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    value={newUser.name}
+                    onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+                    placeholder="Enter full name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+                    placeholder="Enter email address"
+                  />
+                </div>
+              </div>
 
-      {/* Add User Dialog */}
-      <Dialog open={showAddUser} onOpenChange={setShowAddUser}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Staff Member</DialogTitle>
-            <DialogDescription>
-              Add a new team member to your workshop
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                value={newUserEmail}
-                onChange={(e) => setNewUserEmail(e.target.value)}
-                placeholder="user@example.com"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="role">Role</Label>
-              <Select value={newUserRole} onValueChange={handleRoleChange}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manager">Manager</SelectItem>
-                  <SelectItem value="technician">Technician</SelectItem>
-                  <SelectItem value="inspector">Inspector</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label>Permissions</Label>
-              <div className="space-y-2 mt-2">
-                {allPermissions.map((permission) => (
-                  <div key={permission.id} className="flex items-start space-x-2">
-                    <Checkbox
-                      id={permission.id}
-                      checked={selectedPermissions.includes(permission.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedPermissions([...selectedPermissions, permission.id]);
-                        } else {
-                          setSelectedPermissions(selectedPermissions.filter(p => p !== permission.id));
-                        }
-                      }}
-                    />
-                    <div className="grid gap-1.5 leading-none">
-                      <label htmlFor={permission.id} className="text-sm font-medium">
+              <div>
+                <Label htmlFor="role">Role</Label>
+                <Select value={newUser.role} onValueChange={handleRoleChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="inspector">Inspector</SelectItem>
+                    <SelectItem value="technician">Technician</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="owner">Owner</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Permissions</Label>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  {AVAILABLE_PERMISSIONS.map((permission) => (
+                    <div key={permission.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={permission.id}
+                        checked={newUser.permissions.includes(permission.id)}
+                        onCheckedChange={() => handlePermissionToggle(permission.id)}
+                      />
+                      <Label 
+                        htmlFor={permission.id} 
+                        className="text-sm font-normal cursor-pointer"
+                        title={permission.description}
+                      >
                         {permission.label}
-                      </label>
-                      <p className="text-xs text-muted-foreground">
-                        {permission.description}
-                      </p>
+                      </Label>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setIsAddingUser(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={addUser}>
+                  Add User
+                </Button>
               </div>
             </div>
-          </div>
-          
-          <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setShowAddUser(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleAddUser} disabled={addUserMutation.isPending}>
-              Add Member
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="grid gap-4">
+        {users.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-8">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">No Staff Members</h3>
+              <p className="text-muted-foreground">
+                Add your first staff member to get started
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          users.map((user) => (
+            <Card key={user.id}>
+              <CardContent className="p-6">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="text-lg font-semibold">{user.name}</h3>
+                      <Badge className={getRoleBadgeColor(user.role)}>
+                        {user.role}
+                      </Badge>
+                      {user.is_active ? (
+                        <Badge variant="outline" className="text-green-600">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Active
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-red-600">
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Inactive
+                        </Badge>
+                      )}
+                    </div>
+                    
+                    <p className="text-muted-foreground mb-3">{user.email}</p>
+                    
+                    <div>
+                      <p className="text-sm font-medium mb-2">Permissions:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {user.permissions.map((permission) => {
+                          const permissionInfo = AVAILABLE_PERMISSIONS.find(p => p.id === permission);
+                          return (
+                            <Badge key={permission} variant="secondary" className="text-xs">
+                              {permissionInfo?.label || permission}
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 ml-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleUserStatus(user.id, user.is_active)}
+                    >
+                      {user.is_active ? (
+                        <>
+                          <XCircle className="h-4 w-4 mr-2" />
+                          Deactivate
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Activate
+                        </>
+                      )}
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
     </div>
   );
 };
