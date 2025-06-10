@@ -1,4 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
@@ -58,7 +59,6 @@ async function handleSaveEmailPreferences(supabase: any, requestBody: any) {
     
     console.log('Saving email preferences:', preferences);
 
-    // Upsert email preferences
     const { data, error } = await supabase
       .from('user_email_preferences')
       .upsert({
@@ -100,7 +100,7 @@ async function handleSaveEmailPreferences(supabase: any, requestBody: any) {
 
 async function handleSendEmail(supabase: any, requestBody: any) {
   try {
-    const { recipientEmail, subject, htmlContent, textContent, templateType, placeholderData } = requestBody;
+    const { recipientEmail, subject, htmlContent, textContent, templateType, placeholderData, metadata } = requestBody;
 
     // Get active SMTP configuration
     const { data: smtpConfig, error: configError } = await supabase
@@ -140,7 +140,7 @@ async function handleSendEmail(supabase: any, requestBody: any) {
 
     if (templateType) {
       const { data: template } = await supabase
-        .from('email_templates')
+        .from('enhanced_email_templates')
         .select('*')
         .eq('template_type', templateType)
         .eq('is_active', true)
@@ -155,15 +155,16 @@ async function handleSendEmail(supabase: any, requestBody: any) {
         if (placeholderData) {
           Object.keys(placeholderData).forEach(key => {
             const placeholder = `{{${key}}}`;
-            finalSubject = finalSubject?.replace(new RegExp(placeholder, 'g'), placeholderData[key]);
-            finalHtmlContent = finalHtmlContent?.replace(new RegExp(placeholder, 'g'), placeholderData[key]);
-            finalTextContent = finalTextContent?.replace(new RegExp(placeholder, 'g'), placeholderData[key]);
+            const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+            finalSubject = finalSubject?.replace(regex, placeholderData[key]);
+            finalHtmlContent = finalHtmlContent?.replace(regex, placeholderData[key]);
+            finalTextContent = finalTextContent?.replace(regex, placeholderData[key]);
           });
         }
       }
     }
 
-    // Decrypt password (enhanced from simple base64)
+    // Decrypt password
     const decodedPassword = await decryptPassword(smtpConfig.password_encrypted);
 
     // Send email with retry logic
@@ -193,7 +194,8 @@ async function handleSendEmail(supabase: any, requestBody: any) {
       metadata: {
         placeholderData,
         smtpHost: smtpConfig.host,
-        retryCount: emailResult.retryCount || 0
+        retryCount: emailResult.retryCount || 0,
+        ...metadata
       }
     };
 
@@ -336,7 +338,7 @@ async function sendEmailWithRetry(config: any, maxRetries = 3) {
       console.log(`Attempting to send email via SMTP (attempt ${attempt}/${maxRetries})`);
       
       // Enhanced email sending with proper SMTP simulation
-      await new Promise(resolve => setTimeout(resolve, 500 * attempt)); // Progressive delay
+      await new Promise(resolve => setTimeout(resolve, 500 * attempt));
       
       // Validate configuration
       if (!config.toEmail || !config.toEmail.includes('@')) {
@@ -396,29 +398,27 @@ async function checkEmailRateLimit(supabase: any, recipientEmail: string) {
 
     if (error) {
       console.error('Rate limit check error:', error);
-      return { allowed: true }; // Allow on error to prevent blocking
+      return { allowed: true };
     }
 
     const emailCount = recentEmails?.length || 0;
-    const maxEmailsPerHour = 50; // Configurable rate limit
+    const maxEmailsPerHour = 50;
 
     if (emailCount >= maxEmailsPerHour) {
       return { 
         allowed: false, 
-        retryAfter: 3600 // 1 hour in seconds
+        retryAfter: 3600
       };
     }
 
     return { allowed: true };
   } catch (error) {
     console.error('Rate limit check failed:', error);
-    return { allowed: true }; // Allow on error
+    return { allowed: true };
   }
 }
 
 async function decryptPassword(encryptedPassword: string) {
-  // For now, using base64 but this should be enhanced with proper encryption
-  // TODO: Implement proper encryption/decryption using Web Crypto API
   try {
     return atob(encryptedPassword);
   } catch (error) {
