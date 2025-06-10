@@ -1,10 +1,10 @@
 
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase } from './untypedClient';
 import type { GP51Session, VehicleSample, VehicleUpdate, Gp51Token } from './types';
 
-// Get active GP51 sessions - use direct query with explicit column selection
+// Get active GP51 sessions - use untyped client with explicit column selection
 export async function getActiveGP51Sessions(): Promise<{ data: GP51Session[]; error: any }> {
-  const { data, error } = await supabase
+  const { data, error } = await untypedSupabase
     .from('gp51_sessions')
     .select('id, created_at, envio_user_id, gp51_token, is_active')
     .eq('is_active', true)
@@ -26,9 +26,9 @@ export async function getActiveGP51Sessions(): Promise<{ data: GP51Session[]; er
   return { data: mappedData, error: null };
 }
 
-// Get vehicle data sample - use direct query with explicit column selection
+// Get vehicle data sample - use untyped client with explicit column selection
 export async function getVehicleDataSample(): Promise<{ data: VehicleSample[]; error: any }> {
-  const { data, error } = await supabase
+  const { data, error } = await untypedSupabase
     .from('vehicles')
     .select('id, device_id, device_name, last_position, updated_at, is_active')
     .eq('is_active', true)
@@ -50,9 +50,9 @@ export async function getVehicleDataSample(): Promise<{ data: VehicleSample[]; e
   return { data: mappedData, error: null };
 }
 
-// Get recent vehicle updates - use direct query with explicit column selection
+// Get recent vehicle updates - use untyped client with explicit column selection
 export async function getRecentVehicleUpdates(since: string): Promise<{ data: VehicleUpdate[]; error: any }> {
-  const { data, error } = await supabase
+  const { data, error } = await untypedSupabase
     .from('vehicles')
     .select('id, device_id, device_name, last_position, updated_at')
     .gte('updated_at', since)
@@ -75,9 +75,9 @@ export async function getRecentVehicleUpdates(since: string): Promise<{ data: Ve
   return { data: mappedData, error: null };
 }
 
-// Get GP51 session token - use direct query with explicit column selection
+// Get GP51 session token - use untyped client with explicit column selection
 export async function getGP51SessionToken(): Promise<{ data: Gp51Token | null; error: any }> {
-  const { data, error } = await supabase
+  const { data, error } = await untypedSupabase
     .from('gp51_sessions')
     .select('id, gp51_token, created_at, token_expires_at, is_active')
     .eq('is_active', true)
