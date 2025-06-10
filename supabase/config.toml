@@ -27,7 +27,3 @@ enabled = true
 
 [realtime]
 enabled = true
-
-[functions]
-[functions.smtp-email-service]
-verify_jwt = true

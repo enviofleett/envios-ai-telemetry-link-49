@@ -8,7 +8,7 @@ const NotificationsTab: React.FC = () => {
       <div>
         <h3 className="text-lg font-semibold mb-2">Fleet Notifications & Alerts</h3>
         <p className="text-sm text-gray-600 mb-4">
-          Configure real-time alerts, notifications, and delivery preferences
+          Configure real-time alerts and notification preferences
         </p>
       </div>
       <NotificationsSettingsTab />
