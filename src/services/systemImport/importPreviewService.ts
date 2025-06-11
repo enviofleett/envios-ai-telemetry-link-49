@@ -1,16 +1,32 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedErrorHandler } from './enhancedErrorHandler';
-// Removed gp51SessionManager import as it's no longer available
+
+export interface ImportPreviewData {
+  users: any[];
+  vehicles: any[];
+  conflicts: any[];
+  summary: {
+    totalUsers: number;
+    totalVehicles: number;
+    potentialConflicts: number;
+  };
+}
 
 export class ImportPreviewService {
   private errorHandler = new EnhancedErrorHandler();
 
-  async generatePreview() {
+  async generatePreview(): Promise<ImportPreviewData> {
     console.log('Import preview not available - GP51 integration is being rebuilt');
     return {
-      success: false,
-      error: 'GP51 integration service is being rebuilt'
+      users: [],
+      vehicles: [],
+      conflicts: [],
+      summary: {
+        totalUsers: 0,
+        totalVehicles: 0,
+        potentialConflicts: 0
+      }
     };
   }
 }

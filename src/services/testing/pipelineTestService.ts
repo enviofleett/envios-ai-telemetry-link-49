@@ -1,4 +1,3 @@
-
 // Remove broken imports and update implementation
 import { supabase } from '@/integrations/supabase/client';
 
@@ -56,6 +55,39 @@ export class PipelineTestService {
       success: false,
       message: 'GP51 integration service is being rebuilt',
       duration: 0
+    };
+  }
+
+  async runContinuousMonitoring() {
+    console.log('Continuous monitoring not implemented');
+    return {
+      status: 'unavailable',
+      message: 'Continuous monitoring service is being rebuilt'
+    };
+  }
+
+  getTestResults() {
+    return {
+      passed: 0,
+      failed: 0,
+      total: 0,
+      details: []
+    };
+  }
+
+  getHealthStatus() {
+    return {
+      overall: 'unknown',
+      components: [],
+      message: 'Health monitoring service is being rebuilt'
+    };
+  }
+
+  async runEndToEndTest() {
+    console.log('End-to-end test not implemented');
+    return {
+      success: false,
+      error: 'E2E testing service is being rebuilt'
     };
   }
 }

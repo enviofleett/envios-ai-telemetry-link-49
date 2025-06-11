@@ -16,6 +16,16 @@ export class GP51ServiceManagementApi {
     console.log('Service status check not implemented:', deviceId);
     return { success: false, error: 'GP51 integration not available' };
   }
+
+  async getDevicesNearExpiration(): Promise<any[]> {
+    console.log('Devices near expiration check not implemented');
+    return [];
+  }
+
+  async chargeDevices(deviceIds: string[]): Promise<any> {
+    console.log('Device charging not implemented:', deviceIds);
+    return { success: false, error: 'GP51 integration not available' };
+  }
 }
 
 export const gp51ServiceApi = new GP51ServiceManagementApi();

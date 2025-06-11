@@ -1,40 +1,45 @@
 
 // Stub implementation for package mapping service
-export interface PackageToGP51Mapping {
-  packageId: string;
-  packageName: string;
-  description: string;
-  requiresApproval: boolean;
-}
-
 export class PackageMappingService {
-  async getAllPackages(): Promise<PackageToGP51Mapping[]> {
+  static validatePackage(packageCode: string): boolean {
+    console.log('Package validation not implemented:', packageCode);
+    return true; // Default to valid for now
+  }
+
+  static getGP51UserType(packageCode: string): string {
+    console.log('GP51 user type mapping not implemented:', packageCode);
+    return 'USER'; // Default user type
+  }
+
+  static getEnvioRole(packageCode: string): string {
+    console.log('Envio role mapping not implemented:', packageCode);
+    return 'driver'; // Default role
+  }
+
+  static requiresApproval(packageCode: string): boolean {
+    console.log('Approval requirement check not implemented:', packageCode);
+    return false; // Default to no approval required
+  }
+
+  static getPackageInfo(packageCode: string): any {
+    console.log('Package info retrieval not implemented:', packageCode);
+    return {
+      name: 'Unknown Package',
+      description: 'Package service not available',
+      features: []
+    };
+  }
+
+  static getAvailablePackages(): any[] {
+    console.log('Available packages retrieval not implemented');
     return [
       {
-        packageId: 'basic',
-        packageName: 'Basic Package',
-        description: 'Basic fleet tracking features',
-        requiresApproval: false
-      },
-      {
-        packageId: 'professional',
-        packageName: 'Professional Package', 
-        description: 'Advanced fleet management tools',
-        requiresApproval: false
-      },
-      {
-        packageId: 'enterprise',
-        packageName: 'Enterprise Package',
-        description: 'Full enterprise features with admin access',
-        requiresApproval: true
+        code: 'basic',
+        name: 'Basic Package',
+        description: 'Basic features'
       }
     ];
   }
-
-  async getPackageById(packageId: string): Promise<PackageToGP51Mapping | null> {
-    const packages = await this.getAllPackages();
-    return packages.find(p => p.packageId === packageId) || null;
-  }
 }
 
-export const packageMappingService = new PackageMappingService();
+export default PackageMappingService;
