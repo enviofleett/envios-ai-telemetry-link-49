@@ -446,9 +446,11 @@ export type Database = {
       branding_settings: {
         Row: {
           accent_color: string | null
+          auth_page_branding: boolean | null
           background_color: string | null
           border_color: string | null
           button_style: string | null
+          company_name: string | null
           created_at: string
           custom_css: string | null
           favicon_url: string | null
@@ -456,19 +458,24 @@ export type Database = {
           font_family_heading: string | null
           font_size_scale: string | null
           id: string
+          is_branding_active: boolean | null
           logo_url: string | null
           muted_color: string | null
           primary_color: string | null
           secondary_color: string | null
+          subtitle: string | null
+          tagline: string | null
           text_color: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           accent_color?: string | null
+          auth_page_branding?: boolean | null
           background_color?: string | null
           border_color?: string | null
           button_style?: string | null
+          company_name?: string | null
           created_at?: string
           custom_css?: string | null
           favicon_url?: string | null
@@ -476,19 +483,24 @@ export type Database = {
           font_family_heading?: string | null
           font_size_scale?: string | null
           id?: string
+          is_branding_active?: boolean | null
           logo_url?: string | null
           muted_color?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          subtitle?: string | null
+          tagline?: string | null
           text_color?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           accent_color?: string | null
+          auth_page_branding?: boolean | null
           background_color?: string | null
           border_color?: string | null
           button_style?: string | null
+          company_name?: string | null
           created_at?: string
           custom_css?: string | null
           favicon_url?: string | null
@@ -496,10 +508,13 @@ export type Database = {
           font_family_heading?: string | null
           font_size_scale?: string | null
           id?: string
+          is_branding_active?: boolean | null
           logo_url?: string | null
           muted_color?: string | null
           primary_color?: string | null
           secondary_color?: string | null
+          subtitle?: string | null
+          tagline?: string | null
           text_color?: string | null
           updated_at?: string
           user_id?: string
@@ -560,6 +575,9 @@ export type Database = {
           company_name: string
           contact_email: string | null
           created_at: string
+          currency_code: string | null
+          currency_format: string | null
+          currency_symbol: string | null
           fleet_size: number | null
           id: string
           logo_url: string | null
@@ -574,6 +592,9 @@ export type Database = {
           company_name?: string
           contact_email?: string | null
           created_at?: string
+          currency_code?: string | null
+          currency_format?: string | null
+          currency_symbol?: string | null
           fleet_size?: number | null
           id?: string
           logo_url?: string | null
@@ -588,6 +609,9 @@ export type Database = {
           company_name?: string
           contact_email?: string | null
           created_at?: string
+          currency_code?: string | null
+          currency_format?: string | null
+          currency_symbol?: string | null
           fleet_size?: number | null
           id?: string
           logo_url?: string | null
