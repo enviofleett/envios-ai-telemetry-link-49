@@ -2,18 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { gp51SessionManager } from './sessionManager';
 import { gp51ErrorReporter } from './errorReporter';
-
-export interface SessionHealth {
-  isValid: boolean;
-  expiresAt: Date | null;
-  username: string | null;
-  lastCheck: Date;
-  needsRefresh: boolean;
-  consecutiveFailures: number;
-  isAuthError: boolean;
-  latency?: number;
-  status: 'healthy' | 'degraded' | 'critical';
-}
+import { SessionHealth } from '../sessionValidation/types';
 
 type HealthUpdateCallback = (health: SessionHealth) => void;
 
