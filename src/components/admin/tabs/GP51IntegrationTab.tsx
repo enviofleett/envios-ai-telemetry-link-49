@@ -1,352 +1,210 @@
 
 import React, { useState } from 'react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { GP51CredentialsForm } from '@/components/gp51/GP51CredentialsForm';
-import { GP51DeviceList } from '@/components/gp51/GP51DeviceList';
-import { GP51StatusIndicator } from '@/components/gp51/GP51StatusIndicator';
-import { SessionSecurityIndicator } from '@/components/security/SessionSecurityIndicator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  Shield, 
-  CheckCircle, 
-  Settings, 
-  Activity,
-  Globe,
-  Lock,
-  ShieldCheck
-} from 'lucide-react';
-import { GP51TroubleshootingGuide } from '@/components/gp51/GP51TroubleshootingGuide';
-import { GP51Documentation } from '@/components/gp51/GP51Documentation';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Plug, TestTube, Settings, Database, RefreshCw } from 'lucide-react';
 
-export const GP51IntegrationTab: React.FC = () => {
-  const [isConnected, setIsConnected] = useState(false);
+const GP51IntegrationTab: React.FC = () => {
+  const [connectionStatus, setConnectionStatus] = useState('connected');
+  const [autoSync, setAutoSync] = useState(true);
+
+  const connectionSettings = {
+    apiUrl: 'https://api.gps51.com',
+    username: 'fleet_admin',
+    lastSync: '2024-01-15 14:30:00',
+    syncInterval: 30
+  };
+
+  const syncStats = {
+    totalVehicles: 45,
+    lastSyncVehicles: 42,
+    errors: 3,
+    successRate: 93.3
+  };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Shield className="h-6 w-6" />
-            GP51 API Integration
-          </h2>
-          <p className="text-muted-foreground">
-            🌐 Centralized GP51 tracking system connection with enhanced security
-          </p>
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Plug className="h-5 w-5" />
+            GP51 Integration
+          </CardTitle>
+          <CardDescription>
+            Configure and manage GP51 platform integration
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="connection" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="connection">Connection</TabsTrigger>
+              <TabsTrigger value="sync">Data Sync</TabsTrigger>
+              <TabsTrigger value="testing">Testing</TabsTrigger>
+            </TabsList>
 
-      <Tabs defaultValue="connection" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="connection">Connection</TabsTrigger>
-          <TabsTrigger value="security">Security</TabsTrigger>
-          <TabsTrigger value="devices">Devices</TabsTrigger>
-          <TabsTrigger value="monitoring">Monitoring</TabsTrigger>
-          <TabsTrigger value="access">Access Control</TabsTrigger>
-          <TabsTrigger value="troubleshooting">Troubleshooting</TabsTrigger>
-          <TabsTrigger value="documentation">Documentation</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="connection" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                GP51 Connection Status
-              </CardTitle>
-              <CardDescription>
-                Real-time status of your GP51 integration and session health
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <GP51StatusIndicator />
-            </CardContent>
-          </Card>
-
-          <GP51CredentialsForm onConnectionChange={setIsConnected} />
-        </TabsContent>
-
-        <TabsContent value="security" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <SessionSecurityIndicator />
-            
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5" />
-                  🔒 Enhanced Security Features
-                </CardTitle>
-                <CardDescription>
-                  Advanced session protection and security monitoring
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <h4 className="font-medium">Session Encryption</h4>
-                      <p className="text-sm text-muted-foreground">
-                        GP51 tokens encrypted with AES-256-GCM
-                      </p>
+            <TabsContent value="connection" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Connection Status</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span>Status</span>
+                      <Badge variant={connectionStatus === 'connected' ? 'default' : 'destructive'}>
+                        {connectionStatus}
+                      </Badge>
                     </div>
-                    <Badge className="bg-green-100 text-green-800">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Active
-                    </Badge>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <h4 className="font-medium">Device Fingerprinting</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Browser and device characteristics validation
-                      </p>
+                    <div className="flex items-center justify-between">
+                      <span>API URL</span>
+                      <span className="text-sm text-muted-foreground">{connectionSettings.apiUrl}</span>
                     </div>
-                    <Badge className="bg-green-100 text-green-800">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Active
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <h4 className="font-medium">Session Validation</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Continuous security checks every 5 minutes
-                      </p>
+                    <div className="flex items-center justify-between">
+                      <span>Username</span>
+                      <span className="text-sm text-muted-foreground">{connectionSettings.username}</span>
                     </div>
-                    <Badge className="bg-green-100 text-green-800">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Active
-                    </Badge>
-                  </div>
+                    <Button className="w-full">
+                      <TestTube className="h-4 w-4 mr-2" />
+                      Test Connection
+                    </Button>
+                  </CardContent>
+                </Card>
 
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <h4 className="font-medium">Auto Session Renewal</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Automatic token refresh before expiry
-                      </p>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Configuration</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="gp51-url">GP51 API URL</Label>
+                      <Input
+                        id="gp51-url"
+                        value={connectionSettings.apiUrl}
+                        placeholder="https://api.gps51.com"
+                      />
                     </div>
-                    <Badge className="bg-green-100 text-green-800">
-                      <CheckCircle className="h-3 w-3 mr-1" />
-                      Active
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <h4 className="font-medium">Concurrent Session Limiting</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Maximum 3 active sessions per user
-                      </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="gp51-username">Username</Label>
+                      <Input
+                        id="gp51-username"
+                        value={connectionSettings.username}
+                        placeholder="Enter GP51 username"
+                      />
                     </div>
-                    <Badge className="bg-blue-100 text-blue-800">
-                      <Settings className="h-3 w-3 mr-1" />
-                      Configured
-                    </Badge>
-                  </div>
-                </div>
-
-                <Alert>
-                  <ShieldCheck className="h-4 w-4" />
-                  <AlertDescription>
-                    Enhanced security features provide multi-layer protection including 
-                    encryption, fingerprinting, anomaly detection, and automatic threat response.
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="devices" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Globe className="h-5 w-5" />
-                Connected Devices
-              </CardTitle>
-              <CardDescription>
-                Manage and monitor your GP51 connected devices and vehicle fleet
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isConnected ? (
-                <GP51DeviceList />
-              ) : (
-                <Alert>
-                  <Shield className="h-4 w-4" />
-                  <AlertDescription>
-                    Please establish a secure GP51 connection first to view and manage your devices.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="monitoring" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                📊 Connection Monitoring
-              </CardTitle>
-              <CardDescription>
-                Real-time monitoring of GP51 API connections and system health
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert>
-                <Activity className="h-4 w-4" />
-                <AlertDescription>
-                  Connection monitoring provides real-time insights into GP51 API performance, 
-                  session status, and data synchronization health.
-                </AlertDescription>
-              </Alert>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">API Response Time</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Monitor GP51 API latency and performance
-                    </p>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Monitored
-                  </Badge>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Session Health</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Track GP51 session validity and auto-renewal
-                    </p>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Active
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Data Synchronization</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Monitor vehicle data sync and updates
-                    </p>
-                  </div>
-                  <Badge className="bg-blue-100 text-blue-800">
-                    <Settings className="h-3 w-3 mr-1" />
-                    Configured
-                  </Badge>
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="gp51-password">Password</Label>
+                      <Input
+                        id="gp51-password"
+                        type="password"
+                        placeholder="Enter GP51 password"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </TabsContent>
 
-        <TabsContent value="access" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Lock className="h-5 w-5" />
-                🛡️ Access Control & Audit
-              </CardTitle>
-              <CardDescription>
-                Session access control and security audit information
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <Alert>
-                <Shield className="h-4 w-4" />
-                <AlertDescription>
-                  All GP51 session access is monitored and logged. Enhanced security features 
-                  include risk assessment, anomaly detection, and automated threat response.
-                </AlertDescription>
-              </Alert>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Security Audit Logging</h4>
-                    <p className="text-sm text-muted-foreground">
-                      All session activities and security events are logged
-                    </p>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Enabled
-                  </Badge>
-                </div>
-                
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Anomaly Detection</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Behavioral analysis and suspicious activity detection
-                    </p>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Active
-                  </Badge>
-                </div>
+            <TabsContent value="sync" className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Sync Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="auto-sync">Auto Sync</Label>
+                        <p className="text-sm text-muted-foreground">
+                          Automatically sync data at regular intervals
+                        </p>
+                      </div>
+                      <Switch
+                        id="auto-sync"
+                        checked={autoSync}
+                        onCheckedChange={setAutoSync}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="sync-interval">Sync Interval (minutes)</Label>
+                      <Input
+                        id="sync-interval"
+                        type="number"
+                        value={connectionSettings.syncInterval}
+                        placeholder="30"
+                      />
+                    </div>
+                    <Button className="w-full">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Force Sync Now
+                    </Button>
+                  </CardContent>
+                </Card>
 
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Risk-based Authentication</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Dynamic security challenges based on risk level
-                    </p>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800">
-                    <CheckCircle className="h-3 w-3 mr-1" />
-                    Active
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <h4 className="font-medium">Session Termination Protection</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Automatic session termination on security threats
-                    </p>
-                  </div>
-                  <Badge className="bg-blue-100 text-blue-800">
-                    <Settings className="h-3 w-3 mr-1" />
-                    Configured
-                  </Badge>
-                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Sync Statistics</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span>Total Vehicles</span>
+                        <span className="font-medium">{syncStats.totalVehicles}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Last Sync</span>
+                        <span className="font-medium">{syncStats.lastSyncVehicles}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Errors</span>
+                        <span className="font-medium text-red-600">{syncStats.errors}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Success Rate</span>
+                        <span className="font-medium text-green-600">{syncStats.successRate}%</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Last sync: {connectionSettings.lastSync}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
+            </TabsContent>
 
-              <div className="mt-6 p-4 bg-muted rounded-lg">
-                <h5 className="font-medium mb-2">Enhanced Security Recommendations</h5>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Monitor session security indicators regularly</li>
-                  <li>• Review security audit logs for unusual activity</li>
-                  <li>• Keep browser and device security up to date</li>
-                  <li>• Use secure networks for GP51 access</li>
-                  <li>• Report any suspicious session behavior immediately</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="troubleshooting" className="space-y-6">
-          <GP51TroubleshootingGuide />
-        </TabsContent>
-
-        <TabsContent value="documentation" className="space-y-6">
-          <GP51Documentation />
-        </TabsContent>
-      </Tabs>
+            <TabsContent value="testing" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Integration Testing</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Button variant="outline" className="h-20 flex-col">
+                      <TestTube className="h-6 w-6 mb-2" />
+                      Test Authentication
+                    </Button>
+                    <Button variant="outline" className="h-20 flex-col">
+                      <Database className="h-6 w-6 mb-2" />
+                      Test Data Fetch
+                    </Button>
+                    <Button variant="outline" className="h-20 flex-col">
+                      <RefreshCw className="h-6 w-6 mb-2" />
+                      Test Full Sync
+                    </Button>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Run these tests to verify your GP51 integration is working correctly.
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 };
