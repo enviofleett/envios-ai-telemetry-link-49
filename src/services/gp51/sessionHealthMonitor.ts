@@ -10,9 +10,9 @@ export interface SessionHealth {
   lastCheck: Date;
   needsRefresh: boolean;
   consecutiveFailures: number;
-  isAuthError?: boolean;
-  latency?: number; // Add latency field
-  status: 'healthy' | 'degraded' | 'critical'; // Add status field for consistency
+  isAuthError: boolean;
+  latency?: number;
+  status: 'healthy' | 'degraded' | 'critical';
 }
 
 type HealthUpdateCallback = (health: SessionHealth) => void;
@@ -26,7 +26,8 @@ export class GP51SessionHealthMonitor {
     lastCheck: new Date(),
     needsRefresh: false,
     consecutiveFailures: 0,
-    isAuthError: false
+    isAuthError: false,
+    status: 'critical'
   };
   private callbacks: Set<HealthUpdateCallback> = new Set();
   private monitoringInterval: NodeJS.Timeout | null = null;

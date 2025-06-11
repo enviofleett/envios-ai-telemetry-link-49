@@ -22,3 +22,15 @@ export interface SessionCache {
   result: EnhancedSessionResult | null;
   lastValidation: Date | null;
 }
+
+export interface SessionHealth {
+  isValid: boolean;
+  expiresAt: Date | null;
+  username: string | null;
+  lastCheck: Date;
+  needsRefresh: boolean;
+  consecutiveFailures: number;
+  isAuthError: boolean;
+  latency?: number;
+  status: 'healthy' | 'degraded' | 'critical';
+}
