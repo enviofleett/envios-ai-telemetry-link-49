@@ -24,13 +24,13 @@ export interface SessionCache {
 }
 
 export interface SessionHealth {
+  status: 'healthy' | 'degraded' | 'critical';
   isValid: boolean;
   expiresAt: Date | null;
   username: string | null;
   lastCheck: Date;
-  needsRefresh: boolean;
   consecutiveFailures: number;
   isAuthError: boolean;
-  latency?: number;
-  status: 'healthy' | 'degraded' | 'critical';
+  latency: number | null;
+  needsRefresh: boolean;
 }
