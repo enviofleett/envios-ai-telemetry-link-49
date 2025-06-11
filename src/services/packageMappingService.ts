@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   SubscriberPackage, 
@@ -7,8 +6,7 @@ import type {
   ReferralCode,
   UserSubscription,
   CreatePackageRequest,
-  UpdatePackageRequest,
-  PackageToGP51Mapping
+  UpdatePackageRequest
 } from '@/types/subscriber-packages';
 
 export interface PackageValidationResult {
@@ -23,6 +21,15 @@ export interface PackageAssignmentResult {
   gp51UserType?: number;
   assignedRoles?: string[];
   error?: string;
+}
+
+export interface PackageToGP51Mapping {
+  packageId: string;
+  packageName: string;
+  description: string;
+  requiresApproval: boolean;
+  gp51UserType: number;
+  features: string[];
 }
 
 export class PackageMappingService {
