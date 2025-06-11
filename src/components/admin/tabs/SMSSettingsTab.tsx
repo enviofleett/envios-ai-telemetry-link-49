@@ -34,10 +34,10 @@ export default function SMSSettingsTab() {
       const savedConfig = await smsService.getSMSConfiguration();
       if (savedConfig) {
         setConfig({
-          username: savedConfig.username, // Fixed: use username instead of api_username
+          username: savedConfig.username, // Use correct field name
           password: '', // Don't show saved password
           sender: savedConfig.sender_id,
-          route: parseInt(savedConfig.route) // Fixed: convert string to number
+          route: parseInt(savedConfig.route) // Convert string to number
         });
         setIsConfigured(true);
       }
@@ -115,9 +115,11 @@ export default function SMSSettingsTab() {
           description: "SMS configuration test passed successfully",
         });
       } else {
+        // Show more detailed error message from the improved API response
+        const errorDetails = result.details || result.message || "SMS configuration test failed";
         toast({
           title: "Test Failed",
-          description: result.message || "SMS configuration test failed",
+          description: `SMS test failed: ${errorDetails}`,
           variant: "destructive"
         });
       }

@@ -25,18 +25,22 @@ interface SMSRequest {
 }
 
 async function sendSMSViaMySMS(config: MySMSConfig, recipient: string, message: string): Promise<any> {
+  // Use the correct API URL for mysmstab
+  const baseUrl = 'https://app.mysmstab.com/api/sendsms.php';
+  
   const params = new URLSearchParams({
     username: config.username,
     password: config.password,
     sender: config.sender,
-    recipient: recipient,
-    message: message,
+    mobiles: recipient, // Use 'mobiles' parameter instead of 'recipient'
+    message: encodeURIComponent(message), // Properly encode the message
     route: config.route.toString()
   });
 
-  const url = `https://mysmstab.com/api/sendsms.php?${params.toString()}`;
+  const url = `${baseUrl}?${params.toString()}`;
   
-  console.log(`📱 Sending SMS to ${recipient} via MySMS`);
+  console.log(`📱 Sending SMS to ${recipient} via MySMS API`);
+  console.log(`🔗 API URL: ${url.replace(config.password, '***')}`); // Log URL but hide password
   
   try {
     const response = await fetch(url, {
@@ -47,12 +51,10 @@ async function sendSMSViaMySMS(config: MySMSConfig, recipient: string, message: 
     });
     
     const responseText = await response.text();
-    console.log(`MySMS Response: ${responseText}`);
+    console.log(`📞 MySMS API Response (Status ${response.status}):`, responseText);
     
-    // MySMS typically returns success/error status in response
-    const isSuccess = responseText.toLowerCase().includes('success') || 
-                     responseText.toLowerCase().includes('sent') ||
-                     response.status === 200;
+    // Improved success detection for mysmstab API
+    const isSuccess = analyzeMysmstabResponse(responseText, response.status);
     
     return {
       success: isSuccess,
@@ -60,9 +62,42 @@ async function sendSMSViaMySMS(config: MySMSConfig, recipient: string, message: 
       status_code: response.status
     };
   } catch (error) {
-    console.error('MySMS API Error:', error);
+    console.error('❌ MySMS API Error:', error);
     throw error;
   }
+}
+
+function analyzeMysmstabResponse(responseText: string, statusCode: number): boolean {
+  const lowerResponse = responseText.toLowerCase();
+  
+  // Check for explicit success indicators
+  if (lowerResponse.includes('success') || lowerResponse.includes('sent') || lowerResponse.includes('delivered')) {
+    return true;
+  }
+  
+  // Check for common error indicators
+  const errorIndicators = [
+    'auth failed',
+    'authentication failed',
+    'invalid route',
+    'insufficient balance',
+    'invalid sender',
+    'message empty',
+    'invalid mobile',
+    'error',
+    'failed',
+    '404 not found',
+    'unauthorized'
+  ];
+  
+  for (const indicator of errorIndicators) {
+    if (lowerResponse.includes(indicator)) {
+      return false;
+    }
+  }
+  
+  // If status is 200 and no error indicators, consider it success
+  return statusCode === 200;
 }
 
 async function logSMSActivity(
@@ -126,7 +161,7 @@ serve(async (req) => {
           throw new Error('Recipient and message are required');
         }
 
-        // Get user's SMS configuration
+        // Get user's SMS configuration with correct field names
         const { data: smsConfig, error: configError } = await supabase
           .from('sms_configurations')
           .select('*')
@@ -139,10 +174,10 @@ serve(async (req) => {
         }
 
         const config: MySMSConfig = {
-          username: smsConfig.api_username,
-          password: smsConfig.api_password_encrypted, // In production, this should be decrypted
+          username: smsConfig.username, // Use correct field name
+          password: smsConfig.password_encrypted, // Use correct field name (should be decrypted in production)
           sender: smsConfig.sender_id,
-          route: smsConfig.route
+          route: parseInt(smsConfig.route) // Parse as integer since it's stored as string
         };
 
         try {
@@ -192,7 +227,7 @@ serve(async (req) => {
         try {
           const testResult = await sendSMSViaMySMS(
             requestData.config,
-            requestData.recipient || '+2348012345678', // Test number
+            requestData.recipient || '+2348012345678', // Default test number
             'Test message from FleetIQ SMS Gateway'
           );
 
@@ -258,7 +293,7 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('SMS Gateway error:', error);
+    console.error('❌ SMS Gateway error:', error);
     return new Response(JSON.stringify({
       success: false,
       error: error.message

@@ -85,10 +85,10 @@ class SMSService {
       .upsert({
         user_id: (await supabase.auth.getUser()).data.user?.id,
         provider_name: 'mysms',
-        username: config.username, // Fixed: use username field
-        password_encrypted: config.password, // Fixed: use password_encrypted field
+        username: config.username, // Use correct field name
+        password_encrypted: config.password, // Use correct field name
         sender_id: config.sender,
-        route: config.route.toString(), // Fixed: convert number to string for database
+        route: config.route.toString(), // Convert number to string for database
         is_active: true,
         is_default: true
       }, {
