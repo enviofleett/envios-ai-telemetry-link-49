@@ -13,6 +13,92 @@ export const useGP51Credentials = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Helper function to validate function deployment and generate debug info
+  const validateFunctionDeployment = () => {
+    const projectRef = 'bjkqxmvjuewshomihjqm'; // From supabase config
+    const functionName = 'settings-management';
+    const expectedUrl = `https://${projectRef}.functions.supabase.co/${functionName}`;
+    
+    console.log('🔍 Function Deployment Debug Info:', {
+      projectRef,
+      functionName,
+      expectedUrl,
+      currentUrl: supabase.supabaseUrl,
+      timestamp: new Date().toISOString()
+    });
+    
+    return { projectRef, functionName, expectedUrl };
+  };
+
+  // Helper function to generate cURL command for manual testing
+  const generateCurlCommand = (token: string, testPayload: any) => {
+    const { expectedUrl } = validateFunctionDeployment();
+    const curlCommand = `curl -X POST ${expectedUrl} \\
+  -H "Authorization: Bearer ${token.substring(0, 20)}..." \\
+  -H "Content-Type: application/json" \\
+  -d '${JSON.stringify(testPayload, null, 2)}'`;
+    
+    console.log('🛠️ Manual cURL Test Command:', curlCommand);
+    return curlCommand;
+  };
+
+  // Enhanced token validation with detailed logging
+  const validateAuthToken = async (session: any) => {
+    console.log('🔐 Enhanced Token Validation:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      hasAccessToken: !!session?.access_token,
+      tokenLength: session?.access_token?.length || 0,
+      tokenPrefix: session?.access_token?.substring(0, 20) + '...' || 'none',
+      userEmail: session?.user?.email || 'none',
+      expiresAt: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'unknown',
+      isExpired: session?.expires_at ? session.expires_at < Date.now() / 1000 : 'unknown',
+      tokenType: session?.token_type || 'unknown'
+    });
+
+    if (!session || !session.access_token) {
+      throw new Error('Authentication required: No valid session or access token found. Please refresh the page and log in again.');
+    }
+
+    if (session.expires_at && session.expires_at < Date.now() / 1000) {
+      throw new Error('Authentication expired: Your session has expired. Please refresh the page and log in again.');
+    }
+
+    return session;
+  };
+
+  // Function health check method
+  const testFunctionHealth = async () => {
+    console.log('🏥 Testing Edge Function Health...');
+    validateFunctionDeployment();
+    
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('No valid session for health check');
+      }
+
+      await validateAuthToken(session);
+      generateCurlCommand(session.access_token, { action: 'health-check' });
+
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'health-check' }
+      });
+
+      console.log('✅ Function Health Check Result:', {
+        success: !error && data,
+        data,
+        error: error?.message,
+        timestamp: new Date().toISOString()
+      });
+
+      return { success: !error && data, data, error };
+    } catch (error) {
+      console.error('❌ Function Health Check Failed:', error);
+      return { success: false, error };
+    }
+  };
+
   const saveCredentialsMutation = useMutation({
     mutationFn: async ({ 
       username, 
@@ -25,45 +111,29 @@ export const useGP51Credentials = () => {
       apiUrl?: string;
       retryCount?: number;
     }) => {
-      console.log('🔐 Starting GP51 credentials save mutation...');
+      console.log('🚀 Starting GP51 credentials save mutation with enhanced debugging...');
       setIsSaving(true);
+      
+      // Validate function deployment first
+      validateFunctionDeployment();
       
       // Notify status coordinator that save is starting
       gp51StatusCoordinator.startSaveOperation();
       
       // Enhanced authentication state checking with detailed logging
-      console.log('🔍 Checking authentication state...');
+      console.log('🔍 Enhanced session validation starting...');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      console.log('📊 Session analysis:', {
-        hasSession: !!session,
-        hasUser: !!session?.user,
-        hasAccessToken: !!session?.access_token,
-        tokenLength: session?.access_token?.length,
-        sessionError: sessionError?.message,
-        userEmail: session?.user?.email,
-        tokenExpiry: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'unknown'
-      });
-      
-      if (sessionError || !session || !session.access_token) {
-        console.error('❌ Authentication session validation failed:', {
+      if (sessionError || !session) {
+        console.error('❌ Session retrieval failed:', {
           sessionError: sessionError?.message,
-          hasSession: !!session,
-          hasAccessToken: !!session?.access_token
+          hasSession: !!session
         });
-        throw new Error('You must be logged in to save GP51 credentials. Please refresh the page and try again.');
+        throw new Error('Authentication required: Failed to retrieve session. Please refresh the page and try again.');
       }
 
-      // Verify token is not expired
-      if (session.expires_at && session.expires_at < Date.now() / 1000) {
-        console.error('❌ Access token is expired:', {
-          expiresAt: new Date(session.expires_at * 1000).toISOString(),
-          currentTime: new Date().toISOString()
-        });
-        throw new Error('Your session has expired. Please refresh the page and log in again.');
-      }
-
-      console.log('✅ Valid session found, proceeding with request...');
+      // Use enhanced token validation
+      await validateAuthToken(session);
 
       const payload: any = { 
         action: 'save-gp51-credentials',
@@ -75,33 +145,41 @@ export const useGP51Credentials = () => {
         payload.apiUrl = apiUrl.trim();
       }
 
-      console.log('📡 Calling settings-management function with enhanced payload:', {
+      console.log('📡 Enhanced function invocation with payload:', {
         action: payload.action,
         hasUsername: !!payload.username,
         hasPassword: !!payload.password,
         hasApiUrl: !!payload.apiUrl,
-        retryAttempt: retryCount
+        retryAttempt: retryCount,
+        functionName: 'settings-management'
       });
+      
+      // Generate cURL command for debugging
+      generateCurlCommand(session.access_token, payload);
       
       try {
         const { data, error } = await supabase.functions.invoke('settings-management', {
           body: payload
         });
         
-        console.log('📡 Edge function response received:', {
+        console.log('📡 Enhanced Edge function response analysis:', {
           hasData: !!data,
           hasError: !!error,
           dataSuccess: data?.success,
           errorMessage: error?.message,
-          dataCode: data?.code
+          dataCode: data?.code,
+          responseType: typeof data,
+          fullError: error
         });
         
         // Enhanced HTTP-level error checking
         if (error) {
-          console.error('❌ Edge function invocation failed:', {
+          console.error('❌ Edge function invocation failed with enhanced context:', {
             error: error.message,
             context: error.context,
-            details: error.details
+            details: error.details,
+            retryCount,
+            functionUrl: validateFunctionDeployment().expectedUrl
           });
           
           // Enhanced retry logic with specific error categorization
@@ -125,17 +203,23 @@ export const useGP51Credentials = () => {
             throw new Error('Request timed out. Please try again.');
           }
           
+          if (error.message?.includes('404') || error.message?.includes('not found')) {
+            console.error('🚨 Function deployment issue detected:', validateFunctionDeployment());
+            throw new Error('Edge function not found. Please contact support.');
+          }
+          
           throw new Error(error.message || 'Edge function call failed');
         }
         
         // Enhanced response validation with detailed error reporting
         if (!data || data.success === false) {
-          console.error('❌ GP51 save operation failed:', {
+          console.error('❌ GP51 save operation failed with enhanced analysis:', {
             data: data,
             success: data?.success,
             error: data?.error,
             code: data?.code,
-            details: data?.details
+            details: data?.details,
+            functionHealth: await testFunctionHealth()
           });
           
           // Enhanced error message categorization based on error codes
@@ -158,19 +242,22 @@ export const useGP51Credentials = () => {
           throw new Error(errorMessage);
         }
         
-        console.log('✅ GP51 credentials saved successfully:', {
+        console.log('✅ GP51 credentials saved successfully with enhanced logging:', {
           success: data.success,
           message: data.message,
-          username: data.username
+          username: data.username,
+          functionHealth: 'ok'
         });
         return data;
         
       } catch (fetchError) {
-        console.error('❌ Request execution failed:', {
+        console.error('❌ Request execution failed with enhanced context:', {
           error: fetchError,
           name: fetchError instanceof Error ? fetchError.name : 'unknown',
           message: fetchError instanceof Error ? fetchError.message : String(fetchError),
-          stack: fetchError instanceof Error ? fetchError.stack?.substring(0, 200) : 'no stack'
+          stack: fetchError instanceof Error ? fetchError.stack?.substring(0, 200) : 'no stack',
+          functionDeployment: validateFunctionDeployment(),
+          retryCount
         });
         
         // Re-throw with better error context if it's our own error
@@ -183,7 +270,7 @@ export const useGP51Credentials = () => {
       }
     },
     onSuccess: async (data) => {
-      console.log('🎉 GP51 credentials save mutation succeeded');
+      console.log('🎉 GP51 credentials save mutation succeeded with enhanced logging');
       
       const responseData = data as { message?: string; success?: boolean; testOnly?: boolean; username?: string; sessionVerified?: boolean };
       
@@ -197,17 +284,19 @@ export const useGP51Credentials = () => {
             body: { action: 'test_gp51_api' }
           });
 
-          console.log('🧪 Auto-verification result:', {
+          console.log('🧪 Auto-verification result with enhanced logging:', {
             hasData: !!testData,
             hasError: !!testError,
             success: testData?.success,
-            deviceCount: testData?.deviceCount
+            deviceCount: testData?.deviceCount,
+            errorDetails: testError
           });
 
           if (testError || !testData?.success) {
-            console.error('❌ Auto-verification failed:', {
+            console.error('❌ Auto-verification failed with context:', {
               testError: testError?.message,
-              testData: testData
+              testData: testData,
+              functionHealth: await testFunctionHealth()
             });
             
             // Report verification failure to status coordinator
@@ -223,7 +312,7 @@ export const useGP51Credentials = () => {
             return;
           }
 
-          console.log('✅ Auto-verification successful');
+          console.log('✅ Auto-verification successful with enhanced confirmation');
           // Notify status coordinator of successful save and verification
           gp51StatusCoordinator.reportSaveSuccess(responseData?.username);
           
@@ -233,10 +322,11 @@ export const useGP51Credentials = () => {
           });
 
         } catch (verificationError) {
-          console.error('❌ Auto-verification exception:', {
+          console.error('❌ Auto-verification exception with enhanced context:', {
             error: verificationError,
             name: verificationError instanceof Error ? verificationError.name : 'unknown',
-            message: verificationError instanceof Error ? verificationError.message : String(verificationError)
+            message: verificationError instanceof Error ? verificationError.message : String(verificationError),
+            functionHealth: await testFunctionHealth()
           });
           
           // Still report success but with warning
@@ -278,11 +368,13 @@ export const useGP51Credentials = () => {
         stack: undefined 
       };
       
-      console.error('❌ GP51 credentials save mutation failed:', {
+      console.error('❌ GP51 credentials save mutation failed with enhanced error context:', {
         error: safeError,
         name: safeError.name,
         message: safeError.message,
-        stack: safeError.stack?.substring(0, 200)
+        stack: safeError.stack?.substring(0, 200),
+        functionDeployment: validateFunctionDeployment(),
+        timestamp: new Date().toISOString()
       });
       
       // Properly handle the error message
@@ -322,6 +414,9 @@ export const useGP51Credentials = () => {
       } else if (errorMessage.includes('timeout')) {
         errorTitle = 'Request Timeout';
         errorDescription = 'Request timed out. Please try again.';
+      } else if (errorMessage.includes('Edge function not found')) {
+        errorTitle = 'Service Unavailable';
+        errorDescription = 'Backend service unavailable. Please contact support.';
       } else {
         // Use the specific error message if available
         errorDescription = errorMessage;
@@ -348,7 +443,7 @@ export const useGP51Credentials = () => {
       return;
     }
     
-    console.log('🚀 Initiating GP51 credentials save...');
+    console.log('🚀 Initiating GP51 credentials save with enhanced debugging...');
     saveCredentialsMutation.mutate({ username, password, apiUrl });
   };
 
@@ -360,6 +455,7 @@ export const useGP51Credentials = () => {
     apiUrl,
     setApiUrl,
     handleSaveCredentials,
-    isLoading: saveCredentialsMutation.isPending || isSaving
+    isLoading: saveCredentialsMutation.isPending || isSaving,
+    testFunctionHealth // Expose health check for manual testing
   };
 };

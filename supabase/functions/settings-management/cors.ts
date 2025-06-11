@@ -8,9 +8,9 @@ export const corsHeaders = {
 };
 
 export function handleCorsPreflightRequest(): Response {
-  console.log('🌐 CORS preflight request handled with standard headers');
+  console.log('🌐 CORS preflight request handled with standard headers (HTTP 204)');
   return new Response(null, {
-    status: 204, // Changed from 200 to 204 (proper HTTP standard for preflight)
+    status: 204, // Standards-compliant HTTP 204 No Content for preflight
     headers: corsHeaders
   });
 }
@@ -19,7 +19,8 @@ export function createResponse(data: any, status: number = 200): Response {
   console.log(`📤 Creating response with status ${status}:`, {
     success: data?.success,
     error: data?.error,
-    code: data?.code
+    code: data?.code,
+    timestamp: new Date().toISOString()
   });
   
   return new Response(

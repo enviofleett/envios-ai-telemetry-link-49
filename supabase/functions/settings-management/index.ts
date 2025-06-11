@@ -14,12 +14,13 @@ addEventListener("unhandledrejection", event => {
 });
 
 // Function versioning and deployment tracking
-const FUNCTION_VERSION = "1.2.0";
+const FUNCTION_VERSION = "1.3.0";
 const FUNCTION_NAME = "settings-management";
 
 serve(async (req) => {
   console.log(`🔧 ${FUNCTION_NAME} v${FUNCTION_VERSION} Request: ${req.method} ${req.url}`);
   console.log(`📅 Request timestamp: ${new Date().toISOString()}`);
+  console.log(`🌐 Request headers:`, Object.fromEntries(req.headers.entries()));
   
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -32,20 +33,22 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
     
-    console.log('🔍 Environment validation:', {
+    console.log('🔍 Enhanced environment validation:', {
       hasSupabaseUrl: !!supabaseUrl,
       hasSupabaseAnonKey: !!supabaseAnonKey,
-      supabaseUrlFormat: supabaseUrl ? supabaseUrl.substring(0, 20) + '...' : 'missing'
+      supabaseUrlFormat: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'missing',
+      envVarCount: Object.keys(Deno.env.toObject()).length
     });
     
     if (!supabaseUrl || !supabaseAnonKey) {
       console.error('❌ Critical: Missing Supabase environment variables');
-      console.error('🔑 Available env vars:', Object.keys(Deno.env.toObject()));
+      console.error('🔑 Available env vars:', Object.keys(Deno.env.toObject()).filter(key => !key.includes('SECRET')));
       return createResponse({
         success: false,
         error: 'Server configuration error',
         code: 'MISSING_ENV_VARS',
-        details: 'SUPABASE_URL or SUPABASE_ANON_KEY not configured'
+        details: 'SUPABASE_URL or SUPABASE_ANON_KEY not configured',
+        functionVersion: FUNCTION_VERSION
       }, 500);
     }
 
@@ -63,34 +66,42 @@ serve(async (req) => {
         success: false,
         error: 'Database connection failed',
         code: 'DB_CLIENT_ERROR',
-        details: clientError instanceof Error ? clientError.message : 'Client creation failed'
+        details: clientError instanceof Error ? clientError.message : 'Client creation failed',
+        functionVersion: FUNCTION_VERSION
       }, 500);
     }
 
     // Enhanced JWT token extraction and validation
     const authHeader = req.headers.get('Authorization');
-    console.log('🔐 Auth header analysis:', {
+    console.log('🔐 Enhanced auth header analysis:', {
       present: !!authHeader,
-      format: authHeader ? authHeader.substring(0, 20) + '...' : 'missing',
-      type: authHeader?.startsWith('Bearer ') ? 'Bearer' : 'invalid'
+      format: authHeader ? authHeader.substring(0, 30) + '...' : 'missing',
+      type: authHeader?.startsWith('Bearer ') ? 'Bearer' : 'invalid',
+      length: authHeader?.length || 0
     });
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.error('❌ Missing or invalid Authorization header');
-      console.error('📋 Request headers:', Object.fromEntries(req.headers.entries()));
+      console.error('📋 Request headers analysis:', {
+        authHeaderPresent: !!authHeader,
+        authHeaderType: authHeader?.split(' ')[0] || 'none',
+        headerCount: req.headers.entries().length
+      });
       return createResponse({
         success: false,
         error: 'Authentication required',
         code: 'AUTH_REQUIRED',
-        details: 'Missing or malformed Authorization header. Expected: Bearer <token>'
+        details: 'Missing or malformed Authorization header. Expected: Bearer <token>',
+        functionVersion: FUNCTION_VERSION
       }, 401);
     }
 
     const token = authHeader.replace('Bearer ', '');
-    console.log('🔑 Token extracted:', {
+    console.log('🔑 Enhanced token analysis:', {
       length: token.length,
-      prefix: token.substring(0, 10) + '...',
-      format: token.includes('.') ? 'JWT-like' : 'non-JWT'
+      prefix: token.substring(0, 20) + '...',
+      format: token.includes('.') ? 'JWT-like' : 'non-JWT',
+      segments: token.split('.').length
     });
     
     // Enhanced JWT validation with detailed error handling
@@ -98,94 +109,104 @@ serve(async (req) => {
     try {
       const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
       
-      console.log('🔍 JWT validation result:', {
+      console.log('🔍 Enhanced JWT validation result:', {
         hasUser: !!authUser,
         hasError: !!authError,
-        errorCode: authError?.message?.substring(0, 50)
+        errorCode: authError?.message?.substring(0, 100),
+        userEmail: authUser?.email || 'none',
+        userId: authUser?.id || 'none'
       });
       
       if (authError || !authUser) {
-        console.error('❌ JWT validation failed:', {
+        console.error('❌ JWT validation failed with enhanced context:', {
           error: authError?.message,
           status: authError?.status,
-          user: !!authUser
+          user: !!authUser,
+          tokenLength: token.length
         });
         return createResponse({
           success: false,
           error: 'Invalid authentication token',
           code: 'AUTH_INVALID',
-          details: authError?.message || 'Token validation failed'
+          details: authError?.message || 'Token validation failed',
+          functionVersion: FUNCTION_VERSION
         }, 401);
       }
       
       user = authUser;
-      console.log('✅ User authenticated:', {
+      console.log('✅ User authenticated with enhanced confirmation:', {
         id: user.id,
         email: user.email,
-        emailVerified: user.email_confirmed_at ? 'yes' : 'no'
+        emailVerified: user.email_confirmed_at ? 'yes' : 'no',
+        lastSignIn: user.last_sign_in_at || 'unknown'
       });
     } catch (authException) {
-      console.error('❌ Auth validation threw exception:', authException);
-      console.error('📊 Exception details:', {
+      console.error('❌ Auth validation threw exception with enhanced context:', {
         name: authException?.name,
         message: authException?.message,
-        stack: authException?.stack?.substring(0, 200)
+        stack: authException?.stack?.substring(0, 300)
       });
       return createResponse({
         success: false,
         error: 'Authentication service error',
         code: 'AUTH_EXCEPTION',
-        details: authException instanceof Error ? authException.message : 'Unknown auth error'
+        details: authException instanceof Error ? authException.message : 'Unknown auth error',
+        functionVersion: FUNCTION_VERSION
       }, 500);
     }
 
     // Enhanced user profile validation
     let envioUser;
     try {
-      console.log('🔍 Looking up envio user profile for:', user.email);
+      console.log('🔍 Enhanced user profile lookup for:', user.email);
       const { data: userData, error: envioUserError } = await supabase
         .from('envio_users')
         .select('id, email')
         .eq('email', user.email)
         .single();
 
-      console.log('📋 User profile query result:', {
+      console.log('📋 Enhanced user profile query result:', {
         hasData: !!userData,
         hasError: !!envioUserError,
         errorCode: envioUserError?.code,
-        errorMessage: envioUserError?.message
+        errorMessage: envioUserError?.message,
+        userFound: !!userData?.id
       });
 
       if (envioUserError || !userData) {
-        console.error('❌ Envio user profile not found:', {
+        console.error('❌ Envio user profile not found with enhanced context:', {
           error: envioUserError?.message,
           code: envioUserError?.code,
-          email: user.email
+          email: user.email,
+          authUserId: user.id
         });
         return createResponse({
           success: false,
           error: 'User profile not found. Please contact support.',
           code: 'USER_PROFILE_NOT_FOUND',
-          details: envioUserError?.message || 'No user profile in envio_users table'
+          details: envioUserError?.message || 'No user profile in envio_users table',
+          functionVersion: FUNCTION_VERSION
         }, 404);
       }
       
       envioUser = userData;
-      console.log('✅ Envio user found:', {
+      console.log('✅ Envio user found with enhanced confirmation:', {
         id: envioUser.id,
-        email: envioUser.email
+        email: envioUser.email,
+        profileComplete: true
       });
     } catch (userQueryException) {
-      console.error('❌ User query threw exception:', userQueryException);
-      console.error('📊 User query exception details:', {
+      console.error('❌ User query threw exception with enhanced context:', {
         name: userQueryException?.name,
-        message: userQueryException?.message
+        message: userQueryException?.message,
+        email: user.email
       });
       return createResponse({
         success: false,
         error: 'User profile service error',
         code: 'USER_QUERY_EXCEPTION',
-        details: userQueryException instanceof Error ? userQueryException.message : 'User query failed'
+        details: userQueryException instanceof Error ? userQueryException.message : 'User query failed',
+        functionVersion: FUNCTION_VERSION
       }, 500);
     }
 
@@ -193,10 +214,11 @@ serve(async (req) => {
     let requestData: SettingsRequest;
     try {
       const body = await req.text();
-      console.log('📝 Request body analysis:', {
+      console.log('📝 Enhanced request body analysis:', {
         length: body.length,
         isEmpty: body.length === 0,
-        preview: body.length > 0 ? body.substring(0, 100) + '...' : 'empty'
+        preview: body.length > 0 ? body.substring(0, 150) + '...' : 'empty',
+        contentType: req.headers.get('Content-Type') || 'none'
       });
       
       if (body.length === 0) {
@@ -204,35 +226,38 @@ serve(async (req) => {
       }
       
       requestData = JSON.parse(body);
-      console.log('✅ Request data parsed:', {
+      console.log('✅ Enhanced request data parsed:', {
         action: requestData.action,
         hasUsername: !!requestData.username,
         hasPassword: !!requestData.password,
         hasApiUrl: !!requestData.apiUrl,
-        testOnly: requestData.testOnly
+        testOnly: requestData.testOnly,
+        requestValid: !!requestData.action
       });
     } catch (parseError) {
-      console.error('❌ Failed to parse request body:', parseError);
-      console.error('📊 Parse error details:', {
+      console.error('❌ Failed to parse request body with enhanced context:', {
         name: parseError?.name,
-        message: parseError?.message
+        message: parseError?.message,
+        bodyLength: (await req.text()).length
       });
       return createResponse({
         success: false,
         error: 'Invalid request format',
         code: 'INVALID_JSON',
-        details: parseError instanceof Error ? parseError.message : 'JSON parsing failed'
+        details: parseError instanceof Error ? parseError.message : 'JSON parsing failed',
+        functionVersion: FUNCTION_VERSION
       }, 400);
     }
 
     const { action, username, password, apiUrl, testOnly } = requestData;
     
-    console.log(`🔧 Processing action: ${action}`, {
+    console.log(`🔧 Enhanced action processing: ${action}`, {
       username: username ? 'provided' : 'missing',
       password: password ? 'provided' : 'missing',
       apiUrl: apiUrl ? 'provided' : 'missing',
       testOnly: testOnly || false,
-      authenticatedUser: envioUser.id
+      authenticatedUser: envioUser.id,
+      functionVersion: FUNCTION_VERSION
     });
     
     try {
@@ -251,7 +276,7 @@ serve(async (req) => {
         console.log('📊 Executing status check');
         result = await handleGetStatus();
       } else if (action === 'health-check') {
-        console.log('🏥 Executing health check');
+        console.log('🏥 Executing enhanced health check');
         result = await handleHealthCheck();
       } else if (action === 'save-gp51-credentials-basic') {
         console.log('💾 Executing basic credentials save (fallback)');
@@ -261,31 +286,37 @@ serve(async (req) => {
           apiUrl: apiUrl 
         });
       } else {
-        console.error('❌ Invalid action received:', action);
+        console.error('❌ Invalid action received with enhanced context:', {
+          action,
+          availableActions: ['save-gp51-credentials', 'get-gp51-status', 'health-check', 'save-gp51-credentials-basic']
+        });
         return createResponse({
           success: false,
           error: 'Invalid action',
           code: 'INVALID_ACTION',
           availableActions: ['save-gp51-credentials', 'get-gp51-status', 'health-check', 'save-gp51-credentials-basic'],
-          details: `Unknown action: ${action}`
+          details: `Unknown action: ${action}`,
+          functionVersion: FUNCTION_VERSION
         }, 400);
       }
 
-      console.log('✅ Handler execution completed successfully');
+      console.log('✅ Enhanced handler execution completed successfully');
       return result;
 
     } catch (handlerError) {
-      console.error('❌ Handler execution failed:', handlerError);
-      console.error('📊 Handler error details:', {
+      console.error('❌ Handler execution failed with enhanced context:', {
         name: handlerError?.name,
         message: handlerError?.message,
-        stack: handlerError?.stack?.substring(0, 300)
+        stack: handlerError?.stack?.substring(0, 400),
+        action,
+        userId: envioUser.id
       });
       
       GP51ErrorHandler.logError(handlerError, { 
         action, 
         userId: envioUser.id,
-        functionVersion: FUNCTION_VERSION
+        functionVersion: FUNCTION_VERSION,
+        timestamp: new Date().toISOString()
       });
       
       return createResponse({
@@ -293,22 +324,25 @@ serve(async (req) => {
         error: 'Request handler failed',
         code: 'HANDLER_ERROR',
         details: handlerError instanceof Error ? handlerError.message : 'Handler execution error',
-        action: action
+        action: action,
+        functionVersion: FUNCTION_VERSION
       }, 500);
     }
 
   } catch (error) {
-    console.error('❌ Settings management function error:', error);
-    console.error('📊 Top-level error details:', {
+    console.error('❌ Settings management function error with enhanced context:', {
       name: error?.name,
       message: error?.message,
-      stack: error?.stack?.substring(0, 500)
+      stack: error?.stack?.substring(0, 600),
+      url: req.url,
+      method: req.method
     });
     
     GP51ErrorHandler.logError(error, { 
       operation: 'main_handler',
       functionVersion: FUNCTION_VERSION,
-      functionName: FUNCTION_NAME
+      functionName: FUNCTION_NAME,
+      timestamp: new Date().toISOString()
     });
     
     return createResponse({
@@ -316,7 +350,8 @@ serve(async (req) => {
       error: 'Internal server error',
       code: 'SYSTEM_ERROR',
       details: error instanceof Error ? error.message : 'Unknown error occurred',
-      functionVersion: FUNCTION_VERSION
+      functionVersion: FUNCTION_VERSION,
+      timestamp: new Date().toISOString()
     }, 500);
   }
 });

@@ -7,20 +7,15 @@ export interface SettingsRequest {
   testOnly?: boolean;
 }
 
-export interface GP51AuthResult {
+export interface HealthCheckResponse {
   success: boolean;
-  token?: string;
-  username?: string;
-  apiUrl?: string;
+  status: 'healthy' | 'unhealthy';
+  version: string;
+  timestamp: string;
+  checks: {
+    environment: boolean;
+    database: boolean;
+    gp51_auth: boolean;
+  };
   error?: string;
-  details?: string;
-}
-
-export interface ErrorDetails {
-  code: string;
-  message: string;
-  details?: string;
-  suggestions?: string[];
-  category?: string;
-  severity?: string;
 }
