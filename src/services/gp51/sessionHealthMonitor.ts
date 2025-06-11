@@ -10,7 +10,9 @@ export interface SessionHealth {
   lastCheck: Date;
   needsRefresh: boolean;
   consecutiveFailures: number;
-  isAuthError?: boolean; // Add flag to distinguish auth errors
+  isAuthError?: boolean;
+  latency?: number; // Add latency field
+  status: 'healthy' | 'degraded' | 'critical'; // Add status field for consistency
 }
 
 type HealthUpdateCallback = (health: SessionHealth) => void;
@@ -81,6 +83,7 @@ export class GP51SessionHealthMonitor {
     if (this.checkInProgress) return;
     
     this.checkInProgress = true;
+    const startTime = Date.now();
     
     try {
       console.log('🏥 Performing GP51 health check...');
@@ -97,7 +100,9 @@ export class GP51SessionHealthMonitor {
           lastCheck: new Date(),
           needsRefresh: false,
           consecutiveFailures: this.healthStatus.consecutiveFailures + 1,
-          isAuthError: true
+          isAuthError: true,
+          latency: Date.now() - startTime,
+          status: 'critical'
         };
         this.healthStatus = newHealth;
         this.setCacheExpiry();
@@ -107,6 +112,7 @@ export class GP51SessionHealthMonitor {
       
       const sessionInfo = await gp51SessionManager.validateSession();
       const currentTime = new Date();
+      const latency = Date.now() - startTime;
       
       const newHealth: SessionHealth = {
         isValid: sessionInfo.valid,
@@ -115,13 +121,19 @@ export class GP51SessionHealthMonitor {
         lastCheck: currentTime,
         needsRefresh: false,
         consecutiveFailures: sessionInfo.valid ? 0 : this.healthStatus.consecutiveFailures + 1,
-        isAuthError: false
+        isAuthError: false,
+        latency,
+        status: sessionInfo.valid ? 'healthy' : 'critical'
       };
 
       // Check if session needs refresh (within 10 minutes of expiration)
       if (newHealth.expiresAt) {
         const timeUntilExpiry = newHealth.expiresAt.getTime() - currentTime.getTime();
         newHealth.needsRefresh = timeUntilExpiry < 10 * 60 * 1000; // 10 minutes
+        
+        if (newHealth.needsRefresh && newHealth.isValid) {
+          newHealth.status = 'degraded';
+        }
       }
 
       // Report health issues (but not authentication issues)
@@ -147,7 +159,9 @@ export class GP51SessionHealthMonitor {
         lastCheck: new Date(),
         consecutiveFailures: this.healthStatus.consecutiveFailures + 1,
         needsRefresh: true,
-        isAuthError: false
+        isAuthError: false,
+        latency: Date.now() - startTime,
+        status: 'critical'
       };
       
       this.setCacheExpiry();

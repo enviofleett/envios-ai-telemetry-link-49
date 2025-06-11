@@ -56,9 +56,13 @@ export class EnhancedVehicleDataService {
     });
 
     unifiedGP51SessionManager.subscribeToHealth((health) => {
-      if (health.status === 'connected' || health.status === 'degraded') {
+      // Map health status to connection status for comparison
+      const isConnected = health.status === 'healthy' || health.status === 'degraded';
+      const isDisconnected = health.status === 'critical';
+      
+      if (isConnected) {
         this.forceSync();
-      } else if (health.status === 'disconnected' || health.status === 'auth_error') {
+      } else if (isDisconnected) {
         this.markAllVehiclesOffline();
       }
     });

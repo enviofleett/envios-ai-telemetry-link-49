@@ -62,6 +62,20 @@ const EnhancedGP51StatusCard: React.FC = () => {
     }
   };
 
+  // Map health status to connection status for comparison
+  const getConnectionStatusFromHealth = () => {
+    if (!health) return 'disconnected';
+    
+    switch (health.status) {
+      case 'healthy': return 'connected';
+      case 'degraded': return 'degraded';
+      case 'critical': return health.isAuthError ? 'auth_error' : 'disconnected';
+      default: return 'disconnected';
+    }
+  };
+
+  const connectionStatus = getConnectionStatusFromHealth();
+
   const calculateTimeUntilExpiry = () => {
     if (!session?.expiresAt) return null;
     
@@ -98,9 +112,9 @@ const EnhancedGP51StatusCard: React.FC = () => {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             GP51 Connection Status
-            <Badge variant={getStatusColor(health?.status)} className="flex items-center gap-1">
-              {getStatusIcon(health?.status)}
-              {getStatusText(health?.status)}
+            <Badge variant={getStatusColor(connectionStatus)} className="flex items-center gap-1">
+              {getStatusIcon(connectionStatus)}
+              {getStatusText(connectionStatus)}
             </Badge>
           </div>
           <div className="flex gap-2">
@@ -122,7 +136,7 @@ const EnhancedGP51StatusCard: React.FC = () => {
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            {(health?.status === 'disconnected' || health?.status === 'auth_error') && (
+            {(connectionStatus === 'disconnected' || connectionStatus === 'auth_error') && (
               <Button
                 variant="outline"
                 size="sm"
@@ -192,13 +206,6 @@ const EnhancedGP51StatusCard: React.FC = () => {
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {health?.errorMessage && health.errorMessage !== error && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{health.errorMessage}</AlertDescription>
           </Alert>
         )}
 
