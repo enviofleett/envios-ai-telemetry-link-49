@@ -9,14 +9,15 @@ type HealthUpdateCallback = (health: SessionHealth) => void;
 export class GP51SessionHealthMonitor {
   private static instance: GP51SessionHealthMonitor;
   private healthStatus: SessionHealth = {
+    status: 'critical',
     isValid: false,
     expiresAt: null,
     username: null,
     lastCheck: new Date(),
-    needsRefresh: false,
     consecutiveFailures: 0,
     isAuthError: false,
-    status: 'critical'
+    latency: null,
+    needsRefresh: false
   };
   private callbacks: Set<HealthUpdateCallback> = new Set();
   private monitoringInterval: NodeJS.Timeout | null = null;
@@ -84,15 +85,15 @@ export class GP51SessionHealthMonitor {
       if (authError || !session) {
         console.log('⚠️ No valid authentication session during health check');
         const newHealth: SessionHealth = {
+          status: 'critical',
           isValid: false,
           expiresAt: null,
           username: null,
           lastCheck: new Date(),
-          needsRefresh: false,
           consecutiveFailures: this.healthStatus.consecutiveFailures + 1,
           isAuthError: true,
           latency: Date.now() - startTime,
-          status: 'critical'
+          needsRefresh: false
         };
         this.healthStatus = newHealth;
         this.setCacheExpiry();
@@ -105,15 +106,15 @@ export class GP51SessionHealthMonitor {
       const latency = Date.now() - startTime;
       
       const newHealth: SessionHealth = {
+        status: sessionInfo.valid ? 'healthy' : 'critical',
         isValid: sessionInfo.valid,
         expiresAt: sessionInfo.expiresAt ? new Date(sessionInfo.expiresAt) : null,
         username: sessionInfo.username || null,
         lastCheck: currentTime,
-        needsRefresh: false,
         consecutiveFailures: sessionInfo.valid ? 0 : this.healthStatus.consecutiveFailures + 1,
         isAuthError: false,
         latency,
-        status: sessionInfo.valid ? 'healthy' : 'critical'
+        needsRefresh: false
       };
 
       // Check if session needs refresh (within 10 minutes of expiration)
@@ -144,14 +145,15 @@ export class GP51SessionHealthMonitor {
       console.error('❌ Health check failed:', error);
       
       this.healthStatus = {
-        ...this.healthStatus,
+        status: 'critical',
         isValid: false,
+        expiresAt: null,
+        username: null,
         lastCheck: new Date(),
         consecutiveFailures: this.healthStatus.consecutiveFailures + 1,
-        needsRefresh: true,
         isAuthError: false,
         latency: Date.now() - startTime,
-        status: 'critical'
+        needsRefresh: true
       };
       
       this.setCacheExpiry();
