@@ -101,7 +101,7 @@ serve(async (req) => {
           latency: Date.now() - startTime
         }),
         { 
-          status: 502,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -119,7 +119,7 @@ serve(async (req) => {
           latency: Date.now() - startTime
         }),
         { 
-          status: 401,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -142,7 +142,7 @@ serve(async (req) => {
           username: session.username
         }),
         { 
-          status: 401,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -177,7 +177,7 @@ serve(async (req) => {
           recommendation: 'Consider using a Node.js proxy or upgrading hosting environment'
         }),
         { 
-          status: 502,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -202,7 +202,7 @@ serve(async (req) => {
             username: session.username
           }),
           { 
-            status: 401,
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         );
@@ -218,7 +218,7 @@ serve(async (req) => {
           latency
         }),
         { 
-          status: 502,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -239,7 +239,7 @@ serve(async (req) => {
           latency
         }),
         { 
-          status: 502,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -259,7 +259,7 @@ serve(async (req) => {
           username: session.username
         }),
         { 
-          status: 401,
+          status: 200,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -296,7 +296,7 @@ serve(async (req) => {
         latency: Date.now() - startTime
       }),
       { 
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );

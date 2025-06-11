@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { createResponse } from './cors.ts';
 import { authenticateWithGP51 } from './gp51-auth.ts';
@@ -108,18 +107,18 @@ export async function handleSaveCredentialsWithVehicleImport({
         }, 500);
       }
 
-      // Use correct column names that match the database schema
+      // Store the password instead of token for future authentication
       const sessionData = {
-        gp51_token: authResult.token,
+        gp51_password: authResult.password, // Store the original password
         username: authResult.username,
         api_url: authResult.apiUrl,
-        token_expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+        token_expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(), // 8 hours
         updated_at: new Date().toISOString()
       };
 
       console.log('💾 Saving session with data:', { 
         ...sessionData, 
-        gp51_token: '[REDACTED]' 
+        gp51_password: '[REDACTED]' 
       });
 
       let saveResult;

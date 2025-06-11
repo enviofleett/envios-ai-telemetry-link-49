@@ -1,7 +1,7 @@
 
 import { createHash } from './crypto.ts';
 
-const GP51_API_URL = "https://api.gpstrackerxy.com/api";
+const GP51_API_URL = "https://www.gps51.com/webapi";
 
 export async function authenticateWithGP51({ 
   username, 
@@ -34,9 +34,10 @@ export async function authenticateWithGP51({
       // Use proper GP51 API format with POST and form data
       const formData = new URLSearchParams({
         action: 'login',
-        json: '1',
-        suser: trimmedUsername,
-        spass: hashedPassword
+        username: trimmedUsername,
+        password: hashedPassword,
+        from: 'WEB',
+        type: 'USER'
       });
 
       console.log(`🌐 Attempting GP51 authentication with URL: ${GP51_API_URL}`);
@@ -67,26 +68,22 @@ export async function authenticateWithGP51({
         throw new Error('Invalid response format from GP51 server');
       }
 
-      console.log(`📡 GP51 auth response:`, { result: result.result, hasToken: !!result.stoken });
+      console.log(`📡 GP51 auth response:`, { status: result.status, hasToken: !!result.token });
       
       // Check for successful authentication
-      if (result.result === "true" || result.result === true) {
-        if (result.stoken) {
-          console.log(`✅ Successfully authenticated ${trimmedUsername}`);
-          return {
-            success: true,
-            token: result.stoken,
-            username: trimmedUsername,
-            apiUrl: GP51_API_URL
-          };
-        } else {
-          console.error(`❌ GP51 auth successful but no token returned:`, result);
-          throw new Error('Authentication successful but no token received');
-        }
+      if (result.status === 0 && result.token) {
+        console.log(`✅ Successfully authenticated ${trimmedUsername}`);
+        return {
+          success: true,
+          token: result.token,
+          username: trimmedUsername,
+          password: password, // Store the original password for future use
+          apiUrl: GP51_API_URL
+        };
       } else {
         // Enhanced error handling with standardized error extraction
-        const errorMessage = result.message || result.error || `Authentication failed (result: ${result.result})`;
-        console.error(`❌ GP51 auth failed. Result: ${result.result}, Error: ${errorMessage}`);
+        const errorMessage = result.message || result.error || `Authentication failed (status: ${result.status})`;
+        console.error(`❌ GP51 auth failed. Status: ${result.status}, Error: ${errorMessage}`);
         throw new Error(errorMessage);
       }
 

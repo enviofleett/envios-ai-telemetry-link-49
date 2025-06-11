@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const GP51_API_URL = "https://api.gpstrackerxy.com/api";
+const GP51_API_URL = "https://www.gps51.com/webapi";
 
 serve(async (req) => {
   console.log(`GP51 Service Management API call: ${req.method} ${req.url}`);
@@ -32,7 +32,7 @@ serve(async (req) => {
       // Check if we have any valid GP51 sessions
       const { data: sessions, error: sessionError } = await supabase
         .from('gp51_sessions')
-        .select('username, gp51_token, token_expires_at, api_url')
+        .select('username, gp51_password, token_expires_at, api_url')
         .order('token_expires_at', { ascending: false })
         .limit(1);
 
@@ -139,7 +139,7 @@ serve(async (req) => {
       // Get session first
       const { data: sessions, error: sessionError } = await supabase
         .from('gp51_sessions')
-        .select('username, gp51_token, token_expires_at, api_url')
+        .select('username, gp51_password, token_expires_at, api_url')
         .order('token_expires_at', { ascending: false })
         .limit(1);
 
@@ -189,18 +189,22 @@ serve(async (req) => {
         );
       }
 
-      // Test actual GP51 API using proper format
-      const suser = session.username;
-      const stoken = session.gp51_token;
+      // Hash password for authentication
+      const encoder = new TextEncoder();
+      const data = encoder.encode(session.gp51_password);
+      const hashBuffer = await crypto.subtle.digest('MD5', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashedPassword = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
       try {
         console.log('📡 Making real GP51 API call to test connectivity...');
         
         const formData = new URLSearchParams({
           action: 'querymonitorlist',
-          json: '1',
-          suser,
-          stoken
+          username: session.username,
+          password: hashedPassword,
+          from: 'WEB',
+          type: 'USER'
         });
 
         const testResponse = await fetch(GP51_API_URL, {
@@ -243,7 +247,7 @@ serve(async (req) => {
         
         const responseData = JSON.parse(responseText);
 
-        if (responseData.result === "false" || responseData.result === false) {
+        if (responseData.status !== 0) {
           console.error('❌ GP51 API returned error:', responseData);
           return new Response(
             JSON.stringify({ 
