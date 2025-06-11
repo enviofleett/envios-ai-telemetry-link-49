@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GP51DeviceActivationRequest {
@@ -96,7 +95,7 @@ export class GP51DeviceActivationService {
       if (localStatus) {
         return {
           isActivated: localStatus.activation_status === 'active',
-          status: localStatus.activation_status,
+          status: localStatus.activation_status as 'active' | 'inactive' | 'error' | 'unknown',
           lastChecked: localStatus.last_sync_at
         };
       }

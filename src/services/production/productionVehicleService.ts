@@ -1,8 +1,9 @@
+
 import { GP51ProductionService, DeviceHandshakeResult, DeviceConfigurationParams } from '../gp51ProductionService';
 import { SecurityService } from '../securityService';
 import { AuditService } from '../auditService';
 import { EnhancedSessionManager } from '../enhancedSessionManager';
-import { DeviceValidationService, type ProductionVehicleCreationRequest } from './deviceValidationService';
+import { DeviceValidationService } from './deviceValidationService';
 import { DatabaseOperationsService } from './databaseOperationsService';
 import { ProductionReadinessService } from './productionReadinessService';
 import { GP51DeviceActivationService } from '@/services/gp51DeviceActivationService';
@@ -138,8 +139,7 @@ export class ProductionVehicleService {
       const vehicleCreationResult = await DatabaseOperationsService.createVehicleInDatabase(request, {
         handshakeResult,
         communicationCheck,
-        configurationId: configResult.configurationId,
-        activationStatus: request.activateOnGP51 ? 'active' : 'inactive'
+        configurationId: configResult.configurationId
       });
 
       if (!vehicleCreationResult.success) {
@@ -196,6 +196,3 @@ export class ProductionVehicleService {
     return ProductionReadinessService.performBulkProductionHealthCheck(deviceIds);
   }
 }
-
-// Re-export types for backward compatibility
-export type { ProductionVehicleCreationRequest };

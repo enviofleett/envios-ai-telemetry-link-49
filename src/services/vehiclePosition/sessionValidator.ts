@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { enhancedGP51SessionValidator } from './enhancedSessionValidator';
+import { GP51RealConnectionTester } from '@/services/gp51/realConnectionTester';
 
 interface SessionValidationResult {
   valid: boolean;
@@ -9,6 +9,7 @@ interface SessionValidationResult {
   expiresAt?: string;
   apiUrl?: string;
   error?: string;
+  isReallyConnected?: boolean; // NEW: Indicates actual API connectivity
 }
 
 class GP51SessionValidator {
@@ -16,31 +17,70 @@ class GP51SessionValidator {
   private readonly CACHE_DURATION = 30000; // 30 seconds
 
   async ensureValidSession(): Promise<SessionValidationResult> {
-    console.log('🔍 GP51SessionValidator: Delegating to enhanced validator...');
+    console.log('🔍 GP51SessionValidator: Performing comprehensive session validation...');
     
-    // Use the enhanced validator which has better retry logic and error handling
+    // Check cache first
+    if (this.cache && (Date.now() - this.cache.timestamp) < this.CACHE_DURATION) {
+      console.log('📋 Using cached session validation result');
+      return this.cache.result;
+    }
+
     try {
-      const result = await enhancedGP51SessionValidator.validateGP51Session();
+      // Step 1: Check session existence and validity (old behavior)
+      const { data: sessions, error: sessionError } = await supabase
+        .from('gp51_sessions')
+        .select('username, gp51_token, token_expires_at, api_url')
+        .order('token_expires_at', { ascending: false })
+        .limit(1);
+
+      if (sessionError || !sessions || sessions.length === 0) {
+        const result = { 
+          valid: false, 
+          error: 'No GP51 sessions found',
+          isReallyConnected: false
+        };
+        this.updateCache(result);
+        return result;
+      }
+
+      const session = sessions[0];
+      const expiresAt = new Date(session.token_expires_at);
+      const now = new Date();
+
+      if (expiresAt <= now) {
+        const result = { 
+          valid: false, 
+          error: 'GP51 session expired',
+          isReallyConnected: false
+        };
+        this.updateCache(result);
+        return result;
+      }
+
+      // Step 2: NEW - Test actual API connectivity beyond just session validity
+      console.log('🧪 Testing real GP51 API connectivity...');
+      const connectionHealth = await GP51RealConnectionTester.testRealConnection();
       
-      // Convert the enhanced result to our expected format
-      const validationResult: SessionValidationResult = {
-        valid: result.valid,
-        token: result.token,
-        username: result.username,
-        expiresAt: result.expiresAt,
-        apiUrl: result.apiUrl,
-        error: result.error
+      const result: SessionValidationResult = {
+        valid: session.gp51_token ? true : false,
+        token: session.gp51_token,
+        username: session.username,
+        expiresAt: session.token_expires_at,
+        apiUrl: session.api_url,
+        isReallyConnected: connectionHealth.isConnected && connectionHealth.dataFlowing,
+        error: connectionHealth.isConnected ? undefined : connectionHealth.errorMessage
       };
 
-      // Update our cache with the result
-      this.updateCache(validationResult);
-      return validationResult;
+      // Update cache with comprehensive result
+      this.updateCache(result);
+      return result;
       
     } catch (error) {
-      console.error('❌ Enhanced session validation failed:', error);
+      console.error('❌ Comprehensive session validation failed:', error);
       const result = { 
         valid: false, 
-        error: `Enhanced validation failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        error: `Session validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        isReallyConnected: false
       };
       this.updateCache(result);
       return result;
@@ -56,12 +96,11 @@ class GP51SessionValidator {
 
   clearCache(): void {
     this.cache = null;
-    enhancedGP51SessionValidator.clearCache();
-    console.log('🧹 GP51SessionValidator cache cleared (including enhanced validator)');
+    console.log('🧹 GP51SessionValidator cache cleared');
   }
 
-  async testConnection(): Promise<{ success: boolean; error?: string; apiUrl?: string }> {
-    console.log('🔧 Testing GP51 connection using enhanced validator...');
+  async testConnection(): Promise<{ success: boolean; error?: string; apiUrl?: string; isReallyConnected?: boolean }> {
+    console.log('🔧 Testing comprehensive GP51 connection...');
     
     try {
       const sessionResult = await this.ensureValidSession();
@@ -69,36 +108,25 @@ class GP51SessionValidator {
       if (!sessionResult.valid) {
         return { 
           success: false, 
-          error: sessionResult.error || 'No valid session available'
+          error: sessionResult.error || 'No valid session available',
+          isReallyConnected: false
         };
       }
 
-      // Additional connection test using the service
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: { action: 'test_connection' }
-      });
-      
-      if (error) {
-        console.error('❌ GP51 connection test failed:', error);
-        return { 
-          success: false, 
-          error: error.message,
-          apiUrl: sessionResult.apiUrl
-        };
-      }
-      
-      console.log('✅ GP51 connection test successful via enhanced validator');
+      // Return comprehensive connection status
       return { 
-        success: data?.success || false, 
-        error: data?.error,
-        apiUrl: data?.apiUrl || sessionResult.apiUrl
+        success: sessionResult.isReallyConnected || false,
+        error: sessionResult.isReallyConnected ? undefined : sessionResult.error,
+        apiUrl: sessionResult.apiUrl,
+        isReallyConnected: sessionResult.isReallyConnected
       };
       
     } catch (error) {
-      console.error('❌ Exception during enhanced connection test:', error);
+      console.error('❌ Exception during comprehensive connection test:', error);
       return { 
         success: false, 
-        error: `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        error: `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        isReallyConnected: false
       };
     }
   }
@@ -107,7 +135,6 @@ class GP51SessionValidator {
   async forceReset(): Promise<void> {
     console.log('🔄 Force resetting GP51 session validator...');
     this.clearCache();
-    enhancedGP51SessionValidator.forceRevalidation();
   }
 }
 
