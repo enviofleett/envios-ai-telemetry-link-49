@@ -1,9 +1,10 @@
+
 import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from '@/components/ui/toaster';
-import { ThemeProvider } from '@/components/theme-provider';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { BrandingProvider } from '@/contexts/BrandingContext';
 import { CurrencyProvider } from '@/contexts/CurrencyContext';
@@ -12,6 +13,23 @@ import NetworkErrorBoundary from '@/components/error/NetworkErrorBoundary';
 import StableErrorBoundary from '@/components/StableErrorBoundary';
 import { SecurityProvider } from '@/components/security/SecurityProvider';
 import Loading from '@/components/Loading';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { navItems } from '@/nav-items';
+
+// Lazy load components
+const Login = lazy(() => import('@/pages/Login'));
+const Auth = lazy(() => import('@/pages/Auth'));
+const Index = lazy(() => import('@/pages/Index'));
+const Settings = lazy(() => import('@/pages/Settings'));
+const ActiveServices = lazy(() => import('@/pages/ActiveServices'));
+const Maintenance = lazy(() => import('@/pages/Maintenance'));
+const WorkshopManagement = lazy(() => import('@/pages/WorkshopManagement'));
+const LiveTracking = lazy(() => import('@/pages/LiveTracking'));
+const EnhancedLiveTracking = lazy(() => import('@/pages/EnhancedLiveTracking'));
+const WorkshopSignup = lazy(() => import('@/pages/WorkshopSignup'));
+const WorkshopLogin = lazy(() => import('@/pages/WorkshopLogin'));
+const WorkshopDashboard = lazy(() => import('@/pages/WorkshopDashboard'));
+const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,7 +47,7 @@ function App() {
     <StableErrorBoundary>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
+          <ThemeProvider>
             <AuthProvider>
               <BrandingProvider>
                 <CurrencyProvider>
