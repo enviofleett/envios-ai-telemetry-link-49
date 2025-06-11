@@ -7,7 +7,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-const GP51_API_URL = "https://api.gpstrackerxy.com/api";
+const GP51_API_URL = "https://www.gps51.com/webapi";
+const REQUEST_TIMEOUT = 5000; // 5 seconds
+const MAX_RETRIES = 2;
+
+// MD5 hash function for password hashing
+async function md5(input: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await crypto.subtle.digest('MD5', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 interface LiveVehicleTelemetry {
   device_id: string;
@@ -23,6 +34,52 @@ interface LiveVehicleTelemetry {
   altitude?: number;
   alarm_status?: string;
   signal_strength?: number;
+}
+
+async function callGP51WithRetry(
+  formData: URLSearchParams, 
+  attempt: number = 1
+): Promise<{ success: boolean; response?: Response; error?: string; statusCode?: number }> {
+  try {
+    console.log(`GP51 API call attempt ${attempt}/${MAX_RETRIES + 1}`);
+    console.log('Form data:', Object.fromEntries(formData.entries()));
+    
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+    const response = await fetch(GP51_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': 'EnvioFleet/1.0'
+      },
+      body: formData.toString(),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    console.log(`GP51 API response: status=${response.status}`);
+    
+    return { success: true, response, statusCode: response.status };
+    
+  } catch (error) {
+    console.error(`GP51 API attempt ${attempt} failed:`, error);
+    
+    if (attempt <= MAX_RETRIES) {
+      const delay = attempt * 1000; // Exponential backoff: 1s, 2s
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return callGP51WithRetry(formData, attempt + 1);
+    }
+    
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Network error',
+      statusCode: 0
+    };
+  }
 }
 
 serve(async (req) => {
@@ -42,7 +99,7 @@ serve(async (req) => {
     console.log('🔍 Fetching GP51 session from database...');
     const { data: sessions, error: sessionError } = await supabase
       .from('gp51_sessions')
-      .select('username, gp51_token, token_expires_at, api_url')
+      .select('username, gp51_password, token_expires_at, api_url')
       .order('token_expires_at', { ascending: false })
       .limit(1);
 
@@ -97,76 +154,104 @@ serve(async (req) => {
 
     console.log('✅ Valid session found, fetching live data from GP51...');
 
-    // Use proper GP51 API format with POST and form data
-    const suser = session.username;
-    const stoken = session.gp51_token;
-
-    console.log('📡 Calling GP51 querymonitorlist API with proper format...');
-    
-    const fetchFromGP51 = async (action: string, additionalParams: Record<string, string> = {}, retry = false) => {
-      const formData = new URLSearchParams({
-        action,
-        json: "1",
-        suser,
-        stoken,
-        ...additionalParams
-      });
-
-      try {
-        const response = await fetch(GP51_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json',
-            'User-Agent': 'EnvioFleet/1.0'
-          },
-          body: formData.toString()
-        });
-
-        if (!response.ok) {
-          console.error('❌ GP51 API HTTP error:', response.status, response.statusText);
-          return { error: `HTTP ${response.status}: ${response.statusText}`, status: response.status };
-        }
-
-        const text = await response.text();
-        console.log('📊 Raw GP51 API response:', text.substring(0, 500) + '...');
-
-        try {
-          const json = JSON.parse(text);
-
-          if (json.result === "false" || json.result === false) {
-            console.error('🛑 GP51 API returned false:', json.message);
-            return { error: json.message || 'GP51 API request failed', status: 401 };
-          }
-
-          return { data: json, status: 200 };
-        } catch (parseError) {
-          if (!retry) {
-            console.warn('🔁 Retry after JSON parse failure:', text.substring(0, 200));
-            return await fetchFromGP51(action, additionalParams, true);
-          }
-
-          console.error('❌ GP51 returned invalid JSON:', text.substring(0, 200));
-          return { error: 'Invalid GP51 response format', raw: text, status: 502 };
-        }
-      } catch (fetchError) {
-        console.error('❌ Network error calling GP51 API:', fetchError);
-        return { error: `Network error: ${fetchError.message}`, status: 502 };
-      }
-    };
+    // Hash the password for GP51 authentication
+    const hashedPassword = await md5(session.gp51_password);
 
     // First, get the monitor list (devices/vehicles)
-    const monitorResult = await fetchFromGP51('querymonitorlist');
+    console.log('📡 Fetching GP51 monitor list...');
+    const monitorFormData = new URLSearchParams({
+      action: 'querymonitorlist',
+      username: session.username,
+      password: hashedPassword,
+      from: 'WEB',
+      type: 'USER'
+    });
 
-    if (monitorResult.error) {
+    const monitorResult = await callGP51WithRetry(monitorFormData);
+
+    if (!monitorResult.success) {
+      console.error('All GP51 API attempts failed. Network unreachable.');
       return new Response(
         JSON.stringify({ 
-          success: false, 
-          error: 'GP51 API error',
-          details: monitorResult.error
+          success: false,
+          error: 'GP51 API unreachable',
+          details: monitorResult.error || 'Network connectivity issues',
+          statusCode: monitorResult.statusCode || 0
         }),
         { 
-          status: monitorResult.status, 
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    const response = monitorResult.response!;
+    const responseText = await response.text();
+    console.log('📊 Raw GP51 API response:', responseText.substring(0, 500) + '...');
+    
+    if (!response.ok) {
+      console.error(`GP51 API HTTP error: ${response.status} ${response.statusText}`);
+      
+      if (response.status === 401 || response.status === 403) {
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            error: 'GP51 authentication failed',
+            details: `HTTP ${response.status}: Invalid credentials`,
+            statusCode: response.status
+          }),
+          { 
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'GP51 API error',
+          details: `HTTP ${response.status}: ${response.statusText}`,
+          statusCode: response.status
+        }),
+        { 
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse GP51 response as JSON:', parseError);
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Invalid response format',
+          details: 'GP51 API returned invalid JSON',
+          statusCode: response.status
+        }),
+        { 
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Check GP51 response status
+    if (responseData.status !== 0) {
+      console.error('GP51 API returned error:', responseData);
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'GP51 API logic error',
+          details: responseData.cause || responseData.message || 'GP51 API request failed',
+          statusCode: response.status
+        }),
+        { 
+          status: 401,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -175,7 +260,8 @@ serve(async (req) => {
     console.log('✅ Monitor data fetched successfully');
 
     // Extract devices from the response
-    const devices = monitorResult.data.devices || monitorResult.data.result || [];
+    const devices = responseData.groups ? 
+      responseData.groups.flatMap((group: any) => group.devices || []) : [];
     const deviceIds = devices.map((device: any) => device.deviceid || device.id).filter((id: string) => id);
 
     if (deviceIds.length === 0) {
@@ -205,34 +291,49 @@ serve(async (req) => {
     const telemetryData: LiveVehicleTelemetry[] = [];
 
     // Get positions using proper GP51 format
-    const positionResult = await fetchFromGP51('lastposition', {
-      deviceids: deviceIds.join(',')
+    const positionFormData = new URLSearchParams({
+      action: 'lastposition',
+      username: session.username,
+      password: hashedPassword,
+      from: 'WEB',
+      type: 'USER',
+      deviceids: deviceIds.join(','),
+      lastquerypositiontime: '0'
     });
 
-    if (positionResult.error) {
-      console.warn('⚠️ Position fetch failed, returning monitor data only:', positionResult.error);
-    } else if (positionResult.data && positionResult.data.devices) {
-      const positions = Array.isArray(positionResult.data.devices) ? positionResult.data.devices : [positionResult.data.devices];
+    const positionResult = await callGP51WithRetry(positionFormData);
+
+    if (positionResult.success && positionResult.response?.ok) {
+      const positionText = await positionResult.response.text();
+      console.log('📊 Raw GP51 position response:', positionText.substring(0, 500) + '...');
       
-      for (const pos of positions) {
-        if (pos.lat !== undefined && pos.lon !== undefined) {
-          telemetryData.push({
-            device_id: pos.deviceid?.toString() || pos.id?.toString() || 'unknown',
-            latitude: parseFloat(pos.lat),
-            longitude: parseFloat(pos.lon),
-            speed: parseFloat(pos.speed) || 0,
-            heading: parseFloat(pos.angle || pos.direction || pos.course) || 0,
-            timestamp: pos.time || pos.gpstime || new Date().toISOString(),
-            status: pos.status || 'unknown',
-            odometer: pos.mileage ? parseFloat(pos.mileage) : undefined,
-            fuel_level: pos.fuel ? parseFloat(pos.fuel) : undefined,
-            engine_status: pos.acc ? (pos.acc === '1' || pos.acc === 1 ? 'on' : 'off') : undefined,
-            altitude: pos.altitude ? parseFloat(pos.altitude) : undefined,
-            alarm_status: pos.alarm || undefined,
-            signal_strength: pos.signal ? parseFloat(pos.signal) : undefined
-          });
+      try {
+        const positionData = JSON.parse(positionText);
+        
+        if (positionData.status === 0 && positionData.records) {
+          const positions = Array.isArray(positionData.records) ? positionData.records : [positionData.records];
+          
+          for (const pos of positions) {
+            if (pos.callat !== undefined && pos.callon !== undefined) {
+              telemetryData.push({
+                device_id: pos.deviceid?.toString() || 'unknown',
+                latitude: parseFloat(pos.callat) / 1000000, // GP51 uses micro-degrees
+                longitude: parseFloat(pos.callon) / 1000000,
+                speed: parseFloat(pos.speed) || 0,
+                heading: parseFloat(pos.course) || 0,
+                timestamp: new Date(pos.devicetime * 1000).toISOString(),
+                status: pos.strstatus || 'unknown',
+                odometer: pos.totaldistance ? parseFloat(pos.totaldistance) : undefined,
+                altitude: pos.altitude ? parseFloat(pos.altitude) : undefined
+              });
+            }
+          }
         }
+      } catch (posParseError) {
+        console.warn('⚠️ Position response parse failed:', posParseError);
       }
+    } else {
+      console.warn('⚠️ Position fetch failed:', positionResult.error);
     }
 
     // Update vehicles table with latest telemetry data and store history
@@ -253,11 +354,7 @@ serve(async (req) => {
               last_update: telem.timestamp,
               status: telem.status,
               odometer: telem.odometer,
-              fuel_level: telem.fuel_level,
               altitude: telem.altitude,
-              acc_status: telem.engine_status,
-              alarm_status: telem.alarm_status,
-              signal_strength: telem.signal_strength,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'device_id'
@@ -281,58 +378,44 @@ serve(async (req) => {
               longitude: telem.longitude,
               speed: telem.speed,
               heading: telem.heading,
-              fuel_level: telem.fuel_level,
               odometer: telem.odometer,
-              altitude: telem.altitude,
-              acc_status: telem.engine_status,
-              alarm_status: telem.alarm_status,
-              signal_strength: telem.signal_strength,
-              raw_data: {
-                original_response: positions.find((p: any) => 
-                  (p.deviceid?.toString() || p.id?.toString()) === telem.device_id
-                )
-              }
+              altitude: telem.altitude
             });
 
-        } catch (upsertError) {
-          console.error(`❌ Upsert error for device ${telem.device_id}:`, upsertError);
+        } catch (updateError) {
+          console.error(`❌ Failed to process telemetry for ${telem.device_id}:`, updateError);
         }
       }
     }
 
-    console.log('✅ Live data fetch and storage completed successfully');
-
-    return new Response(
-      JSON.stringify({ 
-        success: true,
-        data: {
-          users: devices,
-          vehicles: telemetryData,
-          telemetry: telemetryData,
-          fetched_at: new Date().toISOString(),
-          total_devices: deviceIds.length,
-          total_positions: telemetryData.length
-        },
-        message: `Successfully fetched and stored live data for ${telemetryData.length} devices`
-      }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    // Success response
+    const responseData2 = {
+      success: true,
+      data: {
+        devices,
+        telemetry: telemetryData,
+        total_devices: devices.length,
+        total_positions: telemetryData.length,
+        fetched_at: new Date().toISOString()
       }
-    );
+    };
 
-  } catch (error) {
-    console.error('❌ Unexpected error in fetchLiveGp51Data:', error);
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error'
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    console.log('✅ GP51 live data fetch completed successfully');
+    
+    return new Response(JSON.stringify(responseData2), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+    
+  } catch (err) {
+    console.error("💥 Unexpected error in fetchLiveGp51Data:", err);
+    return new Response(JSON.stringify({ 
+      success: false,
+      error: "Internal error", 
+      details: err instanceof Error ? err.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

@@ -1,14 +1,69 @@
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createHash } from "./crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GP51_API_URL = "https://api.gpstrackerxy.com/api";
+const GP51_API_URL = "https://www.gps51.com/webapi";
+const REQUEST_TIMEOUT = 5000;
+const MAX_RETRIES = 2;
+
+// MD5 hash function for password hashing
+async function md5(input: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await crypto.subtle.digest('MD5', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function callGP51WithRetry(
+  formData: URLSearchParams, 
+  attempt: number = 1
+): Promise<{ success: boolean; response?: Response; error?: string; statusCode?: number }> {
+  try {
+    console.log(`GP51 API call attempt ${attempt}/${MAX_RETRIES + 1}`);
+    console.log('Form data:', Object.fromEntries(formData.entries()));
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+    const response = await fetch(GP51_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': 'EnvioFleet/1.0'
+      },
+      body: formData.toString(),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    console.log(`GP51 API response: status=${response.status}`);
+    
+    return { success: true, response, statusCode: response.status };
+    
+  } catch (error) {
+    console.error(`GP51 API attempt ${attempt} failed:`, error);
+    
+    if (attempt <= MAX_RETRIES) {
+      const delay = attempt * 1000;
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return callGP51WithRetry(formData, attempt + 1);
+    }
+    
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Network error',
+      statusCode: 0
+    };
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -40,31 +95,31 @@ serve(async (req) => {
         error: "No valid GP51 session found"
       }), {
         status: 401,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const makeGP51Call = async (apiAction: string, params: Record<string, string>) => {
+      const hashedPassword = await md5(session.gp51_password);
       const formData = new URLSearchParams({
         action: apiAction,
-        json: "1",
-        suser: session.username,
-        stoken: session.gp51_token,
+        username: session.username,
+        password: hashedPassword,
+        from: 'WEB',
+        type: 'USER',
         ...params
       });
 
       console.log(`📡 Making GP51 ${apiAction} call with params:`, Object.keys(params));
 
-      const response = await fetch(GP51_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json",
-          "User-Agent": "EnvioFleet/1.0"
-        },
-        body: formData.toString(),
-      });
+      const result = await callGP51WithRetry(formData);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'GP51 API call failed');
+      }
 
+      const response = result.response!;
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -75,9 +130,9 @@ serve(async (req) => {
       const json = JSON.parse(text);
       
       // Check for GP51 specific errors
-      if (json.result === "false" || json.result === false) {
-        console.error(`🛑 GP51 ${apiAction} failed:`, json.message || json.cause);
-        throw new Error(json.message || json.cause || `GP51 ${apiAction} failed`);
+      if (json.status !== 0) {
+        console.error(`🛑 GP51 ${apiAction} failed:`, json.cause || json.message);
+        throw new Error(json.cause || json.message || `GP51 ${apiAction} failed`);
       }
 
       return json;
@@ -93,14 +148,14 @@ serve(async (req) => {
             error: "Username and password are required"
           }), {
             status: 400,
-            headers: corsHeaders,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
         // Hash password using MD5 as required by GP51
         let hashedPassword;
         try {
-          hashedPassword = await createHash(password);
+          hashedPassword = await md5(password);
         } catch (hashError) {
           console.error('Password hashing failed:', hashError);
           return new Response(JSON.stringify({
@@ -108,7 +163,7 @@ serve(async (req) => {
             error: "Password hashing failed"
           }), {
             status: 500,
-            headers: corsHeaders,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
@@ -145,7 +200,7 @@ serve(async (req) => {
           gp51_username: username
         }), {
           status: 200,
-          headers: corsHeaders,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -158,7 +213,7 @@ serve(async (req) => {
             error: "Username is required"
           }), {
             status: 400,
-            headers: corsHeaders,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
@@ -189,7 +244,7 @@ serve(async (req) => {
           status: result.status || 0
         }), {
           status: 200,
-          headers: corsHeaders,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -202,7 +257,7 @@ serve(async (req) => {
             error: "Usernames parameter is required"
           }), {
             status: 400,
-            headers: corsHeaders,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
@@ -234,7 +289,7 @@ serve(async (req) => {
           status: result.status || 0
         }), {
           status: 200,
-          headers: corsHeaders,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -254,7 +309,7 @@ serve(async (req) => {
             data: result
           }), {
             status: 200,
-            headers: corsHeaders,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         } catch (error) {
           return new Response(JSON.stringify({
@@ -262,7 +317,7 @@ serve(async (req) => {
             error: error.message
           }), {
             status: 500,
-            headers: corsHeaders,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
       }
@@ -273,7 +328,7 @@ serve(async (req) => {
           error: `Unknown action: ${action}`
         }), {
           status: 400,
-          headers: corsHeaders,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
 
@@ -285,7 +340,7 @@ serve(async (req) => {
       details: error instanceof Error ? error.stack : undefined
     }), {
       status: 500,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

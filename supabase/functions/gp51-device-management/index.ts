@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -6,7 +7,63 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GP51_API_URL = "https://api.gpstrackerxy.com/api";
+const GP51_API_URL = "https://www.gps51.com/webapi";
+const REQUEST_TIMEOUT = 5000;
+const MAX_RETRIES = 2;
+
+// MD5 hash function for password hashing
+async function md5(input: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await crypto.subtle.digest('MD5', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function callGP51WithRetry(
+  formData: URLSearchParams, 
+  attempt: number = 1
+): Promise<{ success: boolean; response?: Response; error?: string; statusCode?: number }> {
+  try {
+    console.log(`GP51 API call attempt ${attempt}/${MAX_RETRIES + 1}`);
+    console.log('Form data:', Object.fromEntries(formData.entries()));
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+    const response = await fetch(GP51_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': 'EnvioFleet/1.0'
+      },
+      body: formData.toString(),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    console.log(`GP51 API response: status=${response.status}`);
+    
+    return { success: true, response, statusCode: response.status };
+    
+  } catch (error) {
+    console.error(`GP51 API attempt ${attempt} failed:`, error);
+    
+    if (attempt <= MAX_RETRIES) {
+      const delay = attempt * 1000;
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return callGP51WithRetry(formData, attempt + 1);
+    }
+    
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Network error',
+      statusCode: 0
+    };
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -38,29 +95,31 @@ serve(async (req) => {
         error: "No valid GP51 session found"
       }), {
         status: 401,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const makeGP51Call = async (apiAction: string, params: Record<string, string>) => {
+      const hashedPassword = await md5(session.gp51_password);
       const formData = new URLSearchParams({
         action: apiAction,
-        json: "1",
-        suser: session.username,
-        stoken: session.gp51_token,
+        username: session.username,
+        password: hashedPassword,
+        from: 'WEB',
+        type: 'USER',
         ...params
       });
 
-      const response = await fetch(GP51_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json",
-          "User-Agent": "EnvioFleet/1.0"
-        },
-        body: formData.toString(),
-      });
+      console.log(`📡 Making GP51 ${apiAction} call with params:`, Object.keys(params));
 
+      const result = await callGP51WithRetry(formData);
+      
+      if (!result.success) {
+        throw new Error(result.error || 'GP51 API call failed');
+      }
+
+      const response = result.response!;
+      
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -69,6 +128,13 @@ serve(async (req) => {
       console.log(`📊 GP51 ${apiAction} response:`, text.substring(0, 200));
 
       const json = JSON.parse(text);
+      
+      // Check for GP51 specific errors
+      if (json.status !== 0) {
+        console.error(`🛑 GP51 ${apiAction} failed:`, json.cause || json.message);
+        throw new Error(json.cause || json.message || `GP51 ${apiAction} failed`);
+      }
+
       return json;
     };
 
@@ -82,7 +148,7 @@ serve(async (req) => {
             error: "Device IDs and charge years are required"
           }), {
             status: 400,
-            headers: corsHeaders,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
@@ -95,7 +161,7 @@ serve(async (req) => {
         console.log(`📊 GP51 chargedevices result:`, result);
 
         // Update local device management tracking
-        if (result.result !== "false" && result.status === 0) {
+        if (result.status === 0) {
           const deviceIdList = Array.isArray(deviceids) ? deviceids : [deviceids];
           
           for (const deviceId of deviceIdList) {
@@ -146,13 +212,13 @@ serve(async (req) => {
         }
 
         return new Response(JSON.stringify({
-          success: result.result !== "false" && result.status === 0,
+          success: result.status === 0,
           data: result,
           status: result.status || 0,
-          message: result.result === "false" ? result.message : 'Device charged successfully'
+          message: result.status === 0 ? 'Device charged successfully' : result.message
         }), {
           status: 200,
-          headers: corsHeaders,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -166,7 +232,7 @@ serve(async (req) => {
         });
 
         // Update local device properties tracking
-        if (result.result !== "false") {
+        if (result.status === 0) {
           const { data: vehicle } = await supabase
             .from('vehicles')
             .select('id')
@@ -199,12 +265,12 @@ serve(async (req) => {
         }
 
         return new Response(JSON.stringify({
-          success: result.result !== "false",
+          success: result.status === 0,
           data: result,
           status: result.status || 0
         }), {
           status: 200,
-          headers: corsHeaders,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -212,12 +278,12 @@ serve(async (req) => {
         const result = await makeGP51Call('queryalldevices', {});
 
         return new Response(JSON.stringify({
-          success: result.result !== "false",
+          success: result.status === 0,
           data: result,
           devices: result.devices || []
         }), {
           status: 200,
-          headers: corsHeaders,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
 
@@ -230,7 +296,7 @@ serve(async (req) => {
             error: "Device ID is required"
           }), {
             status: 400,
-            headers: corsHeaders,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
@@ -238,7 +304,7 @@ serve(async (req) => {
           // Query all devices to check activation status
           const result = await makeGP51Call('queryalldevices', {});
           
-          if (result.result !== "false" && result.devices) {
+          if (result.status === 0 && result.devices) {
             const device = result.devices.find((d: any) => d.deviceid === deviceid);
             
             if (device) {
@@ -251,7 +317,7 @@ serve(async (req) => {
                 deviceInfo: device
               }), {
                 status: 200,
-                headers: corsHeaders,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
               });
             } else {
               return new Response(JSON.stringify({
@@ -261,7 +327,7 @@ serve(async (req) => {
                 deviceStatus: 'not_found'
               }), {
                 status: 404,
-                headers: corsHeaders,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
               });
             }
           } else {
@@ -272,7 +338,7 @@ serve(async (req) => {
               deviceStatus: 'error'
             }), {
               status: 500,
-              headers: corsHeaders,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             });
           }
         } catch (error) {
@@ -284,7 +350,7 @@ serve(async (req) => {
             deviceStatus: 'error'
           }), {
             status: 500,
-            headers: corsHeaders,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
       }
@@ -295,7 +361,7 @@ serve(async (req) => {
           error: `Unknown action: ${action}`
         }), {
           status: 400,
-          headers: corsHeaders,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
 
@@ -307,7 +373,7 @@ serve(async (req) => {
       details: error instanceof Error ? error.stack : undefined
     }), {
       status: 500,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

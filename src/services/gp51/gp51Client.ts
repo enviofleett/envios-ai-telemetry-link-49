@@ -9,7 +9,7 @@ export interface GP51ApiResponse {
 }
 
 export class GP51Client {
-  private static readonly GP51_API_URL = "https://api.gpstrackerxy.com/api";
+  private static readonly GP51_API_URL = "https://www.gps51.com/webapi";
 
   private static async getValidSession() {
     const { data: session, error } = await supabase
@@ -37,63 +37,24 @@ export class GP51Client {
     try {
       const session = await this.getValidSession();
       
-      const formData = new URLSearchParams({
-        action,
-        json: "1",
-        suser: session.username,
-        stoken: session.gp51_token,
-        ...additionalParams
+      // Use the edge function instead of direct API calls
+      const { data, error } = await supabase.functions.invoke('gp51-live-import', {
+        body: { action, ...additionalParams }
       });
-
-      console.log(`🌐 GP51 API Call: ${action}`);
-
-      const response = await fetch(this.GP51_API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Accept": "application/json",
-          "User-Agent": "EnvioFleet/1.0"
-        },
-        body: formData.toString(),
-      });
-
-      if (!response.ok) {
-        console.error(`❌ GP51 API HTTP error: ${response.status} ${response.statusText}`);
+      
+      if (error) {
+        console.error(`❌ GP51 ${action} edge function error:`, error);
         return {
           success: false,
-          error: `HTTP ${response.status}: ${response.statusText}`,
-          status: response.status
-        };
-      }
-
-      const text = await response.text();
-      console.log(`📊 Raw GP51 ${action} response:`, text.substring(0, 500) + '...');
-
-      let json;
-      try {
-        json = JSON.parse(text);
-      } catch (parseError) {
-        console.error(`❌ GP51 ${action} returned invalid JSON:`, text.substring(0, 200));
-        return {
-          success: false,
-          error: `Invalid GP51 ${action} response format`,
-          status: 502
-        };
-      }
-
-      if (json.result === "false" || json.result === false) {
-        console.error(`🛑 GP51 API ${action} returned false:`, json.message);
-        return {
-          success: false,
-          error: json.message || `${action} failed`,
-          status: 401
+          error: error.message || `${action} failed`,
+          status: 500
         };
       }
 
       return {
-        success: true,
-        data: json,
-        status: 200
+        success: data.success || false,
+        data: data.data || data,
+        status: data.success ? 200 : 400
       };
 
     } catch (error) {
@@ -115,14 +76,18 @@ export class GP51Client {
     usertype?: number;
     multilogin?: number;
   }): Promise<GP51ApiResponse> {
-    return this.makeApiCall('adduser', {
-      username: userData.username,
-      password: userData.password,
-      showname: userData.showname,
-      email: userData.email || '',
-      usertype: String(userData.usertype || 3),
-      multilogin: String(userData.multilogin || 1)
+    const { data, error } = await supabase.functions.invoke('gp51-user-management', {
+      body: {
+        action: 'adduser',
+        ...userData
+      }
     });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return data;
   }
 
   static async editUser(userData: {
@@ -131,21 +96,33 @@ export class GP51Client {
     email?: string;
     usertype?: number;
   }): Promise<GP51ApiResponse> {
-    const params: Record<string, string> = {
-      username: userData.username
-    };
+    const { data, error } = await supabase.functions.invoke('gp51-user-management', {
+      body: {
+        action: 'edituser',
+        ...userData
+      }
+    });
 
-    if (userData.showname) params.showname = userData.showname;
-    if (userData.email) params.email = userData.email;
-    if (userData.usertype) params.usertype = String(userData.usertype);
+    if (error) {
+      return { success: false, error: error.message };
+    }
 
-    return this.makeApiCall('edituser', params);
+    return data;
   }
 
   static async deleteUser(username: string): Promise<GP51ApiResponse> {
-    return this.makeApiCall('deleteuser', {
-      usernames: username
+    const { data, error } = await supabase.functions.invoke('gp51-user-management', {
+      body: {
+        action: 'deleteuser',
+        usernames: username
+      }
     });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return data;
   }
 
   // Device Management APIs
@@ -154,11 +131,18 @@ export class GP51Client {
     chargeyears: number;
     devicetype?: number;
   }): Promise<GP51ApiResponse> {
-    return this.makeApiCall('chargedevices', {
-      deviceids: deviceData.deviceids,
-      chargeyears: String(deviceData.chargeyears),
-      devicetype: String(deviceData.devicetype || 1)
+    const { data, error } = await supabase.functions.invoke('gp51-device-management', {
+      body: {
+        action: 'chargedevices',
+        ...deviceData
+      }
     });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return data;
   }
 
   static async setDeviceProperty(deviceData: {
@@ -166,11 +150,18 @@ export class GP51Client {
     propname: string;
     propvalue: string;
   }): Promise<GP51ApiResponse> {
-    return this.makeApiCall('setdeviceprop', {
-      deviceid: deviceData.deviceid,
-      propname: deviceData.propname,
-      propvalue: deviceData.propvalue
+    const { data, error } = await supabase.functions.invoke('gp51-device-management', {
+      body: {
+        action: 'setdeviceprop',
+        ...deviceData
+      }
     });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return data;
   }
 
   // Monitoring APIs
@@ -195,10 +186,26 @@ export class GP51Client {
   }
 
   static async queryAllUsers(): Promise<GP51ApiResponse> {
-    return this.makeApiCall('queryallusers');
+    const { data, error } = await supabase.functions.invoke('gp51-user-management', {
+      body: { action: 'test_user_creation', username: 'test' }
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return data;
   }
 
   static async queryAllDevices(): Promise<GP51ApiResponse> {
-    return this.makeApiCall('queryalldevices');
+    const { data, error } = await supabase.functions.invoke('gp51-device-management', {
+      body: { action: 'queryalldevices' }
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return data;
   }
 }

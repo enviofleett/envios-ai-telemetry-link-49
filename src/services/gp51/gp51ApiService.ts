@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { crossBrowserMD5 } from './crossBrowserMD5';
 
@@ -111,40 +112,27 @@ export class GP51ApiService {
     try {
       console.log(`GP51 authentication attempt for user: ${username}`);
       
-      // Use cross-browser MD5 implementation
-      const hashedPassword = await crossBrowserMD5(password);
-      
-      const authUrl = `${this.baseUrl}/webapi?action=login&token=`;
-      const authData = {
-        action: 'login',
-        username: username.trim(),
-        password: hashedPassword,
-        from: 'WEB',
-        type: 'USER'
-      };
-
-      const response = await fetch(authUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(authData)
+      // Use the settings-management edge function for authentication
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: {
+          action: 'save-gp51-credentials',
+          username: username.trim(),
+          password: password,
+          testOnly: true
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (error) {
+        console.error('GP51 authentication failed:', error);
+        return { success: false, error: error.message };
       }
 
-      const result: GP51AuthResponse = await response.json();
-
-      if (result.status === 0 && result.token) {
-        this.token = result.token;
+      if (data.success) {
         this.username = username.trim();
         console.log(`GP51 authentication successful for user: ${username}`);
-        return { success: true, token: result.token };
+        return { success: true, token: 'authenticated' };
       } else {
-        const errorMsg = result.cause || result.message || 'Authentication failed';
+        const errorMsg = data.error || 'Authentication failed';
         console.error(`GP51 authentication failed: ${errorMsg}`);
         return { success: false, error: errorMsg };
       }
@@ -158,42 +146,22 @@ export class GP51ApiService {
   }
 
   async getDeviceList(): Promise<{ success: boolean; devices?: GP51Device[]; error?: string }> {
-    if (!this.token || !this.username) {
-      return { success: false, error: 'Not authenticated' };
-    }
-
     try {
-      console.log(`Fetching device list for user: ${this.username}`);
+      console.log(`Fetching device list via edge function`);
       
-      const url = `${this.baseUrl}/webapi?action=querymonitorlist&token=${this.token}`;
+      const { data, error } = await supabase.functions.invoke('fetchLiveGp51Data');
       
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({ username: this.username })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (error) {
+        console.error('Device list fetch failed:', error);
+        return { success: false, error: error.message };
       }
 
-      const result: GP51MonitorListResponse = await response.json();
-
-      if (result.status === 0 && result.groups) {
-        const devices: GP51Device[] = [];
-        result.groups.forEach(group => {
-          if (group.devices) {
-            devices.push(...group.devices);
-          }
-        });
-        
+      if (data.success && data.data && data.data.devices) {
+        const devices = data.data.devices;
         console.log(`Successfully fetched ${devices.length} devices`);
         return { success: true, devices };
       } else {
-        const errorMsg = result.cause || 'Failed to fetch devices';
+        const errorMsg = data.error || 'Failed to fetch devices';
         console.error(`GP51 device list fetch failed: ${errorMsg}`);
         return { success: false, error: errorMsg };
       }
@@ -207,43 +175,22 @@ export class GP51ApiService {
   }
 
   async getLastPositions(deviceIds?: string[]): Promise<{ success: boolean; positions?: GP51Position[]; error?: string }> {
-    if (!this.token) {
-      return { success: false, error: 'Not authenticated' };
-    }
-
     try {
-      console.log(`Fetching last positions for devices: ${deviceIds ? deviceIds.length : 'all'}`);
+      console.log(`Fetching last positions via edge function`);
       
-      const url = `${this.baseUrl}/webapi?action=lastposition&token=${this.token}`;
+      const { data, error } = await supabase.functions.invoke('fetchLiveGp51Data');
       
-      const requestBody: any = {
-        lastquerypositiontime: 0
-      };
-
-      if (deviceIds && deviceIds.length > 0) {
-        requestBody.deviceids = deviceIds;
+      if (error) {
+        console.error('Positions fetch failed:', error);
+        return { success: false, error: error.message };
       }
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result: GP51PositionResponse = await response.json();
-
-      if (result.status === 0 && result.records) {
-        console.log(`Successfully fetched ${result.records.length} position records`);
-        return { success: true, positions: result.records };
+      if (data.success && data.data && data.data.telemetry) {
+        const positions = data.data.telemetry;
+        console.log(`Successfully fetched ${positions.length} position records`);
+        return { success: true, positions };
       } else {
-        const errorMsg = result.cause || 'Failed to fetch positions';
+        const errorMsg = data.error || 'Failed to fetch positions';
         console.error(`GP51 positions fetch failed: ${errorMsg}`);
         return { success: false, error: errorMsg };
       }
@@ -257,90 +204,18 @@ export class GP51ApiService {
   }
 
   async getDeviceTracks(deviceId: string, startTime: string, endTime: string): Promise<{ success: boolean; tracks?: GP51TrackPoint[]; error?: string }> {
-    if (!this.token) {
-      return { success: false, error: 'Not authenticated' };
-    }
-
-    try {
-      console.log(`Fetching tracks for device: ${deviceId} from ${startTime} to ${endTime}`);
-      
-      const url = `${this.baseUrl}/webapi?action=querytracks&token=${this.token}`;
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          deviceid: deviceId,
-          begintime: startTime,
-          endtime: endTime
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result: GP51TracksResponse = await response.json();
-
-      if (result.status === 0 && result.records) {
-        console.log(`Successfully fetched ${result.records.length} track points`);
-        return { success: true, tracks: result.records };
-      } else {
-        const errorMsg = result.cause || 'Failed to fetch tracks';
-        console.error(`GP51 tracks fetch failed: ${errorMsg}`);
-        return { success: false, error: errorMsg };
-      }
-    } catch (error) {
-      console.error('GP51 tracks fetch error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown tracks fetch error' 
-      };
-    }
+    // This would need a specific edge function for tracks, for now return not implemented
+    return { 
+      success: false, 
+      error: 'Track fetching not implemented in edge functions yet' 
+    };
   }
 
   async logout(): Promise<{ success: boolean; error?: string }> {
-    if (!this.token) {
-      return { success: false, error: 'Not authenticated' };
-    }
-
-    try {
-      const url = `${this.baseUrl}/webapi?action=logout&token=${this.token}`;
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (result.status === 0) {
-        this.token = null;
-        this.username = null;
-        console.log('GP51 logout successful');
-        return { success: true };
-      } else {
-        const errorMsg = result.cause || 'Logout failed';
-        console.error(`GP51 logout failed: ${errorMsg}`);
-        return { success: false, error: errorMsg };
-      }
-    } catch (error) {
-      console.error('GP51 logout error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown logout error' 
-      };
-    }
+    this.token = null;
+    this.username = null;
+    console.log('GP51 logout successful');
+    return { success: true };
   }
 
   async saveCredentialsToDatabase(credentials: { username: string; password: string; apiUrl?: string }): Promise<{ success: boolean; error?: string }> {
@@ -350,13 +225,14 @@ export class GP51ApiService {
           action: 'save-gp51-credentials',
           username: credentials.username,
           password: credentials.password,
-          apiUrl: credentials.apiUrl
+          apiUrl: credentials.apiUrl,
+          testOnly: false
         }
       });
       
       if (error) throw error;
       
-      return { success: true };
+      return { success: data.success, error: data.error };
     } catch (error) {
       console.error('Failed to save GP51 credentials:', error);
       return { 
@@ -368,13 +244,15 @@ export class GP51ApiService {
 
   async getConnectionStatus(): Promise<{ connected: boolean; username?: string; error?: string }> {
     try {
-      const { data, error } = await supabase.functions.invoke('settings-management', {
-        body: { action: 'get-gp51-status' }
-      });
+      const { data, error } = await supabase.functions.invoke('gp51-connection-check');
       
       if (error) throw error;
       
-      return data;
+      return {
+        connected: data.success || false,
+        username: data.username,
+        error: data.error
+      };
     } catch (error) {
       console.error('Failed to get GP51 status:', error);
       return { 
