@@ -243,12 +243,21 @@ export class PackageMappingService {
         };
       }
 
-      // Update referral code usage if used
+      // Update referral code usage if used - fix the increment logic
       if (referralCode && discountApplied > 0) {
-        await supabase
+        // Get current usage count and increment it
+        const { data: currentReferral } = await supabase
           .from('referral_codes')
-          .update({ usage_count: supabase.rpc('increment_usage', { code: referralCode }) })
-          .eq('code', referralCode);
+          .select('usage_count')
+          .eq('code', referralCode)
+          .single();
+
+        if (currentReferral) {
+          await supabase
+            .from('referral_codes')
+            .update({ usage_count: currentReferral.usage_count + 1 })
+            .eq('code', referralCode);
+        }
       }
 
       // Map to GP51 user type and roles - cast the data properly
@@ -263,7 +272,7 @@ export class PackageMappingService {
           .from('user_roles')
           .upsert({
             user_id: userId,
-            role: roleType
+            role: roleType as 'admin' | 'user'
           }, {
             onConflict: 'user_id,role'
           });
