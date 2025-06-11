@@ -33,6 +33,12 @@ export interface SMSLogsResponse {
   };
 }
 
+export interface BalanceResponse {
+  success: boolean;
+  balance?: string;
+  error?: string;
+}
+
 class SMSService {
   private async makeRequest(data: any) {
     const { data: response, error } = await supabase.functions.invoke('sms-gateway', {
@@ -44,6 +50,76 @@ class SMSService {
     }
 
     return response;
+  }
+
+  async validateCredentials(username: string, password: string): Promise<BalanceResponse> {
+    console.log('🔍 Validating SMS credentials using balance check...');
+    
+    try {
+      // Construct the validation URL for balance check
+      const validationUrl = `https://sms.mysmstab.com/api/?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=balance`;
+      
+      const response = await fetch(validationUrl);
+      const data = await response.json();
+      
+      console.log('📊 Balance API response:', data);
+      
+      // Check if the API returned an error
+      if (data.error) {
+        console.error('❌ Validation failed:', data.error);
+        return {
+          success: false,
+          error: data.error
+        };
+      }
+      
+      // Success case - credentials are valid
+      console.log('✅ Credentials validated successfully');
+      return {
+        success: true,
+        balance: data.balance || 'Available'
+      };
+      
+    } catch (error) {
+      console.error('❌ Network error during validation:', error);
+      return {
+        success: false,
+        error: 'Could not connect to SMS service. Please check your internet connection.'
+      };
+    }
+  }
+
+  async validateAndSaveCredentials(config: SMSConfig): Promise<{ success: boolean; message: string; balance?: string }> {
+    console.log('🧪 Starting credential validation and save process...');
+    
+    // Step 1: Validate credentials using balance check
+    const validationResult = await this.validateCredentials(config.username, config.password);
+    
+    if (!validationResult.success) {
+      return {
+        success: false,
+        message: validationResult.error || 'Credential validation failed'
+      };
+    }
+    
+    // Step 2: Save credentials to database if validation passed
+    try {
+      console.log('💾 Saving validated credentials to database...');
+      await this.saveSMSConfiguration(config);
+      
+      return {
+        success: true,
+        message: 'Credentials verified and saved successfully!',
+        balance: validationResult.balance
+      };
+      
+    } catch (error) {
+      console.error('❌ Failed to save credentials after validation:', error);
+      return {
+        success: false,
+        message: `Credentials are valid but failed to save: ${error instanceof Error ? error.message : 'Unknown error'}`
+      };
+    }
   }
 
   async sendSMS(recipient: string, message: string, eventType: string = 'CUSTOM') {
