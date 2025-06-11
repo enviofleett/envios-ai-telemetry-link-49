@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -23,7 +22,6 @@ export const useGP51Credentials = () => {
       projectRef,
       functionName,
       expectedUrl,
-      currentUrl: supabase.supabaseUrl,
       timestamp: new Date().toISOString()
     });
     
