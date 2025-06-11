@@ -78,6 +78,47 @@ export class GP51SessionManager {
       return { valid: false, error: error instanceof Error ? error.message : 'Validation failed' };
     }
   }
+
+  static async testConnection(): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log('🧪 Testing GP51 connection...');
+      
+      const sessionValidation = await this.validateSession();
+      
+      if (!sessionValidation.valid) {
+        return { 
+          success: false, 
+          error: sessionValidation.error || 'No valid session found' 
+        };
+      }
+
+      // Test connection via edge function
+      const { data, error } = await supabase.functions.invoke('gp51-connection-check', {
+        body: { testConnectivity: true }
+      });
+
+      if (error) {
+        console.error('❌ Connection test failed:', error);
+        return { 
+          success: false, 
+          error: error.message || 'Connection test failed' 
+        };
+      }
+
+      console.log('✅ Connection test result:', data);
+      return { 
+        success: data?.success || false, 
+        error: data?.error 
+      };
+      
+    } catch (error) {
+      console.error('❌ Connection test exception:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Connection test failed' 
+      };
+    }
+  }
 }
 
 // Create a singleton instance for backward compatibility
