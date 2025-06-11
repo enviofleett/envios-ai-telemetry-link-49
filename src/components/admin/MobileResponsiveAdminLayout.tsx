@@ -15,7 +15,7 @@ const MobileResponsiveAdminLayout: React.FC<MobileResponsiveAdminLayoutProps> = 
   activeTab, 
   onTabChange 
 }) => {
-  const [isM󠀠obileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const handleTabChange = (tab: string) => {
     onTabChange(tab);
@@ -36,7 +36,7 @@ const MobileResponsiveAdminLayout: React.FC<MobileResponsiveAdminLayoutProps> = 
 
       {/* Mobile Sidebar */}
       <div className="md:hidden">
-        <Sheet open={isM󠀠obileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
+        <Sheet open={isMobileSidebarOpen} onOpenChange={setIsMobileSidebarOpen}>
           <SheetTrigger asChild>
             <Button
               variant="outline"
