@@ -10,14 +10,58 @@ export interface GP51ConnectionStatus {
   realTimeStatus?: 'online' | 'offline' | 'error';
 }
 
+export interface GP51User {
+  username: string;
+  usertype: number;
+  deviceids: string[];
+  email?: string;
+  showname?: string;
+}
+
+export interface GP51Device {
+  deviceid: string;
+  devicename: string;
+  devicetype: string;
+  isfree: boolean;
+  simNumber?: string;
+  activated?: boolean;
+}
+
+export interface GP51Group {
+  id: string;
+  name: string;
+  deviceCount: number;
+  devices?: GP51Device[];
+}
+
+export interface GP51Statistics {
+  totalUsers: number;
+  activeUsers: number;
+  totalDevices: number;
+  activeDevices: number;
+}
+
 export interface GP51LiveData {
-  users: any[];
-  devices: any[];
-  vehicles: any[];
-  telemetry: any[];
-  total_devices: number;
-  total_positions: number;
-  fetched_at: string;
+  users: GP51User[];
+  devices: GP51Device[];
+  groups?: GP51Group[];
+  vehicles?: any[];
+  telemetry?: any[];
+  total_devices?: number;
+  total_positions?: number;
+  fetched_at?: string;
+  statistics: GP51Statistics;
+}
+
+export interface GP51LiveImportJob {
+  id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  startedAt: string;
+  completedAt?: string;
+  processedItems: number;
+  successfulItems: number;
+  totalItems: number;
+  errors?: string[];
 }
 
 export interface GP51LiveImportConfig {

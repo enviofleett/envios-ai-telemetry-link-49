@@ -2,13 +2,21 @@
 import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { GP51LiveData, GP51ConnectionStatus } from './types';
-import { calculateStatistics } from './utils';
+import { GP51LiveData, GP51ConnectionStatus, GP51Statistics } from './types';
 
 export const useGP51DataFetcher = (connectionStatus: GP51ConnectionStatus | null) => {
   const [liveData, setLiveData] = useState<GP51LiveData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  const calculateStatistics = (users: any[], devices: any[]): GP51Statistics => {
+    return {
+      totalUsers: users.length,
+      activeUsers: users.filter(user => user.usertype && user.usertype > 0).length,
+      totalDevices: devices.length,
+      activeDevices: devices.filter(device => !device.isfree).length
+    };
+  };
 
   const fetchLiveData = useCallback(async () => {
     if (!connectionStatus?.connected) {
