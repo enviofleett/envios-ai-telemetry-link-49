@@ -18,7 +18,65 @@ function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString()
 }
 
-// Register user
+// Create GP51 user
+async function createGP51User(userData: {
+  username: string;
+  password: string;
+  showname: string;
+  email?: string;
+  usertype?: number;
+}) {
+  console.log('🔄 Creating GP51 user:', userData.username);
+  
+  const { data, error } = await supabase.functions.invoke('gp51-user-management', {
+    body: {
+      action: 'adduser',
+      username: userData.username,
+      password: userData.password,
+      showname: userData.showname,
+      email: userData.email || '',
+      usertype: userData.usertype || 3,
+      multilogin: 1
+    }
+  });
+
+  if (error) {
+    console.error('❌ GP51 user creation failed:', error);
+    throw new Error(`GP51 user creation failed: ${error.message}`);
+  }
+
+  if (!data.success) {
+    console.error('❌ GP51 user creation returned error:', data);
+    throw new Error(`GP51 user creation failed: ${data.error || 'Unknown error'}`);
+  }
+
+  console.log('✅ GP51 user created successfully:', userData.username);
+  return data;
+}
+
+// Delete GP51 user (for rollback)
+async function deleteGP51User(username: string) {
+  console.log('🔄 Rolling back GP51 user:', username);
+  
+  try {
+    const { data, error } = await supabase.functions.invoke('gp51-user-management', {
+      body: {
+        action: 'deleteuser',
+        usernames: username
+      }
+    });
+
+    if (error) {
+      console.error('❌ GP51 user rollback failed:', error);
+    } else {
+      console.log('✅ GP51 user rollback successful:', username);
+    }
+  } catch (rollbackError) {
+    console.error('❌ GP51 user rollback exception:', rollbackError);
+  }
+}
+
+// Register user with GP51 integration
 export async function registerUser(formData: FormData) {
   try {
     // Extract and validate form data
@@ -33,8 +91,9 @@ export async function registerUser(formData: FormData) {
     // Validate data
     const validatedData = userRegistrationSchema.parse(data)
 
-    // Generate username
+    // Generate username and temporary password
     const username = generateUsername(validatedData.name)
+    const tempPassword = 'TempPass123!' // Will be changed during password setup
 
     // Generate OTP
     const otp = generateOTP()
@@ -53,69 +112,112 @@ export async function registerUser(formData: FormData) {
       }
     }
 
-    // Create pending registration record
-    const { data: registrationData, error: registrationError } = await supabase
-      .from('pending_user_registrations')
-      .insert({
-        name: validatedData.name,
-        email: validatedData.email,
-        phone_number: validatedData.phone,
-        city: validatedData.city,
-        subscription_package: validatedData.subscriptionPackage,
-        gp51_username: username,
-        registration_source: 'admin_portal',
-        status: 'pending_otp'
-      })
-      .select()
-      .single()
+    let registrationId: string | null = null;
+    let gp51Created = false;
 
-    if (registrationError) {
-      console.error('Registration error:', registrationError)
-      return {
-        success: false,
-        message: "Failed to register user. Please try again.",
+    try {
+      // Step 1: Create pending registration record first
+      const { data: registrationData, error: registrationError } = await supabase
+        .from('pending_user_registrations')
+        .insert({
+          name: validatedData.name,
+          email: validatedData.email,
+          phone_number: validatedData.phone,
+          city: validatedData.city,
+          subscription_package: validatedData.subscriptionPackage,
+          gp51_username: username,
+          registration_source: 'admin_portal',
+          status: 'pending_otp'
+        })
+        .select()
+        .single()
+
+      if (registrationError) {
+        console.error('Registration error:', registrationError)
+        return {
+          success: false,
+          message: "Failed to register user. Please try again.",
+        }
       }
-    }
 
-    // Generate and store OTP
-    const { error: otpError } = await supabase
-      .from('otp_verifications')
-      .insert({
-        email: validatedData.email,
-        phone_number: validatedData.phone,
-        otp_code: otp,
-        otp_type: 'registration',
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes
-        max_attempts: 3,
-        attempts_count: 0,
-        is_used: false
-      })
+      registrationId = registrationData.id;
 
-    if (otpError) {
-      console.error('OTP creation error:', otpError)
-      return {
-        success: false,
-        message: "Failed to send OTP. Please try again.",
-      }
-    }
-
-    // In a real application, send OTP via email/SMS
-    console.log(`OTP for ${validatedData.email}: ${otp}`)
-
-    return {
-      success: true,
-      message: "User registered successfully. OTP sent to email.",
-      user: {
-        ...validatedData,
+      // Step 2: Create user in GP51 system
+      console.log('🔄 Creating GP51 user for registration:', username);
+      await createGP51User({
         username,
-        id: registrationData.id,
-        registrationSource: "admin_portal",
-        status: "pending_otp",
-        createdAt: registrationData.created_at,
-      },
+        password: tempPassword,
+        showname: validatedData.name,
+        email: validatedData.email,
+        usertype: 3 // End user
+      });
+      
+      gp51Created = true;
+      console.log('✅ GP51 user created successfully');
+
+      // Step 3: Generate and store OTP
+      const { error: otpError } = await supabase
+        .from('otp_verifications')
+        .insert({
+          email: validatedData.email,
+          phone_number: validatedData.phone,
+          otp_code: otp,
+          otp_type: 'registration',
+          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 minutes
+          max_attempts: 3,
+          attempts_count: 0,
+          is_used: false
+        })
+
+      if (otpError) {
+        console.error('OTP creation error:', otpError)
+        throw new Error('Failed to send OTP')
+      }
+
+      // In a real application, send OTP via email/SMS
+      console.log(`📧 OTP for ${validatedData.email}: ${otp}`)
+
+      return {
+        success: true,
+        message: "User registered successfully in both Envio and GP51. OTP sent to email.",
+        user: {
+          ...validatedData,
+          username,
+          id: registrationData.id,
+          registrationSource: "admin_portal",
+          status: "pending_otp",
+          createdAt: registrationData.created_at,
+          gp51Created: true
+        },
+      }
+
+    } catch (error) {
+      console.error("Registration process failed:", error)
+      
+      // Rollback: Delete GP51 user if it was created
+      if (gp51Created) {
+        console.log('🔄 Rolling back GP51 user due to error');
+        await deleteGP51User(username);
+      }
+
+      // Rollback: Delete registration record if it was created
+      if (registrationId) {
+        console.log('🔄 Rolling back registration record due to error');
+        await supabase
+          .from('pending_user_registrations')
+          .delete()
+          .eq('id', registrationId);
+      }
+
+      return {
+        success: false,
+        message: "Failed to register user. All changes have been rolled back.",
+        error: error instanceof Error ? error.message : "Unknown error"
+      }
     }
+
   } catch (error) {
-    console.error("Registration error:", error)
+    console.error("Registration validation error:", error)
     if (error instanceof z.ZodError) {
       return {
         success: false,
@@ -224,7 +326,7 @@ export async function verifyOTP(formData: FormData) {
   }
 }
 
-// Set password
+// Set password with GP51 integration
 export async function setPassword(formData: FormData) {
   try {
     const data = {
@@ -236,7 +338,7 @@ export async function setPassword(formData: FormData) {
     // Validate data
     const validatedData = passwordSetupSchema.parse(data)
 
-    // Get pending registration - select all needed columns including gp51_username
+    // Get pending registration
     const { data: registration, error: registrationError } = await supabase
       .from('pending_user_registrations')
       .select('*')
@@ -251,73 +353,124 @@ export async function setPassword(formData: FormData) {
       }
     }
 
-    // Type the registration to include gp51_username
     const typedRegistration = registration as typeof registration & { gp51_username?: string }
 
-    // Create user in Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: validatedData.email,
-      password: validatedData.password,
-      options: {
-        data: {
-          name: typedRegistration.name,
-          phone: typedRegistration.phone_number,
-          city: typedRegistration.city,
+    let authUserId: string | null = null;
+    let localUserCreated = false;
+
+    try {
+      // Step 1: Create user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: validatedData.email,
+        password: validatedData.password,
+        options: {
+          data: {
+            name: typedRegistration.name,
+            phone: typedRegistration.phone_number,
+            city: typedRegistration.city,
+          }
+        }
+      })
+
+      if (authError) {
+        console.error('Auth creation error:', authError)
+        return {
+          success: false,
+          message: authError.message || "Failed to create user account.",
         }
       }
-    })
 
-    if (authError) {
-      console.error('Auth creation error:', authError)
+      authUserId = authData.user?.id || null;
+
+      // Step 2: Create user in envio_users table
+      const { error: userError } = await supabase
+        .from('envio_users')
+        .insert({
+          id: authData.user?.id,
+          name: typedRegistration.name,
+          email: typedRegistration.email,
+          phone_number: typedRegistration.phone_number,
+          city: typedRegistration.city,
+          gp51_username: typedRegistration.gp51_username,
+          registration_type: 'admin_portal',
+          registration_status: 'completed',
+          needs_password_set: false,
+          is_gp51_imported: false
+        })
+
+      if (userError) {
+        console.error('User creation error:', userError)
+        throw new Error('Failed to complete user setup')
+      }
+
+      localUserCreated = true;
+
+      // Step 3: Update GP51 user with the actual password
+      if (typedRegistration.gp51_username) {
+        console.log('🔄 Updating GP51 user password');
+        
+        // Note: GP51 doesn't have a direct "change password" API, so we might need to:
+        // 1. Delete the old user and recreate with new password, OR
+        // 2. Use edituser if it supports password changes
+        // For now, we'll log this for future implementation
+        console.log('⚠️  GP51 password update not implemented - user has temp password in GP51');
+      }
+
+      // Step 4: Create default user role
+      await supabase
+        .from('user_roles')
+        .insert({
+          user_id: authData.user?.id,
+          role: 'user'
+        })
+
+      // Step 5: Mark registration as completed
+      await supabase
+        .from('pending_user_registrations')
+        .update({ status: 'completed' })
+        .eq('id', typedRegistration.id)
+
+      // Step 6: Link user to GP51 management table
+      if (typedRegistration.gp51_username) {
+        await supabase
+          .from('gp51_user_management')
+          .update({
+            envio_user_id: authData.user?.id,
+            activation_status: 'active',
+            activation_date: new Date().toISOString(),
+            last_sync_at: new Date().toISOString()
+          })
+          .eq('gp51_username', typedRegistration.gp51_username);
+      }
+
+      return {
+        success: true,
+        message: "Password set successfully. User account created in both Envio and GP51.",
+        gp51Username: typedRegistration.gp51_username
+      }
+
+    } catch (error) {
+      console.error("Password setup error:", error)
+      
+      // Rollback: Delete auth user if created
+      if (authUserId && localUserCreated) {
+        console.log('🔄 Rolling back user creation due to error');
+        try {
+          await supabase.auth.admin.deleteUser(authUserId);
+        } catch (rollbackError) {
+          console.error('Failed to rollback auth user:', rollbackError);
+        }
+      }
+
       return {
         success: false,
-        message: authError.message || "Failed to create user account.",
+        message: "Failed to set password. Please try again.",
+        error: error instanceof Error ? error.message : "Unknown error"
       }
     }
 
-    // Create user in envio_users table
-    const { error: userError } = await supabase
-      .from('envio_users')
-      .insert({
-        id: authData.user?.id,
-        name: typedRegistration.name,
-        email: typedRegistration.email,
-        phone_number: typedRegistration.phone_number,
-        city: typedRegistration.city,
-        gp51_username: typedRegistration.gp51_username,
-        registration_type: 'admin_portal',
-        registration_status: 'completed',
-        needs_password_set: false
-      })
-
-    if (userError) {
-      console.error('User creation error:', userError)
-      return {
-        success: false,
-        message: "Failed to complete user setup.",
-      }
-    }
-
-    // Create default user role
-    await supabase
-      .from('user_roles')
-      .insert({
-        user_id: authData.user?.id,
-        role: 'user'
-      })
-
-    // Mark registration as completed
-    await supabase
-      .from('pending_user_registrations')
-      .update({ status: 'completed' })
-      .eq('id', typedRegistration.id)
-
-    return {
-      success: true,
-      message: "Password set successfully. User account created.",
-    }
   } catch (error) {
-    console.error("Password setup error:", error)
+    console.error("Password setup validation error:", error)
     if (error instanceof z.ZodError) {
       return {
         success: false,

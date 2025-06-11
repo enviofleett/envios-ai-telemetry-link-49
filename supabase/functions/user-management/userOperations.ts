@@ -1,4 +1,3 @@
-
 import { autoLinkUserVehicles } from './autoLinking.ts';
 import { isUserAdmin } from './auth.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
@@ -9,6 +8,8 @@ async function createUserInGP51(userData: any): Promise<{ success: boolean; erro
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    console.log('🔄 Creating GP51 user via gp51-user-management function');
 
     // Call GP51 user management API to create user
     const { data, error } = await supabase.functions.invoke('gp51-user-management', {
@@ -28,12 +29,12 @@ async function createUserInGP51(userData: any): Promise<{ success: boolean; erro
       return { success: false, error: error.message };
     }
 
-    if (data && data.status === 0) {
-      console.log('User created successfully in GP51:', userData.gp51_username || userData.email);
+    if (data && data.success) {
+      console.log('✅ User created successfully in GP51:', userData.gp51_username || userData.email);
       return { success: true };
     } else {
-      console.error('GP51 user creation returned error status:', data);
-      return { success: false, error: data?.data?.cause || 'Unknown GP51 error' };
+      console.error('GP51 user creation returned error:', data);
+      return { success: false, error: data?.error || 'Unknown GP51 error' };
     }
   } catch (error) {
     console.error('Exception during GP51 user creation:', error);
@@ -48,6 +49,8 @@ async function deleteUserFromGP51(gp51Username: string): Promise<{ success: bool
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    console.log('🔄 Deleting GP51 user via gp51-user-management function');
+
     // Call GP51 user management API to delete user
     const { data, error } = await supabase.functions.invoke('gp51-user-management', {
       body: {
@@ -61,12 +64,12 @@ async function deleteUserFromGP51(gp51Username: string): Promise<{ success: bool
       return { success: false, error: error.message };
     }
 
-    if (data && data.status === 0) {
-      console.log('User deleted successfully from GP51:', gp51Username);
+    if (data && data.success) {
+      console.log('✅ User deleted successfully from GP51:', gp51Username);
       return { success: true };
     } else {
-      console.error('GP51 user deletion returned error status:', data);
-      return { success: false, error: data?.data?.cause || 'Unknown GP51 error' };
+      console.error('GP51 user deletion returned error:', data);
+      return { success: false, error: data?.error || 'Unknown GP51 error' };
     }
   } catch (error) {
     console.error('Exception during GP51 user deletion:', error);
@@ -116,75 +119,84 @@ export async function createUser(supabase: any, userData: any, currentUserId: st
     userCreateData.gp51_username = gp51_username;
   }
 
-  // Step 1: Create user in GP51 first if GP51 username is provided
-  if (gp51_username) {
-    console.log(`Creating user in GP51 first: ${gp51_username}`);
-    const gp51Result = await createUserInGP51({
-      ...userData,
-      gp51_username,
-      password: password || 'TempPass123!' // Use provided password or temporary one
-    });
+  let gp51Created = false;
 
-    if (!gp51Result.success) {
-      console.error('Failed to create user in GP51:', gp51Result.error);
-      throw new Error(`GP51 user creation failed: ${gp51Result.error}`);
+  try {
+    // Step 1: Create user in GP51 first if GP51 username is provided
+    if (gp51_username) {
+      console.log(`🔄 Creating user in GP51 first: ${gp51_username}`);
+      const gp51Result = await createUserInGP51({
+        ...userData,
+        gp51_username,
+        password: password || 'TempPass123!' // Use provided password or temporary one
+      });
+
+      if (!gp51Result.success) {
+        console.error('Failed to create user in GP51:', gp51Result.error);
+        throw new Error(`GP51 user creation failed: ${gp51Result.error}`);
+      }
+
+      gp51Created = true;
+      console.log('✅ User created successfully in GP51, proceeding with local creation');
+
+      // Track GP51 user management
+      await supabase
+        .from('gp51_user_management')
+        .insert({
+          envio_user_id: newUserId,
+          gp51_username,
+          gp51_user_type: userData.gp51_user_type || 3,
+          activation_status: 'active',
+          activation_date: new Date().toISOString(),
+          last_sync_at: new Date().toISOString()
+        });
     }
 
-    console.log('User created successfully in GP51, proceeding with local creation');
+    // Step 2: Create user locally
+    const { data: user, error } = await supabase
+      .from('envio_users')
+      .insert(userCreateData)
+      .select()
+      .single();
 
-    // Track GP51 user management
+    if (error) {
+      console.error('Error creating user locally:', error);
+      throw new Error(error.message);
+    }
+
+    // Create default user role
     await supabase
-      .from('gp51_user_management')
+      .from('user_roles')
       .insert({
-        envio_user_id: newUserId,
-        gp51_username,
-        gp51_user_type: userData.gp51_user_type || 3,
-        activation_status: 'active',
-        activation_date: new Date().toISOString(),
-        last_sync_at: new Date().toISOString()
+        user_id: newUserId,
+        role: 'user'
       });
-  }
 
-  // Step 2: Create user locally
-  const { data: user, error } = await supabase
-    .from('envio_users')
-    .insert(userCreateData)
-    .select()
-    .single();
+    // Auto-link vehicles if GP51 username is provided
+    let linkedVehicles = 0;
+    if (gp51_username) {
+      linkedVehicles = await autoLinkUserVehicles(supabase, newUserId, gp51_username);
+    }
 
-  if (error) {
-    console.error('Error creating user locally:', error);
+    console.log(`✅ Created user ${newUserId} with GP51 integration and auto-linked ${linkedVehicles} vehicles`);
+
+    return {
+      user,
+      autoLinkedVehicles: linkedVehicles,
+      gp51Created: !!gp51_username
+    };
+
+  } catch (error) {
+    console.error('User creation failed, rolling back:', error);
     
     // Rollback: If local creation fails, try to delete from GP51
-    if (gp51_username) {
-      console.log('Rolling back GP51 user creation due to local creation failure');
+    if (gp51Created && gp51_username) {
+      console.log('🔄 Rolling back GP51 user creation due to local creation failure');
       await deleteUserFromGP51(gp51_username);
     }
     
-    throw new Error(error.message);
+    throw error;
   }
-
-  // Create default user role
-  await supabase
-    .from('user_roles')
-    .insert({
-      user_id: newUserId,
-      role: 'user'
-    });
-
-  // Auto-link vehicles if GP51 username is provided
-  let linkedVehicles = 0;
-  if (gp51_username) {
-    linkedVehicles = await autoLinkUserVehicles(supabase, newUserId, gp51_username);
-  }
-
-  console.log(`Created user ${newUserId} and auto-linked ${linkedVehicles} vehicles`);
-
-  return {
-    user,
-    autoLinkedVehicles: linkedVehicles,
-    gp51Created: !!gp51_username
-  };
 }
 
 export async function updateUser(supabase: any, userId: string, updateData: any, currentUserId: string) {
@@ -208,7 +220,7 @@ export async function updateUser(supabase: any, userId: string, updateData: any,
 
   // If user has GP51 username, update in GP51 first
   if (currentUser?.gp51_username && (updateData.name || updateData.email)) {
-    console.log(`Updating user in GP51: ${currentUser.gp51_username}`);
+    console.log(`🔄 Updating user in GP51: ${currentUser.gp51_username}`);
     
     try {
       const { data, error } = await supabase.functions.invoke('gp51-user-management', {
@@ -220,12 +232,12 @@ export async function updateUser(supabase: any, userId: string, updateData: any,
         }
       });
 
-      if (error || (data && data.status !== 0)) {
+      if (error || (data && !data.success)) {
         console.error('GP51 user update failed:', error || data);
-        throw new Error(`GP51 user update failed: ${error?.message || data?.data?.cause || 'Unknown error'}`);
+        throw new Error(`GP51 user update failed: ${error?.message || data?.error || 'Unknown error'}`);
       }
 
-      console.log('User updated successfully in GP51');
+      console.log('✅ User updated successfully in GP51');
 
       // Update tracking table
       await supabase
@@ -278,7 +290,7 @@ export async function deleteUser(supabase: any, userId: string, currentUserId: s
 
   // Step 1: Delete/deactivate user from GP51 first if they have a GP51 username
   if (user?.gp51_username) {
-    console.log(`Deleting user from GP51: ${user.gp51_username}`);
+    console.log(`🔄 Deleting user from GP51: ${user.gp51_username}`);
     const gp51Result = await deleteUserFromGP51(user.gp51_username);
 
     if (!gp51Result.success) {
@@ -286,7 +298,7 @@ export async function deleteUser(supabase: any, userId: string, currentUserId: s
       throw new Error(`GP51 user deletion failed: ${gp51Result.error}`);
     }
 
-    console.log('User deleted successfully from GP51, proceeding with local deletion');
+    console.log('✅ User deleted successfully from GP51, proceeding with local deletion');
   }
 
   // Step 2: Unassign vehicles before deleting user locally
@@ -306,5 +318,5 @@ export async function deleteUser(supabase: any, userId: string, currentUserId: s
     throw new Error(error.message);
   }
 
-  console.log(`User ${userId} deleted successfully from both GP51 and local database`);
+  console.log(`✅ User ${userId} deleted successfully from both GP51 and local database`);
 }
