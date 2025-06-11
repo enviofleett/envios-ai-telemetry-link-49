@@ -1,13 +1,11 @@
 
-import { createHash } from "https://deno.land/std@0.208.0/hash/mod.ts";
+import { md5 } from "https://deno.land/std@0.208.0/hash/md5.ts";
 
 export function createHash(text: string): string {
   console.log(`Hashing password of length: ${text.length}`);
   
   try {
-    const hash = createHash('md5');
-    hash.update(text);
-    const md5Hash = hash.toString();
+    const md5Hash = md5(text);
     
     console.log('MD5 hash generated successfully');
     return md5Hash;
