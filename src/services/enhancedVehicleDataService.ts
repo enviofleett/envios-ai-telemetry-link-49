@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { unifiedGP51SessionManager } from './unifiedGP51SessionManager';
 import { VehicleData, VehicleDataMetrics } from './vehicleData/types';

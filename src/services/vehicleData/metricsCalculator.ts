@@ -2,17 +2,25 @@
 import { VehicleData, VehicleDataMetrics } from './types';
 
 export class MetricsCalculator {
-  static calculateMetrics(vehicles: VehicleData[], lastSyncTime: Date, syncStatus: 'success' | 'error' | 'in_progress', errorMessage?: string): VehicleDataMetrics {
-    const now = Date.now();
-    const recentThreshold = 30 * 60 * 1000; // 30 minutes
+  static calculateMetrics(
+    vehicles: VehicleData[], 
+    lastSyncTime: Date, 
+    syncStatus: 'success' | 'error' | 'in_progress',
+    errorMessage?: string
+  ): VehicleDataMetrics {
+    const totalVehicles = vehicles.length;
+    const onlineVehicles = vehicles.filter(v => v.status === 'online' || v.status === 'moving' || v.status === 'idle').length;
+    const offlineVehicles = vehicles.filter(v => v.status === 'offline').length;
+    
+    // Recently active = updated within last 30 minutes
+    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+    const recentlyActiveVehicles = vehicles.filter(v => v.lastUpdate.getTime() > thirtyMinutesAgo).length;
 
     return {
-      totalVehicles: vehicles.length,
-      onlineVehicles: vehicles.filter(v => v.status === 'online').length,
-      offlineVehicles: vehicles.filter(v => v.status === 'offline').length,
-      recentlyActiveVehicles: vehicles.filter(v => 
-        now - v.lastUpdate.getTime() <= recentThreshold
-      ).length,
+      totalVehicles,
+      onlineVehicles,
+      offlineVehicles,
+      recentlyActiveVehicles,
       lastSyncTime,
       syncStatus,
       errorMessage

@@ -1,16 +1,30 @@
 
+export interface VehiclePosition {
+  lat: number;
+  lon: number;
+  speed: number;
+  course: number;
+  updatetime: string;
+  statusText: string;
+}
+
 export interface VehicleData {
+  id: string;
   deviceId: string;
   deviceName: string;
-  status: 'online' | 'offline' | 'unknown';
+  status: 'online' | 'offline' | 'moving' | 'idle';
+  lastPosition?: VehiclePosition;
   lastUpdate: Date;
-  location?: {
-    latitude: number;
-    longitude: number;
+  isOnline: boolean;
+  metadata?: {
+    simNumber?: string;
+    notes?: string;
+    envioUserId?: string;
+    groupName?: string;
+    gp51Status?: string;
+    createdAt?: string;
+    isActive?: boolean;
   };
-  speed?: number;
-  course?: number;
-  additionalData?: Record<string, any>;
 }
 
 export interface VehicleDataMetrics {
@@ -21,21 +35,4 @@ export interface VehicleDataMetrics {
   lastSyncTime: Date;
   syncStatus: 'success' | 'error' | 'in_progress';
   errorMessage?: string;
-}
-
-// Type definitions for GP51 API responses
-export interface GP51Vehicle {
-  deviceid: number;
-  devicename: string;
-  [key: string]: any;
-}
-
-export interface GP51Position {
-  deviceid: number;
-  servertime: number;
-  lat: number;
-  lng: number;
-  speed?: number;
-  course?: number;
-  [key: string]: any;
 }

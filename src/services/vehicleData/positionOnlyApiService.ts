@@ -2,62 +2,59 @@
 import { supabase } from '@/integrations/supabase/client';
 import { unifiedGP51SessionManager } from '../unifiedGP51SessionManager';
 
-interface GP51PositionOnly {
-  deviceid: number;
+export interface PositionUpdate {
+  deviceid: string;
   lat: number;
   lon: number;
   speed: number;
   course: number;
   updatetime: string;
-  statusText?: string;
+  statusText: string;
 }
 
 export class PositionOnlyApiService {
-  static async fetchPositionsOnly(deviceIds: number[]): Promise<GP51PositionOnly[]> {
-    if (deviceIds.length === 0) return [];
+  /**
+   * Fetch only position data for active vehicles (lightweight)
+   */
+  static async fetchPositionsOnly(deviceIds: number[]): Promise<PositionUpdate[]> {
+    if (deviceIds.length === 0) {
+      console.log('📍 No device IDs provided for position fetch');
+      return [];
+    }
 
     try {
-      console.log(`Fetching positions for ${deviceIds.length} devices (position-only mode)`);
+      console.log(`📍 Fetching positions for ${deviceIds.length} devices...`);
       
-      const session = await unifiedGP51SessionManager.validateAndEnsureSession();
-
-      const { data: positionData, error } = await supabase.functions.invoke('gp51-service-management', {
+      const { data, error } = await supabase.functions.invoke('telemetry-positions', {
         body: { 
-          action: 'lastposition',
-          deviceids: deviceIds
+          sessionId: await this.getSessionId(),
+          deviceIds: deviceIds.map(String)
         }
       });
 
       if (error) {
-        console.error('Position-only fetch error:', error);
+        console.error('❌ Position fetch error:', error);
         return [];
       }
 
-      if (positionData?.status === 0 && positionData.positions) {
-        const positions = positionData.positions.map((pos: any) => ({
-          deviceid: pos.deviceid,
-          lat: pos.lat,
-          lon: pos.lon,
-          speed: pos.speed || 0,
-          course: pos.course || 0,
-          updatetime: pos.updatetime,
-          statusText: pos.statusText || pos.status || 'Unknown'
-        }));
-
-        console.log(`Retrieved ${positions.length} position updates`);
-        return positions;
+      if (!data.success) {
+        console.warn('⚠️ Position fetch failed:', data.error);
+        return [];
       }
 
-      console.warn('No position data received or invalid response format');
-      return [];
+      console.log(`✅ Fetched ${data.positions?.length || 0} positions`);
+      return data.positions || [];
 
     } catch (error) {
-      console.error('Position-only API service error:', error);
+      console.error('❌ Position fetch exception:', error);
       return [];
     }
   }
 
-  static async updateVehiclePositionsInDatabase(positions: GP51PositionOnly[]): Promise<{
+  /**
+   * Update vehicle positions in database (bulk operation)
+   */
+  static async updateVehiclePositionsInDatabase(positions: PositionUpdate[]): Promise<{
     updated: number;
     errors: number;
   }> {
@@ -69,31 +66,32 @@ export class PositionOnlyApiService {
         const { error } = await supabase
           .from('vehicles')
           .update({
-            last_position: {
-              lat: position.lat,
-              lon: position.lon,
-              speed: position.speed,
-              course: position.course,
-              updatetime: position.updatetime,
-              statusText: position.statusText
-            },
+            latitude: position.lat,
+            longitude: position.lon,
+            speed: position.speed,
+            heading: position.course,
+            last_update: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
-          .eq('device_id', position.deviceid.toString());
+          .eq('device_id', position.deviceid);
 
         if (error) {
-          console.error(`Failed to update position for device ${position.deviceid}:`, error);
+          console.error(`❌ Failed to update vehicle ${position.deviceid}:`, error);
           errors++;
         } else {
           updated++;
         }
       } catch (error) {
-        console.error(`Error updating position for device ${position.deviceid}:`, error);
+        console.error(`❌ Exception updating vehicle ${position.deviceid}:`, error);
         errors++;
       }
     }
 
-    console.log(`Position updates completed: ${updated} updated, ${errors} errors`);
     return { updated, errors };
+  }
+
+  private static async getSessionId(): Promise<string> {
+    const session = await unifiedGP51SessionManager.validateAndEnsureSession();
+    return session.sessionId || '';
   }
 }
