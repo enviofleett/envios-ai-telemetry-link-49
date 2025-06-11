@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
@@ -449,6 +448,216 @@ serve(async (req) => {
       }
     }
 
+    if (action === 'admin-approve') {
+      const { registrationId, adminUserId, options = {} } = requestBody;
+
+      console.log('👨‍💼 Admin approval request:', { registrationId, adminUserId });
+
+      if (!registrationId || !adminUserId) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Registration ID and admin user ID are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get registration details
+      const { data: registration, error: regError } = await supabase
+        .from('pending_user_registrations')
+        .select('*')
+        .eq('id', registrationId)
+        .eq('status', 'otp_verified')
+        .single();
+
+      if (regError || !registration) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Registration not found or not eligible for approval' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verify admin permissions
+      const { data: adminUser, error: adminError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', adminUserId)
+        .eq('role', 'admin')
+        .single();
+
+      if (adminError || !adminUser) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Admin access required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      let gp51Username = null;
+      let userId = null;
+
+      try {
+        // Step 1: Create user in local database first
+        const newUserId = crypto.randomUUID();
+        
+        const { data: newUser, error: userCreateError } = await supabase
+          .from('envio_users')
+          .insert({
+            id: newUserId,
+            name: registration.name,
+            email: registration.email,
+            phone_number: registration.phone_number,
+            city: registration.city,
+            registration_type: 'public_registration',
+            registration_status: 'completed',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (userCreateError) {
+          console.error('Failed to create local user:', userCreateError);
+          throw new Error(`Failed to create user: ${userCreateError.message}`);
+        }
+
+        userId = newUser.id;
+        console.log('✅ Local user created:', userId);
+
+        // Step 2: Create default user role
+        await supabase
+          .from('user_roles')
+          .insert({
+            user_id: userId,
+            role: 'user'
+          });
+
+        // Step 3: Create GP51 user if requested
+        if (options.createGP51User) {
+          try {
+            // Generate GP51 username
+            if (options.generateGP51Username) {
+              gp51Username = `${registration.name.toLowerCase().replace(/\s+/g, '')}_${Date.now()}`;
+            } else {
+              gp51Username = registration.email;
+            }
+
+            console.log('🔄 Creating GP51 user:', gp51Username);
+
+            // Call GP51 user management function
+            const { data: gp51Result, error: gp51Error } = await supabase.functions.invoke('gp51-user-management', {
+              body: {
+                action: 'adduser',
+                username: gp51Username,
+                password: options.temporaryPassword || 'TempPass123!',
+                showname: registration.name,
+                email: registration.email,
+                usertype: 3, // End user type
+                multilogin: 1
+              }
+            });
+
+            if (gp51Error) {
+              console.warn('⚠️ GP51 user creation failed:', gp51Error);
+              // Don't fail the entire process, but log the issue
+            } else if (gp51Result && gp51Result.success) {
+              console.log('✅ GP51 user created successfully');
+
+              // Update local user with GP51 username
+              await supabase
+                .from('envio_users')
+                .update({
+                  gp51_username: gp51Username,
+                  gp51_user_type: 3,
+                  is_gp51_imported: false, // This was created via API, not imported
+                  needs_password_set: true, // User needs to set their own password
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', userId);
+
+              // Track GP51 user management
+              await supabase
+                .from('gp51_user_management')
+                .insert({
+                  envio_user_id: userId,
+                  gp51_username: gp51Username,
+                  gp51_user_type: 3,
+                  activation_status: 'active',
+                  activation_date: new Date().toISOString(),
+                  last_sync_at: new Date().toISOString()
+                });
+
+            } else {
+              console.warn('⚠️ GP51 user creation returned error:', gp51Result);
+            }
+
+          } catch (gp51Error) {
+            console.warn('⚠️ GP51 integration failed:', gp51Error);
+            // Continue with approval even if GP51 fails
+          }
+        }
+
+        // Step 4: Update registration status
+        const { error: statusUpdateError } = await supabase
+          .from('pending_user_registrations')
+          .update({
+            status: 'approved',
+            approved_user_id: userId,
+            reviewed_by: adminUserId,
+            reviewed_at: new Date().toISOString(),
+            admin_review_notes: 'Registration approved and user created',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', registrationId);
+
+        if (statusUpdateError) {
+          console.error('Failed to update registration status:', statusUpdateError);
+          throw new Error('Failed to update registration status');
+        }
+
+        // Step 5: Send welcome email notification
+        try {
+          await sendWelcomeNotification(registration.email, registration.name, gp51Username);
+        } catch (emailError) {
+          console.warn('⚠️ Welcome email failed:', emailError);
+          // Don't fail the process for email issues
+        }
+
+        console.log('✅ Registration approval completed successfully');
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            userId: userId,
+            gp51Username: gp51Username,
+            message: 'Registration approved and user created successfully'
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+
+      } catch (error) {
+        console.error('❌ Admin approval failed:', error);
+
+        // Rollback: Delete created user if GP51 creation fails after local user creation
+        if (userId) {
+          try {
+            await supabase
+              .from('envio_users')
+              .delete()
+              .eq('id', userId);
+            console.log('🔄 Rolled back local user creation');
+          } catch (rollbackError) {
+            console.error('❌ Rollback failed:', rollbackError);
+          }
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: error instanceof Error ? error.message : 'Admin approval failed'
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
     return new Response(
       JSON.stringify({ error: 'Invalid action' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -472,5 +681,17 @@ async function sendRegistrationOTPEmail(phoneNumber: string, email: string, otpC
   console.log(`=====================================`);
   
   // TODO: Integrate with email service for email OTP backup
+  // For now, just log the details for debugging
+}
+
+async function sendWelcomeNotification(email: string, name: string, gp51Username?: string) {
+  console.log(`=== WELCOME EMAIL NOTIFICATION ===`);
+  console.log(`Name: ${name}`);
+  console.log(`Email: ${email}`);
+  console.log(`GP51 Username: ${gp51Username || 'Not created'}`);
+  console.log(`Welcome message: Your registration has been approved!`);
+  console.log(`=================================`);
+  
+  // TODO: Integrate with email service for welcome notifications
   // For now, just log the details for debugging
 }
