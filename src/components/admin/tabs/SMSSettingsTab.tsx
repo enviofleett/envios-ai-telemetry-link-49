@@ -34,10 +34,10 @@ export default function SMSSettingsTab() {
       const savedConfig = await smsService.getSMSConfiguration();
       if (savedConfig) {
         setConfig({
-          username: savedConfig.api_username,
+          username: savedConfig.username, // Fixed: use username instead of api_username
           password: '', // Don't show saved password
           sender: savedConfig.sender_id,
-          route: savedConfig.route
+          route: parseInt(savedConfig.route) // Fixed: convert string to number
         });
         setIsConfigured(true);
       }
