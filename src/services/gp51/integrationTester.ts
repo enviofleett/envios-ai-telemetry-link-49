@@ -1,6 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { gp51SessionManager } from './sessionManager';
+import { GP51SessionManager } from './sessionManager';
 import { gp51ConnectionMonitor } from './connectionMonitor';
 import { gp51ErrorReporter } from './errorReporter';
 
@@ -97,7 +96,7 @@ export class GP51IntegrationTester {
 
     // Test 1: Session Validation
     await this.runTest('sessionManagement', 'Session Validation', async () => {
-      const sessionInfo = await gp51SessionManager.validateSession();
+      const sessionInfo = await GP51SessionManager.validateSession();
       if (sessionInfo.error && !sessionInfo.error.includes('No GP51 sessions')) {
         throw new Error(`Session validation error: ${sessionInfo.error}`);
       }
@@ -106,8 +105,8 @@ export class GP51IntegrationTester {
 
     // Test 2: Session Cache Functionality
     await this.runTest('sessionManagement', 'Session Caching', async () => {
-      const firstCall = await gp51SessionManager.validateSession();
-      const secondCall = await gp51SessionManager.validateSession();
+      const firstCall = await GP51SessionManager.validateSession();
+      const secondCall = await GP51SessionManager.validateSession();
       
       // Both calls should complete without errors
       return 'Session caching functional';
@@ -115,7 +114,7 @@ export class GP51IntegrationTester {
 
     // Test 3: Connection Testing
     await this.runTest('sessionManagement', 'Connection Testing', async () => {
-      const testResult = await gp51SessionManager.testConnection();
+      const testResult = await GP51SessionManager.testConnection();
       // Connection test should complete without throwing errors
       return testResult.success ? 'Connection test successful' : `Connection test completed: ${testResult.error}`;
     });
@@ -325,7 +324,7 @@ export class GP51IntegrationTester {
       if (funcError) issues.push(`Functions: ${funcError.message}`);
       
       // Check session manager
-      const sessionInfo = await gp51SessionManager.validateSession();
+      const sessionInfo = await GP51SessionManager.validateSession();
       if (sessionInfo.error && !sessionInfo.error.includes('No GP51 sessions')) {
         issues.push(`Session Manager: ${sessionInfo.error}`);
       }

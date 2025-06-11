@@ -79,3 +79,6 @@ export class GP51SessionManager {
     }
   }
 }
+
+// Create a singleton instance for backward compatibility
+export const gp51SessionManager = GP51SessionManager;

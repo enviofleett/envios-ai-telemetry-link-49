@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { gp51SessionManager } from './sessionManager';
+import { GP51SessionManager } from './sessionManager';
 import { gp51ErrorReporter } from './errorReporter';
 
 interface PositionUpdate {
@@ -81,7 +81,7 @@ export class RealTimePositionService {
 
   private async pollPositions(): Promise<void> {
     try {
-      const sessionInfo = await gp51SessionManager.validateSession();
+      const sessionInfo = await GP51SessionManager.validateSession();
       
       if (!sessionInfo.valid) {
         console.log('📡 Skipping position poll - no valid GP51 session');

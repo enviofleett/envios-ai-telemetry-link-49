@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { gp51SessionManager } from './sessionManager';
+import { GP51SessionManager } from './sessionManager';
 import { gp51ErrorReporter } from './errorReporter';
 import { SessionHealth } from '../sessionValidation/types';
 
