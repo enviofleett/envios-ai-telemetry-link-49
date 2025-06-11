@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { AlertTriangle, CheckCircle, Clock, Activity, Database, Wifi } from 'lucide-react';
 import { enhancedPollingService } from '@/services/enhancedPollingService';
+import { enhancedLogger } from '@/services/monitoring/enhancedLogger';
 
 const SystemMonitoringDashboard: React.FC = () => {
   const [pollingMetrics, setPollingMetrics] = useState<any>(null);

@@ -26,6 +26,11 @@ export class GP51ServiceManagementApi {
     console.log('Device charging not implemented:', deviceIds);
     return { success: false, error: 'GP51 integration not available' };
   }
+
+  async getDeviceInfo(deviceId: string): Promise<any> {
+    console.log('Device info retrieval not implemented:', deviceId);
+    return { success: false, error: 'GP51 integration not available' };
+  }
 }
 
 export const gp51ServiceApi = new GP51ServiceManagementApi();

@@ -2,15 +2,18 @@
 // Stub implementation for package mapping service
 export interface PackageToGP51Mapping {
   packageCode: string;
+  packageId: string;
+  packageName: string;
+  description: string;
   gp51UserType: string;
   envioRole: string;
   requiresApproval: boolean;
 }
 
 export class PackageMappingService {
-  static validatePackage(packageCode: string): boolean {
+  static validatePackage(packageCode: string): { isValid: boolean; error?: string } {
     console.log('Package validation not implemented:', packageCode);
-    return true; // Default to valid for now
+    return { isValid: true }; // Default to valid for now
   }
 
   static getGP51UserType(packageCode: string): string {
@@ -42,15 +45,43 @@ export class PackageMappingService {
     return [
       {
         code: 'basic',
-        name: 'Basic Package',
-        description: 'Basic features'
+        packageId: 'basic',
+        packageName: 'Basic Package',
+        description: 'Basic features',
+        gp51UserType: 'USER',
+        envioRole: 'driver',
+        requiresApproval: false
+      },
+      {
+        code: 'professional',
+        packageId: 'professional', 
+        packageName: 'Professional Package',
+        description: 'Professional features',
+        gp51UserType: 'USER',
+        envioRole: 'driver',
+        requiresApproval: false
+      },
+      {
+        code: 'enterprise',
+        packageId: 'enterprise',
+        packageName: 'Enterprise Package', 
+        description: 'Enterprise features',
+        gp51UserType: 'ADMIN',
+        envioRole: 'admin',
+        requiresApproval: true
       }
     ];
   }
 
   static getPackageMapping(packageCode: string): PackageToGP51Mapping {
-    return {
+    const packages = this.getAvailablePackages();
+    const found = packages.find(p => p.code === packageCode);
+    
+    return found || {
       packageCode,
+      packageId: packageCode,
+      packageName: 'Unknown Package',
+      description: 'Package service not available',
       gp51UserType: 'USER',
       envioRole: 'driver',
       requiresApproval: false
