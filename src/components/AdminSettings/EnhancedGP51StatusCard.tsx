@@ -14,14 +14,17 @@ import {
   Activity,
   Clock,
   User,
-  Shield
+  Shield,
+  TestTube
 } from 'lucide-react';
 import { useGP51Session } from '@/contexts/GP51SessionContext';
 import { useGP51ConnectionHealth } from '@/hooks/useGP51ConnectionHealth';
+import { useGP51ConnectionTest } from '@/hooks/useGP51ConnectionTest';
 
 const EnhancedGP51StatusCard: React.FC = () => {
   const { session, health, isLoading, error, refreshSession } = useGP51Session();
   const { performHealthCheck, attemptReconnection, isLoading: healthLoading } = useGP51ConnectionHealth();
+  const { testConnection, isLoading: testLoading, result: testResult } = useGP51ConnectionTest();
 
   const getStatusIcon = (status?: string) => {
     switch (status) {
@@ -62,7 +65,6 @@ const EnhancedGP51StatusCard: React.FC = () => {
     }
   };
 
-  // Map health status to connection status for comparison
   const getConnectionStatusFromHealth = () => {
     if (!health) return 'disconnected';
     
@@ -121,11 +123,20 @@ const EnhancedGP51StatusCard: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
+              onClick={testConnection}
+              disabled={testLoading}
+            >
+              <TestTube className={`h-4 w-4 ${testLoading ? 'animate-spin' : ''}`} />
+              Test API
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={performHealthCheck}
               disabled={healthLoading}
             >
               <Activity className={`h-4 w-4 ${healthLoading ? 'animate-spin' : ''}`} />
-              Test
+              Check
             </Button>
             <Button
               variant="outline"
@@ -151,6 +162,28 @@ const EnhancedGP51StatusCard: React.FC = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Test Result Display */}
+        {testResult && (
+          <Alert variant={testResult.success ? "default" : "destructive"}>
+            <TestTube className="h-4 w-4" />
+            <AlertDescription>
+              <div className="space-y-2">
+                <p><strong>API Test Result:</strong> {testResult.success ? 'Success' : 'Failed'}</p>
+                {testResult.message && <p>{testResult.message}</p>}
+                {testResult.error && <p><strong>Error:</strong> {testResult.error}</p>}
+                {testResult.details && <p><strong>Details:</strong> {testResult.details}</p>}
+                {testResult.latency && <p><strong>Response Time:</strong> {testResult.latency}ms</p>}
+                {testResult.deviceCount !== undefined && <p><strong>Devices Found:</strong> {testResult.deviceCount}</p>}
+                {testResult.recommendation && (
+                  <p className="text-sm font-medium text-amber-600">
+                    <strong>Recommendation:</strong> {testResult.recommendation}
+                  </p>
+                )}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Session Information */}
         {session && (
           <div className="grid grid-cols-2 gap-4">
@@ -163,7 +196,7 @@ const EnhancedGP51StatusCard: React.FC = () => {
               <div className="flex items-center gap-2 text-sm">
                 <Shield className="h-4 w-4 text-gray-500" />
                 <span className="font-medium">User ID:</span>
-                <span className="font-mono text-xs">{session.userId.slice(0, 8)}...</span>
+                <span className="font-mono text-xs">{session.userId?.slice(0, 8)}...</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -197,7 +230,7 @@ const EnhancedGP51StatusCard: React.FC = () => {
         {/* Health Information */}
         {health?.lastCheck && (
           <div className="text-sm text-gray-600">
-            Last checked: {health.lastCheck.toLocaleTimeString()}
+            Last checked: {new Date(health.lastCheck).toLocaleTimeString()}
             {health.latency && <span> • Response: {health.latency}ms</span>}
           </div>
         )}
