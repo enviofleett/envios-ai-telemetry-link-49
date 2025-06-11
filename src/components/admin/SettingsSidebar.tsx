@@ -21,7 +21,9 @@ import {
   MailOpen,
   Wrench,
   FileText,
-  Inbox
+  Inbox,
+  Palette,
+  DollarSign
 } from 'lucide-react';
 
 interface SettingsSidebarProps {
@@ -47,6 +49,13 @@ const settingsCategories = [
     ]
   },
   {
+    title: "Branding & Currency",
+    items: [
+      { id: "branding", label: "Branding", icon: Palette },
+      { id: "currency", label: "Currency", icon: DollarSign },
+    ]
+  },
+  {
     title: "Services & Workshops",
     items: [
       { id: "workshops", label: "Workshop Management", icon: Wrench },
@@ -56,7 +65,7 @@ const settingsCategories = [
     title: "Integrations",
     items: [
       { id: "maps", label: "Maps & Geocoding", icon: Map },
-      { id: "gp51-integration", label: "GP51 Integration", icon: Plug },
+      { id: "gp51", label: "GP51 Integration", icon: Plug },
     ]
   },
   {
