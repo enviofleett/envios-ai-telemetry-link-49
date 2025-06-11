@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface SMSConfig {
@@ -390,5 +391,3 @@ class SMSService {
 }
 
 export const smsService = new SMSService();
-
-}
