@@ -1,4 +1,3 @@
-
 import { GP51ProductionService, DeviceHandshakeResult, DeviceConfigurationParams } from '../gp51ProductionService';
 import { SecurityService } from '../securityService';
 import { AuditService } from '../auditService';
@@ -6,6 +5,7 @@ import { EnhancedSessionManager } from '../enhancedSessionManager';
 import { DeviceValidationService, type ProductionVehicleCreationRequest } from './deviceValidationService';
 import { DatabaseOperationsService } from './databaseOperationsService';
 import { ProductionReadinessService } from './productionReadinessService';
+import { GP51DeviceActivationService } from '@/services/gp51DeviceActivationService';
 
 export interface ProductionVehicleCreationResult {
   success: boolean;
@@ -17,9 +17,21 @@ export interface ProductionVehicleCreationResult {
   isProductionReady: boolean;
 }
 
+export interface ProductionVehicleCreationRequest {
+  deviceId: string;
+  deviceName: string;
+  deviceType: number;
+  imei: string;
+  simNumber: string;
+  adminUserId: string;
+  performHealthCheck: boolean;
+  enableMonitoring: boolean;
+  activateOnGP51?: boolean; // Add GP51 activation flag
+}
+
 export class ProductionVehicleService {
   /**
-   * Creates a vehicle with full production readiness checks
+   * Creates a vehicle with full production readiness checks including GP51 activation
    */
   static async createVehicleWithProductionChecks(
     request: ProductionVehicleCreationRequest
@@ -103,11 +115,31 @@ export class ProductionVehicleService {
 
       result.configurationId = configResult.configurationId;
 
+      // Phase 5: GP51 Device Activation (NEW)
+      if (request.activateOnGP51) {
+        console.log('Activating device on GP51...');
+        const activationResult = await GP51DeviceActivationService.activateDevice({
+          deviceId: request.deviceId,
+          deviceName: request.deviceName,
+          deviceType: request.deviceType,
+          years: 1,
+          adminUserId: request.adminUserId
+        });
+
+        if (!activationResult.success) {
+          result.errors.push(`GP51 device activation failed: ${activationResult.error}`);
+          return result;
+        }
+
+        result.warnings.push('Device successfully activated on GP51');
+      }
+
       // Phase 6: Database Creation with Production Data
       const vehicleCreationResult = await DatabaseOperationsService.createVehicleInDatabase(request, {
         handshakeResult,
         communicationCheck,
-        configurationId: configResult.configurationId
+        configurationId: configResult.configurationId,
+        activationStatus: request.activateOnGP51 ? 'active' : 'inactive'
       });
 
       if (!vehicleCreationResult.success) {

@@ -99,7 +99,8 @@ export const EnhancedVehicleCreationModal: React.FC<EnhancedVehicleCreationModal
         simNumber: formData.simNumber,
         adminUserId: 'current-user', // This would come from auth context
         performHealthCheck: formData.performHealthCheck,
-        enableMonitoring: formData.enableMonitoring
+        enableMonitoring: formData.enableMonitoring,
+        activateOnGP51: true // Enable GP51 activation
       };
 
       const result = await createProductionVehicle(request);

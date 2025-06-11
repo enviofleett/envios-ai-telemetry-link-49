@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -77,54 +76,80 @@ serve(async (req) => {
       case 'chargedevices': {
         const { deviceids, chargeyears, devicetype } = body;
         
+        if (!deviceids || !chargeyears) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Device IDs and charge years are required"
+          }), {
+            status: 400,
+            headers: corsHeaders,
+          });
+        }
+
         const result = await makeGP51Call('chargedevices', {
           deviceids: Array.isArray(deviceids) ? deviceids.join(',') : deviceids,
           chargeyears: String(chargeyears),
           devicetype: String(devicetype || 1)
         });
 
+        console.log(`📊 GP51 chargedevices result:`, result);
+
         // Update local device management tracking
-        if (result.result !== "false") {
+        if (result.result !== "false" && result.status === 0) {
           const deviceIdList = Array.isArray(deviceids) ? deviceids : [deviceids];
           
           for (const deviceId of deviceIdList) {
-            const { data: vehicle } = await supabase
-              .from('vehicles')
-              .select('id')
-              .eq('device_id', deviceId)
-              .single();
-
-            if (vehicle) {
-              await supabase
-                .from('gp51_device_management')
-                .upsert({
-                  vehicle_id: vehicle.id,
-                  gp51_device_id: deviceId,
-                  device_type: devicetype || 1,
-                  activation_status: 'active',
-                  charge_years: chargeyears,
-                  service_end_date: new Date(Date.now() + (chargeyears * 365 * 24 * 60 * 60 * 1000)).toISOString(),
-                  last_sync_at: new Date().toISOString()
-                }, {
-                  onConflict: 'vehicle_id,gp51_device_id'
-                });
-
-              // Update vehicle activation status
-              await supabase
+            try {
+              const { data: vehicle } = await supabase
                 .from('vehicles')
-                .update({
-                  activation_status: 'active',
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', vehicle.id);
+                .select('id')
+                .eq('device_id', deviceId)
+                .single();
+
+              if (vehicle) {
+                // Calculate service end date
+                const serviceEndDate = new Date();
+                serviceEndDate.setFullYear(serviceEndDate.getFullYear() + chargeyears);
+
+                await supabase
+                  .from('gp51_device_management')
+                  .upsert({
+                    vehicle_id: vehicle.id,
+                    gp51_device_id: deviceId,
+                    device_type: devicetype || 1,
+                    activation_status: 'active',
+                    charge_years: chargeyears,
+                    service_end_date: serviceEndDate.toISOString(),
+                    last_sync_at: new Date().toISOString(),
+                    device_properties: result
+                  }, {
+                    onConflict: 'vehicle_id,gp51_device_id'
+                  });
+
+                // Update vehicle activation status
+                await supabase
+                  .from('vehicles')
+                  .update({
+                    activation_status: 'active',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', vehicle.id);
+
+                console.log(`✅ Updated activation status for device ${deviceId}`);
+              } else {
+                console.warn(`⚠️ No vehicle found for device ${deviceId}`);
+              }
+            } catch (trackingError) {
+              console.error(`❌ Failed to update tracking for device ${deviceId}:`, trackingError);
             }
           }
         }
 
         return new Response(JSON.stringify({
-          success: result.result !== "false",
+          success: result.result !== "false" && result.status === 0,
           data: result,
-          status: result.status || 0
+          status: result.status || 0,
+          message: result.result === "false" ? result.message : 'Device charged successfully'
         }), {
           status: 200,
           headers: corsHeaders,
@@ -196,10 +221,78 @@ serve(async (req) => {
         });
       }
 
+      case 'checkactivation': {
+        const { deviceid } = body;
+        
+        if (!deviceid) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: "Device ID is required"
+          }), {
+            status: 400,
+            headers: corsHeaders,
+          });
+        }
+
+        try {
+          // Query all devices to check activation status
+          const result = await makeGP51Call('queryalldevices', {});
+          
+          if (result.result !== "false" && result.devices) {
+            const device = result.devices.find((d: any) => d.deviceid === deviceid);
+            
+            if (device) {
+              const isActivated = device.isfree === 0; // isfree=0 means activated/paid
+              
+              return new Response(JSON.stringify({
+                success: true,
+                isActivated,
+                deviceStatus: isActivated ? 'active' : 'inactive',
+                deviceInfo: device
+              }), {
+                status: 200,
+                headers: corsHeaders,
+              });
+            } else {
+              return new Response(JSON.stringify({
+                success: false,
+                error: "Device not found in GP51",
+                isActivated: false,
+                deviceStatus: 'not_found'
+              }), {
+                status: 404,
+                headers: corsHeaders,
+              });
+            }
+          } else {
+            return new Response(JSON.stringify({
+              success: false,
+              error: result.message || "Failed to query devices",
+              isActivated: false,
+              deviceStatus: 'error'
+            }), {
+              status: 500,
+              headers: corsHeaders,
+            });
+          }
+        } catch (error) {
+          console.error(`❌ Error checking activation for device ${deviceid}:`, error);
+          return new Response(JSON.stringify({
+            success: false,
+            error: error.message,
+            isActivated: false,
+            deviceStatus: 'error'
+          }), {
+            status: 500,
+            headers: corsHeaders,
+          });
+        }
+      }
+
       default:
         return new Response(JSON.stringify({
           success: false,
-          error: "Unknown action"
+          error: `Unknown action: ${action}`
         }), {
           status: 400,
           headers: corsHeaders,
@@ -210,7 +303,8 @@ serve(async (req) => {
     console.error("❌ GP51 Device Management error:", error);
     return new Response(JSON.stringify({
       success: false,
-      error: error instanceof Error ? error.message : "Internal error"
+      error: error instanceof Error ? error.message : "Internal error",
+      details: error instanceof Error ? error.stack : undefined
     }), {
       status: 500,
       headers: corsHeaders,
