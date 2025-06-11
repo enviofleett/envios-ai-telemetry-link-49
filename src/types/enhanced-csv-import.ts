@@ -37,12 +37,14 @@ export interface EnhancedCSVRowData {
   user_email: string;
   user_phone?: string;
   gp51_username?: string;
+  generated_username?: string;
   device_id: string;
   device_name: string;
   device_type?: string;
   sim_number?: string;
   assignment_type: string;
   notes?: string;
+  validation_flags?: string[];
 }
 
 export interface GP51ValidationResult {
@@ -57,7 +59,17 @@ export interface GP51ValidationResult {
   }>;
 }
 
-export type GP51SyncStatus = 'pending' | 'syncing' | 'completed' | 'failed';
+export type GP51SyncStatus = {
+  id: string;
+  import_job_id: string;
+  entity_type: 'user' | 'vehicle';
+  entity_id: string;
+  gp51_id?: string;
+  sync_status: 'pending' | 'syncing' | 'synced' | 'failed' | 'conflict';
+  conflict_data?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+};
 
 export interface CSVImportRelationship {
   id: string;
@@ -68,7 +80,7 @@ export interface CSVImportRelationship {
   relationship_type: string;
   gp51_user_id?: string;
   gp51_device_id?: string;
-  sync_status: GP51SyncStatus;
+  sync_status: 'pending' | 'synced' | 'failed';
   created_at: string;
 }
 
@@ -84,6 +96,7 @@ export interface EnhancedCSVImportJob {
   progress_percentage: number;
   gp51_sync_enabled: boolean;
   auto_username_generation: boolean;
+  supports_user_import: boolean;
   created_by: string;
   created_at: string;
   updated_at: string;
