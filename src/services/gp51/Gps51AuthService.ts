@@ -1,300 +1,272 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
-export interface AuthCredentials {
-  username: string;
-  password: string;
-}
-
-export interface AuthToken {
-  token: string;
-  expiresAt: Date;
-  username: string;
-}
-
-export interface AuthResponse {
-  status: number;
-  cause?: string;
-  token?: string;
-  message?: string;
-}
-
 export interface AuthResult {
   success: boolean;
   token?: string;
+  username?: string;
   error?: string;
 }
 
-export class Gps51AuthService {
-  private static instance: Gps51AuthService;
-  private currentToken: AuthToken | null = null;
-  private credentials: AuthCredentials | null = null;
-  private healthCheckInterval: NodeJS.Timeout | null = null;
-  private readonly maxRetries = 3;
-  private readonly baseUrl = 'https://www.gps51.com/webapi';
-  private readonly healthCheckIntervalMs = 5 * 60 * 1000; // 5 minutes
+export interface AuthStatus {
+  isAuthenticated: boolean;
+  username?: string;
+  tokenExpiresAt?: Date;
+}
 
-  static getInstance(): Gps51AuthService {
-    if (!Gps51AuthService.instance) {
-      Gps51AuthService.instance = new Gps51AuthService();
-    }
-    return Gps51AuthService.instance;
-  }
-
-  private constructor() {
-    this.startHealthCheck();
-  }
-
-  // MD5 hash implementation
-  private async hashPassword(password: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    
-    try {
-      // Try using Web Crypto API if available
-      const hashBuffer = await crypto.subtle.digest('MD5', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    } catch (error) {
-      // Fallback MD5 implementation
-      return this.fallbackMD5(password);
-    }
-  }
-
-  private fallbackMD5(input: string): string {
-    // Simple MD5 implementation for fallback
-    // This is a simplified version - in production, use a proper crypto library
-    let hash = 0;
-    for (let i = 0; i < input.length; i++) {
-      const char = input.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash).toString(16).padStart(32, '0').substring(0, 32);
-  }
-
-  private log(level: 'info' | 'error' | 'warn', message: string, data?: any): void {
-    const timestamp = new Date().toISOString();
-    const logMessage = `[${timestamp}] [GP51Auth] ${message}`;
-    
-    if (level === 'error') {
-      console.error(logMessage, data);
-    } else if (level === 'warn') {
-      console.warn(logMessage, data);
-    } else {
-      console.log(logMessage, data);
-    }
-  }
-
-  private async makeRequest(url: string, data: any, retryCount = 0): Promise<any> {
-    try {
-      this.log('info', `Making request to GP51 API: ${url}`);
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      this.log('info', 'GP51 API response received', { status: result.status });
-      
-      return result;
-    } catch (error) {
-      this.log('error', `Request failed (attempt ${retryCount + 1}/${this.maxRetries})`, error);
-      
-      if (retryCount < this.maxRetries - 1) {
-        const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
-        this.log('info', `Retrying in ${delay}ms...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return this.makeRequest(url, data, retryCount + 1);
-      }
-      
-      throw error;
-    }
-  }
+class GP51AuthService {
+  private static readonly TOKEN_STORAGE_KEY = 'gp51_token';
+  private static readonly USERNAME_STORAGE_KEY = 'gp51_username';
+  private static readonly EXPIRES_STORAGE_KEY = 'gp51_expires';
 
   async login(username: string, password: string): Promise<AuthResult> {
     try {
-      this.log('info', `Attempting login for user: ${username}`);
-      
-      // Validate inputs
-      if (!username?.trim() || !password?.trim()) {
-        return { success: false, error: 'Username and password are required' };
+      console.log('🔐 Starting GP51 authentication...');
+
+      // Call our edge function to handle GP51 authentication
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: {
+          action: 'authenticate',
+          username: username,
+          password: password
+        }
+      });
+
+      if (error) {
+        console.error('❌ GP51 authentication error:', error);
+        return {
+          success: false,
+          error: error.message || 'Authentication failed'
+        };
       }
 
-      // Hash password
-      const hashedPassword = await this.hashPassword(password);
-      
-      // Prepare request
-      const loginData = {
-        username: username.trim(),
-        password: hashedPassword,
-        from: 'WEB',
-        type: 'USER'
+      if (data?.success && data?.token) {
+        console.log('✅ GP51 authentication successful');
+        
+        // Store session information
+        const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8 hours
+        this.storeTokenInfo(data.token, username, expiresAt);
+
+        // Store in database for persistence
+        await this.persistSessionToDatabase(username, data.token, expiresAt);
+
+        return {
+          success: true,
+          token: data.token,
+          username: username
+        };
+      }
+
+      return {
+        success: false,
+        error: data?.error || 'Invalid credentials'
       };
 
-      const url = `${this.baseUrl}?action=login`;
-      const response: AuthResponse = await this.makeRequest(url, loginData);
-
-      if (response.status === 0 && response.token) {
-        // Calculate token expiry (24 hours from now)
-        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-        
-        this.currentToken = {
-          token: response.token,
-          expiresAt,
-          username: username.trim()
-        };
-
-        this.credentials = {
-          username: username.trim(),
-          password: password
-        };
-
-        this.log('info', `Login successful for user: ${username}`);
-        return { success: true, token: response.token };
-      } else {
-        const error = response.cause || response.message || 'Login failed';
-        this.log('error', `Login failed for user: ${username}`, { error, status: response.status });
-        return { success: false, error };
-      }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.log('error', `Login error for user: ${username}`, error);
-      return { success: false, error: errorMessage };
+      console.error('❌ GP51 authentication exception:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Authentication failed'
+      };
     }
   }
 
   async logout(): Promise<AuthResult> {
     try {
-      if (!this.currentToken) {
-        return { success: true };
-      }
+      // Clear local storage
+      this.clearTokenInfo();
+      
+      // Clear database session
+      await this.clearDatabaseSession();
 
-      this.log('info', `Logging out user: ${this.currentToken.username}`);
-      
-      const url = `${this.baseUrl}?action=logout&token=${encodeURIComponent(this.currentToken.token)}`;
-      
-      try {
-        await this.makeRequest(url, {});
-      } catch (error) {
-        // Don't fail logout if API call fails
-        this.log('warn', 'Logout API call failed, clearing local session anyway', error);
-      }
-
-      this.currentToken = null;
-      this.credentials = null;
-      
-      this.log('info', 'Logout completed');
       return { success: true };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.log('error', 'Logout error', error);
-      return { success: false, error: errorMessage };
+      console.error('❌ GP51 logout error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Logout failed'
+      };
     }
+  }
+
+  getAuthStatus(): AuthStatus {
+    const token = localStorage.getItem(this.TOKEN_STORAGE_KEY);
+    const username = localStorage.getItem(this.USERNAME_STORAGE_KEY);
+    const expires = localStorage.getItem(this.EXPIRES_STORAGE_KEY);
+
+    if (!token || !username || !expires) {
+      return { isAuthenticated: false };
+    }
+
+    const expiresAt = new Date(expires);
+    const isExpired = expiresAt <= new Date();
+
+    if (isExpired) {
+      this.clearTokenInfo();
+      return { isAuthenticated: false };
+    }
+
+    return {
+      isAuthenticated: true,
+      username,
+      tokenExpiresAt: expiresAt
+    };
   }
 
   async getToken(): Promise<string | null> {
-    // Check if we have a valid token
-    if (this.currentToken && this.isTokenValid()) {
-      return this.currentToken.token;
+    const status = this.getAuthStatus();
+    
+    if (!status.isAuthenticated) {
+      // Try to restore from database
+      const restored = await this.restoreSessionFromDatabase();
+      if (restored) {
+        return localStorage.getItem(this.TOKEN_STORAGE_KEY);
+      }
+      return null;
     }
 
-    // Try to renew token if we have credentials
-    if (this.credentials) {
-      this.log('info', 'Token expired or invalid, attempting renewal');
-      const result = await this.login(this.credentials.username, this.credentials.password);
-      return result.success ? result.token || null : null;
-    }
-
-    return null;
-  }
-
-  isTokenValid(): boolean {
-    if (!this.currentToken) {
-      return false;
-    }
-
-    // Check if token is expired (with 5 minute buffer)
-    const bufferTime = 5 * 60 * 1000; // 5 minutes
-    const now = new Date();
-    const expiryWithBuffer = new Date(this.currentToken.expiresAt.getTime() - bufferTime);
-
-    return now < expiryWithBuffer;
+    return localStorage.getItem(this.TOKEN_STORAGE_KEY);
   }
 
   async healthCheck(): Promise<boolean> {
     try {
       const token = await this.getToken();
       if (!token) {
-        this.log('warn', 'Health check failed: No valid token');
         return false;
       }
 
-      // Use a lightweight endpoint to check token validity
-      const url = `${this.baseUrl}?action=querymonitorlist&token=${encodeURIComponent(token)}`;
-      const response = await this.makeRequest(url, {});
-
-      if (response.status === 0) {
-        this.log('info', 'Health check passed');
-        return true;
-      } else {
-        this.log('warn', 'Health check failed: Invalid token response', response);
-        
-        // If token is invalid, clear it to force renewal
-        if (response.cause?.includes('token') || response.cause?.includes('invalid')) {
-          this.currentToken = null;
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: {
+          action: 'validate_token',
+          token: token
         }
-        
-        return false;
-      }
+      });
+
+      return !error && data?.success === true;
     } catch (error) {
-      this.log('error', 'Health check error', error);
+      console.error('❌ GP51 health check failed:', error);
       return false;
     }
   }
 
-  private startHealthCheck(): void {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-    }
+  private storeTokenInfo(token: string, username: string, expiresAt: Date): void {
+    localStorage.setItem(this.TOKEN_STORAGE_KEY, token);
+    localStorage.setItem(this.USERNAME_STORAGE_KEY, username);
+    localStorage.setItem(this.EXPIRES_STORAGE_KEY, expiresAt.toISOString());
+  }
 
-    this.healthCheckInterval = setInterval(async () => {
-      if (this.currentToken) {
-        await this.healthCheck();
+  private clearTokenInfo(): void {
+    localStorage.removeItem(this.TOKEN_STORAGE_KEY);
+    localStorage.removeItem(this.USERNAME_STORAGE_KEY);
+    localStorage.removeItem(this.EXPIRES_STORAGE_KEY);
+  }
+
+  private async persistSessionToDatabase(username: string, token: string, expiresAt: Date): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Get or create envio user
+      let { data: envioUser } = await supabase
+        .from('envio_users')
+        .select('id')
+        .eq('email', user.email)
+        .single();
+
+      if (!envioUser) {
+        const { data: newEnvioUser } = await supabase
+          .from('envio_users')
+          .insert({
+            id: user.id,
+            email: user.email,
+            name: user.user_metadata?.name || 'Admin User'
+          })
+          .select('id')
+          .single();
+        envioUser = newEnvioUser;
       }
-    }, this.healthCheckIntervalMs);
-  }
 
-  destroy(): void {
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-      this.healthCheckInterval = null;
+      if (envioUser) {
+        await supabase
+          .from('gp51_sessions')
+          .upsert({
+            envio_user_id: envioUser.id,
+            username: username,
+            gp51_token: token,
+            token_expires_at: expiresAt.toISOString(),
+            api_url: 'https://www.gps51.com/webapi',
+            session_metadata: {
+              created_via: 'auth_service',
+              browser: navigator.userAgent
+            }
+          });
+      }
+    } catch (error) {
+      console.error('❌ Failed to persist GP51 session:', error);
     }
-    this.currentToken = null;
-    this.credentials = null;
   }
 
-  // Get current auth status
-  getAuthStatus(): {
-    isAuthenticated: boolean;
-    username?: string;
-    tokenExpiresAt?: Date;
-  } {
-    return {
-      isAuthenticated: this.isTokenValid(),
-      username: this.currentToken?.username,
-      tokenExpiresAt: this.currentToken?.expiresAt
-    };
+  private async clearDatabaseSession(): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: envioUser } = await supabase
+        .from('envio_users')
+        .select('id')
+        .eq('email', user.email)
+        .single();
+
+      if (envioUser) {
+        await supabase
+          .from('gp51_sessions')
+          .delete()
+          .eq('envio_user_id', envioUser.id);
+      }
+    } catch (error) {
+      console.error('❌ Failed to clear GP51 session:', error);
+    }
+  }
+
+  private async restoreSessionFromDatabase(): Promise<boolean> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+
+      const { data: envioUser } = await supabase
+        .from('envio_users')
+        .select('id')
+        .eq('email', user.email)
+        .single();
+
+      if (!envioUser) return false;
+
+      const { data: session } = await supabase
+        .from('gp51_sessions')
+        .select('*')
+        .eq('envio_user_id', envioUser.id)
+        .single();
+
+      if (!session || !session.gp51_token) return false;
+
+      const expiresAt = new Date(session.token_expires_at);
+      if (expiresAt <= new Date()) {
+        // Session expired, clean it up
+        await supabase
+          .from('gp51_sessions')
+          .delete()
+          .eq('envio_user_id', envioUser.id);
+        return false;
+      }
+
+      // Restore to local storage
+      this.storeTokenInfo(session.gp51_token, session.username, expiresAt);
+      return true;
+    } catch (error) {
+      console.error('❌ Failed to restore GP51 session:', error);
+      return false;
+    }
   }
 }
 
-// Export singleton instance
-export const gps51AuthService = Gps51AuthService.getInstance();
+export const gps51AuthService = new GP51AuthService();
