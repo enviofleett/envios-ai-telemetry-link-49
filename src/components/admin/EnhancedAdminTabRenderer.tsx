@@ -14,9 +14,9 @@ import SystemSettingsTab from './tabs/SystemSettingsTab';
 import GeofencingTab from './tabs/GeofencingTab';
 
 // Import existing working tabs from settings directory
-import CompanySettingsTab from '../../settings/CompanySettingsTab';
-import EnhancedBrandingTab from '../../settings/EnhancedBrandingTab';
-import CurrencyManagementTab from '../../settings/CurrencyManagementTab';
+import CompanySettingsTab from '../settings/CompanySettingsTab';
+import EnhancedBrandingTab from '../settings/EnhancedBrandingTab';
+import CurrencyManagementTab from '../settings/CurrencyManagementTab';
 
 interface EnhancedAdminTabRendererProps {
   activeTab: string;
