@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -10,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useEnhancedBrandingSettings } from '@/hooks/useEnhancedBrandingSettings';
-import { Building2, Palette, Type, Image, Code, RotateCcw, Eye } from 'lucide-react';
+import { Building2, Palette, Type, Image, Eye, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const EnhancedBrandingTab: React.FC = () => {
   const { settings, isLoading, isSaving, updateSetting } = useEnhancedBrandingSettings();
@@ -38,6 +38,16 @@ const EnhancedBrandingTab: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Status Alert */}
+      {isSaving && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Saving branding settings...
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Branding Status */}
       <Card>
         <CardHeader>
@@ -101,6 +111,7 @@ const EnhancedBrandingTab: React.FC = () => {
                 onChange={(e) => updateSetting('company_name', e.target.value)}
                 disabled={isSaving || !settings.is_branding_active}
                 placeholder="FleetIQ"
+                maxLength={100}
               />
             </div>
             <div className="space-y-2">
@@ -111,6 +122,7 @@ const EnhancedBrandingTab: React.FC = () => {
                 onChange={(e) => updateSetting('tagline', e.target.value)}
                 disabled={isSaving || !settings.is_branding_active}
                 placeholder="GPS51 Management Platform"
+                maxLength={200}
               />
             </div>
           </div>
@@ -124,6 +136,7 @@ const EnhancedBrandingTab: React.FC = () => {
               disabled={isSaving || !settings.is_branding_active}
               placeholder="Professional vehicle tracking and management"
               rows={2}
+              maxLength={500}
             />
           </div>
         </CardContent>
@@ -162,6 +175,7 @@ const EnhancedBrandingTab: React.FC = () => {
                     disabled={isSaving || !settings.is_branding_active}
                     placeholder={placeholder}
                     className="flex-1"
+                    pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
                   />
                 </div>
               </div>
@@ -209,8 +223,37 @@ const EnhancedBrandingTab: React.FC = () => {
                 onChange={(e) => updateSetting('logo_url', e.target.value)}
                 disabled={isSaving || !settings.is_branding_active}
                 placeholder="https://example.com/logo.png"
+                type="url"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="favicon-url">Favicon URL</Label>
+            <Input
+              id="favicon-url"
+              value={settings.favicon_url}
+              onChange={(e) => updateSetting('favicon_url', e.target.value)}
+              disabled={isSaving || !settings.is_branding_active}
+              placeholder="https://example.com/favicon.ico"
+              type="url"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="custom-css">Custom CSS</Label>
+            <Textarea
+              id="custom-css"
+              value={settings.custom_css}
+              onChange={(e) => updateSetting('custom_css', e.target.value)}
+              disabled={isSaving || !settings.is_branding_active}
+              placeholder="/* Add your custom CSS here */"
+              rows={4}
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Add custom CSS to further customize your platform's appearance
+            </p>
           </div>
         </CardContent>
       </Card>

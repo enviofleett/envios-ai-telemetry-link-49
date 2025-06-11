@@ -38,6 +38,22 @@ const defaultSettings: EnhancedBrandingSettings = {
   auth_page_branding: true,
 };
 
+// Color validation helper
+const isValidHexColor = (color: string): boolean => {
+  return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
+};
+
+// URL validation helper
+const isValidUrl = (url: string): boolean => {
+  if (!url) return true; // Empty URLs are valid
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export const useEnhancedBrandingSettings = () => {
   const [settings, setSettings] = useState<EnhancedBrandingSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,9 +67,14 @@ export const useEnhancedBrandingSettings = () => {
 
   const fetchBrandingSettings = async () => {
     try {
+      setIsLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        console.error('No authenticated user');
+        return;
+      }
 
+      // Remove the is_branding_active filter to load all branding data
       const { data, error } = await supabase
         .from('branding_settings')
         .select('*')
@@ -62,10 +83,16 @@ export const useEnhancedBrandingSettings = () => {
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching branding settings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load branding settings",
+          variant: "destructive"
+        });
         return;
       }
 
       if (data) {
+        // Map database fields to frontend interface
         setSettings({
           company_name: data.company_name || defaultSettings.company_name,
           tagline: data.tagline || defaultSettings.tagline,
@@ -85,20 +112,76 @@ export const useEnhancedBrandingSettings = () => {
       }
     } catch (error) {
       console.error('Error in fetchBrandingSettings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load branding settings",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const validateSettings = (key: keyof EnhancedBrandingSettings, value: string | boolean): string | null => {
+    // Color validation
+    if (key.includes('color') && typeof value === 'string') {
+      if (!isValidHexColor(value)) {
+        return 'Please enter a valid hex color code (e.g., #3B82F6)';
+      }
+    }
+
+    // URL validation
+    if ((key === 'logo_url' || key === 'favicon_url') && typeof value === 'string') {
+      if (!isValidUrl(value)) {
+        return 'Please enter a valid URL';
+      }
+    }
+
+    // Text length validation
+    if (typeof value === 'string') {
+      if (key === 'company_name' && value.length > 100) {
+        return 'Company name must be less than 100 characters';
+      }
+      if (key === 'tagline' && value.length > 200) {
+        return 'Tagline must be less than 200 characters';
+      }
+      if (key === 'subtitle' && value.length > 500) {
+        return 'Subtitle must be less than 500 characters';
+      }
+    }
+
+    return null;
+  };
+
   const updateSetting = async (key: keyof EnhancedBrandingSettings, value: string | boolean) => {
+    // Validate the input
+    const validationError = validateSettings(key, value);
+    if (validationError) {
+      toast({
+        title: "Validation Error",
+        description: validationError,
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       setIsSaving(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "You must be logged in to update settings",
+          variant: "destructive"
+        });
+        return;
+      }
 
+      // Update local state immediately for better UX
       const updatedSettings = { ...settings, [key]: value };
       setSettings(updatedSettings);
 
+      // Prepare database payload with correct field mapping
       const dbPayload: any = {
         user_id: user.id,
         company_name: updatedSettings.company_name,
@@ -121,27 +204,32 @@ export const useEnhancedBrandingSettings = () => {
 
       const { error } = await supabase
         .from('branding_settings')
-        .upsert(dbPayload);
+        .upsert(dbPayload, {
+          onConflict: 'user_id'
+        });
 
       if (error) {
         console.error('Error updating branding settings:', error);
+        // Revert local state on error
         setSettings(settings);
         toast({
           title: "Error",
-          description: "Failed to update branding settings",
+          description: `Failed to update branding settings: ${error.message}`,
           variant: "destructive"
         });
-      } else {
-        toast({
-          title: "Success",
-          description: "Branding settings updated",
-        });
-        
-        // Refresh branding context
-        await refreshBranding();
+        return;
       }
+
+      toast({
+        title: "Success",
+        description: "Branding settings updated successfully",
+      });
+      
+      // Refresh branding context to apply changes immediately
+      await refreshBranding();
     } catch (error) {
       console.error('Error in updateSetting:', error);
+      // Revert local state on error
       setSettings(settings);
       toast({
         title: "Error",
