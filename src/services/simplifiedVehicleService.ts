@@ -115,7 +115,7 @@ class SimplifiedVehicleService {
             device_name: vehicle.device_name,
             status: this.determineStatus(vehicle as SupabaseVehicleData),
             is_active: vehicle.is_active,
-            last_position: this.parsePosition(vehicle.last_position as RawVehiclePositionData | null)
+            last_position: this.parsePosition(vehicle.last_position as unknown as RawVehiclePositionData | null)
           };
 
           console.log(`✅ Processed vehicle ${index + 1}:`, {
@@ -180,7 +180,7 @@ class SimplifiedVehicleService {
   }
 
   private determineStatus(vehicle: SupabaseVehicleData): string {
-    const position = this.parsePosition(vehicle.last_position as RawVehiclePositionData | null);
+    const position = this.parsePosition(vehicle.last_position as unknown as RawVehiclePositionData | null);
 
     if (!position?.updatetime) {
       console.log(`📴 Vehicle ${vehicle.device_name} has no position data - marking as offline`);
