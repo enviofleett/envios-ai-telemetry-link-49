@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useGP51Credentials } from '@/hooks/useGP51Credentials';
 import { useGP51SessionRestoration } from '@/hooks/useGP51SessionRestoration';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, CheckCircle, AlertCircle, Settings, TestTube, Shield, Monitor, Clock } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, Settings, TestTube, Shield, Monitor, Clock, Bug } from 'lucide-react';
 import { gp51StatusCoordinator, type GP51StatusState } from '@/services/gp51/statusCoordinator';
 import { gp51ErrorReporter } from '@/services/gp51/errorReporter';
 import { ValidationFeedback } from './ValidationFeedback';
@@ -25,6 +25,7 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
     success?: boolean;
     message?: string;
     error?: any;
+    method?: string;
   } | null>(null);
   const [coordinatedStatus, setCoordinatedStatus] = useState<GP51StatusState | null>(null);
   
@@ -100,61 +101,59 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
     setValidationResult(null);
     
     try {
-      console.log('🧪 Starting real GP51 connection test...');
+      console.log('🧪 Starting improved GP51 connection test...');
       
-      // First save credentials temporarily for testing
-      const { data: saveData, error: saveError } = await supabase.functions.invoke('settings-management', {
+      // Use the new authentication service
+      const { data, error } = await supabase.functions.invoke('gp51-auth-service', {
         body: { 
-          action: 'save-gp51-credentials',
+          action: 'test_authentication',
           username: username.trim(),
-          password: password.trim(),
-          apiUrl: apiUrl?.trim() || undefined,
-          testOnly: false // Save for testing
+          password: password.trim()
         }
       });
       
-      if (saveError || !saveData.success) {
-        console.error('❌ Failed to save credentials for testing:', saveError || saveData);
-        throw new Error(saveData?.details || saveError?.message || 'Failed to save credentials');
-      }
-
-      // Now test the real GP51 API
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: { action: 'test_gp51_api' }
-      });
-      
       if (error) {
-        console.error('❌ Connection test failed:', error);
-        gp51ErrorReporter.reportError({
-          type: 'connectivity',
-          message: 'GP51 connection test failed',
-          details: error,
-          severity: 'high',
-          username: username.trim()
-        });
+        console.error('❌ Authentication service error:', error);
         throw error;
       }
       
       if (data.success) {
-        console.log('✅ GP51 connection test successful');
+        console.log(`✅ GP51 connection test successful using method: ${data.method}`);
         setValidationResult({
           success: true,
-          message: `GP51 API connection successful! Found ${data.deviceCount || 0} devices.`
+          message: `GP51 API connection successful using ${data.method} method! Token received.`,
+          method: data.method
         });
         
         toast({
           title: "Connection Test Successful",
-          description: `Connected to GP51 with ${data.deviceCount || 0} devices`,
+          description: `Connected to GP51 using ${data.method} method`,
         });
+
+        // Now save the credentials since the test was successful
+        await handleSaveCredentials();
+        
       } else {
         console.error('❌ GP51 connection test failed:', data);
         setValidationResult({
-          error: data // Backend now returns detailed error information
+          error: {
+            code: 'GP51_AUTH_FAILED',
+            message: 'Authentication Failed',
+            details: data.error || 'Failed to authenticate with GP51 API',
+            suggestions: [
+              'Verify your GP51 username is correct',
+              'Verify your GP51 password is correct',
+              'Check if your GP51 account is active',
+              'Try logging into GP51 web interface to confirm credentials'
+            ],
+            category: 'authentication',
+            severity: 'high'
+          }
         });
         
         toast({
           title: "Connection Test Failed",
-          description: data.details || "Failed to connect to GP51 API",
+          description: data.error || "Failed to connect to GP51 API",
           variant: "destructive"
         });
       }
@@ -335,9 +334,15 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
             <CardTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
               GP51 API Credentials
+              {validationResult?.method && (
+                <Badge variant="outline" className="text-xs">
+                  <Bug className="h-3 w-3 mr-1" />
+                  {validationResult.method}
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription>
-              Configure your GP51 tracking system credentials with session persistence
+              Configure your GP51 tracking system credentials with improved authentication
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -454,13 +459,13 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
             >
               {isTestingConnection ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Testing Connection...
                 </>
               ) : (
                 <>
-                  <TestTube className="h-4 w-4 mr-2" />
-                  🧪 Test Connection
+                  <TestTube className="mr-2 h-4 w-4" />
+                  Test Connection
                 </>
               )}
             </Button>
@@ -472,13 +477,13 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Saving...
                 </>
               ) : (
                 <>
-                  <Shield className="h-4 w-4 mr-2" />
-                  Save & Connect
+                  <Settings className="mr-2 h-4 w-4" />
+                  Save Credentials
                 </>
               )}
             </Button>
@@ -501,3 +506,5 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
 };
 
 export default GP51CredentialsForm;
+
+}

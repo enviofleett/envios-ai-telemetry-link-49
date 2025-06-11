@@ -12,48 +12,69 @@ export async function authenticateWithGP51({
   password: string; 
   apiUrl?: string;
 }) {
-  // Trim whitespace from username to ensure clean storage
   const trimmedUsername = username.trim();
-  console.log('🔐 Starting GP51 credential validation for user:', trimmedUsername);
+  console.log('🔐 Starting improved GP51 credential validation for user:', trimmedUsername);
   
   try {
-    // Hash the password using MD5
-    console.log('🔑 Hashing password for GP51 authentication...');
-    let hashedPassword;
-    try {
-      hashedPassword = createHash(password);
-      console.log('✅ Password hashed successfully for user:', trimmedUsername);
-    } catch (hashError) {
-      console.error('❌ Password hashing failed:', hashError);
-      throw new Error('Password processing failed');
-    }
-    
-    console.log('🌐 Testing GP51 authentication with proper API format...');
-    
-    try {
-      // Use proper GP51 API format with POST and form data
-      const formData = new URLSearchParams({
-        action: 'login',
+    // Use the new authentication service for testing
+    const testResponse = await fetch('http://localhost:54321/functions/v1/gp51-auth-service', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'test_authentication',
         username: trimmedUsername,
-        password: hashedPassword,
-        from: 'WEB',
-        type: 'USER'
-      });
+        password: password
+      })
+    });
 
-      console.log(`🌐 Attempting GP51 authentication with URL: ${GP51_API_URL}`);
+    if (!testResponse.ok) {
+      throw new Error(`Authentication service error: ${testResponse.status}`);
+    }
+
+    const result = await testResponse.json();
+    
+    if (result.success) {
+      console.log(`✅ GP51 authentication successful using method: ${result.method}`);
+      return {
+        success: true,
+        token: result.token,
+        username: trimmedUsername,
+        password: password,
+        apiUrl: apiUrl || GP51_API_URL,
+        method: result.method
+      };
+    } else {
+      console.error(`❌ GP51 authentication failed: ${result.error}`);
+      return {
+        success: false,
+        error: result.error,
+        username: trimmedUsername
+      };
+    }
+
+  } catch (error) {
+    console.error('❌ GP51 authentication process failed:', error);
+    
+    // Fallback to original method if new service is not available
+    console.log('🔄 Falling back to original authentication method...');
+    
+    try {
+      const hashedPassword = createHash(password);
       
-      const response = await fetch(GP51_API_URL, {
-        method: 'POST',
+      // Try GET method as suggested in the plan
+      const getUrl = `${GP51_API_URL}?action=login&username=${encodeURIComponent(trimmedUsername)}&password=${encodeURIComponent(hashedPassword)}`;
+      
+      const response = await fetch(getUrl, {
+        method: 'GET',
         headers: { 
-          'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': 'application/json',
-          'User-Agent': 'EnvioFleet/1.0'
-        },
-        body: formData.toString()
+          'User-Agent': 'FleetIQ/1.0'
+        }
       });
 
       if (!response.ok) {
-        console.error(`❌ HTTP error: ${response.status} ${response.statusText}`);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
@@ -64,42 +85,31 @@ export async function authenticateWithGP51({
       try {
         result = JSON.parse(text);
       } catch (jsonError) {
-        console.error(`❌ JSON parsing error:`, jsonError);
         throw new Error('Invalid response format from GP51 server');
       }
 
-      console.log(`📡 GP51 auth response:`, { status: result.status, hasToken: !!result.token });
-      
-      // Check for successful authentication
       if (result.status === 0 && result.token) {
-        console.log(`✅ Successfully authenticated ${trimmedUsername}`);
+        console.log(`✅ Fallback authentication successful for ${trimmedUsername}`);
         return {
           success: true,
           token: result.token,
           username: trimmedUsername,
-          password: password, // Store the original password for future use
-          apiUrl: GP51_API_URL
+          password: password,
+          apiUrl: apiUrl || GP51_API_URL,
+          method: 'GET_FALLBACK'
         };
       } else {
-        // Enhanced error handling with standardized error extraction
         const errorMessage = result.message || result.error || `Authentication failed (status: ${result.status})`;
-        console.error(`❌ GP51 auth failed. Status: ${result.status}, Error: ${errorMessage}`);
         throw new Error(errorMessage);
       }
 
-    } catch (urlError) {
-      console.error(`❌ GP51 authentication error:`, urlError);
-      throw urlError;
+    } catch (fallbackError) {
+      console.error(`❌ Fallback authentication also failed:`, fallbackError);
+      return {
+        success: false,
+        error: fallbackError instanceof Error ? fallbackError.message : 'Authentication failed',
+        username: trimmedUsername
+      };
     }
-
-  } catch (error) {
-    console.error('❌ GP51 authentication process failed:', error);
-    
-    // Return a structured error response
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Authentication failed',
-      username: trimmedUsername
-    };
   }
 }
