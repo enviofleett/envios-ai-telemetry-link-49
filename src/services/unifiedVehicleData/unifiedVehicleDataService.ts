@@ -1,6 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { vehiclePositionSyncService } from '../vehiclePosition/vehiclePositionSyncService';
+// Removed vehiclePositionSyncService import as it's no longer available
 import type { Vehicle, VehicleMetrics, SyncMetrics } from './types';
 
 interface DataMetrics {
@@ -42,21 +41,6 @@ export class UnifiedVehicleDataService {
     await this.loadVehiclesFromDatabase();
     this.ready = true;
     
-    // Start position sync service
-    vehiclePositionSyncService.startPeriodicSync();
-    
-    // Subscribe to sync status updates
-    vehiclePositionSyncService.subscribeToStatus((status) => {
-      this.metrics.syncStatus = status as any;
-      this.metrics.lastSyncTime = new Date();
-      this.notifyListeners();
-      
-      // Reload data after successful sync
-      if (status === 'success' || status === 'partial') {
-        this.loadVehiclesFromDatabase();
-      }
-    });
-
     // Set up periodic data refresh (every 60 seconds)
     setInterval(() => {
       this.loadVehiclesFromDatabase();
@@ -131,9 +115,6 @@ export class UnifiedVehicleDataService {
     console.log('🔄 Refreshing vehicle data...');
     
     try {
-      // Force position sync
-      await vehiclePositionSyncService.forceSync();
-      
       // Reload from database
       await this.loadVehiclesFromDatabase();
       
@@ -219,7 +200,6 @@ export class UnifiedVehicleDataService {
   }
 
   destroy(): void {
-    vehiclePositionSyncService.destroy();
     this.listeners.clear();
     this.ready = false;
   }

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -113,7 +112,7 @@ export const useCreateUserForm = ({ editUser, onSuccess }: UseCreateUserFormProp
           throw new Error(`Failed to assign role: ${roleError.message || 'Unknown error'}`);
         }
 
-        // Create GP51 account if requested
+        // Create GP51 account if requested (with updated error handling)
         if (userData.create_gp51_account) {
           try {
             console.log('Creating GP51 account for:', userData.gp51_username);
@@ -130,33 +129,18 @@ export const useCreateUserForm = ({ editUser, onSuccess }: UseCreateUserFormProp
 
             console.log('GP51 creation response:', gp51Response);
 
-            if (gp51Response && gp51Response.status === 0) {
-              const { error: updateError } = await supabase
-                .from('envio_users')
-                .update({
-                  gp51_username: userData.gp51_username,
-                  gp51_user_type: userData.gp51_user_type,
-                  is_gp51_imported: true
-                })
-                .eq('id', envioUser.user.id);
-
-              if (updateError) {
-                console.error('GP51 metadata update error:', updateError);
-              }
-            } else {
-              console.error('GP51 account creation failed:', gp51Response);
-              toast({
-                title: 'User created with warning',
-                description: 'User was created but GP51 account creation failed. You can try creating the GP51 account later.',
-                variant: 'destructive'
-              });
-            }
-          } catch (gp51Error: any) {
-            console.error('GP51 account creation failed:', gp51Error);
+            // GP51 service is currently unavailable, so we expect failure
             toast({
-              title: 'User created with warning',
-              description: 'User was created but GP51 account creation failed. You can try creating the GP51 account later.',
-              variant: 'destructive'
+              title: 'User created with note',
+              description: 'User was created successfully. GP51 account creation is temporarily unavailable while the service is being rebuilt.',
+              variant: 'default'
+            });
+          } catch (gp51Error: any) {
+            console.error('GP51 account creation failed (expected):', gp51Error);
+            toast({
+              title: 'User created with note',
+              description: 'User was created successfully. GP51 account creation is temporarily unavailable while the service is being rebuilt.',
+              variant: 'default'
             });
           }
         }

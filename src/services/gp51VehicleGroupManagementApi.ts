@@ -20,7 +20,7 @@ export class GP51VehicleGroupManagementApi {
     console.log('Assigning vehicle to group:', { deviceId, groupId });
     
     try {
-      // Use the existing GP51 user management API for vehicle group operations
+      // Use the stub GP51 user management API
       const response = await gp51UserApi.assignVehicleToGroup(deviceId, groupId);
       
       if (response.status !== 0) {
