@@ -47,6 +47,17 @@ interface RawVehiclePositionData {
   updatetime: string | number;
 }
 
+// Type guard to validate position data
+function isValidPositionData(data: any): data is RawVehiclePositionData {
+  return (
+    data &&
+    typeof data === 'object' &&
+    typeof data.lat === 'number' &&
+    typeof data.lon === 'number' &&
+    (data.updatetime !== undefined && data.updatetime !== null)
+  );
+}
+
 class SimplifiedVehicleService {
   private static instance: SimplifiedVehicleService;
   private vehicles: SimpleVehicle[] = [];
@@ -106,16 +117,16 @@ class SimplifiedVehicleService {
             id: vehicle.id,
             device_name: vehicle.device_name,
             has_position: !!vehicle.last_position,
-            position_structure: vehicle.last_position ? Object.keys(vehicle.last_position) : 'null'
+            position_raw: vehicle.last_position
           });
 
           const processedVehicle = {
             id: vehicle.id,
             device_id: vehicle.device_id,
             device_name: vehicle.device_name,
-            status: this.determineStatus(vehicle as SupabaseVehicleData),
+            status: this.determineStatus(vehicle),
             is_active: vehicle.is_active,
-            last_position: this.parsePosition(vehicle.last_position as unknown as RawVehiclePositionData | null)
+            last_position: this.parsePosition(vehicle.last_position)
           };
 
           console.log(`✅ Processed vehicle ${index + 1}:`, {
@@ -143,7 +154,7 @@ class SimplifiedVehicleService {
     }
   }
 
-  private parsePosition(rawData: RawVehiclePositionData | null): SimpleVehicle['last_position'] {
+  private parsePosition(rawData: any): SimpleVehicle['last_position'] {
     console.log('🔧 Parsing position data:', rawData);
     
     // Check if rawData is null, undefined, or not an object
@@ -152,20 +163,55 @@ class SimplifiedVehicleService {
       return undefined;
     }
 
-    // Validate essential properties
-    if (rawData.lat === undefined || rawData.lon === undefined || !rawData.updatetime) {
-      console.warn('⚠️ Invalid position data received, missing lat, lon, or updatetime:', rawData);
+    // Use type guard to validate the data structure
+    if (!isValidPositionData(rawData)) {
+      console.warn('⚠️ Invalid position data structure:', rawData);
       return undefined;
     }
 
-    // Handle different updatetime formats (timestamp number or ISO string)
+    // Handle different updatetime formats with improved timestamp parsing
     let updateTimeString: string;
-    if (typeof rawData.updatetime === 'number') {
-      // Convert timestamp to ISO string
-      updateTimeString = new Date(rawData.updatetime * 1000).toISOString();
-      console.log('🕐 Converted timestamp to ISO string:', updateTimeString);
-    } else {
-      updateTimeString = rawData.updatetime;
+    try {
+      if (typeof rawData.updatetime === 'number') {
+        // Check if the timestamp is in microseconds (13+ digits) or seconds (10 digits)
+        const timestampStr = rawData.updatetime.toString();
+        let timestamp = rawData.updatetime;
+        
+        if (timestampStr.length >= 13) {
+          // Microseconds - convert to milliseconds
+          timestamp = Math.floor(rawData.updatetime / 1000);
+          console.log('🕐 Converting microseconds to milliseconds:', rawData.updatetime, '->', timestamp);
+        } else if (timestampStr.length === 10) {
+          // Seconds - convert to milliseconds
+          timestamp = rawData.updatetime * 1000;
+          console.log('🕐 Converting seconds to milliseconds:', rawData.updatetime, '->', timestamp);
+        }
+        
+        // Create date and validate it
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+          console.warn('⚠️ Invalid timestamp after conversion:', timestamp);
+          return undefined;
+        }
+        
+        updateTimeString = date.toISOString();
+        console.log('🕐 Converted timestamp to ISO string:', updateTimeString);
+      } else if (typeof rawData.updatetime === 'string') {
+        // Try to parse as ISO string first
+        const date = new Date(rawData.updatetime);
+        if (isNaN(date.getTime())) {
+          console.warn('⚠️ Invalid date string:', rawData.updatetime);
+          return undefined;
+        }
+        updateTimeString = date.toISOString();
+        console.log('🕐 Validated and normalized date string:', updateTimeString);
+      } else {
+        console.warn('⚠️ Unexpected updatetime type:', typeof rawData.updatetime, rawData.updatetime);
+        return undefined;
+      }
+    } catch (error) {
+      console.error('❌ Error parsing timestamp:', error, 'Raw updatetime:', rawData.updatetime);
+      return undefined;
     }
 
     const parsedPosition = {
@@ -175,32 +221,43 @@ class SimplifiedVehicleService {
       updatetime: updateTimeString
     };
 
+    // Validate parsed numbers
+    if (isNaN(parsedPosition.lat) || isNaN(parsedPosition.lon)) {
+      console.warn('⚠️ Invalid lat/lon values:', { lat: rawData.lat, lon: rawData.lon });
+      return undefined;
+    }
+
     console.log('✅ Parsed position successfully:', parsedPosition);
     return parsedPosition;
   }
 
-  private determineStatus(vehicle: SupabaseVehicleData): string {
-    const position = this.parsePosition(vehicle.last_position as unknown as RawVehiclePositionData | null);
+  private determineStatus(vehicle: any): string {
+    const position = this.parsePosition(vehicle.last_position);
 
     if (!position?.updatetime) {
       console.log(`📴 Vehicle ${vehicle.device_name} has no position data - marking as offline`);
       return 'offline';
     }
 
-    const lastUpdate = new Date(position.updatetime);
-    const minutesAgo = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
+    try {
+      const lastUpdate = new Date(position.updatetime);
+      const minutesAgo = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
 
-    console.log(`⏰ Vehicle ${vehicle.device_name} last updated ${minutesAgo.toFixed(1)} minutes ago`);
+      console.log(`⏰ Vehicle ${vehicle.device_name} last updated ${minutesAgo.toFixed(1)} minutes ago`);
 
-    if (minutesAgo <= 5) {
-      const status = position.speed > 0 ? 'moving' : 'online';
-      console.log(`🟢 Vehicle ${vehicle.device_name} is ${status} (speed: ${position.speed})`);
-      return status;
-    } else if (minutesAgo <= 30) {
-      console.log(`🟡 Vehicle ${vehicle.device_name} is idle`);
-      return 'idle';
-    } else {
-      console.log(`🔴 Vehicle ${vehicle.device_name} is offline (last seen ${minutesAgo.toFixed(1)} min ago)`);
+      if (minutesAgo <= 5) {
+        const status = position.speed > 0 ? 'moving' : 'online';
+        console.log(`🟢 Vehicle ${vehicle.device_name} is ${status} (speed: ${position.speed})`);
+        return status;
+      } else if (minutesAgo <= 30) {
+        console.log(`🟡 Vehicle ${vehicle.device_name} is idle`);
+        return 'idle';
+      } else {
+        console.log(`🔴 Vehicle ${vehicle.device_name} is offline (last seen ${minutesAgo.toFixed(1)} min ago)`);
+        return 'offline';
+      }
+    } catch (error) {
+      console.error(`❌ Error determining status for ${vehicle.device_name}:`, error);
       return 'offline';
     }
   }
