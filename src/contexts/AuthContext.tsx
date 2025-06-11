@@ -131,7 +131,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       if (envioUserError) {
         console.error('Failed to create envio user:', envioUserError);
-        return { error: envioUserError as AuthError };
+        return { error: new Error(envioUserError.message) as AuthError };
       }
 
       // 3. Assign package to user

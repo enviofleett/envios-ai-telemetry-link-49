@@ -19,12 +19,7 @@ import {
   LayoutDashboard,
   Car,
   Users,
-  MapPin,
-  CreditCard,
   Settings,
-  Wrench,
-  Upload,
-  Receipt,
   LogOut
 } from 'lucide-react';
 
@@ -57,36 +52,6 @@ const AppSidebar = () => {
       title: 'Users',
       url: '/users',
       icon: Users,
-      requiresAdmin: true,
-    },
-    {
-      title: 'Location History',
-      url: '/location-history',
-      icon: MapPin,
-      requiresAdmin: false,
-    },
-    {
-      title: 'Subscriptions',
-      url: '/subscriptions',
-      icon: CreditCard,
-      requiresAdmin: false,
-    },
-    {
-      title: 'Billing',
-      url: '/billing',
-      icon: Receipt,
-      requiresAdmin: true,
-    },
-    {
-      title: 'Maintenance',
-      url: '/maintenance',
-      icon: Wrench,
-      requiresAdmin: false,
-    },
-    {
-      title: 'System Import',
-      url: '/import',
-      icon: Upload,
       requiresAdmin: true,
     },
     {

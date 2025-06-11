@@ -90,9 +90,9 @@ class GP51AuthService {
   }
 
   getAuthStatus(): AuthStatus {
-    const token = localStorage.getItem(this.TOKEN_STORAGE_KEY);
-    const username = localStorage.getItem(this.USERNAME_STORAGE_KEY);
-    const expires = localStorage.getItem(this.EXPIRES_STORAGE_KEY);
+    const token = localStorage.getItem(GP51AuthService.TOKEN_STORAGE_KEY);
+    const username = localStorage.getItem(GP51AuthService.USERNAME_STORAGE_KEY);
+    const expires = localStorage.getItem(GP51AuthService.EXPIRES_STORAGE_KEY);
 
     if (!token || !username || !expires) {
       return { isAuthenticated: false };
@@ -120,12 +120,12 @@ class GP51AuthService {
       // Try to restore from database
       const restored = await this.restoreSessionFromDatabase();
       if (restored) {
-        return localStorage.getItem(this.TOKEN_STORAGE_KEY);
+        return localStorage.getItem(GP51AuthService.TOKEN_STORAGE_KEY);
       }
       return null;
     }
 
-    return localStorage.getItem(this.TOKEN_STORAGE_KEY);
+    return localStorage.getItem(GP51AuthService.TOKEN_STORAGE_KEY);
   }
 
   async healthCheck(): Promise<boolean> {
@@ -150,15 +150,15 @@ class GP51AuthService {
   }
 
   private storeTokenInfo(token: string, username: string, expiresAt: Date): void {
-    localStorage.setItem(this.TOKEN_STORAGE_KEY, token);
-    localStorage.setItem(this.USERNAME_STORAGE_KEY, username);
-    localStorage.setItem(this.EXPIRES_STORAGE_KEY, expiresAt.toISOString());
+    localStorage.setItem(GP51AuthService.TOKEN_STORAGE_KEY, token);
+    localStorage.setItem(GP51AuthService.USERNAME_STORAGE_KEY, username);
+    localStorage.setItem(GP51AuthService.EXPIRES_STORAGE_KEY, expiresAt.toISOString());
   }
 
   private clearTokenInfo(): void {
-    localStorage.removeItem(this.TOKEN_STORAGE_KEY);
-    localStorage.removeItem(this.USERNAME_STORAGE_KEY);
-    localStorage.removeItem(this.EXPIRES_STORAGE_KEY);
+    localStorage.removeItem(GP51AuthService.TOKEN_STORAGE_KEY);
+    localStorage.removeItem(GP51AuthService.USERNAME_STORAGE_KEY);
+    localStorage.removeItem(GP51AuthService.EXPIRES_STORAGE_KEY);
   }
 
   private async persistSessionToDatabase(username: string, token: string, expiresAt: Date): Promise<void> {
