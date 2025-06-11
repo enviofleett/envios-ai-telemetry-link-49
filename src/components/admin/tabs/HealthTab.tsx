@@ -1,233 +1,238 @@
-import React, { useState, useEffect } from 'react';
+
+import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Activity, Server, Database, RefreshCw, CheckCircle, XCircle, AlertTriangle, Globe, Clock, Cpu } from 'lucide-react';
-import GP51HealthDashboard from '@/components/AdminSettings/GP51HealthDashboard';
+import { Button } from '@/components/ui/button';
+import { Activity, Database, Wifi, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
+import { useSystemHealth } from '@/hooks/useSystemHealth';
 
 const HealthTab: React.FC = () => {
-  const [loading, setLoading] = useState(false);
-  const [lastRefreshed, setLastRefreshed] = useState(new Date());
-  const [systemHealth, setSystemHealth] = useState({
-    database: { status: 'healthy', latency: 45, color: 'green' },
-    api: { status: 'healthy', latency: 125, color: 'green' },
-    gp51Connection: { status: 'warning', latency: 350, color: 'yellow' },
-    websocket: { status: 'healthy', latency: 78, color: 'green' },
-    cache: { status: 'healthy', latency: 24, color: 'green' },
-  });
-
-  const [resources, setResources] = useState({
-    cpu: 35,
-    memory: 62,
-    storage: 48,
-    network: 22
-  });
-
-  const refreshHealth = () => {
-    setLoading(true);
-    // Simulated refresh - in real app, this would fetch actual health data
-    setTimeout(() => {
-      setLoading(false);
-      setLastRefreshed(new Date());
-    }, 1500);
-  };
+  const { data: healthMetrics, isLoading, error, refetch } = useSystemHealth();
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'healthy':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-5 w-5 text-green-600" />;
       case 'warning':
-        return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
-      case 'error':
-        return <XCircle className="h-4 w-4 text-red-500" />;
+        return <AlertTriangle className="h-5 w-5 text-yellow-600" />;
+      case 'critical':
+        return <AlertTriangle className="h-5 w-5 text-red-600" />;
       default:
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <Activity className="h-5 w-5 text-gray-600" />;
     }
   };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'healthy':
-        return <Badge variant="default">{status}</Badge>;
+        return <Badge variant="default" className="bg-green-100 text-green-800">Healthy</Badge>;
       case 'warning':
-        return <Badge variant="secondary">{status}</Badge>;
-      case 'error':
-        return <Badge variant="destructive">{status}</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Warning</Badge>;
+      case 'critical':
+        return <Badge variant="destructive">Critical</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline">Unknown</Badge>;
     }
   };
 
-  const getResourceColor = (value: number) => {
-    if (value < 50) return 'bg-green-500';
-    if (value < 80) return 'bg-yellow-500';
-    return 'bg-red-500';
-  };
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="animate-pulse space-y-4">
+              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+              <div className="grid grid-cols-2 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-20 bg-gray-200 rounded"></div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-red-600">
+            Error loading system health: {error.message}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold">System Health Monitoring</h3>
-          <p className="text-sm text-gray-600">
-            Real-time monitoring and diagnostics of system components
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">
-            Last updated: {lastRefreshed.toLocaleTimeString()}
-          </span>
-          <Button 
-            onClick={refreshHealth} 
-            variant="outline" 
-            size="sm"
-            disabled={loading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-1 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      {/* System Health Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        {Object.entries(systemHealth).map(([key, details]) => (
-          <Card key={key} className="border-l-4" style={{ borderLeftColor: details.color === 'green' ? '#10b981' : details.color === 'yellow' ? '#f59e0b' : '#ef4444' }}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium capitalize">{key.replace(/([A-Z])/g, ' $1')}</p>
-                  <div className="mt-1">
-                    {getStatusBadge(details.status)}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                {getStatusIcon(healthMetrics?.overallHealth || 'unknown')}
+                System Health
+              </CardTitle>
+              <CardDescription>
+                Monitor system performance and connectivity
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {getStatusBadge(healthMetrics?.overallHealth || 'unknown')}
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* GP51 Status */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">GP51 Connection</p>
+                    <p className="text-lg font-semibold">
+                      {healthMetrics?.gp51Status.connected ? 'Connected' : 'Disconnected'}
+                    </p>
+                    {healthMetrics?.gp51Status.username && (
+                      <p className="text-xs text-muted-foreground">
+                        User: {healthMetrics.gp51Status.username}
+                      </p>
+                    )}
+                    {healthMetrics?.gp51Status.warningMessage && (
+                      <p className="text-xs text-yellow-600 mt-1">
+                        {healthMetrics.gp51Status.warningMessage}
+                      </p>
+                    )}
                   </div>
+                  <Wifi className={`h-8 w-8 ${healthMetrics?.gp51Status.connected ? 'text-green-600' : 'text-red-600'}`} />
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-semibold">{details.latency}<span className="text-sm">ms</span></p>
-                  <p className="text-xs text-muted-foreground">response time</p>
+              </CardContent>
+            </Card>
+
+            {/* Database Status */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Database</p>
+                    <p className="text-lg font-semibold">
+                      {healthMetrics?.databaseStatus.connected ? 'Connected' : 'Disconnected'}
+                    </p>
+                    {healthMetrics?.databaseStatus.responseTime && (
+                      <p className="text-xs text-muted-foreground">
+                        Response: {healthMetrics.databaseStatus.responseTime}ms
+                      </p>
+                    )}
+                  </div>
+                  <Database className={`h-8 w-8 ${healthMetrics?.databaseStatus.connected ? 'text-green-600' : 'text-red-600'}`} />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* API Endpoints */}
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">API Endpoints</p>
+                    <p className="text-lg font-semibold">
+                      {healthMetrics?.apiEndpoints.available}/{healthMetrics?.apiEndpoints.total} Available
+                    </p>
+                    {healthMetrics?.apiEndpoints.issues.length > 0 && (
+                      <p className="text-xs text-red-600 mt-1">
+                        {healthMetrics.apiEndpoints.issues.length} issues detected
+                      </p>
+                    )}
+                  </div>
+                  <Activity className={`h-8 w-8 ${healthMetrics?.apiEndpoints.available === healthMetrics?.apiEndpoints.total ? 'text-green-600' : 'text-yellow-600'}`} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Vehicle Data */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-base">Vehicle Data</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold">{healthMetrics?.vehicleData.total || 0}</p>
+                  <p className="text-sm text-muted-foreground">Total Vehicles</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-green-600">{healthMetrics?.vehicleData.online || 0}</p>
+                  <p className="text-sm text-muted-foreground">Online</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-red-600">{healthMetrics?.vehicleData.offline || 0}</p>
+                  <p className="text-sm text-muted-foreground">Offline</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs text-muted-foreground">Last Update</p>
+                  <p className="text-sm">
+                    {healthMetrics?.vehicleData.lastUpdate 
+                      ? new Date(healthMetrics.vehicleData.lastUpdate).toLocaleString()
+                      : 'Never'}
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
-        ))}
-      </div>
 
-      {/* Resource Usage */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Cpu className="h-5 w-5" />
-            System Resource Usage
-          </CardTitle>
-          <CardDescription>
-            Current usage of system resources
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-4">
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm font-medium">CPU Usage</span>
-                <span className="text-sm font-medium">{resources.cpu}%</span>
+          {/* User Metrics */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="text-base">User Metrics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold">{healthMetrics?.userMetrics.total || 0}</p>
+                  <p className="text-sm text-muted-foreground">Total Users</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-green-600">{healthMetrics?.userMetrics.active || 0}</p>
+                  <p className="text-sm text-muted-foreground">Active Users</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold">{healthMetrics?.userMetrics.roles?.admin || 0}</p>
+                  <p className="text-sm text-muted-foreground">Admins</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold">{healthMetrics?.userMetrics.roles?.user || 0}</p>
+                  <p className="text-sm text-muted-foreground">Regular Users</p>
+                </div>
               </div>
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className={`h-full ${getResourceColor(resources.cpu)}`} style={{ width: `${resources.cpu}%` }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm font-medium">Memory Usage</span>
-                <span className="text-sm font-medium">{resources.memory}%</span>
-              </div>
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className={`h-full ${getResourceColor(resources.memory)}`} style={{ width: `${resources.memory}%` }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm font-medium">Storage Usage</span>
-                <span className="text-sm font-medium">{resources.storage}%</span>
-              </div>
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className={`h-full ${getResourceColor(resources.storage)}`} style={{ width: `${resources.storage}%` }}></div>
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between mb-1">
-                <span className="text-sm font-medium">Network Usage</span>
-                <span className="text-sm font-medium">{resources.network}%</span>
-              </div>
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div className={`h-full ${getResourceColor(resources.network)}`} style={{ width: `${resources.network}%` }}></div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      {/* GP51 Health Dashboard */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="h-5 w-5" />
-            GP51 Platform Health
-          </CardTitle>
-          <CardDescription>
-            Connectivity and health status of GP51 integration
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GP51HealthDashboard />
-        </CardContent>
-      </Card>
-
-      {/* Recent System Events */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            Recent System Events
-          </CardTitle>
-          <CardDescription>
-            Latest system events and health incidents
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="p-3 border border-yellow-200 rounded bg-yellow-50">
-              <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                <span className="font-medium text-yellow-900">GP51 API Response Degradation</span>
-              </div>
-              <p className="text-sm text-yellow-700">
-                GP51 API responses have slowed down to 350ms (normal: &lt;200ms). No service disruption reported.
-              </p>
-              <p className="text-xs text-yellow-600 mt-1">2024-01-15 14:45:32</p>
-            </div>
-            
-            <div className="p-3 border border-green-200 rounded bg-green-50">
-              <div className="flex items-center gap-2 mb-1">
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="font-medium text-green-900">Database Optimization Completed</span>
-              </div>
-              <p className="text-sm text-green-700">
-                Scheduled database optimization completed successfully. Performance improved by 15%.
-              </p>
-              <p className="text-xs text-green-600 mt-1">2024-01-15 13:30:00</p>
-            </div>
-            
-            <div className="p-3 border border-red-200 rounded bg-red-50">
-              <div className="flex items-center gap-2 mb-1">
-                <XCircle className="h-4 w-4 text-red-600" />
-                <span className="font-medium text-red-900">Cache Service Restarted</span>
-              </div>
-              <p className="text-sm text-red-700">
-                Cache service was automatically restarted after detecting memory allocation issues.
-              </p>
-              <p className="text-xs text-red-600 mt-1">2024-01-15 12:15:45</p>
-            </div>
-          </div>
+          {/* Issues */}
+          {healthMetrics?.apiEndpoints.issues.length > 0 && (
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="text-base text-red-600">System Issues</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {healthMetrics.apiEndpoints.issues.map((issue, index) => (
+                    <div key={index} className="flex items-center gap-2 text-sm">
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                      <span>{issue}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </CardContent>
       </Card>
     </div>

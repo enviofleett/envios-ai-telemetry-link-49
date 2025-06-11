@@ -3,81 +3,54 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CreditCard, DollarSign, Receipt, TrendingUp, Download } from 'lucide-react';
+import { CreditCard, DollarSign, FileText, Settings, TrendingUp } from 'lucide-react';
+import { useBillingSettings } from '@/hooks/useBillingSettings';
+import { toast } from 'sonner';
 
 const BillingTab: React.FC = () => {
-  const [billingCycle, setBillingCycle] = useState('monthly');
+  const { data: billingData, isLoading, error } = useBillingSettings();
+  const [activeSubscriptions] = useState(245); // This would come from a subscription hook
+  const [monthlyRevenue] = useState(12450); // This would come from analytics
 
-  const billingStats = {
-    monthlyRevenue: '$12,450',
-    totalCustomers: 89,
-    activeSubscriptions: 156,
-    churnRate: '2.3%'
+  const handleUpdatePayment = () => {
+    toast.info('Payment method update functionality coming soon');
   };
 
-  const recentInvoices = [
-    {
-      id: 'INV-001',
-      customer: 'Fleet Corp',
-      amount: '$299.99',
-      status: 'paid',
-      date: '2024-01-15'
-    },
-    {
-      id: 'INV-002',
-      customer: 'Transport Ltd',
-      amount: '$199.99',
-      status: 'pending',
-      date: '2024-01-14'
-    },
-    {
-      id: 'INV-003',
-      customer: 'Logistics Inc',
-      amount: '$99.99',
-      status: 'overdue',
-      date: '2024-01-10'
-    }
-  ];
-
-  const subscriptionPlans = [
-    {
-      name: 'Basic',
-      price: '$29.99',
-      interval: 'monthly',
-      subscribers: 45,
-      revenue: '$1,349.55'
-    },
-    {
-      name: 'Professional',
-      price: '$79.99',
-      interval: 'monthly',
-      subscribers: 32,
-      revenue: '$2,559.68'
-    },
-    {
-      name: 'Enterprise',
-      price: '$199.99',
-      interval: 'monthly',
-      subscribers: 12,
-      revenue: '$2,399.88'
-    }
-  ];
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'paid':
-        return <Badge variant="default">{status}</Badge>;
-      case 'pending':
-        return <Badge variant="secondary">{status}</Badge>;
-      case 'overdue':
-        return <Badge variant="destructive">{status}</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+  const handleViewInvoice = (invoiceId: string) => {
+    toast.info(`View invoice ${invoiceId} functionality coming soon`);
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="animate-pulse space-y-4">
+              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+              <div className="grid grid-cols-3 gap-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-20 bg-gray-200 rounded"></div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-red-600">
+            Error loading billing data: {error.message}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -85,147 +58,149 @@ const BillingTab: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
-            Billing Management
+            Billing & Subscriptions
           </CardTitle>
           <CardDescription>
-            Manage billing, subscriptions, and revenue tracking
+            Manage billing settings and subscription plans
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="overview" className="space-y-4">
             <TabsList>
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="invoices">Invoices</TabsTrigger>
               <TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
+              <TabsTrigger value="invoices">Invoices</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-muted-foreground">Monthly Revenue</p>
-                        <p className="text-2xl font-bold">{billingStats.monthlyRevenue}</p>
+                        <p className="text-2xl font-bold">${monthlyRevenue.toLocaleString()}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <TrendingUp className="h-3 w-3 text-green-600" />
+                          <span className="text-xs text-green-600">+12%</span>
+                        </div>
                       </div>
-                      <DollarSign className="h-8 w-8 text-green-600" />
+                      <DollarSign className="h-8 w-8 text-muted-foreground" />
                     </div>
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Customers</p>
-                        <p className="text-2xl font-bold">{billingStats.totalCustomers}</p>
-                      </div>
-                      <CreditCard className="h-8 w-8 text-blue-600" />
-                    </div>
-                  </CardContent>
-                </Card>
+
                 <Card>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-muted-foreground">Active Subscriptions</p>
-                        <p className="text-2xl font-bold">{billingStats.activeSubscriptions}</p>
+                        <p className="text-2xl font-bold">{activeSubscriptions}</p>
+                        <div className="flex items-center gap-1 mt-1">
+                          <TrendingUp className="h-3 w-3 text-green-600" />
+                          <span className="text-xs text-green-600">+8%</span>
+                        </div>
                       </div>
-                      <Receipt className="h-8 w-8 text-purple-600" />
+                      <CreditCard className="h-8 w-8 text-muted-foreground" />
                     </div>
                   </CardContent>
                 </Card>
+
                 <Card>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm text-muted-foreground">Churn Rate</p>
-                        <p className="text-2xl font-bold">{billingStats.churnRate}</p>
+                        <p className="text-sm text-muted-foreground">Current Plan</p>
+                        <p className="text-2xl font-bold">{billingData?.subscription_plan || 'Free'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {billingData?.billing_cycle || 'monthly'}
+                        </p>
                       </div>
-                      <TrendingUp className="h-8 w-8 text-red-600" />
+                      <Settings className="h-8 w-8 text-muted-foreground" />
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Subscription Plans</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {subscriptionPlans.map((plan, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 border rounded">
-                          <div>
-                            <p className="font-medium">{plan.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {plan.price}/{plan.interval} • {plan.subscribers} subscribers
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium">{plan.revenue}</p>
-                            <p className="text-sm text-muted-foreground">revenue</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Recent Invoices</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      {recentInvoices.map((invoice) => (
-                        <div key={invoice.id} className="flex items-center justify-between p-3 border rounded">
-                          <div>
-                            <p className="font-medium">{invoice.id}</p>
-                            <p className="text-sm text-muted-foreground">{invoice.customer}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-medium">{invoice.amount}</p>
-                            <div className="flex items-center gap-2">
-                              {getStatusBadge(invoice.status)}
-                              <span className="text-xs text-muted-foreground">{invoice.date}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="invoices" className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium">Invoice Management</h3>
-                <Button>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Invoices
-                </Button>
-              </div>
               <Card>
-                <CardContent className="p-6">
-                  <div className="text-center py-8 text-muted-foreground">
-                    Invoice management interface would be displayed here
+                <CardHeader>
+                  <CardTitle className="text-base">Current Billing Settings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Billing Amount</p>
+                      <p className="text-lg">${billingData?.billing_amount || '0.00'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Next Billing Date</p>
+                      <p className="text-lg">
+                        {billingData?.next_billing_date 
+                          ? new Date(billingData.next_billing_date).toLocaleDateString()
+                          : 'Not set'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Auto Renewal</p>
+                      <Badge variant={billingData?.auto_renewal ? 'default' : 'secondary'}>
+                        {billingData?.auto_renewal ? 'Enabled' : 'Disabled'}
+                      </Badge>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Currency</p>
+                      <p className="text-lg">{billingData?.currency || 'USD'}</p>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
             <TabsContent value="subscriptions" className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-lg font-medium">Subscription Management</h3>
-                <Button>Create New Plan</Button>
-              </div>
               <Card>
-                <CardContent className="p-6">
+                <CardHeader>
+                  <CardTitle className="text-base">Device Subscriptions</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <div className="text-center py-8 text-muted-foreground">
-                    Subscription management interface would be displayed here
+                    Device subscription management will be implemented here.
+                    This will show all active device subscriptions with their billing status.
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="invoices" className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Recent Invoices</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex items-center justify-between p-3 border rounded">
+                        <div className="flex items-center gap-3">
+                          <FileText className="h-4 w-4" />
+                          <div>
+                            <p className="font-medium">Invoice #2024-{String(i).padStart(3, '0')}</p>
+                            <p className="text-sm text-muted-foreground">
+                              January {i * 10}, 2024
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="default">Paid</Badge>
+                          <p className="font-medium">${(Math.random() * 1000 + 100).toFixed(2)}</p>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleViewInvoice(`2024-${String(i).padStart(3, '0')}`)}
+                          >
+                            View
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
@@ -234,44 +209,31 @@ const BillingTab: React.FC = () => {
             <TabsContent value="settings" className="space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Billing Settings</CardTitle>
+                  <CardTitle className="text-base">Payment Settings</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="company-name">Company Name</Label>
-                      <Input
-                        id="company-name"
-                        defaultValue="FleetIQ Inc."
-                        placeholder="Company name"
-                      />
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Default Payment Method</p>
+                      <p className="text-sm text-muted-foreground">
+                        {billingData?.payment_methods?.length > 0 
+                          ? 'Card ending in ****1234'
+                          : 'No payment method on file'}
+                      </p>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tax-id">Tax ID</Label>
-                      <Input
-                        id="tax-id"
-                        defaultValue="123-456-789"
-                        placeholder="Tax identification number"
-                      />
+                    <Button variant="outline" onClick={handleUpdatePayment}>
+                      Update
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">Billing Notifications</p>
+                      <p className="text-sm text-muted-foreground">
+                        Receive email notifications for billing events
+                      </p>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="billing-email">Billing Email</Label>
-                      <Input
-                        id="billing-email"
-                        type="email"
-                        defaultValue="billing@fleetiq.com"
-                        placeholder="billing@company.com"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="payment-terms">Payment Terms (days)</Label>
-                      <Input
-                        id="payment-terms"
-                        type="number"
-                        defaultValue="30"
-                        placeholder="30"
-                      />
-                    </div>
+                    <Badge variant="default">Enabled</Badge>
                   </div>
                 </CardContent>
               </Card>
