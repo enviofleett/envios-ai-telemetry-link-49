@@ -31,12 +31,36 @@ export const useGP51Credentials = () => {
       // Notify status coordinator that save is starting
       gp51StatusCoordinator.startSaveOperation();
       
-      // Check authentication state first
+      // Enhanced authentication state checking with detailed logging
+      console.log('🔍 Checking authentication state...');
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
-      if (sessionError || !session) {
-        console.error('❌ No valid authentication session:', sessionError);
+      console.log('📊 Session analysis:', {
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        hasAccessToken: !!session?.access_token,
+        tokenLength: session?.access_token?.length,
+        sessionError: sessionError?.message,
+        userEmail: session?.user?.email,
+        tokenExpiry: session?.expires_at ? new Date(session.expires_at * 1000).toISOString() : 'unknown'
+      });
+      
+      if (sessionError || !session || !session.access_token) {
+        console.error('❌ Authentication session validation failed:', {
+          sessionError: sessionError?.message,
+          hasSession: !!session,
+          hasAccessToken: !!session?.access_token
+        });
         throw new Error('You must be logged in to save GP51 credentials. Please refresh the page and try again.');
+      }
+
+      // Verify token is not expired
+      if (session.expires_at && session.expires_at < Date.now() / 1000) {
+        console.error('❌ Access token is expired:', {
+          expiresAt: new Date(session.expires_at * 1000).toISOString(),
+          currentTime: new Date().toISOString()
+        });
+        throw new Error('Your session has expired. Please refresh the page and log in again.');
       }
 
       console.log('✅ Valid session found, proceeding with request...');
@@ -51,18 +75,36 @@ export const useGP51Credentials = () => {
         payload.apiUrl = apiUrl.trim();
       }
 
-      console.log('📡 Calling settings-management function with payload...');
+      console.log('📡 Calling settings-management function with enhanced payload:', {
+        action: payload.action,
+        hasUsername: !!payload.username,
+        hasPassword: !!payload.password,
+        hasApiUrl: !!payload.apiUrl,
+        retryAttempt: retryCount
+      });
       
       try {
         const { data, error } = await supabase.functions.invoke('settings-management', {
           body: payload
         });
         
-        // Check for HTTP-level errors first
+        console.log('📡 Edge function response received:', {
+          hasData: !!data,
+          hasError: !!error,
+          dataSuccess: data?.success,
+          errorMessage: error?.message,
+          dataCode: data?.code
+        });
+        
+        // Enhanced HTTP-level error checking
         if (error) {
-          console.error('❌ Edge function invocation failed:', error);
+          console.error('❌ Edge function invocation failed:', {
+            error: error.message,
+            context: error.context,
+            details: error.details
+          });
           
-          // If it's a 401 error and we haven't retried yet, try once more
+          // Enhanced retry logic with specific error categorization
           if (error.message?.includes('401') && retryCount < 1) {
             console.log('🔄 Retrying due to authentication error...');
             await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
@@ -74,19 +116,29 @@ export const useGP51Credentials = () => {
             });
           }
           
-          // Check if it's a network/connection error
+          // Enhanced error categorization for better user feedback
           if (error.message?.includes('network') || error.message?.includes('fetch')) {
             throw new Error('Network connection failed. Please check your internet connection and try again.');
+          }
+          
+          if (error.message?.includes('timeout')) {
+            throw new Error('Request timed out. Please try again.');
           }
           
           throw new Error(error.message || 'Edge function call failed');
         }
         
-        // Check the response success flag and HTTP status - this is the critical fix
+        // Enhanced response validation with detailed error reporting
         if (!data || data.success === false) {
-          console.error('❌ GP51 save operation failed:', data);
+          console.error('❌ GP51 save operation failed:', {
+            data: data,
+            success: data?.success,
+            error: data?.error,
+            code: data?.code,
+            details: data?.details
+          });
           
-          // Extract meaningful error information
+          // Enhanced error message categorization based on error codes
           const errorMessage = data?.details || data?.error || 'Failed to save GP51 credentials';
           const errorCode = data?.code || 'UNKNOWN_ERROR';
           
@@ -97,24 +149,37 @@ export const useGP51Credentials = () => {
             throw new Error('Database error: Unable to save credentials. Please try again.');
           } else if (errorCode === 'AUTH_REQUIRED' || errorCode === 'AUTH_INVALID') {
             throw new Error('Authentication required: Please refresh the page and log in again');
+          } else if (errorCode === 'MISSING_ENV_VARS') {
+            throw new Error('Server configuration error: Please contact support');
+          } else if (errorCode === 'INVALID_JSON') {
+            throw new Error('Request format error: Please try again');
           }
           
           throw new Error(errorMessage);
         }
         
-        console.log('✅ GP51 credentials saved successfully:', data);
+        console.log('✅ GP51 credentials saved successfully:', {
+          success: data.success,
+          message: data.message,
+          username: data.username
+        });
         return data;
         
       } catch (fetchError) {
-        console.error('❌ Request failed:', fetchError);
+        console.error('❌ Request execution failed:', {
+          error: fetchError,
+          name: fetchError?.name,
+          message: fetchError?.message,
+          stack: fetchError?.stack?.substring(0, 200)
+        });
         
         // Re-throw with better error context if it's our own error
         if (fetchError instanceof Error && fetchError.message.includes('GP51')) {
           throw fetchError;
         }
         
-        // For unexpected errors, provide a generic message
-        throw new Error('Connection failed: Unable to save GP51 credentials. Please try again.');
+        // For unexpected errors, provide a generic message with enhanced context
+        throw new Error(`Connection failed: Unable to save GP51 credentials. ${fetchError instanceof Error ? fetchError.message : 'Please try again.'}`);
       }
     },
     onSuccess: async (data) => {
@@ -132,8 +197,18 @@ export const useGP51Credentials = () => {
             body: { action: 'test_gp51_api' }
           });
 
+          console.log('🧪 Auto-verification result:', {
+            hasData: !!testData,
+            hasError: !!testError,
+            success: testData?.success,
+            deviceCount: testData?.deviceCount
+          });
+
           if (testError || !testData?.success) {
-            console.error('❌ Auto-verification failed:', testError || testData);
+            console.error('❌ Auto-verification failed:', {
+              testError: testError?.message,
+              testData: testData
+            });
             
             // Report verification failure to status coordinator
             gp51StatusCoordinator.reportSaveError(
@@ -158,7 +233,11 @@ export const useGP51Credentials = () => {
           });
 
         } catch (verificationError) {
-          console.error('❌ Auto-verification exception:', verificationError);
+          console.error('❌ Auto-verification exception:', {
+            error: verificationError,
+            name: verificationError?.name,
+            message: verificationError?.message
+          });
           
           // Still report success but with warning
           gp51StatusCoordinator.reportSaveSuccess(responseData?.username);
@@ -192,7 +271,12 @@ export const useGP51Credentials = () => {
       }
     },
     onError: (error: unknown) => {
-      console.error('❌ GP51 credentials save mutation failed:', error);
+      console.error('❌ GP51 credentials save mutation failed:', {
+        error: error,
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack?.substring(0, 200)
+      });
       
       // Properly handle the error type
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -200,11 +284,11 @@ export const useGP51Credentials = () => {
       // Notify status coordinator of save error
       gp51StatusCoordinator.reportSaveError(errorMessage);
       
-      // Categorize the error for better user feedback
+      // Enhanced error categorization for better user feedback
       let errorTitle = 'Connection Failed';
       let errorDescription = 'Failed to connect to GP51. Please check your credentials and try again.';
       
-      if (errorMessage.includes('Authentication required') || errorMessage.includes('logged in')) {
+      if (errorMessage.includes('Authentication required') || errorMessage.includes('logged in') || errorMessage.includes('session has expired')) {
         errorTitle = 'Authentication Required';
         errorDescription = 'Please refresh the page and ensure you are logged in before trying again.';
       } else if (errorMessage.includes('User profile not found')) {
@@ -222,6 +306,15 @@ export const useGP51Credentials = () => {
       } else if (errorMessage.includes('GP51 service error')) {
         errorTitle = 'GP51 Service Error';
         errorDescription = 'GP51 servers are currently unavailable. Please try again later.';
+      } else if (errorMessage.includes('Server configuration error')) {
+        errorTitle = 'Server Configuration Error';
+        errorDescription = 'Server configuration issue. Please contact support.';
+      } else if (errorMessage.includes('Request format error')) {
+        errorTitle = 'Request Error';
+        errorDescription = 'Invalid request format. Please try again.';
+      } else if (errorMessage.includes('timeout')) {
+        errorTitle = 'Request Timeout';
+        errorDescription = 'Request timed out. Please try again.';
       } else {
         // Use the specific error message if available
         errorDescription = errorMessage;
