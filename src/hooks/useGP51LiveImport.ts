@@ -4,6 +4,13 @@
 export interface GP51LiveData {
   users: any[];
   vehicles: any[];
+  devices: any[];
+  statistics: {
+    totalUsers: number;
+    totalDevices: number;
+    totalVehicles: number;
+    activeDevices: number;
+  };
   lastUpdate: string;
 }
 
@@ -11,6 +18,11 @@ export interface GP51LiveImportConfig {
   batchSize: number;
   interval: number;
   autoStart: boolean;
+  userTypes: string[];
+  selectedUserIds: string[];
+  selectedDeviceIds: string[];
+  importUsers: boolean;
+  importDevices: boolean;
 }
 
 export interface GP51LiveImportJob {
@@ -19,6 +31,12 @@ export interface GP51LiveImportJob {
   config: GP51LiveImportConfig;
   startTime: string;
   endTime?: string;
+}
+
+export interface GP51ConnectionStatus {
+  connected: boolean;
+  lastCheck: Date;
+  error?: string;
 }
 
 export const useGP51LiveImport = () => {
@@ -39,4 +57,5 @@ export const useGP51LiveImport = () => {
   };
 };
 
+export { GP51ConnectionStatus };
 export default useGP51LiveImport;

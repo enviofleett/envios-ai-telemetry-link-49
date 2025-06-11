@@ -4,18 +4,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useGP51Diagnostics } from '@/hooks/useGP51Diagnostics';
 import { RefreshCw, CheckCircle, AlertTriangle, XCircle, Zap, Activity } from 'lucide-react';
 
 const GP51DiagnosticsPanel: React.FC = () => {
-  const { 
-    isRunning, 
-    results, 
-    lastRun, 
-    runDiagnostics, 
-    runFullSync, 
-    getSyncStatus 
-  } = useGP51Diagnostics();
+  const isRunning = false;
+  const results: any[] = [];
+  const lastRun = null;
+  
+  const runDiagnostics = () => {
+    console.log('GP51 diagnostics not available - service is being rebuilt');
+  };
+  
+  const runFullSync = () => {
+    console.log('GP51 sync not available - service is being rebuilt');
+  };
+  
+  const getSyncStatus = () => ({
+    activeLocks: []
+  });
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -47,7 +53,7 @@ const GP51DiagnosticsPanel: React.FC = () => {
             GP51 System Diagnostics
           </CardTitle>
           <CardDescription>
-            Comprehensive health check for GP51 integration and data flow
+            GP51 integration service is being rebuilt - diagnostics temporarily unavailable
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -55,82 +61,30 @@ const GP51DiagnosticsPanel: React.FC = () => {
           <div className="flex gap-2">
             <Button 
               onClick={runDiagnostics} 
-              disabled={isRunning}
+              disabled={true}
               className="flex items-center gap-2"
             >
-              <RefreshCw className={`h-4 w-4 ${isRunning ? 'animate-spin' : ''}`} />
-              {isRunning ? 'Running Diagnostics...' : 'Run Diagnostics'}
+              <RefreshCw className="h-4 w-4" />
+              Diagnostics Unavailable
             </Button>
             <Button 
               onClick={runFullSync} 
               variant="outline"
+              disabled={true}
               className="flex items-center gap-2"
             >
               <Zap className="h-4 w-4" />
-              Force Full Sync
+              Sync Unavailable
             </Button>
           </div>
 
-          {/* Sync Status Alert */}
-          {hasActiveLocks && (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Active sync operations detected: {syncStatus.activeLocks.map((lock: any) => lock.key).join(', ')}
-                <br />
-                <span className="text-sm text-muted-foreground">
-                  These operations are currently running or may be stuck. Consider waiting or checking logs.
-                </span>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Last Run Info */}
-          {lastRun && (
-            <div className="text-sm text-muted-foreground">
-              Last diagnostic run: {lastRun.toLocaleString()}
-            </div>
-          )}
-
-          {/* Results */}
-          {results.length > 0 && (
-            <div className="space-y-3">
-              <h4 className="font-medium">Test Results</h4>
-              {results.map((result, index) => (
-                <Card key={index} className="p-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(result.status)}
-                      <span className="font-medium">{result.test}</span>
-                      <Badge variant={getStatusBadgeVariant(result.status) as any}>
-                        {result.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="mt-2 text-sm text-muted-foreground">
-                    {result.message}
-                  </div>
-                  {result.details && (
-                    <div className="mt-2 p-2 bg-muted rounded text-xs">
-                      <pre className="whitespace-pre-wrap">
-                        {JSON.stringify(result.details, null, 2)}
-                      </pre>
-                    </div>
-                  )}
-                </Card>
-              ))}
-            </div>
-          )}
-
-          {/* Help Text */}
-          {results.length === 0 && !isRunning && (
-            <Alert>
-              <AlertDescription>
-                Click "Run Diagnostics" to perform a comprehensive health check of your GP51 integration.
-                This will test session validity, data integrity, sync activity, and API connectivity.
-              </AlertDescription>
-            </Alert>
-          )}
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              GP51 diagnostics and sync features are temporarily unavailable while the integration service is being rebuilt.
+              Please check back later or contact support if you need immediate assistance.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
     </div>

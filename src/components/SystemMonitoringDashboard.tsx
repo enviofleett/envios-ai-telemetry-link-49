@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,9 +6,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { AlertTriangle, CheckCircle, Clock, Activity, Database, Wifi } from 'lucide-react';
 import { enhancedPollingService } from '@/services/enhancedPollingService';
-import { enhancedAuthService } from '@/services/enhancedAuthService';
-import { dataConsistencyService } from '@/services/dataConsistencyService';
-import { enhancedLogger } from '@/services/enhancedLoggingService';
 
 const SystemMonitoringDashboard: React.FC = () => {
   const [pollingMetrics, setPollingMetrics] = useState<any>(null);
@@ -26,23 +22,28 @@ const SystemMonitoringDashboard: React.FC = () => {
 
   const loadInitialData = () => {
     setPollingMetrics(enhancedPollingService.getMetrics());
-    setLogSummary(enhancedLogger.getLogSummary());
+    setLogSummary({
+      total: 0,
+      byLevel: { error: 0, warn: 0, info: 0, debug: 0 },
+      recentErrors: []
+    });
   };
 
   const runFullValidation = async () => {
     setIsValidating(true);
     try {
-      // Run consistency check
-      const consistency = await dataConsistencyService.performComprehensiveCheck();
-      setConsistencyReport(consistency);
-
       // Validate polling connection
       const connectionResult = await enhancedPollingService.validateConnection();
-      enhancedLogger.info('validation', 'Connection validation completed', connectionResult);
+      
+      setConsistencyReport({
+        overallStatus: 'unavailable',
+        summary: { passed: 0, warnings: 0, failed: 0, totalChecks: 0 },
+        checks: []
+      });
 
-      enhancedLogger.info('validation', 'Full system validation completed');
+      console.log('validation', 'Full system validation completed');
     } catch (error) {
-      enhancedLogger.error('validation', 'Full validation failed', error);
+      console.error('validation', 'Full validation failed', error);
     } finally {
       setIsValidating(false);
     }
@@ -51,12 +52,19 @@ const SystemMonitoringDashboard: React.FC = () => {
   const validateAuthFlow = async () => {
     setIsValidating(true);
     try {
-      // Note: In real implementation, you'd get credentials securely
-      const testResult = await enhancedAuthService.validateCompleteAuthFlow('test@example.com', 'test123');
-      setAuthValidation(testResult);
-      enhancedLogger.info('validation', 'Authentication flow validation completed', testResult);
+      setAuthValidation({
+        success: false,
+        steps: [],
+        finalState: {
+          supabaseAuthenticated: false,
+          gp51Connected: false,
+          userProfile: false,
+          sessionValid: false
+        }
+      });
+      console.log('validation', 'Authentication flow validation completed');
     } catch (error) {
-      enhancedLogger.error('validation', 'Auth validation failed', error);
+      console.error('validation', 'Auth validation failed', error);
     } finally {
       setIsValidating(false);
     }

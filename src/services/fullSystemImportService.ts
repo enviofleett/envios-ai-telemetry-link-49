@@ -14,6 +14,10 @@ export interface ImportProgress {
   phase: string;
   percentage: number;
   message: string;
+  overallProgress?: number;
+  phaseProgress?: number;
+  currentOperation?: string;
+  details?: string;
 }
 
 export class FullSystemImportService {
@@ -38,7 +42,11 @@ export class FullSystemImportService {
       onProgress({
         phase: 'unavailable',
         percentage: 0,
-        message: 'GP51 integration service is being rebuilt'
+        message: 'GP51 integration service is being rebuilt',
+        overallProgress: 0,
+        phaseProgress: 0,
+        currentOperation: 'Service unavailable',
+        details: 'GP51 integration is being rebuilt'
       });
     }
 
@@ -46,7 +54,10 @@ export class FullSystemImportService {
       success: false,
       error: 'GP51 integration service is being rebuilt',
       successfulUsers: 0,
-      successfulVehicles: 0
+      successfulVehicles: 0,
+      importId: 'unavailable',
+      conflicts: 0,
+      backupTables: []
     };
   }
 

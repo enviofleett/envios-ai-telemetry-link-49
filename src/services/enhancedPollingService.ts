@@ -83,6 +83,26 @@ class EnhancedPollingService {
     };
   }
 
+  getMetrics() {
+    return {
+      totalPolls: 0,
+      successfulPolls: 0,
+      failedPolls: 0,
+      currentRetryCount: 0,
+      lastPollTime: null,
+      lastSuccessTime: null,
+      lastErrorTime: null
+    };
+  }
+
+  async validateConnection() {
+    console.log('Connection validation not implemented');
+    return {
+      isConnected: false,
+      error: 'Connection validation service is being rebuilt'
+    };
+  }
+
   async triggerManualSync() {
     console.log('Manual sync triggered');
     try {

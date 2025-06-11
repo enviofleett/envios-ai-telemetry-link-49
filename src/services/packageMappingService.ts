@@ -1,5 +1,12 @@
 
 // Stub implementation for package mapping service
+export interface PackageToGP51Mapping {
+  packageCode: string;
+  gp51UserType: string;
+  envioRole: string;
+  requiresApproval: boolean;
+}
+
 export class PackageMappingService {
   static validatePackage(packageCode: string): boolean {
     console.log('Package validation not implemented:', packageCode);
@@ -40,6 +47,16 @@ export class PackageMappingService {
       }
     ];
   }
+
+  static getPackageMapping(packageCode: string): PackageToGP51Mapping {
+    return {
+      packageCode,
+      gp51UserType: 'USER',
+      envioRole: 'driver',
+      requiresApproval: false
+    };
+  }
 }
 
+export { PackageToGP51Mapping };
 export default PackageMappingService;
