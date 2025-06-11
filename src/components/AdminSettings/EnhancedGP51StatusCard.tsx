@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -108,6 +107,34 @@ const EnhancedGP51StatusCard: React.FC = () => {
     return Math.max(0, Math.min(100, (remaining / total) * 100));
   };
 
+  const getConnectionTestStatus = () => {
+    if (!testResult) return null;
+    
+    if (testResult.success) {
+      return {
+        icon: <CheckCircle className="h-4 w-4 text-green-500" />,
+        text: 'API Test Passed',
+        variant: 'default' as const
+      };
+    }
+    
+    if (testResult.isAuthError) {
+      return {
+        icon: <Shield className="h-4 w-4 text-red-500" />,
+        text: 'Authentication Failed',
+        variant: 'destructive' as const
+      };
+    }
+    
+    return {
+      icon: <XCircle className="h-4 w-4 text-red-500" />,
+      text: 'API Unreachable',
+      variant: 'destructive' as const
+    };
+  };
+
+  const testStatus = getConnectionTestStatus();
+
   return (
     <Card>
       <CardHeader>
@@ -162,22 +189,59 @@ const EnhancedGP51StatusCard: React.FC = () => {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Test Result Display */}
+        {/* Enhanced Test Result Display */}
         {testResult && (
           <Alert variant={testResult.success ? "default" : "destructive"}>
             <TestTube className="h-4 w-4" />
             <AlertDescription>
-              <div className="space-y-2">
-                <p><strong>API Test Result:</strong> {testResult.success ? 'Success' : 'Failed'}</p>
-                {testResult.message && <p>{testResult.message}</p>}
-                {testResult.error && <p><strong>Error:</strong> {testResult.error}</p>}
-                {testResult.details && <p><strong>Details:</strong> {testResult.details}</p>}
-                {testResult.latency && <p><strong>Response Time:</strong> {testResult.latency}ms</p>}
-                {testResult.deviceCount !== undefined && <p><strong>Devices Found:</strong> {testResult.deviceCount}</p>}
-                {testResult.recommendation && (
-                  <p className="text-sm font-medium text-amber-600">
-                    <strong>Recommendation:</strong> {testResult.recommendation}
-                  </p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p><strong>API Connectivity Test:</strong></p>
+                  {testStatus && (
+                    <Badge variant={testStatus.variant} className="flex items-center gap-1">
+                      {testStatus.icon}
+                      {testStatus.text}
+                    </Badge>
+                  )}
+                </div>
+                
+                {testResult.success ? (
+                  <div className="space-y-1 text-sm">
+                    <p className="text-green-700">✅ {testResult.message}</p>
+                    <p><strong>Status Code:</strong> {testResult.statusCode}</p>
+                    <p><strong>Response Time:</strong> {testResult.latency}ms</p>
+                    <p><strong>Username:</strong> {testResult.username}</p>
+                    <p><strong>Token:</strong> {testResult.token}</p>
+                  </div>
+                ) : (
+                  <div className="space-y-1 text-sm">
+                    <p className="text-red-700"><strong>Error:</strong> {testResult.error}</p>
+                    <p><strong>Details:</strong> {testResult.details}</p>
+                    <p><strong>Status Code:</strong> {testResult.statusCode || 'N/A'}</p>
+                    {testResult.latency && <p><strong>Response Time:</strong> {testResult.latency}ms</p>}
+                    {testResult.username && <p><strong>Username:</strong> {testResult.username}</p>}
+                    
+                    {testResult.isAuthError && (
+                      <div className="mt-2 p-2 bg-red-50 rounded">
+                        <p className="text-red-800 font-medium">🔐 Authentication Issue</p>
+                        <p className="text-red-700 text-xs">Please check your GP51 username and password in the credentials form above.</p>
+                      </div>
+                    )}
+                    
+                    {testResult.statusCode === 0 && (
+                      <div className="mt-2 p-2 bg-orange-50 rounded">
+                        <p className="text-orange-800 font-medium">🌐 Network Issue</p>
+                        <p className="text-orange-700 text-xs">GP51 API is unreachable from Supabase Edge Functions.</p>
+                      </div>
+                    )}
+                    
+                    {testResult.recommendation && (
+                      <div className="mt-2 p-2 bg-amber-50 rounded">
+                        <p className="text-amber-800 font-medium">💡 Recommendation</p>
+                        <p className="text-amber-700 text-xs">{testResult.recommendation}</p>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </AlertDescription>

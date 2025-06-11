@@ -7,9 +7,11 @@ interface ConnectionTestResult {
   message?: string;
   error?: string;
   details?: string;
+  statusCode?: number;
+  isAuthError?: boolean;
   latency?: number;
-  deviceCount?: number;
   username?: string;
+  token?: string;
   recommendation?: string;
 }
 
@@ -22,7 +24,7 @@ export const useGP51ConnectionTest = () => {
     setResult(null);
     
     try {
-      console.log('🧪 Testing GP51 connection via new edge function...');
+      console.log('🧪 Testing GP51 connection via enhanced edge function...');
       
       const { data, error } = await supabase.functions.invoke('gp51-connection-check', {
         body: {}
@@ -33,7 +35,9 @@ export const useGP51ConnectionTest = () => {
         setResult({
           success: false,
           error: 'Connection test failed',
-          details: error.message
+          details: error.message,
+          statusCode: 500,
+          isAuthError: false
         });
         return;
       }
@@ -46,7 +50,9 @@ export const useGP51ConnectionTest = () => {
       setResult({
         success: false,
         error: 'Test failed',
-        details: err instanceof Error ? err.message : 'Unknown error'
+        details: err instanceof Error ? err.message : 'Unknown error',
+        statusCode: 500,
+        isAuthError: false
       });
     } finally {
       setIsLoading(false);

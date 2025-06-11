@@ -8,9 +8,64 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
-const GP51_API_URL = "https://api.gpstrackerxy.com/api";
+const GP51_API_URL = "https://www.gps51.com/webapi";
 const REQUEST_TIMEOUT = 5000; // 5 seconds
 const MAX_RETRIES = 2;
+
+// MD5 hash function for password hashing
+async function md5(input: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await crypto.subtle.digest('MD5', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function callGP51WithRetry(
+  formData: URLSearchParams, 
+  attempt: number = 1
+): Promise<{ success: boolean; response?: Response; error?: string; statusCode?: number }> {
+  try {
+    console.log(`GP51 API call attempt ${attempt}/${MAX_RETRIES + 1}`);
+    console.log('Form data:', Object.fromEntries(formData.entries()));
+    
+    // Create abort controller for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+
+    const response = await fetch(GP51_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': 'EnvioFleet/1.0'
+      },
+      body: formData.toString(),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+    console.log(`GP51 API response: status=${response.status}`);
+    
+    return { success: true, response, statusCode: response.status };
+    
+  } catch (error) {
+    console.error(`GP51 API attempt ${attempt} failed:`, error);
+    
+    if (attempt <= MAX_RETRIES) {
+      const delay = attempt * 1000; // Exponential backoff: 1s, 2s
+      console.log(`Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return callGP51WithRetry(formData, attempt + 1);
+    }
+    
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Network error',
+      statusCode: 0
+    };
+  }
+}
 
 serve(async (req) => {
   console.log(`GP51 Connection Check: ${req.method} ${req.url}`);
@@ -19,6 +74,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -28,7 +85,7 @@ serve(async (req) => {
     // Get the most recent GP51 session
     const { data: sessions, error: sessionError } = await supabase
       .from('gp51_sessions')
-      .select('username, gp51_token, token_expires_at, api_url')
+      .select('username, gp51_password, token_expires_at, api_url')
       .order('token_expires_at', { ascending: false })
       .limit(1);
 
@@ -38,7 +95,10 @@ serve(async (req) => {
         JSON.stringify({ 
           success: false,
           error: 'Database connection failed',
-          details: sessionError.message
+          details: sessionError.message,
+          statusCode: 500,
+          isAuthError: false,
+          latency: Date.now() - startTime
         }),
         { 
           status: 502,
@@ -53,7 +113,10 @@ serve(async (req) => {
         JSON.stringify({ 
           success: false,
           error: 'No GP51 sessions configured',
-          details: 'Please configure GP51 credentials first'
+          details: 'Please configure GP51 credentials first',
+          statusCode: 404,
+          isAuthError: true,
+          latency: Date.now() - startTime
         }),
         { 
           status: 401,
@@ -72,7 +135,11 @@ serve(async (req) => {
         JSON.stringify({ 
           success: false,
           error: 'GP51 session expired',
-          details: 'Session expired, please re-authenticate'
+          details: 'Session expired, please re-authenticate',
+          statusCode: 401,
+          isAuthError: true,
+          latency: Date.now() - startTime,
+          username: session.username
         }),
         { 
           status: 401,
@@ -81,141 +148,138 @@ serve(async (req) => {
       );
     }
 
-    // Test GP51 API connectivity with retries
-    const startTime = Date.now();
-    let lastError: Error | null = null;
+    // Hash the password for GP51 authentication
+    const hashedPassword = await md5(session.gp51_password);
     
-    for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
-      try {
-        console.log(`GP51 API test attempt ${attempt}/${MAX_RETRIES + 1}`);
-        
-        // Prepare form data as URLSearchParams
-        const formData = new URLSearchParams({
-          action: 'querymonitorlist',
-          json: '1',
-          suser: session.username,
-          stoken: session.gp51_token
-        });
+    // Test GP51 API connectivity using login action
+    const formData = new URLSearchParams({
+      action: 'login',
+      username: session.username,
+      password: hashedPassword,
+      from: 'WEB',
+      type: 'USER'
+    });
 
-        console.log('Making GP51 API request with params:', {
-          action: 'querymonitorlist',
-          json: '1',
-          suser: session.username,
-          stoken: '[REDACTED]'
-        });
+    console.log('Testing GP51 connectivity with login action...');
+    const result = await callGP51WithRetry(formData);
+    const latency = Date.now() - startTime;
 
-        // Create abort controller for timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
-        const response = await fetch(GP51_API_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json',
-            'User-Agent': 'EnvioFleet/1.0'
-          },
-          body: formData.toString(),
-          signal: controller.signal
-        });
-
-        clearTimeout(timeoutId);
-        
-        const latency = Date.now() - startTime;
-        console.log(`GP51 API response: status=${response.status}, latency=${latency}ms`);
-
-        if (!response.ok) {
-          console.error(`GP51 API HTTP error: ${response.status} ${response.statusText}`);
-          
-          if (response.status === 401 || response.status === 403) {
-            return new Response(
-              JSON.stringify({ 
-                success: false,
-                error: 'GP51 authentication failed',
-                details: `HTTP ${response.status}: Invalid credentials`,
-                latency
-              }),
-              { 
-                status: 401,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-              }
-            );
-          }
-          
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    if (!result.success) {
+      console.error('All GP51 API attempts failed. Network unreachable.');
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'GP51 API unreachable',
+          details: result.error || 'Network connectivity issues',
+          statusCode: result.statusCode || 0,
+          isAuthError: false,
+          latency,
+          recommendation: 'Consider using a Node.js proxy or upgrading hosting environment'
+        }),
+        { 
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
+      );
+    }
 
-        const responseText = await response.text();
-        console.log('GP51 API raw response:', responseText.substring(0, 200) + '...');
-        
-        let responseData;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error('Failed to parse GP51 response as JSON:', parseError);
-          throw new Error('Invalid JSON response from GP51 API');
-        }
-
-        // Check if GP51 returned an error
-        if (responseData.result === "false" || responseData.result === false) {
-          console.error('GP51 API logic error:', responseData);
-          return new Response(
-            JSON.stringify({ 
-              success: false,
-              error: 'GP51 API authentication failed',
-              details: responseData.message || 'Invalid session token',
-              latency
-            }),
-            { 
-              status: 401,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-            }
-          );
-        }
-
-        // Success!
-        console.log('✅ GP51 API connection test successful');
+    const response = result.response!;
+    const responseText = await response.text();
+    console.log('GP51 API raw response:', responseText.substring(0, 200) + '...');
+    
+    if (!response.ok) {
+      console.error(`GP51 API HTTP error: ${response.status} ${response.statusText}`);
+      
+      if (response.status === 401 || response.status === 403) {
         return new Response(
           JSON.stringify({ 
-            success: true,
-            message: 'GP51 connection successful',
+            success: false,
+            error: 'GP51 authentication failed',
+            details: `HTTP ${response.status}: Invalid credentials`,
+            statusCode: response.status,
+            isAuthError: true,
             latency,
-            deviceCount: responseData.devices ? responseData.devices.length : 0,
             username: session.username
           }),
           { 
-            status: 200,
+            status: 401,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         );
-
-      } catch (error) {
-        lastError = error as Error;
-        console.error(`GP51 API attempt ${attempt} failed:`, error);
-        
-        // If this is the last attempt, don't wait
-        if (attempt <= MAX_RETRIES) {
-          const delay = attempt * 1000; // Exponential backoff: 1s, 2s
-          console.log(`Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
       }
+      
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'GP51 API error',
+          details: `HTTP ${response.status}: ${response.statusText}`,
+          statusCode: response.status,
+          isAuthError: false,
+          latency
+        }),
+        { 
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
-    // All retries failed
-    const latency = Date.now() - startTime;
-    console.error('All GP51 API attempts failed. Last error:', lastError);
-    
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse GP51 response as JSON:', parseError);
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Invalid response format',
+          details: 'GP51 API returned invalid JSON',
+          statusCode: response.status,
+          isAuthError: false,
+          latency
+        }),
+        { 
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Check GP51 authentication result
+    if (responseData.status !== 0 || !responseData.token) {
+      console.error('GP51 authentication failed:', responseData);
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'GP51 authentication failed',
+          details: responseData.cause || responseData.message || 'Invalid credentials',
+          statusCode: response.status,
+          isAuthError: true,
+          latency,
+          username: session.username
+        }),
+        { 
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Success!
+    console.log('✅ GP51 connection test successful');
     return new Response(
       JSON.stringify({ 
-        success: false,
-        error: 'GP51 API unreachable',
-        details: lastError?.message || 'Network connectivity issues',
+        success: true,
+        message: 'GP51 connection successful',
+        details: 'Authentication and API connectivity verified',
+        statusCode: response.status,
+        isAuthError: false,
         latency,
-        recommendation: 'Consider using a Node.js proxy or upgrading hosting environment'
+        username: session.username,
+        token: responseData.token ? '[PRESENT]' : '[MISSING]'
       }),
       { 
-        status: 502,
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
       }
     );
@@ -226,7 +290,10 @@ serve(async (req) => {
       JSON.stringify({ 
         success: false,
         error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
+        statusCode: 500,
+        isAuthError: false,
+        latency: Date.now() - startTime
       }),
       { 
         status: 500,
