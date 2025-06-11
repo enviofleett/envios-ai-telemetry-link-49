@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createHash } from "../settings-management/crypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,6 +8,30 @@ const corsHeaders = {
 };
 
 const GP51_API_URL = "https://api.gpstrackerxy.com/api";
+
+// MD5 hashing function for passwords
+async function createHash(text: string): Promise<string> {
+  try {
+    console.log(`Hashing password of length: ${text.length}`);
+    
+    // Use Web Crypto API for MD5 hashing
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text);
+    
+    // For MD5, we'll use a simple implementation since Web Crypto doesn't support MD5
+    const md5 = await import("https://deno.land/x/md5@v1.0.3/mod.ts");
+    const hash = md5.createHash("md5");
+    hash.update(text);
+    const md5Hash = hash.toString();
+    
+    console.log('MD5 hash generated successfully');
+    return md5Hash;
+    
+  } catch (error) {
+    console.error('MD5 hashing failed:', error);
+    throw new Error('Password hashing failed');
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
