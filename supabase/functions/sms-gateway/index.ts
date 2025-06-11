@@ -15,32 +15,83 @@ interface MySMSConfig {
 }
 
 interface SMSRequest {
-  action: 'send_sms' | 'test_config' | 'get_logs';
+  action: 'send_sms' | 'test_config' | 'get_logs' | 'update_status';
   recipient?: string;
   message?: string;
   event_type?: string;
   config?: MySMSConfig;
   page?: number;
   limit?: number;
+  sms_log_id?: string;
+  status?: string;
+  delivery_details?: any;
+}
+
+// Encryption utility matching the frontend implementation
+class CredentialEncryption {
+  private static async getEncryptionKey(): Promise<CryptoKey> {
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode('envio-sms-encryption-key-v1'),
+      { name: 'PBKDF2' },
+      false,
+      ['deriveKey']
+    );
+    
+    return await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: new TextEncoder().encode('envio-salt'),
+        iterations: 100000,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  static async decrypt(encryptedData: string): Promise<string> {
+    try {
+      const key = await this.getEncryptionKey();
+      const combined = new Uint8Array(
+        atob(encryptedData).split('').map(char => char.charCodeAt(0))
+      );
+      
+      const iv = combined.slice(0, 12);
+      const encrypted = combined.slice(12);
+      
+      const decrypted = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        encrypted
+      );
+      
+      return new TextDecoder().decode(decrypted);
+    } catch (error) {
+      console.error('Decryption failed:', error);
+      throw new Error('Failed to decrypt credentials');
+    }
+  }
 }
 
 async function sendSMSViaMySMS(config: MySMSConfig, recipient: string, message: string): Promise<any> {
-  // Use the correct API URL for mysmstab
   const baseUrl = 'https://app.mysmstab.com/api/sendsms.php';
   
   const params = new URLSearchParams({
     username: config.username,
     password: config.password,
     sender: config.sender,
-    mobiles: recipient, // Use 'mobiles' parameter instead of 'recipient'
-    message: encodeURIComponent(message), // Properly encode the message
+    mobiles: recipient,
+    message: encodeURIComponent(message),
     route: config.route.toString()
   });
 
   const url = `${baseUrl}?${params.toString()}`;
   
   console.log(`📱 Sending SMS to ${recipient} via MySMS API`);
-  console.log(`🔗 API URL: ${url.replace(config.password, '***')}`); // Log URL but hide password
+  console.log(`🔗 API URL: ${url.replace(config.password, '***')}`);
   
   try {
     const response = await fetch(url, {
@@ -53,13 +104,13 @@ async function sendSMSViaMySMS(config: MySMSConfig, recipient: string, message: 
     const responseText = await response.text();
     console.log(`📞 MySMS API Response (Status ${response.status}):`, responseText);
     
-    // Improved success detection for mysmstab API
     const isSuccess = analyzeMysmstabResponse(responseText, response.status);
     
     return {
       success: isSuccess,
       response: responseText,
-      status_code: response.status
+      status_code: response.status,
+      delivery_id: extractDeliveryId(responseText) // Extract delivery ID for tracking
     };
   } catch (error) {
     console.error('❌ MySMS API Error:', error);
@@ -70,24 +121,14 @@ async function sendSMSViaMySMS(config: MySMSConfig, recipient: string, message: 
 function analyzeMysmstabResponse(responseText: string, statusCode: number): boolean {
   const lowerResponse = responseText.toLowerCase();
   
-  // Check for explicit success indicators
   if (lowerResponse.includes('success') || lowerResponse.includes('sent') || lowerResponse.includes('delivered')) {
     return true;
   }
   
-  // Check for common error indicators
   const errorIndicators = [
-    'auth failed',
-    'authentication failed',
-    'invalid route',
-    'insufficient balance',
-    'invalid sender',
-    'message empty',
-    'invalid mobile',
-    'error',
-    'failed',
-    '404 not found',
-    'unauthorized'
+    'auth failed', 'authentication failed', 'invalid route', 'insufficient balance',
+    'invalid sender', 'message empty', 'invalid mobile', 'error', 'failed',
+    '404 not found', 'unauthorized'
   ];
   
   for (const indicator of errorIndicators) {
@@ -96,8 +137,13 @@ function analyzeMysmstabResponse(responseText: string, statusCode: number): bool
     }
   }
   
-  // If status is 200 and no error indicators, consider it success
   return statusCode === 200;
+}
+
+function extractDeliveryId(responseText: string): string | null {
+  // Extract delivery ID from response for tracking purposes
+  const deliveryIdMatch = responseText.match(/id[:\s]*([a-zA-Z0-9]+)/i);
+  return deliveryIdMatch ? deliveryIdMatch[1] : null;
 }
 
 async function logSMSActivity(
@@ -120,15 +166,21 @@ async function logSMSActivity(
     provider_response: providerResponse,
     sent_at: status === 'sent' ? new Date().toISOString() : null,
     failed_at: status === 'failed' ? new Date().toISOString() : null,
-    error_message: errorMessage
+    error_message: errorMessage,
+    delivery_id: providerResponse.delivery_id || null
   };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('sms_logs')
-    .insert(logData);
+    .insert(logData)
+    .select()
+    .single();
 
   if (error) {
     console.error('Failed to log SMS activity:', error);
+  } else {
+    console.log('✅ SMS activity logged successfully:', data.id);
+    return data.id; // Return log ID for tracking
   }
 }
 
@@ -154,6 +206,7 @@ serve(async (req) => {
     }
 
     const requestData: SMSRequest = await req.json();
+    console.log(`📨 SMS Gateway Request: ${requestData.action}`);
     
     switch (requestData.action) {
       case 'send_sms': {
@@ -161,7 +214,7 @@ serve(async (req) => {
           throw new Error('Recipient and message are required');
         }
 
-        // Get user's SMS configuration with correct field names
+        // Get user's SMS configuration with CORRECTED field names
         const { data: smsConfig, error: configError } = await supabase
           .from('sms_configurations')
           .select('*')
@@ -173,17 +226,26 @@ serve(async (req) => {
           throw new Error('SMS configuration not found or inactive');
         }
 
+        // Decrypt the password
+        let decryptedPassword: string;
+        try {
+          decryptedPassword = await CredentialEncryption.decrypt(smsConfig.api_password_encrypted);
+        } catch (error) {
+          console.error('Failed to decrypt SMS password:', error);
+          throw new Error('Failed to decrypt SMS credentials');
+        }
+
         const config: MySMSConfig = {
-          username: smsConfig.username, // Use correct field name
-          password: smsConfig.password_encrypted, // Use correct field name (should be decrypted in production)
+          username: smsConfig.api_username, // FIXED: use api_username from schema
+          password: decryptedPassword, // FIXED: decrypt the password
           sender: smsConfig.sender_id,
-          route: parseInt(smsConfig.route) // Parse as integer since it's stored as string
+          route: parseInt(smsConfig.route)
         };
 
         try {
           const result = await sendSMSViaMySMS(config, requestData.recipient, requestData.message);
           
-          await logSMSActivity(
+          const smsLogId = await logSMSActivity(
             supabase,
             user.id,
             requestData.recipient,
@@ -197,7 +259,9 @@ serve(async (req) => {
           return new Response(JSON.stringify({
             success: result.success,
             message: result.success ? 'SMS sent successfully' : 'SMS failed to send',
-            provider_response: result.response
+            provider_response: result.response,
+            sms_log_id: smsLogId,
+            delivery_id: result.delivery_id
           }), {
             status: result.success ? 200 : 400,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -219,6 +283,35 @@ serve(async (req) => {
         }
       }
 
+      case 'update_status': {
+        // New action for updating SMS delivery status
+        if (!requestData.sms_log_id || !requestData.status) {
+          throw new Error('SMS log ID and status are required');
+        }
+
+        const { error: updateError } = await supabase
+          .from('sms_logs')
+          .update({
+            status: requestData.status,
+            provider_response: requestData.delivery_details || {},
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', requestData.sms_log_id)
+          .eq('user_id', user.id); // Ensure user can only update their own logs
+
+        if (updateError) {
+          throw updateError;
+        }
+
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'SMS status updated successfully'
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       case 'test_config': {
         if (!requestData.config) {
           throw new Error('SMS configuration required for testing');
@@ -227,14 +320,15 @@ serve(async (req) => {
         try {
           const testResult = await sendSMSViaMySMS(
             requestData.config,
-            requestData.recipient || '+2348012345678', // Default test number
-            'Test message from FleetIQ SMS Gateway'
+            requestData.recipient || '+2348012345678',
+            'Test message from FleetIQ SMS Gateway - Configuration verified!'
           );
 
           return new Response(JSON.stringify({
             success: testResult.success,
             message: testResult.success ? 'SMS configuration test successful' : 'SMS configuration test failed',
-            details: testResult.response
+            details: testResult.response,
+            delivery_id: testResult.delivery_id
           }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }

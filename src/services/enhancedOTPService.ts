@@ -7,15 +7,25 @@ export interface OTPOptions {
   phoneNumber?: string;
   email?: string;
   expiryMinutes?: number;
+  purpose?: 'registration' | 'login' | 'password_reset' | 'verification';
+}
+
+export interface OTPDeliveryResult {
+  success: boolean;
+  message: string;
+  deliveryMethod: string;
+  deliveredVia: string[];
+  failedVia: string[];
 }
 
 class EnhancedOTPService {
-  async generateAndSendOTP(options: OTPOptions) {
+  async generateAndSendOTP(options: OTPOptions): Promise<OTPDeliveryResult> {
     const {
       deliveryMethod = 'email',
       phoneNumber,
       email,
-      expiryMinutes = 10
+      expiryMinutes = 10,
+      purpose = 'verification'
     } = options;
 
     if (!email && !phoneNumber) {
@@ -30,15 +40,19 @@ class EnhancedOTPService {
       throw new Error('Email is required for email delivery');
     }
 
-    try {
-      console.log(`🔐 Generating OTP with delivery method: ${deliveryMethod}`);
+    console.log(`🔐 Generating OTP with delivery method: ${deliveryMethod} for purpose: ${purpose}`);
 
+    const deliveredVia: string[] = [];
+    const failedVia: string[] = [];
+
+    try {
       // Generate OTP via existing OTP service
       const { data, error } = await supabase.functions.invoke('otp-service', {
         body: {
           action: 'generate',
           email: email,
-          expiryMinutes: expiryMinutes
+          expiryMinutes: expiryMinutes,
+          purpose: purpose
         }
       });
 
@@ -53,57 +67,76 @@ class EnhancedOTPService {
         try {
           console.log(`📱 Sending OTP via SMS to ${phoneNumber}`);
           
-          const smsMessage = `Your FleetIQ verification code is: ${otpCode}. Valid for ${expiryMinutes} minutes. Do not share this code.`;
+          const smsMessage = this.generateOTPMessage(otpCode, purpose, expiryMinutes);
           
           const smsResult = await smsService.sendSMS(
             smsService.formatPhoneNumber(phoneNumber!),
             smsMessage,
-            'OTP'
+            'OTP_VERIFICATION'
           );
 
-          if (!smsResult.success) {
-            console.warn('SMS delivery failed, falling back to email if available');
-            
-            // If SMS fails and we have email as backup, continue with email
-            if (deliveryMethod === 'both' && email) {
-              console.log('📧 SMS failed, email will be sent as backup');
-            } else {
-              throw new Error('SMS delivery failed and no backup method available');
-            }
-          } else {
+          if (smsResult.success) {
+            deliveredVia.push('SMS');
             console.log('✅ OTP sent successfully via SMS');
+          } else {
+            failedVia.push('SMS');
+            console.warn('❌ SMS delivery failed:', smsResult.error);
           }
         } catch (smsError) {
-          console.error('SMS OTP delivery error:', smsError);
-          
-          // If this was SMS-only delivery, throw the error
-          if (deliveryMethod === 'sms') {
-            throw new Error(`SMS delivery failed: ${smsError instanceof Error ? smsError.message : 'Unknown error'}`);
-          }
-          
-          // For 'both' delivery method, continue with email as fallback
-          console.log('📧 Continuing with email delivery as SMS fallback');
+          failedVia.push('SMS');
+          console.error('❌ SMS OTP delivery error:', smsError);
         }
       }
 
       // Email delivery is handled by the existing OTP service
       if (deliveryMethod === 'email' || deliveryMethod === 'both') {
+        deliveredVia.push('Email');
         console.log('📧 Email OTP delivery handled by existing service');
       }
 
+      // Determine overall success
+      const success = deliveredVia.length > 0;
+      
       return {
-        success: true,
-        message: `OTP sent successfully via ${deliveryMethod}`,
-        deliveryMethod: deliveryMethod
+        success,
+        message: this.generateDeliveryMessage(deliveredVia, failedVia, deliveryMethod),
+        deliveryMethod,
+        deliveredVia,
+        failedVia
       };
 
     } catch (error) {
-      console.error('Enhanced OTP service error:', error);
+      console.error('❌ Enhanced OTP service error:', error);
       throw error;
     }
   }
 
-  async verifyOTP(otp: string, email: string) {
+  private generateOTPMessage(otp: string, purpose: string, expiryMinutes: number): string {
+    const purposeText = {
+      'registration': 'account registration',
+      'login': 'login verification',
+      'password_reset': 'password reset',
+      'verification': 'account verification'
+    };
+
+    const purposeDescription = purposeText[purpose as keyof typeof purposeText] || 'verification';
+
+    return `Your FleetIQ ${purposeDescription} code is: ${otp}. Valid for ${expiryMinutes} minutes. Do not share this code. If you didn't request this, please ignore.`;
+  }
+
+  private generateDeliveryMessage(deliveredVia: string[], failedVia: string[], requestedMethod: string): string {
+    if (deliveredVia.length === 0) {
+      return `Failed to deliver OTP via ${requestedMethod}`;
+    }
+    
+    if (failedVia.length === 0) {
+      return `OTP sent successfully via ${deliveredVia.join(' and ')}`;
+    }
+    
+    return `OTP sent via ${deliveredVia.join(' and ')}. ${failedVia.join(' and ')} delivery failed.`;
+  }
+
+  async verifyOTP(otp: string, email: string): Promise<any> {
     console.log(`🔍 Verifying OTP for ${email}`);
     
     const { data, error } = await supabase.functions.invoke('otp-service', {
@@ -147,6 +180,37 @@ class EnhancedOTPService {
       console.warn('Error fetching delivery preferences:', error);
       return 'email';
     }
+  }
+
+  // New: Fleet-specific OTP methods
+  async sendVehicleVerificationOTP(phoneNumber: string, vehicleId: string): Promise<OTPDeliveryResult> {
+    const message = `Your FleetIQ vehicle verification code for ${vehicleId} is: {{OTP}}. Valid for 10 minutes.`;
+    
+    return this.generateAndSendOTP({
+      deliveryMethod: 'sms',
+      phoneNumber,
+      purpose: 'verification'
+    });
+  }
+
+  async sendDriverAuthOTP(phoneNumber: string, driverName: string): Promise<OTPDeliveryResult> {
+    const customMessage = `Hello ${driverName}, your FleetIQ driver authentication code is: {{OTP}}. Valid for 5 minutes.`;
+    
+    return this.generateAndSendOTP({
+      deliveryMethod: 'sms',
+      phoneNumber,
+      expiryMinutes: 5,
+      purpose: 'login'
+    });
+  }
+
+  async sendEmergencyOTP(phoneNumber: string, emergencyType: string): Promise<OTPDeliveryResult> {
+    return this.generateAndSendOTP({
+      deliveryMethod: 'sms',
+      phoneNumber,
+      expiryMinutes: 15,
+      purpose: 'verification'
+    });
   }
 }
 
