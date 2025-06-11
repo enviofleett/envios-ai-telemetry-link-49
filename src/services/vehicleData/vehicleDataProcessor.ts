@@ -1,4 +1,3 @@
-
 import { VehicleData } from './types';
 import { GP51Vehicle, GP51Position } from './gp51ApiService';
 
@@ -22,6 +21,16 @@ export class VehicleDataProcessor {
       } : undefined,
       lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
       isOnline: this.isVehicleOnline(vehicle),
+      
+      // Add telemetry fields for compatibility
+      location: vehicle.latitude && vehicle.longitude ? {
+        latitude: parseFloat(vehicle.latitude),
+        longitude: parseFloat(vehicle.longitude),
+        address: vehicle.address
+      } : undefined,
+      speed: parseFloat(vehicle.speed) || 0,
+      course: parseFloat(vehicle.heading) || 0,
+      
       metadata: {
         simNumber: vehicle.sim_number,
         notes: vehicle.notes,
@@ -57,6 +66,15 @@ export class VehicleDataProcessor {
         } : undefined,
         lastUpdate: position ? new Date(position.updatetime) : new Date(),
         isOnline: this.isPositionRecent(position),
+        
+        // Add telemetry fields for compatibility
+        location: position ? {
+          latitude: position.callat,
+          longitude: position.callon
+        } : undefined,
+        speed: position?.speed || 0,
+        course: position?.course || 0,
+        
         metadata: {
           groupName: vehicle.groupname,
           gp51Status: vehicle.status

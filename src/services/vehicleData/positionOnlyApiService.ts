@@ -25,9 +25,15 @@ export class PositionOnlyApiService {
     try {
       console.log(`📍 Fetching positions for ${deviceIds.length} devices...`);
       
+      const sessionInfo = await this.getSessionInfo();
+      if (!sessionInfo.token) {
+        console.error('❌ No valid session token available');
+        return [];
+      }
+      
       const { data, error } = await supabase.functions.invoke('telemetry-positions', {
         body: { 
-          sessionId: await this.getSessionId(),
+          token: sessionInfo.token,
           deviceIds: deviceIds.map(String)
         }
       });
@@ -90,8 +96,13 @@ export class PositionOnlyApiService {
     return { updated, errors };
   }
 
-  private static async getSessionId(): Promise<string> {
-    const session = await unifiedGP51SessionManager.validateAndEnsureSession();
-    return session.sessionId || '';
+  private static async getSessionInfo(): Promise<{ token?: string }> {
+    try {
+      const session = await unifiedGP51SessionManager.validateAndEnsureSession();
+      return { token: session.token };
+    } catch (error) {
+      console.error('❌ Failed to get session info:', error);
+      return {};
+    }
   }
 }

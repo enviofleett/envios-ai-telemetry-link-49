@@ -16,6 +16,16 @@ export interface VehicleData {
   lastPosition?: VehiclePosition;
   lastUpdate: Date;
   isOnline: boolean;
+  
+  // Add missing telemetry fields
+  location?: {
+    latitude: number;
+    longitude: number;
+    address?: string;
+  };
+  speed?: number;
+  course?: number;
+  
   metadata?: {
     simNumber?: string;
     notes?: string;
