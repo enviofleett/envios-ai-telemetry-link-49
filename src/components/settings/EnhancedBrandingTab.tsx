@@ -12,8 +12,12 @@ import { useEnhancedBrandingSettings } from '@/hooks/useEnhancedBrandingSettings
 import { Building2, Palette, Type, Image, Eye, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
-const EnhancedBrandingTab: React.FC = () => {
-  const { settings, isLoading, isSaving, updateSetting } = useEnhancedBrandingSettings();
+interface EnhancedBrandingTabProps {
+  userId?: string;
+}
+
+const EnhancedBrandingTab: React.FC<EnhancedBrandingTabProps> = ({ userId }) => {
+  const { settings, isLoading, isSaving, updateSetting } = useEnhancedBrandingSettings({ userId });
 
   if (isLoading) {
     return (
@@ -32,6 +36,20 @@ const EnhancedBrandingTab: React.FC = () => {
             </CardContent>
           </Card>
         ))}
+      </div>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center py-8">
+          <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2">No User Selected</h3>
+          <p className="text-muted-foreground">
+            Please select a user to manage their branding settings.
+          </p>
+        </div>
       </div>
     );
   }

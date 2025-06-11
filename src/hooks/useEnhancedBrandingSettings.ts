@@ -54,7 +54,7 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
-export const useEnhancedBrandingSettings = (userId?: string) => {
+export const useEnhancedBrandingSettings = ({ userId }: { userId?: string } = {}) => {
   const [settings, setSettings] = useState<EnhancedBrandingSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -62,39 +62,42 @@ export const useEnhancedBrandingSettings = (userId?: string) => {
   const { refreshBranding } = useBranding();
 
   useEffect(() => {
-    fetchBrandingSettings();
+    // Only fetch settings if a userId is provided.
+    if (userId) {
+      fetchBrandingSettings(userId);
+    } else {
+      // If no userId, clear settings to defaults and stop loading.
+      // This prevents using stale data when an admin deselects a user.
+      setSettings(defaultSettings);
+      setIsLoading(false);
+    }
+    // The hook will re-run this effect whenever the userId changes.
   }, [userId]);
 
-  const fetchBrandingSettings = async () => {
+  const fetchBrandingSettings = async (targetUserId: string) => {
     try {
       setIsLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('No authenticated user');
+      
+      // We still check for an authenticated session to ensure the admin is logged in.
+      const { data: { user: adminUser } } = await supabase.auth.getUser();
+      if (!adminUser) {
+        console.error('Admin not authenticated');
+        setIsLoading(false);
         return;
       }
 
-      // Use provided userId or fall back to current user's ID
-      const targetUserId = userId || user.id;
-
+      // Fetch settings using the provided targetUserId.
       const { data, error } = await supabase
         .from('branding_settings')
         .select('*')
-        .eq('user_id', targetUserId)
+        .eq('user_id', targetUserId) // Use the passed userId.
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching branding settings:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load branding settings",
-          variant: "destructive"
-        });
-        return;
+        throw error;
       }
 
       if (data) {
-        // Map database fields to frontend interface
         setSettings({
           company_name: data.company_name || defaultSettings.company_name,
           tagline: data.tagline || defaultSettings.tagline,
@@ -112,14 +115,14 @@ export const useEnhancedBrandingSettings = (userId?: string) => {
           auth_page_branding: data.auth_page_branding ?? true,
         });
       } else {
-        // If no data found, use default settings
+        // If no data is found for the user, reset to default settings.
         setSettings(defaultSettings);
       }
-    } catch (error) {
-      console.error('Error in fetchBrandingSettings:', error);
+    } catch (error: any) {
+      console.error('Error fetching branding settings:', error);
       toast({
         title: "Error",
-        description: "Failed to load branding settings",
+        description: "Failed to load branding settings.",
         variant: "destructive"
       });
     } finally {
@@ -159,39 +162,43 @@ export const useEnhancedBrandingSettings = (userId?: string) => {
   };
 
   const updateSetting = async (key: keyof EnhancedBrandingSettings, value: string | boolean) => {
-    // Validate the input
+    // An admin must have selected a user to update their settings.
+    if (!userId) {
+      toast({ 
+        title: "Error", 
+        description: "No user selected to update.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     const validationError = validateSettings(key, value);
     if (validationError) {
-      toast({
-        title: "Validation Error",
-        description: validationError,
-        variant: "destructive"
+      toast({ 
+        title: "Validation Error", 
+        description: validationError, 
+        variant: "destructive" 
       });
       return;
     }
 
     try {
       setIsSaving(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: "Error",
-          description: "You must be logged in to update settings",
-          variant: "destructive"
+      const { data: { user: adminUser } } = await supabase.auth.getUser();
+      if (!adminUser) {
+        toast({ 
+          title: "Error", 
+          description: "You must be logged in to update settings.", 
+          variant: "destructive" 
         });
         return;
       }
-
-      // Use provided userId or fall back to current user's ID
-      const targetUserId = userId || user.id;
-
-      // Update local state immediately for better UX
+      
       const updatedSettings = { ...settings, [key]: value };
       setSettings(updatedSettings);
 
-      // Prepare database payload with correct field mapping
-      const dbPayload: any = {
-        user_id: targetUserId,
+      const dbPayload = {
+        user_id: userId, // Use the passed userId for the update.
         company_name: updatedSettings.company_name,
         tagline: updatedSettings.tagline,
         subtitle: updatedSettings.subtitle,
@@ -212,48 +219,38 @@ export const useEnhancedBrandingSettings = (userId?: string) => {
 
       const { error } = await supabase
         .from('branding_settings')
-        .upsert(dbPayload, {
-          onConflict: 'user_id'
-        });
+        .upsert(dbPayload, { onConflict: 'user_id' });
 
       if (error) {
-        console.error('Error updating branding settings:', error);
-        // Revert local state on error
-        setSettings(settings);
-        toast({
-          title: "Error",
-          description: `Failed to update branding settings: ${error.message}`,
-          variant: "destructive"
-        });
-        return;
+        throw error; // Let the catch block handle it.
       }
 
-      toast({
-        title: "Success",
-        description: "Branding settings updated successfully",
+      toast({ 
+        title: "Success", 
+        description: "Branding settings updated successfully." 
       });
       
-      // Refresh branding context to apply changes immediately
+      // Refresh branding context to apply changes immediately.
       await refreshBranding();
-    } catch (error) {
-      console.error('Error in updateSetting:', error);
-      // Revert local state on error
-      setSettings(settings);
-      toast({
-        title: "Error",
-        description: "Failed to update branding settings",
-        variant: "destructive"
+
+    } catch (error: any) {
+      console.error('Error updating branding settings:', error);
+      setSettings(settings); // Revert on error
+      toast({ 
+        title: "Error", 
+        description: `Failed to update settings: ${error.message}`, 
+        variant: "destructive" 
       });
     } finally {
       setIsSaving(false);
     }
   };
 
-  return {
-    settings,
-    isLoading,
-    isSaving,
-    updateSetting,
-    refreshBranding: fetchBrandingSettings
+  return { 
+    settings, 
+    isLoading, 
+    isSaving, 
+    updateSetting, 
+    refreshBranding: () => userId ? fetchBrandingSettings(userId) : Promise.resolve()
   };
 };
