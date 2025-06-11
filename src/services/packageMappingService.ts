@@ -44,7 +44,7 @@ export class PackageMappingService {
     console.log('Available packages retrieval not implemented');
     return [
       {
-        code: 'basic',
+        packageCode: 'basic',
         packageId: 'basic',
         packageName: 'Basic Package',
         description: 'Basic features',
@@ -53,7 +53,7 @@ export class PackageMappingService {
         requiresApproval: false
       },
       {
-        code: 'professional',
+        packageCode: 'professional',
         packageId: 'professional', 
         packageName: 'Professional Package',
         description: 'Professional features',
@@ -62,7 +62,7 @@ export class PackageMappingService {
         requiresApproval: false
       },
       {
-        code: 'enterprise',
+        packageCode: 'enterprise',
         packageId: 'enterprise',
         packageName: 'Enterprise Package', 
         description: 'Enterprise features',
@@ -75,7 +75,7 @@ export class PackageMappingService {
 
   static getPackageMapping(packageCode: string): PackageToGP51Mapping {
     const packages = this.getAvailablePackages();
-    const found = packages.find(p => p.code === packageCode);
+    const found = packages.find(p => p.packageCode === packageCode);
     
     return found || {
       packageCode,
@@ -89,5 +89,4 @@ export class PackageMappingService {
   }
 }
 
-export { PackageToGP51Mapping };
 export default PackageMappingService;

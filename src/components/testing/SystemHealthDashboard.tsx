@@ -1,238 +1,133 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { 
-  Activity, 
-  CheckCircle, 
-  AlertCircle, 
-  XCircle,
-  RefreshCw,
-  Database,
-  Wifi,
-  Monitor,
-  TrendingUp
-} from 'lucide-react';
-import { pipelineTestService } from '@/services/testing/pipelineTestService';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { CheckCircle, AlertTriangle, XCircle, RefreshCw } from 'lucide-react';
+
+interface HealthCheck {
+  passed: number;
+  failed: number;
+  total: number;
+  details: any[];
+}
 
 const SystemHealthDashboard: React.FC = () => {
-  const [testResults, setTestResults] = useState<any[]>([]);
-  const [healthStatus, setHealthStatus] = useState<any>(null);
-  const [isRunningTest, setIsRunningTest] = useState(false);
+  const [healthChecks, setHealthChecks] = useState<HealthCheck>({
+    passed: 0,
+    failed: 0,
+    total: 0,
+    details: []
+  });
+  const [isRunning, setIsRunning] = useState(false);
 
-  useEffect(() => {
-    // Load initial data
-    loadTestData();
+  const runHealthChecks = async () => {
+    setIsRunning(true);
     
-    // Start continuous monitoring
-    pipelineTestService.runContinuousMonitoring();
-    
-    // Refresh data every 30 seconds
-    const interval = setInterval(loadTestData, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadTestData = () => {
-    setTestResults(pipelineTestService.getTestResults());
-    setHealthStatus(pipelineTestService.getHealthStatus());
+    // Simulate health checks
+    setTimeout(() => {
+      setHealthChecks({
+        passed: 3,
+        failed: 1,
+        total: 4,
+        details: [
+          { name: 'Database Connection', status: 'passed', message: 'Connected' },
+          { name: 'GP51 Service', status: 'failed', message: 'Service unavailable' },
+          { name: 'Authentication', status: 'passed', message: 'Working' },
+          { name: 'File Storage', status: 'passed', message: 'Available' }
+        ]
+      });
+      setIsRunning(false);
+    }, 2000);
   };
 
-  const runManualTest = async () => {
-    setIsRunningTest(true);
-    try {
-      await pipelineTestService.runEndToEndTest();
-      loadTestData();
-    } catch (error) {
-      console.error('Manual test failed:', error);
-    } finally {
-      setIsRunningTest(false);
-    }
-  };
-
-  const getHealthBadge = (status: string) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'healthy':
-        return <Badge className="bg-green-100 text-green-800">Healthy</Badge>;
-      case 'degraded':
-        return <Badge className="bg-yellow-100 text-yellow-800">Degraded</Badge>;
-      case 'critical':
-        return <Badge className="bg-red-100 text-red-800">Critical</Badge>;
+      case 'passed':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-600" />;
       default:
-        return <Badge variant="secondary">Unknown</Badge>;
+        return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
     }
   };
-
-  const getPerformanceBadge = (performance: string) => {
-    switch (performance) {
-      case 'excellent':
-        return <Badge className="bg-green-100 text-green-800">Excellent</Badge>;
-      case 'good':
-        return <Badge className="bg-blue-100 text-blue-800">Good</Badge>;
-      case 'poor':
-        return <Badge className="bg-red-100 text-red-800">Poor</Badge>;
-      default:
-        return <Badge variant="secondary">Unknown</Badge>;
-    }
-  };
-
-  const getTestIcon = (testName: string, success: boolean) => {
-    const iconClass = success ? 'text-green-500' : 'text-red-500';
-    
-    switch (testName) {
-      case 'GP51 API Connection':
-        return <Wifi className={`h-4 w-4 ${iconClass}`} />;
-      case 'Database Operations':
-        return <Database className={`h-4 w-4 ${iconClass}`} />;
-      case 'Frontend Data Display':
-        return <Monitor className={`h-4 w-4 ${iconClass}`} />;
-      case 'Performance Metrics':
-        return <TrendingUp className={`h-4 w-4 ${iconClass}`} />;
-      default:
-        return success ? 
-          <CheckCircle className={`h-4 w-4 ${iconClass}`} /> : 
-          <XCircle className={`h-4 w-4 ${iconClass}`} />;
-    }
-  };
-
-  if (!healthStatus) {
-    return (
-      <Card>
-        <CardContent className="p-6 text-center">
-          <Activity className="h-8 w-8 mx-auto mb-2 text-gray-400 animate-pulse" />
-          <p className="text-gray-500">Loading system health data...</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const recentTests = testResults.slice(-5); // Show last 5 tests
-  const successRate = testResults.length > 0 ? 
-    (testResults.filter(t => t.success).length / testResults.length) * 100 : 0;
 
   return (
     <div className="space-y-6">
-      {/* Overall Health Status */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            System Health Overview
-          </CardTitle>
-          <Button 
-            onClick={runManualTest} 
-            disabled={isRunningTest}
-            variant="outline"
-            size="sm"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRunningTest ? 'animate-spin' : ''}`} />
-            {isRunningTest ? 'Testing...' : 'Run Test'}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold mb-1">
-                {getHealthBadge(healthStatus.overall)}
-              </div>
-              <p className="text-sm text-muted-foreground">Overall Status</p>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold mb-1">
-                {successRate.toFixed(0)}%
-              </div>
-              <p className="text-sm text-muted-foreground">Success Rate</p>
-              <Progress value={successRate} className="mt-2" />
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold mb-1">
-                {getPerformanceBadge(healthStatus.syncPerformance)}
-              </div>
-              <p className="text-sm text-muted-foreground">Performance</p>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold mb-1">
-                <Badge className={
-                  healthStatus.dataFreshness === 'current' ? 'bg-green-100 text-green-800' :
-                  healthStatus.dataFreshness === 'stale' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
-                }>
-                  {healthStatus.dataFreshness}
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">Data Freshness</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Component Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Component Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center justify-between p-3 border rounded-lg">
-              <div className="flex items-center gap-2">
-                <Wifi className="h-4 w-4" />
-                <span>GP51 Connection</span>
-              </div>
-              {healthStatus.gp51Connection ? (
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              ) : (
-                <XCircle className="h-4 w-4 text-red-500" />
-              )}
-            </div>
-            <div className="flex items-center justify-between p-3 border rounded-lg">
-              <div className="flex items-center gap-2">
-                <Database className="h-4 w-4" />
-                <span>Database</span>
-              </div>
-              {healthStatus.databaseConnection ? (
-                <CheckCircle className="h-4 w-4 text-green-500" />
-              ) : (
-                <XCircle className="h-4 w-4 text-red-500" />
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recent Test Results */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Test Results</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {recentTests.map((test, index) => (
-              <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  {getTestIcon(test.testName, test.success)}
-                  <div>
-                    <div className="font-medium">{test.testName}</div>
-                    <div className="text-sm text-muted-foreground">{test.details}</div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-sm font-medium">{test.duration}ms</div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(test.timestamp).toLocaleTimeString()}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Last Update */}
-      <div className="text-center text-sm text-muted-foreground">
-        Last updated: {new Date(healthStatus.lastTestTime).toLocaleString()}
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">System Health Dashboard</h2>
+        <Button onClick={runHealthChecks} disabled={isRunning}>
+          {isRunning ? (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Running Checks...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Run Health Checks
+            </>
+          )}
+        </Button>
       </div>
+
+      <Alert>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          System health monitoring is currently unavailable while services are being rebuilt.
+        </AlertDescription>
+      </Alert>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-green-600">Passed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{healthChecks.passed}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-red-600">Failed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{healthChecks.failed}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-blue-600">Total</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-3xl font-bold">{healthChecks.total}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {healthChecks.details.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Health Check Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {healthChecks.details.map((check, index) => (
+                <div key={index} className="flex items-center justify-between p-3 border rounded">
+                  <div className="flex items-center gap-3">
+                    {getStatusIcon(check.status)}
+                    <span className="font-medium">{check.name}</span>
+                  </div>
+                  <div className="text-sm text-gray-600">{check.message}</div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

@@ -42,7 +42,7 @@ const GP51ImportProgress: React.FC<GP51ImportProgressProps> = ({
         return <CheckCircle className="h-5 w-5 text-green-600" />;
       case 'failed':
         return <XCircle className="h-5 w-5 text-red-600" />;
-      case 'processing':
+      case 'running':
         return <Clock className="h-5 w-5 text-blue-600 animate-pulse" />;
       default:
         return <Clock className="h-5 w-5 text-gray-600" />;
@@ -55,7 +55,7 @@ const GP51ImportProgress: React.FC<GP51ImportProgressProps> = ({
         return 'bg-green-50 text-green-700 border-green-200';
       case 'failed':
         return 'bg-red-50 text-red-700 border-red-200';
-      case 'processing':
+      case 'running':
         return 'bg-blue-50 text-blue-700 border-blue-200';
       default:
         return 'bg-gray-50 text-gray-700 border-gray-200';
@@ -67,14 +67,14 @@ const GP51ImportProgress: React.FC<GP51ImportProgressProps> = ({
       jobId: importJob.id,
       status: importJob.status,
       summary: {
-        totalItems: importJob.totalItems,
-        processedItems: importJob.processedItems,
-        successfulItems: importJob.successfulItems,
-        failedItems: importJob.failedItems
+        totalItems: importJob.totalItems || 0,
+        processedItems: importJob.processedItems || 0,
+        successfulItems: importJob.successfulItems || 0,
+        failedItems: importJob.failedItems || 0
       },
-      results: importJob.results,
-      errors: importJob.errors,
-      completedAt: importJob.completedAt
+      results: importJob.results || { users: { created: 0, updated: 0, failed: 0 }, devices: { created: 0, updated: 0, failed: 0 } },
+      errors: importJob.errors || [],
+      completedAt: importJob.completedAt || null
     };
 
     const dataStr = JSON.stringify(results, null, 2);
@@ -106,26 +106,26 @@ const GP51ImportProgress: React.FC<GP51ImportProgressProps> = ({
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>Overall Progress</span>
-              <span>{importJob.progress}%</span>
+              <span>{importJob.progress || 0}%</span>
             </div>
-            <Progress value={importJob.progress} />
+            <Progress value={importJob.progress || 0} />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{importJob.totalItems}</div>
+              <div className="text-2xl font-bold text-blue-600">{importJob.totalItems || 0}</div>
               <div className="text-sm text-muted-foreground">Total Items</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-yellow-600">{importJob.processedItems}</div>
+              <div className="text-2xl font-bold text-yellow-600">{importJob.processedItems || 0}</div>
               <div className="text-sm text-muted-foreground">Processed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{importJob.successfulItems}</div>
+              <div className="text-2xl font-bold text-green-600">{importJob.successfulItems || 0}</div>
               <div className="text-sm text-muted-foreground">Successful</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">{importJob.failedItems}</div>
+              <div className="text-2xl font-bold text-red-600">{importJob.failedItems || 0}</div>
               <div className="text-sm text-muted-foreground">Failed</div>
             </div>
           </div>
@@ -154,9 +154,9 @@ const GP51ImportProgress: React.FC<GP51ImportProgressProps> = ({
                 <span className="font-medium">Users</span>
               </div>
               <div className="text-sm space-y-1">
-                <div>Created: {importJob.results.users.created}</div>
-                <div>Updated: {importJob.results.users.updated}</div>
-                <div>Failed: {importJob.results.users.failed}</div>
+                <div>Created: {importJob.results?.users?.created || 0}</div>
+                <div>Updated: {importJob.results?.users?.updated || 0}</div>
+                <div>Failed: {importJob.results?.users?.failed || 0}</div>
               </div>
             </div>
 
@@ -166,9 +166,9 @@ const GP51ImportProgress: React.FC<GP51ImportProgressProps> = ({
                 <span className="font-medium">Devices</span>
               </div>
               <div className="text-sm space-y-1">
-                <div>Created: {importJob.results.devices.created}</div>
-                <div>Updated: {importJob.results.devices.updated}</div>
-                <div>Failed: {importJob.results.devices.failed}</div>
+                <div>Created: {importJob.results?.devices?.created || 0}</div>
+                <div>Updated: {importJob.results?.devices?.updated || 0}</div>
+                <div>Failed: {importJob.results?.devices?.failed || 0}</div>
               </div>
             </div>
           </div>
@@ -176,7 +176,7 @@ const GP51ImportProgress: React.FC<GP51ImportProgressProps> = ({
       </Card>
 
       {/* Errors */}
-      {importJob.errors.length > 0 && (
+      {importJob.errors && importJob.errors.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-red-600">Import Errors</CardTitle>
@@ -195,11 +195,11 @@ const GP51ImportProgress: React.FC<GP51ImportProgressProps> = ({
       )}
 
       {/* Success Message */}
-      {importJob.status === 'completed' && importJob.failedItems === 0 && (
+      {importJob.status === 'completed' && (importJob.failedItems || 0) === 0 && (
         <Alert>
           <CheckCircle className="h-4 w-4" />
           <AlertDescription>
-            Import completed successfully! All {importJob.successfulItems} items were imported without errors.
+            Import completed successfully! All {importJob.successfulItems || 0} items were imported without errors.
           </AlertDescription>
         </Alert>
       )}

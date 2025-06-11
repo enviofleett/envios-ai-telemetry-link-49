@@ -97,5 +97,4 @@ export const useGP51LiveImport = () => {
   };
 };
 
-export { GP51ConnectionStatus };
 export default useGP51LiveImport;

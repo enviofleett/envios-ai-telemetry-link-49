@@ -21,5 +21,4 @@ export class SystemHealthMonitor {
   }
 }
 
-export { SystemHealthStatus };
 export default SystemHealthMonitor;

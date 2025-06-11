@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,20 +29,15 @@ const VehicleServiceManagement: React.FC = () => {
 
   const { data: expiringDevices, isLoading } = useQuery({
     queryKey: ['devices-near-expiration'],
-    queryFn: () => gp51ServiceApi.getDevicesNearExpiration(30),
+    queryFn: () => gp51ServiceApi.getDevicesNearExpiration(),
   });
 
   const renewalMutation = useMutation({
-    mutationFn: async ({ deviceIds, years, free }: { deviceIds: number[], years: number, free: boolean }) => {
+    mutationFn: async ({ deviceIds, years, free }: { deviceIds: string[], years: number, free: boolean }) => {
       const overduetime = new Date();
       overduetime.setFullYear(overduetime.getFullYear() + years);
       
-      return gp51ServiceApi.chargeDevices({
-        deviceids: deviceIds,
-        years,
-        free: free ? 1 : 0,
-        overduetime: overduetime.toISOString()
-      });
+      return gp51ServiceApi.chargeDevices(deviceIds);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['devices-near-expiration'] });
@@ -66,8 +60,7 @@ const VehicleServiceManagement: React.FC = () => {
       return;
     }
 
-    const deviceIds = selectedDevices.map(id => parseInt(id));
-    renewalMutation.mutate({ deviceIds, years: renewalYears, free: isFree });
+    renewalMutation.mutate({ deviceIds: selectedDevices, years: renewalYears, free: isFree });
   };
 
   const getServiceStatus = (device: any) => {
