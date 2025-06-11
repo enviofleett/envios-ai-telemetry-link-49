@@ -120,10 +120,11 @@ serve(async (req) => {
           JSON.stringify({ 
             success: false, 
             error: 'No valid GP51 session found',
+            details: 'Please configure GP51 credentials first',
             code: 'NO_SESSION'
           }),
           { 
-            status: 401, 
+            status: 404, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
           }
         );
@@ -138,6 +139,7 @@ serve(async (req) => {
           JSON.stringify({ 
             success: false, 
             error: 'GP51 session expired',
+            details: 'Please refresh your GP51 credentials',
             code: 'SESSION_EXPIRED'
           }),
           { 
@@ -221,8 +223,8 @@ serve(async (req) => {
           { 
             status: 200, 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
+            }
+          );
 
       } catch (apiError) {
         console.error('❌ GP51 API connection failed:', apiError);
@@ -246,6 +248,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: false, 
         error: 'Unknown action',
+        details: `Action '${action}' is not supported`,
         code: 'UNKNOWN_ACTION'
       }),
       { 

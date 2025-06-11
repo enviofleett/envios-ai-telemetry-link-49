@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -81,7 +82,7 @@ export const useGP51Credentials = () => {
           throw new Error(error.message || 'Edge function call failed');
         }
         
-        // Check the response success flag - this is the critical fix
+        // Check the response success flag and HTTP status - this is the critical fix
         if (!data || data.success === false) {
           console.error('❌ GP51 save operation failed:', data);
           
@@ -90,11 +91,9 @@ export const useGP51Credentials = () => {
           const errorCode = data?.code || 'UNKNOWN_ERROR';
           
           // Provide specific error messages based on error codes
-          if (errorCode === 'GP51_AUTH_FAILED') {
+          if (errorCode === 'GP51_AUTH_FAILED' || errorCode === 'GP51_AUTH_EXCEPTION') {
             throw new Error('GP51 authentication failed: Invalid username or password');
-          } else if (errorCode === 'GP51_AUTH_EXCEPTION') {
-            throw new Error('GP51 service error: Unable to connect to GP51 servers');
-          } else if (errorCode === 'DB_CONNECTION_FAILED' || errorCode === 'DB_SAVE_FAILED' || errorCode === 'SESSION_CREATION_FAILED') {
+          } else if (errorCode === 'DB_CONNECTION_FAILED' || errorCode === 'DB_SAVE_FAILED' || errorCode === 'SESSION_CREATION_FAILED' || errorCode === 'DB_VERIFICATION_FAILED') {
             throw new Error('Database error: Unable to save credentials. Please try again.');
           } else if (errorCode === 'AUTH_REQUIRED' || errorCode === 'AUTH_INVALID') {
             throw new Error('Authentication required: Please refresh the page and log in again');

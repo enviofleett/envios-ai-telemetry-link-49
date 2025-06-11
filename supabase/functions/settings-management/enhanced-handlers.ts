@@ -66,10 +66,10 @@ export async function handleSaveCredentialsWithVehicleImport({
         username: authResult.username,
         apiUrl: authResult.apiUrl,
         testOnly: true
-      });
+      }, 200);
     }
 
-    // Save credentials to database with error handling
+    // Save credentials to database with proper error handling
     console.log('💾 Saving GP51 credentials to database...');
     let supabase;
     
@@ -111,9 +111,9 @@ export async function handleSaveCredentialsWithVehicleImport({
       // Use correct column names that match the database schema
       const sessionData = {
         gp51_token: authResult.token,
-        username: authResult.username, // Fixed: was gp51_username
+        username: authResult.username,
         api_url: authResult.apiUrl,
-        token_expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(), // Fixed: was expires_at
+        token_expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
         updated_at: new Date().toISOString()
       };
 
@@ -122,42 +122,34 @@ export async function handleSaveCredentialsWithVehicleImport({
         gp51_token: '[REDACTED]' 
       });
 
+      let saveResult;
+      
       if (existingSessions && existingSessions.length > 0) {
         // Update existing session
         console.log('🔄 Updating existing GP51 session');
-        const { error: updateError } = await supabase
+        saveResult = await supabase
           .from('gp51_sessions')
           .update(sessionData)
           .eq('envio_user_id', userId);
-
-        if (updateError) {
-          console.error('❌ Failed to update GP51 session:', updateError);
-          return createResponse({
-            success: false,
-            error: 'Failed to update GP51 session',
-            details: updateError.message,
-            code: 'DB_UPDATE_FAILED'
-          }, 500);
-        }
       } else {
         // Create new session
         console.log('➕ Creating new GP51 session');
-        const { error: insertError } = await supabase
+        saveResult = await supabase
           .from('gp51_sessions')
           .insert({
             envio_user_id: userId,
             ...sessionData
           });
+      }
 
-        if (insertError) {
-          console.error('❌ Failed to create GP51 session:', insertError);
-          return createResponse({
-            success: false,
-            error: 'Failed to create GP51 session',
-            details: insertError.message,
-            code: 'DB_INSERT_FAILED'
-          }, 500);
-        }
+      if (saveResult.error) {
+        console.error('❌ Failed to save GP51 session:', saveResult.error);
+        return createResponse({
+          success: false,
+          error: 'Failed to save GP51 session',
+          details: saveResult.error.message,
+          code: 'DB_SAVE_FAILED'
+        }, 500);
       }
 
       // Verify the session was actually saved
@@ -202,7 +194,7 @@ export async function handleSaveCredentialsWithVehicleImport({
         username: authResult.username,
         apiUrl: authResult.apiUrl,
         sessionVerified: true
-      });
+      }, 200);
 
     } catch (dbError) {
       console.error('❌ Database operation failed:', dbError);
@@ -240,7 +232,7 @@ export async function handleHealthCheck() {
       timestamp,
       status: 'healthy',
       message: 'GP51 settings management service is operational'
-    });
+    }, 200);
   } catch (error) {
     console.error('❌ Health check failed:', error);
     GP51ErrorHandler.logError(error, { operation: 'health_check' });
