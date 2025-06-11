@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,13 +48,16 @@ const HealthTab: React.FC = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants = {
-      healthy: 'success',
-      warning: 'warning',
-      error: 'destructive'
-    };
-    const variant = variants[status as keyof typeof variants] || 'default';
-    return <Badge variant={variant}>{status}</Badge>;
+    switch (status) {
+      case 'healthy':
+        return <Badge variant="default">{status}</Badge>;
+      case 'warning':
+        return <Badge variant="secondary">{status}</Badge>;
+      case 'error':
+        return <Badge variant="destructive">{status}</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
   const getResourceColor = (value: number) => {

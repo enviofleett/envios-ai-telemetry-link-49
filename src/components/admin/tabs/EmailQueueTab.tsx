@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,12 +58,16 @@ const EmailQueueTab: React.FC = () => {
   };
 
   const getStatusBadge = (status: string) => {
-    const variants = {
-      pending: 'secondary',
-      sent: 'default',
-      failed: 'destructive'
-    };
-    return <Badge variant={variants[status as keyof typeof variants] || 'outline'}>{status}</Badge>;
+    switch (status) {
+      case 'pending':
+        return <Badge variant="secondary">{status}</Badge>;
+      case 'sent':
+        return <Badge variant="default">{status}</Badge>;
+      case 'failed':
+        return <Badge variant="destructive">{status}</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
   return (
