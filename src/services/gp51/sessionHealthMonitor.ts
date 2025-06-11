@@ -59,7 +59,6 @@ export class GP51SessionHealthMonitor {
   clearCache(): void {
     console.log('🧹 Clearing GP51 health monitor cache');
     this.cacheExpiry = null;
-    // Don't clear healthStatus immediately, let the next check update it
   }
 
   private isCacheValid(): boolean {
@@ -101,43 +100,35 @@ export class GP51SessionHealthMonitor {
         return;
       }
       
-      const sessionInfo = await gp51SessionManager.validateSession();
-      const currentTime = new Date();
-      const latency = Date.now() - startTime;
-      
-      const newHealth: SessionHealth = {
-        status: sessionInfo.valid ? 'healthy' : 'critical',
-        isValid: sessionInfo.valid,
-        expiresAt: sessionInfo.expiresAt ? new Date(sessionInfo.expiresAt) : null,
-        username: sessionInfo.username || null,
-        lastCheck: currentTime,
-        consecutiveFailures: sessionInfo.valid ? 0 : this.healthStatus.consecutiveFailures + 1,
-        isAuthError: false,
-        latency,
-        needsRefresh: false
-      };
+      // Test GP51 connection using the edge function
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: { action: 'test_connection' }
+      });
 
-      // Check if session needs refresh (within 10 minutes of expiration)
-      if (newHealth.expiresAt) {
-        const timeUntilExpiry = newHealth.expiresAt.getTime() - currentTime.getTime();
-        newHealth.needsRefresh = timeUntilExpiry < 10 * 60 * 1000; // 10 minutes
-        
-        if (newHealth.needsRefresh && newHealth.isValid) {
-          newHealth.status = 'degraded';
-        }
+      if (error) {
+        console.error('❌ GP51 health check failed:', error);
+        const newHealth: SessionHealth = {
+          status: 'critical',
+          isValid: false,
+          expiresAt: null,
+          username: null,
+          lastCheck: new Date(),
+          consecutiveFailures: this.healthStatus.consecutiveFailures + 1,
+          isAuthError: false,
+          latency: Date.now() - startTime,
+          needsRefresh: false,
+          errorMessage: error.message || 'Health check failed'
+        };
+        this.healthStatus = newHealth;
+      } else {
+        // The edge function now returns a proper SessionHealth object
+        this.healthStatus = {
+          ...data,
+          lastCheck: new Date(data.lastCheck),
+          expiresAt: data.expiresAt ? new Date(data.expiresAt) : null
+        };
       }
 
-      // Report health issues (but not authentication issues)
-      if (!newHealth.isValid && !newHealth.isAuthError) {
-        gp51ErrorReporter.reportError({
-          type: 'connectivity',
-          message: `GP51 session health check failed (${newHealth.consecutiveFailures} consecutive failures)`,
-          details: sessionInfo.error || 'Session validation failed',
-          severity: newHealth.consecutiveFailures > 3 ? 'high' : 'medium'
-        });
-      }
-
-      this.healthStatus = newHealth;
       this.setCacheExpiry();
       this.notifyCallbacks();
       
@@ -153,7 +144,8 @@ export class GP51SessionHealthMonitor {
         consecutiveFailures: this.healthStatus.consecutiveFailures + 1,
         isAuthError: false,
         latency: Date.now() - startTime,
-        needsRefresh: true
+        needsRefresh: true,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
       };
       
       this.setCacheExpiry();

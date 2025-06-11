@@ -33,4 +33,5 @@ export interface SessionHealth {
   isAuthError: boolean;
   latency: number | null;
   needsRefresh: boolean;
+  errorMessage?: string;
 }

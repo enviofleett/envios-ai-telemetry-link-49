@@ -69,7 +69,7 @@ const EnhancedGP51StatusCard: React.FC = () => {
     switch (health.status) {
       case 'healthy': return 'connected';
       case 'degraded': return 'degraded';
-      case 'critical': return health.isAuthError ? 'auth_error' : 'disconnected';
+      case 'critical': return (health.isAuthError ?? false) ? 'auth_error' : 'disconnected';
       default: return 'disconnected';
     }
   };
@@ -198,14 +198,15 @@ const EnhancedGP51StatusCard: React.FC = () => {
         {health?.lastCheck && (
           <div className="text-sm text-gray-600">
             Last checked: {health.lastCheck.toLocaleTimeString()}
+            {health.latency && <span> • Response: {health.latency}ms</span>}
           </div>
         )}
 
         {/* Error Messages */}
-        {error && (
+        {(error || health?.errorMessage) && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error || health?.errorMessage}</AlertDescription>
           </Alert>
         )}
 
@@ -220,7 +221,7 @@ const EnhancedGP51StatusCard: React.FC = () => {
         )}
 
         {/* Session Needs Refresh Warning */}
-        {health?.needsRefresh && session && (
+        {(health?.needsRefresh ?? false) && session && (
           <Alert>
             <AlertTriangle className="h-4 w-4 text-amber-500" />
             <AlertDescription>
