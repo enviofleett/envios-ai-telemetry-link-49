@@ -7,7 +7,8 @@ import type {
   ReferralCode,
   UserSubscription,
   CreatePackageRequest,
-  UpdatePackageRequest 
+  UpdatePackageRequest,
+  PackageToGP51Mapping
 } from '@/types/subscriber-packages';
 
 export interface PackageValidationResult {
@@ -103,10 +104,76 @@ export class PackageMappingService {
     const roles: string[] = ['user']; // Default role
 
     if (packageData.user_type === 'sub_admin' || packageData.user_type === 'both') {
-      roles.push('sub_admin');
+      roles.push('admin');
     }
 
     return roles;
+  }
+
+  /**
+   * Gets package information for display
+   */
+  static getPackageInfo(packageId: string): PackageToGP51Mapping | null {
+    const packageMap: { [key: string]: PackageToGP51Mapping } = {
+      'basic': {
+        packageId: 'basic',
+        packageName: 'Basic Package',
+        description: 'Essential vehicle tracking features',
+        requiresApproval: false,
+        gp51UserType: 1,
+        features: ['Real-time tracking', 'Basic reports']
+      },
+      'professional': {
+        packageId: 'professional',
+        packageName: 'Professional Package',
+        description: 'Advanced fleet management tools',
+        requiresApproval: false,
+        gp51UserType: 1,
+        features: ['Advanced analytics', 'Fleet management', 'Custom reports']
+      },
+      'enterprise': {
+        packageId: 'enterprise',
+        packageName: 'Enterprise Package',
+        description: 'Full administrative access',
+        requiresApproval: true,
+        gp51UserType: 2,
+        features: ['Full admin access', 'User management', 'API access']
+      }
+    };
+
+    return packageMap[packageId] || null;
+  }
+
+  /**
+   * Gets available packages for selection
+   */
+  static getAvailablePackages(): PackageToGP51Mapping[] {
+    return [
+      {
+        packageId: 'basic',
+        packageName: 'Basic Package',
+        description: 'Essential vehicle tracking features',
+        requiresApproval: false,
+        gp51UserType: 1,
+        features: ['Real-time tracking', 'Basic reports']
+      },
+      {
+        packageId: 'professional',
+        packageName: 'Professional Package',
+        description: 'Advanced fleet management tools',
+        requiresApproval: false,
+        gp51UserType: 1,
+        features: ['Advanced analytics', 'Fleet management', 'Custom reports']
+      },
+      {
+        packageId: 'enterprise',
+        packageName: 'Enterprise Package',
+        description: 'Full administrative access',
+        requiresApproval: true,
+        gp51UserType: 2,
+        features: ['Full admin access', 'User management', 'API access']
+      }
+    ];
   }
 
   /**
@@ -155,7 +222,7 @@ export class PackageMappingService {
       const subscriptionData = {
         user_id: userId,
         package_id: packageId,
-        subscription_status: 'active',
+        subscription_status: 'active' as const,
         billing_cycle: billingCycle,
         start_date: new Date().toISOString(),
         end_date: this.calculateEndDate(billingCycle),
@@ -180,21 +247,23 @@ export class PackageMappingService {
       if (referralCode && discountApplied > 0) {
         await supabase
           .from('referral_codes')
-          .update({ usage_count: supabase.sql`usage_count + 1` })
+          .update({ usage_count: supabase.rpc('increment_usage', { code: referralCode }) })
           .eq('code', referralCode);
       }
 
-      // Map to GP51 user type and roles
-      const gp51UserType = this.mapPackageToGP51UserType(packageData);
-      const assignedRoles = this.mapPackageToRoles(packageData);
+      // Map to GP51 user type and roles - cast the data properly
+      const typedPackageData = packageData as unknown as SubscriberPackage;
+      const gp51UserType = this.mapPackageToGP51UserType(typedPackageData);
+      const assignedRoles = this.mapPackageToRoles(typedPackageData);
 
       // Assign roles to user
       for (const role of assignedRoles) {
+        const roleType = role === 'admin' ? 'admin' : 'user';
         await supabase
           .from('user_roles')
           .upsert({
             user_id: userId,
-            role: role
+            role: roleType
           }, {
             onConflict: 'user_id,role'
           });
@@ -218,7 +287,7 @@ export class PackageMappingService {
   /**
    * Gets all available packages with their features and permissions
    */
-  static async getAvailablePackages(): Promise<{
+  static async getAvailablePackagesFromDB(): Promise<{
     success: boolean;
     packages?: SubscriberPackage[];
     error?: string;
@@ -255,7 +324,7 @@ export class PackageMappingService {
 
       return {
         success: true,
-        packages: packages || []
+        packages: packages as unknown as SubscriberPackage[] || []
       };
     } catch (error) {
       return {
@@ -291,9 +360,15 @@ export class PackageMappingService {
         };
       }
 
+      // Transform the data to match expected structure
+      const transformedSubscription = {
+        ...subscription,
+        package: subscription.subscriber_packages
+      } as UserSubscription & { package: SubscriberPackage };
+
       return {
         success: true,
-        subscription: subscription as UserSubscription & { package: SubscriberPackage }
+        subscription: transformedSubscription
       };
     } catch (error) {
       return {

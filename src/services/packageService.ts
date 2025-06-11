@@ -137,7 +137,7 @@ export class PackageService {
 
       return {
         success: true,
-        packages: packages || []
+        packages: packages as unknown as SubscriberPackage[] || []
       };
     } catch (error) {
       return {
