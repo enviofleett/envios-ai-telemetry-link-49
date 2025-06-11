@@ -7,20 +7,14 @@ interface SupabaseVehicleData {
   id: string;
   device_id: string;
   device_name: string;
-  status: string; // Assuming status comes directly as a string or needs to be determined
+  status: string;
   is_active: boolean;
-  // Supabase JSONB column will be typed as 'any' or 'Json' by default.
-  // We'll explicitly type it as the expected raw JSON structure.
   last_position: {
     lat: number;
     lon: number;
     speed: number;
-    updatetime: string;
-  } | null; // It can also be null if there's no position data
-  // Add any other columns you are selecting from the 'vehicles' table here
-  // For example:
-  // created_at: string;
-  // user_id: string;
+    updatetime: string | number;
+  } | null;
 }
 
 export interface SimpleVehicle {
@@ -29,7 +23,7 @@ export interface SimpleVehicle {
   device_name: string;
   status: string;
   is_active: boolean;
-  last_position?: { // This is now optional as per your original interface
+  last_position?: {
     lat: number;
     lon: number;
     speed: number;
@@ -49,8 +43,8 @@ export interface VehicleMetrics {
 interface RawVehiclePositionData {
   lat: number;
   lon: number;
-  speed?: number; // Speed might be optional in the raw data
-  updatetime: string;
+  speed?: number;
+  updatetime: string | number;
 }
 
 class SimplifiedVehicleService {
@@ -73,11 +67,13 @@ class SimplifiedVehicleService {
 
     // Return cached data if recent
     if (this.vehicles.length > 0 && (now - this.lastFetch) < this.CACHE_DURATION) {
+      console.log('📋 Returning cached vehicles:', this.vehicles.length);
       return { vehicles: this.vehicles, loading: false, error: null };
     }
 
     // Don't fetch if already loading
     if (this.loading) {
+      console.log('⏳ Already loading vehicles, returning current state');
       return { vehicles: this.vehicles, loading: true, error: this.error };
     }
 
@@ -87,31 +83,53 @@ class SimplifiedVehicleService {
 
       console.log('🚗 Fetching vehicles from database...');
 
-      // Explicitly type the data returned by Supabase
+      // Select only the fields we need for better performance
       const { data: vehicles, error } = await supabase
         .from('vehicles')
-        .select('*')
+        .select('id, device_id, device_name, status, is_active, last_position')
         .eq('is_active', true)
-        .order('device_name') as { data: SupabaseVehicleData[] | null; error: any }; // Cast the entire result
+        .order('device_name');
 
       if (error) {
-        throw new Error(error.message);
+        console.error('❌ Supabase query error:', error);
+        throw new Error(`Database error: ${error.message}`);
       }
 
-      this.vehicles = (vehicles || []).map(vehicle => ({
-        id: vehicle.id,
-        device_id: vehicle.device_id,
-        device_name: vehicle.device_name,
-        // The 'status' field in your SupabaseVehicleData might differ from your SimpleVehicle status.
-        // Assuming 'determineStatus' handles the transformation from raw vehicle data.
-        status: this.determineStatus(vehicle), // vehicle as SupabaseVehicleData to ensure type safety
-        is_active: vehicle.is_active,
-        // Cast vehicle.last_position to RawVehiclePositionData | null
-        last_position: this.parsePosition(vehicle.last_position as RawVehiclePositionData | null)
-      }));
+      console.log('📊 Raw vehicles data from DB:', vehicles?.length || 0, 'records');
+
+      if (!vehicles || vehicles.length === 0) {
+        console.log('⚠️ No vehicles found in database');
+        this.vehicles = [];
+      } else {
+        this.vehicles = vehicles.map((vehicle, index) => {
+          console.log(`🔍 Processing vehicle ${index + 1}:`, {
+            id: vehicle.id,
+            device_name: vehicle.device_name,
+            has_position: !!vehicle.last_position,
+            position_structure: vehicle.last_position ? Object.keys(vehicle.last_position) : 'null'
+          });
+
+          const processedVehicle = {
+            id: vehicle.id,
+            device_id: vehicle.device_id,
+            device_name: vehicle.device_name,
+            status: this.determineStatus(vehicle as SupabaseVehicleData),
+            is_active: vehicle.is_active,
+            last_position: this.parsePosition(vehicle.last_position as RawVehiclePositionData | null)
+          };
+
+          console.log(`✅ Processed vehicle ${index + 1}:`, {
+            name: processedVehicle.device_name,
+            status: processedVehicle.status,
+            has_parsed_position: !!processedVehicle.last_position
+          });
+
+          return processedVehicle;
+        });
+      }
 
       this.lastFetch = now;
-      console.log(`✅ Loaded ${this.vehicles.length} vehicles from database`);
+      console.log(`✅ Successfully loaded ${this.vehicles.length} vehicles from database`);
 
       return { vehicles: this.vehicles, loading: false, error: null };
 
@@ -121,51 +139,68 @@ class SimplifiedVehicleService {
       return { vehicles: this.vehicles, loading: false, error: this.error };
     } finally {
       this.loading = false;
+      console.log('🏁 Vehicle fetch operation completed, loading set to false');
     }
   }
 
-  // Renamed 'position' parameter to 'rawData' to make it clear it's the raw JSON data
   private parsePosition(rawData: RawVehiclePositionData | null): SimpleVehicle['last_position'] {
+    console.log('🔧 Parsing position data:', rawData);
+    
     // Check if rawData is null, undefined, or not an object
     if (!rawData || typeof rawData !== 'object') {
+      console.log('⚠️ Position data is null or not an object');
       return undefined;
     }
-
-    // Now, we are confident `rawData` is an object, but we still need to validate its contents
-    // No explicit cast needed here if rawData is already typed as RawVehiclePositionData
-    // const positionData = rawData; // No need for this line
 
     // Validate essential properties
-    if (!rawData.lat || !rawData.lon || !rawData.updatetime) {
-      console.warn('Invalid position data received, missing lat, lon, or updatetime:', rawData);
+    if (rawData.lat === undefined || rawData.lon === undefined || !rawData.updatetime) {
+      console.warn('⚠️ Invalid position data received, missing lat, lon, or updatetime:', rawData);
       return undefined;
     }
 
-    return {
+    // Handle different updatetime formats (timestamp number or ISO string)
+    let updateTimeString: string;
+    if (typeof rawData.updatetime === 'number') {
+      // Convert timestamp to ISO string
+      updateTimeString = new Date(rawData.updatetime * 1000).toISOString();
+      console.log('🕐 Converted timestamp to ISO string:', updateTimeString);
+    } else {
+      updateTimeString = rawData.updatetime;
+    }
+
+    const parsedPosition = {
       lat: Number(rawData.lat),
       lon: Number(rawData.lon),
-      speed: Number(rawData.speed || 0), // Default to 0 if speed is missing
-      updatetime: rawData.updatetime
+      speed: Number(rawData.speed || 0),
+      updatetime: updateTimeString
     };
+
+    console.log('✅ Parsed position successfully:', parsedPosition);
+    return parsedPosition;
   }
 
-  // Ensure `determineStatus` receives a type that includes `last_position` as Supabase provides it.
   private determineStatus(vehicle: SupabaseVehicleData): string {
-    // Pass the raw last_position data to parsePosition
     const position = this.parsePosition(vehicle.last_position as RawVehiclePositionData | null);
 
     if (!position?.updatetime) {
+      console.log(`📴 Vehicle ${vehicle.device_name} has no position data - marking as offline`);
       return 'offline';
     }
 
     const lastUpdate = new Date(position.updatetime);
     const minutesAgo = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
 
+    console.log(`⏰ Vehicle ${vehicle.device_name} last updated ${minutesAgo.toFixed(1)} minutes ago`);
+
     if (minutesAgo <= 5) {
-      return position.speed > 0 ? 'moving' : 'online';
+      const status = position.speed > 0 ? 'moving' : 'online';
+      console.log(`🟢 Vehicle ${vehicle.device_name} is ${status} (speed: ${position.speed})`);
+      return status;
     } else if (minutesAgo <= 30) {
+      console.log(`🟡 Vehicle ${vehicle.device_name} is idle`);
       return 'idle';
     } else {
+      console.log(`🔴 Vehicle ${vehicle.device_name} is offline (last seen ${minutesAgo.toFixed(1)} min ago)`);
       return 'offline';
     }
   }
@@ -176,13 +211,17 @@ class SimplifiedVehicleService {
     const online = this.vehicles.filter(v => v.status === 'online' || v.status === 'moving').length;
     const offline = this.vehicles.filter(v => v.status === 'offline').length;
 
-    return { total, active, online, offline };
+    const metrics = { total, active, online, offline };
+    console.log('📊 Vehicle metrics calculated:', metrics);
+    return metrics;
   }
 
   forceRefresh(): void {
+    console.log('🔄 Force refresh initiated - clearing cache');
     this.lastFetch = 0;
     this.vehicles = [];
     this.error = null;
+    this.loading = false;
   }
 }
 
