@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,7 @@ import { useBillingSettings } from '@/hooks/useBillingSettings';
 import { toast } from 'sonner';
 
 const BillingTab: React.FC = () => {
-  const { data: billingData, isLoading, error } = useBillingSettings();
+  const { settings: billingData, isLoading, updateSettings } = useBillingSettings();
   const [activeSubscriptions] = useState(245); // This would come from a subscription hook
   const [monthlyRevenue] = useState(12450); // This would come from analytics
 
@@ -40,12 +39,12 @@ const BillingTab: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (!billingData) {
     return (
       <Card>
         <CardContent className="p-6">
           <div className="text-center text-red-600">
-            Error loading billing data: {error.message}
+            Error loading billing data. Please try again.
           </div>
         </CardContent>
       </Card>
