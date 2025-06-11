@@ -7,37 +7,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Key, AlertTriangle, Eye, Lock } from 'lucide-react';
+import { Shield, Key, AlertTriangle, Eye, Lock, RefreshCw } from 'lucide-react';
+import { useSecurityData } from '@/hooks/useSecurityData';
+import { toast } from 'sonner';
 
 const SecurityTab: React.FC = () => {
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
+  const { events, settings, isLoading, error, refetch } = useSecurityData();
+  const [localSettings, setLocalSettings] = useState(settings);
 
-  const securityEvents = [
-    {
-      id: '1',
-      type: 'login',
-      user: 'admin@fleetiq.com',
-      timestamp: '2024-01-15 14:30:00',
-      ip: '192.168.1.100',
-      status: 'success'
-    },
-    {
-      id: '2',
-      type: 'failed_login',
-      user: 'unknown@suspicious.com',
-      timestamp: '2024-01-15 14:25:00',
-      ip: '203.0.113.42',
-      status: 'blocked'
-    },
-    {
-      id: '3',
-      type: 'password_change',
-      user: 'user@company.com',
-      timestamp: '2024-01-15 13:45:00',
-      ip: '192.168.1.105',
-      status: 'success'
+  React.useEffect(() => {
+    if (settings) {
+      setLocalSettings(settings);
     }
-  ];
+  }, [settings]);
 
   const getEventIcon = (type: string) => {
     switch (type) {
@@ -57,6 +39,7 @@ const SecurityTab: React.FC = () => {
       case 'success':
         return <Badge variant="default">{status}</Badge>;
       case 'blocked':
+      case 'failed':
         return <Badge variant="destructive">{status}</Badge>;
       case 'warning':
         return <Badge variant="secondary">{status}</Badge>;
@@ -65,17 +48,67 @@ const SecurityTab: React.FC = () => {
     }
   };
 
+  const handleSettingChange = (key: string, value: boolean | number) => {
+    if (localSettings) {
+      setLocalSettings({ ...localSettings, [key]: value });
+    }
+  };
+
+  const handleSaveSettings = () => {
+    // TODO: Implement actual save functionality
+    toast.success('Security settings saved successfully');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="animate-pulse space-y-4">
+              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+              <div className="grid grid-cols-2 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-20 bg-gray-200 rounded"></div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-red-600">
+            Error loading security data: {error.message}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Security Management
-          </CardTitle>
-          <CardDescription>
-            Manage security settings and monitor security events
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Security Management
+              </CardTitle>
+              <CardDescription>
+                Manage security settings and monitor security events
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="settings" className="space-y-4">
@@ -101,8 +134,8 @@ const SecurityTab: React.FC = () => {
                       </div>
                       <Switch
                         id="two-factor"
-                        checked={twoFactorEnabled}
-                        onCheckedChange={setTwoFactorEnabled}
+                        checked={localSettings?.twoFactorEnabled || false}
+                        onCheckedChange={(checked) => handleSettingChange('twoFactorEnabled', checked)}
                       />
                     </div>
                     <div className="space-y-2">
@@ -110,7 +143,8 @@ const SecurityTab: React.FC = () => {
                       <Input
                         id="session-timeout"
                         type="number"
-                        defaultValue="60"
+                        value={localSettings?.sessionTimeout || 60}
+                        onChange={(e) => handleSettingChange('sessionTimeout', parseInt(e.target.value))}
                         placeholder="60"
                       />
                     </div>
@@ -119,7 +153,8 @@ const SecurityTab: React.FC = () => {
                       <Input
                         id="password-policy"
                         type="number"
-                        defaultValue="8"
+                        value={localSettings?.passwordMinLength || 8}
+                        onChange={(e) => handleSettingChange('passwordMinLength', parseInt(e.target.value))}
                         placeholder="8"
                       />
                     </div>
@@ -136,7 +171,8 @@ const SecurityTab: React.FC = () => {
                       <Input
                         id="max-attempts"
                         type="number"
-                        defaultValue="5"
+                        value={localSettings?.maxLoginAttempts || 5}
+                        onChange={(e) => handleSettingChange('maxLoginAttempts', parseInt(e.target.value))}
                         placeholder="5"
                       />
                     </div>
@@ -145,7 +181,8 @@ const SecurityTab: React.FC = () => {
                       <Input
                         id="lockout-duration"
                         type="number"
-                        defaultValue="15"
+                        value={localSettings?.lockoutDuration || 15}
+                        onChange={(e) => handleSettingChange('lockoutDuration', parseInt(e.target.value))}
                         placeholder="15"
                       />
                     </div>
@@ -156,7 +193,15 @@ const SecurityTab: React.FC = () => {
                           Restrict access to specific IP addresses
                         </p>
                       </div>
-                      <Switch />
+                      <Switch 
+                        checked={localSettings?.ipWhitelistEnabled || false}
+                        onCheckedChange={(checked) => handleSettingChange('ipWhitelistEnabled', checked)}
+                      />
+                    </div>
+                    <div className="pt-4">
+                      <Button onClick={handleSaveSettings}>
+                        Save Security Settings
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -166,14 +211,14 @@ const SecurityTab: React.FC = () => {
             <TabsContent value="events" className="space-y-4">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium">Recent Security Events</h3>
-                <Button variant="outline">
+                <Button variant="outline" onClick={() => refetch()}>
                   <Eye className="h-4 w-4 mr-2" />
                   View All Events
                 </Button>
               </div>
               
               <div className="space-y-4">
-                {securityEvents.map((event) => (
+                {events.map((event) => (
                   <Card key={event.id} className="border border-gray-200">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
@@ -187,8 +232,13 @@ const SecurityTab: React.FC = () => {
                               User: {event.user} | IP: {event.ip}
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {event.timestamp}
+                              {new Date(event.timestamp).toLocaleString()}
                             </div>
+                            {event.details && (
+                              <div className="text-xs text-red-600 mt-1">
+                                {event.details}
+                              </div>
+                            )}
                           </div>
                         </div>
                         {getStatusBadge(event.status)}
@@ -197,6 +247,12 @@ const SecurityTab: React.FC = () => {
                   </Card>
                 ))}
               </div>
+
+              {events.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No security events found
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="policies" className="space-y-4">
@@ -231,7 +287,10 @@ const SecurityTab: React.FC = () => {
                           Log all administrative actions
                         </p>
                       </div>
-                      <Switch defaultChecked />
+                      <Switch 
+                        checked={localSettings?.auditLoggingEnabled || false}
+                        onCheckedChange={(checked) => handleSettingChange('auditLoggingEnabled', checked)}
+                      />
                     </div>
                     <div className="flex items-center justify-between">
                       <div>
@@ -240,7 +299,10 @@ const SecurityTab: React.FC = () => {
                           Encrypt sensitive data at rest
                         </p>
                       </div>
-                      <Switch defaultChecked />
+                      <Switch 
+                        checked={localSettings?.dataEncryptionEnabled || false}
+                        onCheckedChange={(checked) => handleSettingChange('dataEncryptionEnabled', checked)}
+                      />
                     </div>
                   </div>
                 </CardContent>

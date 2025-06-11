@@ -7,101 +7,147 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Bell, Mail, MessageSquare, Smartphone, Settings } from 'lucide-react';
+import { Bell, Mail, MessageSquare, Smartphone, Settings, RefreshCw } from 'lucide-react';
+import { useNotificationSettings } from '@/hooks/useNotificationSettings';
 
 const NotificationsTab: React.FC = () => {
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [smsNotifications, setSmsNotifications] = useState(false);
+  const { settings, isLoading, error, updateSettings, isUpdating } = useNotificationSettings();
+  const [localSettings, setLocalSettings] = useState(settings);
 
-  const notificationChannels = [
-    {
-      id: 'email',
-      name: 'Email',
-      icon: Mail,
-      enabled: true,
-      description: 'Send notifications via email'
-    },
-    {
-      id: 'sms',
-      name: 'SMS',
-      icon: MessageSquare,
-      enabled: false,
-      description: 'Send notifications via SMS'
-    },
-    {
-      id: 'push',
-      name: 'Push Notifications',
-      icon: Smartphone,
-      enabled: true,
-      description: 'Send browser push notifications'
+  React.useEffect(() => {
+    if (settings) {
+      setLocalSettings(settings);
     }
-  ];
+  }, [settings]);
 
-  const notificationTypes = [
-    {
-      id: 'vehicle_alerts',
-      name: 'Vehicle Alerts',
-      description: 'Alerts for vehicle issues and maintenance',
-      email: true,
-      sms: false,
-      push: true
-    },
-    {
-      id: 'user_actions',
-      name: 'User Actions',
-      description: 'Notifications for user registrations and updates',
-      email: true,
-      sms: false,
-      push: false
-    },
-    {
-      id: 'system_events',
-      name: 'System Events',
-      description: 'System maintenance and updates',
-      email: true,
-      sms: true,
-      push: true
-    },
-    {
-      id: 'billing',
-      name: 'Billing',
-      description: 'Payment and subscription notifications',
-      email: true,
-      sms: false,
-      push: false
+  const handleChannelToggle = (channelId: string, enabled: boolean) => {
+    if (!localSettings) return;
+    
+    const updatedChannels = localSettings.channels.map(channel =>
+      channel.id === channelId ? { ...channel, enabled } : channel
+    );
+    
+    setLocalSettings({
+      ...localSettings,
+      channels: updatedChannels
+    });
+  };
+
+  const handleGlobalSettingChange = (key: string, value: string | boolean) => {
+    if (!localSettings) return;
+    
+    setLocalSettings({
+      ...localSettings,
+      globalSettings: {
+        ...localSettings.globalSettings,
+        [key]: value
+      }
+    });
+  };
+
+  const handleNotificationTypeChange = (typeId: string, channel: 'email' | 'sms' | 'push', enabled: boolean) => {
+    if (!localSettings) return;
+    
+    const updatedTypes = localSettings.notificationTypes.map(type =>
+      type.id === typeId 
+        ? { ...type, channels: { ...type.channels, [channel]: enabled } }
+        : type
+    );
+    
+    setLocalSettings({
+      ...localSettings,
+      notificationTypes: updatedTypes
+    });
+  };
+
+  const handleSaveSettings = () => {
+    if (localSettings) {
+      updateSettings(localSettings);
     }
-  ];
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="animate-pulse space-y-4">
+              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+              <div className="grid grid-cols-3 gap-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-20 bg-gray-200 rounded"></div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-red-600">
+            Error loading notification settings: {error.message}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!localSettings) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">
+            No notification settings available
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Notification Management
-          </CardTitle>
-          <CardDescription>
-            Configure notification settings and delivery channels
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Notification Management
+              </CardTitle>
+              <CardDescription>
+                Configure notification settings and delivery channels
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" disabled={isUpdating} onClick={handleSaveSettings}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isUpdating ? 'animate-spin' : ''}`} />
+              {isUpdating ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="channels" className="space-y-4">
             <TabsList>
               <TabsTrigger value="channels">Channels</TabsTrigger>
               <TabsTrigger value="types">Notification Types</TabsTrigger>
-              <TabsTrigger value="templates">Templates</TabsTrigger>
+              <TabsTrigger value="templates">Global Settings</TabsTrigger>
             </TabsList>
 
             <TabsContent value="channels" className="space-y-4">
               <div className="grid gap-4">
-                {notificationChannels.map((channel) => {
-                  const Icon = channel.icon;
+                {localSettings.channels.map((channel) => {
+                  const IconComponent = channel.type === 'email' ? Mail : 
+                                       channel.type === 'sms' ? MessageSquare : Smartphone;
                   return (
                     <Card key={channel.id} className="border border-gray-200">
                       <CardContent className="p-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <Icon className="h-5 w-5" />
+                            <IconComponent className="h-5 w-5" />
                             <div>
                               <h3 className="font-medium">{channel.name}</h3>
                               <p className="text-sm text-muted-foreground">
@@ -113,7 +159,10 @@ const NotificationsTab: React.FC = () => {
                             <Badge variant={channel.enabled ? 'default' : 'secondary'}>
                               {channel.enabled ? 'Enabled' : 'Disabled'}
                             </Badge>
-                            <Switch defaultChecked={channel.enabled} />
+                            <Switch 
+                              checked={channel.enabled}
+                              onCheckedChange={(checked) => handleChannelToggle(channel.id, checked)}
+                            />
                             <Button variant="outline" size="sm">
                               <Settings className="h-4 w-4" />
                             </Button>
@@ -129,7 +178,7 @@ const NotificationsTab: React.FC = () => {
             <TabsContent value="types" className="space-y-4">
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Notification Types</h3>
-                {notificationTypes.map((type) => (
+                {localSettings.notificationTypes.map((type) => (
                   <Card key={type.id} className="border border-gray-200">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
@@ -142,15 +191,24 @@ const NotificationsTab: React.FC = () => {
                         <div className="flex gap-6">
                           <div className="flex items-center gap-2">
                             <Mail className="h-4 w-4" />
-                            <Switch defaultChecked={type.email} />
+                            <Switch 
+                              checked={type.channels.email}
+                              onCheckedChange={(checked) => handleNotificationTypeChange(type.id, 'email', checked)}
+                            />
                           </div>
                           <div className="flex items-center gap-2">
                             <MessageSquare className="h-4 w-4" />
-                            <Switch defaultChecked={type.sms} />
+                            <Switch 
+                              checked={type.channels.sms}
+                              onCheckedChange={(checked) => handleNotificationTypeChange(type.id, 'sms', checked)}
+                            />
                           </div>
                           <div className="flex items-center gap-2">
                             <Smartphone className="h-4 w-4" />
-                            <Switch defaultChecked={type.push} />
+                            <Switch 
+                              checked={type.channels.push}
+                              onCheckedChange={(checked) => handleNotificationTypeChange(type.id, 'push', checked)}
+                            />
                           </div>
                         </div>
                       </div>
@@ -171,7 +229,8 @@ const NotificationsTab: React.FC = () => {
                       <Label htmlFor="from-name">From Name</Label>
                       <Input
                         id="from-name"
-                        defaultValue="FleetIQ System"
+                        value={localSettings.globalSettings.fromName}
+                        onChange={(e) => handleGlobalSettingChange('fromName', e.target.value)}
                         placeholder="Sender name"
                       />
                     </div>
@@ -180,7 +239,8 @@ const NotificationsTab: React.FC = () => {
                       <Input
                         id="from-email"
                         type="email"
-                        defaultValue="noreply@fleetiq.com"
+                        value={localSettings.globalSettings.fromEmail}
+                        onChange={(e) => handleGlobalSettingChange('fromEmail', e.target.value)}
                         placeholder="sender@domain.com"
                       />
                     </div>
@@ -189,16 +249,18 @@ const NotificationsTab: React.FC = () => {
                       <Input
                         id="reply-to"
                         type="email"
-                        defaultValue="support@fleetiq.com"
+                        value={localSettings.globalSettings.replyTo}
+                        onChange={(e) => handleGlobalSettingChange('replyTo', e.target.value)}
                         placeholder="support@domain.com"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="sms-sender">SMS Sender ID</Label>
+                      <Label htmlFor="sms-sender">SMS Vendor</Label>
                       <Input
                         id="sms-sender"
-                        defaultValue="FleetIQ"
-                        placeholder="Sender ID"
+                        value={localSettings.globalSettings.smsVendor || 'Twilio'}
+                        onChange={(e) => handleGlobalSettingChange('smsVendor', e.target.value)}
+                        placeholder="SMS Provider"
                       />
                     </div>
                   </div>
@@ -211,7 +273,10 @@ const NotificationsTab: React.FC = () => {
                           Add unsubscribe link to all emails
                         </p>
                       </div>
-                      <Switch defaultChecked />
+                      <Switch 
+                        checked={localSettings.globalSettings.includeUnsubscribe}
+                        onCheckedChange={(checked) => handleGlobalSettingChange('includeUnsubscribe', checked)}
+                      />
                     </div>
                     <div className="flex items-center justify-between">
                       <div>
@@ -220,7 +285,10 @@ const NotificationsTab: React.FC = () => {
                           Track when emails are opened
                         </p>
                       </div>
-                      <Switch defaultChecked />
+                      <Switch 
+                        checked={localSettings.globalSettings.trackEmailOpens}
+                        onCheckedChange={(checked) => handleGlobalSettingChange('trackEmailOpens', checked)}
+                      />
                     </div>
                   </div>
                 </CardContent>

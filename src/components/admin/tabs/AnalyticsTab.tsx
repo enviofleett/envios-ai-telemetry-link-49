@@ -5,67 +5,120 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { BarChart3, TrendingUp, Users, Car, Activity, Download } from 'lucide-react';
+import { BarChart3, TrendingUp, Users, Car, Activity, Download, RefreshCw } from 'lucide-react';
+import { useAnalyticsData } from '@/hooks/useAnalyticsData';
 
 const AnalyticsTab: React.FC = () => {
   const [timeRange, setTimeRange] = useState('7d');
+  const { data: analytics, isLoading, error, refetch } = useAnalyticsData();
+
+  const handleExportReport = () => {
+    // TODO: Implement actual export functionality
+    const data = JSON.stringify(analytics, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics-report-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="p-6">
+            <div className="animate-pulse space-y-4">
+              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+              <div className="grid grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="h-20 bg-gray-200 rounded"></div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-red-600">
+            Error loading analytics: {error.message}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!analytics) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-center text-muted-foreground">
+            No analytics data available
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const metrics = [
     {
       title: 'Total Users',
-      value: '1,234',
-      change: '+12%',
+      value: analytics.userMetrics.total.toLocaleString(),
+      change: analytics.userMetrics.growth,
       trend: 'up',
       icon: Users
     },
     {
       title: 'Active Vehicles',
-      value: '456',
-      change: '+8%',
+      value: analytics.vehicleMetrics.online.toString(),
+      change: analytics.vehicleMetrics.growth,
       trend: 'up',
       icon: Car
     },
     {
       title: 'System Uptime',
-      value: '99.9%',
+      value: analytics.systemMetrics.uptime,
       change: '+0.1%',
       trend: 'up',
       icon: Activity
     },
     {
       title: 'API Requests',
-      value: '45.2K',
+      value: (analytics.systemMetrics.apiRequests / 1000).toFixed(1) + 'K',
       change: '+15%',
       trend: 'up',
       icon: BarChart3
     }
   ];
 
-  const topUsers = [
-    { name: 'Fleet Corp', vehicles: 25, usage: '95%' },
-    { name: 'Transport Ltd', vehicles: 18, usage: '87%' },
-    { name: 'Logistics Inc', vehicles: 12, usage: '78%' },
-    { name: 'Delivery Co', vehicles: 8, usage: '65%' }
-  ];
-
-  const systemEvents = [
-    { event: 'User Registration', count: 45, trend: '+12%' },
-    { event: 'Vehicle Added', count: 23, trend: '+8%' },
-    { event: 'GPS Updates', count: 12450, trend: '+5%' },
-    { event: 'System Errors', count: 3, trend: '-25%' }
-  ];
-
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Analytics Dashboard
-          </CardTitle>
-          <CardDescription>
-            System usage analytics and performance metrics
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Analytics Dashboard
+              </CardTitle>
+              <CardDescription>
+                System usage analytics and performance metrics
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetch()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex justify-between items-center mb-6">
@@ -82,7 +135,7 @@ const AnalyticsTab: React.FC = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button variant="outline">
+            <Button variant="outline" onClick={handleExportReport}>
               <Download className="h-4 w-4 mr-2" />
               Export Report
             </Button>
@@ -126,7 +179,7 @@ const AnalyticsTab: React.FC = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {topUsers.map((user, index) => (
+                      {analytics.topUsers.map((user, index) => (
                         <div key={index} className="flex items-center justify-between p-2 border rounded">
                           <div>
                             <p className="font-medium">{user.name}</p>
@@ -141,18 +194,18 @@ const AnalyticsTab: React.FC = () => {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-base">System Events</CardTitle>
+                    <CardTitle className="text-base">Recent Activity</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {systemEvents.map((event, index) => (
+                      {analytics.recentActivity.map((activity, index) => (
                         <div key={index} className="flex items-center justify-between p-2 border rounded">
                           <div>
-                            <p className="font-medium">{event.event}</p>
-                            <p className="text-sm text-muted-foreground">{event.count} occurrences</p>
+                            <p className="font-medium">{activity.event}</p>
+                            <p className="text-sm text-muted-foreground">{activity.count} occurrences</p>
                           </div>
-                          <Badge variant={event.trend.startsWith('+') ? 'default' : 'secondary'}>
-                            {event.trend}
+                          <Badge variant={activity.trend.startsWith('+') ? 'default' : 'secondary'}>
+                            {activity.trend}
                           </Badge>
                         </div>
                       ))}
@@ -163,29 +216,55 @@ const AnalyticsTab: React.FC = () => {
             </TabsContent>
 
             <TabsContent value="users" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">User Analytics</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-muted-foreground">
-                    User analytics charts would be displayed here
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold">{analytics.userMetrics.total}</p>
+                    <p className="text-sm text-muted-foreground">Total Users</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold text-green-600">{analytics.userMetrics.active}</p>
+                    <p className="text-sm text-muted-foreground">Active Users</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold text-blue-600">{analytics.userMetrics.newThisMonth}</p>
+                    <p className="text-sm text-muted-foreground">New This Month</p>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
             <TabsContent value="system" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">System Performance</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-8 text-muted-foreground">
-                    System performance metrics would be displayed here
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold text-green-600">{analytics.systemMetrics.uptime}</p>
+                    <p className="text-sm text-muted-foreground">Uptime</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold">{analytics.systemMetrics.apiRequests.toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground">API Requests</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold">{analytics.systemMetrics.averageResponseTime}ms</p>
+                    <p className="text-sm text-muted-foreground">Avg Response Time</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold text-red-600">{analytics.systemMetrics.errorRate}</p>
+                    <p className="text-sm text-muted-foreground">Error Rate</p>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>
