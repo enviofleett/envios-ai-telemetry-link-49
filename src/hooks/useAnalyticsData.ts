@@ -45,10 +45,10 @@ export const useAnalyticsData = () => {
       
       if (usersError) throw usersError;
 
-      // Get vehicle metrics
+      // Get vehicle metrics - using correct column name 'is_active'
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
-        .select('id, is_online, created_at');
+        .select('id, is_active, created_at');
       
       if (vehiclesError) throw vehiclesError;
 
@@ -59,8 +59,9 @@ export const useAnalyticsData = () => {
       const newUsersThisMonth = users?.filter(u => new Date(u.created_at) > lastMonth).length || 0;
       const newVehiclesThisMonth = vehicles?.filter(v => new Date(v.created_at) > lastMonth).length || 0;
       
-      const onlineVehicles = vehicles?.filter(v => v.is_online).length || 0;
-      const offlineVehicles = (vehicles?.length || 0) - onlineVehicles;
+      // Use is_active instead of is_online
+      const activeVehicles = vehicles?.filter(v => v.is_active).length || 0;
+      const inactiveVehicles = (vehicles?.length || 0) - activeVehicles;
 
       // Mock some calculated data that would come from analytics
       const userGrowth = users?.length ? ((newUsersThisMonth / users.length) * 100).toFixed(1) : '0';
@@ -75,8 +76,8 @@ export const useAnalyticsData = () => {
         },
         vehicleMetrics: {
           total: vehicles?.length || 0,
-          online: onlineVehicles,
-          offline: offlineVehicles,
+          online: activeVehicles,
+          offline: inactiveVehicles,
           growth: `+${vehicleGrowth}%`
         },
         systemMetrics: {
@@ -94,7 +95,7 @@ export const useAnalyticsData = () => {
         recentActivity: [
           { event: 'User Registration', count: newUsersThisMonth, trend: `+${userGrowth}%`, timestamp: now.toISOString() },
           { event: 'Vehicle Added', count: newVehiclesThisMonth, trend: `+${vehicleGrowth}%`, timestamp: now.toISOString() },
-          { event: 'GPS Updates', count: onlineVehicles * 144, trend: '+5%', timestamp: now.toISOString() },
+          { event: 'GPS Updates', count: activeVehicles * 144, trend: '+5%', timestamp: now.toISOString() },
           { event: 'System Errors', count: 3, trend: '-25%', timestamp: now.toISOString() }
         ]
       };

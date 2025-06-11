@@ -40,13 +40,13 @@ export const useNotificationSettings = () => {
   const { data: settings, isLoading, error } = useQuery({
     queryKey: ['notification-settings'],
     queryFn: async (): Promise<NotificationSettings> => {
-      // Try to get notification settings from database
-      const { data: emailSettings, error: emailError } = await supabase
-        .from('email_notification_settings')
-        .select('*')
+      // Use company_settings table instead of non-existent email_notification_settings
+      const { data: companySettings, error: companyError } = await supabase
+        .from('company_settings')
+        .select('contact_email, company_name')
         .single();
 
-      // Return default settings structure
+      // Return default settings structure with fallback values
       return {
         channels: [
           {
@@ -55,7 +55,7 @@ export const useNotificationSettings = () => {
             type: 'email',
             enabled: true,
             description: 'Send notifications via email',
-            settings: emailSettings || {}
+            settings: {}
           },
           {
             id: 'sms',
@@ -73,9 +73,9 @@ export const useNotificationSettings = () => {
           }
         ],
         globalSettings: {
-          fromName: emailSettings?.from_name || 'FleetIQ System',
-          fromEmail: emailSettings?.from_email || 'noreply@fleetiq.com',
-          replyTo: emailSettings?.reply_to || 'support@fleetiq.com',
+          fromName: companySettings?.company_name || 'FleetIQ System',
+          fromEmail: companySettings?.contact_email || 'noreply@fleetiq.com',
+          replyTo: companySettings?.contact_email || 'support@fleetiq.com',
           trackEmailOpens: true,
           includeUnsubscribe: true
         },
@@ -111,15 +111,15 @@ export const useNotificationSettings = () => {
 
   const updateSettings = useMutation({
     mutationFn: async (updates: Partial<NotificationSettings>) => {
+      // Update company settings instead of non-existent table
       const { error } = await supabase
-        .from('email_notification_settings')
-        .upsert({
-          user_id: (await supabase.auth.getUser()).data.user?.id,
-          from_name: updates.globalSettings?.fromName,
-          from_email: updates.globalSettings?.fromEmail,
-          reply_to: updates.globalSettings?.replyTo,
+        .from('company_settings')
+        .update({
+          company_name: updates.globalSettings?.fromName,
+          contact_email: updates.globalSettings?.fromEmail,
           updated_at: new Date().toISOString()
-        });
+        })
+        .eq('user_id', (await supabase.auth.getUser()).data.user?.id);
 
       if (error) throw error;
     },

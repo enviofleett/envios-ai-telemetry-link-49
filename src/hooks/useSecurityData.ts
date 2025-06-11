@@ -27,9 +27,9 @@ export const useSecurityData = () => {
   const eventsQuery = useQuery({
     queryKey: ['security-events'],
     queryFn: async (): Promise<SecurityEvent[]> => {
-      // Try to get security events from audit logs
+      // Try to get security events from admin action logs
       const { data: securityLogs, error } = await supabase
-        .from('security_audit_logs')
+        .from('admin_action_logs')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(10);
@@ -71,11 +71,11 @@ export const useSecurityData = () => {
       return securityLogs.map(log => ({
         id: log.id,
         type: log.action_type,
-        user: log.user_id || 'system',
+        user: log.admin_user_id || 'system',
         timestamp: log.created_at,
-        ip: log.ip_address || 'unknown',
-        status: log.success ? 'success' : 'failed',
-        details: log.error_message
+        ip: (log.ip_address as string) || 'unknown', // Type cast to handle unknown type
+        status: 'success', // Since these are admin actions, assume success
+        details: log.action_details ? JSON.stringify(log.action_details) : undefined
       }));
     },
     refetchInterval: 30000
