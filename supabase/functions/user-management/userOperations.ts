@@ -1,6 +1,7 @@
 
 import { autoLinkUserVehicles } from './autoLinking.ts';
 import { isUserAdmin } from './auth.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 async function createUserInGP51(userData: any): Promise<{ success: boolean; error?: string }> {
   try {
@@ -18,8 +19,7 @@ async function createUserInGP51(userData: any): Promise<{ success: boolean; erro
         showname: userData.name,
         email: userData.email,
         usertype: userData.gp51_user_type || 3, // Default to End User
-        multilogin: 1,
-        creater: 'admin'
+        multilogin: 1
       }
     });
 
@@ -33,7 +33,7 @@ async function createUserInGP51(userData: any): Promise<{ success: boolean; erro
       return { success: true };
     } else {
       console.error('GP51 user creation returned error status:', data);
-      return { success: false, error: data?.cause || 'Unknown GP51 error' };
+      return { success: false, error: data?.data?.cause || 'Unknown GP51 error' };
     }
   } catch (error) {
     console.error('Exception during GP51 user creation:', error);
@@ -66,7 +66,7 @@ async function deleteUserFromGP51(gp51Username: string): Promise<{ success: bool
       return { success: true };
     } else {
       console.error('GP51 user deletion returned error status:', data);
-      return { success: false, error: data?.cause || 'Unknown GP51 error' };
+      return { success: false, error: data?.data?.cause || 'Unknown GP51 error' };
     }
   } catch (error) {
     console.error('Exception during GP51 user deletion:', error);
@@ -131,6 +131,18 @@ export async function createUser(supabase: any, userData: any, currentUserId: st
     }
 
     console.log('User created successfully in GP51, proceeding with local creation');
+
+    // Track GP51 user management
+    await supabase
+      .from('gp51_user_management')
+      .insert({
+        envio_user_id: newUserId,
+        gp51_username,
+        gp51_user_type: userData.gp51_user_type || 3,
+        activation_status: 'active',
+        activation_date: new Date().toISOString(),
+        last_sync_at: new Date().toISOString()
+      });
   }
 
   // Step 2: Create user locally
@@ -210,10 +222,19 @@ export async function updateUser(supabase: any, userId: string, updateData: any,
 
       if (error || (data && data.status !== 0)) {
         console.error('GP51 user update failed:', error || data);
-        throw new Error(`GP51 user update failed: ${error?.message || data?.cause || 'Unknown error'}`);
+        throw new Error(`GP51 user update failed: ${error?.message || data?.data?.cause || 'Unknown error'}`);
       }
 
       console.log('User updated successfully in GP51');
+
+      // Update tracking table
+      await supabase
+        .from('gp51_user_management')
+        .update({
+          last_sync_at: new Date().toISOString()
+        })
+        .eq('envio_user_id', userId);
+
     } catch (error) {
       console.error('Exception during GP51 user update:', error);
       throw new Error(`GP51 user update failed: ${error.message}`);

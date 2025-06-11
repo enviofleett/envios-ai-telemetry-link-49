@@ -2031,6 +2031,59 @@ export type Database = {
           },
         ]
       }
+      gp51_device_management: {
+        Row: {
+          activation_status: string | null
+          charge_years: number | null
+          created_at: string | null
+          device_properties: Json | null
+          device_type: number | null
+          gp51_device_id: string
+          id: string
+          last_sync_at: string | null
+          service_end_date: string | null
+          sync_errors: Json | null
+          updated_at: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          activation_status?: string | null
+          charge_years?: number | null
+          created_at?: string | null
+          device_properties?: Json | null
+          device_type?: number | null
+          gp51_device_id: string
+          id?: string
+          last_sync_at?: string | null
+          service_end_date?: string | null
+          sync_errors?: Json | null
+          updated_at?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          activation_status?: string | null
+          charge_years?: number | null
+          created_at?: string | null
+          device_properties?: Json | null
+          device_type?: number | null
+          gp51_device_id?: string
+          id?: string
+          last_sync_at?: string | null
+          service_end_date?: string | null
+          sync_errors?: Json | null
+          updated_at?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_device_management_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gp51_health_metrics: {
         Row: {
           created_at: string
@@ -2229,35 +2282,54 @@ export type Database = {
       gp51_sessions: {
         Row: {
           api_url: string | null
+          api_version: string | null
           created_at: string
+          device_count: number | null
           envio_user_id: string | null
           gp51_token: string | null
           id: string
+          last_validated_at: string | null
+          session_health: string | null
           token_expires_at: string | null
           updated_at: string
           username: string
         }
         Insert: {
           api_url?: string | null
+          api_version?: string | null
           created_at?: string
+          device_count?: number | null
           envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
+          last_validated_at?: string | null
+          session_health?: string | null
           token_expires_at?: string | null
           updated_at?: string
           username: string
         }
         Update: {
           api_url?: string | null
+          api_version?: string | null
           created_at?: string
+          device_count?: number | null
           envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
+          last_validated_at?: string | null
+          session_health?: string | null
           token_expires_at?: string | null
           updated_at?: string
           username?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_gp51_sessions_envio_user"
+            columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fk_gp51_sessions_envio_user_id"
             columns: ["envio_user_id"]
@@ -2611,6 +2683,53 @@ export type Database = {
           {
             foreignKeyName: "gp51_system_imports_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gp51_user_management: {
+        Row: {
+          activation_date: string | null
+          activation_status: string | null
+          created_at: string | null
+          envio_user_id: string | null
+          gp51_user_type: number | null
+          gp51_username: string
+          id: string
+          last_sync_at: string | null
+          sync_errors: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          activation_date?: string | null
+          activation_status?: string | null
+          created_at?: string | null
+          envio_user_id?: string | null
+          gp51_user_type?: number | null
+          gp51_username: string
+          id?: string
+          last_sync_at?: string | null
+          sync_errors?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          activation_date?: string | null
+          activation_status?: string | null
+          created_at?: string | null
+          envio_user_id?: string | null
+          gp51_user_type?: number | null
+          gp51_username?: string
+          id?: string
+          last_sync_at?: string | null
+          sync_errors?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_user_management_envio_user_id_fkey"
+            columns: ["envio_user_id"]
             isOneToOne: false
             referencedRelation: "envio_users"
             referencedColumns: ["id"]
@@ -5004,61 +5123,171 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_telemetry_history: {
+        Row: {
+          acc_status: string | null
+          alarm_status: string | null
+          altitude: number | null
+          created_at: string | null
+          device_id: string
+          fuel_level: number | null
+          heading: number | null
+          id: string
+          latitude: number
+          longitude: number
+          odometer: number | null
+          raw_data: Json | null
+          satellites: number | null
+          signal_strength: number | null
+          speed: number | null
+          timestamp: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          acc_status?: string | null
+          alarm_status?: string | null
+          altitude?: number | null
+          created_at?: string | null
+          device_id: string
+          fuel_level?: number | null
+          heading?: number | null
+          id?: string
+          latitude: number
+          longitude: number
+          odometer?: number | null
+          raw_data?: Json | null
+          satellites?: number | null
+          signal_strength?: number | null
+          speed?: number | null
+          timestamp: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          acc_status?: string | null
+          alarm_status?: string | null
+          altitude?: number | null
+          created_at?: string | null
+          device_id?: string
+          fuel_level?: number | null
+          heading?: number | null
+          id?: string
+          latitude?: number
+          longitude?: number
+          odometer?: number | null
+          raw_data?: Json | null
+          satellites?: number | null
+          signal_strength?: number | null
+          speed?: number | null
+          timestamp?: string
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_telemetry_history_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicles: {
         Row: {
+          acc_status: string | null
+          activation_status: string | null
+          alarm_status: string | null
+          altitude: number | null
           created_at: string
           device_id: string
           device_name: string
           device_type: string | null
           envio_user_id: string | null
           extraction_job_id: string | null
+          fuel_level: number | null
+          gp51_device_id: string | null
           gp51_metadata: Json | null
           gp51_username: string | null
+          heading: number | null
           id: string
           import_job_type: string | null
           is_active: boolean | null
           last_position: Json | null
+          last_update: string | null
+          latitude: number | null
+          longitude: number | null
           notes: string | null
+          odometer: number | null
+          satellites: number | null
           session_id: string | null
+          signal_strength: number | null
           sim_number: string | null
+          speed: number | null
           status: string | null
           updated_at: string
         }
         Insert: {
+          acc_status?: string | null
+          activation_status?: string | null
+          alarm_status?: string | null
+          altitude?: number | null
           created_at?: string
           device_id: string
           device_name: string
           device_type?: string | null
           envio_user_id?: string | null
           extraction_job_id?: string | null
+          fuel_level?: number | null
+          gp51_device_id?: string | null
           gp51_metadata?: Json | null
           gp51_username?: string | null
+          heading?: number | null
           id?: string
           import_job_type?: string | null
           is_active?: boolean | null
           last_position?: Json | null
+          last_update?: string | null
+          latitude?: number | null
+          longitude?: number | null
           notes?: string | null
+          odometer?: number | null
+          satellites?: number | null
           session_id?: string | null
+          signal_strength?: number | null
           sim_number?: string | null
+          speed?: number | null
           status?: string | null
           updated_at?: string
         }
         Update: {
+          acc_status?: string | null
+          activation_status?: string | null
+          alarm_status?: string | null
+          altitude?: number | null
           created_at?: string
           device_id?: string
           device_name?: string
           device_type?: string | null
           envio_user_id?: string | null
           extraction_job_id?: string | null
+          fuel_level?: number | null
+          gp51_device_id?: string | null
           gp51_metadata?: Json | null
           gp51_username?: string | null
+          heading?: number | null
           id?: string
           import_job_type?: string | null
           is_active?: boolean | null
           last_position?: Json | null
+          last_update?: string | null
+          latitude?: number | null
+          longitude?: number | null
           notes?: string | null
+          odometer?: number | null
+          satellites?: number | null
           session_id?: string | null
+          signal_strength?: number | null
           sim_number?: string | null
+          speed?: number | null
           status?: string | null
           updated_at?: string
         }

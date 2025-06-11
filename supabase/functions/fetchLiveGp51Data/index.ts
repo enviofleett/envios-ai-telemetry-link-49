@@ -188,7 +188,8 @@ serve(async (req) => {
             vehicles: [],
             telemetry: [],
             total_devices: 0,
-            total_positions: 0
+            total_positions: 0,
+            fetched_at: new Date().toISOString()
           },
           message: 'No devices found for position tracking'
         }),
@@ -234,13 +235,14 @@ serve(async (req) => {
       }
     }
 
-    // Update vehicles table with latest telemetry data
+    // Update vehicles table with latest telemetry data and store history
     if (telemetryData.length > 0) {
       console.log(`💾 Updating ${telemetryData.length} vehicle records...`);
       
       for (const telem of telemetryData) {
         try {
-          const { error: updateError } = await supabase
+          // Update main vehicles table
+          const { data: vehicle, error: vehicleError } = await supabase
             .from('vehicles')
             .upsert({
               device_id: telem.device_id,
@@ -253,21 +255,52 @@ serve(async (req) => {
               odometer: telem.odometer,
               fuel_level: telem.fuel_level,
               altitude: telem.altitude,
+              acc_status: telem.engine_status,
+              alarm_status: telem.alarm_status,
+              signal_strength: telem.signal_strength,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'device_id'
+            })
+            .select('id')
+            .single();
+
+          if (vehicleError) {
+            console.error(`❌ Failed to update vehicle ${telem.device_id}:`, vehicleError);
+            continue;
+          }
+
+          // Store in telemetry history table
+          await supabase
+            .from('vehicle_telemetry_history')
+            .insert({
+              vehicle_id: vehicle.id,
+              device_id: telem.device_id,
+              timestamp: telem.timestamp,
+              latitude: telem.latitude,
+              longitude: telem.longitude,
+              speed: telem.speed,
+              heading: telem.heading,
+              fuel_level: telem.fuel_level,
+              odometer: telem.odometer,
+              altitude: telem.altitude,
+              acc_status: telem.engine_status,
+              alarm_status: telem.alarm_status,
+              signal_strength: telem.signal_strength,
+              raw_data: {
+                original_response: positions.find((p: any) => 
+                  (p.deviceid?.toString() || p.id?.toString()) === telem.device_id
+                )
+              }
             });
 
-          if (updateError) {
-            console.error(`❌ Failed to update vehicle ${telem.device_id}:`, updateError);
-          }
         } catch (upsertError) {
           console.error(`❌ Upsert error for device ${telem.device_id}:`, upsertError);
         }
       }
     }
 
-    console.log('✅ Live data fetch completed successfully');
+    console.log('✅ Live data fetch and storage completed successfully');
 
     return new Response(
       JSON.stringify({ 
@@ -280,7 +313,7 @@ serve(async (req) => {
           total_devices: deviceIds.length,
           total_positions: telemetryData.length
         },
-        message: `Successfully fetched live data for ${telemetryData.length} devices`
+        message: `Successfully fetched and stored live data for ${telemetryData.length} devices`
       }),
       { 
         status: 200, 
