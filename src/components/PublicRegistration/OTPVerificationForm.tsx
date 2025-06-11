@@ -69,11 +69,13 @@ const OTPVerificationForm: React.FC<OTPVerificationFormProps> = ({
       if (result.success) {
         toast({
           title: "Phone Verified Successfully",
-          description: result.message || "Your phone number has been verified. Your registration is now pending admin review.",
+          description: "Your phone number has been verified. Your registration is now pending admin review.",
         });
         onSuccess();
       } else {
-        setAttemptsRemaining(prev => Math.max(0, prev - 1));
+        if (result.attemptsRemaining !== undefined) {
+          setAttemptsRemaining(result.attemptsRemaining);
+        }
         
         toast({
           title: "Verification Failed",
