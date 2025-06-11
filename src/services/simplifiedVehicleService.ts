@@ -22,6 +22,13 @@ export interface VehicleMetrics {
   offline: number;
 }
 
+interface VehiclePositionData {
+  lat: number;
+  lon: number;
+  speed?: number;
+  updatetime: string;
+}
+
 class SimplifiedVehicleService {
   private static instance: SimplifiedVehicleService;
   private vehicles: SimpleVehicle[] = [];
@@ -72,12 +79,7 @@ class SimplifiedVehicleService {
         device_name: vehicle.device_name,
         status: this.determineStatus(vehicle),
         is_active: vehicle.is_active,
-        last_position: vehicle.last_position ? {
-          lat: vehicle.last_position.lat,
-          lon: vehicle.last_position.lon,
-          speed: vehicle.last_position.speed || 0,
-          updatetime: vehicle.last_position.updatetime
-        } : undefined
+        last_position: this.parsePosition(vehicle.last_position)
       }));
 
       this.lastFetch = now;
@@ -94,16 +96,37 @@ class SimplifiedVehicleService {
     }
   }
 
+  private parsePosition(position: any): SimpleVehicle['last_position'] {
+    if (!position || typeof position !== 'object') {
+      return undefined;
+    }
+
+    const positionData = position as VehiclePositionData;
+    
+    if (!positionData.lat || !positionData.lon || !positionData.updatetime) {
+      return undefined;
+    }
+
+    return {
+      lat: Number(positionData.lat),
+      lon: Number(positionData.lon),
+      speed: Number(positionData.speed || 0),
+      updatetime: positionData.updatetime
+    };
+  }
+
   private determineStatus(vehicle: any): string {
-    if (!vehicle.last_position?.updatetime) {
+    const position = this.parsePosition(vehicle.last_position);
+    
+    if (!position?.updatetime) {
       return 'offline';
     }
 
-    const lastUpdate = new Date(vehicle.last_position.updatetime);
+    const lastUpdate = new Date(position.updatetime);
     const minutesAgo = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
 
     if (minutesAgo <= 5) {
-      return vehicle.last_position.speed > 0 ? 'moving' : 'online';
+      return position.speed > 0 ? 'moving' : 'online';
     } else if (minutesAgo <= 30) {
       return 'idle';
     } else {
