@@ -7,6 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const GP51_API_URL = "https://api.gpstrackerxy.com/api";
+
 serve(async (req) => {
   console.log(`GP51 Service Management API call: ${req.method} ${req.url}`);
   
@@ -145,18 +147,28 @@ serve(async (req) => {
         );
       }
 
-      // Test actual GP51 API
-      const apiUrl = session.api_url || 'https://gps51.com/webapi';
-      const token = session.gp51_token;
+      // Test actual GP51 API using proper format
+      const suser = session.username;
+      const stoken = session.gp51_token;
 
       try {
         console.log('📡 Making real GP51 API call to test connectivity...');
-        const testResponse = await fetch(`${apiUrl}?action=querymonitorlist&token=${token}`, {
-          method: 'GET',
+        
+        const formData = new URLSearchParams({
+          action: 'querymonitorlist',
+          json: '1',
+          suser,
+          stoken
+        });
+
+        const testResponse = await fetch(GP51_API_URL, {
+          method: 'POST',
           headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json',
             'User-Agent': 'EnvioFleet/1.0'
-          }
+          },
+          body: formData.toString()
         });
 
         if (!testResponse.ok) {
@@ -181,13 +193,13 @@ serve(async (req) => {
         
         const responseData = JSON.parse(responseText);
 
-        if (responseData.status !== 0) {
+        if (responseData.result === "false" || responseData.result === false) {
           console.error('❌ GP51 API returned error:', responseData);
           return new Response(
             JSON.stringify({ 
               success: false, 
               error: 'GP51 API error',
-              details: responseData.cause || 'Unknown GP51 error',
+              details: responseData.message || 'Unknown GP51 error',
               code: 'API_LOGIC_ERROR'
             }),
             { 
@@ -202,9 +214,9 @@ serve(async (req) => {
           JSON.stringify({ 
             success: true, 
             username: session.username,
-            apiUrl: session.api_url,
+            apiUrl: GP51_API_URL,
             message: 'GP51 API is responding correctly',
-            deviceCount: responseData.data ? responseData.data.length : 0
+            deviceCount: responseData.devices ? responseData.devices.length : 0
           }),
           { 
             status: 200, 

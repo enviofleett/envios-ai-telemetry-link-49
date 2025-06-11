@@ -7,6 +7,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const GP51_API_URL = "https://api.gpstrackerxy.com/api";
+
 interface LiveVehicleTelemetry {
   device_id: string;
   latitude: number;
@@ -18,6 +20,9 @@ interface LiveVehicleTelemetry {
   odometer?: number;
   fuel_level?: number;
   engine_status?: string;
+  altitude?: number;
+  alarm_status?: string;
+  signal_strength?: number;
 }
 
 serve(async (req) => {
@@ -92,84 +97,76 @@ serve(async (req) => {
 
     console.log('✅ Valid session found, fetching live data from GP51...');
 
-    // Construct the GP51 API URL
-    const apiUrl = session.api_url || 'https://gps51.com/webapi';
-    const gp51Token = session.gp51_token;
+    // Use proper GP51 API format with POST and form data
+    const suser = session.username;
+    const stoken = session.gp51_token;
 
-    // First, get the monitor list (users and devices)
-    console.log('📡 Calling GP51 querymonitorlist API...');
-    let monitorResponse;
+    console.log('📡 Calling GP51 querymonitorlist API with proper format...');
     
-    try {
-      monitorResponse = await fetch(`${apiUrl}?action=querymonitorlist&token=${gp51Token}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'EnvioFleet/1.0'
-        }
+    const fetchFromGP51 = async (action: string, additionalParams: Record<string, string> = {}, retry = false) => {
+      const formData = new URLSearchParams({
+        action,
+        json: "1",
+        suser,
+        stoken,
+        ...additionalParams
       });
-    } catch (fetchError) {
-      console.error('❌ Network error calling GP51 API:', fetchError);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'GP51 API connection failed',
-          details: `Network error: ${fetchError.message}`
-        }),
-        { 
-          status: 502, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
 
-    if (!monitorResponse.ok) {
-      const errorText = await monitorResponse.text();
-      console.error('❌ GP51 API HTTP error:', monitorResponse.status, errorText);
+      try {
+        const response = await fetch(GP51_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'User-Agent': 'EnvioFleet/1.0'
+          },
+          body: formData.toString()
+        });
+
+        if (!response.ok) {
+          console.error('❌ GP51 API HTTP error:', response.status, response.statusText);
+          return { error: `HTTP ${response.status}: ${response.statusText}`, status: response.status };
+        }
+
+        const text = await response.text();
+        console.log('📊 Raw GP51 API response:', text.substring(0, 500) + '...');
+
+        try {
+          const json = JSON.parse(text);
+
+          if (json.result === "false" || json.result === false) {
+            console.error('🛑 GP51 API returned false:', json.message);
+            return { error: json.message || 'GP51 API request failed', status: 401 };
+          }
+
+          return { data: json, status: 200 };
+        } catch (parseError) {
+          if (!retry) {
+            console.warn('🔁 Retry after JSON parse failure:', text.substring(0, 200));
+            return await fetchFromGP51(action, additionalParams, true);
+          }
+
+          console.error('❌ GP51 returned invalid JSON:', text.substring(0, 200));
+          return { error: 'Invalid GP51 response format', raw: text, status: 502 };
+        }
+      } catch (fetchError) {
+        console.error('❌ Network error calling GP51 API:', fetchError);
+        return { error: `Network error: ${fetchError.message}`, status: 502 };
+      }
+    };
+
+    // First, get the monitor list (devices/vehicles)
+    const monitorResult = await fetchFromGP51('querymonitorlist');
+
+    if (monitorResult.error) {
       return new Response(
         JSON.stringify({ 
           success: false, 
           error: 'GP51 API error',
-          details: `HTTP ${monitorResponse.status}: ${errorText}`
+          details: monitorResult.error
         }),
         { 
-          status: 502, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
-
-    let monitorData;
-    try {
-      const responseText = await monitorResponse.text();
-      console.log('📊 Raw GP51 monitor response:', responseText.substring(0, 500) + '...');
-      monitorData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ Failed to parse GP51 monitor response:', parseError);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'GP51 API response parsing failed',
-          details: 'Invalid JSON response from GP51'
-        }),
-        { 
-          status: 502, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
-    }
-
-    // Check if GP51 returned an error
-    if (monitorData.status !== 0) {
-      console.error('❌ GP51 API returned error:', monitorData);
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'GP51 API error',
-          details: monitorData.cause || 'Unknown GP51 error'
-        }),
-        { 
-          status: 502, 
+          status: monitorResult.status, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
@@ -177,9 +174,9 @@ serve(async (req) => {
 
     console.log('✅ Monitor data fetched successfully');
 
-    // Extract device IDs for position fetching
-    const devices = monitorData.data || [];
-    const deviceIds = devices.map(device => device.id).filter(id => id);
+    // Extract devices from the response
+    const devices = monitorResult.data.devices || monitorResult.data.result || [];
+    const deviceIds = devices.map((device: any) => device.deviceid || device.id).filter((id: string) => id);
 
     if (deviceIds.length === 0) {
       console.log('⚠️ No devices found in monitor list');
@@ -189,7 +186,9 @@ serve(async (req) => {
           data: {
             users: devices,
             vehicles: [],
-            telemetry: []
+            telemetry: [],
+            total_devices: 0,
+            total_positions: 0
           },
           message: 'No devices found for position tracking'
         }),
@@ -204,49 +203,35 @@ serve(async (req) => {
     console.log(`📍 Fetching last positions for ${deviceIds.length} devices...`);
     const telemetryData: LiveVehicleTelemetry[] = [];
 
-    // Batch fetch positions (GP51 supports multiple device IDs)
-    const deviceIdString = deviceIds.join(',');
-    
-    try {
-      const positionResponse = await fetch(`${apiUrl}?action=lastposition&token=${gp51Token}&id=${deviceIdString}`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'EnvioFleet/1.0'
-        }
-      });
+    // Get positions using proper GP51 format
+    const positionResult = await fetchFromGP51('lastposition', {
+      deviceids: deviceIds.join(',')
+    });
 
-      if (positionResponse.ok) {
-        const positionText = await positionResponse.text();
-        console.log('📊 Raw GP51 position response:', positionText.substring(0, 500) + '...');
-        
-        const positionData = JSON.parse(positionText);
-        
-        if (positionData.status === 0 && positionData.data) {
-          const positions = Array.isArray(positionData.data) ? positionData.data : [positionData.data];
-          
-          for (const pos of positions) {
-            if (pos.lat && pos.lng) {
-              telemetryData.push({
-                device_id: pos.id?.toString() || 'unknown',
-                latitude: parseFloat(pos.lat),
-                longitude: parseFloat(pos.lng),
-                speed: parseFloat(pos.speed) || 0,
-                heading: parseFloat(pos.direction) || 0,
-                timestamp: pos.gpstime || new Date().toISOString(),
-                status: pos.status || 'unknown',
-                odometer: pos.mileage ? parseFloat(pos.mileage) : undefined,
-                fuel_level: pos.fuel ? parseFloat(pos.fuel) : undefined,
-                engine_status: pos.acc ? (pos.acc === '1' ? 'on' : 'off') : undefined
-              });
-            }
-          }
+    if (positionResult.error) {
+      console.warn('⚠️ Position fetch failed, returning monitor data only:', positionResult.error);
+    } else if (positionResult.data && positionResult.data.devices) {
+      const positions = Array.isArray(positionResult.data.devices) ? positionResult.data.devices : [positionResult.data.devices];
+      
+      for (const pos of positions) {
+        if (pos.lat !== undefined && pos.lon !== undefined) {
+          telemetryData.push({
+            device_id: pos.deviceid?.toString() || pos.id?.toString() || 'unknown',
+            latitude: parseFloat(pos.lat),
+            longitude: parseFloat(pos.lon),
+            speed: parseFloat(pos.speed) || 0,
+            heading: parseFloat(pos.angle || pos.direction || pos.course) || 0,
+            timestamp: pos.time || pos.gpstime || new Date().toISOString(),
+            status: pos.status || 'unknown',
+            odometer: pos.mileage ? parseFloat(pos.mileage) : undefined,
+            fuel_level: pos.fuel ? parseFloat(pos.fuel) : undefined,
+            engine_status: pos.acc ? (pos.acc === '1' || pos.acc === 1 ? 'on' : 'off') : undefined,
+            altitude: pos.altitude ? parseFloat(pos.altitude) : undefined,
+            alarm_status: pos.alarm || undefined,
+            signal_strength: pos.signal ? parseFloat(pos.signal) : undefined
+          });
         }
-      } else {
-        console.warn('⚠️ Position fetch failed, continuing with monitor data only');
       }
-    } catch (positionError) {
-      console.warn('⚠️ Position fetch error, continuing with monitor data only:', positionError);
     }
 
     // Update vehicles table with latest telemetry data
@@ -265,6 +250,9 @@ serve(async (req) => {
               heading: telem.heading,
               last_update: telem.timestamp,
               status: telem.status,
+              odometer: telem.odometer,
+              fuel_level: telem.fuel_level,
+              altitude: telem.altitude,
               updated_at: new Date().toISOString()
             }, {
               onConflict: 'device_id'

@@ -102,14 +102,25 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
     try {
       console.log('🧪 Starting real GP51 connection test...');
       
-      const { data, error } = await supabase.functions.invoke('settings-management', {
+      // First save credentials temporarily for testing
+      const { data: saveData, error: saveError } = await supabase.functions.invoke('settings-management', {
         body: { 
           action: 'save-gp51-credentials',
           username: username.trim(),
           password: password.trim(),
           apiUrl: apiUrl?.trim() || undefined,
-          testOnly: true
+          testOnly: false // Save for testing
         }
+      });
+      
+      if (saveError || !saveData.success) {
+        console.error('❌ Failed to save credentials for testing:', saveError || saveData);
+        throw new Error(saveData?.details || saveError?.message || 'Failed to save credentials');
+      }
+
+      // Now test the real GP51 API
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: { action: 'test_gp51_api' }
       });
       
       if (error) {
@@ -128,12 +139,12 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
         console.log('✅ GP51 connection test successful');
         setValidationResult({
           success: true,
-          message: 'GP51 API connection test successful! Ready to save credentials.'
+          message: `GP51 API connection successful! Found ${data.deviceCount || 0} devices.`
         });
         
         toast({
           title: "Connection Test Successful",
-          description: "GP51 API connection is working properly",
+          description: `Connected to GP51 with ${data.deviceCount || 0} devices`,
         });
       } else {
         console.error('❌ GP51 connection test failed:', data);
@@ -165,7 +176,7 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
           details: error instanceof Error ? error.message : 'An unexpected error occurred during connection testing',
           suggestions: [
             'Check your internet connection',
-            'Verify GP51 credentials',
+            'Verify GP51 credentials are correct',
             'Try again in a few moments',
             'Contact support if the issue persists'
           ],
@@ -259,12 +270,12 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
   };
 
   const getConnectionStatusBadge = () => {
-    // Show loading state during session restoration
-    if (sessionInfo.isLoading || coordinatedStatus?.currentOperation === 'loading') {
+    // Show loading state during session restoration or testing
+    if (sessionInfo.isLoading || coordinatedStatus?.currentOperation === 'loading' || isTestingConnection) {
       return (
         <Badge className="bg-blue-100 text-blue-800">
           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-          Loading...
+          {isTestingConnection ? 'Testing...' : 'Loading...'}
         </Badge>
       );
     }
@@ -287,20 +298,6 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
           API Connected
         </Badge>
       );
-    } else if (coordinatedStatus?.errorSource === 'monitor') {
-      return (
-        <Badge variant="secondary">
-          <AlertCircle className="h-3 w-3 mr-1" />
-          Monitor Warning
-        </Badge>
-      );
-    } else if (coordinatedStatus?.errorMessage || sessionInfo.error) {
-      return (
-        <Badge variant="destructive">
-          <AlertCircle className="h-3 w-3 mr-1" />
-          Connection Issues
-        </Badge>
-      );
     } else if (validationResult?.success) {
       return (
         <Badge className="bg-green-100 text-green-800">
@@ -308,11 +305,11 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
           Test Successful
         </Badge>
       );
-    } else if (validationResult?.error) {
+    } else if (validationResult?.error || coordinatedStatus?.errorMessage || sessionInfo.error) {
       return (
         <Badge variant="destructive">
           <AlertCircle className="h-3 w-3 mr-1" />
-          Test Failed
+          {validationResult?.error ? 'Test Failed' : 'Connection Issues'}
         </Badge>
       );
     } else {
@@ -502,3 +499,5 @@ export const GP51CredentialsForm: React.FC<GP51CredentialsFormProps> = ({
     </Card>
   );
 };
+
+export default GP51CredentialsForm;

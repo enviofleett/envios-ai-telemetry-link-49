@@ -14,7 +14,7 @@ export const useGP51Connection = () => {
       setIsLoading(true);
       console.log('🧪 Testing real GP51 API connectivity...');
 
-      // First test the real GP51 API
+      // First test the real GP51 API using proper format
       const { data, error } = await supabase.functions.invoke('gp51-service-management', {
         body: { action: 'test_gp51_api' }
       });
