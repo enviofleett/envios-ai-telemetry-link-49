@@ -1,13 +1,35 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
+// Define the type for the data as it comes directly from Supabase for the 'vehicles' table.
+// This is important because 'last_position' is a JSONB column.
+interface SupabaseVehicleData {
+  id: string;
+  device_id: string;
+  device_name: string;
+  status: string; // Assuming status comes directly as a string or needs to be determined
+  is_active: boolean;
+  // Supabase JSONB column will be typed as 'any' or 'Json' by default.
+  // We'll explicitly type it as the expected raw JSON structure.
+  last_position: {
+    lat: number;
+    lon: number;
+    speed: number;
+    updatetime: string;
+  } | null; // It can also be null if there's no position data
+  // Add any other columns you are selecting from the 'vehicles' table here
+  // For example:
+  // created_at: string;
+  // user_id: string;
+}
+
 export interface SimpleVehicle {
   id: string;
   device_id: string;
   device_name: string;
   status: string;
   is_active: boolean;
-  last_position?: {
+  last_position?: { // This is now optional as per your original interface
     lat: number;
     lon: number;
     speed: number;
@@ -22,10 +44,12 @@ export interface VehicleMetrics {
   offline: number;
 }
 
-interface VehiclePositionData {
+// This interface describes the *expected* structure of the JSON data inside last_position,
+// as it comes from the database, before any potential transformation.
+interface RawVehiclePositionData {
   lat: number;
   lon: number;
-  speed?: number;
+  speed?: number; // Speed might be optional in the raw data
   updatetime: string;
 }
 
@@ -46,7 +70,7 @@ class SimplifiedVehicleService {
 
   async getVehicles(): Promise<{ vehicles: SimpleVehicle[]; loading: boolean; error: string | null }> {
     const now = Date.now();
-    
+
     // Return cached data if recent
     if (this.vehicles.length > 0 && (now - this.lastFetch) < this.CACHE_DURATION) {
       return { vehicles: this.vehicles, loading: false, error: null };
@@ -62,12 +86,13 @@ class SimplifiedVehicleService {
       this.error = null;
 
       console.log('🚗 Fetching vehicles from database...');
-      
+
+      // Explicitly type the data returned by Supabase
       const { data: vehicles, error } = await supabase
         .from('vehicles')
         .select('*')
         .eq('is_active', true)
-        .order('device_name');
+        .order('device_name') as { data: SupabaseVehicleData[] | null; error: any }; // Cast the entire result
 
       if (error) {
         throw new Error(error.message);
@@ -77,9 +102,12 @@ class SimplifiedVehicleService {
         id: vehicle.id,
         device_id: vehicle.device_id,
         device_name: vehicle.device_name,
-        status: this.determineStatus(vehicle),
+        // The 'status' field in your SupabaseVehicleData might differ from your SimpleVehicle status.
+        // Assuming 'determineStatus' handles the transformation from raw vehicle data.
+        status: this.determineStatus(vehicle), // vehicle as SupabaseVehicleData to ensure type safety
         is_active: vehicle.is_active,
-        last_position: this.parsePosition(vehicle.last_position)
+        // Cast vehicle.last_position to RawVehiclePositionData | null
+        last_position: this.parsePosition(vehicle.last_position as RawVehiclePositionData | null)
       }));
 
       this.lastFetch = now;
@@ -96,28 +124,36 @@ class SimplifiedVehicleService {
     }
   }
 
-  private parsePosition(position: any): SimpleVehicle['last_position'] {
-    if (!position || typeof position !== 'object') {
+  // Renamed 'position' parameter to 'rawData' to make it clear it's the raw JSON data
+  private parsePosition(rawData: RawVehiclePositionData | null): SimpleVehicle['last_position'] {
+    // Check if rawData is null, undefined, or not an object
+    if (!rawData || typeof rawData !== 'object') {
       return undefined;
     }
 
-    const positionData = position as VehiclePositionData;
-    
-    if (!positionData.lat || !positionData.lon || !positionData.updatetime) {
+    // Now, we are confident `rawData` is an object, but we still need to validate its contents
+    // No explicit cast needed here if rawData is already typed as RawVehiclePositionData
+    // const positionData = rawData; // No need for this line
+
+    // Validate essential properties
+    if (!rawData.lat || !rawData.lon || !rawData.updatetime) {
+      console.warn('Invalid position data received, missing lat, lon, or updatetime:', rawData);
       return undefined;
     }
 
     return {
-      lat: Number(positionData.lat),
-      lon: Number(positionData.lon),
-      speed: Number(positionData.speed || 0),
-      updatetime: positionData.updatetime
+      lat: Number(rawData.lat),
+      lon: Number(rawData.lon),
+      speed: Number(rawData.speed || 0), // Default to 0 if speed is missing
+      updatetime: rawData.updatetime
     };
   }
 
-  private determineStatus(vehicle: any): string {
-    const position = this.parsePosition(vehicle.last_position);
-    
+  // Ensure `determineStatus` receives a type that includes `last_position` as Supabase provides it.
+  private determineStatus(vehicle: SupabaseVehicleData): string {
+    // Pass the raw last_position data to parsePosition
+    const position = this.parsePosition(vehicle.last_position as RawVehiclePositionData | null);
+
     if (!position?.updatetime) {
       return 'offline';
     }
