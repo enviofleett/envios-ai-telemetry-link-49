@@ -54,7 +54,7 @@ const isValidUrl = (url: string): boolean => {
   }
 };
 
-export const useEnhancedBrandingSettings = () => {
+export const useEnhancedBrandingSettings = (userId?: string) => {
   const [settings, setSettings] = useState<EnhancedBrandingSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -63,7 +63,7 @@ export const useEnhancedBrandingSettings = () => {
 
   useEffect(() => {
     fetchBrandingSettings();
-  }, []);
+  }, [userId]);
 
   const fetchBrandingSettings = async () => {
     try {
@@ -74,11 +74,13 @@ export const useEnhancedBrandingSettings = () => {
         return;
       }
 
-      // Remove the is_branding_active filter to load all branding data
+      // Use provided userId or fall back to current user's ID
+      const targetUserId = userId || user.id;
+
       const { data, error } = await supabase
         .from('branding_settings')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', targetUserId)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
@@ -109,6 +111,9 @@ export const useEnhancedBrandingSettings = () => {
           is_branding_active: data.is_branding_active ?? true,
           auth_page_branding: data.auth_page_branding ?? true,
         });
+      } else {
+        // If no data found, use default settings
+        setSettings(defaultSettings);
       }
     } catch (error) {
       console.error('Error in fetchBrandingSettings:', error);
@@ -177,13 +182,16 @@ export const useEnhancedBrandingSettings = () => {
         return;
       }
 
+      // Use provided userId or fall back to current user's ID
+      const targetUserId = userId || user.id;
+
       // Update local state immediately for better UX
       const updatedSettings = { ...settings, [key]: value };
       setSettings(updatedSettings);
 
       // Prepare database payload with correct field mapping
       const dbPayload: any = {
-        user_id: user.id,
+        user_id: targetUserId,
         company_name: updatedSettings.company_name,
         tagline: updatedSettings.tagline,
         subtitle: updatedSettings.subtitle,
@@ -246,6 +254,6 @@ export const useEnhancedBrandingSettings = () => {
     isLoading,
     isSaving,
     updateSetting,
-    refreshBranding
+    refreshBranding: fetchBrandingSettings
   };
 };
