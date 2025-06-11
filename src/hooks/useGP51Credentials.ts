@@ -168,9 +168,9 @@ export const useGP51Credentials = () => {
       } catch (fetchError) {
         console.error('❌ Request execution failed:', {
           error: fetchError,
-          name: fetchError?.name,
-          message: fetchError?.message,
-          stack: fetchError?.stack?.substring(0, 200)
+          name: fetchError instanceof Error ? fetchError.name : 'unknown',
+          message: fetchError instanceof Error ? fetchError.message : String(fetchError),
+          stack: fetchError instanceof Error ? fetchError.stack?.substring(0, 200) : 'no stack'
         });
         
         // Re-throw with better error context if it's our own error
@@ -235,8 +235,8 @@ export const useGP51Credentials = () => {
         } catch (verificationError) {
           console.error('❌ Auto-verification exception:', {
             error: verificationError,
-            name: verificationError?.name,
-            message: verificationError?.message
+            name: verificationError instanceof Error ? verificationError.name : 'unknown',
+            message: verificationError instanceof Error ? verificationError.message : String(verificationError)
           });
           
           // Still report success but with warning
@@ -271,15 +271,22 @@ export const useGP51Credentials = () => {
       }
     },
     onError: (error: unknown) => {
+      // Safe error handling for unknown type
+      const safeError = error instanceof Error ? error : { 
+        name: 'UnknownError', 
+        message: String(error), 
+        stack: undefined 
+      };
+      
       console.error('❌ GP51 credentials save mutation failed:', {
-        error: error,
-        name: error?.name,
-        message: error?.message,
-        stack: error?.stack?.substring(0, 200)
+        error: safeError,
+        name: safeError.name,
+        message: safeError.message,
+        stack: safeError.stack?.substring(0, 200)
       });
       
-      // Properly handle the error type
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      // Properly handle the error message
+      const errorMessage = safeError.message;
       
       // Notify status coordinator of save error
       gp51StatusCoordinator.reportSaveError(errorMessage);
