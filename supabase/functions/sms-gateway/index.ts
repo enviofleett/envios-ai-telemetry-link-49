@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
@@ -214,7 +213,7 @@ serve(async (req) => {
           throw new Error('Recipient and message are required');
         }
 
-        // Get user's SMS configuration with CORRECTED field names
+        // Get user's SMS configuration with CORRECT field names
         const { data: smsConfig, error: configError } = await supabase
           .from('sms_configurations')
           .select('*')
@@ -229,15 +228,15 @@ serve(async (req) => {
         // Decrypt the password
         let decryptedPassword: string;
         try {
-          decryptedPassword = await CredentialEncryption.decrypt(smsConfig.api_password_encrypted);
+          decryptedPassword = await CredentialEncryption.decrypt(smsConfig.password_encrypted);
         } catch (error) {
           console.error('Failed to decrypt SMS password:', error);
           throw new Error('Failed to decrypt SMS credentials');
         }
 
         const config: MySMSConfig = {
-          username: smsConfig.api_username, // FIXED: use api_username from schema
-          password: decryptedPassword, // FIXED: decrypt the password
+          username: smsConfig.username, // Using correct field name
+          password: decryptedPassword, // Using decrypted password
           sender: smsConfig.sender_id,
           route: parseInt(smsConfig.route)
         };

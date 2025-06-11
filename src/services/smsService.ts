@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface SMSConfig {
@@ -229,8 +228,8 @@ class SMSService {
         .upsert({
           user_id: (await supabase.auth.getUser()).data.user?.id,
           provider_name: 'mysms',
-          api_username: config.username, // Fixed: use api_username to match schema
-          api_password_encrypted: encryptedPassword, // Fixed: use api_password_encrypted to match schema
+          username: config.username, // Using correct field name
+          password_encrypted: encryptedPassword, // Using correct field name
           sender_id: config.sender,
           route: config.route.toString(),
           is_active: true,
@@ -267,9 +266,9 @@ class SMSService {
     }
 
     // Decrypt password if configuration exists
-    if (data && data.api_password_encrypted) {
+    if (data && data.password_encrypted) {
       try {
-        const decryptedPassword = await CredentialEncryption.decrypt(data.api_password_encrypted);
+        const decryptedPassword = await CredentialEncryption.decrypt(data.password_encrypted);
         return {
           ...data,
           password_decrypted: decryptedPassword // Provide decrypted password for internal use
@@ -391,3 +390,5 @@ class SMSService {
 }
 
 export const smsService = new SMSService();
+
+}

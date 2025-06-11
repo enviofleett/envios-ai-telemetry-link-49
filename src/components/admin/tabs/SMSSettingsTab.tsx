@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,7 +33,7 @@ export default function SMSSettingsTab() {
       const savedConfig = await smsService.getSMSConfiguration();
       if (savedConfig) {
         setConfig({
-          username: savedConfig.api_username, // Use correct field name
+          username: savedConfig.username, // Using correct field name
           password: '', // Don't show saved password for security
           sender: savedConfig.sender_id,
           route: parseInt(savedConfig.route)
