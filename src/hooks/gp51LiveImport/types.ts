@@ -16,6 +16,7 @@ export interface GP51User {
   deviceids: string[];
   email?: string;
   showname?: string;
+  phone?: string; // Added missing field
 }
 
 export interface GP51Device {
@@ -24,6 +25,7 @@ export interface GP51Device {
   devicetype: string;
   isfree: boolean;
   simNumber?: string;
+  simnum?: string; // Added missing field (alternative naming)
   activated?: boolean;
 }
 
@@ -62,6 +64,22 @@ export interface GP51LiveImportJob {
   successfulItems: number;
   totalItems: number;
   errors?: string[];
+  
+  // Added missing fields
+  failedItems: number;
+  progress: number;
+  results: {
+    users: {
+      created: number;
+      updated: number;
+      failed: number;
+    };
+    devices: {
+      created: number;
+      updated: number;
+      failed: number;
+    };
+  };
 }
 
 export interface GP51LiveImportConfig {
