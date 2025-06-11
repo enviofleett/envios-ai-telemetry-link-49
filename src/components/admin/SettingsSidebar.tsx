@@ -1,29 +1,22 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
-  Package, 
-  Upload, 
-  Building, 
-  CreditCard, 
+  Building2, 
+  Palette, 
+  DollarSign, 
   Users, 
-  Bell, 
-  Plug, 
-  Activity, 
-  Map, 
-  BarChart3, 
-  Shield, 
+  FileText, 
   Mail, 
-  CheckSquare,
+  MessageSquare,
+  Database,
+  Bell,
   Settings,
-  MailOpen,
-  Wrench,
-  FileText,
-  Inbox,
-  Palette,
-  DollarSign
+  Shield,
+  MapPin,
+  Zap,
+  BarChart3,
+  Package
 } from 'lucide-react';
 
 interface SettingsSidebarProps {
@@ -31,107 +24,95 @@ interface SettingsSidebarProps {
   onTabChange: (tab: string) => void;
 }
 
-const settingsCategories = [
+const sidebarItems = [
   {
-    title: "System",
+    category: 'Company',
     items: [
-      { id: "packages", label: "Packages", icon: Package },
-      { id: "csv-import", label: "CSV Import", icon: Upload },
-      { id: "health", label: "System Health", icon: Activity },
+      { id: 'company', label: 'Company Info', icon: Building2 },
+      { id: 'branding', label: 'Branding', icon: Palette },
+      { id: 'currency', label: 'Currency', icon: DollarSign },
     ]
   },
   {
-    title: "Company & Users",
+    category: 'User Management',
     items: [
-      { id: "company", label: "Company Settings", icon: Building },
-      { id: "users", label: "User Management", icon: Users },
-      { id: "billing", label: "Billing", icon: CreditCard },
+      { id: 'users', label: 'Users', icon: Users },
+      { id: 'billing', label: 'Billing', icon: FileText },
     ]
   },
   {
-    title: "Branding & Currency",
+    category: 'Communication',
     items: [
-      { id: "branding", label: "Branding", icon: Palette },
-      { id: "currency", label: "Currency", icon: DollarSign },
+      { id: 'email-templates', label: 'Email Templates', icon: Mail },
+      { id: 'email-queue', label: 'Email Queue', icon: Mail },
+      { id: 'sms-settings', label: 'SMS Gateway', icon: MessageSquare },
+      { id: 'sms-logs', label: 'SMS Logs', icon: MessageSquare },
     ]
   },
   {
-    title: "Services & Workshops",
+    category: 'System',
     items: [
-      { id: "workshops", label: "Workshop Management", icon: Wrench },
+      { id: 'health', label: 'System Health', icon: Database },
+      { id: 'notifications', label: 'Notifications', icon: Bell },
+      { id: 'system', label: 'System Settings', icon: Settings },
+      { id: 'security', label: 'Security', icon: Shield },
     ]
   },
   {
-    title: "Integrations",
+    category: 'Integration',
     items: [
-      { id: "maps", label: "Maps & Geocoding", icon: Map },
-      { id: "gp51", label: "GP51 Integration", icon: Plug },
+      { id: 'gp51', label: 'GP51 Integration', icon: MapPin },
+      { id: 'geofencing', label: 'Geofencing', icon: MapPin },
     ]
   },
   {
-    title: "Email Management",
+    category: 'Analytics',
     items: [
-      { id: "smtp", label: "SMTP Configuration", icon: Mail },
-      { id: "email-templates", label: "Email Templates", icon: FileText },
-      { id: "email-queue", label: "Email Queue", icon: Inbox },
-      { id: "smtp-guide", label: "SMTP Setup Guide", icon: Settings },
-    ]
-  },
-  {
-    title: "Analytics & Monitoring",
-    items: [
-      { id: "analytics", label: "Analytics", icon: BarChart3 },
-      { id: "geofencing", label: "Geofencing", icon: Shield },
-      { id: "gp51-validation", label: "GP51 Validation", icon: CheckSquare },
-    ]
-  },
-  {
-    title: "Communication",
-    items: [
-      { id: "notifications", label: "Notifications", icon: Bell },
-      { id: "email-notifications", label: "Email Preferences", icon: MailOpen },
+      { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+      { id: 'packages', label: 'Packages', icon: Package },
     ]
   }
 ];
 
-export const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeTab, onTabChange }) => {
+const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeTab, onTabChange }) => {
   return (
-    <div className="w-64 border-r bg-muted/10">
-      <div className="p-4 border-b">
-        <h2 className="text-lg font-semibold">Settings</h2>
-        <p className="text-sm text-muted-foreground">System Administration</p>
-      </div>
-      
-      <ScrollArea className="flex-1 px-3 py-4">
-        <div className="space-y-6">
-          {settingsCategories.map((category) => (
-            <div key={category.title} className="space-y-2">
-              <h3 className="px-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                {category.title}
+    <div className="w-64 bg-white border-r border-gray-200 h-full overflow-y-auto">
+      <div className="p-4">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Settings</h2>
+        
+        <nav className="space-y-6">
+          {sidebarItems.map((category) => (
+            <div key={category.category}>
+              <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                {category.category}
               </h3>
-              <div className="space-y-1">
+              <ul className="space-y-1">
                 {category.items.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <Button
-                      key={item.id}
-                      variant={activeTab === item.id ? "secondary" : "ghost"}
-                      className={cn(
-                        "w-full justify-start h-9 px-2",
-                        activeTab === item.id && "bg-secondary/80 font-medium"
-                      )}
-                      onClick={() => onTabChange(item.id)}
-                    >
-                      <Icon className="h-4 w-4 mr-2" />
-                      {item.label}
-                    </Button>
+                    <li key={item.id}>
+                      <button
+                        onClick={() => onTabChange(item.id)}
+                        className={cn(
+                          "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                          activeTab === item.id
+                            ? "bg-blue-50 text-blue-700 border-r-2 border-blue-700"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        )}
+                      >
+                        <Icon className="h-4 w-4 mr-3" />
+                        {item.label}
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
             </div>
           ))}
-        </div>
-      </ScrollArea>
+        </nav>
+      </div>
     </div>
   );
 };
+
+export default SettingsSidebar;

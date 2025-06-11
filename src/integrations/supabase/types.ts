@@ -4291,6 +4291,177 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_configurations: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          is_default: boolean
+          password_encrypted: string
+          provider_name: string
+          route: string
+          sender_id: string
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          password_encrypted: string
+          provider_name?: string
+          route?: string
+          sender_id: string
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          password_encrypted?: string
+          provider_name?: string
+          route?: string
+          sender_id?: string
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      sms_logs: {
+        Row: {
+          created_at: string
+          delivered_at: string | null
+          error_message: string | null
+          event_type: string
+          id: string
+          max_retries: number
+          message: string
+          provider_response: Json | null
+          recipient_phone: string
+          retry_count: number
+          scheduled_for: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          max_retries?: number
+          message: string
+          provider_response?: Json | null
+          recipient_phone: string
+          retry_count?: number
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          delivered_at?: string | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          max_retries?: number
+          message?: string
+          provider_response?: Json | null
+          recipient_phone?: string
+          retry_count?: number
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      sms_notification_preferences: {
+        Row: {
+          created_at: string
+          custom_notifications: boolean
+          id: string
+          maintenance_reminders: boolean
+          otp_notifications: boolean
+          registration_notifications: boolean
+          trip_updates: boolean
+          updated_at: string
+          user_id: string
+          vehicle_alerts: boolean
+        }
+        Insert: {
+          created_at?: string
+          custom_notifications?: boolean
+          id?: string
+          maintenance_reminders?: boolean
+          otp_notifications?: boolean
+          registration_notifications?: boolean
+          trip_updates?: boolean
+          updated_at?: string
+          user_id: string
+          vehicle_alerts?: boolean
+        }
+        Update: {
+          created_at?: string
+          custom_notifications?: boolean
+          id?: string
+          maintenance_reminders?: boolean
+          otp_notifications?: boolean
+          registration_notifications?: boolean
+          trip_updates?: boolean
+          updated_at?: string
+          user_id?: string
+          vehicle_alerts?: boolean
+        }
+        Relationships: []
+      }
+      sms_templates: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          message_template: string
+          template_name: string
+          template_type: string
+          updated_at: string
+          user_id: string
+          variables: Json | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template: string
+          template_name: string
+          template_type: string
+          updated_at?: string
+          user_id: string
+          variables?: Json | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          message_template?: string
+          template_name?: string
+          template_type?: string
+          updated_at?: string
+          user_id?: string
+          variables?: Json | null
+        }
+        Relationships: []
+      }
       smtp_configurations: {
         Row: {
           created_at: string
@@ -4453,6 +4624,11 @@ export type Database = {
           id: string
           maintenance_reminders: boolean
           marketing_emails: boolean
+          sms_maintenance_alerts: boolean
+          sms_notifications: boolean
+          sms_otp_verification: boolean
+          sms_trip_updates: boolean
+          sms_violation_alerts: boolean
           system_updates: boolean
           updated_at: string
           user_id: string
@@ -4465,6 +4641,11 @@ export type Database = {
           id?: string
           maintenance_reminders?: boolean
           marketing_emails?: boolean
+          sms_maintenance_alerts?: boolean
+          sms_notifications?: boolean
+          sms_otp_verification?: boolean
+          sms_trip_updates?: boolean
+          sms_violation_alerts?: boolean
           system_updates?: boolean
           updated_at?: string
           user_id: string
@@ -4477,6 +4658,11 @@ export type Database = {
           id?: string
           maintenance_reminders?: boolean
           marketing_emails?: boolean
+          sms_maintenance_alerts?: boolean
+          sms_notifications?: boolean
+          sms_otp_verification?: boolean
+          sms_trip_updates?: boolean
+          sms_violation_alerts?: boolean
           system_updates?: boolean
           updated_at?: string
           user_id?: string
