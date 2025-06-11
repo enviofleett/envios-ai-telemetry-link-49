@@ -1,13 +1,13 @@
 
-export async function createHash(text: string): Promise<string> {
+import { createHash } from "https://deno.land/std@0.208.0/hash/mod.ts";
+
+export function createHash(text: string): string {
+  console.log(`Hashing password of length: ${text.length}`);
+  
   try {
-    console.log(`Hashing password of length: ${text.length}`);
-    
-    // Use Node.js compatible crypto for Deno environment
-    const { createHash } = await import('https://deno.land/std@0.208.0/node/crypto.ts');
     const hash = createHash('md5');
     hash.update(text);
-    const md5Hash = hash.digest('hex');
+    const md5Hash = hash.toString();
     
     console.log('MD5 hash generated successfully');
     return md5Hash;

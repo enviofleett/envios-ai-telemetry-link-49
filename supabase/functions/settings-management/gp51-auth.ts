@@ -21,7 +21,7 @@ export async function authenticateWithGP51({
     console.log('🔑 Hashing password for GP51 authentication...');
     let hashedPassword;
     try {
-      hashedPassword = await createHash(password);
+      hashedPassword = createHash(password);
       console.log('✅ Password hashed successfully for user:', trimmedUsername);
     } catch (hashError) {
       console.error('❌ Password hashing failed:', hashError);

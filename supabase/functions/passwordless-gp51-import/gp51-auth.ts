@@ -1,5 +1,8 @@
+
+import { createHash } from "https://deno.land/std@0.208.0/hash/mod.ts";
+
 export async function authenticateGP51(credentials: { username: string; password: string }, apiUrl?: string): Promise<string> {
-  const md5Hash = await hashMD5(credentials.password);
+  const md5Hash = hashMD5(credentials.password);
   
   const authData = {
     action: 'login',
@@ -55,37 +58,19 @@ export async function authenticateGP51(credentials: { username: string; password
   throw new Error(`GP51 admin authentication failed: ${errorMessage}`);
 }
 
-export async function hashMD5(text: string): Promise<string> {
+export function hashMD5(text: string): string {
+  console.log(`Hashing password of length: ${text.length}`);
+  
   try {
-    console.log(`Hashing password of length: ${text.length}`);
-    
-    // Proper MD5 implementation using Web Crypto API
-    const encoder = new TextEncoder();
-    const data = encoder.encode(text);
-    
-    // Use Web Crypto API for proper MD5 hashing
-    const hashBuffer = await crypto.subtle.digest('MD5', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const md5Hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    const hash = createHash('md5');
+    hash.update(text);
+    const md5Hash = hash.toString();
     
     console.log('MD5 hash generated successfully');
     return md5Hash;
     
   } catch (error) {
     console.error('MD5 hashing failed:', error);
-    
-    // Fallback MD5 implementation for environments where Web Crypto MD5 isn't available
-    return await fallbackMD5Hash(text);
+    throw new Error('Password hashing failed');
   }
-}
-
-async function fallbackMD5Hash(text: string): Promise<string> {
-  // Import MD5 from a reliable source for Deno environment
-  const { createHash } = await import('https://deno.land/std@0.168.0/node/crypto.ts');
-  const hash = createHash('md5');
-  hash.update(text);
-  const md5Hash = hash.digest('hex');
-  
-  console.log('Fallback MD5 hash generated successfully');
-  return md5Hash;
 }
