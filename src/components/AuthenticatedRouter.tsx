@@ -9,6 +9,8 @@ interface AuthenticatedRouterProps {
   requiresGP51?: boolean;
 }
 
+const ADMIN_EMAIL = 'chudesyl@gmail.com';
+
 const AuthenticatedRouter: React.FC<AuthenticatedRouterProps> = ({ 
   children, 
   requiresGP51 = true 
@@ -38,6 +40,12 @@ const AuthenticatedRouter: React.FC<AuthenticatedRouterProps> = ({
   // Redirect to auth if user is not logged in
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // EMERGENCY ADMIN BYPASS - Skip GP51 requirements for admin
+  if (user.email === ADMIN_EMAIL) {
+    console.log('🚨 ADMIN BYPASS: Skipping GP51 requirements for admin user');
+    return <>{children}</>;
   }
 
   // If GP51 is required but not configured, redirect to setup

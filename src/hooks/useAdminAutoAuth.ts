@@ -36,6 +36,7 @@ export const useAdminAutoAuth = () => {
 
     const performAdminAutoAuth = async () => {
       console.log('🔑 Admin user detected, starting auto-authentication...');
+      console.log('🚨 ADMIN BYPASS: Auto-auth process initiated but bypass is active');
       
       setStatus(prev => ({
         ...prev,
@@ -45,19 +46,27 @@ export const useAdminAutoAuth = () => {
       }));
 
       try {
+        console.log('🔧 Attempting settings-management function call...');
+        const startTime = Date.now();
+        
         const { data, error } = await supabase.functions.invoke('settings-management', {
           body: { action: 'admin-auto-auth' }
         });
 
+        const duration = Date.now() - startTime;
+        console.log(`⏱️ Edge function call took ${duration}ms`);
+
         if (error) {
+          console.error('❌ Edge function error:', error);
           throw new Error(error.message);
         }
 
-        if (!data.success) {
-          throw new Error(data.error || 'Admin auto-authentication failed');
+        if (!data?.success) {
+          console.error('❌ Edge function returned failure:', data);
+          throw new Error(data?.error || 'Admin auto-authentication failed');
         }
 
-        console.log('✅ Admin auto-authentication successful');
+        console.log('✅ Admin auto-authentication successful:', data);
         
         setStatus(prev => ({
           ...prev,
@@ -73,6 +82,7 @@ export const useAdminAutoAuth = () => {
 
       } catch (error) {
         console.error('❌ Admin auto-authentication failed:', error);
+        console.log('🚨 ADMIN BYPASS: Auto-auth failed but bypass ensures access');
         
         const errorMessage = error instanceof Error ? error.message : 'Auto-authentication failed';
         
@@ -83,12 +93,17 @@ export const useAdminAutoAuth = () => {
           error: errorMessage
         }));
 
-        // Don't show error toast for admin - they can fall back to manual setup
-        console.log('Admin can fall back to manual GP51 setup if needed');
+        // Show informational toast instead of error since bypass is active
+        toast({
+          title: "Admin Bypass Active",
+          description: "Auto-authentication failed but admin access granted via bypass",
+        });
       }
     };
 
-    performAdminAutoAuth();
+    // Add slight delay to allow other systems to initialize
+    const timeoutId = setTimeout(performAdminAutoAuth, 1000);
+    return () => clearTimeout(timeoutId);
   }, [user, toast]);
 
   return status;

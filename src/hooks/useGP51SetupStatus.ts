@@ -10,6 +10,8 @@ interface GP51SetupStatus {
   isAdminAutoAuth?: boolean;
 }
 
+const ADMIN_EMAIL = 'chudesyl@gmail.com';
+
 export const useGP51SetupStatus = (): GP51SetupStatus => {
   const adminAutoAuth = useAdminAutoAuth();
   const [status, setStatus] = useState<GP51SetupStatus>({
@@ -31,6 +33,18 @@ export const useGP51SetupStatus = (): GP51SetupStatus => {
             hasGP51Configured: false,
             isLoading: false,
             error: 'Authentication required'
+          });
+          return;
+        }
+
+        // EMERGENCY ADMIN BYPASS - Grant immediate access to admin
+        if (user.email === ADMIN_EMAIL) {
+          console.log('🚨 ADMIN BYPASS: Granting immediate GP51 access to admin user');
+          setStatus({
+            hasGP51Configured: true,
+            isLoading: false,
+            error: null,
+            isAdminAutoAuth: true
           });
           return;
         }

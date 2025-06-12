@@ -2,11 +2,17 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Car, Activity, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Car, Activity, AlertTriangle, Crown } from 'lucide-react';
 import { useSimpleVehicleData } from '@/hooks/useSimpleVehicleData';
+import { useAuth } from '@/contexts/AuthContext';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+
+const ADMIN_EMAIL = 'chudesyl@gmail.com';
 
 const SimpleDashboardContent: React.FC = () => {
+  const { user } = useAuth();
   const { vehicles, metrics, loading, error, forceRefresh } = useSimpleVehicleData();
+  const isAdmin = user?.email === ADMIN_EMAIL;
 
   if (error) {
     return (
@@ -53,6 +59,17 @@ const SimpleDashboardContent: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Admin Bypass Status Alert */}
+      {isAdmin && (
+        <Alert className="border-amber-200 bg-amber-50">
+          <Crown className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800">
+            <strong>Admin Bypass Active:</strong> You have been granted emergency access to the dashboard. 
+            GP51 auto-authentication is running in the background.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
