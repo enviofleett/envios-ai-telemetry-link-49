@@ -9,3 +9,14 @@ export interface ReportQuery {
   alertTypes?: string[];
   limit?: number;
 }
+
+export interface VehicleUsageStats {
+  totalMileage: number;
+  fuelEfficiency: number;
+  averageSpeed: number;
+  utilizationRate: number;
+  maintenanceScore: number;
+  totalTrips: number;
+  idleTime: number;
+  totalFuelConsumed: number;
+}

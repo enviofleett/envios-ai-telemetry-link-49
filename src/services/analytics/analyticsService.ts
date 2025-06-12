@@ -1,3 +1,4 @@
+
 import { 
   unifiedVehicleDataService, 
   type VehicleData 
@@ -227,13 +228,17 @@ export class AnalyticsService {
   }
 
   private determineVehicleStatus(lastPosition: any): 'online' | 'offline' | 'moving' | 'idle' {
-    if (!lastPosition?.updatetime) return 'offline';
+    if (!lastPosition) return 'offline';
     
-    const lastUpdate = new Date(lastPosition.updatetime);
+    // Safely handle the JSON field
+    const positionData = typeof lastPosition === 'string' ? JSON.parse(lastPosition) : lastPosition;
+    if (!positionData?.updatetime) return 'offline';
+    
+    const lastUpdate = new Date(positionData.updatetime);
     const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
     
     if (minutesSinceUpdate <= 5) {
-      return lastPosition.speed > 0 ? 'moving' : 'online';
+      return positionData.speed > 0 ? 'moving' : 'online';
     } else if (minutesSinceUpdate <= 30) {
       return 'idle';
     }
@@ -241,15 +246,19 @@ export class AnalyticsService {
   }
 
   private parseLastPosition(lastPosition: any): VehicleData['lastPosition'] {
-    if (!lastPosition || typeof lastPosition !== 'object') return undefined;
+    if (!lastPosition) return undefined;
+    
+    // Safely handle the JSON field - it could be a string or an object
+    const positionData = typeof lastPosition === 'string' ? JSON.parse(lastPosition) : lastPosition;
+    if (typeof positionData !== 'object') return undefined;
     
     return {
-      lat: lastPosition.lat || 0,
-      lon: lastPosition.lon || 0,
-      speed: lastPosition.speed || 0,
-      course: lastPosition.course || 0,
-      updatetime: lastPosition.updatetime || '',
-      statusText: lastPosition.statusText || ''
+      lat: positionData.lat || 0,
+      lon: positionData.lon || positionData.lng || 0, // Handle both lon and lng
+      speed: positionData.speed || 0,
+      course: positionData.course || 0,
+      updatetime: positionData.updatetime || '',
+      statusText: positionData.statusText || ''
     };
   }
 

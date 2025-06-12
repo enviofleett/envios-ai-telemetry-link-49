@@ -1,6 +1,6 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { reportsApi } from '@/services/reportsApi';
+import type { VehicleUsageStats } from '@/types/reports';
 
 export class RealtimeReportsService {
   private reportSubscriptions = new Map<string, any>();
@@ -117,12 +117,16 @@ export class RealtimeReportsService {
   }
 
   private async getTripMetrics(vehicleIds?: string[]) {
-    const stats = await reportsApi.getVehicleUsageStats(vehicleIds);
+    const statsArray = await reportsApi.getVehicleUsageStats(vehicleIds);
+    
+    // Handle the case where getVehicleUsageStats returns an array
+    const firstStats = Array.isArray(statsArray) && statsArray.length > 0 ? statsArray[0] : null;
+    
     return {
       totalTrips: Math.floor(Math.random() * 500 + 100),
-      totalDistance: `${stats.totalMileage || 0} km`,
+      totalDistance: firstStats?.totalMileage ? `${firstStats.totalMileage} km` : '0 km',
       averageTripDuration: `${Math.floor(Math.random() * 120 + 30)} min`,
-      fuelEfficiency: `${stats.fuelEfficiency || 0} km/L`
+      fuelEfficiency: firstStats?.fuelEfficiency ? `${firstStats.fuelEfficiency} km/L` : '0 km/L'
     };
   }
 
