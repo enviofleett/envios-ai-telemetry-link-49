@@ -1,4 +1,12 @@
+
 import { supabase } from '@/integrations/supabase/client';
+
+export interface AuthResult {
+  success: boolean;
+  token?: string;
+  expiresAt?: Date;
+  error?: string;
+}
 
 export class GP51AuthService {
   private static readonly TOKEN_STORAGE_KEY = 'gp51_auth_token';
@@ -11,14 +19,57 @@ export class GP51AuthService {
     }
   }
 
-  public async authenticate(username: string, passwordPlain: string): Promise<{ token: string; expiresAt: Date } | null> {
-    // Simulate authentication and token retrieval
-    const token = this.generateMockToken();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // Expires in 24 hours
+  public async login(username: string, password: string): Promise<AuthResult> {
+    try {
+      const token = this.generateMockToken();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // Expires in 24 hours
 
-    this.saveToLocalStorage(token, username, expiresAt);
+      this.saveToLocalStorage(token, username, expiresAt);
 
-    return { token, expiresAt };
+      return { 
+        success: true, 
+        token, 
+        expiresAt 
+      };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Authentication failed' 
+      };
+    }
+  }
+
+  public async logout(): Promise<AuthResult> {
+    try {
+      this.clearAuthData();
+      return { success: true };
+    } catch (error) {
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Logout failed' 
+      };
+    }
+  }
+
+  public async getToken(): Promise<string | null> {
+    if (this.isTokenExpired()) {
+      return null;
+    }
+    return this.getStoredToken();
+  }
+
+  public async healthCheck(): Promise<boolean> {
+    const token = await this.getToken();
+    return token !== null;
+  }
+
+  public getAuthStatus() {
+    const credentials = this.getStoredCredentials();
+    return {
+      isAuthenticated: credentials !== null && !this.isTokenExpired(),
+      username: credentials?.username,
+      tokenExpiresAt: credentials?.expiresAt
+    };
   }
 
   private generateMockToken(): string {
@@ -64,3 +115,6 @@ export class GP51AuthService {
     return { token, username, expiresAt };
   }
 }
+
+// Export a singleton instance
+export const gps51AuthService = new GP51AuthService();

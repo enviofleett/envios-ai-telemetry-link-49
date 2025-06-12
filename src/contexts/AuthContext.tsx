@@ -9,6 +9,7 @@ interface AuthContextType {
   userRole: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: AuthError }>;
+  signUp: (email: string, password: string, name?: string, packageId?: string) => Promise<{ error?: AuthError }>;
   signOut: () => Promise<void>;
 }
 
@@ -18,6 +19,7 @@ const AuthContext = createContext<AuthContextType>({
   userRole: null,
   loading: true,
   signIn: async () => ({}),
+  signUp: async () => ({}),
   signOut: async () => {},
 });
 
@@ -101,6 +103,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signUp = async (email: string, password: string, name?: string, packageId?: string) => {
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name || '',
+            package_id: packageId || 'basic'
+          }
+        }
+      });
+      return { error: error || undefined };
+    } catch (error) {
+      return { error: error as AuthError };
+    }
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
   };
@@ -111,6 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     userRole,
     loading,
     signIn,
+    signUp,
     signOut,
   };
 
