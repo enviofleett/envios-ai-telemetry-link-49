@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import { useGP51Auth } from '@/hooks/useGP51Auth';
 import { gp51DataService, type LiveVehicleFilterConfig } from '@/services/gp51/GP51DataService';
+import { gp51VehiclePersistenceService, type VehiclePersistenceResult } from '@/services/gp51VehiclePersistenceService';
 import { enhancedVehicleDataService } from '@/services/enhancedVehicleDataService';
 import { useToast } from '@/hooks/use-toast';
 
@@ -41,8 +42,10 @@ interface ImportProgress {
   totalVehicles: number;
   processedVehicles: number;
   liveVehicles: number;
+  savedVehicles: number;
   errors: string[];
   logs: Array<{ timestamp: Date; level: 'info' | 'warn' | 'error'; message: string }>;
+  results: VehiclePersistenceResult[];
 }
 
 export const GP51LiveImportModal: React.FC = () => {
@@ -69,8 +72,10 @@ export const GP51LiveImportModal: React.FC = () => {
     totalVehicles: 0,
     processedVehicles: 0,
     liveVehicles: 0,
+    savedVehicles: 0,
     errors: [],
-    logs: []
+    logs: [],
+    results: []
   });
 
   const addLog = (level: 'info' | 'warn' | 'error', message: string) => {
@@ -102,13 +107,16 @@ export const GP51LiveImportModal: React.FC = () => {
       totalVehicles: 0,
       processedVehicles: 0,
       liveVehicles: 0,
+      savedVehicles: 0,
       errors: [],
-      logs: []
+      logs: [],
+      results: []
     });
 
     try {
       addLog('info', `Starting live vehicle import for account: ${username}`);
       addLog('info', `Live threshold: ${liveConfig.updateTimeThresholdMinutes} minutes`);
+      addLog('info', `Overwrite strategy: ${overwriteStrategy}`);
       
       // Phase 1: Fetch vehicle data
       updateProgress({
@@ -141,53 +149,72 @@ export const GP51LiveImportModal: React.FC = () => {
       updateProgress({
         liveVehicles: liveVehicles.length,
         progress: 60,
-        message: `Processing ${liveVehicles.length} live vehicles...`
+        message: `Saving ${liveVehicles.length} live vehicles to database...`
       });
 
-      // Phase 3: Process and save vehicles
-      updateProgress({ phase: 'processing' });
-      
-      let successCount = 0;
-      let errorCount = 0;
-
-      for (let i = 0; i < liveVehicles.length; i++) {
-        const vehicle = liveVehicles[i];
-        
-        try {
-          // Here we would integrate with your vehicle creation/update logic
-          addLog('info', `Processing vehicle: ${vehicle.deviceId} (${vehicle.deviceName || 'Unknown'})`);
-          
-          // Simulate processing time
-          await new Promise(resolve => setTimeout(resolve, 50));
-          
-          successCount++;
-          updateProgress({
-            processedVehicles: i + 1,
-            progress: 60 + ((i + 1) / liveVehicles.length) * 30
-          });
-        } catch (error) {
-          errorCount++;
-          const errorMsg = `Failed to process ${vehicle.deviceId}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          addLog('error', errorMsg);
-          updateProgress({
-            errors: [...importProgress.errors, errorMsg]
-          });
-        }
+      if (liveVehicles.length === 0) {
+        updateProgress({
+          phase: 'completed',
+          progress: 100,
+          message: 'No live vehicles found to import'
+        });
+        addLog('warn', 'No live vehicles found with current filter criteria');
+        toast({
+          title: "Import Completed",
+          description: "No live vehicles found to import",
+        });
+        return;
       }
 
-      // Phase 4: Complete
+      // Phase 3: Save vehicles to database
+      updateProgress({ 
+        phase: 'saving',
+        message: 'Saving vehicles to database...'
+      });
+
+      const persistenceResults = await gp51VehiclePersistenceService.saveVehiclesToSupabase(
+        liveVehicles,
+        { 
+          overwriteStrategy,
+          batchSize: 10
+        },
+        (processed, total, result) => {
+          updateProgress({
+            processedVehicles: processed,
+            progress: 60 + ((processed / total) * 35)
+          });
+
+          // Log individual vehicle processing
+          if (result.success) {
+            addLog('info', `${result.action === 'created' ? 'Created' : result.action === 'updated' ? 'Updated' : 'Skipped'} vehicle: ${result.deviceId}`);
+          } else {
+            addLog('error', `Failed to process ${result.deviceId}: ${result.error}`);
+          }
+        }
+      );
+
+      // Phase 4: Complete and summarize
+      const successCount = persistenceResults.filter(r => r.success).length;
+      const errorCount = persistenceResults.filter(r => !r.success).length;
+      const createdCount = persistenceResults.filter(r => r.action === 'created').length;
+      const updatedCount = persistenceResults.filter(r => r.action === 'updated').length;
+      const skippedCount = persistenceResults.filter(r => r.action === 'skipped').length;
+
       updateProgress({
         phase: 'completed',
         progress: 100,
-        message: `Import completed: ${successCount} vehicles imported, ${errorCount} errors`
+        message: `Import completed: ${successCount} vehicles processed, ${errorCount} errors`,
+        savedVehicles: successCount,
+        results: persistenceResults,
+        errors: persistenceResults.filter(r => r.error).map(r => r.error!).slice(0, 10) // Show first 10 errors
       });
 
       addLog('info', `Import completed successfully`);
-      addLog('info', `Results: ${successCount} imported, ${errorCount} errors`);
+      addLog('info', `Results: ${createdCount} created, ${updatedCount} updated, ${skippedCount} skipped, ${errorCount} errors`);
 
       toast({
         title: "Import Completed",
-        description: `Successfully imported ${successCount} live vehicles`,
+        description: `Successfully processed ${successCount} live vehicles (${createdCount} created, ${updatedCount} updated)`,
       });
 
       // Trigger refresh of vehicle data
@@ -220,8 +247,10 @@ export const GP51LiveImportModal: React.FC = () => {
       totalVehicles: 0,
       processedVehicles: 0,
       liveVehicles: 0,
+      savedVehicles: 0,
       errors: [],
-      logs: []
+      logs: [],
+      results: []
     });
   };
 
@@ -373,8 +402,8 @@ export const GP51LiveImportModal: React.FC = () => {
                   <div className="text-xs text-muted-foreground">Live Vehicles</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold">{importProgress.processedVehicles}</div>
-                  <div className="text-xs text-muted-foreground">Processed</div>
+                  <div className="text-2xl font-bold text-blue-600">{importProgress.savedVehicles}</div>
+                  <div className="text-xs text-muted-foreground">Saved</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-red-600">{importProgress.errors.length}</div>
