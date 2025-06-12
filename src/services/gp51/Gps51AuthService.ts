@@ -316,7 +316,7 @@ export class Gps51AuthService {
         // Store token in localStorage
         this.storeTokenInStorage(this.currentToken);
 
-        // NEW: Store session in database for Edge Function access
+        // Save session in database for Edge Function access
         await this.saveSessionToDatabase(this.currentToken);
 
         // Cleanup expired sessions
@@ -353,22 +353,22 @@ export class Gps51AuthService {
         this.log('warn', 'Logout API call failed, clearing local session anyway', error);
       }
 
-      // NEW: Deactivate database session
+      // Deactivate database session by setting expiry to past
       try {
         const { data: { user } } = await supabase.auth.getUser();
         
         if (user?.id) {
           await supabase
             .from('gp51_sessions')
-            .update({ is_active: false })
+            .update({ token_expires_at: new Date(Date.now() - 1000).toISOString() })
             .eq('envio_user_id', user.id)
-            .eq('is_active', true);
+            .gt('token_expires_at', new Date().toISOString());
         } else if (this.currentToken.username) {
           await supabase
             .from('gp51_sessions')
-            .update({ is_active: false })
-            .eq('gp51_username', this.currentToken.username)
-            .eq('is_active', true);
+            .update({ token_expires_at: new Date(Date.now() - 1000).toISOString() })
+            .eq('username', this.currentToken.username)
+            .gt('token_expires_at', new Date().toISOString());
         }
         
         this.log('info', 'Deactivated database session');
@@ -474,30 +474,29 @@ export class Gps51AuthService {
         this.log('warn', 'No authenticated user found, saving session without user association');
       }
 
-      // Prepare session data
+      // Prepare session data with correct column names
       const sessionData = {
         gp51_token: token.token,
-        gp51_username: token.username,
-        expires_at: token.expiresAt.toISOString(),
+        username: token.username,
+        token_expires_at: token.expiresAt.toISOString(),
         envio_user_id: user?.id || null,
-        is_active: true,
         last_activity_at: new Date().toISOString()
       };
 
-      // Deactivate any existing active sessions for this user/username combination
+      // Deactivate any existing active sessions by setting expiry to past
       if (user?.id) {
         await supabase
           .from('gp51_sessions')
-          .update({ is_active: false })
+          .update({ token_expires_at: new Date(Date.now() - 1000).toISOString() })
           .eq('envio_user_id', user.id)
-          .eq('is_active', true);
+          .gt('token_expires_at', new Date().toISOString());
       } else {
         // For sessions without user association, deactivate by username
         await supabase
           .from('gp51_sessions')
-          .update({ is_active: false })
-          .eq('gp51_username', token.username)
-          .eq('is_active', true);
+          .update({ token_expires_at: new Date(Date.now() - 1000).toISOString() })
+          .eq('username', token.username)
+          .gt('token_expires_at', new Date().toISOString());
       }
 
       // Insert new session
@@ -521,9 +520,8 @@ export class Gps51AuthService {
     try {
       const { error } = await supabase
         .from('gp51_sessions')
-        .update({ is_active: false })
-        .lt('expires_at', new Date().toISOString())
-        .eq('is_active', true);
+        .update({ token_expires_at: new Date(Date.now() - 1000).toISOString() })
+        .lt('token_expires_at', new Date().toISOString());
 
       if (error) {
         this.log('error', 'Failed to cleanup expired sessions', error);

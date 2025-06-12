@@ -32,13 +32,12 @@ export const useGP51SessionRestoration = () => {
         return;
       }
 
-      // Check for active GP51 session
+      // Check for active GP51 session - using correct column names
       const { data: sessions, error } = await supabase
         .from('gp51_sessions')
-        .select('gp51_token, gp51_username, expires_at')
+        .select('gp51_token, username, token_expires_at')
         .eq('envio_user_id', user.id)
-        .eq('is_active', true)
-        .gt('expires_at', new Date().toISOString())
+        .gt('token_expires_at', new Date().toISOString())
         .order('created_at', { ascending: false })
         .limit(1);
 
@@ -57,8 +56,8 @@ export const useGP51SessionRestoration = () => {
         setSessionInfo({
           isLoading: false,
           isValid: true,
-          username: session.gp51_username,
-          expiresAt: new Date(session.expires_at)
+          username: session.username,
+          expiresAt: new Date(session.token_expires_at)
         });
       } else {
         setSessionInfo({
