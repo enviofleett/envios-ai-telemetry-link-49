@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface SimpleVehicle {
@@ -20,6 +19,52 @@ export interface VehicleMetrics {
   active: number;
   online: number;
   offline: number;
+}
+
+// Type guard to safely check if last_position is a valid position object
+function isValidPosition(position: any): position is { lat: number; lon: number; speed?: number; updatetime: string } {
+  return (
+    position &&
+    typeof position === 'object' &&
+    typeof position.lat === 'number' &&
+    typeof position.lon === 'number' &&
+    typeof position.updatetime === 'string'
+  );
+}
+
+// Safe timestamp conversion that handles both seconds and microseconds
+function parseTimestamp(timestamp: string | number): Date {
+  try {
+    if (typeof timestamp === 'string') {
+      // Try parsing as ISO string first
+      const isoDate = new Date(timestamp);
+      if (!isNaN(isoDate.getTime())) {
+        return isoDate;
+      }
+      
+      // If not ISO, try parsing as numeric string
+      const numericTimestamp = parseInt(timestamp, 10);
+      if (!isNaN(numericTimestamp)) {
+        return parseTimestamp(numericTimestamp);
+      }
+    }
+    
+    if (typeof timestamp === 'number') {
+      // If timestamp has 13+ digits, it's likely in microseconds
+      if (timestamp > 1000000000000) {
+        return new Date(Math.floor(timestamp / 1000));
+      }
+      // Otherwise, assume it's in seconds
+      return new Date(timestamp * 1000);
+    }
+    
+    // Fallback to current time if parsing fails
+    console.warn('Failed to parse timestamp:', timestamp);
+    return new Date();
+  } catch (error) {
+    console.error('Error parsing timestamp:', timestamp, error);
+    return new Date();
+  }
 }
 
 class SimplifiedVehicleService {
@@ -66,19 +111,28 @@ class SimplifiedVehicleService {
         throw new Error(error.message);
       }
 
-      this.vehicles = (vehicles || []).map(vehicle => ({
-        id: vehicle.id,
-        device_id: vehicle.device_id,
-        device_name: vehicle.device_name,
-        status: this.determineStatus(vehicle),
-        is_active: vehicle.is_active,
-        last_position: vehicle.last_position ? {
-          lat: vehicle.last_position.lat,
-          lon: vehicle.last_position.lon,
-          speed: vehicle.last_position.speed || 0,
-          updatetime: vehicle.last_position.updatetime
-        } : undefined
-      }));
+      this.vehicles = (vehicles || []).map(vehicle => {
+        const baseVehicle: SimpleVehicle = {
+          id: vehicle.id,
+          device_id: vehicle.device_id,
+          device_name: vehicle.device_name,
+          status: this.determineStatus(vehicle),
+          is_active: vehicle.is_active,
+        };
+
+        // Safely parse last_position if it exists
+        if (vehicle.last_position && isValidPosition(vehicle.last_position)) {
+          const position = vehicle.last_position;
+          baseVehicle.last_position = {
+            lat: position.lat,
+            lon: position.lon,
+            speed: typeof position.speed === 'number' ? position.speed : 0,
+            updatetime: position.updatetime
+          };
+        }
+
+        return baseVehicle;
+      });
 
       this.lastFetch = now;
       console.log(`✅ Loaded ${this.vehicles.length} vehicles from database`);
@@ -95,18 +149,24 @@ class SimplifiedVehicleService {
   }
 
   private determineStatus(vehicle: any): string {
-    if (!vehicle.last_position?.updatetime) {
+    if (!vehicle.last_position || !isValidPosition(vehicle.last_position)) {
       return 'offline';
     }
 
-    const lastUpdate = new Date(vehicle.last_position.updatetime);
-    const minutesAgo = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
+    try {
+      const lastUpdate = parseTimestamp(vehicle.last_position.updatetime);
+      const minutesAgo = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
 
-    if (minutesAgo <= 5) {
-      return vehicle.last_position.speed > 0 ? 'moving' : 'online';
-    } else if (minutesAgo <= 30) {
-      return 'idle';
-    } else {
+      if (minutesAgo <= 5) {
+        const speed = vehicle.last_position.speed || 0;
+        return speed > 0 ? 'moving' : 'online';
+      } else if (minutesAgo <= 30) {
+        return 'idle';
+      } else {
+        return 'offline';
+      }
+    } catch (error) {
+      console.error('Error determining vehicle status:', error);
       return 'offline';
     }
   }

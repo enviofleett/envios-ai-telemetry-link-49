@@ -13,7 +13,8 @@ export const useSimpleVehicleData = () => {
       const result = await simplifiedVehicleService.getVehicles();
       setVehicles(result.vehicles);
       setMetrics(simplifiedVehicleService.getMetrics());
-      setLoading(result.loading);
+      // Fix: Don't set loading from result.loading, manage it locally
+      setLoading(false);
       setError(result.error);
     } catch (err) {
       console.error('Error fetching vehicle data:', err);
@@ -32,6 +33,7 @@ export const useSimpleVehicleData = () => {
   }, []);
 
   const forceRefresh = () => {
+    setLoading(true);
     simplifiedVehicleService.forceRefresh();
     fetchData();
   };
