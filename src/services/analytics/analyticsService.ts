@@ -1,3 +1,4 @@
+
 import { 
   unifiedVehicleDataService, 
   type VehicleData 
@@ -215,7 +216,7 @@ export class AnalyticsService {
           vehicleName: vehicle.device_name,
           licensePlate: vehicle.device_name,
           status: this.determineVehicleStatus(vehicle.last_position),
-          lastUpdate: parsedPosition?.updatetime ? new Date(parsedPosition.updatetime) : new Date(Date.now()),
+          lastUpdate: parsedPosition?.timestamp ? parsedPosition.timestamp : new Date(Date.now()),
           isOnline: this.determineVehicleStatus(vehicle.last_position) !== 'offline',
           isMoving: this.determineVehicleStatus(vehicle.last_position) === 'moving',
           alerts: [],
@@ -281,7 +282,7 @@ export class AnalyticsService {
         lon: positionData.lon || positionData.lng || 0, // Handle both lon and lng
         speed: positionData.speed || 0,
         course: positionData.course || 0,
-        updatetime: positionData.updatetime || '',
+        timestamp: new Date(positionData.updatetime || Date.now()), // Convert to Date object
         statusText: positionData.statusText || ''
       };
     } catch (error) {
@@ -293,9 +294,9 @@ export class AnalyticsService {
   private getOnlineVehicleCount(): number {
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     return this.vehicles.filter(v => {
-      if (!v.lastPosition?.updatetime) return false;
+      if (!v.lastPosition?.timestamp) return false;
       try {
-        return new Date(v.lastPosition.updatetime) > thirtyMinutesAgo;
+        return v.lastPosition.timestamp > thirtyMinutesAgo;
       } catch (error) {
         return false;
       }
@@ -345,12 +346,11 @@ export class AnalyticsService {
     // Safe access to last_position with proper type handling
     let isOnline = false;
     
-    if (vehicle.lastPosition?.updatetime) {
+    if (vehicle.lastPosition?.timestamp) {
       try {
-        const lastUpdate = new Date(vehicle.lastPosition.updatetime);
-        isOnline = lastUpdate > new Date(Date.now() - 30 * 60 * 1000);
+        isOnline = vehicle.lastPosition.timestamp > new Date(Date.now() - 30 * 60 * 1000);
       } catch (error) {
-        console.error('Error parsing updatetime:', error);
+        console.error('Error parsing timestamp:', error);
         isOnline = false;
       }
     }
@@ -372,7 +372,8 @@ export class AnalyticsService {
   }
 
   private getLastActiveDate(vehicle: VehicleData): string {
-    return vehicle.lastPosition?.updatetime || 
+    return vehicle.lastPosition?.timestamp ? 
+      vehicle.lastPosition.timestamp.toISOString() :
       new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString();
   }
 

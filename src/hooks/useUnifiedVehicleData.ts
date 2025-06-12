@@ -1,8 +1,7 @@
 
-import { useState, useEffect } from 'react';
-import { useGP51VehicleData, type EnhancedVehicle } from '@/hooks/useGP51VehicleData';
-import { useGP51Auth } from '@/hooks/useGP51Auth';
-import type { SyncMetrics, VehicleData } from '@/types/vehicle';
+import { useState, useEffect, useCallback } from 'react';
+import { getEnhancedVehicles, getVehicleDataMetrics } from '@/services/enhancedVehicleDataService';
+import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
 
 interface FilterOptions {
   search?: string;
@@ -10,136 +9,190 @@ interface FilterOptions {
   user?: string;
 }
 
-// Transform EnhancedVehicle to VehicleData
-const transformToVehicleData = (enhancedVehicle: EnhancedVehicle): VehicleData => {
-  return {
-    id: enhancedVehicle.id || enhancedVehicle.deviceId,
-    deviceId: enhancedVehicle.deviceId,
-    deviceName: enhancedVehicle.deviceName,
-    vehicleName: enhancedVehicle.vehicle_name,
-    make: enhancedVehicle.make,
-    model: enhancedVehicle.model,
-    year: enhancedVehicle.year,
-    licensePlate: enhancedVehicle.license_plate,
-    status: enhancedVehicle.status,
-    lastUpdate: enhancedVehicle.timestamp || new Date(),
-    position: enhancedVehicle.latitude && enhancedVehicle.longitude ? {
-      latitude: enhancedVehicle.latitude,
-      longitude: enhancedVehicle.longitude,
-      speed: enhancedVehicle.speed,
-      course: enhancedVehicle.course,
-    } : undefined,
-    location: enhancedVehicle.latitude && enhancedVehicle.longitude ? {
-      latitude: enhancedVehicle.latitude,
-      longitude: enhancedVehicle.longitude,
-      speed: enhancedVehicle.speed,
-      course: enhancedVehicle.course,
-    } : undefined,
-    speed: enhancedVehicle.speed,
-    course: enhancedVehicle.course,
-    isOnline: enhancedVehicle.isOnline,
-    isMoving: enhancedVehicle.isMoving,
-    alerts: enhancedVehicle.statusText && enhancedVehicle.statusText !== 'Normal' ? [enhancedVehicle.statusText] : [],
-    is_active: enhancedVehicle.is_active || enhancedVehicle.isOnline,
-    envio_user_id: enhancedVehicle.envio_user_id,
-    lastPosition: enhancedVehicle.lastPosition ? {
-      lat: enhancedVehicle.lastPosition.lat,
-      lon: enhancedVehicle.lastPosition.lng, // Convert lng to lon
-      speed: enhancedVehicle.lastPosition.speed,
-      course: enhancedVehicle.lastPosition.course,
-      updatetime: enhancedVehicle.lastPosition.updatetime,
-      statusText: enhancedVehicle.lastPosition.statusText,
-    } : undefined,
+interface UseUnifiedVehicleDataResult {
+  vehicles: VehicleData[];
+  metrics: VehicleDataMetrics;
+  isLoading: boolean;
+  isRefreshing: boolean;
+  error: string | null;
+  forceRefresh: () => Promise<void>;
+  loadMore: () => void;
+  hasMore: boolean;
+  currentPage: number;
+  getVehiclesByStatus: () => {
+    online: VehicleData[];
+    offline: VehicleData[];
+    alerts: VehicleData[];
   };
-};
+  getVehicleById: (deviceId: string) => VehicleData | undefined;
+  getOnlineVehicles: () => VehicleData[];
+  getOfflineVehicles: () => VehicleData[];
+  getMovingVehicles: () => VehicleData[];
+  getIdleVehicles: () => VehicleData[];
+}
 
-export const useUnifiedVehicleData = (filters?: FilterOptions) => {
-  const { isAuthenticated } = useGP51Auth();
-  
-  // Use GP51 data as primary source
-  const {
-    vehicles: gp51Vehicles,
-    metrics: gp51Metrics,
-    isLoading,
-    isRefreshing,
-    forceRefresh,
-    getOnlineVehicles,
-    getOfflineVehicles,
-    getMovingVehicles,
-    getIdleVehicles
-  } = useGP51VehicleData({
-    autoRefresh: isAuthenticated,
-    refreshInterval: 30000
-  });
-
+export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicleDataResult => {
   const [vehicles, setVehicles] = useState<VehicleData[]>([]);
+  const [metrics, setMetrics] = useState<VehicleDataMetrics>({
+    totalVehicles: 0,
+    onlineVehicles: 0,
+    offlineVehicles: 0,
+    recentlyActiveVehicles: 0,
+    lastSyncTime: new Date(),
+    syncStatus: 'pending'
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  // Transform and filter vehicles
-  useEffect(() => {
-    let transformedVehicles = gp51Vehicles.map(transformToVehicleData);
+  const fetchData = useCallback(async (pageToLoad: number, shouldAppend = false) => {
+    if (!hasMore && pageToLoad > 0) return;
 
-    if (filters) {
-      // Search filter
-      if (filters.search) {
-        const searchTerm = filters.search.toLowerCase();
-        transformedVehicles = transformedVehicles.filter(vehicle => 
-          (vehicle.deviceName?.toLowerCase().includes(searchTerm) || false) ||
-          (vehicle.vehicleName?.toLowerCase().includes(searchTerm) || false) ||
-          vehicle.deviceId.toLowerCase().includes(searchTerm) ||
-          (vehicle.licensePlate?.toLowerCase().includes(searchTerm) || false)
-        );
-      }
-
-      // Status filter
-      if (filters.status && filters.status !== 'all') {
-        switch (filters.status) {
-          case 'online':
-            transformedVehicles = transformedVehicles.filter(v => v.isOnline);
-            break;
-          case 'offline':
-            transformedVehicles = transformedVehicles.filter(v => !v.isOnline);
-            break;
-          case 'alerts':
-            transformedVehicles = transformedVehicles.filter(v => v.alerts.length > 0);
-            break;
-        }
-      }
-
-      // User filter
-      if (filters.user && filters.user !== 'all') {
-        transformedVehicles = transformedVehicles.filter(v => v.envio_user_id === filters.user);
-      }
+    if (pageToLoad === 0) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
     }
+    setError(null);
 
-    setVehicles(transformedVehicles);
-  }, [gp51Vehicles, filters]);
+    try {
+      const limit = 100;
+      const { data, error: serviceError, hasMore: moreAvailable } = await getEnhancedVehicles({
+        page: pageToLoad,
+        limit
+      });
 
-  // Transform GP51 metrics to unified format
-  const metrics = {
-    total: gp51Metrics.total,
-    online: gp51Metrics.online,
-    offline: gp51Metrics.offline,
-    alerts: vehicles.filter(v => v.alerts.length > 0).length,
-    lastUpdateTime: gp51Metrics.lastUpdateTime
-  };
+      if (serviceError) {
+        throw new Error(serviceError);
+      }
 
-  const syncMetrics: SyncMetrics = {
-    totalVehicles: gp51Metrics.total,
-    positionsUpdated: gp51Metrics.online,
-    errors: gp51Metrics.syncStatus === 'error' ? 1 : 0,
-    lastSyncTime: gp51Metrics.lastUpdateTime
-  };
+      // Apply filters to the fetched data
+      let filteredData = data;
+      if (filters) {
+        filteredData = data.filter(vehicle => {
+          // Search filter
+          if (filters.search) {
+            const searchTerm = filters.search.toLowerCase();
+            const matchesSearch = 
+              vehicle.deviceName.toLowerCase().includes(searchTerm) ||
+              vehicle.deviceId.toLowerCase().includes(searchTerm) ||
+              (vehicle.vehicleName?.toLowerCase().includes(searchTerm) || false);
+            if (!matchesSearch) return false;
+          }
 
-  const getVehiclesByStatus = () => {
+          // Status filter
+          if (filters.status && filters.status !== 'all') {
+            switch (filters.status) {
+              case 'online':
+                if (!vehicle.isOnline) return false;
+                break;
+              case 'offline':
+                if (vehicle.isOnline) return false;
+                break;
+              case 'alerts':
+                if (vehicle.alerts.length === 0) return false;
+                break;
+            }
+          }
+
+          // User filter
+          if (filters.user && filters.user !== 'all') {
+            if (vehicle.envio_user_id !== filters.user) return false;
+          }
+
+          return true;
+        });
+      }
+
+      if (shouldAppend) {
+        setVehicles(prev => [...prev, ...filteredData]);
+      } else {
+        setVehicles(filteredData);
+      }
+
+      setMetrics(getVehicleDataMetrics(filteredData));
+      setHasMore(moreAvailable);
+      setCurrentPage(pageToLoad);
+
+    } catch (err: any) {
+      console.error("Error in useUnifiedVehicleData:", err);
+      setError(err.message || "Failed to fetch vehicle data.");
+      if (!shouldAppend) {
+        setVehicles([]);
+        setMetrics({
+          totalVehicles: 0,
+          onlineVehicles: 0,
+          offlineVehicles: 0,
+          recentlyActiveVehicles: 0,
+          lastSyncTime: new Date(),
+          syncStatus: 'error'
+        });
+      }
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [hasMore, filters]);
+
+  useEffect(() => {
+    fetchData(0, false); // Load initial page on mount
+
+    // Set up periodic refresh of first page
+    const interval = setInterval(() => {
+      fetchData(0, false);
+    }, 60000); // Refresh every minute
+
+    return () => clearInterval(interval);
+  }, [fetchData]);
+
+  const forceRefresh = useCallback(async () => {
+    setCurrentPage(0);
+    setHasMore(true);
+    await fetchData(0, false);
+  }, [fetchData]);
+
+  const loadMore = useCallback(() => {
+    if (!isLoading && !isRefreshing && hasMore) {
+      fetchData(currentPage + 1, true);
+    }
+  }, [isLoading, isRefreshing, hasMore, currentPage, fetchData]);
+
+  const getVehiclesByStatus = useCallback(() => {
     return {
       online: vehicles.filter(v => v.isOnline),
       offline: vehicles.filter(v => !v.isOnline),
       alerts: vehicles.filter(v => v.alerts.length > 0)
     };
-  };
+  }, [vehicles]);
 
-  const getVehicleById = (deviceId: string) => {
+  const getVehicleById = useCallback((deviceId: string) => {
     return vehicles.find(v => v.deviceId === deviceId);
+  }, [vehicles]);
+
+  const getOnlineVehicles = useCallback(() => {
+    return vehicles.filter(v => v.isOnline);
+  }, [vehicles]);
+
+  const getOfflineVehicles = useCallback(() => {
+    return vehicles.filter(v => !v.isOnline);
+  }, [vehicles]);
+
+  const getMovingVehicles = useCallback(() => {
+    return vehicles.filter(v => v.isMoving);
+  }, [vehicles]);
+
+  const getIdleVehicles = useCallback(() => {
+    return vehicles.filter(v => v.isOnline && !v.isMoving);
+  }, [vehicles]);
+
+  // Mock sync metrics for compatibility
+  const syncMetrics = {
+    totalVehicles: metrics.totalVehicles,
+    positionsUpdated: metrics.onlineVehicles,
+    errors: metrics.syncStatus === 'error' ? 1 : 0,
+    lastSyncTime: metrics.lastSyncTime
   };
 
   return {
@@ -148,12 +201,16 @@ export const useUnifiedVehicleData = (filters?: FilterOptions) => {
     syncMetrics,
     isLoading,
     isRefreshing,
+    error,
     forceRefresh,
+    loadMore,
+    hasMore,
+    currentPage,
     getVehiclesByStatus,
     getVehicleById,
-    getOnlineVehicles: () => vehicles.filter(v => v.isOnline),
-    getOfflineVehicles: () => vehicles.filter(v => !v.isOnline),
-    getMovingVehicles: () => vehicles.filter(v => v.isMoving),
-    getIdleVehicles: () => vehicles.filter(v => v.isOnline && !v.isMoving)
+    getOnlineVehicles,
+    getOfflineVehicles,
+    getMovingVehicles,
+    getIdleVehicles
   };
 };

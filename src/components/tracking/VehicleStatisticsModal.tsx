@@ -36,9 +36,9 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.lastPosition?.updatetime) return 'offline';
+    if (!vehicle.lastPosition?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    const lastUpdate = vehicle.lastPosition.timestamp;
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -55,15 +55,14 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
     return matchesStatus && matchesSearch;
   });
 
-  const formatLastSeen = (updatetime: string) => {
-    const date = new Date(updatetime);
+  const formatLastSeen = (timestamp: Date) => {
     const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    const diffMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
     
     if (diffMinutes < 1) return 'Just now';
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
     if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return date.toLocaleDateString();
+    return timestamp.toLocaleDateString();
   };
 
   const getSubscriberName = (vehicle: VehicleData) => {
@@ -130,8 +129,8 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
                         <div className="flex items-center gap-2">
                           <Clock className="h-3 w-3" />
                           <span>
-                            Last seen: {vehicle.lastPosition?.updatetime 
-                              ? formatLastSeen(vehicle.lastPosition.updatetime)
+                            Last seen: {vehicle.lastPosition?.timestamp 
+                              ? formatLastSeen(vehicle.lastPosition.timestamp)
                               : 'Never'
                             }
                           </span>

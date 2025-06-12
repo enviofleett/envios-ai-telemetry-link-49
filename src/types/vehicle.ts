@@ -5,7 +5,7 @@ export interface VehiclePosition {
   lon: number; // Standardized to 'lon' for internal consistency
   speed: number;
   course: number;
-  updatetime: string;
+  timestamp: Date; // Changed from updatetime: string to timestamp: Date
   statusText: string;
 }
 

@@ -3,6 +3,11 @@ import { gp51DataService, type VehiclePosition } from '@/services/gp51/GP51DataS
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
 
+interface PaginationParams {
+  page?: number;
+  limit?: number;
+}
+
 class EnhancedVehicleDataService {
   private static instance: EnhancedVehicleDataService;
   private vehicles: Map<string, VehicleData> = new Map();
@@ -82,6 +87,83 @@ class EnhancedVehicleDataService {
     }
 
     return vehicleData;
+  }
+
+  async getEnhancedVehicles(params: PaginationParams = {}): Promise<{ data: VehicleData[]; error: string | null; hasMore: boolean }> {
+    const { page = 0, limit = 100 } = params;
+    
+    try {
+      console.log(`🔄 Fetching enhanced vehicles (page ${page}, limit ${limit})...`);
+      
+      const startIndex = page * limit;
+      const endIndex = startIndex + limit - 1; // Supabase range is inclusive
+
+      // Get vehicle metadata from Supabase with pagination
+      const { data: supabaseVehicles, error: supabaseError } = await supabase
+        .from('vehicles')
+        .select('*')
+        .range(startIndex, endIndex)
+        .order('device_name');
+
+      if (supabaseError) {
+        throw new Error(`Supabase error: ${supabaseError.message}`);
+      }
+
+      if (!supabaseVehicles || supabaseVehicles.length === 0) {
+        return { data: [], error: null, hasMore: false };
+      }
+
+      // Get live data from GP51
+      const gp51Vehicles = await gp51DataService.getDeviceList();
+      
+      // Get positions for the fetched devices
+      const deviceIds = supabaseVehicles.map(v => v.device_id);
+      const positions = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
+
+      const vehicles: VehicleData[] = [];
+
+      // Process Supabase vehicles with GP51 data
+      for (const supabaseVehicle of supabaseVehicles) {
+        const gp51Position = positions.get(supabaseVehicle.device_id) ||
+                            gp51Vehicles.find(v => v.deviceId === supabaseVehicle.device_id);
+        
+        if (gp51Position) {
+          const vehicleData = this.mapGP51ToVehicleData(gp51Position, supabaseVehicle);
+          vehicles.push(vehicleData);
+        } else {
+          // Create offline vehicle entry
+          const offlineVehicle: VehicleData = {
+            id: supabaseVehicle.id,
+            deviceId: supabaseVehicle.device_id,
+            deviceName: supabaseVehicle.device_name || 'Unknown Device',
+            vehicleName: supabaseVehicle.device_name,
+            status: 'offline',
+            lastUpdate: new Date(supabaseVehicle.updated_at || supabaseVehicle.created_at),
+            isOnline: false,
+            isMoving: false,
+            alerts: ['No GPS signal'],
+            speed: 0,
+            course: 0,
+            is_active: supabaseVehicle.is_active || false
+          };
+          vehicles.push(offlineVehicle);
+        }
+      }
+
+      const hasMore = supabaseVehicles.length === limit; // If we got fewer than limit, no more pages
+
+      console.log(`✅ Enhanced vehicle fetch completed: ${vehicles.length} vehicles (hasMore: ${hasMore})`);
+      
+      return { data: vehicles, error: null, hasMore };
+      
+    } catch (error) {
+      console.error('❌ Enhanced vehicle fetch failed:', error);
+      return { 
+        data: [], 
+        error: error instanceof Error ? error.message : 'Unknown fetch error',
+        hasMore: false 
+      };
+    }
   }
 
   async syncWithGP51(): Promise<void> {
@@ -217,3 +299,21 @@ class EnhancedVehicleDataService {
 }
 
 export const enhancedVehicleDataService = EnhancedVehicleDataService.getInstance();
+
+// Export the new paginated function for use in hooks
+export const getEnhancedVehicles = (params?: PaginationParams) => {
+  return enhancedVehicleDataService.getEnhancedVehicles(params);
+};
+
+export const getVehicleDataMetrics = (vehicles: VehicleData[]) => {
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  
+  return {
+    totalVehicles: vehicles.length,
+    onlineVehicles: vehicles.filter(v => v.isOnline).length,
+    offlineVehicles: vehicles.filter(v => !v.isOnline).length,
+    recentlyActiveVehicles: vehicles.filter(v => v.lastUpdate > thirtyMinutesAgo).length,
+    lastSyncTime: new Date(),
+    syncStatus: 'success' as const
+  };
+};

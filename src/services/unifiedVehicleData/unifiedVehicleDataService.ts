@@ -76,6 +76,8 @@ export class UnifiedVehicleDataService {
     
     // Determine vehicle status based on last position update
     let status: 'online' | 'offline' | 'moving' | 'idle' = 'offline';
+    let parsedPosition: VehicleData['lastPosition'] = undefined;
+    
     if (lastPosition?.updatetime) {
       const lastUpdate = new Date(lastPosition.updatetime);
       const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
@@ -85,6 +87,16 @@ export class UnifiedVehicleDataService {
       } else if (minutesSinceUpdate <= 30) {
         status = 'idle';
       }
+
+      // Transform position with proper timestamp conversion
+      parsedPosition = {
+        lat: lastPosition.lat,
+        lon: lastPosition.lon,
+        speed: lastPosition.speed || 0,
+        course: lastPosition.course || 0,
+        timestamp: new Date(lastPosition.updatetime), // Convert to Date object
+        statusText: lastPosition.statusText || ''
+      };
     }
 
     return {
@@ -93,7 +105,7 @@ export class UnifiedVehicleDataService {
       deviceName: dbVehicle.device_name,
       vehicleName: dbVehicle.device_name,
       status,
-      lastUpdate: lastPosition ? new Date(lastPosition.updatetime) : new Date(dbVehicle.updated_at || dbVehicle.created_at),
+      lastUpdate: parsedPosition ? parsedPosition.timestamp : new Date(dbVehicle.updated_at || dbVehicle.created_at),
       alerts: [],
       isOnline: status === 'online' || status === 'moving',
       isMoving: status === 'moving',
@@ -101,14 +113,7 @@ export class UnifiedVehicleDataService {
       course: lastPosition?.course || 0,
       is_active: dbVehicle.is_active || true,
       envio_user_id: dbVehicle.envio_user_id,
-      lastPosition: lastPosition ? {
-        lat: lastPosition.lat,
-        lon: lastPosition.lon,
-        speed: lastPosition.speed || 0,
-        course: lastPosition.course || 0,
-        updatetime: lastPosition.updatetime,
-        statusText: lastPosition.statusText || ''
-      } : undefined
+      lastPosition: parsedPosition
     };
   }
 

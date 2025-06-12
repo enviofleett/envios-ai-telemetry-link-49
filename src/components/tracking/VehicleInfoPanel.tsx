@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,8 +32,8 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
   }
 
   const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.lastPosition?.updatetime) return 'offline';
-    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    if (!vehicle.lastPosition?.timestamp) return 'offline';
+    const lastUpdate = vehicle.lastPosition.timestamp;
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     if (minutesSinceUpdate > 5) return 'offline';
@@ -57,8 +58,8 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
     if (statusText.includes('ignition on') || statusText.includes('engine on')) return 'ON';
     if (statusText.includes('ignition off') || statusText.includes('engine off')) return 'OFF';
     if (speed > 0) return 'ON';
-    if (vehicle.lastPosition?.updatetime) {
-      const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    if (vehicle.lastPosition?.timestamp) {
+      const lastUpdate = vehicle.lastPosition.timestamp;
       const now = new Date();
       const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
       if (minutesSinceUpdate <= 5) return 'ON';
@@ -66,14 +67,13 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
     return 'OFF';
   };
 
-  const formatLastUpdate = (updatetime: string) => {
-    const date = new Date(updatetime);
+  const formatLastUpdate = (timestamp: Date) => {
     const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    const diffMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
     if (diffMinutes < 1) return 'Just now';
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
     if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return date.toLocaleDateString();
+    return timestamp.toLocaleDateString();
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -127,7 +127,7 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
               <span>Last Update:</span>
             </div>
             <p className="text-primary-dark">
-              {vehicle.lastPosition?.updatetime ? formatLastUpdate(vehicle.lastPosition.updatetime) : 'Never'}
+              {vehicle.lastPosition?.timestamp ? formatLastUpdate(vehicle.lastPosition.timestamp) : 'Never'}
             </p>
           </div>
           <div>
