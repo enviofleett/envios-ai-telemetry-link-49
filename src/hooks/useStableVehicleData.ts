@@ -1,160 +1,109 @@
 
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { unifiedVehicleDataService } from '@/services/unifiedVehicleData';
-import type { VehicleData, VehicleMetrics } from '@/types/vehicle';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
-interface FilterOptions {
-  search?: string;
-  status?: 'all' | 'online' | 'offline' | 'alerts';
-  user?: string;
+interface UseStableVehicleDataOptions {
+  refetchInterval?: number;
 }
 
-// Vehicle comparison for stable references
-const vehiclesEqual = (a: VehicleData[], b: VehicleData[]): boolean => {
-  if (a.length !== b.length) return false;
-  
-  return a.every((vehicleA, index) => {
-    const vehicleB = b[index];
-    if (!vehicleB) return false;
-    
-    return (
-      vehicleA.deviceId === vehicleB.deviceId &&
-      vehicleA.deviceName === vehicleB.deviceName &&
-      vehicleA.lastPosition?.lat === vehicleB.lastPosition?.lat &&
-      vehicleA.lastPosition?.lon === vehicleB.lastPosition?.lon &&
-      vehicleA.lastPosition?.timestamp?.getTime() === vehicleB.lastPosition?.timestamp?.getTime()
-    );
-  });
-};
+interface VehicleMetrics {
+  total: number;
+  online: number;
+  idle: number;
+  offline: number;
+  maintenance: number;
+}
 
-export const useStableVehicleData = (filters?: FilterOptions) => {
-  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
-  const [metrics, setMetrics] = useState<VehicleMetrics>({
-    total: 0,
-    online: 0,
-    offline: 0,
-    alerts: 0,
-    lastUpdateTime: new Date()
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  
-  const previousVehicles = useRef<VehicleData[]>([]);
-  const updateTimeoutRef = useRef<NodeJS.Timeout>();
+export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) => {
+  const { refetchInterval = 30000 } = options;
+  const [error, setError] = useState<string | null>(null);
 
-  // Memoized filter function
-  const filterVehicles = useMemo(() => {
-    return (allVehicles: VehicleData[]): VehicleData[] => {
-      if (!filters) return allVehicles;
+  const { data: vehicles = [], isLoading, isRefreshing, refetch } = useQuery({
+    queryKey: ['stable-vehicle-data'],
+    queryFn: async () => {
+      try {
+        setError(null);
+        console.log('Fetching vehicle data from Supabase...');
+        
+        const { data, error: supabaseError } = await supabase
+          .from('vehicles')
+          .select('*')
+          .order('updated_at', { ascending: false });
 
-      return allVehicles.filter(vehicle => {
-        if (filters.search) {
-          const searchTerm = filters.search.toLowerCase();
-          const matchesSearch = 
-            vehicle.deviceName.toLowerCase().includes(searchTerm) ||
-            vehicle.deviceId.toLowerCase().includes(searchTerm);
-          if (!matchesSearch) return false;
+        if (supabaseError) {
+          throw new Error(`Supabase error: ${supabaseError.message}`);
         }
 
-        if (filters.status && filters.status !== 'all') {
-          const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-          const isOnline = vehicle.lastPosition?.timestamp && 
-            vehicle.lastPosition.timestamp > thirtyMinutesAgo;
-          const hasAlert = vehicle.status?.toLowerCase().includes('alert') || 
-            vehicle.status?.toLowerCase().includes('alarm');
-
-          switch (filters.status) {
-            case 'online':
-              if (!isOnline) return false;
-              break;
-            case 'offline':
-              if (isOnline) return false;
-              break;
-            case 'alerts':
-              if (!hasAlert) return false;
-              break;
-          }
+        if (!data) {
+          throw new Error('No data received from Supabase');
         }
 
-        if (filters.user && filters.user !== 'all') {
-          if (vehicle.envio_user_id !== filters.user) return false;
-        }
+        // Transform Supabase data to VehicleData format
+        const transformedVehicles: VehicleData[] = data.map(vehicle => ({
+          deviceId: vehicle.device_id || '',
+          deviceName: vehicle.device_name || 'Unknown Vehicle',
+          lastPosition: vehicle.last_position ? {
+            lat: vehicle.last_position.lat || 0,
+            lon: vehicle.last_position.lng || vehicle.last_position.lon || 0,
+            speed: vehicle.last_position.speed || 0,
+            course: vehicle.last_position.course || 0,
+            timestamp: new Date(vehicle.last_position.timestamp || new Date()),
+            statusText: vehicle.last_position.statusText || 'Unknown'
+          } : null,
+          status: vehicle.is_active ? 'online' : 'offline',
+          lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
+          alerts: []
+        }));
 
-        return true;
-      });
-    };
-  }, [filters?.search, filters?.status, filters?.user]);
-
-  // Stable vehicle update with debouncing
-  const updateVehicleData = useMemo(() => {
-    return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
+        console.log(`Successfully fetched ${transformedVehicles.length} vehicles`);
+        return transformedVehicles;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+        console.error('Error fetching vehicle data:', errorMessage);
+        setError(errorMessage);
+        throw err;
       }
+    },
+    refetchInterval,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
 
-      updateTimeoutRef.current = setTimeout(() => {
-        const allVehicles = unifiedVehicleDataService.getAllVehicles();
-        const filteredVehicles = filterVehicles(allVehicles);
-        
-        // Only update if vehicles actually changed
-        if (!vehiclesEqual(filteredVehicles, previousVehicles.current)) {
-          setVehicles(filteredVehicles);
-          previousVehicles.current = filteredVehicles;
-        }
-        
-        setMetrics(unifiedVehicleDataService.getVehicleMetrics());
-        setIsLoading(false);
-      }, 100); // 100ms debounce
-    };
-  }, [filterVehicles]);
+  // Calculate metrics
+  const metrics: VehicleMetrics = useMemo(() => {
+    const total = vehicles.length;
+    const online = vehicles.filter(v => v.status === 'online').length;
+    const offline = vehicles.filter(v => v.status === 'offline').length;
+    const idle = vehicles.filter(v => {
+      if (!v.lastPosition?.timestamp) return false;
+      const lastUpdate = new Date(v.lastPosition.timestamp);
+      const now = new Date();
+      const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+      return minutesSinceUpdate > 5 && minutesSinceUpdate <= 30;
+    }).length;
+    const maintenance = 0; // No maintenance status in current data
 
-  // Memoized vehicles with positions only
-  const vehiclesWithPosition = useMemo(() => {
-    return vehicles.filter(v => v.lastPosition?.lat && v.lastPosition?.lon);
+    return { total, online, idle, offline, maintenance };
   }, [vehicles]);
 
-  useEffect(() => {
-    if (unifiedVehicleDataService.isReady()) {
-      updateVehicleData();
-    } else {
-      const checkReady = setInterval(() => {
-        if (unifiedVehicleDataService.isReady()) {
-          updateVehicleData();
-          clearInterval(checkReady);
-        }
-      }, 100);
-
-      return () => clearInterval(checkReady);
-    }
-
-    const unsubscribe = unifiedVehicleDataService.subscribe(updateVehicleData);
-    
-    return () => {
-      unsubscribe();
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-    };
-  }, [updateVehicleData]);
-
   const forceRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await unifiedVehicleDataService.forceSync();
-    } catch (error) {
-      console.error('Force refresh failed:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
+    await refetch();
+  };
+
+  const getVehicleById = (deviceId: string) => {
+    return vehicles.find(v => v.deviceId === deviceId);
   };
 
   return {
-    vehicles: vehiclesWithPosition,
+    vehicles,
     allVehicles: vehicles,
     metrics,
     isLoading,
     isRefreshing,
+    error,
     forceRefresh,
-    getVehicleById: unifiedVehicleDataService.getVehicleById.bind(unifiedVehicleDataService)
+    getVehicleById
   };
 };

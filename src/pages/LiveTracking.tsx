@@ -25,8 +25,8 @@ const LiveTracking: React.FC = () => {
   const [vehicleAddress, setVehicleAddress] = useState<string>('');
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   
-  // Use stable vehicle data
-  const { vehicles, isLoading, error } = useStableVehicleData({});
+  // Use stable vehicle data with error handling
+  const { vehicles, metrics, isLoading, error, forceRefresh } = useStableVehicleData({});
 
   // Convert vehicles to map markers
   const mapMarkers: MapMarker[] = vehicles
@@ -132,6 +132,11 @@ const LiveTracking: React.FC = () => {
               <CardContent className="p-6">
                 <div className="text-center text-red-600">
                   Error loading vehicle data: {error}
+                  <div className="mt-4">
+                    <Button onClick={forceRefresh} variant="outline">
+                      Retry
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -163,9 +168,7 @@ const LiveTracking: React.FC = () => {
                   <Activity className="h-4 w-4 text-green-600" />
                   <div>
                     <p className="text-sm font-medium">Online</p>
-                    <p className="text-2xl font-bold">
-                      {vehicles.filter(v => getVehicleStatus(v) === 'online').length}
-                    </p>
+                    <p className="text-2xl font-bold">{metrics.online}</p>
                   </div>
                 </div>
               </CardContent>
@@ -177,9 +180,7 @@ const LiveTracking: React.FC = () => {
                   <Activity className="h-4 w-4 text-yellow-600" />
                   <div>
                     <p className="text-sm font-medium">Idle</p>
-                    <p className="text-2xl font-bold">
-                      {vehicles.filter(v => getVehicleStatus(v) === 'idle').length}
-                    </p>
+                    <p className="text-2xl font-bold">{metrics.idle}</p>
                   </div>
                 </div>
               </CardContent>
@@ -191,9 +192,7 @@ const LiveTracking: React.FC = () => {
                   <Activity className="h-4 w-4 text-red-600" />
                   <div>
                     <p className="text-sm font-medium">Offline</p>
-                    <p className="text-2xl font-bold">
-                      {vehicles.filter(v => getVehicleStatus(v) === 'offline').length}
-                    </p>
+                    <p className="text-2xl font-bold">{metrics.offline}</p>
                   </div>
                 </div>
               </CardContent>
@@ -205,7 +204,7 @@ const LiveTracking: React.FC = () => {
                   <MapPin className="h-4 w-4 text-blue-600" />
                   <div>
                     <p className="text-sm font-medium">Total</p>
-                    <p className="text-2xl font-bold">{vehicles.length}</p>
+                    <p className="text-2xl font-bold">{metrics.total}</p>
                   </div>
                 </div>
               </CardContent>
