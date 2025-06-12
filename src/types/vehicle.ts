@@ -1,3 +1,4 @@
+
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
   lat: number;
@@ -108,6 +109,43 @@ export interface VehicleStatistics {
   alerts: number;
 }
 
+// Analytics data interfaces
+export interface FuelRecord {
+  date: string;
+  consumption: number;
+  efficiency: number;
+  cost: number;
+  distance?: number;
+  performance?: number;
+}
+
+export interface EngineRecord {
+  date: string;
+  engineHours: number;
+  idleTime: number;
+  utilization: number;
+  performance: number;
+  trips?: number;
+  estimatedFuel?: number;
+  activity?: number;
+}
+
+export interface MileageRecord {
+  date: string;
+  distance: number;
+  trips: number;
+  estimatedFuel: number;
+  activity: number;
+  consumption?: number;
+  efficiency?: number;
+  cost?: number;
+  engineHours?: number;
+  idleTime?: number;
+  utilization?: number;
+  performance?: number;
+}
+
+// Enhanced vehicle interface with all analytics properties
 export interface EnhancedVehicle {
   id: string;
   deviceId: string; // Standardized camelCase
@@ -119,10 +157,17 @@ export interface EnhancedVehicle {
   fuel: number;
   lastUpdate: Date;
   status: 'active' | 'idle' | 'maintenance' | 'offline';
-  isOnline: boolean; // Added missing property
-  isMoving: boolean; // Added missing property
+  isOnline: boolean;
+  isMoving: boolean;
   
-  // Optional additional properties for compatibility
+  // Analytics properties - now required for all EnhancedVehicle objects
+  location: string;
+  engineHours: number;
+  mileage: number;
+  fuelType: string;
+  engineSize: number;
+  
+  // Optional compatibility properties
   deviceid?: string; // For backward compatibility
   devicename?: string; // For backward compatibility
   vehicle_name?: string;

@@ -1,29 +1,5 @@
 
-import type { VehicleData, EnhancedVehicle } from '@/types/vehicle';
-
-// Data interfaces for analytics
-export interface FuelDataPoint {
-  date: string;
-  consumption: number;
-  efficiency: number;
-  cost: number;
-}
-
-export interface EngineDataPoint {
-  date: string;
-  engineHours: number;
-  idleTime: number;
-  utilization: number;
-  performance: number;
-}
-
-export interface MileageDataPoint {
-  date: string;
-  distance: number;
-  trips: number;
-  estimatedFuel: number;
-  activity: number;
-}
+import type { VehicleData, EnhancedVehicle, FuelRecord, EngineRecord, MileageRecord } from '@/types/vehicle';
 
 export const convertToEnhancedVehicle = (vehicle: VehicleData): EnhancedVehicle => {
   return {
@@ -66,8 +42,8 @@ export const convertToEnhancedVehicle = (vehicle: VehicleData): EnhancedVehicle 
   };
 };
 
-export const generateFuelData = (days: number = 30): FuelDataPoint[] => {
-  const data: FuelDataPoint[] = [];
+export const generateFuelData = (days: number = 30): FuelRecord[] => {
+  const data: FuelRecord[] = [];
   for (let i = 0; i < days; i++) {
     const date = new Date();
     date.setDate(date.getDate() - i);
@@ -81,8 +57,8 @@ export const generateFuelData = (days: number = 30): FuelDataPoint[] => {
   return data.reverse();
 };
 
-export const generateEngineData = (days: number = 30): EngineDataPoint[] => {
-  const data: EngineDataPoint[] = [];
+export const generateEngineData = (days: number = 30): EngineRecord[] => {
+  const data: EngineRecord[] = [];
   for (let i = 0; i < days; i++) {
     const date = new Date();
     date.setDate(date.getDate() - i);
@@ -97,8 +73,8 @@ export const generateEngineData = (days: number = 30): EngineDataPoint[] => {
   return data.reverse();
 };
 
-export const generateMileageData = (days: number = 30): MileageDataPoint[] => {
-  const data: MileageDataPoint[] = [];
+export const generateMileageData = (days: number = 30): MileageRecord[] => {
+  const data: MileageRecord[] = [];
   for (let i = 0; i < days; i++) {
     const date = new Date();
     date.setDate(date.getDate() - i);
