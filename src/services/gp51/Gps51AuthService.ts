@@ -1,5 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { crossBrowserMD5 } from './crossBrowserMD5';
 
 export interface AuthCredentials {
   username: string;
@@ -33,6 +34,7 @@ export class Gps51AuthService {
   private readonly maxRetries = 3;
   private readonly baseUrl = 'https://www.gps51.com/webapi';
   private readonly healthCheckIntervalMs = 5 * 60 * 1000; // 5 minutes
+  private readonly requestTimeoutMs = 10000; // 10 seconds
 
   static getInstance(): Gps51AuthService {
     if (!Gps51AuthService.instance) {
@@ -45,32 +47,17 @@ export class Gps51AuthService {
     this.startHealthCheck();
   }
 
-  // MD5 hash implementation
+  // Use the proper cross-browser MD5 implementation
   private async hashPassword(password: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    
     try {
-      // Try using Web Crypto API if available
-      const hashBuffer = await crypto.subtle.digest('MD5', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      console.log('🔒 Hashing password for GP51 authentication...');
+      const hash = await crossBrowserMD5(password);
+      console.log('✅ Password hashed successfully');
+      return hash;
     } catch (error) {
-      // Fallback MD5 implementation
-      return this.fallbackMD5(password);
+      console.error('❌ Password hashing failed:', error);
+      throw new Error('Failed to hash password for GP51 authentication');
     }
-  }
-
-  private fallbackMD5(input: string): string {
-    // Simple MD5 implementation for fallback
-    // This is a simplified version - in production, use a proper crypto library
-    let hash = 0;
-    for (let i = 0; i < input.length; i++) {
-      const char = input.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash).toString(16).padStart(32, '0').substring(0, 32);
   }
 
   private log(level: 'info' | 'error' | 'warn', message: string, data?: any): void {
@@ -86,31 +73,80 @@ export class Gps51AuthService {
     }
   }
 
+  // Enhanced request method with timeout and better error handling
   private async makeRequest(url: string, data: any, retryCount = 0): Promise<any> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, this.requestTimeoutMs);
+
     try {
-      this.log('info', `Making request to GP51 API: ${url}`);
+      this.log('info', `Making request to GP51 API: ${url} (attempt ${retryCount + 1}/${this.maxRetries})`);
+      const startTime = Date.now();
       
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'User-Agent': 'FleetIQ/1.0'
         },
         body: JSON.stringify(data),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      const duration = Date.now() - startTime;
+      
+      this.log('info', `GP51 API response received in ${duration}ms`, { 
+        status: response.status, 
+        statusText: response.statusText 
       });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const result = await response.json();
-      this.log('info', 'GP51 API response received', { status: result.status });
+      const responseText = await response.text();
+      let result;
+      
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        this.log('error', 'Failed to parse GP51 response as JSON', { responseText: responseText.substring(0, 200) });
+        throw new Error('Invalid JSON response from GP51 server');
+      }
+
+      // Check GP51-specific error status
+      if (result.status === 1) {
+        const errorMessage = result.cause || result.message || 'GP51 internal error';
+        this.log('error', `GP51 API returned error status: ${errorMessage}`, result);
+        throw new Error(this.mapGP51ErrorToUserMessage(errorMessage));
+      }
+
+      this.log('info', 'GP51 API request successful', { 
+        status: result.status, 
+        duration: `${duration}ms` 
+      });
       
       return result;
     } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error.name === 'AbortError') {
+        this.log('error', `Request timed out after ${this.requestTimeoutMs}ms (attempt ${retryCount + 1})`);
+        if (retryCount < this.maxRetries - 1) {
+          const delay = Math.pow(2, retryCount) * 1000;
+          this.log('info', `Retrying after timeout in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.makeRequest(url, data, retryCount + 1);
+        }
+        throw new Error('GP51 connection timed out. Please check your internet connection and try again.');
+      }
+      
       this.log('error', `Request failed (attempt ${retryCount + 1}/${this.maxRetries})`, error);
       
       if (retryCount < this.maxRetries - 1) {
-        const delay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+        const delay = Math.pow(2, retryCount) * 1000;
         this.log('info', `Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         return this.makeRequest(url, data, retryCount + 1);
@@ -118,6 +154,38 @@ export class Gps51AuthService {
       
       throw error;
     }
+  }
+
+  // Map GP51 error messages to user-friendly messages
+  private mapGP51ErrorToUserMessage(errorMessage: string): string {
+    const lowerError = errorMessage.toLowerCase();
+    
+    if (lowerError.includes('username') || lowerError.includes('user')) {
+      return 'Invalid username. Please check your GP51 username and try again.';
+    }
+    
+    if (lowerError.includes('password') || lowerError.includes('pwd')) {
+      return 'Invalid password. Please check your GP51 password and try again.';
+    }
+    
+    if (lowerError.includes('token') || lowerError.includes('session')) {
+      return 'Session expired. Please log in again.';
+    }
+    
+    if (lowerError.includes('network') || lowerError.includes('connection')) {
+      return 'Network connection error. Please check your internet connection.';
+    }
+    
+    if (lowerError.includes('timeout')) {
+      return 'Connection timed out. Please try again.';
+    }
+    
+    if (lowerError.includes('server') || lowerError.includes('internal')) {
+      return 'GP51 server error. Please try again later.';
+    }
+    
+    // Return original message if no specific mapping found
+    return errorMessage;
   }
 
   async login(username: string, password: string): Promise<AuthResult> {
@@ -129,7 +197,7 @@ export class Gps51AuthService {
         return { success: false, error: 'Username and password are required' };
       }
 
-      // Hash password
+      // Hash password using the proper MD5 implementation
       const hashedPassword = await this.hashPassword(password);
       
       // Prepare request
@@ -163,7 +231,7 @@ export class Gps51AuthService {
       } else {
         const error = response.cause || response.message || 'Login failed';
         this.log('error', `Login failed for user: ${username}`, { error, status: response.status });
-        return { success: false, error };
+        return { success: false, error: this.mapGP51ErrorToUserMessage(error) };
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

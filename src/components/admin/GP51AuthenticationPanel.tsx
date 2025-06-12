@@ -15,7 +15,8 @@ import {
   LogIn, 
   LogOut,
   Activity,
-  Clock
+  Clock,
+  AlertTriangle
 } from 'lucide-react';
 
 export const GP51AuthenticationPanel: React.FC = () => {
@@ -30,9 +31,11 @@ export const GP51AuthenticationPanel: React.FC = () => {
     username, 
     tokenExpiresAt, 
     isLoading, 
+    error, // Added error state consumption
     login, 
     logout, 
-    healthCheck 
+    healthCheck,
+    clearError
   } = useGP51Auth();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -41,29 +44,43 @@ export const GP51AuthenticationPanel: React.FC = () => {
       return;
     }
     
+    console.log('🔐 GP51AuthenticationPanel: Initiating login...');
+    clearError(); // Clear any previous errors
     await login(credentials.username, credentials.password);
     
-    // Clear password after login attempt
+    // Clear password after login attempt for security
     setCredentials(prev => ({ ...prev, password: '' }));
   };
 
   const handleLogout = async () => {
+    console.log('👋 GP51AuthenticationPanel: Initiating logout...');
     await logout();
     setCredentials({ username: '', password: '' });
   };
 
   const handleHealthCheck = async () => {
+    console.log('🏥 GP51AuthenticationPanel: Running health check...');
     await healthCheck();
+  };
+
+  const handleRetryLogin = async () => {
+    console.log('🔄 GP51AuthenticationPanel: Retrying login...');
+    if (credentials.username.trim() && credentials.password.trim()) {
+      clearError();
+      await login(credentials.username, credentials.password);
+    }
   };
 
   const getStatusIcon = () => {
     if (isLoading) return <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />;
+    if (error) return <XCircle className="h-5 w-5 text-red-600" />;
     if (isAuthenticated) return <CheckCircle className="h-5 w-5 text-green-600" />;
-    return <XCircle className="h-5 w-5 text-red-600" />;
+    return <XCircle className="h-5 w-5 text-gray-400" />;
   };
 
   const getStatusText = () => {
     if (isLoading) return 'Processing...';
+    if (error) return 'Connection Error';
     if (isAuthenticated) return 'Connected';
     return 'Not Connected';
   };
@@ -89,7 +106,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
           GP51 Authentication
         </CardTitle>
         <CardDescription>
-          Secure authentication with GP51 telemetry service
+          Secure authentication with GP51 telemetry service using enhanced error handling
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -108,8 +125,8 @@ export const GP51AuthenticationPanel: React.FC = () => {
           </div>
           
           <div className="flex items-center gap-2">
-            <Badge variant={isAuthenticated ? "default" : "secondary"}>
-              {isAuthenticated ? 'Active' : 'Inactive'}
+            <Badge variant={isAuthenticated ? "default" : error ? "destructive" : "secondary"}>
+              {isAuthenticated ? 'Active' : error ? 'Error' : 'Inactive'}
             </Badge>
             {isAuthenticated && (
               <Button
@@ -124,6 +141,26 @@ export const GP51AuthenticationPanel: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Error Display Section */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>{error}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRetryLogin}
+                disabled={isLoading || !credentials.username.trim() || !credentials.password.trim()}
+                className="ml-2"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Token Expiry Info */}
         {isAuthenticated && tokenExpiresAt && (
@@ -196,7 +233,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>
                 Successfully connected to GP51 telemetry service. 
-                Authentication tokens are managed automatically.
+                Authentication tokens are managed automatically with enhanced error recovery.
               </AlertDescription>
             </Alert>
             
@@ -214,10 +251,11 @@ export const GP51AuthenticationPanel: React.FC = () => {
 
         {/* Security Information */}
         <div className="text-xs text-muted-foreground space-y-1">
-          <p>🔒 All communications use HTTPS encryption</p>
-          <p>🔄 Tokens are automatically renewed before expiry</p>
-          <p>🏥 Connection health is monitored continuously</p>
-          <p>📊 All authentication attempts are logged for security</p>
+          <p>🔒 All communications use HTTPS encryption with 10-second timeout protection</p>
+          <p>🔄 Tokens are automatically renewed before expiry with retry logic</p>
+          <p>🏥 Connection health is monitored continuously with error recovery</p>
+          <p>📊 All authentication attempts are logged for security and debugging</p>
+          <p>🛡️ Enhanced MD5 implementation ensures cross-browser compatibility</p>
         </div>
       </CardContent>
     </Card>
