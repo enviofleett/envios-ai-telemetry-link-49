@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { gp51DataService, type GP51ProcessedPosition } from '@/services/gp51/GP51DataService';
+import { gp51DataService, type GP51ProcessedPosition, type LiveVehicleFilterConfig } from '@/services/gp51/GP51DataService';
 import { ErrorHandlingService } from '@/services/errorHandlingService';
 import type { 
   VehicleData, 
@@ -23,6 +23,13 @@ class EnhancedVehicleDataService {
   private syncInProgress: boolean = false;
   private subscribers: (() => void)[] = [];
   private syncInterval: NodeJS.Timeout | null = null;
+
+  // Default live vehicle configuration
+  private defaultLiveConfig: LiveVehicleFilterConfig = {
+    updateTimeThresholdMinutes: 30,
+    includeIdleVehicles: true,
+    requireGpsSignal: false
+  };
 
   constructor() {
     this.startPeriodicSync();
@@ -100,7 +107,7 @@ class EnhancedVehicleDataService {
     };
   }
 
-  async syncVehicleData(): Promise<void> {
+  async syncVehicleData(useLiveFilter: boolean = false, liveConfig?: LiveVehicleFilterConfig): Promise<void> {
     if (this.syncInProgress) {
       console.log('🔄 Sync already in progress, skipping...');
       return;
@@ -111,7 +118,7 @@ class EnhancedVehicleDataService {
     try {
       await ErrorHandlingService.withRetry(
         async () => {
-          console.log('🚗 Starting enhanced vehicle data sync...');
+          console.log('🚗 Starting enhanced vehicle data sync...', { useLiveFilter, liveConfig });
 
           // Step 1: Fetch vehicles from Supabase (using correct schema)
           const { data: supabaseVehicles, error: supabaseError } = await supabase
@@ -142,10 +149,19 @@ class EnhancedVehicleDataService {
           console.log(`📋 Found ${supabaseVehicles.length} vehicles in Supabase`);
 
           // Step 2: Get live positions from GP51
-          const deviceIds = supabaseVehicles.map(v => v.device_id);
-          const gp51Positions = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
+          let gp51Positions: Map<string, GP51ProcessedPosition>;
 
-          console.log(`📍 Received ${gp51Positions.size} positions from GP51`);
+          if (useLiveFilter && liveConfig) {
+            // Use live vehicle filtering
+            const liveVehicles = await gp51DataService.getLiveVehicles(liveConfig);
+            gp51Positions = new Map(liveVehicles.map(v => [v.deviceId, v]));
+            console.log(`📍 Received ${gp51Positions.size} live vehicle positions from GP51`);
+          } else {
+            // Use standard position fetching
+            const deviceIds = supabaseVehicles.map(v => v.device_id);
+            gp51Positions = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
+            console.log(`📍 Received ${gp51Positions.size} positions from GP51`);
+          }
 
           // Step 3: Transform and merge data
           const enhancedVehicles: VehicleData[] = supabaseVehicles.map(supabaseVehicle => {
@@ -176,9 +192,19 @@ class EnhancedVehicleDataService {
     }
   }
 
+  async syncLiveVehiclesOnly(liveConfig?: LiveVehicleFilterConfig): Promise<void> {
+    const config = liveConfig || this.defaultLiveConfig;
+    await this.syncVehicleData(true, config);
+  }
+
   async forceSync(): Promise<void> {
     this.syncInProgress = false; // Reset flag to allow force sync
     await this.syncVehicleData();
+  }
+
+  async forceSyncLiveOnly(liveConfig?: LiveVehicleFilterConfig): Promise<void> {
+    this.syncInProgress = false; // Reset flag to allow force sync
+    await this.syncLiveVehiclesOnly(liveConfig);
   }
 
   getVehicles(): VehicleData[] {
@@ -262,6 +288,33 @@ class EnhancedVehicleDataService {
       this.syncInterval = null;
     }
     this.subscribers = [];
+  }
+
+  // New method to get live vehicle statistics
+  getLiveVehicleStats(liveConfig?: LiveVehicleFilterConfig): {
+    totalVehicles: number;
+    liveVehicles: number;
+    offlineVehicles: number;
+    staleVehicles: number;
+  } {
+    const config = liveConfig || this.defaultLiveConfig;
+    const thresholdTime = Date.now() - (config.updateTimeThresholdMinutes * 60 * 1000);
+    
+    const totalVehicles = this.vehicles.length;
+    const liveVehicles = this.vehicles.filter(v => 
+      v.lastPosition && 
+      v.lastPosition.timestamp.getTime() > thresholdTime &&
+      v.isOnline
+    ).length;
+    const offlineVehicles = this.vehicles.filter(v => !v.isOnline).length;
+    const staleVehicles = totalVehicles - liveVehicles - offlineVehicles;
+
+    return {
+      totalVehicles,
+      liveVehicles,
+      offlineVehicles,
+      staleVehicles
+    };
   }
 }
 

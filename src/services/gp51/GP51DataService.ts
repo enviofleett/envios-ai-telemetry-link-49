@@ -107,6 +107,13 @@ export interface VehicleTrackPoint {
   status: string;
 }
 
+// New interface for live vehicle filtering configuration
+export interface LiveVehicleFilterConfig {
+  updateTimeThresholdMinutes: number;
+  includeIdleVehicles: boolean;
+  requireGpsSignal: boolean;
+}
+
 class GP51DataService {
   private static instance: GP51DataService;
   private readonly baseUrl = 'https://www.gps51.com/webapi';
@@ -175,13 +182,29 @@ class GP51DataService {
       }
 
       const responseText = await response.text();
-      let result;
       
+      // Enhanced null/empty response handling
+      if (!responseText || responseText.trim() === '') {
+        this.log('warn', 'GP51 API returned empty response', { action, duration });
+        return { status: 1, cause: 'Empty response from GP51 server' };
+      }
+
+      let result;
       try {
         result = JSON.parse(responseText);
       } catch (parseError) {
-        this.log('error', 'Failed to parse GP51 response as JSON', { responseText: responseText.substring(0, 200) });
+        this.log('error', 'Failed to parse GP51 response as JSON', { 
+          responseText: responseText.substring(0, 200),
+          action,
+          parseError 
+        });
         throw new Error('Invalid JSON response from GP51 server');
+      }
+
+      // Handle null result object
+      if (result === null || result === undefined) {
+        this.log('warn', 'GP51 API returned null result', { action, duration });
+        return { status: 1, cause: 'Null result from GP51 server' };
       }
 
       // Check GP51-specific error status
@@ -358,6 +381,131 @@ class GP51DataService {
       this.log('error', `Failed to fetch track history for device: ${deviceId}`, error);
       throw error;
     }
+  }
+
+  async getAllDevicesLastPositions(): Promise<GP51ProcessedPosition[]> {
+    try {
+      this.log('info', 'Fetching all devices with last positions from GP51');
+      
+      // Use empty deviceids to get all devices
+      const response: GP51LastPositionResponse = await this.makeRequest('lastposition', {
+        deviceids: '',
+        lastquerypositiontime: '0'
+      });
+      
+      if (!response.records || response.records.length === 0) {
+        this.log('warn', 'No position records found for any devices');
+        return [];
+      }
+
+      const positions: GP51ProcessedPosition[] = response.records.map(record => ({
+        deviceId: record.deviceid,
+        latitude: record.callat / 1000000,
+        longitude: record.callon / 1000000,
+        speed: record.speed,
+        course: record.course,
+        timestamp: new Date(record.updatetime * 1000),
+        status: record.strstatus,
+        statusText: record.strstatusen || record.strstatus,
+        isOnline: record.updatetime > (Date.now() / 1000) - 1800,
+        isMoving: record.moving === 1 || record.speed > 0
+      }));
+
+      this.log('info', `Retrieved ${positions.length} device positions from GP51`);
+      return positions;
+    } catch (error) {
+      this.log('error', 'Failed to fetch all device positions', error);
+      throw error;
+    }
+  }
+
+  filterLiveVehicles(
+    positions: GP51ProcessedPosition[], 
+    config: LiveVehicleFilterConfig = {
+      updateTimeThresholdMinutes: 30,
+      includeIdleVehicles: true,
+      requireGpsSignal: false
+    }
+  ): GP51ProcessedPosition[] {
+    const thresholdTime = Date.now() - (config.updateTimeThresholdMinutes * 60 * 1000);
+    
+    return positions.filter(position => {
+      // Check if position is recent enough
+      const isRecent = position.timestamp.getTime() > thresholdTime;
+      if (!isRecent) {
+        this.log('info', `Filtering out vehicle ${position.deviceId}: Last update too old`, {
+          lastUpdate: position.timestamp.toISOString(),
+          thresholdMinutes: config.updateTimeThresholdMinutes
+        });
+        return false;
+      }
+
+      // Check if vehicle is online
+      if (!position.isOnline) {
+        this.log('info', `Filtering out vehicle ${position.deviceId}: Reported as offline`);
+        return false;
+      }
+
+      // Check movement requirement
+      if (!config.includeIdleVehicles && !position.isMoving) {
+        this.log('info', `Filtering out vehicle ${position.deviceId}: Idle vehicle excluded`);
+        return false;
+      }
+
+      // Check GPS signal requirement
+      if (config.requireGpsSignal && (position.latitude === 0 && position.longitude === 0)) {
+        this.log('info', `Filtering out vehicle ${position.deviceId}: No GPS signal`);
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  async getLiveVehicles(config?: LiveVehicleFilterConfig): Promise<GP51ProcessedPosition[]> {
+    try {
+      this.log('info', 'Fetching live vehicles from GP51', { config });
+      
+      const allPositions = await this.getAllDevicesLastPositions();
+      const liveVehicles = this.filterLiveVehicles(allPositions, config);
+      
+      this.log('info', `Filtered ${liveVehicles.length} live vehicles from ${allPositions.length} total vehicles`);
+      return liveVehicles;
+    } catch (error) {
+      this.log('error', 'Failed to fetch live vehicles', error);
+      throw error;
+    }
+  }
+
+  async processVehicleDataInChunks<T>(
+    vehicles: GP51ProcessedPosition[],
+    processor: (chunk: GP51ProcessedPosition[]) => Promise<T[]>,
+    chunkSize: number = 50
+  ): Promise<T[]> {
+    const results: T[] = [];
+    
+    for (let i = 0; i < vehicles.length; i += chunkSize) {
+      const chunk = vehicles.slice(i, i + chunkSize);
+      this.log('info', `Processing chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(vehicles.length / chunkSize)}`, {
+        chunkSize: chunk.length,
+        totalVehicles: vehicles.length
+      });
+      
+      try {
+        const chunkResults = await processor(chunk);
+        results.push(...chunkResults);
+        
+        // Small delay to prevent overwhelming the browser
+        if (i + chunkSize < vehicles.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } catch (error) {
+        this.log('error', `Failed to process chunk ${Math.floor(i / chunkSize) + 1}`, error);
+        // Continue with other chunks
+      }
+    }
+    
+    return results;
   }
 
   async healthCheck(): Promise<boolean> {
