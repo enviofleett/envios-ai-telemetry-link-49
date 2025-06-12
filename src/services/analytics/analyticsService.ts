@@ -337,8 +337,19 @@ export class AnalyticsService {
   }
 
   private calculatePerformanceRating(vehicle: VehicleData): number {
-    const isOnline = vehicle.lastPosition?.updatetime && 
-      new Date(vehicle.lastPosition.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
+    // Safe access to last_position with proper type handling
+    let isOnline = false;
+    
+    if (vehicle.lastPosition?.updatetime) {
+      try {
+        const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+        isOnline = lastUpdate > new Date(Date.now() - 30 * 60 * 1000);
+      } catch (error) {
+        console.error('Error parsing updatetime:', error);
+        isOnline = false;
+      }
+    }
+    
     return isOnline ? Math.random() * 20 + 75 : Math.random() * 40 + 30;
   }
 
