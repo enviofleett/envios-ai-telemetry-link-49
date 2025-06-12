@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -27,7 +26,7 @@ import {
   TestTube,
   TrendingUp
 } from 'lucide-react';
-import type { EnhancedVehicle, ReportType } from '@/types/enhancedVehicle';
+import type { EnhancedVehicle, ReportType } from '@/types/vehicle';
 import { convertToEnhancedVehicle } from '@/utils/trackingDataGenerator';
 import { VehicleAnalyticsModal } from '@/components/tracking/VehicleAnalyticsModal';
 import { ReportGenerationModal } from '@/components/tracking/ReportGenerationModal';
@@ -113,7 +112,7 @@ const EnhancedLiveTracking: React.FC = () => {
     forceRefresh 
   } = useUnifiedVehicleData();
 
-  // Convert GPS51 vehicles to enhanced vehicles with additional data
+  // Convert VehicleData to enhanced vehicles with additional analytics data
   const enhancedVehicles: EnhancedVehicle[] = useMemo(() => {
     return rawVehicles.map(convertToEnhancedVehicle);
   }, [rawVehicles]);
