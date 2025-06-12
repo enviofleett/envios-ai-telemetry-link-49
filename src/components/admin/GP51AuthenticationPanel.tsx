@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,8 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
+const GP51_USERNAME_STORAGE_KEY = 'gp51_saved_username';
+
 export const GP51AuthenticationPanel: React.FC = () => {
   const [credentials, setCredentials] = useState({
     username: '',
@@ -27,16 +29,37 @@ export const GP51AuthenticationPanel: React.FC = () => {
 
   const { 
     isAuthenticated, 
-    username, 
+    username: authUsername, 
     tokenExpiresAt, 
     isLoading, 
     error,
-    isRefreshing, // New state for token refresh
+    isRefreshing,
     login, 
     logout, 
     healthCheck,
     clearError
   } = useGP51Auth();
+
+  // Load saved username on component mount
+  useEffect(() => {
+    const savedUsername = localStorage.getItem(GP51_USERNAME_STORAGE_KEY);
+    if (savedUsername && !credentials.username) {
+      setCredentials(prev => ({ ...prev, username: savedUsername }));
+      console.log('📋 Loaded saved GP51 username from storage');
+    }
+  }, []);
+
+  // Save username to localStorage when it changes (but not password)
+  const handleUsernameChange = (username: string) => {
+    setCredentials(prev => ({ ...prev, username }));
+    
+    // Save to localStorage if not empty
+    if (username.trim()) {
+      localStorage.setItem(GP51_USERNAME_STORAGE_KEY, username.trim());
+    } else {
+      localStorage.removeItem(GP51_USERNAME_STORAGE_KEY);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +68,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
     }
     
     console.log('🔐 GP51AuthenticationPanel: Initiating login...');
-    clearError(); // Clear any previous errors
+    clearError();
     await login(credentials.username, credentials.password);
     
     // Clear password after login attempt for security
@@ -55,6 +78,9 @@ export const GP51AuthenticationPanel: React.FC = () => {
   const handleLogout = async () => {
     console.log('👋 GP51AuthenticationPanel: Initiating logout...');
     await logout();
+    
+    // Clear saved username on explicit logout
+    localStorage.removeItem(GP51_USERNAME_STORAGE_KEY);
     setCredentials({ username: '', password: '' });
   };
 
@@ -117,9 +143,9 @@ export const GP51AuthenticationPanel: React.FC = () => {
             {getStatusIcon()}
             <div>
               <p className="font-medium">{getStatusText()}</p>
-              {isAuthenticated && username && (
+              {isAuthenticated && authUsername && (
                 <p className="text-sm text-muted-foreground">
-                  Logged in as: {username}
+                  Logged in as: {authUsername}
                   {isRefreshing && <span className="ml-2 text-blue-600">(refreshing...)</span>}
                 </p>
               )}
@@ -204,11 +230,16 @@ export const GP51AuthenticationPanel: React.FC = () => {
                 id="username"
                 type="text"
                 value={credentials.username}
-                onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
+                onChange={(e) => handleUsernameChange(e.target.value)}
                 placeholder="Enter your GP51 username"
                 disabled={isLoading}
                 required
               />
+              {credentials.username && localStorage.getItem(GP51_USERNAME_STORAGE_KEY) && (
+                <p className="text-xs text-muted-foreground">
+                  ✓ Username saved from previous session
+                </p>
+              )}
             </div>
             
             <div className="space-y-2">
@@ -275,6 +306,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
           <p>🏥 Connection health is monitored continuously with error recovery</p>
           <p>📊 All authentication attempts are logged for security and debugging</p>
           <p>🛡️ Enhanced MD5 implementation ensures cross-browser compatibility</p>
+          <p>💾 Username is saved locally for convenience (password never stored)</p>
         </div>
       </CardContent>
     </Card>

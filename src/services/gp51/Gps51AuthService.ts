@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface AuthResult {
@@ -249,6 +248,13 @@ export class Gps51AuthService {
       username: this.session.username,
       tokenExpiresAt: this.session.expiresAt
     };
+  }
+
+  public getCurrentUsername(): string | null {
+    if (!this.session || this.isSessionExpired()) {
+      return null;
+    }
+    return this.session.username;
   }
 
   public async healthCheck(): Promise<boolean> {
