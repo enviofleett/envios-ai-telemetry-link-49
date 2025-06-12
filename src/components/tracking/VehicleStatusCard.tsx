@@ -45,9 +45,9 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
   }
 
   const getVehicleStatus = () => {
-    if (!vehicle.lastPosition?.updatetime) return 'offline';
+    if (!vehicle.lastPosition?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    const lastUpdate = new Date(vehicle.lastPosition.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -105,7 +105,7 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
               {status.toUpperCase()}
             </Badge>
             <DataFreshnessIndicator 
-              lastUpdate={vehicle.lastPosition?.updatetime} 
+              lastUpdate={vehicle.lastPosition?.timestamp} 
               size="sm"
               showText={false}
             />
@@ -123,13 +123,13 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
               Data Status
             </div>
             <DataFreshnessIndicator 
-              lastUpdate={vehicle.lastPosition?.updatetime} 
+              lastUpdate={vehicle.lastPosition?.timestamp} 
               size="md"
             />
           </div>
-          {vehicle.lastPosition?.updatetime && (
+          {vehicle.lastPosition?.timestamp && (
             <p className="text-xs text-gray-500 mt-1">
-              Last update: {new Date(vehicle.lastPosition.updatetime).toLocaleString()}
+              Last update: {vehicle.lastPosition.timestamp.toLocaleString()}
             </p>
           )}
         </div>

@@ -1,4 +1,3 @@
-
 import { gp51DataService, type VehiclePosition } from '@/services/gp51/GP51DataService';
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
@@ -22,7 +21,10 @@ class EnhancedVehicleDataService {
     total: 0,
     online: 0,
     offline: 0,
-    alerts: 0
+    alerts: 0,
+    // Required properties from VehicleDataMetrics
+    positionsUpdated: 0,
+    errors: 0
   };
   private subscribers: Set<() => void> = new Set();
   private syncInterval: NodeJS.Timeout | null = null;
@@ -67,7 +69,10 @@ class EnhancedVehicleDataService {
       total: vehicleArray.length,
       online: vehicleArray.filter(v => v.isOnline).length,
       offline: vehicleArray.filter(v => !v.isOnline).length,
-      alerts: alertsCount
+      alerts: alertsCount,
+      // Sync-related properties
+      positionsUpdated: vehicleArray.length,
+      errors: 0
     };
   }
 
@@ -248,6 +253,7 @@ class EnhancedVehicleDataService {
       console.error('❌ Enhanced vehicle sync failed:', error);
       this.metrics.syncStatus = 'error';
       this.metrics.errorMessage = error instanceof Error ? error.message : 'Unknown sync error';
+      this.metrics.errors = 1;
     }
 
     this.notifySubscribers();
@@ -333,6 +339,9 @@ export const getVehicleDataMetrics = (vehicles: VehicleData[]): VehicleDataMetri
     total: vehicles.length,
     online: vehicles.filter(v => v.isOnline).length,
     offline: vehicles.filter(v => !v.isOnline).length,
-    alerts: alertsCount
+    alerts: alertsCount,
+    // Required properties
+    positionsUpdated: vehicles.length,
+    errors: 0
   };
 };

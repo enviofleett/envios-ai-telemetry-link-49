@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -93,7 +94,7 @@ const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({ vehicle }) => {
             <Label htmlFor="lastUpdate">Last Update</Label>
             <Input
               id="lastUpdate"
-              value={vehicle.lastPosition?.updatetime || 'N/A'}
+              value={vehicle.lastPosition?.timestamp.toLocaleString() || 'N/A'}
               readOnly
             />
           </div>

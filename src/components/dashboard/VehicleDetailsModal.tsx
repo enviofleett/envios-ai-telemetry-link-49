@@ -34,9 +34,9 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
   onClose
 }) => {
   const getVehicleStatus = () => {
-    if (!vehicle.lastPosition?.updatetime) return 'offline';
+    if (!vehicle.lastPosition?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    const lastUpdate = new Date(vehicle.lastPosition.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -177,7 +177,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
                         <span className="text-gray-600">Last Update:</span>
                       </div>
                       <span className="text-sm">
-                        {new Date(vehicle.lastPosition.updatetime).toLocaleString()}
+                        {vehicle.lastPosition.timestamp.toLocaleString()}
                       </span>
                     </div>
                     {vehicle.lastPosition.statusText && (
