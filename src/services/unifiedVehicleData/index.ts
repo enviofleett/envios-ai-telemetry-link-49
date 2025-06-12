@@ -1,6 +1,6 @@
 
 export { UnifiedVehicleDataService } from './unifiedVehicleDataService';
-export type { Vehicle, VehicleMetrics } from './types';
+export type { VehicleData, VehicleMetrics } from '@/types/vehicle';
 
 // Create and export the singleton instance
 import { UnifiedVehicleDataService } from './unifiedVehicleDataService';

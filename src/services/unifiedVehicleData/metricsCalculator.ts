@@ -1,8 +1,8 @@
 
-import type { Vehicle, VehicleMetrics } from './types';
+import type { VehicleData, VehicleMetrics } from '@/types/vehicle';
 
 export class VehicleMetricsCalculator {
-  public calculateMetrics(vehicles: Vehicle[], totalVehiclesInDatabase: number): VehicleMetrics {
+  public calculateMetrics(vehicles: VehicleData[], totalVehiclesInDatabase: number): VehicleMetrics {
     const now = new Date();
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
@@ -33,7 +33,7 @@ export class VehicleMetricsCalculator {
     return metrics;
   }
 
-  public getOnlineVehicles(vehicles: Vehicle[]): Vehicle[] {
+  public getOnlineVehicles(vehicles: VehicleData[]): VehicleData[] {
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     return vehicles.filter(v => 
       v.lastPosition?.updatetime && 
@@ -41,7 +41,7 @@ export class VehicleMetricsCalculator {
     );
   }
 
-  public getOfflineVehicles(vehicles: Vehicle[]): Vehicle[] {
+  public getOfflineVehicles(vehicles: VehicleData[]): VehicleData[] {
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     return vehicles.filter(v => 
       v.lastPosition?.updatetime && 
@@ -49,7 +49,7 @@ export class VehicleMetricsCalculator {
     );
   }
 
-  public getVehiclesWithAlerts(vehicles: Vehicle[]): Vehicle[] {
+  public getVehiclesWithAlerts(vehicles: VehicleData[]): VehicleData[] {
     return vehicles.filter(v => 
       v.status?.toLowerCase().includes('alert') || 
       v.status?.toLowerCase().includes('alarm')

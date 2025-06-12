@@ -1,11 +1,11 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import type { Vehicle } from './types';
+import type { VehicleData } from '@/types/vehicle';
 
 export class VehicleDataLoader {
   private readonly CHUNK_SIZE = 2000; // Load vehicles in chunks of 2000
 
-  public async loadVehiclesFromDatabase(): Promise<{ vehicles: Vehicle[], totalCount: number }> {
+  public async loadVehiclesFromDatabase(): Promise<{ vehicles: VehicleData[], totalCount: number }> {
     try {
       // Get total count of active vehicles first
       const { count: totalCount, error: countError } = await supabase
@@ -18,7 +18,7 @@ export class VehicleDataLoader {
       console.log(`Total active vehicles in database: ${totalCount || 0}`);
 
       // Load ALL vehicles in chunks instead of limiting to 1000
-      const allVehicles: Vehicle[] = [];
+      const allVehicles: VehicleData[] = [];
       let offset = 0;
       
       while (offset < (totalCount || 0)) {
@@ -55,7 +55,7 @@ export class VehicleDataLoader {
     }
   }
 
-  private transformDatabaseVehicle(vehicle: any): Vehicle {
+  private transformDatabaseVehicle(vehicle: any): VehicleData {
     const lastPosition = this.parseLastPosition(vehicle.last_position);
     
     // Determine vehicle status based on last position update
@@ -72,17 +72,24 @@ export class VehicleDataLoader {
     }
 
     return {
-      deviceid: vehicle.device_id,
-      devicename: vehicle.device_name,
-      plateNumber: vehicle.device_name, // Use device_name as plateNumber
+      id: vehicle.id || vehicle.device_id,
+      deviceId: vehicle.device_id,
+      deviceName: vehicle.device_name,
+      vehicleName: vehicle.device_name,
       status,
+      lastUpdate: lastPosition ? new Date(lastPosition.updatetime) : new Date(vehicle.updated_at || vehicle.created_at),
+      alerts: [],
+      isOnline: status === 'online' || status === 'moving',
+      isMoving: status === 'moving',
+      speed: lastPosition?.speed || 0,
+      course: lastPosition?.course || 0,
       is_active: vehicle.is_active || true,
       envio_user_id: vehicle.envio_user_id,
       lastPosition: lastPosition
     };
   }
 
-  private parseLastPosition(lastPosition: any): Vehicle['lastPosition'] {
+  private parseLastPosition(lastPosition: any): VehicleData['lastPosition'] {
     if (!lastPosition || typeof lastPosition !== 'object') return undefined;
     
     return {
@@ -96,7 +103,7 @@ export class VehicleDataLoader {
   }
 
   // New method to prioritize vehicles that need position updates
-  public async getVehiclesNeedingPositionUpdates(): Promise<Vehicle[]> {
+  public async getVehiclesNeedingPositionUpdates(): Promise<VehicleData[]> {
     try {
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
       

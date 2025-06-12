@@ -1,6 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
-// Removed vehiclePositionSyncService import as it's no longer available
-import type { Vehicle, VehicleMetrics, SyncMetrics } from './types';
+import type { VehicleData, VehicleMetrics, SyncMetrics } from '@/types/vehicle';
 
 interface DataMetrics {
   totalVehicles: number;
@@ -12,7 +12,7 @@ interface DataMetrics {
 
 export class UnifiedVehicleDataService {
   private static instance: UnifiedVehicleDataService;
-  private vehicles: Vehicle[] = [];
+  private vehicles: VehicleData[] = [];
   private metrics: DataMetrics = {
     totalVehicles: 0,
     onlineVehicles: 0,
@@ -71,7 +71,7 @@ export class UnifiedVehicleDataService {
     }
   }
 
-  private transformDatabaseVehicle(dbVehicle: any): Vehicle {
+  private transformDatabaseVehicle(dbVehicle: any): VehicleData {
     const lastPosition = dbVehicle.last_position;
     
     // Determine vehicle status based on last position update
@@ -88,10 +88,17 @@ export class UnifiedVehicleDataService {
     }
 
     return {
-      deviceid: dbVehicle.device_id,
-      devicename: dbVehicle.device_name,
-      plateNumber: dbVehicle.device_name, // Use device_name as plateNumber
+      id: dbVehicle.id || dbVehicle.device_id,
+      deviceId: dbVehicle.device_id,
+      deviceName: dbVehicle.device_name,
+      vehicleName: dbVehicle.device_name,
       status,
+      lastUpdate: lastPosition ? new Date(lastPosition.updatetime) : new Date(dbVehicle.updated_at || dbVehicle.created_at),
+      alerts: [],
+      isOnline: status === 'online' || status === 'moving',
+      isMoving: status === 'moving',
+      speed: lastPosition?.speed || 0,
+      course: lastPosition?.course || 0,
       is_active: dbVehicle.is_active || true,
       envio_user_id: dbVehicle.envio_user_id,
       lastPosition: lastPosition ? {
@@ -127,11 +134,11 @@ export class UnifiedVehicleDataService {
   }
 
   // Public API methods
-  getVehicles(): Vehicle[] {
+  getVehicles(): VehicleData[] {
     return [...this.vehicles];
   }
 
-  getAllVehicles(): Vehicle[] {
+  getAllVehicles(): VehicleData[] {
     return [...this.vehicles];
   }
 
@@ -158,19 +165,19 @@ export class UnifiedVehicleDataService {
     };
   }
 
-  getVehicleById(deviceId: string): Vehicle | undefined {
-    return this.vehicles.find(v => v.deviceid === deviceId);
+  getVehicleById(deviceId: string): VehicleData | undefined {
+    return this.vehicles.find(v => v.deviceId === deviceId);
   }
 
-  getOnlineVehicles(): Vehicle[] {
+  getOnlineVehicles(): VehicleData[] {
     return this.vehicles.filter(v => v.status === 'online' || v.status === 'moving');
   }
 
-  getOfflineVehicles(): Vehicle[] {
+  getOfflineVehicles(): VehicleData[] {
     return this.vehicles.filter(v => v.status === 'offline');
   }
 
-  getVehiclesWithAlerts(): Vehicle[] {
+  getVehiclesWithAlerts(): VehicleData[] {
     return this.vehicles.filter(v => v.status?.toLowerCase().includes('alert') || v.status?.toLowerCase().includes('alarm'));
   }
 

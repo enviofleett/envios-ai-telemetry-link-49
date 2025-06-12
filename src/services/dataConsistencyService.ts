@@ -1,6 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { Vehicle, VehiclePosition } from '@/types/vehicle';
+import { VehicleData, VehiclePosition } from '@/types/vehicle';
 
 interface ConsistencyCheck {
   name: string;
