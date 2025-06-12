@@ -5,9 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { Toaster } from '@/components/ui/toaster';
 import Layout from '@/components/Layout';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import AuthenticatedRouter from '@/components/AuthenticatedRouter';
 import Index from '@/pages/Index';
 import Auth from '@/pages/Auth';
+import GP51Setup from '@/pages/GP51Setup';
 import AdminSettings from '@/pages/AdminSettings';
 import UserManagement from '@/pages/UserManagement';
 import VehicleManagement from '@/pages/VehicleManagement';
@@ -29,10 +30,15 @@ const App = () => {
         <Router>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/settings/gp51-setup" element={
+              <AuthenticatedRouter requiresGP51={false}>
+                <GP51Setup />
+              </AuthenticatedRouter>
+            } />
             <Route
               path="/*"
               element={
-                <ProtectedRoute>
+                <AuthenticatedRouter requiresGP51={true}>
                   <Layout>
                     <Routes>
                       <Route path="/" element={<Index />} />
@@ -43,7 +49,7 @@ const App = () => {
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                   </Layout>
-                </ProtectedRoute>
+                </AuthenticatedRouter>
               }
             />
           </Routes>

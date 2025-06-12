@@ -2,50 +2,48 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { RefreshCw, Car, Activity, AlertTriangle } from 'lucide-react';
 import { useSimpleVehicleData } from '@/hooks/useSimpleVehicleData';
-import { 
-  Car, 
-  Activity, 
-  AlertTriangle, 
-  MapPin, 
-  RefreshCw,
-  Gauge,
-  Clock
-} from 'lucide-react';
 
 const SimpleDashboardContent: React.FC = () => {
   const { vehicles, metrics, loading, error, forceRefresh } = useSimpleVehicleData();
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div className="animate-pulse space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
-            ))}
-          </div>
-          <div className="h-64 bg-gray-200 rounded-lg"></div>
-        </div>
-        <div className="text-center text-gray-500">
-          Loading vehicle data...
-        </div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="space-y-6">
-        <Card>
-          <CardContent className="p-6 text-center">
-            <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-red-700 mb-2">Error Loading Data</h3>
-            <p className="text-gray-600 mb-4">{error}</p>
-            <Button onClick={forceRefresh} variant="outline">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Try Again
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Fleet Dashboard</h1>
+            <p className="text-gray-600 mt-1">Real-time vehicle monitoring and analytics</p>
+          </div>
+        </div>
+
+        <Card className="border-red-200">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              <div>
+                <div className="font-medium">Unable to load vehicle data</div>
+                <div className="text-sm text-red-500 mt-1">{error}</div>
+              </div>
+            </div>
+            <Button 
+              onClick={forceRefresh} 
+              variant="outline" 
+              className="mt-4"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Retrying...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Retry
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -53,79 +51,73 @@ const SimpleDashboardContent: React.FC = () => {
     );
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online':
-      case 'moving':
-        return 'bg-green-100 text-green-800';
-      case 'idle':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Fleet Dashboard</h1>
-          <p className="text-gray-600 mt-1">
-            Manage and monitor your vehicle fleet
-          </p>
+          <p className="text-gray-600 mt-1">Real-time vehicle monitoring and analytics</p>
         </div>
-        <Button onClick={forceRefresh} variant="outline" className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4" />
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={forceRefresh}
+          disabled={loading}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
       {/* Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
             <Car className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.total}</div>
-            <p className="text-xs text-muted-foreground">Active fleet vehicles</p>
+            <div className="text-2xl font-bold">
+              {loading ? '--' : metrics.total}
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Online</CardTitle>
-            <Activity className="h-4 w-4 text-green-500" />
+            <CardTitle className="text-sm font-medium">Active Vehicles</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{metrics.online}</div>
-            <p className="text-xs text-muted-foreground">
-              {metrics.total > 0 ? ((metrics.online / metrics.total) * 100).toFixed(1) : 0}% of fleet
-            </p>
+            <div className="text-2xl font-bold">
+              {loading ? '--' : metrics.active}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Online Now</CardTitle>
+            <div className="h-2 w-2 bg-green-500 rounded-full"></div>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {loading ? '--' : metrics.online}
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Offline</CardTitle>
-            <MapPin className="h-4 w-4 text-gray-500" />
+            <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-600">{metrics.offline}</div>
-            <p className="text-xs text-muted-foreground">Not reporting</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active</CardTitle>
-            <Car className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{metrics.active}</div>
-            <p className="text-xs text-muted-foreground">Configured vehicles</p>
+            <div className="text-2xl font-bold">
+              {loading ? '--' : metrics.offline}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -133,60 +125,46 @@ const SimpleDashboardContent: React.FC = () => {
       {/* Vehicle List */}
       <Card>
         <CardHeader>
-          <CardTitle>Vehicle Status</CardTitle>
+          <CardTitle>Vehicle Fleet</CardTitle>
         </CardHeader>
         <CardContent>
-          {vehicles.length === 0 ? (
+          {loading ? (
             <div className="text-center py-8">
-              <Car className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500">No vehicles found</p>
-              <p className="text-sm text-gray-400 mt-2">
-                Add vehicles to start monitoring your fleet
-              </p>
+              <RefreshCw className="h-8 w-8 animate-spin mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-500">Loading vehicle data...</p>
+            </div>
+          ) : vehicles.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Car className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No vehicles found in your fleet.</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {vehicles.slice(0, 10).map((vehicle) => (
-                <div 
-                  key={vehicle.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Car className="h-5 w-5 text-gray-400" />
-                      <div>
-                        <div className="font-medium">{vehicle.device_name}</div>
-                        <div className="text-sm text-gray-500">ID: {vehicle.device_id}</div>
-                      </div>
+            <div className="space-y-3">
+              {vehicles.map((vehicle) => (
+                <div key={vehicle.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <div className={`h-3 w-3 rounded-full ${
+                      vehicle.status === 'online' || vehicle.status === 'moving' 
+                        ? 'bg-green-500' 
+                        : vehicle.status === 'idle' 
+                        ? 'bg-yellow-500' 
+                        : 'bg-gray-400'
+                    }`}></div>
+                    <div>
+                      <div className="font-medium">{vehicle.device_name}</div>
+                      <div className="text-sm text-gray-500">ID: {vehicle.device_id}</div>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <div className="text-sm font-medium capitalize">{vehicle.status}</div>
                     {vehicle.last_position && (
-                      <div className="text-right text-sm">
-                        <div className="flex items-center gap-1">
-                          <Gauge className="h-3 w-3" />
-                          {vehicle.last_position.speed} km/h
-                        </div>
-                        <div className="flex items-center gap-1 text-gray-500">
-                          <Clock className="h-3 w-3" />
-                          {new Date(vehicle.last_position.updatetime).toLocaleTimeString()}
-                        </div>
+                      <div className="text-xs text-gray-500">
+                        {vehicle.last_position.speed} km/h
                       </div>
                     )}
-                    
-                    <Badge className={getStatusColor(vehicle.status)}>
-                      {vehicle.status.charAt(0).toUpperCase() + vehicle.status.slice(1)}
-                    </Badge>
                   </div>
                 </div>
               ))}
-              
-              {vehicles.length > 10 && (
-                <div className="text-center pt-4 text-gray-500">
-                  Showing 10 of {vehicles.length} vehicles
-                </div>
-              )}
             </div>
           )}
         </CardContent>

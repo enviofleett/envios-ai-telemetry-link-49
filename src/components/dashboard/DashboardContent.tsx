@@ -1,7 +1,9 @@
 
 import React from 'react';
-import AuthenticatedDashboard from './AuthenticatedDashboard';
+import SimpleDashboardContent from './SimpleDashboardContent';
 
 export const DashboardContent: React.FC = () => {
-  return <AuthenticatedDashboard />;
+  // At this point, we know the user is authenticated with both 
+  // Supabase and GP51, so we can directly show the dashboard
+  return <SimpleDashboardContent />;
 };
