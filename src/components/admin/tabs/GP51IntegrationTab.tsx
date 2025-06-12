@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { GP51AuthenticationPanel } from '@/components/admin/GP51AuthenticationPanel';
 import { GP51ConnectionTest } from '@/components/admin/GP51ConnectionTest';
 import GP51Settings from '@/components/admin/GP51Settings';
+import PendingRegistrationsManager from '@/components/admin/PendingRegistrationsManager';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Activity, Settings, Zap } from 'lucide-react';
+import { Shield, Activity, Settings, Zap, UserCheck } from 'lucide-react';
 
 const GP51IntegrationTab: React.FC = () => {
   return (
@@ -22,7 +23,7 @@ const GP51IntegrationTab: React.FC = () => {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="authentication" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="authentication" className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
                 Authentication
@@ -30,6 +31,10 @@ const GP51IntegrationTab: React.FC = () => {
               <TabsTrigger value="connection" className="flex items-center gap-2">
                 <Activity className="h-4 w-4" />
                 Connection Test
+              </TabsTrigger>
+              <TabsTrigger value="registrations" className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4" />
+                Registrations
               </TabsTrigger>
               <TabsTrigger value="settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
@@ -47,6 +52,10 @@ const GP51IntegrationTab: React.FC = () => {
 
             <TabsContent value="connection" className="space-y-4">
               <GP51ConnectionTest />
+            </TabsContent>
+
+            <TabsContent value="registrations" className="space-y-4">
+              <PendingRegistrationsManager />
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-4">

@@ -87,3 +87,13 @@ export interface CreatePackageRequest {
 export interface UpdatePackageRequest extends Partial<CreatePackageRequest> {
   id: string;
 }
+
+// Add missing interfaces for auth components
+export interface PackageToGP51Mapping {
+  packageId: string;
+  packageName: string;
+  description: string;
+  requiresApproval: boolean;
+  gp51UserType: number;
+  features: string[];
+}

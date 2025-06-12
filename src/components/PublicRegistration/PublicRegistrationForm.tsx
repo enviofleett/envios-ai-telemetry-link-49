@@ -4,12 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { PublicRegistrationService, PublicRegistrationData } from '@/services/publicRegistrationService';
 import { Loader2, CheckCircle } from 'lucide-react';
 
 interface PublicRegistrationFormProps {
-  onSuccess: (registrationId: string, otpId: string) => void;
+  onSuccess: (registrationId: string, otpId: string, phoneNumber: string) => void;
 }
 
 const PublicRegistrationForm: React.FC<PublicRegistrationFormProps> = ({ onSuccess }) => {
@@ -26,10 +26,38 @@ const PublicRegistrationForm: React.FC<PublicRegistrationFormProps> = ({ onSucce
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const validatePhoneNumber = (phone: string): boolean => {
+    // Enhanced phone validation for international formats
+    const e164Regex = /^\+[1-9]\d{1,14}$/;
+    const nigeriaMobileRegex = /^(\+234|234|0)?[789][01]\d{8}$/;
+    const cleanPhone = phone.replace(/\s+/g, '');
+    
+    return e164Regex.test(cleanPhone) || nigeriaMobileRegex.test(cleanPhone);
+  };
+
+  const formatPhoneNumber = (phone: string): string => {
+    const cleaned = phone.replace(/[^\d+]/g, '');
+    
+    // Handle Nigerian numbers specifically
+    if (cleaned.match(/^0[789][01]\d{8}$/)) {
+      return `+234${cleaned.substring(1)}`;
+    }
+    
+    if (cleaned.match(/^234[789][01]\d{8}$/)) {
+      return `+${cleaned}`;
+    }
+    
+    if (!cleaned.startsWith('+') && cleaned.length > 10) {
+      return `+${cleaned}`;
+    }
+    
+    return cleaned.startsWith('+') ? cleaned : `+${cleaned}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Basic validation
+    // Enhanced validation
     if (!formData.name || !formData.email || !formData.phoneNumber || !formData.city) {
       toast({
         title: "Validation Error",
@@ -50,12 +78,21 @@ const PublicRegistrationForm: React.FC<PublicRegistrationFormProps> = ({ onSucce
       return;
     }
 
-    // Phone validation (basic)
-    const phoneRegex = /^\+?[\d\s\-\(\)]{10,}$/;
-    if (!phoneRegex.test(formData.phoneNumber)) {
+    // Phone validation
+    if (!validatePhoneNumber(formData.phoneNumber)) {
       toast({
         title: "Invalid Phone Number",
-        description: "Please enter a valid phone number",
+        description: "Please enter a valid phone number (e.g., +2348012345678 or 08012345678)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Name validation
+    if (formData.name.trim().length < 2) {
+      toast({
+        title: "Invalid Name",
+        description: "Name must be at least 2 characters long",
         variant: "destructive"
       });
       return;
@@ -64,14 +101,26 @@ const PublicRegistrationForm: React.FC<PublicRegistrationFormProps> = ({ onSucce
     setIsSubmitting(true);
 
     try {
-      const result = await PublicRegistrationService.submitRegistration(formData);
+      // Format phone number before submission
+      const formattedPhoneNumber = formatPhoneNumber(formData.phoneNumber);
+      
+      const submissionData = {
+        ...formData,
+        phoneNumber: formattedPhoneNumber
+      };
+
+      console.log('🚀 Submitting registration data:', submissionData);
+
+      const result = await PublicRegistrationService.submitRegistration(submissionData);
       
       if (result.success && result.registrationId && result.otpId) {
         toast({
           title: "Registration Submitted",
           description: "Please check your phone for the verification code",
         });
-        onSuccess(result.registrationId, result.otpId);
+        
+        // Pass the formatted phone number to the success callback
+        onSuccess(result.registrationId, result.otpId, formattedPhoneNumber);
       } else {
         toast({
           title: "Registration Failed",
@@ -137,12 +186,12 @@ const PublicRegistrationForm: React.FC<PublicRegistrationFormProps> = ({ onSucce
               type="tel"
               value={formData.phoneNumber}
               onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-              placeholder="Enter your phone number"
+              placeholder="+2348012345678 or 08012345678"
               disabled={isSubmitting}
               required
             />
             <p className="text-xs text-gray-500">
-              We'll send a verification code to this number
+              We'll send a verification code to this number via SMS
             </p>
           </div>
 
