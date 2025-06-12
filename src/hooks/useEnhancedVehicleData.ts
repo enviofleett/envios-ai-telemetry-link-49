@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { enhancedVehicleDataService, VehicleData, VehicleDataMetrics } from '@/services/enhancedVehicleDataService';
-import { useToast } from '@/hooks/use-toast';
+import { enhancedVehicleDataService } from '@/services/enhancedVehicleDataService';
+import { VehicleData, VehicleDataMetrics } from '@/services/vehicleData/types';
 
 export const useEnhancedVehicleData = () => {
   const [vehicles, setVehicles] = useState<VehicleData[]>([]);
@@ -14,80 +14,34 @@ export const useEnhancedVehicleData = () => {
     syncStatus: 'success'
   });
   const [isLoading, setIsLoading] = useState(true);
-  const { toast } = useToast();
 
   useEffect(() => {
-    // Subscribe to vehicle data updates
+    // Subscribe to enhanced vehicle data service
     const unsubscribe = enhancedVehicleDataService.subscribe(() => {
-      const newVehicles = enhancedVehicleDataService.getVehicles();
-      const newMetrics = enhancedVehicleDataService.getMetrics();
+      const currentVehicles = enhancedVehicleDataService.getVehicles();
+      const currentMetrics = enhancedVehicleDataService.getMetrics();
       
-      setVehicles(newVehicles);
-      setMetrics(newMetrics);
+      setVehicles(currentVehicles);
+      setMetrics(currentMetrics);
       setIsLoading(false);
-
-      // Show error toast if sync failed
-      if (newMetrics.syncStatus === 'error' && newMetrics.errorMessage) {
-        toast({
-          title: "Vehicle Data Sync Failed",
-          description: newMetrics.errorMessage,
-          variant: "destructive"
-        });
-      }
     });
 
-    // Initial data load
-    setVehicles(enhancedVehicleDataService.getVehicles());
-    setMetrics(enhancedVehicleDataService.getMetrics());
-    setIsLoading(false);
-
     return unsubscribe;
-  }, [toast]);
+  }, []);
 
   const forceSync = async () => {
     setIsLoading(true);
     try {
       await enhancedVehicleDataService.forceSync();
-      toast({
-        title: "Data Sync Completed",
-        description: "Vehicle data has been refreshed from GP51"
-      });
-    } catch (error) {
-      toast({
-        title: "Sync Failed",
-        description: error instanceof Error ? error.message : "Unknown error occurred",
-        variant: "destructive"
-      });
     } finally {
-      setIsLoading(false);
+      // Loading state will be updated via subscription
     }
-  };
-
-  const getVehicleById = (deviceId: string) => {
-    return enhancedVehicleDataService.getVehicleById(deviceId);
-  };
-
-  const getOnlineVehicles = () => {
-    return vehicles.filter(v => v.status === 'online');
-  };
-
-  const getOfflineVehicles = () => {
-    return vehicles.filter(v => v.status === 'offline');
-  };
-
-  const getRecentlyActiveVehicles = () => {
-    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
-    return vehicles.filter(v => v.lastUpdate.getTime() > thirtyMinutesAgo);
   };
 
   return {
     vehicles,
     metrics,
     isLoading,
-    forceSync,
-    getVehicleById,
-    getOnlineVehicles,
-    getOfflineVehicles,
-    getRecentlyActiveVehicles
+    forceSync
   };
 };

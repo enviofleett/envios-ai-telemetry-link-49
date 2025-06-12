@@ -1,7 +1,7 @@
 
 import React from 'react';
-import SimpleDashboardContent from './SimpleDashboardContent';
+import AuthenticatedDashboard from './AuthenticatedDashboard';
 
 export const DashboardContent: React.FC = () => {
-  return <SimpleDashboardContent />;
+  return <AuthenticatedDashboard />;
 };
