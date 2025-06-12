@@ -12,7 +12,6 @@ interface SupabaseVehicleRow {
   id: string;
   device_id: string;
   device_name: string;
-  license_plate?: string;
   is_active: boolean;
   envio_user_id?: string;
   created_at: string;
@@ -90,7 +89,7 @@ class EnhancedVehicleDataService {
       id: supabaseVehicle.id,
       deviceId: supabaseVehicle.device_id,
       deviceName: supabaseVehicle.device_name,
-      licensePlate: supabaseVehicle.license_plate,
+      licensePlate: undefined, // This field doesn't exist in the database
       status,
       lastUpdate,
       lastPosition,
@@ -115,14 +114,13 @@ class EnhancedVehicleDataService {
         async () => {
           console.log('🚗 Starting enhanced vehicle data sync...');
 
-          // Step 1: Fetch vehicles from Supabase
+          // Step 1: Fetch vehicles from Supabase (using correct schema)
           const { data: supabaseVehicles, error: supabaseError } = await supabase
             .from('vehicles')
             .select(`
               id,
               device_id,
               device_name,
-              license_plate,
               is_active,
               envio_user_id,
               created_at,
