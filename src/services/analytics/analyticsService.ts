@@ -1,4 +1,3 @@
-
 import { 
   unifiedVehicleDataService, 
   type VehicleData 
@@ -230,44 +229,72 @@ export class AnalyticsService {
   private determineVehicleStatus(lastPosition: any): 'online' | 'offline' | 'moving' | 'idle' {
     if (!lastPosition) return 'offline';
     
-    // Safely handle the JSON field
-    const positionData = typeof lastPosition === 'string' ? JSON.parse(lastPosition) : lastPosition;
-    if (!positionData?.updatetime) return 'offline';
-    
-    const lastUpdate = new Date(positionData.updatetime);
-    const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
-    
-    if (minutesSinceUpdate <= 5) {
-      return positionData.speed > 0 ? 'moving' : 'online';
-    } else if (minutesSinceUpdate <= 30) {
-      return 'idle';
+    try {
+      // Safely handle the JSON field - it could be a string, object, or null
+      let positionData: any;
+      if (typeof lastPosition === 'string') {
+        positionData = JSON.parse(lastPosition);
+      } else if (typeof lastPosition === 'object' && lastPosition !== null) {
+        positionData = lastPosition;
+      } else {
+        return 'offline';
+      }
+
+      if (!positionData?.updatetime) return 'offline';
+      
+      const lastUpdate = new Date(positionData.updatetime);
+      const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
+      
+      if (minutesSinceUpdate <= 5) {
+        return positionData.speed > 0 ? 'moving' : 'online';
+      } else if (minutesSinceUpdate <= 30) {
+        return 'idle';
+      }
+      return 'offline';
+    } catch (error) {
+      console.error('Error parsing last position:', error);
+      return 'offline';
     }
-    return 'offline';
   }
 
   private parseLastPosition(lastPosition: any): VehicleData['lastPosition'] {
     if (!lastPosition) return undefined;
     
-    // Safely handle the JSON field - it could be a string or an object
-    const positionData = typeof lastPosition === 'string' ? JSON.parse(lastPosition) : lastPosition;
-    if (typeof positionData !== 'object') return undefined;
-    
-    return {
-      lat: positionData.lat || 0,
-      lon: positionData.lon || positionData.lng || 0, // Handle both lon and lng
-      speed: positionData.speed || 0,
-      course: positionData.course || 0,
-      updatetime: positionData.updatetime || '',
-      statusText: positionData.statusText || ''
-    };
+    try {
+      // Safely handle the JSON field - it could be a string, object, or null
+      let positionData: any;
+      if (typeof lastPosition === 'string') {
+        positionData = JSON.parse(lastPosition);
+      } else if (typeof lastPosition === 'object' && lastPosition !== null) {
+        positionData = lastPosition;
+      } else {
+        return undefined;
+      }
+      
+      return {
+        lat: positionData.lat || 0,
+        lon: positionData.lon || positionData.lng || 0, // Handle both lon and lng
+        speed: positionData.speed || 0,
+        course: positionData.course || 0,
+        updatetime: positionData.updatetime || '',
+        statusText: positionData.statusText || ''
+      };
+    } catch (error) {
+      console.error('Error parsing last position:', error);
+      return undefined;
+    }
   }
 
   private getOnlineVehicleCount(): number {
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-    return this.vehicles.filter(v => 
-      v.lastPosition?.updatetime && 
-      new Date(v.lastPosition.updatetime) > thirtyMinutesAgo
-    ).length;
+    return this.vehicles.filter(v => {
+      if (!v.lastPosition?.updatetime) return false;
+      try {
+        return new Date(v.lastPosition.updatetime) > thirtyMinutesAgo;
+      } catch (error) {
+        return false;
+      }
+    }).length;
   }
 
   private calculateAverageUtilization(): number {
