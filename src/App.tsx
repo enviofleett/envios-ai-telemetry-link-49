@@ -11,12 +11,8 @@ import Auth from '@/pages/Auth';
 import AdminSettings from '@/pages/AdminSettings';
 import UserManagement from '@/pages/UserManagement';
 import VehicleManagement from '@/pages/VehicleManagement';
-import LocationHistory from '@/pages/LocationHistory';
 import Dashboard from '@/pages/Dashboard';
-import DeviceSubscriptions from '@/pages/DeviceSubscriptions';
 import SystemImport from '@/pages/SystemImport';
-import BillingManagement from '@/pages/BillingManagement';
-import MaintenanceBooking from '@/pages/MaintenanceBooking';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,10 +40,6 @@ const App = () => {
                       <Route path="/dashboard" element={<Dashboard />} />
                       <Route path="/vehicles" element={<VehicleManagement />} />
                       <Route path="/users" element={<UserManagement />} />
-                      <Route path="/location-history" element={<LocationHistory />} />
-                      <Route path="/subscriptions" element={<DeviceSubscriptions />} />
-                      <Route path="/billing" element={<BillingManagement />} />
-                      <Route path="/maintenance" element={<MaintenanceBooking />} />
                       <Route path="/import" element={<SystemImport />} />
                       <Route path="/settings" element={<AdminSettings />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
