@@ -59,10 +59,10 @@ const GP51LiveDataImportManager: React.FC = () => {
         <div>
           <h2 className="text-xl font-semibold flex items-center gap-2">
             <Satellite className="h-5 w-5 text-green-600" />
-            GP51 Live Data Import
+            GP51 Data Import (Legacy)
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Import users and vehicles directly from GP51 platform in real-time
+            Legacy GP51 data import functionality. For comprehensive import, use the main GP51 Import feature.
           </p>
         </div>
         
@@ -73,6 +73,14 @@ const GP51LiveDataImportManager: React.FC = () => {
           </Badge>
         )}
       </div>
+
+      <Alert>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          This is the legacy GP51 import interface. For comprehensive vehicle import (including offline and inactive vehicles), 
+          please use the main GP51 Import feature in the Integration settings.
+        </AlertDescription>
+      </Alert>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-4">

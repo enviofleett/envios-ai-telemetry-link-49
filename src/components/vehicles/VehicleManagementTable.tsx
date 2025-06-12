@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +18,11 @@ import {
   Clock, 
   Zap,
   Activity,
-  UserPlus
+  UserPlus,
+  Circle,
+  CircleDot,
+  CircleX,
+  HelpCircle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { VehicleUserAssignmentModal } from '@/components/admin/VehicleUserAssignmentModal';
@@ -173,6 +176,42 @@ export const VehicleManagementTable: React.FC = () => {
   };
 
   const getVehicleStatusBadge = (vehicle: Vehicle) => {
+    const vehicleStatus = vehicle.gp51_metadata?.vehicleStatus;
+    
+    if (vehicleStatus) {
+      switch (vehicleStatus) {
+        case 'online':
+          return (
+            <Badge variant="default" className="bg-green-500 flex items-center gap-1">
+              <CircleDot className="w-3 h-3" />
+              Online
+            </Badge>
+          );
+        case 'offline':
+          return (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Circle className="w-3 h-3" />
+              Offline
+            </Badge>
+          );
+        case 'inactive':
+          return (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <CircleX className="w-3 h-3" />
+              Inactive
+            </Badge>
+          );
+        default:
+          return (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <HelpCircle className="w-3 h-3" />
+              Unknown
+            </Badge>
+          );
+      }
+    }
+
+    // Fallback to legacy status determination
     if (vehicle.gp51_metadata) {
       const metadata = vehicle.gp51_metadata;
       const lastUpdate = new Date(metadata.timestamp);
@@ -190,11 +229,13 @@ export const VehicleManagementTable: React.FC = () => {
   };
 
   const getVehicleSource = (vehicle: Vehicle) => {
+    const importSource = vehicle.gp51_metadata?.importSource;
+    
     if (vehicle.gp51_metadata) {
       return (
-        <Badge variant="outline" className="text-blue-600 border-blue-200">
-          <Zap className="w-3 h-3 mr-1" />
-          GP51
+        <Badge variant="outline" className="text-blue-600 border-blue-200 flex items-center gap-1">
+          <Zap className="w-3 h-3" />
+          {importSource === 'gp51_comprehensive' ? 'GP51 Complete' : 'GP51'}
         </Badge>
       );
     }
@@ -206,7 +247,10 @@ export const VehicleManagementTable: React.FC = () => {
   };
 
   const formatLastUpdate = (vehicle: Vehicle) => {
-    if (vehicle.gp51_metadata?.timestamp) {
+    if (vehicle.gp51_metadata?.lastGP51Sync) {
+      const lastSync = new Date(vehicle.gp51_metadata.lastGP51Sync);
+      return lastSync.toLocaleString();
+    } else if (vehicle.gp51_metadata?.timestamp) {
       const lastUpdate = new Date(vehicle.gp51_metadata.timestamp);
       return lastUpdate.toLocaleString();
     }
@@ -219,6 +263,41 @@ export const VehicleManagementTable: React.FC = () => {
     }
     return 'No location data';
   };
+
+  // Enhanced statistics calculation
+  const getEnhancedStatistics = () => {
+    const total = vehicles.length;
+    const gp51Imported = vehicles.filter(v => v.gp51_metadata).length;
+    const assigned = vehicles.filter(v => v.envio_user_id).length;
+    const active = vehicles.filter(v => v.is_active).length;
+
+    // Status distribution
+    const statusDistribution = {
+      online: 0,
+      offline: 0,
+      inactive: 0,
+      unknown: 0
+    };
+
+    vehicles.forEach(vehicle => {
+      const status = vehicle.gp51_metadata?.vehicleStatus;
+      if (status && status in statusDistribution) {
+        statusDistribution[status as keyof typeof statusDistribution]++;
+      } else {
+        statusDistribution.unknown++;
+      }
+    });
+
+    return {
+      total,
+      gp51Imported,
+      assigned,
+      active,
+      statusDistribution
+    };
+  };
+
+  const stats = getEnhancedStatistics();
 
   return (
     <div className="space-y-6">
@@ -246,29 +325,43 @@ export const VehicleManagementTable: React.FC = () => {
             </Button>
           </div>
 
-          {/* Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Enhanced Statistics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="text-center p-3 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">{vehicles.length}</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
               <div className="text-sm text-blue-800">Total Vehicles</div>
             </div>
             <div className="text-center p-3 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
-                {vehicles.filter(v => v.gp51_metadata).length}
-              </div>
+              <div className="text-2xl font-bold text-green-600">{stats.gp51Imported}</div>
               <div className="text-sm text-green-800">GP51 Imported</div>
             </div>
             <div className="text-center p-3 bg-purple-50 rounded-lg">
-              <div className="text-2xl font-bold text-purple-600">
-                {vehicles.filter(v => v.envio_user_id).length}
-              </div>
+              <div className="text-2xl font-bold text-purple-600">{stats.assigned}</div>
               <div className="text-sm text-purple-800">Assigned to Users</div>
             </div>
             <div className="text-center p-3 bg-orange-50 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">
-                {vehicles.filter(v => v.is_active).length}
-              </div>
+              <div className="text-2xl font-bold text-orange-600">{stats.active}</div>
               <div className="text-sm text-orange-800">Active Vehicles</div>
+            </div>
+          </div>
+
+          {/* Vehicle Status Distribution */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="text-center p-2 bg-green-50 rounded">
+              <div className="text-lg font-bold text-green-600">{stats.statusDistribution.online}</div>
+              <div className="text-xs text-green-800">Online</div>
+            </div>
+            <div className="text-center p-2 bg-gray-50 rounded">
+              <div className="text-lg font-bold text-gray-600">{stats.statusDistribution.offline}</div>
+              <div className="text-xs text-gray-800">Offline</div>
+            </div>
+            <div className="text-center p-2 bg-red-50 rounded">
+              <div className="text-lg font-bold text-red-600">{stats.statusDistribution.inactive}</div>
+              <div className="text-xs text-red-800">Inactive</div>
+            </div>
+            <div className="text-center p-2 bg-yellow-50 rounded">
+              <div className="text-lg font-bold text-yellow-600">{stats.statusDistribution.unknown}</div>
+              <div className="text-xs text-yellow-800">Unknown</div>
             </div>
           </div>
 

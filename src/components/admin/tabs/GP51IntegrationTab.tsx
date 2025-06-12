@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GP51AuthenticationPanel } from '@/components/admin/GP51AuthenticationPanel';
 import { GP51ConnectionTest } from '@/components/admin/GP51ConnectionTest';
-import { GP51LiveImportModal } from '@/components/admin/GP51LiveImportModal';
+import { GP51ImportModal } from '@/components/admin/GP51ImportModal';
 import GP51Settings from '@/components/admin/GP51Settings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Shield, Activity, Settings, Zap, Download } from 'lucide-react';
@@ -34,7 +34,7 @@ const GP51IntegrationTab: React.FC = () => {
               </TabsTrigger>
               <TabsTrigger value="import" className="flex items-center gap-2">
                 <Download className="h-4 w-4" />
-                Live Import
+                Vehicle Import
               </TabsTrigger>
               <TabsTrigger value="settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
@@ -59,21 +59,22 @@ const GP51IntegrationTab: React.FC = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Download className="h-5 w-5" />
-                    Live Vehicle Data Import
+                    Complete Vehicle Data Import
                   </CardTitle>
                   <CardDescription>
-                    Import live vehicle data from GP51 platform. Only actively reporting vehicles will be imported.
+                    Import all available vehicles from your GP51 account. This comprehensive import includes online, offline, and inactive vehicles.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="text-sm text-muted-foreground space-y-2">
-                    <p>• <strong>Live vehicles</strong> are those that have reported within your specified timeframe</p>
-                    <p>• <strong>Configurable thresholds</strong> allow you to define what "live" means for your fleet</p>
-                    <p>• <strong>Bulk import</strong> with progress tracking and error handling</p>
-                    <p>• <strong>Smart filtering</strong> excludes offline or stale vehicle data</p>
+                    <p>• <strong>Complete fleet import</strong> - fetches all vehicles regardless of current status</p>
+                    <p>• <strong>Flexible scope options</strong> - import all vehicles or specify particular devices</p>
+                    <p>• <strong>Batch processing</strong> with progress tracking and comprehensive error handling</p>
+                    <p>• <strong>Smart conflict resolution</strong> - choose to update existing vehicles or skip duplicates</p>
+                    <p>• <strong>Status classification</strong> - vehicles are categorized as online, offline, or inactive</p>
                   </div>
                   
-                  <GP51LiveImportModal />
+                  <GP51ImportModal />
                 </CardContent>
               </Card>
             </TabsContent>

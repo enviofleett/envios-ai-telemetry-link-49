@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { GP51ProcessedPosition } from '@/services/gp51/GP51DataService';
 
@@ -8,6 +7,7 @@ export interface VehiclePersistenceResult {
   deviceId: string;
   action: 'created' | 'updated' | 'skipped' | 'error';
   error?: string;
+  vehicleStatus?: 'online' | 'offline' | 'inactive' | 'unknown';
 }
 
 export interface VehiclePersistenceOptions {
@@ -38,7 +38,33 @@ class GP51VehiclePersistenceService {
     }
   }
 
+  private determineVehicleStatus(gp51Vehicle: GP51ProcessedPosition): 'online' | 'offline' | 'inactive' | 'unknown' {
+    if (!gp51Vehicle.timestamp) {
+      return 'unknown';
+    }
+
+    const lastUpdateTime = gp51Vehicle.timestamp.getTime();
+    const now = Date.now();
+    const timeDifference = now - lastUpdateTime;
+
+    // Consider vehicle online if last update was within 15 minutes
+    if (timeDifference <= 15 * 60 * 1000) {
+      return gp51Vehicle.isOnline ? 'online' : 'offline';
+    }
+
+    // Consider vehicle offline if last update was within 24 hours
+    if (timeDifference <= 24 * 60 * 60 * 1000) {
+      return 'offline';
+    }
+
+    // Consider vehicle inactive if no update for more than 24 hours
+    return 'inactive';
+  }
+
   private mapGP51ToSupabaseVehicle(gp51Vehicle: GP51ProcessedPosition) {
+    const vehicleStatus = this.determineVehicleStatus(gp51Vehicle);
+    const importTimestamp = new Date().toISOString();
+
     return {
       device_id: gp51Vehicle.deviceId,
       device_name: gp51Vehicle.deviceName || gp51Vehicle.deviceId,
@@ -53,7 +79,10 @@ class GP51VehiclePersistenceService {
         statusText: gp51Vehicle.statusText,
         timestamp: gp51Vehicle.timestamp.toISOString(),
         isMoving: gp51Vehicle.isMoving,
-        importedAt: new Date().toISOString()
+        vehicleStatus,
+        importedAt: importTimestamp,
+        lastGP51Sync: importTimestamp,
+        importSource: 'gp51_comprehensive'
       },
       // Set defaults for required fields that aren't available from GP51
       make: null,
@@ -75,9 +104,10 @@ class GP51VehiclePersistenceService {
     const results: VehiclePersistenceResult[] = [];
     const batchSize = options.batchSize || 10;
     
-    this.log('info', `Starting vehicle persistence for ${vehicles.length} vehicles`, {
+    this.log('info', `Starting comprehensive vehicle persistence for ${vehicles.length} vehicles`, {
       overwriteStrategy: options.overwriteStrategy,
-      batchSize
+      batchSize,
+      vehicleTypes: this.getVehicleStatusDistribution(vehicles)
     });
 
     // Process vehicles in batches to avoid overwhelming the database
@@ -100,15 +130,40 @@ class GP51VehiclePersistenceService {
       }
     }
 
-    this.log('info', `Vehicle persistence completed`, {
+    const summary = this.generateImportSummary(results, vehicles);
+    this.log('info', `Comprehensive vehicle persistence completed`, summary);
+
+    return results;
+  }
+
+  private getVehicleStatusDistribution(vehicles: GP51ProcessedPosition[]) {
+    const distribution = {
+      online: 0,
+      offline: 0,
+      inactive: 0,
+      unknown: 0
+    };
+
+    vehicles.forEach(vehicle => {
+      const status = this.determineVehicleStatus(vehicle);
+      distribution[status]++;
+    });
+
+    return distribution;
+  }
+
+  private generateImportSummary(results: VehiclePersistenceResult[], vehicles: GP51ProcessedPosition[]) {
+    const statusDistribution = this.getVehicleStatusDistribution(vehicles);
+    
+    return {
       total: vehicles.length,
       created: results.filter(r => r.action === 'created').length,
       updated: results.filter(r => r.action === 'updated').length,
       skipped: results.filter(r => r.action === 'skipped').length,
-      errors: results.filter(r => r.action === 'error').length
-    });
-
-    return results;
+      errors: results.filter(r => r.action === 'error').length,
+      vehicleStatusDistribution: statusDistribution,
+      successRate: ((results.filter(r => r.success).length / results.length) * 100).toFixed(2) + '%'
+    };
   }
 
   private async processBatch(
@@ -127,7 +182,8 @@ class GP51VehiclePersistenceService {
           success: false,
           deviceId: vehicle.deviceId,
           action: 'error',
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
+          vehicleStatus: this.determineVehicleStatus(vehicle)
         });
       }
     }
@@ -139,10 +195,12 @@ class GP51VehiclePersistenceService {
     gp51Vehicle: GP51ProcessedPosition,
     options: VehiclePersistenceOptions
   ): Promise<VehiclePersistenceResult> {
+    const vehicleStatus = this.determineVehicleStatus(gp51Vehicle);
+
     // First, check if vehicle already exists
     const { data: existingVehicle, error: checkError } = await supabase
       .from('vehicles')
-      .select('id, device_id, updated_at')
+      .select('id, device_id, updated_at, gp51_metadata')
       .eq('device_id', gp51Vehicle.deviceId)
       .maybeSingle();
 
@@ -155,22 +213,34 @@ class GP51VehiclePersistenceService {
     if (existingVehicle) {
       // Vehicle exists - handle based on overwrite strategy
       if (options.overwriteStrategy === 'skip') {
-        this.log('info', `Skipping existing vehicle: ${gp51Vehicle.deviceId}`);
+        this.log('info', `Skipping existing vehicle: ${gp51Vehicle.deviceId} (${vehicleStatus})`);
         return {
           success: true,
           vehicleId: existingVehicle.id,
           deviceId: gp51Vehicle.deviceId,
-          action: 'skipped'
+          action: 'skipped',
+          vehicleStatus
         };
       }
 
-      // Update existing vehicle
+      // Update existing vehicle with comprehensive data
       const { data: updatedVehicle, error: updateError } = await supabase
         .from('vehicles')
         .update({
           device_name: vehicleData.device_name,
           is_active: vehicleData.is_active,
-          gp51_metadata: vehicleData.gp51_metadata,
+          gp51_metadata: {
+            ...existingVehicle.gp51_metadata,
+            ...vehicleData.gp51_metadata,
+            previousStatus: existingVehicle.gp51_metadata?.vehicleStatus,
+            statusHistory: [
+              ...(existingVehicle.gp51_metadata?.statusHistory || []),
+              {
+                status: vehicleStatus,
+                timestamp: new Date().toISOString()
+              }
+            ].slice(-10) // Keep last 10 status changes
+          },
           updated_at: vehicleData.updated_at
         })
         .eq('id', existingVehicle.id)
@@ -181,12 +251,13 @@ class GP51VehiclePersistenceService {
         throw new Error(`Update failed: ${updateError.message}`);
       }
 
-      this.log('info', `Updated vehicle: ${gp51Vehicle.deviceId}`);
+      this.log('info', `Updated vehicle: ${gp51Vehicle.deviceId} (${vehicleStatus})`);
       return {
         success: true,
         vehicleId: updatedVehicle.id,
         deviceId: gp51Vehicle.deviceId,
-        action: 'updated'
+        action: 'updated',
+        vehicleStatus
       };
     } else {
       // Create new vehicle
@@ -200,12 +271,13 @@ class GP51VehiclePersistenceService {
         throw new Error(`Insert failed: ${insertError.message}`);
       }
 
-      this.log('info', `Created vehicle: ${gp51Vehicle.deviceId}`);
+      this.log('info', `Created vehicle: ${gp51Vehicle.deviceId} (${vehicleStatus})`);
       return {
         success: true,
         vehicleId: newVehicle.id,
         deviceId: gp51Vehicle.deviceId,
-        action: 'created'
+        action: 'created',
+        vehicleStatus
       };
     }
   }
@@ -237,6 +309,12 @@ class GP51VehiclePersistenceService {
     totalVehicles: number;
     importedVehicles: number;
     assignedVehicles: number;
+    statusDistribution: {
+      online: number;
+      offline: number;
+      inactive: number;
+      unknown: number;
+    };
     lastImportDate?: Date;
   }> {
     try {
@@ -255,6 +333,21 @@ class GP51VehiclePersistenceService {
         ? new Date(Math.max(...stats.map(v => new Date(v.created_at).getTime())))
         : undefined;
 
+      // Calculate status distribution
+      const statusDistribution = {
+        online: 0,
+        offline: 0,
+        inactive: 0,
+        unknown: 0
+      };
+
+      stats?.forEach(vehicle => {
+        const status = vehicle.gp51_metadata?.vehicleStatus || 'unknown';
+        if (status in statusDistribution) {
+          statusDistribution[status as keyof typeof statusDistribution]++;
+        }
+      });
+
       // Get total vehicle count
       const { count: totalVehicles } = await supabase
         .from('vehicles')
@@ -264,6 +357,7 @@ class GP51VehiclePersistenceService {
         totalVehicles: totalVehicles || 0,
         importedVehicles,
         assignedVehicles,
+        statusDistribution,
         lastImportDate
       };
     } catch (error) {
@@ -271,7 +365,13 @@ class GP51VehiclePersistenceService {
       return {
         totalVehicles: 0,
         importedVehicles: 0,
-        assignedVehicles: 0
+        assignedVehicles: 0,
+        statusDistribution: {
+          online: 0,
+          offline: 0,
+          inactive: 0,
+          unknown: 0
+        }
       };
     }
   }
