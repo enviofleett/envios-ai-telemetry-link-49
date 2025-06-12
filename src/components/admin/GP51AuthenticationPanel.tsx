@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,8 @@ import {
   LogOut,
   Activity,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from 'lucide-react';
 
 const GP51_USERNAME_STORAGE_KEY = 'gp51_last_username';
@@ -33,6 +35,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
     tokenExpiresAt, 
     isLoading, 
     error,
+    isRestoringSession,
     login, 
     logout, 
     healthCheck,
@@ -94,13 +97,14 @@ export const GP51AuthenticationPanel: React.FC = () => {
   };
 
   const getStatusIcon = () => {
-    if (isLoading) return <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />;
+    if (isLoading || isRestoringSession) return <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />;
     if (error) return <XCircle className="h-5 w-5 text-red-600" />;
     if (isAuthenticated) return <CheckCircle className="h-5 w-5 text-green-600" />;
     return <XCircle className="h-5 w-5 text-gray-400" />;
   };
 
   const getStatusText = () => {
+    if (isRestoringSession) return 'Restoring session...';
     if (isLoading) return 'Processing...';
     if (error) return 'Connection Error';
     if (isAuthenticated) return 'Connected';
@@ -120,6 +124,31 @@ export const GP51AuthenticationPanel: React.FC = () => {
     return `${minutes}m`;
   };
 
+  // Show loading state during session restoration
+  if (isRestoringSession) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5" />
+            GP51 Authentication
+          </CardTitle>
+          <CardDescription>
+            Secure authentication with GP51 telemetry service
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-center p-8">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+              <span className="text-muted-foreground">Restoring previous session...</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -128,7 +157,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
           GP51 Authentication
         </CardTitle>
         <CardDescription>
-          Secure authentication with GP51 telemetry service using enhanced error handling
+          Secure authentication with GP51 telemetry service with session persistence
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -164,6 +193,16 @@ export const GP51AuthenticationPanel: React.FC = () => {
           </div>
         </div>
 
+        {/* Session Restoration Info */}
+        {isAuthenticated && !isLoading && (
+          <Alert>
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>
+              ✅ Session automatically restored from previous login. You're connected to GP51!
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Error Display Section */}
         {error && (
           <Alert variant="destructive">
@@ -192,7 +231,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
               <strong>Token expires in:</strong> {formatExpiryTime(tokenExpiresAt)}
               <br />
               <span className="text-sm text-muted-foreground">
-                Tokens are automatically renewed when needed
+                Tokens are automatically renewed and persisted across browser sessions
               </span>
             </AlertDescription>
           </Alert>
@@ -262,7 +301,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
               <CheckCircle className="h-4 w-4" />
               <AlertDescription>
                 Successfully connected to GP51 telemetry service. 
-                Authentication tokens are managed automatically with enhanced error recovery.
+                Your session is automatically saved and will persist across browser refreshes.
               </AlertDescription>
             </Alert>
             
@@ -286,6 +325,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
           <p>📊 All authentication attempts are logged for security and debugging</p>
           <p>🛡️ Enhanced MD5 implementation ensures cross-browser compatibility</p>
           <p>💾 Username is remembered for convenience (password never stored)</p>
+          <p>🔑 Session tokens are securely persisted and restored on browser refresh</p>
         </div>
       </CardContent>
     </Card>

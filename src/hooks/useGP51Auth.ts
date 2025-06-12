@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { gps51AuthService, type AuthResult } from '@/services/gp51/Gps51AuthService';
 import { useToast } from '@/hooks/use-toast';
@@ -7,14 +8,16 @@ interface AuthState {
   username?: string;
   tokenExpiresAt?: Date;
   isLoading: boolean;
-  error: string | null; // Added error state
+  error: string | null;
+  isRestoringSession: boolean; // New state for session restoration
 }
 
 export const useGP51Auth = () => {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     isLoading: false,
-    error: null
+    error: null,
+    isRestoringSession: true // Start with restoration state
   });
   const { toast } = useToast();
 
@@ -25,7 +28,7 @@ export const useGP51Auth = () => {
       isAuthenticated: status.isAuthenticated,
       username: status.username,
       tokenExpiresAt: status.tokenExpiresAt,
-      // Keep existing error state unless clearing it explicitly
+      isRestoringSession: false // Mark restoration as complete
     }));
   }, []);
 
@@ -36,7 +39,14 @@ export const useGP51Auth = () => {
 
   useEffect(() => {
     console.log('🔍 useGP51Auth: Initializing hook and checking auth status...');
-    updateAuthState();
+    
+    // Small delay to allow token restoration to complete
+    const initializeAuth = async () => {
+      await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+      updateAuthState();
+    };
+    
+    initializeAuth();
     
     // Check auth status periodically
     const interval = setInterval(() => {
@@ -53,7 +63,8 @@ export const useGP51Auth = () => {
     setAuthState(prev => ({ 
       ...prev, 
       isLoading: true, 
-      error: null // Clear any previous errors
+      error: null,
+      isRestoringSession: false
     }));
     
     try {

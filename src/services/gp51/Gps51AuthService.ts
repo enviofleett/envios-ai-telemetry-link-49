@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { crossBrowserMD5 } from './crossBrowserMD5';
 
@@ -26,6 +25,11 @@ export interface AuthResult {
   error?: string;
 }
 
+// Token storage keys
+const GP51_TOKEN_STORAGE_KEY = 'gp51_auth_token';
+const GP51_TOKEN_EXPIRY_STORAGE_KEY = 'gp51_token_expiry';
+const GP51_USERNAME_STORAGE_KEY = 'gp51_username';
+
 export class Gps51AuthService {
   private static instance: Gps51AuthService;
   private currentToken: AuthToken | null = null;
@@ -44,7 +48,90 @@ export class Gps51AuthService {
   }
 
   private constructor() {
+    this.loadTokenFromStorage();
     this.startHealthCheck();
+  }
+
+  // Load stored token from localStorage on service initialization
+  private loadTokenFromStorage(): void {
+    try {
+      const storedToken = localStorage.getItem(GP51_TOKEN_STORAGE_KEY);
+      const storedExpiry = localStorage.getItem(GP51_TOKEN_EXPIRY_STORAGE_KEY);
+      const storedUsername = localStorage.getItem(GP51_USERNAME_STORAGE_KEY);
+
+      if (storedToken && storedExpiry && storedUsername) {
+        const expiresAt = new Date(storedExpiry);
+        
+        // Check if token is still valid (with 5 minute buffer)
+        const bufferTime = 5 * 60 * 1000;
+        const now = new Date();
+        
+        if (expiresAt.getTime() - bufferTime > now.getTime()) {
+          this.currentToken = {
+            token: storedToken,
+            expiresAt,
+            username: storedUsername
+          };
+          
+          this.log('info', `Token restored from storage for user: ${storedUsername}`);
+          
+          // Validate the restored token with a quick health check
+          this.validateRestoredToken();
+        } else {
+          this.log('warn', 'Stored token expired, clearing storage');
+          this.clearTokenStorage();
+        }
+      }
+    } catch (error) {
+      this.log('error', 'Failed to load token from storage', error);
+      this.clearTokenStorage();
+    }
+  }
+
+  // Validate restored token with a lightweight API call
+  private async validateRestoredToken(): Promise<void> {
+    try {
+      this.log('info', 'Validating restored token...');
+      const isValid = await this.healthCheck();
+      
+      if (!isValid) {
+        this.log('warn', 'Restored token is invalid, clearing storage');
+        this.clearTokenStorage();
+        this.currentToken = null;
+      } else {
+        this.log('info', 'Restored token is valid');
+      }
+    } catch (error) {
+      this.log('error', 'Token validation failed', error);
+      this.clearTokenStorage();
+      this.currentToken = null;
+    }
+  }
+
+  // Store token in localStorage
+  private storeTokenInStorage(token: AuthToken): void {
+    try {
+      localStorage.setItem(GP51_TOKEN_STORAGE_KEY, token.token);
+      localStorage.setItem(GP51_TOKEN_EXPIRY_STORAGE_KEY, token.expiresAt.toISOString());
+      localStorage.setItem(GP51_USERNAME_STORAGE_KEY, token.username);
+      
+      this.log('info', `Token stored in localStorage for user: ${token.username}`);
+    } catch (error) {
+      this.log('error', 'Failed to store token in localStorage', error);
+    }
+  }
+
+  // Clear token from localStorage
+  private clearTokenStorage(): void {
+    try {
+      localStorage.removeItem(GP51_TOKEN_STORAGE_KEY);
+      localStorage.removeItem(GP51_TOKEN_EXPIRY_STORAGE_KEY);
+      localStorage.removeItem(GP51_USERNAME_STORAGE_KEY);
+      
+      this.log('info', 'Token storage cleared');
+    } catch (error) {
+      this.log('error', 'Failed to clear token storage', error);
+    }
   }
 
   // Use the proper cross-browser MD5 implementation
@@ -226,6 +313,9 @@ export class Gps51AuthService {
           password: password
         };
 
+        // Store token in localStorage
+        this.storeTokenInStorage(this.currentToken);
+
         this.log('info', `Login successful for user: ${username}`);
         return { success: true, token: response.token };
       } else {
@@ -257,8 +347,10 @@ export class Gps51AuthService {
         this.log('warn', 'Logout API call failed, clearing local session anyway', error);
       }
 
+      // Clear everything
       this.currentToken = null;
       this.credentials = null;
+      this.clearTokenStorage();
       
       this.log('info', 'Logout completed');
       return { success: true };
@@ -319,6 +411,7 @@ export class Gps51AuthService {
         // If token is invalid, clear it to force renewal
         if (response.cause?.includes('token') || response.cause?.includes('invalid')) {
           this.currentToken = null;
+          this.clearTokenStorage();
         }
         
         return false;
