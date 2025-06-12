@@ -1,7 +1,7 @@
 
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
-export const getVehicleStatus = (vehicle: Vehicle) => {
+export const getVehicleStatus = (vehicle: VehicleData) => {
   if (!vehicle.lastPosition?.updatetime) return 'offline';
   
   const lastUpdate = new Date(vehicle.lastPosition.updatetime);

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,10 +12,10 @@ import {
   WifiOff,
   AlertTriangle
 } from 'lucide-react';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface LiveVehicleCardProps {
-  vehicle: Vehicle;
+  vehicle: VehicleData;
 }
 
 const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
@@ -90,8 +89,8 @@ const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
-            <h3 className="font-semibold text-lg">{vehicle.devicename}</h3>
-            <p className="text-sm text-gray-600">ID: {vehicle.deviceid}</p>
+            <h3 className="font-semibold text-lg">{vehicle.deviceName}</h3>
+            <p className="text-sm text-gray-600">ID: {vehicle.deviceId}</p>
             {vehicle.envio_user_id && (
               <div className="flex items-center gap-1 mt-1">
                 <User className="h-3 w-3 text-gray-400" />

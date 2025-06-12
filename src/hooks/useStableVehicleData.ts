@@ -1,7 +1,6 @@
-
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { unifiedVehicleDataService } from '@/services/unifiedVehicleData';
-import type { Vehicle, VehicleMetrics } from '@/services/unifiedVehicleData';
+import type { VehicleData, VehicleMetrics } from '@/types/vehicle';
 
 interface FilterOptions {
   search?: string;
@@ -10,7 +9,7 @@ interface FilterOptions {
 }
 
 // Vehicle comparison for stable references
-const vehiclesEqual = (a: Vehicle[], b: Vehicle[]): boolean => {
+const vehiclesEqual = (a: VehicleData[], b: VehicleData[]): boolean => {
   if (a.length !== b.length) return false;
   
   return a.every((vehicleA, index) => {
@@ -18,8 +17,8 @@ const vehiclesEqual = (a: Vehicle[], b: Vehicle[]): boolean => {
     if (!vehicleB) return false;
     
     return (
-      vehicleA.deviceid === vehicleB.deviceid &&
-      vehicleA.devicename === vehicleB.devicename &&
+      vehicleA.deviceId === vehicleB.deviceId &&
+      vehicleA.deviceName === vehicleB.deviceName &&
       vehicleA.lastPosition?.lat === vehicleB.lastPosition?.lat &&
       vehicleA.lastPosition?.lon === vehicleB.lastPosition?.lon &&
       vehicleA.lastPosition?.updatetime === vehicleB.lastPosition?.updatetime
@@ -28,7 +27,7 @@ const vehiclesEqual = (a: Vehicle[], b: Vehicle[]): boolean => {
 };
 
 export const useStableVehicleData = (filters?: FilterOptions) => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
   const [metrics, setMetrics] = useState<VehicleMetrics>({
     total: 0,
     online: 0,
@@ -39,20 +38,20 @@ export const useStableVehicleData = (filters?: FilterOptions) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  const previousVehicles = useRef<Vehicle[]>([]);
+  const previousVehicles = useRef<VehicleData[]>([]);
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
 
   // Memoized filter function
   const filterVehicles = useMemo(() => {
-    return (allVehicles: Vehicle[]): Vehicle[] => {
+    return (allVehicles: VehicleData[]): VehicleData[] => {
       if (!filters) return allVehicles;
 
       return allVehicles.filter(vehicle => {
         if (filters.search) {
           const searchTerm = filters.search.toLowerCase();
           const matchesSearch = 
-            vehicle.devicename.toLowerCase().includes(searchTerm) ||
-            vehicle.deviceid.toLowerCase().includes(searchTerm);
+            vehicle.deviceName.toLowerCase().includes(searchTerm) ||
+            vehicle.deviceId.toLowerCase().includes(searchTerm);
           if (!matchesSearch) return false;
         }
 

@@ -1,13 +1,12 @@
-
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Car, MapPin } from 'lucide-react';
 import LiveVehicleCard from './LiveVehicleCard';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface LiveTrackingContentProps {
   viewMode: 'cards' | 'map';
-  vehicles: Vehicle[];
+  vehicles: VehicleData[];
 }
 
 const LiveTrackingContent: React.FC<LiveTrackingContentProps> = ({
@@ -46,7 +45,7 @@ const LiveTrackingContent: React.FC<LiveTrackingContentProps> = ({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {vehicles.map((vehicle) => (
-        <LiveVehicleCard key={vehicle.deviceid} vehicle={vehicle} />
+        <LiveVehicleCard key={vehicle.deviceId} vehicle={vehicle} />
       ))}
     </div>
   );

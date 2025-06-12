@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import MapTilerMap from '@/components/map/MapTilerMap';
 import { useStableVehicleData } from '@/hooks/useStableVehicleData';
 import { useNavigate } from 'react-router-dom';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 const FleetMapWidget: React.FC = () => {
   const [showOfflineVehicles, setShowOfflineVehicles] = useState(true);
@@ -18,7 +17,7 @@ const FleetMapWidget: React.FC = () => {
     status: showOfflineVehicles ? 'all' : 'online'
   });
 
-  const getVehicleStatus = (vehicle: Vehicle) => {
+  const getVehicleStatus = (vehicle: VehicleData) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
     
     const lastUpdate = new Date(vehicle.lastPosition.updatetime);
@@ -36,7 +35,7 @@ const FleetMapWidget: React.FC = () => {
     return acc;
   }, {} as Record<string, number>);
 
-  const handleVehicleSelect = (vehicle: Vehicle) => {
+  const handleVehicleSelect = (vehicle: VehicleData) => {
     navigate('/tracking', { state: { selectedVehicle: vehicle } });
   };
 

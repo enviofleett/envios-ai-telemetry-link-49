@@ -1,9 +1,9 @@
 
 import { useState, useCallback } from 'react';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface VehicleDetailsState {
-  selectedVehicle: Vehicle | null;
+  selectedVehicle: VehicleData | null;
   isDetailsModalOpen: boolean;
   isTripHistoryModalOpen: boolean;
   isAlertModalOpen: boolean;
@@ -17,7 +17,7 @@ export const useVehicleDetails = () => {
     isAlertModalOpen: false,
   });
 
-  const openDetailsModal = useCallback((vehicle: Vehicle) => {
+  const openDetailsModal = useCallback((vehicle: VehicleData) => {
     setState(prev => ({
       ...prev,
       selectedVehicle: vehicle,
@@ -32,7 +32,7 @@ export const useVehicleDetails = () => {
     }));
   }, []);
 
-  const openTripHistoryModal = useCallback((vehicle: Vehicle) => {
+  const openTripHistoryModal = useCallback((vehicle: VehicleData) => {
     setState(prev => ({
       ...prev,
       selectedVehicle: vehicle,
@@ -47,7 +47,7 @@ export const useVehicleDetails = () => {
     }));
   }, []);
 
-  const openAlertModal = useCallback((vehicle: Vehicle) => {
+  const openAlertModal = useCallback((vehicle: VehicleData) => {
     setState(prev => ({
       ...prev,
       selectedVehicle: vehicle,

@@ -1,11 +1,10 @@
-
 import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 import { createMarkerElement } from '../utils/vehicleMarkerUtils';
 
 interface VehicleMarker {
-  vehicle: Vehicle;
+  vehicle: VehicleData;
   marker: maplibregl.Marker;
   element: HTMLElement;
 }
@@ -13,9 +12,9 @@ interface VehicleMarker {
 export const useMapMarkers = (
   map: maplibregl.Map | null,
   isMapLoaded: boolean,
-  vehicles: Vehicle[],
-  selectedVehicle: Vehicle | null,
-  onVehicleSelect?: (vehicle: Vehicle) => void
+  vehicles: VehicleData[],
+  selectedVehicle: VehicleData | null,
+  onVehicleSelect?: (vehicle: VehicleData) => void
 ) => {
   const markersRef = useRef<VehicleMarker[]>([]);
 

@@ -1,17 +1,16 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { mapTilerService } from '@/services/mapTiler/mapTilerService';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 import MapControls from './components/MapControls';
 import { useMapMarkers } from './hooks/useMapMarkers';
 
 interface MapTilerMapProps {
-  vehicles: Vehicle[];
+  vehicles: VehicleData[];
   height?: string;
-  onVehicleSelect?: (vehicle: Vehicle) => void;
-  selectedVehicle?: Vehicle | null;
+  onVehicleSelect?: (vehicle: VehicleData) => void;
+  selectedVehicle?: VehicleData | null;
   defaultZoom?: number;
   showControls?: boolean;
   className?: string;
