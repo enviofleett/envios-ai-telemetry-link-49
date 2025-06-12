@@ -13,7 +13,7 @@ const FleetMapWidget: React.FC = () => {
   const [showOfflineVehicles, setShowOfflineVehicles] = useState(true);
   const navigate = useNavigate();
 
-  // Use stable vehicle data
+  // Use stable vehicle data - fixed to use correct options
   const { vehicles, allVehicles, isLoading } = useStableVehicleData({
     status: showOfflineVehicles ? 'all' : 'online'
   });

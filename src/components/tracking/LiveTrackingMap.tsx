@@ -20,7 +20,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
 
-  // Use stable vehicle data with filters
+  // Use stable vehicle data with filters - fixed to use correct options
   const { vehicles, allVehicles, isLoading } = useStableVehicleData({
     search: searchTerm,
     status: statusFilter

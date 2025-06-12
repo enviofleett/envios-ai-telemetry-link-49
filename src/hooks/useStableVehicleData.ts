@@ -6,6 +6,8 @@ import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface UseStableVehicleDataOptions {
   refetchInterval?: number;
+  search?: string;
+  status?: 'all' | 'online' | 'offline' | 'alerts';
 }
 
 interface VehicleMetrics {
@@ -16,21 +18,44 @@ interface VehicleMetrics {
   maintenance: number;
 }
 
+// Type guard for position data from Supabase JSONB
+const isValidPosition = (data: any): data is {
+  lat: number;
+  lng?: number;
+  lon?: number;
+  speed: number;
+  course: number;
+  timestamp: string;
+  statusText: string;
+} => {
+  return data && 
+         typeof data === 'object' && 
+         typeof data.lat === 'number' && 
+         (typeof data.lng === 'number' || typeof data.lon === 'number');
+};
+
 export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) => {
-  const { refetchInterval = 30000 } = options;
+  const { refetchInterval = 30000, search = '', status = 'all' } = options;
   const [error, setError] = useState<string | null>(null);
 
-  const { data: vehicles = [], isLoading, isRefreshing, refetch } = useQuery({
-    queryKey: ['stable-vehicle-data'],
+  const { data: vehicles = [], isLoading, isFetching, refetch } = useQuery({
+    queryKey: ['stable-vehicle-data', search, status],
     queryFn: async () => {
       try {
         setError(null);
         console.log('Fetching vehicle data from Supabase...');
         
-        const { data, error: supabaseError } = await supabase
+        let query = supabase
           .from('vehicles')
           .select('*')
           .order('updated_at', { ascending: false });
+
+        // Apply search filter if provided
+        if (search) {
+          query = query.or(`device_id.ilike.%${search}%,device_name.ilike.%${search}%`);
+        }
+
+        const { data, error: supabaseError } = await query;
 
         if (supabaseError) {
           throw new Error(`Supabase error: ${supabaseError.message}`);
@@ -41,24 +66,49 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
         }
 
         // Transform Supabase data to VehicleData format
-        const transformedVehicles: VehicleData[] = data.map(vehicle => ({
-          deviceId: vehicle.device_id || '',
-          deviceName: vehicle.device_name || 'Unknown Vehicle',
-          lastPosition: vehicle.last_position ? {
-            lat: vehicle.last_position.lat || 0,
-            lon: vehicle.last_position.lng || vehicle.last_position.lon || 0,
-            speed: vehicle.last_position.speed || 0,
-            course: vehicle.last_position.course || 0,
-            timestamp: new Date(vehicle.last_position.timestamp || new Date()),
-            statusText: vehicle.last_position.statusText || 'Unknown'
-          } : null,
-          status: vehicle.is_active ? 'online' : 'offline',
-          lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
-          alerts: []
-        }));
+        const transformedVehicles: VehicleData[] = data.map(vehicle => {
+          let lastPosition = null;
+          
+          // Safely handle JSONB position data
+          if (vehicle.last_position && isValidPosition(vehicle.last_position)) {
+            const pos = vehicle.last_position;
+            lastPosition = {
+              lat: pos.lat,
+              lon: pos.lng || pos.lon || 0,
+              speed: pos.speed || 0,
+              course: pos.course || 0,
+              timestamp: new Date(pos.timestamp || new Date()),
+              statusText: pos.statusText || 'Unknown'
+            };
+          }
 
-        console.log(`Successfully fetched ${transformedVehicles.length} vehicles`);
-        return transformedVehicles;
+          const isActive = vehicle.is_active || false;
+          
+          return {
+            id: vehicle.id || vehicle.device_id || '',
+            deviceId: vehicle.device_id || '',
+            deviceName: vehicle.device_name || 'Unknown Vehicle',
+            lastPosition,
+            status: isActive ? 'online' : 'offline',
+            lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
+            alerts: [],
+            isOnline: isActive,
+            isMoving: lastPosition ? lastPosition.speed > 0 : false,
+            is_active: isActive
+          } as VehicleData;
+        });
+
+        // Apply status filter
+        const filteredVehicles = transformedVehicles.filter(vehicle => {
+          if (status === 'all') return true;
+          if (status === 'online') return vehicle.isOnline;
+          if (status === 'offline') return !vehicle.isOnline;
+          if (status === 'alerts') return vehicle.alerts.length > 0;
+          return true;
+        });
+
+        console.log(`Successfully fetched ${filteredVehicles.length} vehicles`);
+        return filteredVehicles;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
         console.error('Error fetching vehicle data:', errorMessage);
@@ -101,7 +151,7 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
     allVehicles: vehicles,
     metrics,
     isLoading,
-    isRefreshing,
+    isRefreshing: isFetching,
     error,
     forceRefresh,
     getVehicleById

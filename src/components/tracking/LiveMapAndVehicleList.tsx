@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [showMap, setShowMap] = useState(true);
 
-  // Use stable vehicle data
+  // Use stable vehicle data - fixed to use correct options
   const { vehicles } = useStableVehicleData({ search: searchTerm });
 
   const handleVehicleSelect = (vehicle: VehicleData) => {
