@@ -22,14 +22,14 @@ import {
   History,
   Bell
 } from 'lucide-react';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface VehicleDetailsModalProps {
-  vehicle: Vehicle | null;
+  vehicle: VehicleData | null;
   isOpen: boolean;
   onClose: () => void;
-  onViewHistory?: (vehicle: Vehicle) => void;
-  onSendAlert?: (vehicle: Vehicle) => void;
+  onViewHistory?: (vehicle: VehicleData) => void;
+  onSendAlert?: (vehicle: VehicleData) => void;
 }
 
 const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
@@ -82,7 +82,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Car className="h-5 w-5" />
-            {vehicle.devicename}
+            {vehicle.deviceName}
           </DialogTitle>
         </DialogHeader>
 
@@ -134,11 +134,11 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Device ID:</span>
-                  <span className="font-mono">{vehicle.deviceid}</span>
+                  <span className="font-mono">{vehicle.deviceId}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Device Name:</span>
-                  <span>{vehicle.devicename}</span>
+                  <span>{vehicle.deviceName}</span>
                 </div>
                 {vehicle.envio_user_id && (
                   <div className="flex justify-between">

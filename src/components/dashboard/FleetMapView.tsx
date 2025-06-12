@@ -6,19 +6,19 @@ import { Button } from '@/components/ui/button';
 import { Activity, Navigation, TrendingUp, X, MapPin } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import SimpleMapPlaceholder from '@/components/map/SimpleMapPlaceholder';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface FleetMapViewProps {
-  vehicles: Vehicle[];
-  onVehicleSelect: (vehicle: Vehicle) => void;
+  vehicles: VehicleData[];
+  onVehicleSelect: (vehicle: VehicleData) => void;
 }
 
 const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }) => {
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
   
   const vehiclesWithPosition = vehicles.filter(v => v.lastPosition?.lat && v.lastPosition?.lon);
   
-  const getVehicleStatus = (vehicle: Vehicle) => {
+  const getVehicleStatus = (vehicle: VehicleData) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
     
     const lastUpdate = new Date(vehicle.lastPosition.updatetime);
@@ -36,7 +36,7 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
     return acc;
   }, {} as Record<string, number>);
 
-  const handleVehicleSelect = (vehicle: Vehicle) => {
+  const handleVehicleSelect = (vehicle: VehicleData) => {
     setSelectedVehicle(vehicle);
     onVehicleSelect(vehicle);
   };
@@ -176,14 +176,14 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
 
                   return (
                     <div 
-                      key={vehicle.deviceid}
+                      key={vehicle.deviceId}
                       className="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer"
                       onClick={() => handleVehicleSelect(vehicle)}
                     >
                       <div className="flex items-center gap-2">
                         <div className={`w-2 h-2 rounded-full ${getStatusColor(status)}`}></div>
                         <div>
-                          <div className="font-medium text-sm">{vehicle.devicename}</div>
+                          <div className="font-medium text-sm">{vehicle.deviceName}</div>
                           <div className="text-xs text-gray-500">
                             {vehicle.lastPosition?.speed || 0} km/h
                           </div>
@@ -208,7 +208,7 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
-              <span>Vehicle Details: {selectedVehicle?.devicename}</span>
+              <span>Vehicle Details: {selectedVehicle?.deviceName}</span>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -224,7 +224,7 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">Device ID</label>
-                  <p className="font-mono text-sm">{selectedVehicle.deviceid}</p>
+                  <p className="font-mono text-sm">{selectedVehicle.deviceId}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Status</label>

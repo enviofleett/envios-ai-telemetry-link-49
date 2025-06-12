@@ -40,10 +40,6 @@ const transformToVehicleData = (enhancedVehicle: EnhancedVehicle): VehicleData =
     isOnline: enhancedVehicle.isOnline,
     isMoving: enhancedVehicle.isMoving,
     alerts: enhancedVehicle.statusText && enhancedVehicle.statusText !== 'Normal' ? [enhancedVehicle.statusText] : [],
-    // Backward compatibility fields
-    deviceid: enhancedVehicle.deviceId,
-    devicename: enhancedVehicle.deviceName,
-    plateNumber: enhancedVehicle.vehicle_name || enhancedVehicle.deviceName,
     is_active: enhancedVehicle.is_active || enhancedVehicle.isOnline,
     envio_user_id: enhancedVehicle.envio_user_id,
     lastPosition: enhancedVehicle.lastPosition ? {

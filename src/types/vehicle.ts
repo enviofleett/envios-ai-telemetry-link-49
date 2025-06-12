@@ -96,14 +96,3 @@ export interface VehicleStatistics {
   online: number;
   alerts: number;
 }
-
-// Legacy Vehicle interface for backward compatibility
-export interface Vehicle {
-  deviceid: string;
-  devicename: string;
-  plateNumber: string;
-  status: 'online' | 'offline' | 'moving' | 'idle';
-  is_active: boolean;
-  envio_user_id?: string;
-  lastPosition?: VehiclePosition;
-}
