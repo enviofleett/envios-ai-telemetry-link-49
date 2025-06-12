@@ -1,4 +1,3 @@
-
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
   lat: number;
@@ -22,8 +21,8 @@ export interface GP51RawPosition {
 // Enhanced vehicle data interface - the primary type for UI components
 export interface VehicleData {
   id: string;
-  deviceId: string;
-  deviceName: string;
+  deviceId: string; // Standardized camelCase
+  deviceName: string; // Standardized camelCase
   vehicleName?: string;
   make?: string;
   model?: string;
@@ -107,6 +106,51 @@ export interface VehicleStatistics {
   active: number;
   online: number;
   alerts: number;
+}
+
+export interface EnhancedVehicle {
+  id: string;
+  deviceId: string; // Standardized camelCase
+  deviceName: string; // Standardized camelCase
+  plateNumber: string;
+  model: string;
+  driver: string;
+  speed: number;
+  fuel: number;
+  lastUpdate: Date;
+  status: 'active' | 'idle' | 'maintenance' | 'offline';
+  isOnline: boolean; // Added missing property
+  isMoving: boolean; // Added missing property
+  
+  // Optional additional properties for compatibility
+  deviceid?: string; // For backward compatibility
+  devicename?: string; // For backward compatibility
+  vehicle_name?: string;
+  make?: string;
+  year?: number;
+  license_plate?: string;
+  vin?: string;
+  color?: string;
+  fuel_type?: string;
+  created_at?: string;
+  updated_at?: string;
+  is_active?: boolean;
+  lastPosition?: {
+    lat: number;
+    lng: number;
+    speed: number;
+    course: number;
+    updatetime: string;
+    statusText: string;
+  };
+}
+
+export interface ReportType {
+  id: string;
+  name: string;
+  description: string;
+  icon: any;
+  color: string;
 }
 
 interface UseUnifiedVehicleDataResult {

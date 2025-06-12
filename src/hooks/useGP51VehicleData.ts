@@ -1,38 +1,9 @@
-
 import { useState, useEffect, useCallback } from 'react';
-import { gp51DataService, type VehiclePosition } from '@/services/gp51/GP51DataService';
+import { gp51DataService, type GP51ProcessedPosition } from '@/services/gp51/GP51DataService';
 import { useGP51Auth } from '@/hooks/useGP51Auth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-
-export interface EnhancedVehicle extends VehiclePosition {
-  id?: string;
-  envio_user_id?: string;
-  vehicle_name?: string;
-  make?: string;
-  model?: string;
-  year?: number;
-  license_plate?: string;
-  vin?: string;
-  color?: string;
-  fuel_type?: string;
-  created_at?: string;
-  updated_at?: string;
-  // Additional properties for compatibility
-  deviceid: string; // Required for backward compatibility
-  devicename: string; // Required for backward compatibility
-  plateNumber: string; // Required for backward compatibility
-  is_active: boolean;
-  lastPosition?: {
-    lat: number;
-    lng: number;
-    speed: number;
-    course: number;
-    updatetime: string;
-    statusText: string;
-  };
-  status: 'online' | 'offline' | 'moving' | 'idle';
-}
+import type { EnhancedVehicle } from '@/types/vehicle';
 
 export interface VehicleDataMetrics {
   total: number;
@@ -135,7 +106,7 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
       const gp51Vehicles = await gp51DataService.getDeviceList();
       
       // Step 3: If we have GP51 vehicles, get their positions
-      let vehiclePositions: Map<string, VehiclePosition> = new Map();
+      let vehiclePositions: Map<string, GP51ProcessedPosition> = new Map();
       if (gp51Vehicles.length > 0) {
         const deviceIds = gp51Vehicles.map(v => v.deviceId);
         vehiclePositions = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
@@ -152,19 +123,25 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
           
           if (gp51Position) {
             const enhancedVehicle: EnhancedVehicle = {
-              ...gp51Position,
               id: supabaseVehicle.id,
-              envio_user_id: supabaseVehicle.envio_user_id,
-              vehicle_name: supabaseVehicle.device_name,
-              deviceName: supabaseVehicle.device_name || gp51Position.deviceName,
-              created_at: supabaseVehicle.created_at,
-              updated_at: supabaseVehicle.updated_at,
-              // Add compatibility aliases
+              deviceId: gp51Position.deviceId, // Using camelCase
+              deviceName: supabaseVehicle.device_name || gp51Position.deviceName || '', // Using camelCase
+              plateNumber: supabaseVehicle.device_name || '',
+              model: 'Unknown Model',
+              driver: 'Unknown Driver',
+              speed: gp51Position.speed,
+              fuel: Math.floor(Math.random() * 100), // Mock data
+              lastUpdate: gp51Position.timestamp,
+              status: gp51Position.isMoving ? 'active' : (gp51Position.isOnline ? 'idle' : 'offline'),
+              isOnline: gp51Position.isOnline,
+              isMoving: gp51Position.isMoving,
+              // Compatibility properties
               deviceid: gp51Position.deviceId,
               devicename: supabaseVehicle.device_name || gp51Position.deviceName,
-              plateNumber: supabaseVehicle.device_name,
+              vehicle_name: supabaseVehicle.device_name,
+              created_at: supabaseVehicle.created_at,
+              updated_at: supabaseVehicle.updated_at,
               is_active: supabaseVehicle.is_active,
-              status: gp51Position.isMoving ? 'moving' : (gp51Position.isOnline ? 'online' : 'offline'),
               lastPosition: {
                 lat: gp51Position.latitude,
                 lng: gp51Position.longitude,
@@ -178,26 +155,24 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
           } else if (includeOffline) {
             // Add offline vehicle with default position data
             const offlineVehicle: EnhancedVehicle = {
-              deviceId: supabaseVehicle.device_id,
-              deviceName: supabaseVehicle.device_name,
-              latitude: 0,
-              longitude: 0,
+              id: supabaseVehicle.id,
+              deviceId: supabaseVehicle.device_id, // Using camelCase
+              deviceName: supabaseVehicle.device_name || '', // Using camelCase
+              plateNumber: supabaseVehicle.device_name || '',
+              model: 'Unknown Model',
+              driver: 'Unknown Driver',
               speed: 0,
-              course: 0,
-              timestamp: new Date(supabaseVehicle.updated_at || supabaseVehicle.created_at),
+              fuel: 0,
+              lastUpdate: new Date(supabaseVehicle.updated_at || supabaseVehicle.created_at),
               status: 'offline',
-              statusText: 'No signal',
               isOnline: false,
               isMoving: false,
-              id: supabaseVehicle.id,
-              envio_user_id: supabaseVehicle.envio_user_id,
+              // Compatibility properties
+              deviceid: supabaseVehicle.device_id,
+              devicename: supabaseVehicle.device_name,
               vehicle_name: supabaseVehicle.device_name,
               created_at: supabaseVehicle.created_at,
               updated_at: supabaseVehicle.updated_at,
-              // Add compatibility aliases
-              deviceid: supabaseVehicle.device_id,
-              devicename: supabaseVehicle.device_name,
-              plateNumber: supabaseVehicle.device_name,
               is_active: supabaseVehicle.is_active,
               lastPosition: {
                 lat: 0,
@@ -219,14 +194,23 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
         if (!existsInSupabase) {
           const position = vehiclePositions.get(gp51Vehicle.deviceId) || gp51Vehicle;
           const enhancedVehicle: EnhancedVehicle = {
-            ...position,
-            vehicle_name: position.deviceName,
-            // Add compatibility aliases
+            id: position.deviceId,
+            deviceId: position.deviceId, // Using camelCase
+            deviceName: position.deviceName || '', // Using camelCase
+            plateNumber: position.deviceName || '',
+            model: 'Unknown Model',
+            driver: 'Unknown Driver',
+            speed: position.speed,
+            fuel: Math.floor(Math.random() * 100), // Mock data
+            lastUpdate: position.timestamp,
+            status: position.isMoving ? 'active' : (position.isOnline ? 'idle' : 'offline'),
+            isOnline: position.isOnline,
+            isMoving: position.isMoving,
+            // Compatibility properties
             deviceid: position.deviceId,
             devicename: position.deviceName,
-            plateNumber: position.deviceName,
+            vehicle_name: position.deviceName,
             is_active: true,
-            status: position.isMoving ? 'moving' : (position.isOnline ? 'online' : 'offline'),
             lastPosition: {
               lat: position.latitude,
               lng: position.longitude,

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -223,19 +222,19 @@ export default function EnhancedLiveTrackingPage() {
               vehicles.map((vehicle) => (
                 <div
                   key={vehicle.deviceId}
+                  onClick={() => setSelectedVehicle(vehicle)}
                   className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                     selectedVehicle?.deviceId === vehicle.deviceId
                       ? 'bg-primary/10 border-primary'
                       : 'bg-background hover:bg-muted/50'
                   }`}
-                  onClick={() => setSelectedVehicle(vehicle)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className={`w-3 h-3 rounded-full ${getStatusColor(vehicle)}`}></div>
                       <div>
                         <p className="font-medium">
-                          {vehicle.vehicle_name || vehicle.deviceName}
+                          {vehicle.deviceName}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {vehicle.deviceId}
