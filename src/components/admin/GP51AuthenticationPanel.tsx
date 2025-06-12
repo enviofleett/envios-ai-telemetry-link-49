@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +18,8 @@ import {
   AlertTriangle
 } from 'lucide-react';
 
+const GP51_USERNAME_STORAGE_KEY = 'gp51_last_username';
+
 export const GP51AuthenticationPanel: React.FC = () => {
   const [credentials, setCredentials] = useState({
     username: '',
@@ -31,12 +32,20 @@ export const GP51AuthenticationPanel: React.FC = () => {
     username, 
     tokenExpiresAt, 
     isLoading, 
-    error, // Added error state consumption
+    error,
     login, 
     logout, 
     healthCheck,
     clearError
   } = useGP51Auth();
+
+  // Load saved username from localStorage on component mount
+  useEffect(() => {
+    const savedUsername = localStorage.getItem(GP51_USERNAME_STORAGE_KEY);
+    if (savedUsername && !isAuthenticated) {
+      setCredentials(prev => ({ ...prev, username: savedUsername }));
+    }
+  }, [isAuthenticated]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,8 +54,13 @@ export const GP51AuthenticationPanel: React.FC = () => {
     }
     
     console.log('🔐 GP51AuthenticationPanel: Initiating login...');
-    clearError(); // Clear any previous errors
-    await login(credentials.username, credentials.password);
+    clearError();
+    const result = await login(credentials.username, credentials.password);
+    
+    // Save username to localStorage on successful login
+    if (result.success) {
+      localStorage.setItem(GP51_USERNAME_STORAGE_KEY, credentials.username.trim());
+    }
     
     // Clear password after login attempt for security
     setCredentials(prev => ({ ...prev, password: '' }));
@@ -55,6 +69,9 @@ export const GP51AuthenticationPanel: React.FC = () => {
   const handleLogout = async () => {
     console.log('👋 GP51AuthenticationPanel: Initiating logout...');
     await logout();
+    
+    // Clear saved username and form on logout
+    localStorage.removeItem(GP51_USERNAME_STORAGE_KEY);
     setCredentials({ username: '', password: '' });
   };
 
@@ -67,7 +84,12 @@ export const GP51AuthenticationPanel: React.FC = () => {
     console.log('🔄 GP51AuthenticationPanel: Retrying login...');
     if (credentials.username.trim() && credentials.password.trim()) {
       clearError();
-      await login(credentials.username, credentials.password);
+      const result = await login(credentials.username, credentials.password);
+      
+      // Save username on successful retry
+      if (result.success) {
+        localStorage.setItem(GP51_USERNAME_STORAGE_KEY, credentials.username.trim());
+      }
     }
   };
 
@@ -188,8 +210,14 @@ export const GP51AuthenticationPanel: React.FC = () => {
                 onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
                 placeholder="Enter your GP51 username"
                 disabled={isLoading}
+                autoComplete="username"
                 required
               />
+              {credentials.username && localStorage.getItem(GP51_USERNAME_STORAGE_KEY) === credentials.username && (
+                <p className="text-xs text-muted-foreground">
+                  ✓ Username restored from previous session
+                </p>
+              )}
             </div>
             
             <div className="space-y-2">
@@ -201,6 +229,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
                 onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
                 placeholder="Enter your GP51 password"
                 disabled={isLoading}
+                autoComplete="current-password"
                 required
               />
             </div>
@@ -256,6 +285,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
           <p>🏥 Connection health is monitored continuously with error recovery</p>
           <p>📊 All authentication attempts are logged for security and debugging</p>
           <p>🛡️ Enhanced MD5 implementation ensures cross-browser compatibility</p>
+          <p>💾 Username is remembered for convenience (password never stored)</p>
         </div>
       </CardContent>
     </Card>
