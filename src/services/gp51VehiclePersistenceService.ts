@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { GP51ProcessedPosition } from '@/services/gp51/GP51DataService';
+import type { VehicleGP51Metadata, VehicleWithGP51Metadata } from '@/types/gp51';
 
 export interface VehiclePersistenceResult {
   success: boolean;
@@ -65,25 +66,27 @@ class GP51VehiclePersistenceService {
     const vehicleStatus = this.determineVehicleStatus(gp51Vehicle);
     const importTimestamp = new Date().toISOString();
 
+    const gp51Metadata: VehicleGP51Metadata = {
+      latitude: gp51Vehicle.latitude,
+      longitude: gp51Vehicle.longitude,
+      speed: gp51Vehicle.speed,
+      course: gp51Vehicle.course,
+      status: gp51Vehicle.status,
+      statusText: gp51Vehicle.statusText,
+      timestamp: gp51Vehicle.timestamp.toISOString(),
+      isMoving: gp51Vehicle.isMoving,
+      vehicleStatus,
+      importedAt: importTimestamp,
+      lastGP51Sync: importTimestamp,
+      importSource: 'gp51_comprehensive'
+    };
+
     return {
       device_id: gp51Vehicle.deviceId,
       device_name: gp51Vehicle.deviceName || gp51Vehicle.deviceId,
       is_active: gp51Vehicle.isOnline,
       gp51_username: null, // Will be set from session if available
-      gp51_metadata: {
-        latitude: gp51Vehicle.latitude,
-        longitude: gp51Vehicle.longitude,
-        speed: gp51Vehicle.speed,
-        course: gp51Vehicle.course,
-        status: gp51Vehicle.status,
-        statusText: gp51Vehicle.statusText,
-        timestamp: gp51Vehicle.timestamp.toISOString(),
-        isMoving: gp51Vehicle.isMoving,
-        vehicleStatus,
-        importedAt: importTimestamp,
-        lastGP51Sync: importTimestamp,
-        importSource: 'gp51_comprehensive'
-      },
+      gp51_metadata: gp51Metadata,
       // Set defaults for required fields that aren't available from GP51
       make: null,
       model: null,
@@ -223,6 +226,10 @@ class GP51VehiclePersistenceService {
         };
       }
 
+      // Safely handle existing metadata
+      const existingMetadata = existingVehicle.gp51_metadata as VehicleGP51Metadata | null;
+      const currentMetadata = vehicleData.gp51_metadata as VehicleGP51Metadata;
+
       // Update existing vehicle with comprehensive data
       const { data: updatedVehicle, error: updateError } = await supabase
         .from('vehicles')
@@ -230,11 +237,11 @@ class GP51VehiclePersistenceService {
           device_name: vehicleData.device_name,
           is_active: vehicleData.is_active,
           gp51_metadata: {
-            ...existingVehicle.gp51_metadata,
-            ...vehicleData.gp51_metadata,
-            previousStatus: existingVehicle.gp51_metadata?.vehicleStatus,
+            ...(existingMetadata || {}),
+            ...currentMetadata,
+            previousStatus: existingMetadata?.vehicleStatus,
             statusHistory: [
-              ...(existingVehicle.gp51_metadata?.statusHistory || []),
+              ...(existingMetadata?.statusHistory || []),
               {
                 status: vehicleStatus,
                 timestamp: new Date().toISOString()
@@ -342,7 +349,8 @@ class GP51VehiclePersistenceService {
       };
 
       stats?.forEach(vehicle => {
-        const status = vehicle.gp51_metadata?.vehicleStatus || 'unknown';
+        const metadata = vehicle.gp51_metadata as VehicleGP51Metadata | null;
+        const status = metadata?.vehicleStatus || 'unknown';
         if (status in statusDistribution) {
           statusDistribution[status as keyof typeof statusDistribution]++;
         }

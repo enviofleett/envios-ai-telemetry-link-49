@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -31,7 +30,7 @@ import {
 } from 'lucide-react';
 import { GP51ApiService } from '@/services/vehicleData/gp51ApiService';
 import { gp51VehiclePersistenceService, VehiclePersistenceOptions } from '@/services/gp51VehiclePersistenceService';
-import { GP51DataService } from '@/services/gp51/GP51DataService';
+import { gp51DataService } from '@/services/gp51/GP51DataService';
 
 interface ImportProgress {
   phase: 'idle' | 'fetching' | 'processing' | 'completed' | 'error';
@@ -136,7 +135,6 @@ export const GP51ImportModal: React.FC = () => {
         addLog(`Retrieved position data for ${positions.length} vehicles`, 'success');
 
         // Process all vehicles using GP51DataService
-        const gp51DataService = new GP51DataService();
         vehicles = await gp51DataService.processVehicleData(gp51Vehicles, positions);
       } else {
         // Fetch specific devices
@@ -145,7 +143,6 @@ export const GP51ImportModal: React.FC = () => {
         addLog(`Retrieved position data for ${positions.length} specified vehicles`, 'success');
 
         // Process specific vehicles
-        const gp51DataService = new GP51DataService();
         const vehicleList = importOptions.specificDeviceIds.map(deviceid => ({
           deviceid,
           devicename: deviceid, // Will be updated from position data if available

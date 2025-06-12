@@ -27,6 +27,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { VehicleUserAssignmentModal } from '@/components/admin/VehicleUserAssignmentModal';
 import { useToast } from '@/hooks/use-toast';
+import type { VehicleGP51Metadata } from '@/types/gp51';
 
 interface Vehicle {
   id: string;
@@ -176,7 +177,8 @@ export const VehicleManagementTable: React.FC = () => {
   };
 
   const getVehicleStatusBadge = (vehicle: Vehicle) => {
-    const vehicleStatus = vehicle.gp51_metadata?.vehicleStatus;
+    const metadata = vehicle.gp51_metadata as VehicleGP51Metadata | null;
+    const vehicleStatus = metadata?.vehicleStatus;
     
     if (vehicleStatus) {
       switch (vehicleStatus) {
@@ -212,9 +214,8 @@ export const VehicleManagementTable: React.FC = () => {
     }
 
     // Fallback to legacy status determination
-    if (vehicle.gp51_metadata) {
-      const metadata = vehicle.gp51_metadata;
-      const lastUpdate = new Date(metadata.timestamp);
+    if (metadata) {
+      const lastUpdate = new Date(metadata.timestamp || '');
       const isRecent = Date.now() - lastUpdate.getTime() < (30 * 60 * 1000); // 30 minutes
       
       if (isRecent && vehicle.is_active) {
@@ -229,9 +230,10 @@ export const VehicleManagementTable: React.FC = () => {
   };
 
   const getVehicleSource = (vehicle: Vehicle) => {
-    const importSource = vehicle.gp51_metadata?.importSource;
+    const metadata = vehicle.gp51_metadata as VehicleGP51Metadata | null;
+    const importSource = metadata?.importSource;
     
-    if (vehicle.gp51_metadata) {
+    if (metadata) {
       return (
         <Badge variant="outline" className="text-blue-600 border-blue-200 flex items-center gap-1">
           <Zap className="w-3 h-3" />
@@ -247,19 +249,23 @@ export const VehicleManagementTable: React.FC = () => {
   };
 
   const formatLastUpdate = (vehicle: Vehicle) => {
-    if (vehicle.gp51_metadata?.lastGP51Sync) {
-      const lastSync = new Date(vehicle.gp51_metadata.lastGP51Sync);
+    const metadata = vehicle.gp51_metadata as VehicleGP51Metadata | null;
+    
+    if (metadata?.lastGP51Sync) {
+      const lastSync = new Date(metadata.lastGP51Sync);
       return lastSync.toLocaleString();
-    } else if (vehicle.gp51_metadata?.timestamp) {
-      const lastUpdate = new Date(vehicle.gp51_metadata.timestamp);
+    } else if (metadata?.timestamp) {
+      const lastUpdate = new Date(metadata.timestamp);
       return lastUpdate.toLocaleString();
     }
     return new Date(vehicle.updated_at).toLocaleString();
   };
 
   const getLocationInfo = (vehicle: Vehicle) => {
-    if (vehicle.gp51_metadata?.latitude && vehicle.gp51_metadata?.longitude) {
-      return `${vehicle.gp51_metadata.latitude.toFixed(4)}, ${vehicle.gp51_metadata.longitude.toFixed(4)}`;
+    const metadata = vehicle.gp51_metadata as VehicleGP51Metadata | null;
+    
+    if (metadata?.latitude && metadata?.longitude) {
+      return `${metadata.latitude.toFixed(4)}, ${metadata.longitude.toFixed(4)}`;
     }
     return 'No location data';
   };
@@ -280,7 +286,8 @@ export const VehicleManagementTable: React.FC = () => {
     };
 
     vehicles.forEach(vehicle => {
-      const status = vehicle.gp51_metadata?.vehicleStatus;
+      const metadata = vehicle.gp51_metadata as VehicleGP51Metadata | null;
+      const status = metadata?.vehicleStatus;
       if (status && status in statusDistribution) {
         statusDistribution[status as keyof typeof statusDistribution]++;
       } else {
