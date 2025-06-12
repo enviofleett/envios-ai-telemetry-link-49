@@ -1,6 +1,6 @@
 
 import React from 'react';
-import SettingsSidebar from './SettingsSidebar';
+import { SettingsSidebar } from './SettingsSidebar';
 import AdminTabContentRenderer from './AdminTabContentRenderer';
 
 interface AdminSettingsLayoutProps {
