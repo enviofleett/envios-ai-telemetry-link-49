@@ -204,21 +204,26 @@ export class AnalyticsService {
 
       if (error) throw error;
 
-      this.vehicles = (data || []).map(vehicle => ({
-        id: vehicle.device_id,
-        deviceId: vehicle.device_id,
-        deviceName: vehicle.device_name,
-        vehicleName: vehicle.device_name,
-        licensePlate: vehicle.device_name,
-        status: this.determineVehicleStatus(vehicle.last_position),
-        lastUpdate: new Date(vehicle.last_position?.updatetime || Date.now()),
-        isOnline: this.determineVehicleStatus(vehicle.last_position) !== 'offline',
-        isMoving: this.determineVehicleStatus(vehicle.last_position) === 'moving',
-        alerts: [],
-        envio_user_id: vehicle.envio_user_id,
-        is_active: vehicle.is_active,
-        lastPosition: this.parseLastPosition(vehicle.last_position)
-      }));
+      this.vehicles = (data || []).map(vehicle => {
+        // Parse the last_position JSON field safely
+        const parsedPosition = this.parseLastPosition(vehicle.last_position);
+        
+        return {
+          id: vehicle.device_id,
+          deviceId: vehicle.device_id,
+          deviceName: vehicle.device_name,
+          vehicleName: vehicle.device_name,
+          licensePlate: vehicle.device_name,
+          status: this.determineVehicleStatus(vehicle.last_position),
+          lastUpdate: parsedPosition?.updatetime ? new Date(parsedPosition.updatetime) : new Date(Date.now()),
+          isOnline: this.determineVehicleStatus(vehicle.last_position) !== 'offline',
+          isMoving: this.determineVehicleStatus(vehicle.last_position) === 'moving',
+          alerts: [],
+          envio_user_id: vehicle.envio_user_id,
+          is_active: vehicle.is_active,
+          lastPosition: parsedPosition
+        };
+      });
 
       this.lastUpdateTime = now;
     } catch (error) {
