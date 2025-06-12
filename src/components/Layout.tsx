@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
-import AppSidebar from '@/components/AppSidebar';
+import { AppSidebar } from '@/components/AppSidebar';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { useLocation } from 'react-router-dom';
 

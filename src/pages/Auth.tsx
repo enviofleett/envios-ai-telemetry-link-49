@@ -56,16 +56,10 @@ const Auth = () => {
     setLoading(true);
     setError('');
 
-    // Validate package selection - use await for async validation
-    const validation = await PackageMappingService.validatePackage({
-      package_name: selectedPackage,
-      user_type: 'end_user',
-      feature_ids: [],
-      menu_permission_ids: []
-    });
-    
-    if (!validation.isValid) {
-      setError(validation.errors.join(', '));
+    // Validate package selection
+    const packageValidation = PackageMappingService.validatePackage(selectedPackage);
+    if (!packageValidation.isValid) {
+      setError(packageValidation.error || 'Invalid package selection');
       setLoading(false);
       return;
     }

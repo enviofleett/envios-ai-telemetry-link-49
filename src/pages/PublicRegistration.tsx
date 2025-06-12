@@ -18,8 +18,9 @@ const PublicRegistration: React.FC = () => {
     phoneNumber: ''
   });
 
-  const handleRegistrationSuccess = (registrationId: string, otpId: string, phoneNumber: string) => {
-    console.log('📞 Registration success - Phone number received:', phoneNumber);
+  const handleRegistrationSuccess = (registrationId: string, otpId: string) => {
+    // Get phone number from form data (you might want to pass this differently)
+    const phoneNumber = ''; // This should be passed from the form
     setRegistrationData({ registrationId, otpId, phoneNumber });
     setCurrentStep('otp');
   };

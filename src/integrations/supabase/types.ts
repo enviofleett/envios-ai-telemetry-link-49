@@ -2312,11 +2312,8 @@ export type Database = {
           envio_user_id: string | null
           gp51_token: string | null
           id: string
-          last_activity_at: string | null
           last_validated_at: string | null
-          password_hash: string | null
           session_health: string | null
-          session_metadata: Json | null
           token_expires_at: string | null
           updated_at: string
           username: string
@@ -2329,11 +2326,8 @@ export type Database = {
           envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
-          last_activity_at?: string | null
           last_validated_at?: string | null
-          password_hash?: string | null
           session_health?: string | null
-          session_metadata?: Json | null
           token_expires_at?: string | null
           updated_at?: string
           username: string
@@ -2346,11 +2340,8 @@ export type Database = {
           envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
-          last_activity_at?: string | null
           last_validated_at?: string | null
-          password_hash?: string | null
           session_health?: string | null
-          session_metadata?: Json | null
           token_expires_at?: string | null
           updated_at?: string
           username?: string
