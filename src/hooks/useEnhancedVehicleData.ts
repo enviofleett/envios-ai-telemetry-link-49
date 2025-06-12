@@ -7,11 +7,20 @@ import { useToast } from '@/hooks/use-toast';
 export const useEnhancedVehicleData = () => {
   const [vehicles, setVehicles] = useState<VehicleData[]>([]);
   const [metrics, setMetrics] = useState<VehicleDataMetrics>({
+    // Dashboard-compatible properties
+    total: 0,
+    online: 0,
+    offline: 0,
+    alerts: 0,
+    // Legacy properties
     totalVehicles: 0,
     onlineVehicles: 0,
     offlineVehicles: 0,
     recentlyActiveVehicles: 0,
+    // Sync properties
     lastSyncTime: new Date(),
+    positionsUpdated: 0,
+    errors: 0,
     syncStatus: 'success'
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -21,17 +30,38 @@ export const useEnhancedVehicleData = () => {
     // Subscribe to vehicle data updates
     const unsubscribe = enhancedVehicleDataService.subscribe(() => {
       const newVehicles = enhancedVehicleDataService.getVehicles();
-      const newMetrics = enhancedVehicleDataService.getMetrics();
+      const serviceMetrics = enhancedVehicleDataService.getMetrics();
       
       setVehicles(newVehicles);
-      setMetrics(newMetrics);
+      
+      // Convert service metrics to the full VehicleDataMetrics interface
+      const expandedMetrics: VehicleDataMetrics = {
+        // Dashboard-compatible properties
+        total: serviceMetrics.total,
+        online: serviceMetrics.online,
+        offline: serviceMetrics.offline,
+        alerts: serviceMetrics.alerts,
+        // Legacy properties
+        totalVehicles: serviceMetrics.totalVehicles,
+        onlineVehicles: serviceMetrics.onlineVehicles,
+        offlineVehicles: serviceMetrics.offlineVehicles,
+        recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
+        // Sync properties
+        lastSyncTime: serviceMetrics.lastSyncTime,
+        positionsUpdated: newVehicles.length,
+        errors: serviceMetrics.syncStatus === 'error' ? 1 : 0,
+        syncStatus: serviceMetrics.syncStatus,
+        errorMessage: serviceMetrics.errorMessage
+      };
+      
+      setMetrics(expandedMetrics);
       setIsLoading(false);
 
       // Show error toast if sync failed
-      if (newMetrics.syncStatus === 'error' && newMetrics.errorMessage) {
+      if (serviceMetrics.syncStatus === 'error' && serviceMetrics.errorMessage) {
         toast({
           title: "Vehicle Data Sync Failed",
-          description: newMetrics.errorMessage,
+          description: serviceMetrics.errorMessage,
           variant: "destructive"
         });
       }
@@ -39,7 +69,21 @@ export const useEnhancedVehicleData = () => {
 
     // Initial data load
     setVehicles(enhancedVehicleDataService.getVehicles());
-    setMetrics(enhancedVehicleDataService.getMetrics());
+    const initialMetrics = enhancedVehicleDataService.getMetrics();
+    setMetrics({
+      total: initialMetrics.total,
+      online: initialMetrics.online,
+      offline: initialMetrics.offline,
+      alerts: initialMetrics.alerts,
+      totalVehicles: initialMetrics.totalVehicles,
+      onlineVehicles: initialMetrics.onlineVehicles,
+      offlineVehicles: initialMetrics.offlineVehicles,
+      recentlyActiveVehicles: initialMetrics.recentlyActiveVehicles,
+      lastSyncTime: initialMetrics.lastSyncTime,
+      positionsUpdated: 0,
+      errors: 0,
+      syncStatus: initialMetrics.syncStatus
+    });
     setIsLoading(false);
 
     return unsubscribe;

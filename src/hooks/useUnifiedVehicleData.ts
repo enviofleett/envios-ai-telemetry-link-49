@@ -29,22 +29,26 @@ interface UseUnifiedVehicleDataResult {
   getOfflineVehicles: () => VehicleData[];
   getMovingVehicles: () => VehicleData[];
   getIdleVehicles: () => VehicleData[];
-  syncMetrics: () => Promise<void>;
 }
 
 export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicleDataResult => {
   const [vehicles, setVehicles] = useState<VehicleData[]>([]);
   const [metrics, setMetrics] = useState<VehicleDataMetrics>({
+    // Dashboard-compatible properties
+    total: 0,
+    online: 0,
+    offline: 0,
+    alerts: 0,
+    // Legacy properties
     totalVehicles: 0,
     onlineVehicles: 0,
     offlineVehicles: 0,
     recentlyActiveVehicles: 0,
+    // Sync properties
     lastSyncTime: new Date(),
-    syncStatus: 'pending',
-    total: 0,
-    online: 0,
-    offline: 0,
-    alerts: 0
+    positionsUpdated: 0,
+    errors: 0,
+    syncStatus: 'pending'
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -117,7 +121,27 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
         setVehicles(filteredData);
       }
 
-      setMetrics(getVehicleDataMetrics(filteredData));
+      // Create expanded metrics that include sync data
+      const baseMetrics = getVehicleDataMetrics(filteredData);
+      const expandedMetrics: VehicleDataMetrics = {
+        // Dashboard-compatible properties
+        total: baseMetrics.total,
+        online: baseMetrics.online,
+        offline: baseMetrics.offline,
+        alerts: baseMetrics.alerts,
+        // Legacy properties
+        totalVehicles: baseMetrics.totalVehicles,
+        onlineVehicles: baseMetrics.onlineVehicles,
+        offlineVehicles: baseMetrics.offlineVehicles,
+        recentlyActiveVehicles: baseMetrics.recentlyActiveVehicles,
+        // Sync properties
+        lastSyncTime: new Date(),
+        positionsUpdated: filteredData.length,
+        errors: 0,
+        syncStatus: 'success'
+      };
+      
+      setMetrics(expandedMetrics);
       setHasMore(moreAvailable);
       setCurrentPage(pageToLoad);
 
@@ -127,16 +151,18 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
       if (!shouldAppend) {
         setVehicles([]);
         setMetrics({
+          total: 0,
+          online: 0,
+          offline: 0,
+          alerts: 0,
           totalVehicles: 0,
           onlineVehicles: 0,
           offlineVehicles: 0,
           recentlyActiveVehicles: 0,
           lastSyncTime: new Date(),
-          syncStatus: 'error',
-          total: 0,
-          online: 0,
-          offline: 0,
-          alerts: 0
+          positionsUpdated: 0,
+          errors: 1,
+          syncStatus: 'error'
         });
       }
     } finally {
@@ -167,10 +193,6 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
       fetchData(currentPage + 1, true);
     }
   }, [isLoading, isRefreshing, hasMore, currentPage, fetchData]);
-
-  const syncMetrics = useCallback(async () => {
-    await forceRefresh();
-  }, [forceRefresh]);
 
   const getVehiclesByStatus = useCallback(() => {
     return {
@@ -215,7 +237,6 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
     getOnlineVehicles,
     getOfflineVehicles,
     getMovingVehicles,
-    getIdleVehicles,
-    syncMetrics
+    getIdleVehicles
   };
 };

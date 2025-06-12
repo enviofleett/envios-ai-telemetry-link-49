@@ -19,9 +19,9 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
   const vehiclesWithPosition = vehicles.filter(v => v.lastPosition?.lat && v.lastPosition?.lon);
   
   const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.lastPosition?.updatetime) return 'offline';
+    if (!vehicle.lastPosition?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    const lastUpdate = vehicle.lastPosition.timestamp;
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -41,15 +41,14 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
     onVehicleSelect(vehicle);
   };
 
-  const formatLastUpdate = (updatetime: string) => {
-    const date = new Date(updatetime);
+  const formatLastUpdate = (timestamp: Date) => {
     const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    const diffMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
     
     if (diffMinutes < 1) return 'Just now';
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
     if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return date.toLocaleDateString();
+    return timestamp.toLocaleDateString();
   };
 
   return (
@@ -159,8 +158,8 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
             <div className="space-y-3 max-h-96 overflow-y-auto">
               {vehiclesWithPosition
                 .sort((a, b) => {
-                  const timeA = new Date(a.lastPosition?.updatetime || 0).getTime();
-                  const timeB = new Date(b.lastPosition?.updatetime || 0).getTime();
+                  const timeA = a.lastPosition?.timestamp?.getTime() || 0;
+                  const timeB = b.lastPosition?.timestamp?.getTime() || 0;
                   return timeB - timeA;
                 })
                 .slice(0, 10)
@@ -190,8 +189,8 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
                         </div>
                       </div>
                       <div className="text-xs text-gray-500">
-                        {vehicle.lastPosition?.updatetime 
-                          ? formatLastUpdate(vehicle.lastPosition.updatetime)
+                        {vehicle.lastPosition?.timestamp 
+                          ? formatLastUpdate(vehicle.lastPosition.timestamp)
                           : 'No data'
                         }
                       </div>
@@ -256,7 +255,7 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-600">Last Update</label>
-                    <p className="text-sm">{formatLastUpdate(selectedVehicle.lastPosition.updatetime)}</p>
+                    <p className="text-sm">{formatLastUpdate(selectedVehicle.lastPosition.timestamp)}</p>
                   </div>
                 </div>
               )}

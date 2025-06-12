@@ -29,8 +29,7 @@ const UnifiedFleetDashboard: React.FC = () => {
   
   const { 
     vehicles, 
-    metrics, 
-    syncMetrics, 
+    metrics,
     isLoading, 
     isRefreshing, 
     forceRefresh,
@@ -172,10 +171,10 @@ const UnifiedFleetDashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-blue-600">
-              {syncMetrics.positionsUpdated}
+              {metrics.positionsUpdated}
             </div>
             <p className="text-xs text-muted-foreground">
-              Last sync: {syncMetrics.lastSyncTime.toLocaleTimeString()}
+              Last sync: {metrics.lastSyncTime.toLocaleTimeString()}
             </p>
           </CardContent>
         </Card>
@@ -205,7 +204,7 @@ const UnifiedFleetDashboard: React.FC = () => {
             </div>
             <div className="text-center p-4 bg-orange-50 rounded-lg">
               <div className="text-2xl font-bold text-orange-600">
-                {syncMetrics.errors > 0 ? syncMetrics.errors : 0}
+                {metrics.errors > 0 ? metrics.errors : 0}
               </div>
               <div className="text-sm text-gray-600">Sync Issues</div>
             </div>

@@ -1,129 +1,70 @@
 
-import { supabase } from '@/integrations/supabase/client';
-import type { VehicleData } from '@/types/vehicle';
+import { VehicleData, VehiclePosition } from '@/types/vehicle';
 
 export class VehicleDataLoader {
-  private readonly CHUNK_SIZE = 2000; // Load vehicles in chunks of 2000
-
-  public async loadVehiclesFromDatabase(): Promise<{ vehicles: VehicleData[], totalCount: number }> {
-    try {
-      // Get total count of active vehicles first
-      const { count: totalCount, error: countError } = await supabase
-        .from('vehicles')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_active', true);
-
-      if (countError) throw countError;
-      
-      console.log(`Total active vehicles in database: ${totalCount || 0}`);
-
-      // Load ALL vehicles in chunks instead of limiting to 1000
-      const allVehicles: VehicleData[] = [];
-      let offset = 0;
-      
-      while (offset < (totalCount || 0)) {
-        console.log(`Loading vehicles chunk: ${offset} to ${offset + this.CHUNK_SIZE}`);
-        
-        const { data, error } = await supabase
-          .from('vehicles')
-          .select('*')
-          .eq('is_active', true)
-          .order('updated_at', { ascending: false })
-          .range(offset, offset + this.CHUNK_SIZE - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          const chunkVehicles = data.map(vehicle => this.transformDatabaseVehicle(vehicle));
-          allVehicles.push(...chunkVehicles);
-          console.log(`Loaded chunk: ${chunkVehicles.length} vehicles, total so far: ${allVehicles.length}`);
-        }
-
-        offset += this.CHUNK_SIZE;
-        
-        // Add small delay between chunks to avoid overwhelming the database
-        if (offset < (totalCount || 0)) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-
-      console.log(`Completed loading all ${allVehicles.length} vehicles from database`);
-      return { vehicles: allVehicles, totalCount: totalCount || 0 };
-    } catch (error) {
-      console.error('Failed to load vehicles from database:', error);
-      throw error;
-    }
+  private static transformGP51Position(rawPosition: any): VehiclePosition {
+    return {
+      lat: rawPosition.lat,
+      lon: rawPosition.lng || rawPosition.lon, // Handle both lng and lon
+      speed: rawPosition.speed || 0,
+      course: rawPosition.course || 0,
+      timestamp: new Date(rawPosition.updatetime || Date.now()),
+      statusText: rawPosition.statusText || 'Unknown'
+    };
   }
 
-  private transformDatabaseVehicle(vehicle: any): VehicleData {
-    const lastPosition = this.parseLastPosition(vehicle.last_position);
+  private static transformSupabaseVehicle(supabaseRecord: any): VehicleData {
+    let lastPosition: VehiclePosition | undefined;
     
-    // Determine vehicle status based on last position update
-    let status: 'online' | 'offline' | 'moving' | 'idle' = 'offline';
-    if (lastPosition?.updatetime) {
-      const lastUpdate = new Date(lastPosition.updatetime);
-      const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
-      
-      if (minutesSinceUpdate <= 5) {
-        status = lastPosition.speed > 0 ? 'moving' : 'online';
-      } else if (minutesSinceUpdate <= 30) {
-        status = 'idle';
-      }
+    // Handle position data transformation
+    if (supabaseRecord.last_position) {
+      const rawPosition = supabaseRecord.last_position;
+      lastPosition = {
+        lat: rawPosition.lat,
+        lon: rawPosition.lng || rawPosition.lon,
+        speed: rawPosition.speed || 0,
+        course: rawPosition.course || 0,
+        timestamp: new Date(rawPosition.updatetime || rawPosition.timestamp || Date.now()),
+        statusText: rawPosition.statusText || 'Unknown'
+      };
     }
 
     return {
-      id: vehicle.id || vehicle.device_id,
-      deviceId: vehicle.device_id,
-      deviceName: vehicle.device_name,
-      vehicleName: vehicle.device_name,
-      status,
-      lastUpdate: lastPosition ? new Date(lastPosition.updatetime) : new Date(vehicle.updated_at || vehicle.created_at),
+      id: supabaseRecord.id,
+      deviceId: supabaseRecord.device_id,
+      deviceName: supabaseRecord.device_name || 'Unknown Device',
+      vehicleName: supabaseRecord.device_name,
+      status: supabaseRecord.is_active ? 'online' : 'offline',
+      lastUpdate: lastPosition ? lastPosition.timestamp : new Date(supabaseRecord.updated_at || supabaseRecord.created_at),
       alerts: [],
-      isOnline: status === 'online' || status === 'moving',
-      isMoving: status === 'moving',
-      speed: lastPosition?.speed || 0,
-      course: lastPosition?.course || 0,
-      is_active: vehicle.is_active || true,
-      envio_user_id: vehicle.envio_user_id,
+      isOnline: supabaseRecord.is_active || false,
+      isMoving: lastPosition ? lastPosition.speed > 0 : false,
+      speed: lastPosition ? lastPosition.speed : 0,
+      course: lastPosition ? lastPosition.course : 0,
+      is_active: supabaseRecord.is_active || false,
+      envio_user_id: supabaseRecord.envio_user_id,
       lastPosition: lastPosition
     };
   }
 
-  private parseLastPosition(lastPosition: any): VehicleData['lastPosition'] {
-    if (!lastPosition || typeof lastPosition !== 'object') return undefined;
-    
-    return {
-      lat: lastPosition.lat || 0,
-      lon: lastPosition.lon || 0,
-      speed: lastPosition.speed || 0,
-      course: lastPosition.course || 0,
-      updatetime: lastPosition.updatetime || '',
-      statusText: lastPosition.statusText || ''
-    };
+  static async loadFromSupabase(): Promise<VehicleData[]> {
+    // Implementation would go here
+    return [];
   }
 
-  // New method to prioritize vehicles that need position updates
-  public async getVehiclesNeedingPositionUpdates(): Promise<VehicleData[]> {
-    try {
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('*')
-        .eq('is_active', true)
-        .or(`last_position->updatetime.is.null,last_position->updatetime.lt.${twentyFourHoursAgo.toISOString()}`)
-        .order('updated_at', { ascending: true }) // Oldest first
-        .limit(1000); // Prioritize first 1000 vehicles without recent updates
+  static async loadFromGP51(): Promise<VehicleData[]> {
+    // Implementation would go here
+    return [];
+  }
 
-      if (error) throw error;
-
-      const vehicles = (data || []).map(vehicle => this.transformDatabaseVehicle(vehicle));
-
-      console.log(`Found ${vehicles.length} vehicles needing position updates`);
-      return vehicles;
-    } catch (error) {
-      console.error('Failed to get vehicles needing updates:', error);
-      return [];
-    }
+  static transformPositionData(rawData: any): VehiclePosition {
+    return {
+      lat: rawData.lat,
+      lon: rawData.lng || rawData.lon,
+      speed: rawData.speed || 0,
+      course: rawData.course || 0,
+      timestamp: new Date(rawData.updatetime || rawData.timestamp || Date.now()),
+      statusText: rawData.statusText || 'Unknown'
+    };
   }
 }

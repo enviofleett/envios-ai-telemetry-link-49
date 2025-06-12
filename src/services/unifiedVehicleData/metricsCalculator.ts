@@ -1,58 +1,52 @@
 
-import type { VehicleData, VehicleMetrics } from '@/types/vehicle';
+import { VehicleData, VehicleMetrics } from '@/types/vehicle';
 
-export class VehicleMetricsCalculator {
-  public calculateMetrics(vehicles: VehicleData[], totalVehiclesInDatabase: number): VehicleMetrics {
+export class MetricsCalculator {
+  static calculateVehicleMetrics(vehicles: VehicleData[]): VehicleMetrics {
     const now = new Date();
     const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
 
-    // Calculate online/offline based on loaded vehicles with position data
-    const vehiclesWithPositions = vehicles.filter(v => v.lastPosition?.updatetime);
-    const onlineVehicles = vehiclesWithPositions.filter(v => 
-      new Date(v.lastPosition!.updatetime) > thirtyMinutesAgo
-    );
-    const offlineVehicles = vehiclesWithPositions.filter(v => 
-      new Date(v.lastPosition!.updatetime) <= thirtyMinutesAgo
-    );
+    const online = vehicles.filter(v => {
+      if (!v.lastPosition?.timestamp) return false;
+      return v.lastPosition.timestamp > thirtyMinutesAgo;
+    }).length;
 
-    // Calculate alerts from all loaded vehicles
-    const alertVehicles = vehicles.filter(v => 
-      v.status?.toLowerCase().includes('alert') || 
-      v.status?.toLowerCase().includes('alarm')
-    );
+    const alerts = vehicles.filter(v => {
+      if (!v.lastPosition?.timestamp) return false;
+      return v.lastPosition.timestamp > thirtyMinutesAgo && 
+             (v.status?.toLowerCase().includes('alert') || 
+              v.status?.toLowerCase().includes('alarm'));
+    }).length;
 
-    const metrics = {
-      total: totalVehiclesInDatabase, // Always use database total
-      online: onlineVehicles.length,
-      offline: offlineVehicles.length,
-      alerts: alertVehicles.length,
+    return {
+      total: vehicles.length,
+      online,
+      offline: vehicles.length - online,
+      alerts,
       lastUpdateTime: now
     };
-
-    console.log(`Metrics updated - Total: ${metrics.total}, Online: ${metrics.online}, Offline: ${metrics.offline}, Alerts: ${metrics.alerts}`);
-    return metrics;
   }
 
-  public getOnlineVehicles(vehicles: VehicleData[]): VehicleData[] {
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-    return vehicles.filter(v => 
-      v.lastPosition?.updatetime && 
-      new Date(v.lastPosition.updatetime) > thirtyMinutesAgo
-    );
-  }
+  static calculateSyncMetrics(vehicles: VehicleData[]) {
+    const now = new Date();
+    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
 
-  public getOfflineVehicles(vehicles: VehicleData[]): VehicleData[] {
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-    return vehicles.filter(v => 
-      v.lastPosition?.updatetime && 
-      new Date(v.lastPosition.updatetime) <= thirtyMinutesAgo
-    );
-  }
+    const recentlyUpdated = vehicles.filter(v => {
+      if (!v.lastPosition?.timestamp) return false;
+      return v.lastPosition.timestamp > oneHourAgo;
+    }).length;
 
-  public getVehiclesWithAlerts(vehicles: VehicleData[]): VehicleData[] {
-    return vehicles.filter(v => 
-      v.status?.toLowerCase().includes('alert') || 
-      v.status?.toLowerCase().includes('alarm')
-    );
+    const withErrors = vehicles.filter(v => {
+      if (!v.lastPosition?.timestamp) return false;
+      return v.lastPosition.timestamp > oneHourAgo &&
+             v.status?.toLowerCase().includes('error');
+    }).length;
+
+    return {
+      totalVehicles: vehicles.length,
+      positionsUpdated: recentlyUpdated,
+      errors: withErrors,
+      lastSyncTime: now
+    };
   }
 }

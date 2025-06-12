@@ -58,19 +58,26 @@ export interface VehicleData {
   is_active: boolean;
 }
 
+// Unified metrics interface that includes both dashboard and sync data
 export interface VehicleDataMetrics {
-  totalVehicles: number;
-  onlineVehicles: number;
-  offlineVehicles: number;
-  recentlyActiveVehicles: number;
-  lastSyncTime: Date;
-  syncStatus: 'success' | 'error' | 'pending';
-  errorMessage?: string;
-  // Add dashboard-compatible properties
+  // Dashboard-compatible properties (primary)
   total: number;
   online: number;
   offline: number;
   alerts: number;
+  
+  // Legacy properties (for backwards compatibility)
+  totalVehicles: number;
+  onlineVehicles: number;
+  offlineVehicles: number;
+  recentlyActiveVehicles: number;
+  
+  // Sync-related properties (moved from separate syncMetrics)
+  lastSyncTime: Date;
+  positionsUpdated: number;
+  errors: number;
+  syncStatus: 'success' | 'error' | 'pending';
+  errorMessage?: string;
 }
 
 export interface VehicleMetrics {
@@ -104,7 +111,7 @@ export interface VehicleStatistics {
 
 interface UseUnifiedVehicleDataResult {
   vehicles: VehicleData[];
-  metrics: VehicleDataMetrics;
+  metrics: VehicleDataMetrics; // Now includes all sync data
   isLoading: boolean;
   isRefreshing: boolean;
   error: string | null;
@@ -122,5 +129,5 @@ interface UseUnifiedVehicleDataResult {
   getOfflineVehicles: () => VehicleData[];
   getMovingVehicles: () => VehicleData[];
   getIdleVehicles: () => VehicleData[];
-  syncMetrics: () => Promise<void>;
+  // Removed separate syncMetrics - all data is now in metrics
 }

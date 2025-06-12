@@ -24,8 +24,7 @@ const UnifiedDashboard: React.FC = () => {
   
   const { 
     vehicles, 
-    metrics, 
-    syncMetrics, 
+    metrics,
     isLoading, 
     isRefreshing, 
     forceRefresh,
@@ -34,8 +33,8 @@ const UnifiedDashboard: React.FC = () => {
 
   const getStatusColor = (vehicle: any) => {
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-    const isOnline = vehicle.lastPosition?.updatetime && 
-      new Date(vehicle.lastPosition.updatetime) > thirtyMinutesAgo;
+    const isOnline = vehicle.lastPosition?.timestamp && 
+      vehicle.lastPosition.timestamp > thirtyMinutesAgo;
     
     if (vehicle.status?.toLowerCase().includes('alert')) return 'bg-red-100 text-red-800';
     if (isOnline) return 'bg-green-100 text-green-800';
@@ -44,8 +43,8 @@ const UnifiedDashboard: React.FC = () => {
 
   const getStatusText = (vehicle: any) => {
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-    const isOnline = vehicle.lastPosition?.updatetime && 
-      new Date(vehicle.lastPosition.updatetime) > thirtyMinutesAgo;
+    const isOnline = vehicle.lastPosition?.timestamp && 
+      vehicle.lastPosition.timestamp > thirtyMinutesAgo;
     
     if (vehicle.status?.toLowerCase().includes('alert')) return 'Alert';
     if (isOnline) return 'Online';
@@ -139,7 +138,7 @@ const UnifiedDashboard: React.FC = () => {
           <CardTitle className="flex items-center justify-between">
             <span>Sync Status</span>
             <Badge variant="outline">
-              Last sync: {syncMetrics.lastSyncTime.toLocaleTimeString()}
+              Last sync: {metrics.lastSyncTime.toLocaleTimeString()}
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -147,15 +146,15 @@ const UnifiedDashboard: React.FC = () => {
           <div className="grid grid-cols-3 gap-4 text-sm">
             <div>
               <span className="text-gray-600">Positions Updated:</span>
-              <div className="font-medium">{syncMetrics.positionsUpdated}</div>
+              <div className="font-medium">{metrics.positionsUpdated}</div>
             </div>
             <div>
               <span className="text-gray-600">Total Processed:</span>
-              <div className="font-medium">{syncMetrics.totalVehicles}</div>
+              <div className="font-medium">{metrics.totalVehicles}</div>
             </div>
             <div>
               <span className="text-gray-600">Errors:</span>
-              <div className="font-medium text-red-600">{syncMetrics.errors}</div>
+              <div className="font-medium text-red-600">{metrics.errors}</div>
             </div>
           </div>
         </CardContent>
@@ -275,7 +274,7 @@ const UnifiedDashboard: React.FC = () => {
                           <span className="text-gray-600">Last Update</span>
                         </div>
                         <span className="text-xs">
-                          {new Date(vehicle.lastPosition.updatetime).toLocaleString()}
+                          {vehicle.lastPosition.timestamp.toLocaleString()}
                         </span>
                       </div>
 

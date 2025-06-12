@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { unifiedVehicleDataService } from '@/services/unifiedVehicleData';
 import type { VehicleData, VehicleMetrics } from '@/types/vehicle';
@@ -21,7 +22,7 @@ const vehiclesEqual = (a: VehicleData[], b: VehicleData[]): boolean => {
       vehicleA.deviceName === vehicleB.deviceName &&
       vehicleA.lastPosition?.lat === vehicleB.lastPosition?.lat &&
       vehicleA.lastPosition?.lon === vehicleB.lastPosition?.lon &&
-      vehicleA.lastPosition?.updatetime === vehicleB.lastPosition?.updatetime
+      vehicleA.lastPosition?.timestamp?.getTime() === vehicleB.lastPosition?.timestamp?.getTime()
     );
   });
 };
@@ -57,8 +58,8 @@ export const useStableVehicleData = (filters?: FilterOptions) => {
 
         if (filters.status && filters.status !== 'all') {
           const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-          const isOnline = vehicle.lastPosition?.updatetime && 
-            new Date(vehicle.lastPosition.updatetime) > thirtyMinutesAgo;
+          const isOnline = vehicle.lastPosition?.timestamp && 
+            vehicle.lastPosition.timestamp > thirtyMinutesAgo;
           const hasAlert = vehicle.status?.toLowerCase().includes('alert') || 
             vehicle.status?.toLowerCase().includes('alarm');
 
