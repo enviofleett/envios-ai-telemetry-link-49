@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface SMSConfig {
@@ -228,8 +229,8 @@ class SMSService {
         .upsert({
           user_id: (await supabase.auth.getUser()).data.user?.id,
           provider_name: 'mysms',
-          username: config.username, // Using correct field name
-          password_encrypted: encryptedPassword, // Using correct field name
+          username: config.username,
+          password_encrypted: encryptedPassword,
           sender_id: config.sender,
           route: config.route.toString(),
           is_active: true,
@@ -271,7 +272,7 @@ class SMSService {
         const decryptedPassword = await CredentialEncryption.decrypt(data.password_encrypted);
         return {
           ...data,
-          password_decrypted: decryptedPassword // Provide decrypted password for internal use
+          password_decrypted: decryptedPassword
         };
       } catch (error) {
         console.error('Failed to decrypt password:', error);
@@ -282,18 +283,14 @@ class SMSService {
     return data;
   }
 
-  // Enhanced phone validation with international support
   validatePhoneNumber(phone: string): boolean {
-    // E.164 format validation with enhanced patterns
     const e164Regex = /^\+[1-9]\d{1,14}$/;
     const nigeriaMobileRegex = /^(\+234|234|0)?[789][01]\d{8}$/;
     
-    // Check E.164 first
     if (e164Regex.test(phone)) {
       return true;
     }
     
-    // Check Nigerian mobile format
     if (nigeriaMobileRegex.test(phone.replace(/\s+/g, ''))) {
       return true;
     }
@@ -302,20 +299,16 @@ class SMSService {
   }
 
   formatPhoneNumber(phone: string): string {
-    // Remove all non-numeric characters except +
     const cleaned = phone.replace(/[^\d+]/g, '');
     
-    // Handle Nigerian numbers specifically
     if (cleaned.match(/^0[789][01]\d{8}$/)) {
       return `+234${cleaned.substring(1)}`;
     }
     
-    // Handle numbers that start with 234 but no +
     if (cleaned.match(/^234[789][01]\d{8}$/)) {
       return `+${cleaned}`;
     }
     
-    // Add + prefix if not present and looks like international format
     if (!cleaned.startsWith('+') && cleaned.length > 10) {
       return `+${cleaned}`;
     }
@@ -323,7 +316,6 @@ class SMSService {
     return cleaned.startsWith('+') ? cleaned : `+${cleaned}`;
   }
 
-  // New: SMS delivery confirmation tracking
   async updateSMSStatus(smsLogId: string, status: string, deliveryDetails?: any) {
     console.log(`📊 Updating SMS status for ${smsLogId}: ${status}`);
     
@@ -342,7 +334,6 @@ class SMSService {
     }
   }
 
-  // New: Bulk SMS sending for fleet notifications
   async sendBulkSMS(recipients: string[], message: string, eventType: string = 'FLEET_NOTIFICATION') {
     console.log(`📢 Sending bulk SMS to ${recipients.length} recipients`);
     
@@ -363,11 +354,9 @@ class SMSService {
     return results;
   }
 
-  // New: SMS template support
   async sendTemplatedSMS(recipient: string, templateName: string, variables: Record<string, string>) {
     console.log(`📝 Sending templated SMS using template: ${templateName}`);
     
-    // This would typically fetch templates from database
     const templates = {
       'vehicle_alert': 'Alert: Your vehicle {{vehicle_id}} has {{alert_type}}. Location: {{location}}',
       'maintenance_reminder': 'Reminder: {{vehicle_id}} is due for {{service_type}} on {{due_date}}',
@@ -380,7 +369,6 @@ class SMSService {
       throw new Error(`SMS template '${templateName}' not found`);
     }
     
-    // Replace variables in template
     Object.entries(variables).forEach(([key, value]) => {
       message = message.replace(new RegExp(`{{${key}}}`, 'g'), value);
     });
@@ -390,5 +378,3 @@ class SMSService {
 }
 
 export const smsService = new SMSService();
-
-}

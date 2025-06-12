@@ -72,7 +72,7 @@ function App() {
                                 </ProtectedRoute>
                               } />
                               
-                              {/* Settings route */}
+                              {/* Consolidated Settings route - removed redundant admin-settings */}
                               <Route path="/settings" element={
                                 <ProtectedRoute>
                                   <Settings />
