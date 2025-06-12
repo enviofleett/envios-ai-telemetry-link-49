@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,7 +30,8 @@ export const GP51AuthenticationPanel: React.FC = () => {
     username, 
     tokenExpiresAt, 
     isLoading, 
-    error, // Added error state consumption
+    error,
+    isRefreshing, // New state for token refresh
     login, 
     logout, 
     healthCheck,
@@ -72,13 +72,14 @@ export const GP51AuthenticationPanel: React.FC = () => {
   };
 
   const getStatusIcon = () => {
-    if (isLoading) return <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />;
+    if (isLoading || isRefreshing) return <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />;
     if (error) return <XCircle className="h-5 w-5 text-red-600" />;
     if (isAuthenticated) return <CheckCircle className="h-5 w-5 text-green-600" />;
     return <XCircle className="h-5 w-5 text-gray-400" />;
   };
 
   const getStatusText = () => {
+    if (isRefreshing) return 'Refreshing Token...';
     if (isLoading) return 'Processing...';
     if (error) return 'Connection Error';
     if (isAuthenticated) return 'Connected';
@@ -106,7 +107,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
           GP51 Authentication
         </CardTitle>
         <CardDescription>
-          Secure authentication with GP51 telemetry service using enhanced error handling
+          Secure authentication with GP51 telemetry service with automatic token refresh
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -119,6 +120,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
               {isAuthenticated && username && (
                 <p className="text-sm text-muted-foreground">
                   Logged in as: {username}
+                  {isRefreshing && <span className="ml-2 text-blue-600">(refreshing...)</span>}
                 </p>
               )}
             </div>
@@ -133,7 +135,7 @@ export const GP51AuthenticationPanel: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={handleHealthCheck}
-                disabled={isLoading}
+                disabled={isLoading || isRefreshing}
               >
                 <Activity className="h-4 w-4 mr-2" />
                 Test Connection
@@ -142,38 +144,55 @@ export const GP51AuthenticationPanel: React.FC = () => {
           </div>
         </div>
 
+        {/* Token Refresh Indicator */}
+        {isRefreshing && (
+          <Alert>
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            <AlertDescription>
+              Automatically refreshing authentication token to maintain connection...
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Error Display Section */}
         {error && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription className="flex items-center justify-between">
               <span>{error}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRetryLogin}
-                disabled={isLoading || !credentials.username.trim() || !credentials.password.trim()}
-                className="ml-2"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Retry
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={clearError}
+                >
+                  Dismiss
+                </Button>
+                {credentials.username && credentials.password && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRetryLogin}
+                    disabled={isLoading || isRefreshing}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Retry
+                  </Button>
+                )}
+              </div>
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Token Expiry Info */}
+        {/* Token Expiry Information */}
         {isAuthenticated && tokenExpiresAt && (
-          <Alert>
-            <Clock className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Token expires in:</strong> {formatExpiryTime(tokenExpiresAt)}
-              <br />
-              <span className="text-sm text-muted-foreground">
-                Tokens are automatically renewed when needed
-              </span>
-            </AlertDescription>
-          </Alert>
+          <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+            <Clock className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              Session expires in: {formatExpiryTime(tokenExpiresAt)}
+              <span className="ml-2 text-xs text-green-600">(auto-refresh enabled)</span>
+            </span>
+          </div>
         )}
 
         {/* Authentication Form */}

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { gp51DataService, type GP51ProcessedPosition } from '@/services/gp51/GP51DataService';
 import { useGP51Auth } from '@/hooks/useGP51Auth';
@@ -30,7 +29,7 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
     includeOffline = true
   } = options;
 
-  const { isAuthenticated, error: authError } = useGP51Auth();
+  const { isAuthenticated, error: authError, isRefreshing } = useGP51Auth();
   const { toast } = useToast();
 
   const [vehicles, setVehicles] = useState<EnhancedVehicle[]>([]);
@@ -44,7 +43,7 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
     syncStatus: 'pending'
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshingData, setIsRefreshingData] = useState(false);
 
   const calculateMetrics = useCallback((vehicleList: EnhancedVehicle[]): VehicleDataMetrics => {
     const total = vehicleList.length;
@@ -83,11 +82,17 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
       return;
     }
 
+    // Don't start new sync if auth is refreshing
+    if (isRefreshing) {
+      console.log('🔄 Skipping vehicle sync - authentication is refreshing...');
+      return;
+    }
+
     const wasLoading = vehicles.length === 0;
     if (wasLoading) {
       setIsLoading(true);
     } else {
-      setIsRefreshing(true);
+      setIsRefreshingData(true);
     }
 
     try {
@@ -111,10 +116,10 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
         throw new Error(`Supabase error: ${supabaseError.message}`);
       }
 
-      // Step 2: Get live vehicle data from GP51
+      // Step 2: Get live vehicle data from GP51 (with auto-refresh handling)
       const gp51Vehicles = await gp51DataService.getDeviceList();
       
-      // Step 3: If we have GP51 vehicles, get their positions
+      // Step 3: If we have GP51 vehicles, get their positions (with auto-refresh handling)
       let vehiclePositions: Map<string, GP51ProcessedPosition> = new Map();
       if (gp51Vehicles.length > 0) {
         const deviceIds = gp51Vehicles.map(v => v.deviceId);
@@ -285,9 +290,9 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
       }
     } finally {
       setIsLoading(false);
-      setIsRefreshing(false);
+      setIsRefreshingData(false);
     }
-  }, [isAuthenticated, includeOffline, calculateMetrics, toast, vehicles.length]);
+  }, [isAuthenticated, isRefreshing, includeOffline, calculateMetrics, toast, vehicles.length]);
 
   // Initial sync and periodic refresh
   useEffect(() => {
@@ -341,7 +346,7 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
     vehicles,
     metrics,
     isLoading,
-    isRefreshing,
+    isRefreshing: isRefreshingData || isRefreshing, // Include auth refresh state
     forceRefresh,
     getVehicleById,
     getOnlineVehicles,
