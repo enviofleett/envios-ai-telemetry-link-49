@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,9 +21,9 @@ interface LiveVehicleCardProps {
 
 const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
   const getVehicleStatus = () => {
-    if (!vehicle.lastPosition?.updatetime) return 'offline';
+    if (!vehicle.lastPosition?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    const lastUpdate = vehicle.lastPosition.timestamp;
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -68,15 +69,14 @@ const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
     return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
   };
 
-  const formatLastUpdate = (updatetime: string) => {
-    const date = new Date(updatetime);
+  const formatLastUpdate = (timestamp: Date) => {
     const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    const diffMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
     
     if (diffMinutes < 1) return 'Just now';
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
     if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return date.toLocaleDateString();
+    return timestamp.toLocaleDateString();
   };
 
   const status = getVehicleStatus();
@@ -150,8 +150,8 @@ const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
               <span className="text-gray-600">Last Update</span>
             </div>
             <p className="text-xs">
-              {position?.updatetime 
-                ? formatLastUpdate(position.updatetime)
+              {position?.timestamp 
+                ? formatLastUpdate(position.timestamp)
                 : 'No data'
               }
             </p>

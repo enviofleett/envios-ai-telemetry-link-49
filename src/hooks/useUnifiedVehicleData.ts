@@ -29,6 +29,7 @@ interface UseUnifiedVehicleDataResult {
   getOfflineVehicles: () => VehicleData[];
   getMovingVehicles: () => VehicleData[];
   getIdleVehicles: () => VehicleData[];
+  syncMetrics: () => Promise<void>;
 }
 
 export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicleDataResult => {
@@ -39,7 +40,11 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
     offlineVehicles: 0,
     recentlyActiveVehicles: 0,
     lastSyncTime: new Date(),
-    syncStatus: 'pending'
+    syncStatus: 'pending',
+    total: 0,
+    online: 0,
+    offline: 0,
+    alerts: 0
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -127,7 +132,11 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
           offlineVehicles: 0,
           recentlyActiveVehicles: 0,
           lastSyncTime: new Date(),
-          syncStatus: 'error'
+          syncStatus: 'error',
+          total: 0,
+          online: 0,
+          offline: 0,
+          alerts: 0
         });
       }
     } finally {
@@ -159,6 +168,10 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
     }
   }, [isLoading, isRefreshing, hasMore, currentPage, fetchData]);
 
+  const syncMetrics = useCallback(async () => {
+    await forceRefresh();
+  }, [forceRefresh]);
+
   const getVehiclesByStatus = useCallback(() => {
     return {
       online: vehicles.filter(v => v.isOnline),
@@ -187,18 +200,9 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
     return vehicles.filter(v => v.isOnline && !v.isMoving);
   }, [vehicles]);
 
-  // Mock sync metrics for compatibility
-  const syncMetrics = {
-    totalVehicles: metrics.totalVehicles,
-    positionsUpdated: metrics.onlineVehicles,
-    errors: metrics.syncStatus === 'error' ? 1 : 0,
-    lastSyncTime: metrics.lastSyncTime
-  };
-
   return {
     vehicles,
     metrics,
-    syncMetrics,
     isLoading,
     isRefreshing,
     error,
@@ -211,6 +215,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
     getOnlineVehicles,
     getOfflineVehicles,
     getMovingVehicles,
-    getIdleVehicles
+    getIdleVehicles,
+    syncMetrics
   };
 };

@@ -58,7 +58,7 @@ export const useStableEnhancedVehicleData = () => {
               lon: rawPosition.lng, // Convert lng to lon
               speed: rawPosition.speed || 0,
               course: rawPosition.course || 0,
-              updatetime: rawPosition.updatetime || new Date().toISOString(),
+              timestamp: new Date(rawPosition.updatetime || new Date().toISOString()),
               statusText: rawPosition.statusText || 'Unknown'
             };
           }
@@ -70,7 +70,7 @@ export const useStableEnhancedVehicleData = () => {
           deviceName: vehicle.device_name,
           vehicleName: vehicle.device_name,
           status: vehicle.is_active ? 'online' : 'offline',
-          lastUpdate: lastPosition ? new Date(lastPosition.updatetime) : new Date(vehicle.updated_at || vehicle.created_at),
+          lastUpdate: lastPosition ? lastPosition.timestamp : new Date(vehicle.updated_at || vehicle.created_at),
           alerts: [], // Initialize empty alerts array
           isOnline: vehicle.is_active,
           isMoving: lastPosition ? lastPosition.speed > 0 : false,
@@ -144,8 +144,8 @@ export const useStableEnhancedVehicleData = () => {
 
       // Online filter
       if (filters.online !== 'all') {
-        const isOnline = vehicle.lastPosition?.updatetime ? 
-          new Date(vehicle.lastPosition.updatetime) > new Date(Date.now() - 30 * 60 * 1000) : 
+        const isOnline = vehicle.lastPosition?.timestamp ? 
+          vehicle.lastPosition.timestamp > new Date(Date.now() - 30 * 60 * 1000) : 
           false;
         
         if (filters.online === 'online' && !isOnline) return false;
@@ -167,8 +167,8 @@ export const useStableEnhancedVehicleData = () => {
     const total = vehicles.length;
     const active = vehicles.filter(v => v.is_active).length;
     const online = vehicles.filter(v => {
-      if (!v.lastPosition?.updatetime) return false;
-      return new Date(v.lastPosition.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
+      if (!v.lastPosition?.timestamp) return false;
+      return v.lastPosition.timestamp > new Date(Date.now() - 30 * 60 * 1000);
     }).length;
     const alerts = vehicles.filter(v => 
       v.status?.toLowerCase().includes('alert') || 

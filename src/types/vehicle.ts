@@ -66,6 +66,11 @@ export interface VehicleDataMetrics {
   lastSyncTime: Date;
   syncStatus: 'success' | 'error' | 'pending';
   errorMessage?: string;
+  // Add dashboard-compatible properties
+  total: number;
+  online: number;
+  offline: number;
+  alerts: number;
 }
 
 export interface VehicleMetrics {
@@ -95,4 +100,27 @@ export interface VehicleStatistics {
   active: number;
   online: number;
   alerts: number;
+}
+
+interface UseUnifiedVehicleDataResult {
+  vehicles: VehicleData[];
+  metrics: VehicleDataMetrics;
+  isLoading: boolean;
+  isRefreshing: boolean;
+  error: string | null;
+  forceRefresh: () => Promise<void>;
+  loadMore: () => void;
+  hasMore: boolean;
+  currentPage: number;
+  getVehiclesByStatus: () => {
+    online: VehicleData[];
+    offline: VehicleData[];
+    alerts: VehicleData[];
+  };
+  getVehicleById: (deviceId: string) => VehicleData | undefined;
+  getOnlineVehicles: () => VehicleData[];
+  getOfflineVehicles: () => VehicleData[];
+  getMovingVehicles: () => VehicleData[];
+  getIdleVehicles: () => VehicleData[];
+  syncMetrics: () => Promise<void>;
 }

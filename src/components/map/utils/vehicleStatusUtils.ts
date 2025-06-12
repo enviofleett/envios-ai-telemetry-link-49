@@ -2,9 +2,9 @@
 import type { VehicleData } from '@/types/vehicle';
 
 export const getVehicleStatus = (vehicle: VehicleData) => {
-  if (!vehicle.lastPosition?.updatetime) return 'offline';
+  if (!vehicle.lastPosition?.timestamp) return 'offline';
   
-  const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+  const lastUpdate = vehicle.lastPosition.timestamp;
   const now = new Date();
   const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
   

@@ -17,7 +17,12 @@ class EnhancedVehicleDataService {
     offlineVehicles: 0,
     recentlyActiveVehicles: 0,
     lastSyncTime: new Date(),
-    syncStatus: 'pending'
+    syncStatus: 'pending',
+    // Dashboard-compatible properties
+    total: 0,
+    online: 0,
+    offline: 0,
+    alerts: 0
   };
   private subscribers: Set<() => void> = new Set();
   private syncInterval: NodeJS.Timeout | null = null;
@@ -48,13 +53,21 @@ class EnhancedVehicleDataService {
     const vehicleArray = Array.from(this.vehicles.values());
     const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
 
+    // Count alerts
+    const alertsCount = vehicleArray.filter(v => v.alerts.length > 0).length;
+
     this.metrics = {
       totalVehicles: vehicleArray.length,
       onlineVehicles: vehicleArray.filter(v => v.isOnline).length,
       offlineVehicles: vehicleArray.filter(v => !v.isOnline).length,
       recentlyActiveVehicles: vehicleArray.filter(v => v.lastUpdate > thirtyMinutesAgo).length,
       lastSyncTime: new Date(),
-      syncStatus: 'success'
+      syncStatus: 'success',
+      // Dashboard-compatible properties
+      total: vehicleArray.length,
+      online: vehicleArray.filter(v => v.isOnline).length,
+      offline: vehicleArray.filter(v => !v.isOnline).length,
+      alerts: alertsCount
     };
   }
 
@@ -305,8 +318,9 @@ export const getEnhancedVehicles = (params?: PaginationParams) => {
   return enhancedVehicleDataService.getEnhancedVehicles(params);
 };
 
-export const getVehicleDataMetrics = (vehicles: VehicleData[]) => {
+export const getVehicleDataMetrics = (vehicles: VehicleData[]): VehicleDataMetrics => {
   const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+  const alertsCount = vehicles.filter(v => v.alerts.length > 0).length;
   
   return {
     totalVehicles: vehicles.length,
@@ -314,6 +328,11 @@ export const getVehicleDataMetrics = (vehicles: VehicleData[]) => {
     offlineVehicles: vehicles.filter(v => !v.isOnline).length,
     recentlyActiveVehicles: vehicles.filter(v => v.lastUpdate > thirtyMinutesAgo).length,
     lastSyncTime: new Date(),
-    syncStatus: 'success' as const
+    syncStatus: 'success' as const,
+    // Dashboard-compatible properties
+    total: vehicles.length,
+    online: vehicles.filter(v => v.isOnline).length,
+    offline: vehicles.filter(v => !v.isOnline).length,
+    alerts: alertsCount
   };
 };

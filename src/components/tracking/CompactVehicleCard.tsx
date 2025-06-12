@@ -19,9 +19,9 @@ const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
   onAlertClick
 }) => {
   const getVehicleStatus = () => {
-    if (!vehicle.lastPosition?.updatetime) return 'offline';
+    if (!vehicle.lastPosition?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    const lastUpdate = vehicle.lastPosition.timestamp;
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -41,9 +41,9 @@ const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
   };
 
   const getLastUpdateText = () => {
-    if (!vehicle.lastPosition?.updatetime) return 'Never';
+    if (!vehicle.lastPosition?.timestamp) return 'Never';
     
-    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    const lastUpdate = vehicle.lastPosition.timestamp;
     const now = new Date();
     const minutesSinceUpdate = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60));
     
