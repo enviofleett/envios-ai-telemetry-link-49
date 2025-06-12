@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,7 +74,7 @@ const ReportGenerationSection: React.FC<ReportGenerationSectionProps> = ({
 
     setIsGenerating(true);
     try {
-      await onReportGenerate?.(vehicle.deviceid, selectedReportType, { 
+      await onReportGenerate?.(vehicle.deviceId, selectedReportType, { 
         from: fromDate, 
         to: toDate 
       });

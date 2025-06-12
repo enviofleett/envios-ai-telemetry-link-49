@@ -93,9 +93,68 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
 
   const status = getVehicleStatus(vehicle);
   const ignitionStatus = getIgnitionStatus(vehicle);
-  const plateNumber = vehicle.plateNumber || vehicle.devicename;
+  const plateNumber = vehicle.licensePlate || vehicle.deviceName;
 
-  return;
+  return (
+    <Card className="bg-white border border-gray-lighter shadow-sm">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-primary-dark">{plateNumber}</h2>
+            <p className="text-sm text-gray-500">{address}</p>
+          </div>
+          {getStatusBadge(status)}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+              <Gauge className="h-4 w-4" />
+              <span>Speed:</span>
+            </div>
+            <p className="text-primary-dark">{vehicle.lastPosition?.speed || 0} km/h</p>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+              <Zap className="h-4 w-4" />
+              <span>Ignition:</span>
+            </div>
+            <p className="text-primary-dark">{ignitionStatus}</p>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+              <Clock className="h-4 w-4" />
+              <span>Last Update:</span>
+            </div>
+            <p className="text-primary-dark">
+              {vehicle.lastPosition?.updatetime ? formatLastUpdate(vehicle.lastPosition.updatetime) : 'Never'}
+            </p>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+              <Navigation className="h-4 w-4" />
+              <span>Location:</span>
+            </div>
+            <p className="text-primary-dark">
+              {vehicle.lastPosition?.lat}, {vehicle.lastPosition?.lon}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-white border-gray-lighter text-primary-dark hover:bg-gray-background"
+            onClick={() => copyToClipboard(vehicle.deviceId, "Device ID")}
+          >
+            <Copy className="h-4 w-4 mr-2" />
+            Copy Device ID
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
 };
 
 export default VehicleInfoPanel;

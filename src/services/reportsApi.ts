@@ -1,3 +1,4 @@
+
 // Mock Reports API Service
 import { 
   type VehicleData 
@@ -96,6 +97,25 @@ const generateAlertReports = async (query: ReportQuery): Promise<any[]> => {
   return mockData;
 };
 
+const getVehicleUsageStats = async (vehicleIds?: string[]): Promise<any[]> => {
+  // Simulate API call delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  const mockData = (vehicleIds || ['vehicle-1', 'vehicle-2']).map((vehicleId, index) => ({
+    vehicleId,
+    totalMileage: Math.floor(Math.random() * 10000 + 5000), // km
+    fuelEfficiency: (Math.random() * 5 + 8).toFixed(1), // km/L
+    averageSpeed: Math.floor(Math.random() * 30 + 40), // km/h
+    utilizationRate: (Math.random() * 0.4 + 0.5).toFixed(2), // 50-90%
+    maintenanceScore: Math.floor(Math.random() * 30 + 70), // 70-100
+    totalTrips: Math.floor(Math.random() * 100 + 50),
+    idleTime: Math.floor(Math.random() * 50 + 10), // hours
+    totalFuelConsumed: (Math.random() * 500 + 200).toFixed(1), // L
+  }));
+
+  return mockData;
+};
+
 const exportReportData = async (reportType: string, reportData: any[]): Promise<string> => {
   // Simulate data transformation and CSV generation
   await new Promise(resolve => setTimeout(resolve, 500));
@@ -110,5 +130,6 @@ export const reportsApi = {
   generateGeofenceReports,
   generateMaintenanceReports,
   generateAlertReports,
+  getVehicleUsageStats,
   exportReportData,
 };

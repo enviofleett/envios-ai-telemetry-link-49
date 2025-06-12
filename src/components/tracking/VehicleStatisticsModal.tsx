@@ -107,7 +107,7 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
             <div className="space-y-3">
               {filteredVehicles.map((vehicle) => (
                 <div 
-                  key={vehicle.deviceid}
+                  key={vehicle.deviceId}
                   className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-start justify-between">
@@ -138,7 +138,7 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
                         </div>
                         
                         <div className="text-xs text-gray-500">
-                          Device: {vehicle.devicename} ({vehicle.deviceid})
+                          Device: {vehicle.deviceName} ({vehicle.deviceId})
                         </div>
                       </div>
                     </div>

@@ -1,4 +1,7 @@
+
 import { useState, useCallback } from 'react';
+import { reportsApi } from '@/services/reportsApi';
+import type { ReportQuery } from '@/types/reports';
 import type { VehicleData } from '@/services/unifiedVehicleData';
 
 export type ReportType = 'trip' | 'activity' | 'maintenance' | 'alerts' | 'geofence' | 'mileage';
@@ -218,13 +221,13 @@ export const useAdvancedReports = () => {
   const generateMileageReports = useCallback((vehicles: VehicleData[]): MileageReportData[] => {
     const periods = ['Daily', 'Weekly', 'Monthly'];
     const filteredVehicles = filters.vehicleIds.length > 0 
-      ? vehicles.filter(v => filters.vehicleIds.includes(v.deviceid))
+      ? vehicles.filter(v => filters.vehicleIds.includes(v.deviceId))
       : vehicles;
 
     return filteredVehicles.slice(0, 12).map((vehicle, index) => ({
-      id: `mileage-${vehicle.deviceid}-${index}`,
-      vehicleId: vehicle.deviceid,
-      vehicleName: vehicle.devicename,
+      id: `mileage-${vehicle.deviceId}-${index}`,
+      vehicleId: vehicle.deviceId,
+      vehicleName: vehicle.deviceName,
       period: periods[Math.floor(Math.random() * periods.length)],
       totalDistance: `${Math.floor(Math.random() * 2000 + 500)} km`,
       averageDistance: `${Math.floor(Math.random() * 200 + 50)} km/day`,

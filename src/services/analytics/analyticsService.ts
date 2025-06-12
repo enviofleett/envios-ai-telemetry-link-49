@@ -4,7 +4,6 @@ import {
 } from '@/services/unifiedVehicleData';
 
 import { supabase } from '@/integrations/supabase/client';
-import type { Vehicle } from '@/services/unifiedVehicleData';
 
 export interface FleetMetrics {
   totalVehicles: number;
@@ -62,7 +61,7 @@ export interface AnalyticsReport {
 }
 
 export class AnalyticsService {
-  private vehicles: Vehicle[] = [];
+  private vehicles: VehicleData[] = [];
   private analyticsCache: Map<string, any> = new Map();
   private lastUpdateTime: Date = new Date(0);
 
@@ -89,8 +88,8 @@ export class AnalyticsService {
     await this.loadVehicleData();
     
     return this.vehicles.map(vehicle => ({
-      deviceId: vehicle.deviceid,
-      deviceName: vehicle.devicename,
+      deviceId: vehicle.deviceId,
+      deviceName: vehicle.deviceName,
       utilizationRate: this.calculateUtilizationRate(vehicle),
       fuelEfficiency: this.calculateFuelEfficiency(vehicle),
       maintenanceScore: this.calculateMaintenanceScore(vehicle),
@@ -137,7 +136,7 @@ export class AnalyticsService {
         title: 'Fuel Efficiency Improvement',
         description: `Fleet fuel efficiency improved by ${(fuelEfficiencyTrend * 100).toFixed(1)}% this month`,
         recommendation: 'Continue current driver training programs and route optimization strategies',
-        affectedVehicles: this.vehicles.map(v => v.deviceid),
+        affectedVehicles: this.vehicles.map(v => v.deviceId),
         confidence: 0.92,
         createdAt: new Date()
       });
@@ -206,10 +205,16 @@ export class AnalyticsService {
       if (error) throw error;
 
       this.vehicles = (data || []).map(vehicle => ({
-        deviceid: vehicle.device_id,
-        devicename: vehicle.device_name,
-        plateNumber: vehicle.device_name, // Use device_name as plateNumber
+        id: vehicle.device_id,
+        deviceId: vehicle.device_id,
+        deviceName: vehicle.device_name,
+        vehicleName: vehicle.device_name,
+        licensePlate: vehicle.device_name,
         status: this.determineVehicleStatus(vehicle.last_position),
+        lastUpdate: new Date(vehicle.last_position?.updatetime || Date.now()),
+        isOnline: this.determineVehicleStatus(vehicle.last_position) !== 'offline',
+        isMoving: this.determineVehicleStatus(vehicle.last_position) === 'moving',
+        alerts: [],
         envio_user_id: vehicle.envio_user_id,
         is_active: vehicle.is_active,
         lastPosition: this.parseLastPosition(vehicle.last_position)
@@ -235,7 +240,7 @@ export class AnalyticsService {
     return 'offline';
   }
 
-  private parseLastPosition(lastPosition: any): Vehicle['lastPosition'] {
+  private parseLastPosition(lastPosition: any): VehicleData['lastPosition'] {
     if (!lastPosition || typeof lastPosition !== 'object') return undefined;
     
     return {
@@ -283,43 +288,43 @@ export class AnalyticsService {
     return Math.random() * 0.5 + 0.8; // $0.80-$1.30 per km
   }
 
-  private calculateUtilizationRate(vehicle: Vehicle): number {
+  private calculateUtilizationRate(vehicle: VehicleData): number {
     return Math.random() * 0.4 + 0.5; // 50-90%
   }
 
-  private calculateFuelEfficiency(vehicle: Vehicle): number {
+  private calculateFuelEfficiency(vehicle: VehicleData): number {
     return Math.random() * 15 + 80; // 80-95
   }
 
-  private calculateMaintenanceScore(vehicle: Vehicle): number {
+  private calculateMaintenanceScore(vehicle: VehicleData): number {
     return Math.random() * 30 + 65; // 65-95
   }
 
-  private calculatePerformanceRating(vehicle: Vehicle): number {
+  private calculatePerformanceRating(vehicle: VehicleData): number {
     const isOnline = vehicle.lastPosition?.updatetime && 
       new Date(vehicle.lastPosition.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
     return isOnline ? Math.random() * 20 + 75 : Math.random() * 40 + 30;
   }
 
-  private calculateTotalDistance(vehicle: Vehicle): number {
+  private calculateTotalDistance(vehicle: VehicleData): number {
     return Math.random() * 5000 + 1000; // 1000-6000 km
   }
 
-  private calculateAverageSpeed(vehicle: Vehicle): number {
+  private calculateAverageSpeed(vehicle: VehicleData): number {
     return vehicle.lastPosition?.speed || Math.random() * 30 + 40; // 40-70 km/h
   }
 
-  private getVehicleAlertCount(vehicle: Vehicle): number {
+  private getVehicleAlertCount(vehicle: VehicleData): number {
     return vehicle.status?.toLowerCase().includes('alert') ? 
       Math.floor(Math.random() * 3) + 1 : 0;
   }
 
-  private getLastActiveDate(vehicle: Vehicle): string {
+  private getLastActiveDate(vehicle: VehicleData): string {
     return vehicle.lastPosition?.updatetime || 
       new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString();
   }
 
-  private calculateCostEfficiency(vehicle: Vehicle): number {
+  private calculateCostEfficiency(vehicle: VehicleData): number {
     return Math.random() * 0.3 + 0.6; // 60-90%
   }
 

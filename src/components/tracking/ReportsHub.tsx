@@ -112,8 +112,8 @@ const ReportsHub: React.FC<ReportsHubProps> = ({ vehicles }) => {
             <SelectContent className="bg-white border border-gray-lighter">
               <SelectItem value="all">All Vehicles</SelectItem>
               {vehicles.map((vehicle) => (
-                <SelectItem key={vehicle.deviceid} value={vehicle.deviceid}>
-                  {vehicle.devicename || vehicle.deviceid}
+                <SelectItem key={vehicle.deviceId} value={vehicle.deviceId}>
+                  {vehicle.deviceName || vehicle.deviceId}
                 </SelectItem>
               ))}
             </SelectContent>
