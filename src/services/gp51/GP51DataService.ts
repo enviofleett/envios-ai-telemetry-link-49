@@ -477,6 +477,46 @@ class GP51DataService {
     }
   }
 
+  async processVehicleData(
+    gp51Vehicles: any[], 
+    positions: any[]
+  ): Promise<GP51ProcessedPosition[]> {
+    const processedVehicles: GP51ProcessedPosition[] = [];
+
+    for (const vehicle of gp51Vehicles) {
+      try {
+        // Find corresponding position data
+        const position = positions.find(p => p.deviceid === vehicle.deviceid);
+        
+        if (!position) {
+          console.warn(`No position data found for device: ${vehicle.deviceid}`);
+          continue;
+        }
+
+        // Process the vehicle data
+        const processed: GP51ProcessedPosition = {
+          deviceId: vehicle.deviceid,
+          deviceName: vehicle.devicename || vehicle.deviceid,
+          latitude: parseFloat(position.latitude) || 0,
+          longitude: parseFloat(position.longitude) || 0,
+          speed: parseFloat(position.speed) || 0,
+          course: parseFloat(position.course) || 0,
+          timestamp: new Date(position.gpstime || position.timestamp || Date.now()),
+          status: position.status || 'unknown',
+          statusText: position.statusText || '',
+          isMoving: (parseFloat(position.speed) || 0) > 0,
+          isOnline: position.online === true || position.online === 1
+        };
+
+        processedVehicles.push(processed);
+      } catch (error) {
+        console.error(`Error processing vehicle ${vehicle.deviceid}:`, error);
+      }
+    }
+
+    return processedVehicles;
+  }
+
   async processVehicleDataInChunks<T>(
     vehicles: GP51ProcessedPosition[],
     processor: (chunk: GP51ProcessedPosition[]) => Promise<T[]>,

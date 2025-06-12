@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { GP51ProcessedPosition } from '@/services/gp51/GP51DataService';
 import type { VehicleGP51Metadata, VehicleWithGP51Metadata } from '@/types/gp51';
@@ -85,9 +86,8 @@ class GP51VehiclePersistenceService {
       device_id: gp51Vehicle.deviceId,
       device_name: gp51Vehicle.deviceName || gp51Vehicle.deviceId,
       is_active: gp51Vehicle.isOnline,
-      gp51_username: null, // Will be set from session if available
-      gp51_metadata: gp51Metadata,
-      // Set defaults for required fields that aren't available from GP51
+      gp51_username: null,
+      gp51_metadata: gp51Metadata as any, // Cast to any for Supabase Json compatibility
       make: null,
       model: null,
       year: null,
@@ -226,28 +226,30 @@ class GP51VehiclePersistenceService {
         };
       }
 
-      // Safely handle existing metadata
-      const existingMetadata = existingVehicle.gp51_metadata as VehicleGP51Metadata | null;
+      // Safely handle existing metadata with type assertion
+      const existingMetadata = (existingVehicle.gp51_metadata as VehicleGP51Metadata) || {};
       const currentMetadata = vehicleData.gp51_metadata as VehicleGP51Metadata;
 
       // Update existing vehicle with comprehensive data
+      const updatedMetadata: VehicleGP51Metadata = {
+        ...existingMetadata,
+        ...currentMetadata,
+        previousStatus: existingMetadata?.vehicleStatus,
+        statusHistory: [
+          ...(existingMetadata?.statusHistory || []),
+          {
+            status: vehicleStatus,
+            timestamp: new Date().toISOString()
+          }
+        ].slice(-10) // Keep last 10 status changes
+      };
+
       const { data: updatedVehicle, error: updateError } = await supabase
         .from('vehicles')
         .update({
           device_name: vehicleData.device_name,
           is_active: vehicleData.is_active,
-          gp51_metadata: {
-            ...(existingMetadata || {}),
-            ...currentMetadata,
-            previousStatus: existingMetadata?.vehicleStatus,
-            statusHistory: [
-              ...(existingMetadata?.statusHistory || []),
-              {
-                status: vehicleStatus,
-                timestamp: new Date().toISOString()
-              }
-            ].slice(-10) // Keep last 10 status changes
-          },
+          gp51_metadata: updatedMetadata as any, // Cast to any for Supabase Json compatibility
           updated_at: vehicleData.updated_at
         })
         .eq('id', existingVehicle.id)
