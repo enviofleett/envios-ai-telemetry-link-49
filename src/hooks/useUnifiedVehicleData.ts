@@ -2,13 +2,60 @@
 import { useState, useEffect } from 'react';
 import { useGP51VehicleData, type EnhancedVehicle } from '@/hooks/useGP51VehicleData';
 import { useGP51Auth } from '@/hooks/useGP51Auth';
-import type { SyncMetrics } from '@/types/vehicle';
+import type { SyncMetrics, VehicleData } from '@/types/vehicle';
 
 interface FilterOptions {
   search?: string;
   status?: 'all' | 'online' | 'offline' | 'alerts';
   user?: string;
 }
+
+// Transform EnhancedVehicle to VehicleData
+const transformToVehicleData = (enhancedVehicle: EnhancedVehicle): VehicleData => {
+  return {
+    id: enhancedVehicle.id || enhancedVehicle.deviceId,
+    deviceId: enhancedVehicle.deviceId,
+    deviceName: enhancedVehicle.deviceName,
+    vehicleName: enhancedVehicle.vehicle_name,
+    make: enhancedVehicle.make,
+    model: enhancedVehicle.model,
+    year: enhancedVehicle.year,
+    licensePlate: enhancedVehicle.license_plate,
+    status: enhancedVehicle.status,
+    lastUpdate: enhancedVehicle.timestamp || new Date(),
+    position: enhancedVehicle.latitude && enhancedVehicle.longitude ? {
+      latitude: enhancedVehicle.latitude,
+      longitude: enhancedVehicle.longitude,
+      speed: enhancedVehicle.speed,
+      course: enhancedVehicle.course,
+    } : undefined,
+    location: enhancedVehicle.latitude && enhancedVehicle.longitude ? {
+      latitude: enhancedVehicle.latitude,
+      longitude: enhancedVehicle.longitude,
+      speed: enhancedVehicle.speed,
+      course: enhancedVehicle.course,
+    } : undefined,
+    speed: enhancedVehicle.speed,
+    course: enhancedVehicle.course,
+    isOnline: enhancedVehicle.isOnline,
+    isMoving: enhancedVehicle.isMoving,
+    alerts: enhancedVehicle.statusText && enhancedVehicle.statusText !== 'Normal' ? [enhancedVehicle.statusText] : [],
+    // Backward compatibility fields
+    deviceid: enhancedVehicle.deviceId,
+    devicename: enhancedVehicle.deviceName,
+    plateNumber: enhancedVehicle.vehicle_name || enhancedVehicle.deviceName,
+    is_active: enhancedVehicle.is_active || enhancedVehicle.isOnline,
+    envio_user_id: enhancedVehicle.envio_user_id,
+    lastPosition: enhancedVehicle.lastPosition ? {
+      lat: enhancedVehicle.lastPosition.lat,
+      lon: enhancedVehicle.lastPosition.lng, // Convert lng to lon
+      speed: enhancedVehicle.lastPosition.speed,
+      course: enhancedVehicle.lastPosition.course,
+      updatetime: enhancedVehicle.lastPosition.updatetime,
+      statusText: enhancedVehicle.lastPosition.statusText,
+    } : undefined,
+  };
+};
 
 export const useUnifiedVehicleData = (filters?: FilterOptions) => {
   const { isAuthenticated } = useGP51Auth();
@@ -29,21 +76,21 @@ export const useUnifiedVehicleData = (filters?: FilterOptions) => {
     refreshInterval: 30000
   });
 
-  const [vehicles, setVehicles] = useState<EnhancedVehicle[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
 
-  // Filter vehicles based on provided filters
+  // Transform and filter vehicles
   useEffect(() => {
-    let filteredVehicles = [...gp51Vehicles];
+    let transformedVehicles = gp51Vehicles.map(transformToVehicleData);
 
     if (filters) {
       // Search filter
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
-        filteredVehicles = filteredVehicles.filter(vehicle => 
+        transformedVehicles = transformedVehicles.filter(vehicle => 
           (vehicle.deviceName?.toLowerCase().includes(searchTerm) || false) ||
-          (vehicle.vehicle_name?.toLowerCase().includes(searchTerm) || false) ||
+          (vehicle.vehicleName?.toLowerCase().includes(searchTerm) || false) ||
           vehicle.deviceId.toLowerCase().includes(searchTerm) ||
-          (vehicle.license_plate?.toLowerCase().includes(searchTerm) || false)
+          (vehicle.licensePlate?.toLowerCase().includes(searchTerm) || false)
         );
       }
 
@@ -51,27 +98,24 @@ export const useUnifiedVehicleData = (filters?: FilterOptions) => {
       if (filters.status && filters.status !== 'all') {
         switch (filters.status) {
           case 'online':
-            filteredVehicles = filteredVehicles.filter(v => v.isOnline);
+            transformedVehicles = transformedVehicles.filter(v => v.isOnline);
             break;
           case 'offline':
-            filteredVehicles = filteredVehicles.filter(v => !v.isOnline);
+            transformedVehicles = transformedVehicles.filter(v => !v.isOnline);
             break;
           case 'alerts':
-            // Filter vehicles with alerts (non-normal status)
-            filteredVehicles = filteredVehicles.filter(v => 
-              v.statusText && v.statusText.toLowerCase() !== 'normal' && v.statusText.toLowerCase() !== 'ok'
-            );
+            transformedVehicles = transformedVehicles.filter(v => v.alerts.length > 0);
             break;
         }
       }
 
-      // User filter (if needed)
+      // User filter
       if (filters.user && filters.user !== 'all') {
-        filteredVehicles = filteredVehicles.filter(v => v.envio_user_id === filters.user);
+        transformedVehicles = transformedVehicles.filter(v => v.envio_user_id === filters.user);
       }
     }
 
-    setVehicles(filteredVehicles);
+    setVehicles(transformedVehicles);
   }, [gp51Vehicles, filters]);
 
   // Transform GP51 metrics to unified format
@@ -79,9 +123,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions) => {
     total: gp51Metrics.total,
     online: gp51Metrics.online,
     offline: gp51Metrics.offline,
-    alerts: vehicles.filter(v => 
-      v.statusText && v.statusText.toLowerCase() !== 'normal' && v.statusText.toLowerCase() !== 'ok'
-    ).length,
+    alerts: vehicles.filter(v => v.alerts.length > 0).length,
     lastUpdateTime: gp51Metrics.lastUpdateTime
   };
 
@@ -94,11 +136,9 @@ export const useUnifiedVehicleData = (filters?: FilterOptions) => {
 
   const getVehiclesByStatus = () => {
     return {
-      online: getOnlineVehicles(),
-      offline: getOfflineVehicles(),
-      alerts: vehicles.filter(v => 
-        v.statusText && v.statusText.toLowerCase() !== 'normal' && v.statusText.toLowerCase() !== 'ok'
-      )
+      online: vehicles.filter(v => v.isOnline),
+      offline: vehicles.filter(v => !v.isOnline),
+      alerts: vehicles.filter(v => v.alerts.length > 0)
     };
   };
 

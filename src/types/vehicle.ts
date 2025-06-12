@@ -2,13 +2,24 @@
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
   lat: number;
-  lng: number;
+  lon: number; // Standardized to 'lon' for internal consistency
   speed: number;
   course: number;
   updatetime: string;
   statusText: string;
 }
 
+// Raw GP51 position format (uses 'lng')
+export interface GP51RawPosition {
+  lat: number;
+  lng: number; // GP51 uses 'lng'
+  speed: number;
+  course: number;
+  updatetime: string;
+  statusText: string;
+}
+
+// Base vehicle interface for backward compatibility
 export interface Vehicle {
   deviceid: string; // Required for GP51 compatibility
   devicename: string;
@@ -19,6 +30,7 @@ export interface Vehicle {
   lastPosition?: VehiclePosition;
 }
 
+// Enhanced vehicle data interface - the primary type for UI components
 export interface VehicleData {
   id: string;
   deviceId: string;
@@ -29,7 +41,7 @@ export interface VehicleData {
   year?: number;
   licensePlate?: string;
   status: 'online' | 'offline' | 'idle' | 'moving';
-  lastUpdate: Date;
+  lastUpdate: Date; // Required - represents the last data update time
   position?: {
     latitude: number;
     longitude: number;
@@ -51,7 +63,14 @@ export interface VehicleData {
   fuel?: number;
   battery?: number;
   temperature?: number;
-  alerts: string[];
+  alerts: string[]; // Required - array of alert messages
+  // Backward compatibility fields
+  deviceid: string;
+  devicename: string;
+  plateNumber: string;
+  is_active: boolean;
+  envio_user_id?: string;
+  lastPosition?: VehiclePosition;
 }
 
 export interface VehicleDataMetrics {
