@@ -235,12 +235,12 @@ const UnifiedDashboard: React.FC = () => {
           {/* Vehicle Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             {vehicles.map((vehicle) => (
-              <Card key={vehicle.deviceid} className="hover:shadow-lg transition-shadow">
+              <Card key={vehicle.deviceId} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <h3 className="font-semibold">{vehicle.devicename}</h3>
-                      <p className="text-sm text-gray-600">ID: {vehicle.deviceid}</p>
+                      <h3 className="font-semibold">{vehicle.deviceName}</h3>
+                      <p className="text-sm text-gray-600">ID: {vehicle.deviceId}</p>
                     </div>
                     <Badge className={getStatusColor(vehicle)}>
                       {getStatusText(vehicle)}
@@ -255,7 +255,7 @@ const UnifiedDashboard: React.FC = () => {
                           <span className="text-gray-600">Location</span>
                         </div>
                         <span className="font-mono text-xs">
-                          {vehicle.lastPosition.lat.toFixed(4)}, {vehicle.lastPosition.lon.toFixed(4)}
+                          {vehicle.lastPosition.lat.toFixed(4)}, {vehicle.lastPosition.lng.toFixed(4)}
                         </span>
                       </div>
                       

@@ -1,3 +1,4 @@
+
 import { gp51DataService, type VehiclePosition } from '@/services/gp51/GP51DataService';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -22,6 +23,15 @@ export interface VehicleData {
     course: number;
     address?: string;
   };
+  location?: {
+    latitude: number;
+    longitude: number;
+    speed: number;
+    course: number;
+    address?: string;
+  };
+  speed?: number;
+  course?: number;
   isOnline: boolean;
   isMoving: boolean;
   fuel?: number;
@@ -91,27 +101,36 @@ class EnhancedVehicleDataService {
   }
 
   private mapGP51ToVehicleData(gp51Vehicle: VehiclePosition, supabaseData?: any): VehicleData {
-    return {
+    const vehicleData: VehicleData = {
       id: supabaseData?.id || gp51Vehicle.deviceId,
       deviceId: gp51Vehicle.deviceId,
       deviceName: gp51Vehicle.deviceName || 'Unknown Device',
-      vehicleName: supabaseData?.vehicle_name || gp51Vehicle.deviceName,
+      vehicleName: supabaseData?.device_name || gp51Vehicle.deviceName,
       make: supabaseData?.make,
       model: supabaseData?.model,
       year: supabaseData?.year,
       licensePlate: supabaseData?.license_plate,
       status: gp51Vehicle.isMoving ? 'moving' : (gp51Vehicle.isOnline ? 'idle' : 'offline'),
       lastUpdate: gp51Vehicle.timestamp,
-      position: gp51Vehicle.latitude && gp51Vehicle.longitude ? {
+      isOnline: gp51Vehicle.isOnline,
+      isMoving: gp51Vehicle.isMoving,
+      alerts: gp51Vehicle.statusText && gp51Vehicle.statusText !== 'Normal' ? [gp51Vehicle.statusText] : [],
+      speed: gp51Vehicle.speed,
+      course: gp51Vehicle.course
+    };
+
+    if (gp51Vehicle.latitude && gp51Vehicle.longitude) {
+      const positionData = {
         latitude: gp51Vehicle.latitude,
         longitude: gp51Vehicle.longitude,
         speed: gp51Vehicle.speed,
         course: gp51Vehicle.course
-      } : undefined,
-      isOnline: gp51Vehicle.isOnline,
-      isMoving: gp51Vehicle.isMoving,
-      alerts: gp51Vehicle.statusText && gp51Vehicle.statusText !== 'Normal' ? [gp51Vehicle.statusText] : []
-    };
+      };
+      vehicleData.position = positionData;
+      vehicleData.location = positionData; // Add location alias
+    }
+
+    return vehicleData;
   }
 
   async syncWithGP51(): Promise<void> {
@@ -151,8 +170,8 @@ class EnhancedVehicleDataService {
             const offlineVehicle: VehicleData = {
               id: supabaseVehicle.id,
               deviceId: supabaseVehicle.device_id,
-              deviceName: supabaseVehicle.vehicle_name || 'Unknown Device',
-              vehicleName: supabaseVehicle.vehicle_name,
+              deviceName: supabaseVehicle.device_name || 'Unknown Device',
+              vehicleName: supabaseVehicle.device_name,
               make: supabaseVehicle.make,
               model: supabaseVehicle.model,
               year: supabaseVehicle.year,
@@ -161,7 +180,9 @@ class EnhancedVehicleDataService {
               lastUpdate: new Date(supabaseVehicle.updated_at || supabaseVehicle.created_at),
               isOnline: false,
               isMoving: false,
-              alerts: ['No GPS signal']
+              alerts: ['No GPS signal'],
+              speed: 0,
+              course: 0
             };
             this.vehicles.set(offlineVehicle.deviceId, offlineVehicle);
           }

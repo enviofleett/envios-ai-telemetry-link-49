@@ -18,6 +18,19 @@ export interface EnhancedVehicle extends VehiclePosition {
   fuel_type?: string;
   created_at?: string;
   updated_at?: string;
+  // Additional properties for compatibility
+  deviceid?: string; // Alias for deviceId
+  devicename?: string; // Alias for deviceName
+  plateNumber?: string; // Alias for license_plate
+  is_active?: boolean;
+  lastPosition?: {
+    lat: number;
+    lng: number;
+    speed: number;
+    course: number;
+    updatetime: string;
+    statusText: string;
+  };
 }
 
 export interface VehicleDataMetrics {
@@ -102,7 +115,15 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
       // Step 1: Get vehicle metadata from Supabase
       const { data: supabaseVehicles, error: supabaseError } = await supabase
         .from('vehicles')
-        .select('*')
+        .select(`
+          id,
+          device_id,
+          device_name,
+          envio_user_id,
+          is_active,
+          created_at,
+          updated_at
+        `)
         .order('created_at', { ascending: false });
 
       if (supabaseError) {
@@ -129,27 +150,34 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
                               gp51Vehicles.find(v => v.deviceId === supabaseVehicle.device_id);
           
           if (gp51Position) {
-            enhancedVehicles.push({
+            const enhancedVehicle: EnhancedVehicle = {
               ...gp51Position,
               id: supabaseVehicle.id,
               envio_user_id: supabaseVehicle.envio_user_id,
-              vehicle_name: supabaseVehicle.vehicle_name,
-              deviceName: supabaseVehicle.vehicle_name || gp51Position.deviceName,
-              make: supabaseVehicle.make,
-              model: supabaseVehicle.model,
-              year: supabaseVehicle.year,
-              license_plate: supabaseVehicle.license_plate,
-              vin: supabaseVehicle.vin,
-              color: supabaseVehicle.color,
-              fuel_type: supabaseVehicle.fuel_type,
+              vehicle_name: supabaseVehicle.device_name,
+              deviceName: supabaseVehicle.device_name || gp51Position.deviceName,
               created_at: supabaseVehicle.created_at,
-              updated_at: supabaseVehicle.updated_at
-            });
+              updated_at: supabaseVehicle.updated_at,
+              // Add compatibility aliases
+              deviceid: gp51Position.deviceId,
+              devicename: supabaseVehicle.device_name || gp51Position.deviceName,
+              plateNumber: supabaseVehicle.device_name,
+              is_active: supabaseVehicle.is_active,
+              lastPosition: {
+                lat: gp51Position.latitude,
+                lng: gp51Position.longitude,
+                speed: gp51Position.speed,
+                course: gp51Position.course,
+                updatetime: gp51Position.timestamp.toISOString(),
+                statusText: gp51Position.statusText
+              }
+            };
+            enhancedVehicles.push(enhancedVehicle);
           } else if (includeOffline) {
             // Add offline vehicle with default position data
-            enhancedVehicles.push({
+            const offlineVehicle: EnhancedVehicle = {
               deviceId: supabaseVehicle.device_id,
-              deviceName: supabaseVehicle.vehicle_name,
+              deviceName: supabaseVehicle.device_name,
               latitude: 0,
               longitude: 0,
               speed: 0,
@@ -161,17 +189,24 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
               isMoving: false,
               id: supabaseVehicle.id,
               envio_user_id: supabaseVehicle.envio_user_id,
-              vehicle_name: supabaseVehicle.vehicle_name,
-              make: supabaseVehicle.make,
-              model: supabaseVehicle.model,
-              year: supabaseVehicle.year,
-              license_plate: supabaseVehicle.license_plate,
-              vin: supabaseVehicle.vin,
-              color: supabaseVehicle.color,
-              fuel_type: supabaseVehicle.fuel_type,
+              vehicle_name: supabaseVehicle.device_name,
               created_at: supabaseVehicle.created_at,
-              updated_at: supabaseVehicle.updated_at
-            });
+              updated_at: supabaseVehicle.updated_at,
+              // Add compatibility aliases
+              deviceid: supabaseVehicle.device_id,
+              devicename: supabaseVehicle.device_name,
+              plateNumber: supabaseVehicle.device_name,
+              is_active: supabaseVehicle.is_active,
+              lastPosition: {
+                lat: 0,
+                lng: 0,
+                speed: 0,
+                course: 0,
+                updatetime: new Date(supabaseVehicle.updated_at || supabaseVehicle.created_at).toISOString(),
+                statusText: 'No signal'
+              }
+            };
+            enhancedVehicles.push(offlineVehicle);
           }
         });
       }
@@ -181,10 +216,24 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
         const existsInSupabase = supabaseVehicles?.some(sv => sv.device_id === gp51Vehicle.deviceId);
         if (!existsInSupabase) {
           const position = vehiclePositions.get(gp51Vehicle.deviceId) || gp51Vehicle;
-          enhancedVehicles.push({
+          const enhancedVehicle: EnhancedVehicle = {
             ...position,
-            vehicle_name: position.deviceName
-          });
+            vehicle_name: position.deviceName,
+            // Add compatibility aliases
+            deviceid: position.deviceId,
+            devicename: position.deviceName,
+            plateNumber: position.deviceName,
+            is_active: true,
+            lastPosition: {
+              lat: position.latitude,
+              lng: position.longitude,
+              speed: position.speed,
+              course: position.course,
+              updatetime: position.timestamp.toISOString(),
+              statusText: position.statusText
+            }
+          };
+          enhancedVehicles.push(enhancedVehicle);
         }
       });
 

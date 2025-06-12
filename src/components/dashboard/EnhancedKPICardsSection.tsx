@@ -23,7 +23,7 @@ const EnhancedKPICardsSection: React.FC = () => {
     switch (status) {
       case 'success': return 'default';
       case 'error': return 'destructive';
-      case 'in_progress': return 'secondary';
+      case 'pending': return 'secondary';
       default: return 'secondary';
     }
   };
@@ -34,7 +34,7 @@ const EnhancedKPICardsSection: React.FC = () => {
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'error':
         return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'in_progress':
+      case 'pending':
         return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
       default:
         return <Clock className="h-4 w-4 text-gray-500" />;
@@ -162,7 +162,7 @@ const EnhancedKPICardsSection: React.FC = () => {
               <span className="text-sm text-muted-foreground">Data Sync:</span>
               <Badge variant={getSyncStatusColor(metrics.syncStatus)} className="flex items-center gap-1">
                 {getSyncStatusIcon(metrics.syncStatus)}
-                {metrics.syncStatus === 'in_progress' ? 'Syncing...' : 
+                {metrics.syncStatus === 'pending' ? 'Syncing...' : 
                  metrics.syncStatus === 'error' ? 'Failed' : 'Success'}
               </Badge>
             </div>
