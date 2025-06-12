@@ -1,7 +1,7 @@
 
-import React, { useState, useCallback } from 'react';
-import Map, { Marker, NavigationControl, ScaleControl } from 'react-map-gl';
-import 'mapbox-gl/dist/mapbox-gl.css';
+import React, { useEffect, useRef, useState } from 'react';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
 import { MapPin } from 'lucide-react';
 
 interface MapMarker {
@@ -38,7 +38,9 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   mapStyle,
   className = ''
 }) => {
-  const [viewState, setViewState] = useState(initialViewport);
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const map = useRef<maplibregl.Map | null>(null);
+  const markersRef = useRef<{ [key: string]: maplibregl.Marker }>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,29 +49,89 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
   
   const defaultMapStyle = mapStyle || `https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_API_KEY}`;
 
-  const handleMapLoad = useCallback(() => {
-    setIsLoading(false);
-    setError(null);
-  }, []);
+  // Initialize map
+  useEffect(() => {
+    if (!mapContainer.current) return;
 
-  const handleMapError = useCallback((error: any) => {
-    console.error('Map loading error:', error);
-    setError('Failed to load map. Please check your connection and try again.');
-    setIsLoading(false);
-  }, []);
+    try {
+      map.current = new maplibregl.Map({
+        container: mapContainer.current,
+        style: defaultMapStyle,
+        center: [initialViewport.longitude, initialViewport.latitude],
+        zoom: initialViewport.zoom,
+        attributionControl: false
+      });
 
-  const handleMarkerClick = useCallback((marker: MapMarker) => {
-    if (onMarkerClick) {
-      onMarkerClick(marker);
+      map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+      map.current.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+
+      map.current.on('load', () => {
+        setIsLoading(false);
+        setError(null);
+      });
+
+      map.current.on('error', (e) => {
+        console.error('Map loading error:', e);
+        setError('Failed to load map. Please check your connection and try again.');
+        setIsLoading(false);
+      });
+
+    } catch (error) {
+      console.error('Map initialization error:', error);
+      setError('Failed to initialize map.');
+      setIsLoading(false);
     }
-    // Center map on clicked marker
-    setViewState(prev => ({
-      ...prev,
-      latitude: marker.latitude,
-      longitude: marker.longitude,
-      zoom: Math.max(prev.zoom, 14)
-    }));
-  }, [onMarkerClick]);
+
+    return () => {
+      // Clean up markers
+      Object.values(markersRef.current).forEach(marker => marker.remove());
+      markersRef.current = {};
+      
+      // Clean up map
+      map.current?.remove();
+    };
+  }, [defaultMapStyle, initialViewport]);
+
+  // Update markers
+  useEffect(() => {
+    if (!map.current || isLoading) return;
+
+    // Remove existing markers
+    Object.values(markersRef.current).forEach(marker => marker.remove());
+    markersRef.current = {};
+
+    // Add new markers
+    markers.forEach((markerData) => {
+      const markerElement = document.createElement('div');
+      markerElement.className = 'cursor-pointer transform hover:scale-110 transition-transform';
+      markerElement.innerHTML = `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${markerData.color || '#ef4444'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+      `;
+      markerElement.title = markerData.title || `Marker ${markerData.id}`;
+
+      const marker = new maplibregl.Marker({ element: markerElement })
+        .setLngLat([markerData.longitude, markerData.latitude])
+        .addTo(map.current!);
+
+      // Add click handler
+      markerElement.addEventListener('click', () => {
+        if (onMarkerClick) {
+          onMarkerClick(markerData);
+        }
+        // Center map on clicked marker
+        map.current?.flyTo({
+          center: [markerData.longitude, markerData.latitude],
+          zoom: Math.max(map.current.getZoom(), 14),
+          duration: 1000
+        });
+      });
+
+      markersRef.current[markerData.id] = marker;
+    });
+  }, [markers, isLoading, onMarkerClick]);
 
   if (error) {
     return (
@@ -96,40 +158,7 @@ const MapDisplay: React.FC<MapDisplayProps> = ({
         </div>
       )}
       
-      <Map
-        {...viewState}
-        onMove={evt => setViewState(evt.viewState)}
-        onLoad={handleMapLoad}
-        onError={handleMapError}
-        mapStyle={defaultMapStyle}
-        style={{ width: '100%', height: '100%' }}
-        attributionControl={false}
-      >
-        {/* Navigation Controls */}
-        <NavigationControl position="top-right" />
-        <ScaleControl position="bottom-left" />
-        
-        {/* Markers */}
-        {markers.map((marker) => (
-          <Marker
-            key={marker.id}
-            latitude={marker.latitude}
-            longitude={marker.longitude}
-            onClick={() => handleMarkerClick(marker)}
-          >
-            <div 
-              className="cursor-pointer transform hover:scale-110 transition-transform"
-              title={marker.title || `Marker ${marker.id}`}
-            >
-              <MapPin 
-                className="h-6 w-6" 
-                style={{ color: marker.color || '#ef4444' }}
-                fill="currentColor"
-              />
-            </div>
-          </Marker>
-        ))}
-      </Map>
+      <div ref={mapContainer} className="w-full h-full" />
     </div>
   );
 };
