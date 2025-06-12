@@ -19,17 +19,6 @@ export interface GP51RawPosition {
   statusText: string;
 }
 
-// Base vehicle interface for backward compatibility
-export interface Vehicle {
-  deviceid: string; // Required for GP51 compatibility
-  devicename: string;
-  plateNumber: string;
-  status: 'online' | 'offline' | 'moving' | 'idle';
-  is_active: boolean;
-  envio_user_id?: string;
-  lastPosition?: VehiclePosition;
-}
-
 // Enhanced vehicle data interface - the primary type for UI components
 export interface VehicleData {
   id: string;
@@ -64,13 +53,9 @@ export interface VehicleData {
   battery?: number;
   temperature?: number;
   alerts: string[]; // Required - array of alert messages
-  // Backward compatibility fields
-  deviceid: string;
-  devicename: string;
-  plateNumber: string;
-  is_active: boolean;
-  envio_user_id?: string;
   lastPosition?: VehiclePosition;
+  envio_user_id?: string;
+  is_active: boolean;
 }
 
 export interface VehicleDataMetrics {
@@ -110,4 +95,15 @@ export interface VehicleStatistics {
   active: number;
   online: number;
   alerts: number;
+}
+
+// Legacy Vehicle interface for backward compatibility
+export interface Vehicle {
+  deviceid: string;
+  devicename: string;
+  plateNumber: string;
+  status: 'online' | 'offline' | 'moving' | 'idle';
+  is_active: boolean;
+  envio_user_id?: string;
+  lastPosition?: VehiclePosition;
 }

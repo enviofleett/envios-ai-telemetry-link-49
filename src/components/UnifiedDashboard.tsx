@@ -255,7 +255,7 @@ const UnifiedDashboard: React.FC = () => {
                           <span className="text-gray-600">Location</span>
                         </div>
                         <span className="font-mono text-xs">
-                          {vehicle.lastPosition.lat.toFixed(4)}, {vehicle.lastPosition.lng.toFixed(4)}
+                          {vehicle.lastPosition.lat.toFixed(4)}, {vehicle.lastPosition.lon.toFixed(4)}
                         </span>
                       </div>
                       

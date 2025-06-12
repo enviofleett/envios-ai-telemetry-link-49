@@ -76,6 +76,10 @@ const UnifiedFleetDashboard: React.FC = () => {
     </Badge>;
   };
 
+  const handleVehicleSelect = (vehicle: VehicleData) => {
+    setSelectedVehicle(vehicle);
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -213,7 +217,7 @@ const UnifiedFleetDashboard: React.FC = () => {
       {showMap ? (
         <FleetMapView 
           vehicles={vehicles} 
-          onVehicleSelect={setSelectedVehicle}
+          onVehicleSelect={handleVehicleSelect}
         />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

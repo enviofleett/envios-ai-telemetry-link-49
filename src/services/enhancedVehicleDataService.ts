@@ -65,7 +65,8 @@ class EnhancedVehicleDataService {
       isMoving: gp51Vehicle.isMoving,
       alerts: gp51Vehicle.statusText && gp51Vehicle.statusText !== 'Normal' ? [gp51Vehicle.statusText] : [],
       speed: gp51Vehicle.speed,
-      course: gp51Vehicle.course
+      course: gp51Vehicle.course,
+      is_active: supabaseData?.is_active || gp51Vehicle.isOnline
     };
 
     if (gp51Vehicle.latitude && gp51Vehicle.longitude) {
@@ -73,7 +74,8 @@ class EnhancedVehicleDataService {
         latitude: gp51Vehicle.latitude,
         longitude: gp51Vehicle.longitude,
         speed: gp51Vehicle.speed,
-        course: gp51Vehicle.course
+        course: gp51Vehicle.course,
+        address: undefined
       };
       vehicleData.position = positionData;
       vehicleData.location = positionData; // Add location alias
@@ -127,7 +129,8 @@ class EnhancedVehicleDataService {
               isMoving: false,
               alerts: ['No GPS signal'],
               speed: 0,
-              course: 0
+              course: 0,
+              is_active: supabaseVehicle.is_active || false
             };
             this.vehicles.set(offlineVehicle.deviceId, offlineVehicle);
           }
