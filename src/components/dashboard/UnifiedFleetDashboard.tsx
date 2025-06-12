@@ -21,10 +21,10 @@ import VehicleDetailsModal from './VehicleDetailsModal';
 import FleetMapView from './FleetMapView';
 import FleetMapWidget from './FleetMapWidget';
 import DashboardNavigation from './DashboardNavigation';
-import type { EnhancedVehicle } from '@/hooks/useGP51VehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 const UnifiedFleetDashboard: React.FC = () => {
-  const [selectedVehicle, setSelectedVehicle] = useState<EnhancedVehicle | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
   const [showMap, setShowMap] = useState(false);
   
   const { 
@@ -39,10 +39,10 @@ const UnifiedFleetDashboard: React.FC = () => {
 
   const vehiclesByStatus = getVehiclesByStatus();
 
-  const getVehicleStatus = (vehicle: EnhancedVehicle) => {
-    if (!vehicle.lastPosition?.updatetime) return 'offline';
+  const getVehicleStatus = (vehicle: VehicleData) => {
+    if (!vehicle.lastUpdate) return 'offline';
     
-    const lastUpdate = new Date(vehicle.lastPosition.updatetime);
+    const lastUpdate = new Date(vehicle.lastUpdate);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -59,10 +59,9 @@ const UnifiedFleetDashboard: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (vehicle: EnhancedVehicle) => {
+  const getStatusBadge = (vehicle: VehicleData) => {
     const status = getVehicleStatus(vehicle);
-    const hasAlert = vehicle.status?.toLowerCase().includes('alert') || 
-                    vehicle.status?.toLowerCase().includes('alarm');
+    const hasAlert = vehicle.alerts && vehicle.alerts.length > 0;
     
     if (hasAlert) {
       return <Badge variant="destructive" className="flex items-center gap-1">
@@ -196,7 +195,7 @@ const UnifiedFleetDashboard: React.FC = () => {
             </div>
             <div className="text-center p-4 bg-blue-50 rounded-lg">
               <div className="text-2xl font-bold text-blue-600">
-                {vehicles.filter(v => v.lastPosition?.speed && v.lastPosition.speed > 0).length}
+                {vehicles.filter(v => v.isMoving).length}
               </div>
               <div className="text-sm text-gray-600">Vehicles Moving</div>
             </div>
@@ -242,14 +241,14 @@ const UnifiedFleetDashboard: React.FC = () => {
                           <div>
                             <div className="font-medium text-sm">{vehicle.deviceName}</div>
                             <div className="text-xs text-gray-500">
-                              {vehicle.lastPosition?.speed || 0} km/h
+                              {vehicle.speed || 0} km/h
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="text-xs text-gray-500">
-                            {vehicle.lastPosition?.updatetime 
-                              ? new Date(vehicle.lastPosition.updatetime).toLocaleTimeString()
+                            {vehicle.lastUpdate 
+                              ? new Date(vehicle.lastUpdate).toLocaleTimeString()
                               : 'No data'
                             }
                           </div>

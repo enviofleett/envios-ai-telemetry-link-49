@@ -1,8 +1,8 @@
+
 import { useState, useEffect } from 'react';
 import { useGP51VehicleData, type EnhancedVehicle } from '@/hooks/useGP51VehicleData';
 import { useGP51Auth } from '@/hooks/useGP51Auth';
-import type { SyncMetrics } from '@/services/vehiclePosition/types';
-import type { Vehicle, VehicleMetrics } from '@/services/unifiedVehicleData';
+import type { SyncMetrics } from '@/types/vehicle';
 
 interface FilterOptions {
   search?: string;
@@ -85,7 +85,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions) => {
     lastUpdateTime: gp51Metrics.lastUpdateTime
   };
 
-  const syncMetrics = {
+  const syncMetrics: SyncMetrics = {
     totalVehicles: gp51Metrics.total,
     positionsUpdated: gp51Metrics.online,
     errors: gp51Metrics.syncStatus === 'error' ? 1 : 0,

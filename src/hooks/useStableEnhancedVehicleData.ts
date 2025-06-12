@@ -8,7 +8,7 @@ import { Vehicle, FilterState, VehicleStatistics, VehiclePosition } from '@/type
 const isVehiclePosition = (data: any): data is VehiclePosition => {
   return data && typeof data === 'object' && 
          typeof data.lat === 'number' && 
-         typeof data.lon === 'number' && 
+         typeof data.lng === 'number' && 
          typeof data.speed === 'number' && 
          typeof data.course === 'number' && 
          typeof data.updatetime === 'string' && 
@@ -47,10 +47,15 @@ export const useStableEnhancedVehicleData = () => {
 
       // Transform the data to match our Vehicle interface
       const transformedData: Vehicle[] = data.map(vehicle => ({
-        ...vehicle,
-        last_position: vehicle.last_position && isVehiclePosition(vehicle.last_position) ? {
+        deviceid: vehicle.device_id,
+        devicename: vehicle.device_name,
+        plateNumber: vehicle.device_name, // Use device_name as plate number since license_plate doesn't exist
+        status: vehicle.is_active ? 'online' : 'offline',
+        is_active: vehicle.is_active,
+        envio_user_id: vehicle.envio_user_id,
+        lastPosition: vehicle.last_position && isVehiclePosition(vehicle.last_position) ? {
           lat: vehicle.last_position.lat,
-          lon: vehicle.last_position.lon,
+          lng: vehicle.last_position.lng,
           speed: vehicle.last_position.speed,
           course: vehicle.last_position.course,
           updatetime: vehicle.last_position.updatetime,
@@ -69,10 +74,10 @@ export const useStableEnhancedVehicleData = () => {
   // Get unique users for filter options
   const userOptions = useMemo(() => {
     const users = vehicles
-      .filter(v => v.envio_users)
+      .filter(v => v.envio_user_id)
       .map(v => ({
         id: v.envio_user_id!,
-        name: v.envio_users!.name
+        name: v.devicename // Use devicename since envio_users join might not always work
       }));
     
     // Remove duplicates
@@ -90,9 +95,9 @@ export const useStableEnhancedVehicleData = () => {
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
         const matchesSearch = 
-          vehicle.device_name.toLowerCase().includes(searchTerm) ||
-          vehicle.device_id.toLowerCase().includes(searchTerm) ||
-          (vehicle.sim_number && vehicle.sim_number.toLowerCase().includes(searchTerm));
+          vehicle.devicename.toLowerCase().includes(searchTerm) ||
+          vehicle.deviceid.toLowerCase().includes(searchTerm) ||
+          vehicle.plateNumber.toLowerCase().includes(searchTerm);
         
         if (!matchesSearch) return false;
       }
@@ -121,8 +126,8 @@ export const useStableEnhancedVehicleData = () => {
 
       // Online filter
       if (filters.online !== 'all') {
-        const isOnline = vehicle.last_position?.updatetime ? 
-          new Date(vehicle.last_position.updatetime) > new Date(Date.now() - 30 * 60 * 1000) : 
+        const isOnline = vehicle.lastPosition?.updatetime ? 
+          new Date(vehicle.lastPosition.updatetime) > new Date(Date.now() - 30 * 60 * 1000) : 
           false;
         
         if (filters.online === 'online' && !isOnline) return false;
@@ -144,8 +149,8 @@ export const useStableEnhancedVehicleData = () => {
     const total = vehicles.length;
     const active = vehicles.filter(v => v.is_active).length;
     const online = vehicles.filter(v => {
-      if (!v.last_position?.updatetime) return false;
-      return new Date(v.last_position.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
+      if (!v.lastPosition?.updatetime) return false;
+      return new Date(v.lastPosition.updatetime) > new Date(Date.now() - 30 * 60 * 1000);
     }).length;
     const alerts = vehicles.filter(v => 
       v.status?.toLowerCase().includes('alert') || 
@@ -157,22 +162,22 @@ export const useStableEnhancedVehicleData = () => {
 
   const handleVehicleAction = {
     viewMap: (vehicle: Vehicle) => {
-      console.log('View map for vehicle:', vehicle.device_id);
+      console.log('View map for vehicle:', vehicle.deviceid);
       // TODO: Implement map view
     },
     
     viewHistory: (vehicle: Vehicle) => {
-      console.log('View history for vehicle:', vehicle.device_id);
+      console.log('View history for vehicle:', vehicle.deviceid);
       // TODO: Implement history view
     },
     
     viewDetails: (vehicle: Vehicle) => {
-      console.log('View details for vehicle:', vehicle.device_id);
+      console.log('View details for vehicle:', vehicle.deviceid);
       // TODO: Implement details view
     },
     
     sendCommand: (vehicle: Vehicle) => {
-      console.log('Send command to vehicle:', vehicle.device_id);
+      console.log('Send command to vehicle:', vehicle.deviceid);
       // TODO: Implement command sending
     }
   };

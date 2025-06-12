@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { enhancedVehicleDataService, VehicleData, VehicleDataMetrics } from '@/services/enhancedVehicleDataService';
+import { enhancedVehicleDataService } from '@/services/enhancedVehicleDataService';
+import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
 import { useToast } from '@/hooks/use-toast';
 
 export const useEnhancedVehicleData = () => {
