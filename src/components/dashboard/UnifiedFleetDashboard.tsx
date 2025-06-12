@@ -21,10 +21,10 @@ import VehicleDetailsModal from './VehicleDetailsModal';
 import FleetMapView from './FleetMapView';
 import FleetMapWidget from './FleetMapWidget';
 import DashboardNavigation from './DashboardNavigation';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { EnhancedVehicle } from '@/hooks/useGP51VehicleData';
 
 const UnifiedFleetDashboard: React.FC = () => {
-  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [selectedVehicle, setSelectedVehicle] = useState<EnhancedVehicle | null>(null);
   const [showMap, setShowMap] = useState(false);
   
   const { 
@@ -39,7 +39,7 @@ const UnifiedFleetDashboard: React.FC = () => {
 
   const vehiclesByStatus = getVehiclesByStatus();
 
-  const getVehicleStatus = (vehicle: Vehicle) => {
+  const getVehicleStatus = (vehicle: EnhancedVehicle) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
     
     const lastUpdate = new Date(vehicle.lastPosition.updatetime);
@@ -59,7 +59,7 @@ const UnifiedFleetDashboard: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (vehicle: Vehicle) => {
+  const getStatusBadge = (vehicle: EnhancedVehicle) => {
     const status = getVehicleStatus(vehicle);
     const hasAlert = vehicle.status?.toLowerCase().includes('alert') || 
                     vehicle.status?.toLowerCase().includes('alarm');
@@ -233,14 +233,14 @@ const UnifiedFleetDashboard: React.FC = () => {
                     const status = getVehicleStatus(vehicle);
                     return (
                       <div 
-                        key={vehicle.deviceid}
+                        key={vehicle.deviceId}
                         className="flex items-center justify-between p-3 hover:bg-gray-50 rounded cursor-pointer border"
                         onClick={() => setSelectedVehicle(vehicle)}
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`}></div>
                           <div>
-                            <div className="font-medium text-sm">{vehicle.devicename}</div>
+                            <div className="font-medium text-sm">{vehicle.deviceName}</div>
                             <div className="text-xs text-gray-500">
                               {vehicle.lastPosition?.speed || 0} km/h
                             </div>

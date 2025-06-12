@@ -1,54 +1,7 @@
 
 import { gp51DataService, type VehiclePosition } from '@/services/gp51/GP51DataService';
 import { supabase } from '@/integrations/supabase/client';
-
-// Re-export types for backward compatibility
-export type { VehicleData, VehicleDataMetrics };
-
-export interface VehicleData {
-  id: string;
-  deviceId: string;
-  deviceName: string;
-  vehicleName?: string;
-  make?: string;
-  model?: string;
-  year?: number;
-  licensePlate?: string;
-  status: 'online' | 'offline' | 'idle' | 'moving';
-  lastUpdate: Date;
-  position?: {
-    latitude: number;
-    longitude: number;
-    speed: number;
-    course: number;
-    address?: string;
-  };
-  location?: {
-    latitude: number;
-    longitude: number;
-    speed: number;
-    course: number;
-    address?: string;
-  };
-  speed?: number;
-  course?: number;
-  isOnline: boolean;
-  isMoving: boolean;
-  fuel?: number;
-  battery?: number;
-  temperature?: number;
-  alerts: string[];
-}
-
-export interface VehicleDataMetrics {
-  totalVehicles: number;
-  onlineVehicles: number;
-  offlineVehicles: number;
-  recentlyActiveVehicles: number;
-  lastSyncTime: Date;
-  syncStatus: 'success' | 'error' | 'pending';
-  errorMessage?: string;
-}
+import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
 
 class EnhancedVehicleDataService {
   private static instance: EnhancedVehicleDataService;
@@ -106,10 +59,11 @@ class EnhancedVehicleDataService {
       deviceId: gp51Vehicle.deviceId,
       deviceName: gp51Vehicle.deviceName || 'Unknown Device',
       vehicleName: supabaseData?.device_name || gp51Vehicle.deviceName,
-      make: supabaseData?.make,
-      model: supabaseData?.model,
-      year: supabaseData?.year,
-      licensePlate: supabaseData?.license_plate,
+      // Handle optional properties safely
+      make: supabaseData?.make || undefined,
+      model: supabaseData?.model || undefined,
+      year: supabaseData?.year || undefined,
+      licensePlate: supabaseData?.license_plate || undefined,
       status: gp51Vehicle.isMoving ? 'moving' : (gp51Vehicle.isOnline ? 'idle' : 'offline'),
       lastUpdate: gp51Vehicle.timestamp,
       isOnline: gp51Vehicle.isOnline,
@@ -172,10 +126,10 @@ class EnhancedVehicleDataService {
               deviceId: supabaseVehicle.device_id,
               deviceName: supabaseVehicle.device_name || 'Unknown Device',
               vehicleName: supabaseVehicle.device_name,
-              make: supabaseVehicle.make,
-              model: supabaseVehicle.model,
-              year: supabaseVehicle.year,
-              licensePlate: supabaseVehicle.license_plate,
+              make: supabaseVehicle.make || undefined,
+              model: supabaseVehicle.model || undefined,
+              year: supabaseVehicle.year || undefined,
+              licensePlate: supabaseVehicle.license_plate || undefined,
               status: 'offline',
               lastUpdate: new Date(supabaseVehicle.updated_at || supabaseVehicle.created_at),
               isOnline: false,

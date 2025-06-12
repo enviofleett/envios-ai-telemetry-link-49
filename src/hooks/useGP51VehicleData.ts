@@ -19,10 +19,10 @@ export interface EnhancedVehicle extends VehiclePosition {
   created_at?: string;
   updated_at?: string;
   // Additional properties for compatibility
-  deviceid?: string; // Alias for deviceId
-  devicename?: string; // Alias for deviceName
-  plateNumber?: string; // Alias for license_plate
-  is_active?: boolean;
+  deviceid: string; // Required for backward compatibility
+  devicename: string; // Required for backward compatibility
+  plateNumber: string; // Required for backward compatibility
+  is_active: boolean;
   lastPosition?: {
     lat: number;
     lng: number;
@@ -31,6 +31,7 @@ export interface EnhancedVehicle extends VehiclePosition {
     updatetime: string;
     statusText: string;
   };
+  status: 'online' | 'offline' | 'moving' | 'idle';
 }
 
 export interface VehicleDataMetrics {
@@ -163,6 +164,7 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
               devicename: supabaseVehicle.device_name || gp51Position.deviceName,
               plateNumber: supabaseVehicle.device_name,
               is_active: supabaseVehicle.is_active,
+              status: gp51Position.isMoving ? 'moving' : (gp51Position.isOnline ? 'online' : 'offline'),
               lastPosition: {
                 lat: gp51Position.latitude,
                 lng: gp51Position.longitude,
@@ -224,6 +226,7 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
             devicename: position.deviceName,
             plateNumber: position.deviceName,
             is_active: true,
+            status: position.isMoving ? 'moving' : (position.isOnline ? 'online' : 'offline'),
             lastPosition: {
               lat: position.latitude,
               lng: position.longitude,
