@@ -5416,6 +5416,7 @@ export type Database = {
           activation_status: string | null
           alarm_status: string | null
           altitude: number | null
+          color: string | null
           created_at: string
           device_id: string
           device_name: string
@@ -5433,7 +5434,10 @@ export type Database = {
           last_position: Json | null
           last_update: string | null
           latitude: number | null
+          license_plate: string | null
           longitude: number | null
+          make: string | null
+          model: string | null
           notes: string | null
           odometer: number | null
           satellites: number | null
@@ -5443,12 +5447,14 @@ export type Database = {
           speed: number | null
           status: string | null
           updated_at: string
+          year: number | null
         }
         Insert: {
           acc_status?: string | null
           activation_status?: string | null
           alarm_status?: string | null
           altitude?: number | null
+          color?: string | null
           created_at?: string
           device_id: string
           device_name: string
@@ -5466,7 +5472,10 @@ export type Database = {
           last_position?: Json | null
           last_update?: string | null
           latitude?: number | null
+          license_plate?: string | null
           longitude?: number | null
+          make?: string | null
+          model?: string | null
           notes?: string | null
           odometer?: number | null
           satellites?: number | null
@@ -5476,12 +5485,14 @@ export type Database = {
           speed?: number | null
           status?: string | null
           updated_at?: string
+          year?: number | null
         }
         Update: {
           acc_status?: string | null
           activation_status?: string | null
           alarm_status?: string | null
           altitude?: number | null
+          color?: string | null
           created_at?: string
           device_id?: string
           device_name?: string
@@ -5499,7 +5510,10 @@ export type Database = {
           last_position?: Json | null
           last_update?: string | null
           latitude?: number | null
+          license_plate?: string | null
           longitude?: number | null
+          make?: string | null
+          model?: string | null
           notes?: string | null
           odometer?: number | null
           satellites?: number | null
@@ -5509,6 +5523,7 @@ export type Database = {
           speed?: number | null
           status?: string | null
           updated_at?: string
+          year?: number | null
         }
         Relationships: [
           {

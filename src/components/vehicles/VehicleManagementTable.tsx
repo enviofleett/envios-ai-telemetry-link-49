@@ -43,6 +43,26 @@ interface Vehicle {
   user_email?: string | null;
 }
 
+interface VehicleQueryResult {
+  id: string;
+  device_id: string;
+  device_name: string;
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
+  color?: string | null;
+  license_plate?: string | null;
+  is_active: boolean;
+  envio_user_id?: string | null;
+  gp51_metadata?: any;
+  created_at: string;
+  updated_at: string;
+  envio_users?: {
+    name: string;
+    email: string;
+  } | null;
+}
+
 export const VehicleManagementTable: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
@@ -95,18 +115,33 @@ export const VehicleManagementTable: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
+        console.error('Error fetching vehicles:', error);
         toast({
           title: "Error",
           description: "Failed to fetch vehicles",
           variant: "destructive"
         });
+        setVehicles([]);
         return;
       }
 
-      const processedVehicles = (data || []).map(vehicle => ({
-        ...vehicle,
-        user_name: vehicle.envio_users?.name || null,
-        user_email: vehicle.envio_users?.email || null
+      // Safely process the data
+      const processedVehicles: Vehicle[] = (data || []).map((vehicleData: VehicleQueryResult) => ({
+        id: vehicleData.id,
+        device_id: vehicleData.device_id,
+        device_name: vehicleData.device_name,
+        make: vehicleData.make,
+        model: vehicleData.model,
+        year: vehicleData.year,
+        color: vehicleData.color,
+        license_plate: vehicleData.license_plate,
+        is_active: vehicleData.is_active,
+        envio_user_id: vehicleData.envio_user_id,
+        gp51_metadata: vehicleData.gp51_metadata,
+        created_at: vehicleData.created_at,
+        updated_at: vehicleData.updated_at,
+        user_name: vehicleData.envio_users?.name || null,
+        user_email: vehicleData.envio_users?.email || null
       }));
 
       setVehicles(processedVehicles);
@@ -117,6 +152,7 @@ export const VehicleManagementTable: React.FC = () => {
         description: "Failed to fetch vehicles",
         variant: "destructive"
       });
+      setVehicles([]);
     } finally {
       setIsLoading(false);
     }
