@@ -3,7 +3,7 @@ import React from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { Navigation } from 'lucide-react';
-import EnhancedLiveTrackingPage from '@/components/tracking/EnhancedLiveTrackingPage';
+import LiveMapAndVehicleList from '@/components/tracking/LiveMapAndVehicleList';
 
 const LiveTracking: React.FC = () => {
   return (
@@ -20,7 +20,7 @@ const LiveTracking: React.FC = () => {
             </div>
           </div>
           
-          <EnhancedLiveTrackingPage />
+          <LiveMapAndVehicleList />
         </div>
       </Layout>
     </ProtectedRoute>
