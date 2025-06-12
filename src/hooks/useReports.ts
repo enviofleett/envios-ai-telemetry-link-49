@@ -1,6 +1,6 @@
 
 import { useState, useCallback } from 'react';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 export type ReportType = 'trip' | 'activity' | 'maintenance' | 'alerts';
 
@@ -41,11 +41,11 @@ export const useReports = () => {
     reportType: 'trip',
   });
 
-  const generateMockReportData = useCallback((vehicles: Vehicle[], type: ReportType): ReportData[] => {
+  const generateMockReportData = useCallback((vehicles: VehicleData[], type: ReportType): ReportData[] => {
     return vehicles.slice(0, 10).map((vehicle, index) => ({
-      id: `${type}-${vehicle.deviceid}-${index}`,
-      vehicleId: vehicle.deviceid,
-      vehicleName: vehicle.devicename,
+      id: `${type}-${vehicle.deviceId}-${index}`,
+      vehicleId: vehicle.deviceId,
+      vehicleName: vehicle.deviceName,
       type: type === 'trip' ? 'Trip' : type === 'activity' ? 'Activity' : type === 'maintenance' ? 'Maintenance' : 'Alert',
       startTime: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toLocaleString(),
       endTime: new Date(Date.now() - Math.random() * 12 * 60 * 60 * 1000).toLocaleString(),
@@ -57,14 +57,14 @@ export const useReports = () => {
     }));
   }, []);
 
-  const generateReport = useCallback(async (vehicles: Vehicle[]) => {
+  const generateReport = useCallback(async (vehicles: VehicleData[]) => {
     setIsLoading(true);
     
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     const filteredVehicles = filters.vehicleIds.length > 0 
-      ? vehicles.filter(v => filters.vehicleIds.includes(v.deviceid))
+      ? vehicles.filter(v => filters.vehicleIds.includes(v.deviceId))
       : vehicles;
 
     const data = generateMockReportData(filteredVehicles, filters.reportType);

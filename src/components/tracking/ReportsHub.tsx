@@ -1,14 +1,13 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, Download, Search } from 'lucide-react';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface ReportsHubProps {
-  vehicles: Vehicle[];
+  vehicles: VehicleData[];
 }
 
 interface TripReport {

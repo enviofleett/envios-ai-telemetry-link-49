@@ -7,11 +7,11 @@ import { Calendar, Search, RefreshCw } from 'lucide-react';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 import type { ReportFilters as ReportFiltersType } from '@/hooks/useReports';
 
 interface ReportFiltersProps {
-  vehicles: Vehicle[];
+  vehicles: VehicleData[];
   filters: ReportFiltersType;
   onFiltersChange: (filters: Partial<ReportFiltersType>) => void;
   onGenerate: () => void;

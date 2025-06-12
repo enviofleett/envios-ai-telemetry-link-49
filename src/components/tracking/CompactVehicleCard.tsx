@@ -3,13 +3,13 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Battery, Clock, Gauge } from 'lucide-react';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface CompactVehicleCardProps {
-  vehicle: Vehicle;
-  onClick?: (vehicle: Vehicle) => void;
-  onTripClick?: (vehicle: Vehicle) => void;
-  onAlertClick?: (vehicle: Vehicle) => void;
+  vehicle: VehicleData;
+  onClick?: (vehicle: VehicleData) => void;
+  onTripClick?: (vehicle: VehicleData) => void;
+  onAlertClick?: (vehicle: VehicleData) => void;
 }
 
 const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
@@ -85,7 +85,7 @@ const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
       {/* Header Row */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-primary-dark">
-          {vehicle.devicename || vehicle.deviceid}
+          {vehicle.deviceName || vehicle.deviceId}
         </span>
         <Badge variant={getStatusVariant(status)} className="capitalize">
           {status}

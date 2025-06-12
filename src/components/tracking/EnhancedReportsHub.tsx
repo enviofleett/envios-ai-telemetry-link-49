@@ -8,10 +8,10 @@ import { Calendar, Download, Search, Filter, RefreshCw } from 'lucide-react';
 import { useReports } from '@/hooks/useReports';
 import ReportFilters from './ReportFilters';
 import ReportTable from './ReportTable';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface EnhancedReportsHubProps {
-  vehicles: Vehicle[];
+  vehicles: VehicleData[];
 }
 
 const EnhancedReportsHub: React.FC<EnhancedReportsHubProps> = ({ vehicles }) => {

@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useStableVehicleData } from '@/hooks/useStableVehicleData';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface LiveTrackingMapProps {
   initialSearchTerm?: string;
@@ -26,7 +26,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
     status: statusFilter
   });
 
-  const getVehicleStatus = (vehicle: Vehicle) => {
+  const getVehicleStatus = (vehicle: VehicleData) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
     
     const lastUpdate = new Date(vehicle.lastPosition.updatetime);

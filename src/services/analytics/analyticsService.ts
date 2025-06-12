@@ -1,3 +1,8 @@
+import { 
+  unifiedVehicleDataService, 
+  type VehicleData 
+} from '@/services/unifiedVehicleData';
+
 import { supabase } from '@/integrations/supabase/client';
 import type { Vehicle } from '@/services/unifiedVehicleData';
 

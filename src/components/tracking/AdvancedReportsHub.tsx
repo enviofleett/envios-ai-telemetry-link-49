@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,7 +13,7 @@ import GeofenceReportCharts from './charts/GeofenceReportCharts';
 import MaintenanceReportCharts from './charts/MaintenanceReportCharts';
 import AlertReportCharts from './charts/AlertReportCharts';
 import MileageReportCharts from './charts/MileageReportCharts';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 import type { 
   TripReportData, 
   GeofenceReportData, 
@@ -24,7 +23,7 @@ import type {
 } from '@/hooks/useAdvancedReports';
 
 interface AdvancedReportsHubProps {
-  vehicles: Vehicle[];
+  vehicles: VehicleData[];
 }
 
 const AdvancedReportsHub: React.FC<AdvancedReportsHubProps> = ({ vehicles }) => {

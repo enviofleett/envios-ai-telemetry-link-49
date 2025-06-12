@@ -1,255 +1,154 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
 import { 
-  Calendar as CalendarIcon,
-  Wrench,
-  Heart,
+  Car, 
+  Edit, 
+  Save, 
+  X, 
+  MapPin, 
+  Calendar,
+  User,
   Package,
-  MapPin,
-  FileText,
-  AlertTriangle,
-  CheckCircle
+  AlertTriangle
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-import type { Vehicle } from '@/services/unifiedVehicleData';
-import WorkshopAssignmentModal from './WorkshopAssignmentModal';
-import ReportGenerationSection from './ReportGenerationSection';
+import { useToast } from '@/hooks/use-toast';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface VehicleProfileTabProps {
-  vehicle: Vehicle | null;
-  onWorkshopAssign?: (vehicleId: string, workshopId: string) => void;
-  onReportGenerate?: (vehicleId: string, reportType: string, dateRange: { from: Date; to: Date }) => void;
+  vehicle: VehicleData;
 }
 
-const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({
-  vehicle,
-  onWorkshopAssign,
-  onReportGenerate
-}) => {
-  const [showWorkshopModal, setShowWorkshopModal] = useState(false);
-  const [maintenanceDate, setMaintenanceDate] = useState<Date>();
+const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({ vehicle }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedVehicleName, setEditedVehicleName] = useState(vehicle.deviceName);
+  const [notes, setNotes] = useState('');
+  const [assignedUser, setAssignedUser] = useState('');
+  const { toast } = useToast();
 
-  if (!vehicle) {
-    return (
-      <Card className="w-full">
-        <CardContent className="p-6 text-center text-gray-500">
-          <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          <p>Select a vehicle to view its profile</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const getVehicleInfo = () => {
-    return {
-      nextMaintenance: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
-      healthScore: Math.floor(Math.random() * 40) + 60, // 60-100%
-      assignedWorkshop: 'AutoFix Pro Workshop',
-      hasWorkshop: Math.random() > 0.3,
-      subscription: {
-        package: 'Premium Fleet',
-        validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        features: ['Trip Reports', 'Mileage Reports', 'Geofence Reports', 'Engine Runtime', 'Favorite Places']
-      }
-    };
+  const handleSave = () => {
+    // TODO: Implement save functionality
+    setIsEditing(false);
+    toast({
+      title: "Vehicle profile updated",
+      description: "Your changes have been saved.",
+    });
   };
 
-  const vehicleInfo = getVehicleInfo();
-
-  const getHealthScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  const getHealthScoreBadge = (score: number) => {
-    if (score >= 80) return 'default';
-    if (score >= 60) return 'secondary';
-    return 'destructive';
+  const handleCancel = () => {
+    setIsEditing(false);
+    setEditedVehicleName(vehicle.deviceName);
+    setNotes('');
+    setAssignedUser('');
   };
 
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="information" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="information">Vehicle Information</TabsTrigger>
-          <TabsTrigger value="reports">Reports & Analytics</TabsTrigger>
-        </TabsList>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Car className="h-5 w-5" />
+          {isEditing ? (
+            <Input
+              value={editedVehicleName}
+              onChange={(e) => setEditedVehicleName(e.target.value)}
+              className="text-lg font-semibold"
+            />
+          ) : (
+            <>{vehicle.deviceName}</>
+          )}
+        </CardTitle>
+        <div>
+          {isEditing ? (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleCancel}>
+                <X className="h-4 w-4 mr-2" />
+                Cancel
+              </Button>
+              <Button size="sm" onClick={handleSave}>
+                <Save className="h-4 w-4 mr-2" />
+                Save
+              </Button>
+            </div>
+          ) : (
+            <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Profile
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="deviceId">Device ID</Label>
+            <Input id="deviceId" value={vehicle.deviceId} readOnly />
+          </div>
+          <div>
+            <Label htmlFor="lastUpdate">Last Update</Label>
+            <Input
+              id="lastUpdate"
+              value={vehicle.lastPosition?.updatetime || 'N/A'}
+              readOnly
+            />
+          </div>
+          <div>
+            <Label htmlFor="latitude">Latitude</Label>
+            <Input
+              id="latitude"
+              value={vehicle.lastPosition?.lat?.toString() || 'N/A'}
+              readOnly
+            />
+          </div>
+          <div>
+            <Label htmlFor="longitude">Longitude</Label>
+            <Input
+              id="longitude"
+              value={vehicle.lastPosition?.lon?.toString() || 'N/A'}
+              readOnly
+            />
+          </div>
+        </div>
 
-        <TabsContent value="information" className="space-y-4">
-          {/* Vehicle Basic Info */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
-                Vehicle Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Vehicle Name</label>
-                  <p className="font-semibold">{vehicle.devicename}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Device ID</label>
-                  <p className="font-mono text-sm">{vehicle.deviceid}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Registration Date</label>
-                  <p>Available in system</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Last Updated</label>
-                  <p>{vehicle.lastPosition?.updatetime 
-                    ? new Date(vehicle.lastPosition.updatetime).toLocaleDateString() 
-                    : 'N/A'}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <Separator />
 
-          {/* Maintenance & Health */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Wrench className="h-5 w-5" />
-                Maintenance & Health
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-600">Next Maintenance Date</label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={cn(
-                          "w-full justify-start text-left font-normal",
-                          !maintenanceDate && "text-muted-foreground"
-                        )}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {maintenanceDate ? format(maintenanceDate, "PPP") : format(vehicleInfo.nextMaintenance, "PPP")}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={maintenanceDate || vehicleInfo.nextMaintenance}
-                        onSelect={setMaintenanceDate}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-600">Health Score</label>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-gray-200 rounded-full h-3">
-                      <div 
-                        className={`h-3 rounded-full ${vehicleInfo.healthScore >= 80 ? 'bg-green-500' : vehicleInfo.healthScore >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                        style={{ width: `${vehicleInfo.healthScore}%` }}
-                      ></div>
-                    </div>
-                    <Badge variant={getHealthScoreBadge(vehicleInfo.healthScore)}>
-                      {vehicleInfo.healthScore}%
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-gray-500">Last inspection by affiliated workshop</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-600">Assigned Workshop</label>
-                <div className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center gap-2">
-                    {vehicleInfo.hasWorkshop ? (
-                      <>
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                        <span>{vehicleInfo.assignedWorkshop}</span>
-                      </>
-                    ) : (
-                      <>
-                        <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                        <span className="text-gray-500">No workshop assigned</span>
-                      </>
-                    )}
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setShowWorkshopModal(true)}
-                  >
-                    {vehicleInfo.hasWorkshop ? 'Change Workshop' : 'Assign Workshop'}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Subscription Package */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Package className="h-5 w-5" />
-                Subscription Package
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg mb-4">
-                <div>
-                  <h3 className="font-semibold text-blue-900">{vehicleInfo.subscription.package}</h3>
-                  <p className="text-sm text-blue-600">
-                    Valid until {vehicleInfo.subscription.validUntil.toLocaleDateString()}
-                  </p>
-                </div>
-                <Badge className="bg-blue-100 text-blue-800">Active</Badge>
-              </div>
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-600">Included Features</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {vehicleInfo.subscription.features.map((feature, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <CheckCircle className="h-3 w-3 text-green-500" />
-                      <span>{feature}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="reports">
-          <ReportGenerationSection 
-            vehicle={vehicle}
-            subscriptionFeatures={vehicleInfo.subscription.features}
-            onReportGenerate={onReportGenerate}
+        <div>
+          <Label htmlFor="notes">Notes</Label>
+          <Textarea
+            id="notes"
+            placeholder="Vehicle notes..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            readOnly={!isEditing}
           />
-        </TabsContent>
-      </Tabs>
+        </div>
 
-      {/* Workshop Assignment Modal */}
-      <WorkshopAssignmentModal
-        isOpen={showWorkshopModal}
-        onClose={() => setShowWorkshopModal(false)}
-        onAssign={(workshopId) => {
-          onWorkshopAssign?.(vehicle.deviceid, workshopId);
-          setShowWorkshopModal(false);
-        }}
-      />
-    </div>
+        <Separator />
+
+        <div>
+          <Label htmlFor="assignedUser">Assigned User</Label>
+          <Select
+            onValueChange={setAssignedUser}
+            defaultValue={assignedUser}
+            disabled={!isEditing}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select user" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="user-1">User 1</SelectItem>
+              <SelectItem value="user-2">User 2</SelectItem>
+              <SelectItem value="user-3">User 3</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

@@ -16,13 +16,13 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface VehicleStatisticsModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  vehicles: Vehicle[];
+  vehicles: VehicleData[];
   statusType: 'online' | 'offline';
 }
 
@@ -35,7 +35,7 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
 
-  const getVehicleStatus = (vehicle: Vehicle) => {
+  const getVehicleStatus = (vehicle: VehicleData) => {
     if (!vehicle.lastPosition?.updatetime) return 'offline';
     
     const lastUpdate = new Date(vehicle.lastPosition.updatetime);
@@ -50,8 +50,8 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
   const filteredVehicles = vehicles.filter(vehicle => {
     const vehicleStatus = getVehicleStatus(vehicle);
     const matchesStatus = statusType === 'online' ? vehicleStatus === 'online' : vehicleStatus === 'offline';
-    const matchesSearch = vehicle.devicename.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vehicle.deviceid.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = vehicle.deviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         vehicle.deviceId.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
@@ -66,12 +66,12 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
     return date.toLocaleDateString();
   };
 
-  const getSubscriberName = (vehicle: Vehicle) => {
+  const getSubscriberName = (vehicle: VehicleData) => {
     // Mock subscriber name - in real implementation, this would come from user data
-    return `Subscriber ${vehicle.deviceid.slice(-4)}`;
+    return `Subscriber ${vehicle.deviceId.slice(-4)}`;
   };
 
-  const getPlateNumber = (vehicle: Vehicle) => {
+  const getPlateNumber = (vehicle: VehicleData) => {
     // Mock plate number - in real implementation, this would come from vehicle data
     return `ABC-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
   };

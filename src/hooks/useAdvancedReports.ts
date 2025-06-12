@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { reportsApi, type ReportQuery } from '@/services/reportsApi';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 export type ReportType = 'trip' | 'activity' | 'maintenance' | 'alerts' | 'geofence' | 'mileage';
 
@@ -100,7 +99,7 @@ export const useAdvancedReports = () => {
     reportType: 'trip',
   });
 
-  const generateReport = useCallback(async (vehicles: Vehicle[]) => {
+  const generateReport = useCallback(async (vehicles: VehicleData[]) => {
     setIsLoading(true);
     
     try {
@@ -216,7 +215,7 @@ export const useAdvancedReports = () => {
     }
   };
 
-  const generateMileageReports = useCallback((vehicles: Vehicle[]): MileageReportData[] => {
+  const generateMileageReports = useCallback((vehicles: VehicleData[]): MileageReportData[] => {
     const periods = ['Daily', 'Weekly', 'Monthly'];
     const filteredVehicles = filters.vehicleIds.length > 0 
       ? vehicles.filter(v => filters.vehicleIds.includes(v.deviceid))

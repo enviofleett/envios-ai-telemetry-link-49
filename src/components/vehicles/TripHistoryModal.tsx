@@ -16,10 +16,10 @@ import {
   Gauge,
   Calendar
 } from 'lucide-react';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface TripHistoryModalProps {
-  vehicle: Vehicle | null;
+  vehicle: VehicleData | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -99,7 +99,7 @@ const TripHistoryModal: React.FC<TripHistoryModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Route className="h-5 w-5" />
-            Trip History - {vehicle.devicename}
+            Trip History - {vehicle.deviceName}
           </DialogTitle>
         </DialogHeader>
 

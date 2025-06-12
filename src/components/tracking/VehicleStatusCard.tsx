@@ -15,11 +15,11 @@ import {
   Calendar,
   Package
 } from 'lucide-react';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 import DataFreshnessIndicator from './DataFreshnessIndicator';
 
 interface VehicleStatusCardProps {
-  vehicle: Vehicle | null;
+  vehicle: VehicleData | null;
   onEngineShutdown?: (vehicleId: string) => void;
   onEngineEnable?: (vehicleId: string) => void;
   canControlEngine?: boolean;
@@ -97,7 +97,7 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
             <MapPin className="h-5 w-5" />
-            {vehicle.devicename}
+            {vehicle.deviceName}
           </CardTitle>
           <div className="flex items-center gap-2">
             <Badge variant={status === 'online' ? 'default' : 'secondary'} className="flex items-center gap-1">
@@ -111,7 +111,7 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
             />
           </div>
         </div>
-        <p className="text-sm text-gray-600">Device ID: {vehicle.deviceid}</p>
+        <p className="text-sm text-gray-600">Device ID: {vehicle.deviceId}</p>
       </CardHeader>
       
       <CardContent className="space-y-4">
@@ -197,7 +197,7 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
             <AlertTriangle className="h-4 w-4 text-gray-400" />
             System ID
           </div>
-          <p className="text-sm font-mono">{vehicle.deviceid}</p>
+          <p className="text-sm font-mono">{vehicle.deviceId}</p>
         </div>
 
         {/* Subscription Package */}
@@ -222,7 +222,7 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
           <div className="flex gap-2 pt-4 border-t">
             <Button
               variant="destructive"
-              onClick={() => onEngineShutdown?.(vehicle.deviceid)}
+              onClick={() => onEngineShutdown?.(vehicle.deviceId)}
               disabled={isLoading || ignitionStatus === 'OFF'}
               className="flex-1"
             >
@@ -231,7 +231,7 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
             </Button>
             <Button
               variant="default"
-              onClick={() => onEngineEnable?.(vehicle.deviceid)}
+              onClick={() => onEngineEnable?.(vehicle.deviceId)}
               disabled={isLoading || ignitionStatus === 'ON'}
               className="flex-1"
             >

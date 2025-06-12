@@ -15,10 +15,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface ReportGenerationSectionProps {
-  vehicle: Vehicle;
+  vehicle: VehicleData;
   subscriptionFeatures: string[];
   onReportGenerate?: (vehicleId: string, reportType: string, dateRange: { from: Date; to: Date }) => void;
 }

@@ -6,11 +6,11 @@ import { Calendar, Search, RefreshCw, Filter } from 'lucide-react';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import type { Vehicle } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 import type { ReportFilters } from '@/hooks/useAdvancedReports';
 
 interface AdvancedReportFiltersProps {
-  vehicles: Vehicle[];
+  vehicles: VehicleData[];
   filters: ReportFilters;
   onFiltersChange: (filters: Partial<ReportFilters>) => void;
   onGenerate: () => void;
