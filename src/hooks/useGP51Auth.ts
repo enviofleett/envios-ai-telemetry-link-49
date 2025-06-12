@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { gps51AuthService, type AuthResult } from '@/services/gp51/Gps51AuthService';
 import { useToast } from '@/hooks/use-toast';
@@ -8,16 +7,14 @@ interface AuthState {
   username?: string;
   tokenExpiresAt?: Date;
   isLoading: boolean;
-  error: string | null;
-  isRefreshing: boolean; // New state for token refresh
+  error: string | null; // Added error state
 }
 
 export const useGP51Auth = () => {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     isLoading: false,
-    error: null,
-    isRefreshing: false
+    error: null
   });
   const { toast } = useToast();
 
@@ -28,10 +25,11 @@ export const useGP51Auth = () => {
       isAuthenticated: status.isAuthenticated,
       username: status.username,
       tokenExpiresAt: status.tokenExpiresAt,
-      isRefreshing: false // Reset refresh state when updating
+      // Keep existing error state unless clearing it explicitly
     }));
   }, []);
 
+  // Clear error state
   const clearError = useCallback(() => {
     setAuthState(prev => ({ ...prev, error: null }));
   }, []);
@@ -40,27 +38,9 @@ export const useGP51Auth = () => {
     console.log('🔍 useGP51Auth: Initializing hook and checking auth status...');
     updateAuthState();
     
-    // Check auth status periodically and handle auto-refresh
-    const interval = setInterval(async () => {
+    // Check auth status periodically
+    const interval = setInterval(() => {
       console.log('🔄 useGP51Auth: Periodic auth status check...');
-      
-      const currentStatus = gps51AuthService.getAuthStatus();
-      if (currentStatus.isAuthenticated) {
-        try {
-          // This will trigger auto-refresh if needed
-          setAuthState(prev => ({ ...prev, isRefreshing: true }));
-          await gps51AuthService.getToken();
-          setAuthState(prev => ({ ...prev, isRefreshing: false }));
-        } catch (error) {
-          console.error('❌ Auto-refresh failed:', error);
-          setAuthState(prev => ({ 
-            ...prev, 
-            isRefreshing: false,
-            error: 'Auto-refresh failed - please re-login'
-          }));
-        }
-      }
-      
       updateAuthState();
     }, 30000); // Every 30 seconds
     
@@ -73,8 +53,7 @@ export const useGP51Auth = () => {
     setAuthState(prev => ({ 
       ...prev, 
       isLoading: true, 
-      error: null,
-      isRefreshing: false
+      error: null // Clear any previous errors
     }));
     
     try {
@@ -87,7 +66,7 @@ export const useGP51Auth = () => {
         
         toast({
           title: "Login Successful",
-          description: `Connected to GP51 as ${username}. Token will auto-refresh for 24 hours.`,
+          description: `Connected to GP51 as ${username}`,
         });
       } else {
         console.error('❌ useGP51Auth: Login failed:', result.error);
@@ -146,6 +125,12 @@ export const useGP51Auth = () => {
           title: "Logged Out",
           description: "Disconnected from GP51",
         });
+      } else {
+        console.error('❌ useGP51Auth: Logout failed:', result.error);
+        setAuthState(prev => ({ 
+          ...prev, 
+          error: result.error || "Logout failed" 
+        }));
       }
       
       return result;
@@ -167,20 +152,11 @@ export const useGP51Auth = () => {
   const getToken = useCallback(async (): Promise<string | null> => {
     try {
       console.log('🎫 useGP51Auth: Getting authentication token...');
-      setAuthState(prev => ({ ...prev, isRefreshing: true }));
-      
-      const token = await gps51AuthService.getToken();
-      
-      setAuthState(prev => ({ ...prev, isRefreshing: false }));
-      return token;
+      return await gps51AuthService.getToken();
     } catch (error) {
       console.error('❌ useGP51Auth: Failed to get token:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to get authentication token';
-      setAuthState(prev => ({ 
-        ...prev, 
-        error: errorMessage,
-        isRefreshing: false 
-      }));
+      setAuthState(prev => ({ ...prev, error: errorMessage }));
       return null;
     }
   }, []);
@@ -196,7 +172,7 @@ export const useGP51Auth = () => {
     
     try {
       const result = await gps51AuthService.healthCheck();
-      updateAuthState();
+      updateAuthState(); // Update state after health check
       
       if (!result) {
         setAuthState(prev => ({ 
