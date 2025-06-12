@@ -12,7 +12,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { format, subDays } from 'date-fns';
-import type { EnhancedVehicle, ReportType } from '@/types/enhancedVehicle';
+import type { EnhancedVehicle, ReportType } from '@/types/vehicle';
 import { useToast } from '@/hooks/use-toast';
 
 interface ReportGenerationModalProps {
