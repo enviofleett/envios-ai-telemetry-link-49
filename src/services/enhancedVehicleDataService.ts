@@ -89,7 +89,6 @@ class EnhancedVehicleDataService {
       id: supabaseVehicle.id,
       deviceId: supabaseVehicle.device_id,
       deviceName: supabaseVehicle.device_name,
-      licensePlate: undefined, // This field doesn't exist in the database
       status,
       lastUpdate,
       lastPosition,
