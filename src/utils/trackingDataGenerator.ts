@@ -1,7 +1,14 @@
 
-import type { VehicleData, EnhancedVehicle, FuelRecord, EngineRecord, MileageRecord } from '@/types/vehicle';
+import type { VehicleData, EnhancedVehicle, FuelRecord, EngineRecord, MileageRecord, VehicleLocation } from '@/types/vehicle';
 
 export const convertToEnhancedVehicle = (vehicle: VehicleData): EnhancedVehicle => {
+  // Create location object from vehicle position data
+  const location: VehicleLocation = {
+    lat: vehicle.location?.latitude || vehicle.position?.latitude || 0,
+    lng: vehicle.location?.longitude || vehicle.position?.longitude || 0,
+    address: vehicle.location?.address || vehicle.position?.address || 'Unknown Location'
+  };
+
   return {
     id: vehicle.id,
     deviceId: vehicle.deviceId,
@@ -16,8 +23,8 @@ export const convertToEnhancedVehicle = (vehicle: VehicleData): EnhancedVehicle 
     isOnline: vehicle.isOnline,
     isMoving: vehicle.isMoving,
     
-    // Additional properties for analytics
-    location: vehicle.location?.address || vehicle.position?.address || 'Unknown Location',
+    // Required analytics properties
+    location: location,
     engineHours: Math.floor(Math.random() * 8000) + 1000, // Mock engine hours
     mileage: Math.floor(Math.random() * 200000) + 50000, // Mock mileage
     fuelType: 'Gasoline', // Mock fuel type
@@ -31,6 +38,7 @@ export const convertToEnhancedVehicle = (vehicle: VehicleData): EnhancedVehicle 
     year: vehicle.year,
     license_plate: vehicle.licensePlate,
     is_active: vehicle.is_active,
+    alerts: vehicle.alerts,
     lastPosition: vehicle.lastPosition ? {
       lat: vehicle.lastPosition.lat,
       lng: vehicle.lastPosition.lon, // Convert lon to lng
@@ -52,6 +60,8 @@ export const generateFuelData = (days: number = 30): FuelRecord[] => {
       consumption: Math.random() * 50 + 10, // 10-60 liters
       efficiency: Math.random() * 10 + 15, // 15-25 km/l
       cost: Math.random() * 500 + 100, // $100-600
+      distance: Math.random() * 500 + 50, // 50-550 km
+      performance: Math.random() * 20 + 80, // 80-100% performance
     });
   }
   return data.reverse();
@@ -68,6 +78,9 @@ export const generateEngineData = (days: number = 30): EngineRecord[] => {
       idleTime: Math.random() * 2, // 0-2 hours idle
       utilization: Math.random() * 100, // 0-100% utilization
       performance: Math.random() * 20 + 80, // 80-100% performance
+      trips: Math.floor(Math.random() * 5) + 1, // 1-5 trips
+      estimatedFuel: Math.random() * 50 + 10, // 10-60 liters
+      activity: Math.random() * 100, // 0-100% activity level
     });
   }
   return data.reverse();
@@ -84,6 +97,13 @@ export const generateMileageData = (days: number = 30): MileageRecord[] => {
       trips: Math.floor(Math.random() * 5) + 1, // 1-5 trips
       estimatedFuel: Math.random() * 50 + 10, // 10-60 liters
       activity: Math.random() * 100, // 0-100% activity level
+      consumption: Math.random() * 50 + 10, // 10-60 liters
+      efficiency: Math.random() * 10 + 15, // 15-25 km/l
+      cost: Math.random() * 500 + 100, // $100-600
+      engineHours: Math.random() * 8 + 1, // 1-9 hours per day
+      idleTime: Math.random() * 2, // 0-2 hours idle
+      utilization: Math.random() * 100, // 0-100% utilization
+      performance: Math.random() * 20 + 80, // 80-100% performance
     });
   }
   return data.reverse();
