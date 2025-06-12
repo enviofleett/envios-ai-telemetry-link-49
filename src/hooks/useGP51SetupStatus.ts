@@ -1,14 +1,17 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAdminAutoAuth } from './useAdminAutoAuth';
 
 interface GP51SetupStatus {
   hasGP51Configured: boolean;
   isLoading: boolean;
   error: string | null;
+  isAdminAutoAuth?: boolean;
 }
 
 export const useGP51SetupStatus = (): GP51SetupStatus => {
+  const adminAutoAuth = useAdminAutoAuth();
   const [status, setStatus] = useState<GP51SetupStatus>({
     hasGP51Configured: false,
     isLoading: true,
@@ -28,6 +31,28 @@ export const useGP51SetupStatus = (): GP51SetupStatus => {
             hasGP51Configured: false,
             isLoading: false,
             error: 'Authentication required'
+          });
+          return;
+        }
+
+        // Check if admin auto-auth is in progress
+        if (adminAutoAuth.isAdmin && adminAutoAuth.isAutoAuthenticating) {
+          setStatus({
+            hasGP51Configured: false,
+            isLoading: true,
+            error: null,
+            isAdminAutoAuth: true
+          });
+          return;
+        }
+
+        // If admin auto-auth completed successfully
+        if (adminAutoAuth.isAdmin && adminAutoAuth.autoAuthCompleted) {
+          setStatus({
+            hasGP51Configured: true,
+            isLoading: false,
+            error: null,
+            isAdminAutoAuth: true
           });
           return;
         }
@@ -71,7 +96,8 @@ export const useGP51SetupStatus = (): GP51SetupStatus => {
         setStatus({
           hasGP51Configured: hasValidSession,
           isLoading: false,
-          error: null
+          error: null,
+          isAdminAutoAuth: adminAutoAuth.isAdmin
         });
 
       } catch (error) {
@@ -79,13 +105,27 @@ export const useGP51SetupStatus = (): GP51SetupStatus => {
         setStatus({
           hasGP51Configured: false,
           isLoading: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : 'Unknown error',
+          isAdminAutoAuth: adminAutoAuth.isAdmin
         });
       }
     };
 
     checkGP51Setup();
-  }, []);
+  }, [adminAutoAuth.isAutoAuthenticating, adminAutoAuth.autoAuthCompleted, adminAutoAuth.isAdmin]);
 
-  return status;
+  // If admin auto-auth failed, still allow fallback to manual setup
+  if (adminAutoAuth.isAdmin && adminAutoAuth.error && !adminAutoAuth.isAutoAuthenticating) {
+    return {
+      hasGP51Configured: false,
+      isLoading: false,
+      error: null, // Don't show admin auto-auth errors to user
+      isAdminAutoAuth: true
+    };
+  }
+
+  return {
+    ...status,
+    isAdminAutoAuth: adminAutoAuth.isAdmin
+  };
 };

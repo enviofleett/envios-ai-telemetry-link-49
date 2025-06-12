@@ -14,15 +14,22 @@ const AuthenticatedRouter: React.FC<AuthenticatedRouterProps> = ({
   requiresGP51 = true 
 }) => {
   const { user, loading: authLoading } = useAuth();
-  const { hasGP51Configured, isLoading: gp51Loading } = useGP51SetupStatus();
+  const { hasGP51Configured, isLoading: gp51Loading, isAdminAutoAuth } = useGP51SetupStatus();
 
   // Show loading while checking authentication states
   if (authLoading || (user && requiresGP51 && gp51Loading)) {
+    const loadingMessage = isAdminAutoAuth 
+      ? "Configuring admin access..." 
+      : "Checking authentication...";
+      
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Checking authentication...</p>
+          <p className="text-muted-foreground">{loadingMessage}</p>
+          {isAdminAutoAuth && (
+            <p className="text-sm text-blue-600">Setting up GP51 integration...</p>
+          )}
         </div>
       </div>
     );
@@ -34,6 +41,7 @@ const AuthenticatedRouter: React.FC<AuthenticatedRouterProps> = ({
   }
 
   // If GP51 is required but not configured, redirect to setup
+  // Admin users with auto-auth enabled will be handled automatically
   if (requiresGP51 && !hasGP51Configured) {
     return <Navigate to="/settings/gp51-setup" replace />;
   }

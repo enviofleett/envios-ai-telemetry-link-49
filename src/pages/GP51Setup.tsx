@@ -6,11 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Shield, Database, CheckCircle } from 'lucide-react';
+import { Loader2, Shield, Database, CheckCircle, Crown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useAdminAutoAuth } from '@/hooks/useAdminAutoAuth';
 import { supabase } from '@/integrations/supabase/client';
 
 const GP51Setup: React.FC = () => {
+  const { user } = useAuth();
+  const adminAutoAuth = useAdminAutoAuth();
   const [credentials, setCredentials] = useState({
     username: '',
     password: ''
@@ -20,6 +24,8 @@ const GP51Setup: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const isAdmin = user?.email === 'chudesyl@gmail.com';
+
   const handleInputChange = (field: 'username' | 'password') => (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -28,6 +34,29 @@ const GP51Setup: React.FC = () => {
       [field]: e.target.value
     }));
     setError(null);
+  };
+
+  const handleRetryAdminAuth = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'admin-auto-auth' }
+      });
+
+      if (error) throw new Error(error.message);
+      if (!data.success) throw new Error(data.error);
+
+      toast({
+        title: "Admin Access Granted",
+        description: "Successfully authenticated with GP51",
+      });
+      
+      navigate('/dashboard');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Auto-authentication failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGP51Setup = async (e: React.FormEvent) => {
@@ -42,8 +71,6 @@ const GP51Setup: React.FC = () => {
     setError(null);
 
     try {
-      console.log('🔐 Starting GP51 setup for user:', credentials.username);
-
       const { data, error: functionError } = await supabase.functions.invoke('settings-management', {
         body: {
           action: 'save-gp51-credentials',
@@ -53,29 +80,18 @@ const GP51Setup: React.FC = () => {
         }
       });
 
-      if (functionError) {
-        throw new Error(functionError.message);
-      }
+      if (functionError) throw new Error(functionError.message);
+      if (!data.success) throw new Error(data.error || 'GP51 authentication failed');
 
-      if (!data.success) {
-        throw new Error(data.error || 'GP51 authentication failed');
-      }
-
-      console.log('✅ GP51 setup successful');
-      
       toast({
         title: "GP51 Integration Complete",
         description: `Successfully connected to GP51 as ${credentials.username}`,
       });
 
-      // Clear form
       setCredentials({ username: '', password: '' });
-
-      // Redirect to dashboard
       navigate('/dashboard');
 
     } catch (error) {
-      console.error('❌ GP51 setup failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'GP51 setup failed';
       setError(errorMessage);
       
@@ -95,36 +111,102 @@ const GP51Setup: React.FC = () => {
         {/* Header */}
         <div className="text-center">
           <div className="mx-auto h-16 w-16 bg-blue-100 rounded-full flex items-center justify-center">
-            <Shield className="h-8 w-8 text-blue-600" />
+            {isAdmin ? (
+              <Crown className="h-8 w-8 text-blue-600" />
+            ) : (
+              <Shield className="h-8 w-8 text-blue-600" />
+            )}
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">GP51 Integration Setup</h2>
+          <h2 className="mt-6 text-3xl font-bold text-gray-900">
+            {isAdmin ? 'Admin GP51 Access' : 'GP51 Integration Setup'}
+          </h2>
           <p className="mt-2 text-sm text-gray-600">
-            Connect your GP51 account to access vehicle tracking data
+            {isAdmin 
+              ? 'Administrative access to GP51 platform' 
+              : 'Connect your GP51 account to access vehicle tracking data'
+            }
           </p>
         </div>
 
-        {/* Setup Card */}
+        {/* Admin Auto-Auth Status */}
+        {isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Crown className="h-5 w-5" />
+                Admin Auto-Authentication
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {adminAutoAuth.isAutoAuthenticating && (
+                <div className="text-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                  <p className="text-sm text-gray-600">Setting up admin access...</p>
+                </div>
+              )}
+              
+              {adminAutoAuth.autoAuthCompleted && (
+                <div className="text-center py-4">
+                  <CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                  <p className="text-sm text-green-800">Admin access configured successfully!</p>
+                  <Button onClick={() => navigate('/dashboard')} className="mt-2">
+                    Go to Dashboard
+                  </Button>
+                </div>
+              )}
+              
+              {adminAutoAuth.error && (
+                <div className="space-y-4">
+                  <Alert>
+                    <AlertDescription>
+                      Auto-authentication failed. You can retry or use manual setup below.
+                    </AlertDescription>
+                  </Alert>
+                  <Button 
+                    onClick={handleRetryAdminAuth} 
+                    disabled={isLoading}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Retrying...
+                      </>
+                    ) : (
+                      'Retry Auto-Authentication'
+                    )}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Manual Setup Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Database className="h-5 w-5" />
-              GP51 Credentials
+              {isAdmin ? 'Manual GP51 Setup' : 'GP51 Credentials'}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {/* Why GP51 Integration */}
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div>
-                  <div className="font-medium text-blue-900">Why is this required?</div>
-                  <div className="text-sm text-blue-800 mt-1">
-                    GP51 integration provides access to real-time vehicle tracking, 
-                    location history, and fleet management data essential for the dashboard.
+            {!isAdmin && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div>
+                    <div className="font-medium text-blue-900">Why is this required?</div>
+                    <div className="text-sm text-blue-800 mt-1">
+                      GP51 integration provides access to real-time vehicle tracking, 
+                      location history, and fleet management data essential for the dashboard.
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Setup Form */}
             <form onSubmit={handleGP51Setup} className="space-y-4">
@@ -186,13 +268,6 @@ const GP51Setup: React.FC = () => {
             </div>
           </CardContent>
         </Card>
-
-        {/* Footer */}
-        <div className="text-center">
-          <p className="text-xs text-gray-500">
-            Need help? Contact support for GP51 integration assistance.
-          </p>
-        </div>
       </div>
     </div>
   );
