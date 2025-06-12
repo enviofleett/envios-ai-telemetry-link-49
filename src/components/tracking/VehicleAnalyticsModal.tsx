@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -483,7 +482,7 @@ export const VehicleAnalyticsModal: React.FC<VehicleAnalyticsModalProps> = ({
             <div className="grid gap-4 md:grid-cols-3">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Location</p>
-                <p className="text-sm">{vehicle.location}</p>
+                <p className="text-sm">{vehicle.location.address}</p>
               </div>
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Fuel Type</p>
