@@ -1,31 +1,59 @@
-
+import { gp51DataService, type VehiclePosition } from '@/services/gp51/GP51DataService';
 import { supabase } from '@/integrations/supabase/client';
-import { unifiedGP51SessionManager } from './unifiedGP51SessionManager';
-import { VehicleData, VehicleDataMetrics } from './vehicleData/types';
-import { VehicleDataProcessor } from './vehicleData/vehicleDataProcessor';
-import { MetricsCalculator } from './vehicleData/metricsCalculator';
-import { GP51ApiService } from './vehicleData/gp51ApiService';
-import { PositionOnlyApiService } from './vehicleData/positionOnlyApiService';
 
 // Re-export types for backward compatibility
 export type { VehicleData, VehicleDataMetrics };
 
-export class EnhancedVehicleDataService {
+export interface VehicleData {
+  id: string;
+  deviceId: string;
+  deviceName: string;
+  vehicleName?: string;
+  make?: string;
+  model?: string;
+  year?: number;
+  licensePlate?: string;
+  status: 'online' | 'offline' | 'idle' | 'moving';
+  lastUpdate: Date;
+  position?: {
+    latitude: number;
+    longitude: number;
+    speed: number;
+    course: number;
+    address?: string;
+  };
+  isOnline: boolean;
+  isMoving: boolean;
+  fuel?: number;
+  battery?: number;
+  temperature?: number;
+  alerts: string[];
+}
+
+export interface VehicleDataMetrics {
+  totalVehicles: number;
+  onlineVehicles: number;
+  offlineVehicles: number;
+  recentlyActiveVehicles: number;
+  lastSyncTime: Date;
+  syncStatus: 'success' | 'error' | 'pending';
+  errorMessage?: string;
+}
+
+class EnhancedVehicleDataService {
   private static instance: EnhancedVehicleDataService;
-  private vehicles: VehicleData[] = [];
+  private vehicles: Map<string, VehicleData> = new Map();
   private metrics: VehicleDataMetrics = {
     totalVehicles: 0,
     onlineVehicles: 0,
     offlineVehicles: 0,
     recentlyActiveVehicles: 0,
     lastSyncTime: new Date(),
-    syncStatus: 'success'
+    syncStatus: 'pending'
   };
-  private listeners: Set<() => void> = new Set();
+  private subscribers: Set<() => void> = new Set();
   private syncInterval: NodeJS.Timeout | null = null;
-  private positionOnlyInterval: NodeJS.Timeout | null = null;
-  private isSyncing = false;
-  private isPositionSyncing = false;
+  private readonly syncIntervalMs = 30000; // 30 seconds
 
   static getInstance(): EnhancedVehicleDataService {
     if (!EnhancedVehicleDataService.instance) {
@@ -34,264 +62,188 @@ export class EnhancedVehicleDataService {
     return EnhancedVehicleDataService.instance;
   }
 
-  constructor() {
-    this.initializeService();
-  }
-
-  private async initializeService(): Promise<void> {
-    console.log('🚀 Initializing Enhanced Vehicle Data Service with faster sync intervals...');
-    
-    await this.loadVehiclesFromDatabase();
+  private constructor() {
     this.startPeriodicSync();
-    this.startPositionOnlySync();
-    
-    unifiedGP51SessionManager.subscribeToSession((session) => {
-      if (session && session.userId) {
-        console.log(`✅ GP51 session available for user ${session.userId}, starting enhanced data sync...`);
-        this.forceSync();
-      } else {
-        console.log('❌ GP51 session lost or not linked to user, marking vehicles as offline...');
-        this.markAllVehiclesOffline();
-      }
-    });
-
-    unifiedGP51SessionManager.subscribeToHealth((health) => {
-      // Map health status to connection status for comparison
-      const isConnected = health.status === 'healthy' || health.status === 'degraded';
-      const isDisconnected = health.status === 'critical';
-      
-      if (isConnected) {
-        this.forceSync();
-      } else if (isDisconnected) {
-        this.markAllVehiclesOffline();
-      }
-    });
   }
 
-  private async loadVehiclesFromDatabase(): Promise<void> {
-    try {
-      console.log('📊 Loading vehicles from database...');
-      
-      const { data: vehicles, error } = await supabase
-        .from('vehicles')
-        .select('*')
-        .eq('is_active', true);
-
-      if (error) {
-        console.error('Failed to load vehicles from database:', error);
-        return;
-      }
-
-      this.vehicles = VehicleDataProcessor.transformDatabaseVehicles(vehicles || []);
-      this.updateMetrics();
-      console.log(`📊 Loaded ${this.vehicles.length} vehicles from database`);
-      this.notifyListeners();
-
-    } catch (error) {
-      console.error('Error loading vehicles from database:', error);
-    }
-  }
-
-  private startPeriodicSync(intervalMs: number = 30000): void {
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
-    }
-
-    console.log(`⏰ Starting periodic vehicle data sync (${intervalMs}ms = 30 seconds)`);
-    
-    this.syncVehicleData();
-    this.syncInterval = setInterval(() => {
-      this.syncVehicleData();
-    }, intervalMs);
-  }
-
-  private startPositionOnlySync(intervalMs: number = 15000): void {
-    if (this.positionOnlyInterval) {
-      clearInterval(this.positionOnlyInterval);
-    }
-
-    console.log(`🎯 Starting position-only sync (${intervalMs}ms = 15 seconds)`);
-    
-    this.positionOnlyInterval = setInterval(() => {
-      this.syncPositionsOnly();
-    }, intervalMs);
-  }
-
-  private async syncPositionsOnly(): Promise<void> {
-    if (this.isPositionSyncing || this.isSyncing) {
-      console.log('Position sync: another sync in progress, skipping...');
-      return;
-    }
-
-    this.isPositionSyncing = true;
-
-    try {
-      const session = await unifiedGP51SessionManager.validateAndEnsureSession();
-      if (!session.userId) {
-        console.log('Position sync: No valid session, skipping...');
-        return;
-      }
-
-      // Get active vehicles only (updated within last 30 minutes)
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      
-      const { data: activeVehicles, error } = await supabase
-        .from('vehicles')
-        .select('device_id, last_position')
-        .eq('is_active', true)
-        .gte('last_position->>updatetime', thirtyMinutesAgo)
-        .limit(200);
-
-      if (error || !activeVehicles || activeVehicles.length === 0) {
-        console.log('Position sync: No active vehicles found');
-        return;
-      }
-
-      console.log(`🎯 Position sync: updating ${activeVehicles.length} active vehicles`);
-
-      const deviceIds = activeVehicles.map(v => parseInt(v.device_id)).filter(Boolean);
-      const positions = await PositionOnlyApiService.fetchPositionsOnly(deviceIds);
-      
-      if (positions.length > 0) {
-        const result = await PositionOnlyApiService.updateVehiclePositionsInDatabase(positions);
-        console.log(`🎯 Position sync completed: ${result.updated} updated, ${result.errors} errors`);
-        
-        // Update local cache with new positions
-        await this.loadVehiclesFromDatabase();
-      }
-
-    } catch (error) {
-      console.error('Position-only sync failed:', error);
-    } finally {
-      this.isPositionSyncing = false;
-    }
-  }
-
-  public async syncVehicleData(): Promise<void> {
-    if (this.isSyncing) {
-      console.log('Sync already in progress, skipping...');
-      return;
-    }
-
-    this.isSyncing = true;
-    this.metrics.syncStatus = 'in_progress';
-    this.notifyListeners();
-
-    try {
-      console.log('🔄 Starting enhanced vehicle data sync...');
-      
-      const session = await unifiedGP51SessionManager.validateAndEnsureSession();
-      
-      if (!session.userId) {
-        throw new Error('GP51 session is not properly linked to a user account');
-      }
-      
-      console.log(`🔗 Using GP51 session linked to user: ${session.userId}`);
-      
-      const gp51Vehicles = await GP51ApiService.fetchVehicleList();
-      console.log(`📋 Retrieved ${gp51Vehicles.length} vehicles from GP51`);
-
-      const deviceIds = gp51Vehicles.map(v => v.deviceid).filter(Boolean);
-      
-      if (deviceIds.length > 0) {
-        const positions = await GP51ApiService.fetchPositions(deviceIds);
-        const positionMap = new Map(positions.map(pos => [pos.deviceid, pos]));
-
-        this.vehicles = VehicleDataProcessor.processVehicleData(gp51Vehicles, positionMap);
-        this.updateMetrics();
-        this.metrics.syncStatus = 'success';
-        this.metrics.lastSyncTime = new Date();
-        delete this.metrics.errorMessage;
-
-        console.log(`✅ Enhanced sync completed. ${this.metrics.onlineVehicles}/${this.metrics.totalVehicles} vehicles online`);
-      } else {
-        console.warn('⚠️ No vehicle device IDs found');
-        this.metrics.syncStatus = 'success';
-        this.metrics.lastSyncTime = new Date();
-      }
-
-    } catch (error) {
-      console.error('❌ Enhanced vehicle data sync failed:', error);
-      this.metrics.syncStatus = 'error';
-      
-      if (error instanceof Error) {
-        if (error.message.includes('not properly linked')) {
-          this.metrics.errorMessage = 'GP51 session not linked to user account. Please re-authenticate in Admin Settings.';
-        } else if (error.message.includes('No GP51 sessions found')) {
-          this.metrics.errorMessage = 'No GP51 authentication found. Please configure GP51 credentials in Admin Settings.';
-        } else {
-          this.metrics.errorMessage = error.message;
-        }
-      } else {
-        this.metrics.errorMessage = 'Unknown sync error occurred';
-      }
-      
-      this.markAllVehiclesOffline();
-    } finally {
-      this.isSyncing = false;
-      this.notifyListeners();
-    }
-  }
-
-  private markAllVehiclesOffline(): void {
-    this.vehicles = this.vehicles.map(vehicle => ({
-      ...vehicle,
-      status: 'offline' as const
-    }));
-    this.updateMetrics();
-  }
-
-  private updateMetrics(): void {
-    this.metrics = MetricsCalculator.calculateMetrics(
-      this.vehicles, 
-      this.metrics.lastSyncTime, 
-      this.metrics.syncStatus, 
-      this.metrics.errorMessage
-    );
-  }
-
-  public async forceSync(): Promise<void> {
-    console.log('🔄 Force syncing enhanced vehicle data...');
-    await this.syncVehicleData();
-  }
-
-  public getVehicles(): VehicleData[] {
-    return [...this.vehicles];
-  }
-
-  public getMetrics(): VehicleDataMetrics {
-    return { ...this.metrics };
-  }
-
-  public getVehicleById(deviceId: string): VehicleData | undefined {
-    return this.vehicles.find(v => v.deviceId === deviceId);
-  }
-
-  public subscribe(callback: () => void): () => void {
-    this.listeners.add(callback);
-    return () => {
-      this.listeners.delete(callback);
-    };
-  }
-
-  private notifyListeners(): void {
-    this.listeners.forEach(callback => {
+  private notifySubscribers(): void {
+    this.subscribers.forEach(callback => {
       try {
         callback();
       } catch (error) {
-        console.error('Error notifying vehicle data listener:', error);
+        console.error('Error in vehicle data subscriber:', error);
       }
     });
   }
 
-  public destroy(): void {
+  private calculateMetrics(): void {
+    const vehicleArray = Array.from(this.vehicles.values());
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+
+    this.metrics = {
+      totalVehicles: vehicleArray.length,
+      onlineVehicles: vehicleArray.filter(v => v.isOnline).length,
+      offlineVehicles: vehicleArray.filter(v => !v.isOnline).length,
+      recentlyActiveVehicles: vehicleArray.filter(v => v.lastUpdate > thirtyMinutesAgo).length,
+      lastSyncTime: new Date(),
+      syncStatus: 'success'
+    };
+  }
+
+  private mapGP51ToVehicleData(gp51Vehicle: VehiclePosition, supabaseData?: any): VehicleData {
+    return {
+      id: supabaseData?.id || gp51Vehicle.deviceId,
+      deviceId: gp51Vehicle.deviceId,
+      deviceName: gp51Vehicle.deviceName || 'Unknown Device',
+      vehicleName: supabaseData?.vehicle_name || gp51Vehicle.deviceName,
+      make: supabaseData?.make,
+      model: supabaseData?.model,
+      year: supabaseData?.year,
+      licensePlate: supabaseData?.license_plate,
+      status: gp51Vehicle.isMoving ? 'moving' : (gp51Vehicle.isOnline ? 'idle' : 'offline'),
+      lastUpdate: gp51Vehicle.timestamp,
+      position: gp51Vehicle.latitude && gp51Vehicle.longitude ? {
+        latitude: gp51Vehicle.latitude,
+        longitude: gp51Vehicle.longitude,
+        speed: gp51Vehicle.speed,
+        course: gp51Vehicle.course
+      } : undefined,
+      isOnline: gp51Vehicle.isOnline,
+      isMoving: gp51Vehicle.isMoving,
+      alerts: gp51Vehicle.statusText && gp51Vehicle.statusText !== 'Normal' ? [gp51Vehicle.statusText] : []
+    };
+  }
+
+  async syncWithGP51(): Promise<void> {
+    try {
+      console.log('🔄 Starting enhanced vehicle data sync with GP51...');
+      
+      // Get vehicle metadata from Supabase
+      const { data: supabaseVehicles, error: supabaseError } = await supabase
+        .from('vehicles')
+        .select('*');
+
+      if (supabaseError) {
+        throw new Error(`Supabase error: ${supabaseError.message}`);
+      }
+
+      // Get live data from GP51
+      const gp51Vehicles = await gp51DataService.getDeviceList();
+      
+      // Get positions for all devices
+      const deviceIds = gp51Vehicles.map(v => v.deviceId);
+      const positions = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
+
+      // Clear existing vehicles
+      this.vehicles.clear();
+
+      // Process Supabase vehicles with GP51 data
+      if (supabaseVehicles) {
+        for (const supabaseVehicle of supabaseVehicles) {
+          const gp51Position = positions.get(supabaseVehicle.device_id) ||
+                              gp51Vehicles.find(v => v.deviceId === supabaseVehicle.device_id);
+          
+          if (gp51Position) {
+            const vehicleData = this.mapGP51ToVehicleData(gp51Position, supabaseVehicle);
+            this.vehicles.set(vehicleData.deviceId, vehicleData);
+          } else {
+            // Create offline vehicle entry
+            const offlineVehicle: VehicleData = {
+              id: supabaseVehicle.id,
+              deviceId: supabaseVehicle.device_id,
+              deviceName: supabaseVehicle.vehicle_name || 'Unknown Device',
+              vehicleName: supabaseVehicle.vehicle_name,
+              make: supabaseVehicle.make,
+              model: supabaseVehicle.model,
+              year: supabaseVehicle.year,
+              licensePlate: supabaseVehicle.license_plate,
+              status: 'offline',
+              lastUpdate: new Date(supabaseVehicle.updated_at || supabaseVehicle.created_at),
+              isOnline: false,
+              isMoving: false,
+              alerts: ['No GPS signal']
+            };
+            this.vehicles.set(offlineVehicle.deviceId, offlineVehicle);
+          }
+        }
+      }
+
+      // Add GP51-only vehicles (not in Supabase)
+      for (const gp51Vehicle of gp51Vehicles) {
+        if (!this.vehicles.has(gp51Vehicle.deviceId)) {
+          const position = positions.get(gp51Vehicle.deviceId) || gp51Vehicle;
+          const vehicleData = this.mapGP51ToVehicleData(position);
+          this.vehicles.set(vehicleData.deviceId, vehicleData);
+        }
+      }
+
+      this.calculateMetrics();
+      console.log(`✅ Enhanced vehicle sync completed: ${this.vehicles.size} vehicles`);
+      
+    } catch (error) {
+      console.error('❌ Enhanced vehicle sync failed:', error);
+      this.metrics.syncStatus = 'error';
+      this.metrics.errorMessage = error instanceof Error ? error.message : 'Unknown sync error';
+    }
+
+    this.notifySubscribers();
+  }
+
+  async forceSync(): Promise<void> {
+    await this.syncWithGP51();
+  }
+
+  private startPeriodicSync(): void {
     if (this.syncInterval) {
       clearInterval(this.syncInterval);
     }
-    if (this.positionOnlyInterval) {
-      clearInterval(this.positionOnlyInterval);
+
+    this.syncInterval = setInterval(() => {
+      this.syncWithGP51();
+    }, this.syncIntervalMs);
+
+    // Initial sync
+    this.syncWithGP51();
+  }
+
+  subscribe(callback: () => void): () => void {
+    this.subscribers.add(callback);
+    return () => {
+      this.subscribers.delete(callback);
+    };
+  }
+
+  getVehicles(): VehicleData[] {
+    return Array.from(this.vehicles.values());
+  }
+
+  getVehicleById(deviceId: string): VehicleData | undefined {
+    return this.vehicles.get(deviceId);
+  }
+
+  getOnlineVehicles(): VehicleData[] {
+    return this.getVehicles().filter(v => v.isOnline);
+  }
+
+  getOfflineVehicles(): VehicleData[] {
+    return this.getVehicles().filter(v => !v.isOnline);
+  }
+
+  getVehiclesWithAlerts(): VehicleData[] {
+    return this.getVehicles().filter(v => v.alerts.length > 0);
+  }
+
+  getMetrics(): VehicleDataMetrics {
+    return { ...this.metrics };
+  }
+
+  destroy(): void {
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
     }
-    this.listeners.clear();
+    this.subscribers.clear();
+    this.vehicles.clear();
   }
 }
 
