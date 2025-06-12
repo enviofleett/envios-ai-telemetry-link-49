@@ -188,6 +188,37 @@ class EnhancedVehicleDataService {
     return [...this.vehicles];
   }
 
+  async getVehiclesPaginated(options: { page: number; limit: number }): Promise<{ 
+    data: VehicleData[]; 
+    error: string | null; 
+    hasMore: boolean 
+  }> {
+    try {
+      // Ensure we have fresh data
+      if (this.vehicles.length === 0) {
+        await this.syncVehicleData();
+      }
+
+      const startIndex = options.page * options.limit;
+      const endIndex = startIndex + options.limit;
+      const paginatedVehicles = this.vehicles.slice(startIndex, endIndex);
+      const hasMore = endIndex < this.vehicles.length;
+
+      return {
+        data: paginatedVehicles,
+        error: null,
+        hasMore
+      };
+    } catch (error) {
+      console.error('Error getting paginated vehicles:', error);
+      return {
+        data: [],
+        error: error instanceof Error ? error.message : 'Failed to get vehicles',
+        hasMore: false
+      };
+    }
+  }
+
   getVehicleById(deviceId: string): VehicleData | undefined {
     return this.vehicles.find(v => v.deviceId === deviceId);
   }
@@ -238,3 +269,43 @@ class EnhancedVehicleDataService {
 }
 
 export const enhancedVehicleDataService = new EnhancedVehicleDataService();
+
+// Standalone function exports for compatibility with existing hooks
+export const getEnhancedVehicles = async (options: { page: number; limit: number }) => {
+  return await enhancedVehicleDataService.getVehiclesPaginated(options);
+};
+
+export const getVehicleDataMetrics = (vehicles?: VehicleData[]): VehicleDataMetrics => {
+  // If vehicles are provided, calculate metrics for those specific vehicles
+  if (vehicles && vehicles.length > 0) {
+    const total = vehicles.length;
+    const online = vehicles.filter(v => v.isOnline).length;
+    const offline = total - online;
+    const alerts = vehicles.reduce((sum, v) => sum + v.alerts.length, 0);
+    const recentlyActiveVehicles = vehicles.filter(v => {
+      const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+      return v.lastUpdate.getTime() > thirtyMinutesAgo;
+    }).length;
+
+    return {
+      // Dashboard-compatible properties
+      total,
+      online,
+      offline,
+      alerts,
+      // Legacy properties
+      totalVehicles: total,
+      onlineVehicles: online,
+      offlineVehicles: offline,
+      recentlyActiveVehicles,
+      // Sync properties
+      lastSyncTime: new Date(),
+      positionsUpdated: vehicles.filter(v => v.lastPosition).length,
+      errors: 0,
+      syncStatus: 'success' as const
+    };
+  }
+  
+  // Otherwise, use the service's cached metrics
+  return enhancedVehicleDataService.getMetrics();
+};
