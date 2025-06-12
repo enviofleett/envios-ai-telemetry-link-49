@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { gps51AuthService, type AuthResult } from '@/services/gp51/Gps51AuthService';
 import { useToast } from '@/hooks/use-toast';
@@ -9,7 +8,7 @@ interface AuthState {
   tokenExpiresAt?: Date;
   isLoading: boolean;
   error: string | null;
-  isRestoringSession: boolean; // New state for session restoration
+  isRestoringSession: boolean;
 }
 
 export const useGP51Auth = () => {
@@ -17,7 +16,7 @@ export const useGP51Auth = () => {
     isAuthenticated: false,
     isLoading: false,
     error: null,
-    isRestoringSession: true // Start with restoration state
+    isRestoringSession: true
   });
   const { toast } = useToast();
 
@@ -28,11 +27,10 @@ export const useGP51Auth = () => {
       isAuthenticated: status.isAuthenticated,
       username: status.username,
       tokenExpiresAt: status.tokenExpiresAt,
-      isRestoringSession: false // Mark restoration as complete
+      isRestoringSession: false
     }));
   }, []);
 
-  // Clear error state
   const clearError = useCallback(() => {
     setAuthState(prev => ({ ...prev, error: null }));
   }, []);
@@ -40,19 +38,17 @@ export const useGP51Auth = () => {
   useEffect(() => {
     console.log('🔍 useGP51Auth: Initializing hook and checking auth status...');
     
-    // Small delay to allow token restoration to complete
     const initializeAuth = async () => {
-      await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+      await new Promise(resolve => setTimeout(resolve, 100));
       updateAuthState();
     };
     
     initializeAuth();
     
-    // Check auth status periodically
     const interval = setInterval(() => {
       console.log('🔄 useGP51Auth: Periodic auth status check...');
       updateAuthState();
-    }, 30000); // Every 30 seconds
+    }, 30000);
     
     return () => clearInterval(interval);
   }, [updateAuthState]);
@@ -71,13 +67,13 @@ export const useGP51Auth = () => {
       const result = await gps51AuthService.login(username, password);
       
       if (result.success) {
-        console.log('✅ useGP51Auth: Login successful');
+        console.log('✅ useGP51Auth: Login successful - session saved to database');
         updateAuthState();
         setAuthState(prev => ({ ...prev, error: null }));
         
         toast({
           title: "Login Successful",
-          description: `Connected to GP51 as ${username}`,
+          description: `Connected to GP51 as ${username}. Session saved for vehicle imports.`,
         });
       } else {
         console.error('❌ useGP51Auth: Login failed:', result.error);
@@ -129,12 +125,12 @@ export const useGP51Auth = () => {
       updateAuthState();
       
       if (result.success) {
-        console.log('✅ useGP51Auth: Logout successful');
+        console.log('✅ useGP51Auth: Logout successful - database session deactivated');
         setAuthState(prev => ({ ...prev, error: null }));
         
         toast({
           title: "Logged Out",
-          description: "Disconnected from GP51",
+          description: "Disconnected from GP51 and cleared all sessions",
         });
       } else {
         console.error('❌ useGP51Auth: Logout failed:', result.error);

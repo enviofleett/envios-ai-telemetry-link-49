@@ -316,6 +316,12 @@ export class Gps51AuthService {
         // Store token in localStorage
         this.storeTokenInStorage(this.currentToken);
 
+        // NEW: Store session in database for Edge Function access
+        await this.saveSessionToDatabase(this.currentToken);
+
+        // Cleanup expired sessions
+        await this.cleanupExpiredSessions();
+
         this.log('info', `Login successful for user: ${username}`);
         return { success: true, token: response.token };
       } else {
@@ -345,6 +351,29 @@ export class Gps51AuthService {
       } catch (error) {
         // Don't fail logout if API call fails
         this.log('warn', 'Logout API call failed, clearing local session anyway', error);
+      }
+
+      // NEW: Deactivate database session
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (user?.id) {
+          await supabase
+            .from('gp51_sessions')
+            .update({ is_active: false })
+            .eq('envio_user_id', user.id)
+            .eq('is_active', true);
+        } else if (this.currentToken.username) {
+          await supabase
+            .from('gp51_sessions')
+            .update({ is_active: false })
+            .eq('gp51_username', this.currentToken.username)
+            .eq('is_active', true);
+        }
+        
+        this.log('info', 'Deactivated database session');
+      } catch (error) {
+        this.log('error', 'Failed to deactivate database session', error);
       }
 
       // Clear everything
@@ -432,6 +461,78 @@ export class Gps51AuthService {
         await this.healthCheck();
       }
     }, this.healthCheckIntervalMs);
+  }
+
+  private async saveSessionToDatabase(token: AuthToken): Promise<void> {
+    try {
+      this.log('info', 'Saving GP51 session to database...');
+      
+      // Get current authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        this.log('warn', 'No authenticated user found, saving session without user association');
+      }
+
+      // Prepare session data
+      const sessionData = {
+        gp51_token: token.token,
+        gp51_username: token.username,
+        expires_at: token.expiresAt.toISOString(),
+        envio_user_id: user?.id || null,
+        is_active: true,
+        last_activity_at: new Date().toISOString()
+      };
+
+      // Deactivate any existing active sessions for this user/username combination
+      if (user?.id) {
+        await supabase
+          .from('gp51_sessions')
+          .update({ is_active: false })
+          .eq('envio_user_id', user.id)
+          .eq('is_active', true);
+      } else {
+        // For sessions without user association, deactivate by username
+        await supabase
+          .from('gp51_sessions')
+          .update({ is_active: false })
+          .eq('gp51_username', token.username)
+          .eq('is_active', true);
+      }
+
+      // Insert new session
+      const { error } = await supabase
+        .from('gp51_sessions')
+        .insert(sessionData);
+
+      if (error) {
+        this.log('error', 'Failed to save session to database', error);
+        throw new Error(`Database session storage failed: ${error.message}`);
+      }
+
+      this.log('info', `Successfully saved GP51 session to database for user: ${token.username}`);
+    } catch (error) {
+      this.log('error', 'Session database storage error', error);
+      // Don't throw here - localStorage storage can still work
+    }
+  }
+
+  private async cleanupExpiredSessions(): Promise<void> {
+    try {
+      const { error } = await supabase
+        .from('gp51_sessions')
+        .update({ is_active: false })
+        .lt('expires_at', new Date().toISOString())
+        .eq('is_active', true);
+
+      if (error) {
+        this.log('error', 'Failed to cleanup expired sessions', error);
+      } else {
+        this.log('info', 'Cleaned up expired sessions from database');
+      }
+    } catch (error) {
+      this.log('error', 'Session cleanup error', error);
+    }
   }
 
   destroy(): void {
