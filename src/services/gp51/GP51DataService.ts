@@ -1,5 +1,5 @@
-
 import { gps51AuthService } from './Gps51AuthService';
+import type { VehiclePosition, GP51RawPosition } from '@/types/vehicle';
 
 // GP51 API response interfaces
 export interface GP51LastPositionResponse {
@@ -83,8 +83,8 @@ export interface GP51MonitorListResponse {
   }>;
 }
 
-// Processed vehicle data for our application
-export interface VehiclePosition {
+// GP51-specific processed position data (intermediate format before final VehiclePosition)
+export interface GP51ProcessedPosition {
   deviceId: string;
   deviceName?: string;
   latitude: number;
@@ -216,7 +216,7 @@ class GP51DataService {
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
   }
 
-  async getDeviceList(): Promise<VehiclePosition[]> {
+  async getDeviceList(): Promise<GP51ProcessedPosition[]> {
     try {
       this.log('info', 'Fetching device list from GP51');
       
@@ -227,7 +227,7 @@ class GP51DataService {
         return [];
       }
 
-      const vehicles: VehiclePosition[] = [];
+      const vehicles: GP51ProcessedPosition[] = [];
       
       response.groups.forEach(group => {
         if (group.devices && group.devices.length > 0) {
@@ -257,7 +257,7 @@ class GP51DataService {
     }
   }
 
-  async getDeviceLastPosition(deviceId: string): Promise<VehiclePosition | null> {
+  async getDeviceLastPosition(deviceId: string): Promise<GP51ProcessedPosition | null> {
     try {
       this.log('info', `Fetching last position for device: ${deviceId}`);
       
@@ -271,7 +271,7 @@ class GP51DataService {
       }
 
       const record = response.records[0];
-      const position: VehiclePosition = {
+      const position: GP51ProcessedPosition = {
         deviceId: record.deviceid,
         latitude: record.callat / 1000000, // GP51 returns coordinates * 1000000
         longitude: record.callon / 1000000,
@@ -297,8 +297,8 @@ class GP51DataService {
     }
   }
 
-  async getMultipleDevicesLastPositions(deviceIds: string[]): Promise<Map<string, VehiclePosition>> {
-    const results = new Map<string, VehiclePosition>();
+  async getMultipleDevicesLastPositions(deviceIds: string[]): Promise<Map<string, GP51ProcessedPosition>> {
+    const results = new Map<string, GP51ProcessedPosition>();
     
     if (!deviceIds || deviceIds.length === 0) {
       return results;

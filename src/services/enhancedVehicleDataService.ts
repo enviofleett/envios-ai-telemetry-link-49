@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { gp51DataService } from '@/services/gp51/GP51DataService';
+import { gp51DataService, type GP51ProcessedPosition } from '@/services/gp51/GP51DataService';
 import { ErrorHandlingService } from '@/services/errorHandlingService';
 import type { 
   VehicleData, 
@@ -59,8 +59,18 @@ class EnhancedVehicleDataService {
 
   private transformToVehicleData(
     supabaseVehicle: SupabaseVehicleRow,
-    lastPosition?: VehiclePosition
+    gp51ProcessedPosition?: GP51ProcessedPosition
   ): VehicleData {
+    // Convert GP51ProcessedPosition to authoritative VehiclePosition if available
+    const lastPosition: VehiclePosition | undefined = gp51ProcessedPosition ? {
+      lat: gp51ProcessedPosition.latitude,
+      lon: gp51ProcessedPosition.longitude,
+      speed: gp51ProcessedPosition.speed,
+      course: gp51ProcessedPosition.course,
+      timestamp: gp51ProcessedPosition.timestamp,
+      statusText: gp51ProcessedPosition.statusText
+    } : undefined;
+
     const lastUpdate = lastPosition 
       ? lastPosition.timestamp
       : new Date(supabaseVehicle.updated_at);
@@ -139,8 +149,8 @@ class EnhancedVehicleDataService {
 
           // Step 3: Transform and merge data
           const enhancedVehicles: VehicleData[] = supabaseVehicles.map(supabaseVehicle => {
-            const lastPosition = gp51Positions.get(supabaseVehicle.device_id);
-            return this.transformToVehicleData(supabaseVehicle, lastPosition);
+            const gp51ProcessedPosition = gp51Positions.get(supabaseVehicle.device_id);
+            return this.transformToVehicleData(supabaseVehicle, gp51ProcessedPosition);
           });
 
           this.vehicles = enhancedVehicles;
