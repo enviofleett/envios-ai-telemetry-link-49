@@ -4,24 +4,14 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 interface NotificationPreferences {
-  // Email notifications
-  vehicle_online_offline: boolean;
-  low_battery_alerts: boolean;
-  maintenance_due: boolean;
-  engine_diagnostics: boolean;
-  geofence_violations: boolean;
-  speeding_alerts: boolean;
-  unauthorized_use: boolean;
-  panic_button: boolean;
-  system_updates: boolean;
-  daily_reports: boolean;
-  billing_alerts: boolean;
-  api_status: boolean;
+  // Map to actual database fields
   email_notifications: boolean;
-  push_notifications: boolean;
-  webhook_notifications: boolean;
+  maintenance_reminders: boolean;
+  system_updates: boolean;
+  marketing_emails: boolean;
+  weekly_reports: boolean;
   
-  // SMS notifications
+  // SMS notifications (these exist in DB)
   sms_notifications: boolean;
   sms_otp_verification: boolean;
   sms_trip_updates: boolean;
@@ -34,26 +24,16 @@ export const useNotificationPreferences = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Default preferences
+  // Default preferences mapped to actual database fields
   const [preferences, setPreferences] = useState<NotificationPreferences>({
-    // Email preferences
-    vehicle_online_offline: true,
-    low_battery_alerts: true,
-    maintenance_due: true,
-    engine_diagnostics: false,
-    geofence_violations: true,
-    speeding_alerts: true,
-    unauthorized_use: true,
-    panic_button: true,
-    system_updates: false,
-    daily_reports: false,
-    billing_alerts: true,
-    api_status: false,
+    // Email preferences (existing fields)
     email_notifications: true,
-    push_notifications: true,
-    webhook_notifications: false,
+    maintenance_reminders: true,
+    system_updates: false,
+    marketing_emails: false,
+    weekly_reports: false,
     
-    // SMS preferences
+    // SMS preferences (new fields)
     sms_notifications: true,
     sms_otp_verification: true,
     sms_trip_updates: false,
@@ -81,21 +61,12 @@ export const useNotificationPreferences = () => {
 
       if (data) {
         setPreferences({
-          vehicle_online_offline: data.vehicle_online_offline ?? true,
-          low_battery_alerts: data.low_battery_alerts ?? true,
-          maintenance_due: data.maintenance_due ?? true,
-          engine_diagnostics: data.engine_diagnostics ?? false,
-          geofence_violations: data.geofence_violations ?? true,
-          speeding_alerts: data.speeding_alerts ?? true,
-          unauthorized_use: data.unauthorized_use ?? true,
-          panic_button: data.panic_button ?? true,
-          system_updates: data.system_updates ?? false,
-          daily_reports: data.daily_reports ?? false,
-          billing_alerts: data.billing_alerts ?? true,
-          api_status: data.api_status ?? false,
+          // Map existing database fields
           email_notifications: data.email_notifications ?? true,
-          push_notifications: data.push_notifications ?? true,
-          webhook_notifications: data.webhook_notifications ?? false,
+          maintenance_reminders: data.maintenance_reminders ?? true,
+          system_updates: data.system_updates ?? false,
+          marketing_emails: data.marketing_emails ?? false,
+          weekly_reports: data.weekly_reports ?? false,
           
           // SMS preferences
           sms_notifications: data.sms_notifications ?? true,

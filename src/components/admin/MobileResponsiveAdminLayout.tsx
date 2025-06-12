@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { SettingsSidebar } from './SettingsSidebar';
+import SettingsSidebar from './SettingsSidebar';
 import AdminTabContentRenderer from './AdminTabContentRenderer';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
