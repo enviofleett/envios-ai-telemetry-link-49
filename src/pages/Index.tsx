@@ -1,6 +1,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
+import Layout from "@/components/Layout";
 import { DashboardContent } from "@/components/dashboard/DashboardContent";
 
 const Index = () => {
@@ -20,7 +21,11 @@ const Index = () => {
     return <Navigate to="/auth" replace />;
   }
 
-  return <DashboardContent />;
+  return (
+    <Layout>
+      <DashboardContent />
+    </Layout>
+  );
 };
 
 export default Index;

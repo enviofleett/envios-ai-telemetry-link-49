@@ -4,9 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { PublicRegistrationService } from '@/services/publicRegistrationService';
-import { Loader2, ArrowLeft, MessageCircle, Clock, RefreshCw } from 'lucide-react';
+import { OTPService } from '@/services/otpService';
+import { Loader2, Shield, Clock, RefreshCw } from 'lucide-react';
 
 interface OTPVerificationFormProps {
   registrationId: string;
@@ -27,30 +28,40 @@ const OTPVerificationForm: React.FC<OTPVerificationFormProps> = ({
   const [otpCode, setOtpCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [countdown, setCountdown] = useState(60);
-  const [canResend, setCanResend] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes
   const [attemptsRemaining, setAttemptsRemaining] = useState(3);
+  const [currentOtpId, setCurrentOtpId] = useState(otpId);
 
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-      return () => clearTimeout(timer);
-    } else {
-      setCanResend(true);
-    }
-  }, [countdown]);
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-  const formatPhoneNumber = (phone: string): string => {
-    if (phone.startsWith('+234')) {
-      return phone.replace('+234', '234-xxx-xxx-') + phone.slice(-4);
-    }
-    return phone.replace(/(\+\d{1,3})(\d{3})(\d{3})(\d+)/, '$1-xxx-xxx-$4');
+    return () => clearInterval(timer);
+  }, [currentOtpId]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleOtpChange = (value: string) => {
+    // Only allow digits and limit to 6 characters
+    const numericValue = value.replace(/\D/g, '').slice(0, 6);
+    setOtpCode(numericValue);
   };
 
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!otpCode || otpCode.length !== 6) {
+    if (otpCode.length !== 6) {
       toast({
         title: "Invalid OTP",
         description: "Please enter a 6-digit verification code",
@@ -62,37 +73,30 @@ const OTPVerificationForm: React.FC<OTPVerificationFormProps> = ({
     setIsVerifying(true);
 
     try {
-      console.log('🔐 Verifying OTP:', { registrationId, otpCode });
-      
-      const result = await PublicRegistrationService.verifyOTPForRegistration(registrationId, otpCode);
-      
+      const result = await PublicRegistrationService.verifyOTPForRegistration(
+        registrationId,
+        otpCode
+      );
+
       if (result.success) {
         toast({
-          title: "Phone Verified Successfully",
-          description: "Your phone number has been verified. Your registration is now pending admin review.",
+          title: "Verification Successful",
+          description: result.message || "Your phone number has been verified successfully",
         });
         onSuccess();
       } else {
-        if (result.attemptsRemaining !== undefined) {
-          setAttemptsRemaining(result.attemptsRemaining);
-        }
-        
         toast({
           title: "Verification Failed",
-          description: result.error || "Invalid OTP code. Please try again.",
+          description: result.error || "Invalid verification code",
           variant: "destructive"
         });
-
-        if (attemptsRemaining <= 1) {
-          toast({
-            title: "Maximum Attempts Reached",
-            description: "Please request a new verification code.",
-            variant: "destructive"
-          });
-          setOtpCode('');
-          setCanResend(true);
-          setCountdown(0);
+        
+        // Update attempts remaining if provided
+        if (result.error?.includes('attempts')) {
+          setAttemptsRemaining(prev => Math.max(0, prev - 1));
         }
+        
+        setOtpCode('');
       }
     } catch (error) {
       console.error('OTP verification error:', error);
@@ -108,24 +112,32 @@ const OTPVerificationForm: React.FC<OTPVerificationFormProps> = ({
 
   const handleResendOTP = async () => {
     setIsResending(true);
-    
+
     try {
-      // Note: We'll need to implement resend functionality in the backend
-      toast({
-        title: "Code Resent",
-        description: "A new verification code has been sent to your phone.",
-      });
+      const result = await OTPService.resendOTP(currentOtpId);
       
-      setCountdown(60);
-      setCanResend(false);
-      setAttemptsRemaining(3);
-      setOtpCode('');
-      
+      if (result.success && result.otpId) {
+        setCurrentOtpId(result.otpId);
+        setTimeLeft(600); // Reset timer
+        setAttemptsRemaining(3); // Reset attempts
+        setOtpCode('');
+        
+        toast({
+          title: "OTP Resent",
+          description: "A new verification code has been sent to your phone",
+        });
+      } else {
+        toast({
+          title: "Resend Failed",
+          description: result.error || "Failed to resend verification code",
+          variant: "destructive"
+        });
+      }
     } catch (error) {
-      console.error('Resend OTP error:', error);
+      console.error('OTP resend error:', error);
       toast({
         title: "Resend Failed",
-        description: "Failed to resend verification code. Please try again.",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive"
       });
     } finally {
@@ -133,19 +145,20 @@ const OTPVerificationForm: React.FC<OTPVerificationFormProps> = ({
     }
   };
 
+  const maskedPhone = phoneNumber.replace(/(\d{3})\d{4}(\d{3})/, '$1****$2');
+
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <MessageCircle className="h-5 w-5 text-blue-500" />
+          <Shield className="h-5 w-5 text-blue-500" />
           Verify Your Phone Number
         </CardTitle>
         <p className="text-sm text-gray-600">
-          We sent a 6-digit verification code to{' '}
-          <span className="font-medium">{formatPhoneNumber(phoneNumber)}</span>
+          Enter the 6-digit code sent to {maskedPhone}
         </p>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent>
         <form onSubmit={handleVerifyOTP} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="otpCode">Verification Code</Label>
@@ -153,24 +166,27 @@ const OTPVerificationForm: React.FC<OTPVerificationFormProps> = ({
               id="otpCode"
               type="text"
               value={otpCode}
-              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              onChange={(e) => handleOtpChange(e.target.value)}
               placeholder="Enter 6-digit code"
               disabled={isVerifying}
-              className="text-center text-lg tracking-widest"
+              className="text-center text-lg tracking-widest font-mono"
               maxLength={6}
               required
             />
-            <p className="text-xs text-gray-500 text-center">
-              {attemptsRemaining > 0 && (
-                <>Attempts remaining: {attemptsRemaining}</>
-              )}
-            </p>
+          </div>
+
+          <div className="flex items-center justify-between text-sm text-gray-500">
+            <div className="flex items-center gap-1">
+              <Clock className="h-4 w-4" />
+              <span>Expires in {formatTime(timeLeft)}</span>
+            </div>
+            <span>Attempts: {attemptsRemaining}/3</span>
           </div>
 
           <Button 
             type="submit" 
             className="w-full" 
-            disabled={isVerifying || otpCode.length !== 6}
+            disabled={isVerifying || otpCode.length !== 6 || timeLeft === 0}
           >
             {isVerifying ? (
               <>
@@ -178,50 +194,46 @@ const OTPVerificationForm: React.FC<OTPVerificationFormProps> = ({
                 Verifying...
               </>
             ) : (
-              'Verify Phone Number'
+              'Verify Code'
             )}
           </Button>
-        </form>
 
-        <div className="flex items-center justify-between pt-4 border-t">
-          <Button 
-            variant="ghost" 
-            onClick={onBack}
-            disabled={isVerifying}
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Registration
-          </Button>
-
-          <div className="flex items-center gap-2">
-            {!canResend ? (
-              <div className="flex items-center gap-1 text-sm text-gray-500">
-                <Clock className="h-4 w-4" />
-                Resend in {countdown}s
-              </div>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleResendOTP}
-                disabled={isResending}
-                className="flex items-center gap-1"
-              >
-                {isResending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                Resend Code
-              </Button>
-            )}
+          <div className="flex gap-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={onBack}
+              className="flex-1"
+              disabled={isVerifying || isResending}
+            >
+              Back
+            </Button>
+            
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={handleResendOTP}
+              disabled={isResending || timeLeft > 540} // Allow resend only after 1 minute
+              className="flex-1"
+            >
+              {isResending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Resending...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Resend Code
+                </>
+              )}
+            </Button>
           </div>
-        </div>
 
-        <div className="text-xs text-gray-500 text-center">
-          Didn't receive the code? Check your phone and try resending.
-        </div>
+          <div className="text-xs text-gray-500 text-center">
+            Didn't receive the code? Check your SMS messages or try resending after 1 minute.
+          </div>
+        </form>
       </CardContent>
     </Card>
   );

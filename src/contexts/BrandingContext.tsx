@@ -53,25 +53,22 @@ interface BrandingProviderProps {
 
 export const BrandingProvider: React.FC<BrandingProviderProps> = ({ children }) => {
   const [branding, setBranding] = useState<BrandingContextType>(defaultBranding);
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   const fetchBranding = async () => {
-    if (!user?.id) {
-      setBranding(prev => ({ ...prev, isLoading: false }));
-      return;
-    }
+    if (!user?.id) return;
 
     setBranding(prev => ({ ...prev, isLoading: true }));
 
     try {
-      // Remove the is_branding_active filter to always load branding data
       const { data, error } = await supabase
         .from('branding_settings')
         .select('*')
         .eq('user_id', user.id)
+        .eq('is_branding_active', true)
         .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error fetching branding:', error);
         setBranding(prev => ({ ...prev, isLoading: false }));
         return;
@@ -107,7 +104,7 @@ export const BrandingProvider: React.FC<BrandingProviderProps> = ({ children }) 
     fetchBranding();
   }, [user?.id]);
 
-  // Apply CSS custom properties when branding changes and is active
+  // Apply CSS custom properties when branding changes
   useEffect(() => {
     if (branding.isBrandingActive) {
       const root = document.documentElement;
@@ -117,15 +114,6 @@ export const BrandingProvider: React.FC<BrandingProviderProps> = ({ children }) 
       root.style.setProperty('--color-background', branding.backgroundColor);
       root.style.setProperty('--color-text', branding.textColor);
       root.style.setProperty('--font-family', branding.fontFamily);
-    } else {
-      // Reset to default values when branding is disabled
-      const root = document.documentElement;
-      root.style.setProperty('--color-primary', defaultBranding.primaryColor);
-      root.style.setProperty('--color-secondary', defaultBranding.secondaryColor);
-      root.style.setProperty('--color-accent', defaultBranding.accentColor);
-      root.style.setProperty('--color-background', defaultBranding.backgroundColor);
-      root.style.setProperty('--color-text', defaultBranding.textColor);
-      root.style.setProperty('--font-family', defaultBranding.fontFamily);
     }
   }, [branding]);
 

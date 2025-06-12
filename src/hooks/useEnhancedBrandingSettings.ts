@@ -1,154 +1,163 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { useBranding } from '@/contexts/BrandingContext';
-import type { EnhancedBrandingSettings } from '@/types/branding-settings';
-import { defaultBrandingSettings } from '@/types/branding-settings';
-import { validateBrandingSetting } from '@/utils/branding-validation';
-import { fetchBrandingSettingsFromDB, updateBrandingSettingInDB } from '@/services/branding-settings-api';
 
-export const useEnhancedBrandingSettings = ({ userId }: { userId?: string } = {}) => {
-  const [originalSettings, setOriginalSettings] = useState<EnhancedBrandingSettings>(defaultBrandingSettings);
-  const [currentSettings, setCurrentSettings] = useState<EnhancedBrandingSettings>(defaultBrandingSettings);
+export interface EnhancedBrandingSettings {
+  company_name: string;
+  tagline: string;
+  subtitle: string;
+  primary_color: string;
+  secondary_color: string;
+  accent_color: string;
+  background_color: string;
+  text_color: string;
+  font_family: string;
+  logo_url: string;
+  favicon_url: string;
+  custom_css: string;
+  is_branding_active: boolean;
+  auth_page_branding: boolean;
+}
+
+const defaultSettings: EnhancedBrandingSettings = {
+  company_name: 'FleetIQ',
+  tagline: 'GPS51 Management Platform',
+  subtitle: 'Professional vehicle tracking and management',
+  primary_color: '#3B82F6',
+  secondary_color: '#64748B',
+  accent_color: '#10B981',
+  background_color: '#FFFFFF',
+  text_color: '#1F2937',
+  font_family: 'Inter',
+  logo_url: '',
+  favicon_url: '',
+  custom_css: '',
+  is_branding_active: true,
+  auth_page_branding: true,
+};
+
+export const useEnhancedBrandingSettings = () => {
+  const [settings, setSettings] = useState<EnhancedBrandingSettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const { toast } = useToast();
   const { refreshBranding } = useBranding();
 
   useEffect(() => {
-    if (userId) {
-      fetchBrandingSettings(userId);
-    } else {
-      setOriginalSettings(defaultBrandingSettings);
-      setCurrentSettings(defaultBrandingSettings);
-      setIsLoading(false);
-      setHasUnsavedChanges(false);
-    }
-  }, [userId]);
+    fetchBrandingSettings();
+  }, []);
 
-  const fetchBrandingSettings = async (targetUserId: string) => {
+  const fetchBrandingSettings = async () => {
     try {
-      setIsLoading(true);
-      const fetchedSettings = await fetchBrandingSettingsFromDB(targetUserId);
-      setOriginalSettings(fetchedSettings);
-      setCurrentSettings(fetchedSettings);
-      setHasUnsavedChanges(false);
-    } catch (error: any) {
-      console.error('Error fetching branding settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load branding settings.",
-        variant: "destructive"
-      });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('branding_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching branding settings:', error);
+        return;
+      }
+
+      if (data) {
+        setSettings({
+          company_name: data.company_name || defaultSettings.company_name,
+          tagline: data.tagline || defaultSettings.tagline,
+          subtitle: data.subtitle || defaultSettings.subtitle,
+          primary_color: data.primary_color || defaultSettings.primary_color,
+          secondary_color: data.secondary_color || defaultSettings.secondary_color,
+          accent_color: data.accent_color || defaultSettings.accent_color,
+          background_color: data.background_color || defaultSettings.background_color,
+          text_color: data.text_color || defaultSettings.text_color,
+          font_family: data.font_family_body || data.font_family_heading || defaultSettings.font_family,
+          logo_url: data.logo_url || '',
+          favicon_url: data.favicon_url || '',
+          custom_css: data.custom_css || '',
+          is_branding_active: data.is_branding_active ?? true,
+          auth_page_branding: data.auth_page_branding ?? true,
+        });
+      }
+    } catch (error) {
+      console.error('Error in fetchBrandingSettings:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateSetting = useCallback((key: keyof EnhancedBrandingSettings, value: string | boolean) => {
-    if (!userId) {
-      toast({ 
-        title: "Error", 
-        description: "No user selected to update.", 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    const validationError = validateBrandingSetting(key, value);
-    if (validationError) {
-      toast({ 
-        title: "Validation Error", 
-        description: validationError, 
-        variant: "destructive" 
-      });
-      return;
-    }
-
-    const updatedSettings = { ...currentSettings, [key]: value };
-    setCurrentSettings(updatedSettings);
-    
-    // Check if there are changes compared to original
-    const hasChanges = JSON.stringify(updatedSettings) !== JSON.stringify(originalSettings);
-    setHasUnsavedChanges(hasChanges);
-  }, [userId, currentSettings, originalSettings, toast]);
-
-  const saveAllChanges = async () => {
-    if (!userId) {
-      toast({ 
-        title: "Error", 
-        description: "No user selected to update.", 
-        variant: "destructive" 
-      });
-      return false;
-    }
-
-    if (!hasUnsavedChanges) {
-      toast({ 
-        title: "Info", 
-        description: "No changes to save.", 
-      });
-      return true;
-    }
-
+  const updateSetting = async (key: keyof EnhancedBrandingSettings, value: string | boolean) => {
     try {
       setIsSaving(true);
-      await updateBrandingSettingInDB(userId, currentSettings);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      setOriginalSettings(currentSettings);
-      setHasUnsavedChanges(false);
+      const updatedSettings = { ...settings, [key]: value };
+      setSettings(updatedSettings);
 
-      toast({ 
-        title: "Success", 
-        description: "All branding settings saved successfully." 
+      const dbPayload: any = {
+        user_id: user.id,
+        company_name: updatedSettings.company_name,
+        tagline: updatedSettings.tagline,
+        subtitle: updatedSettings.subtitle,
+        primary_color: updatedSettings.primary_color,
+        secondary_color: updatedSettings.secondary_color,
+        accent_color: updatedSettings.accent_color,
+        background_color: updatedSettings.background_color,
+        text_color: updatedSettings.text_color,
+        font_family_body: updatedSettings.font_family,
+        font_family_heading: updatedSettings.font_family,
+        logo_url: updatedSettings.logo_url,
+        favicon_url: updatedSettings.favicon_url,
+        custom_css: updatedSettings.custom_css,
+        is_branding_active: updatedSettings.is_branding_active,
+        auth_page_branding: updatedSettings.auth_page_branding,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from('branding_settings')
+        .upsert(dbPayload);
+
+      if (error) {
+        console.error('Error updating branding settings:', error);
+        setSettings(settings);
+        toast({
+          title: "Error",
+          description: "Failed to update branding settings",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Branding settings updated",
+        });
+        
+        // Refresh branding context
+        await refreshBranding();
+      }
+    } catch (error) {
+      console.error('Error in updateSetting:', error);
+      setSettings(settings);
+      toast({
+        title: "Error",
+        description: "Failed to update branding settings",
+        variant: "destructive"
       });
-      
-      await refreshBranding();
-      return true;
-
-    } catch (error: any) {
-      console.error('Error saving branding settings:', error);
-      toast({ 
-        title: "Error", 
-        description: `Failed to save settings: ${error.message}`, 
-        variant: "destructive" 
-      });
-      return false;
     } finally {
       setIsSaving(false);
     }
   };
 
-  const discardChanges = () => {
-    setCurrentSettings(originalSettings);
-    setHasUnsavedChanges(false);
-    toast({ 
-      title: "Info", 
-      description: "Changes discarded." 
-    });
-  };
-
-  const getChangedFields = () => {
-    const changed: string[] = [];
-    Object.keys(currentSettings).forEach(key => {
-      const typedKey = key as keyof EnhancedBrandingSettings;
-      if (currentSettings[typedKey] !== originalSettings[typedKey]) {
-        changed.push(key);
-      }
-    });
-    return changed;
-  };
-
-  return { 
-    settings: currentSettings,
-    isLoading, 
-    isSaving, 
-    hasUnsavedChanges,
+  return {
+    settings,
+    isLoading,
+    isSaving,
     updateSetting,
-    saveAllChanges,
-    discardChanges,
-    getChangedFields,
-    refreshBranding: () => userId ? fetchBrandingSettings(userId) : Promise.resolve()
+    refreshBranding
   };
 };
