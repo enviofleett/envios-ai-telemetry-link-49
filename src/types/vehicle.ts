@@ -1,4 +1,3 @@
-
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
   lat: number;
@@ -29,15 +28,35 @@ export interface VehicleLocation {
 // Enhanced vehicle data interface - the primary type for UI components
 export interface VehicleData {
   id: string;
-  deviceId: string; // Standardized camelCase
-  deviceName: string; // Standardized camelCase
+  device_id: string; // Changed from deviceId to match DB
+  device_name: string; // Changed from deviceName to match DB
+  vin?: string;
+  license_plate?: string; // Changed from licensePlate to match DB
+  image_urls?: string[]; // Changed from imageUrls to match DB
+  fuel_tank_capacity_liters?: number; // Changed from fuelTankCapacityLiters to match DB
+  manufacturer_fuel_consumption_100km_l?: number; // Changed from manufacturerFuelConsumption100kmL to match DB
+  insurance_expiration_date?: string; // Changed from insuranceExpirationDate to match DB
+  license_expiration_date?: string; // Changed from licenseExpirationDate to match DB
+  is_active: boolean; // Changed from isActive to match DB
+  envio_user_id?: string; // Changed from envioUserId to match DB
+  last_position?: {
+    lat: number;
+    lng: number; // Changed from lon to lng for consistency with components
+    speed: number;
+    timestamp: string; // Changed from Date to string for consistency
+  };
+  envio_users?: {
+    name: string;
+    email: string;
+  }; // Changed from envioUsers to match DB join
+  
+  // Legacy compatibility properties
   vehicleName?: string;
   make?: string;
   model?: string;
   year?: number;
-  licensePlate?: string;
-  status: 'online' | 'offline' | 'idle' | 'moving';
-  lastUpdate: Date; // Required - represents the last data update time
+  status?: 'online' | 'offline' | 'idle' | 'moving';
+  lastUpdate?: Date;
   position?: {
     latitude: number;
     longitude: number;
@@ -54,15 +73,12 @@ export interface VehicleData {
   };
   speed?: number;
   course?: number;
-  isOnline: boolean;
-  isMoving: boolean;
+  isOnline?: boolean;
+  isMoving?: boolean;
   fuel?: number;
   battery?: number;
   temperature?: number;
-  alerts: string[]; // Required - array of alert messages
-  lastPosition?: VehiclePosition;
-  envio_user_id?: string;
-  is_active: boolean;
+  alerts?: string[];
 }
 
 // Enhanced vehicle interface with all analytics properties

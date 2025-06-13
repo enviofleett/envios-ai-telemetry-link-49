@@ -2,18 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { VehicleData, FilterState, VehicleStatistics, VehiclePosition } from '@/types/vehicle';
-
-// Type guard to safely cast Json to VehiclePosition
-const isVehiclePosition = (data: any): data is VehiclePosition => {
-  return data && typeof data === 'object' && 
-         typeof data.lat === 'number' && 
-         typeof data.lon === 'number' && 
-         typeof data.speed === 'number' && 
-         typeof data.course === 'number' && 
-         typeof data.updatetime === 'string' && 
-         typeof data.statusText === 'string';
-};
+import { VehicleData, FilterState, VehicleStatistics } from '@/types/vehicle';
 
 export const useStableEnhancedVehicleData = () => {
   const [filters, setFilters] = useState<FilterState>({
@@ -45,40 +34,48 @@ export const useStableEnhancedVehicleData = () => {
         throw error;
       }
 
-      // Transform the data to match our VehicleData interface
+      // Transform the data to match our VehicleData interface with snake_case
       const transformedData: VehicleData[] = data.map(vehicle => {
-        let lastPosition: VehiclePosition | undefined;
+        let lastPosition: VehicleData['last_position'];
         
-        // Handle last position conversion from lng to lon
+        // Handle last position conversion, ensuring lng property
         if (vehicle.last_position && typeof vehicle.last_position === 'object') {
           const rawPosition = vehicle.last_position as any;
-          if (rawPosition.lat && rawPosition.lng) {
+          if (rawPosition.lat && (rawPosition.lng || rawPosition.lon)) {
             lastPosition = {
               lat: rawPosition.lat,
-              lon: rawPosition.lng, // Convert lng to lon
+              lng: rawPosition.lng || rawPosition.lon, // Handle both lng and lon
               speed: rawPosition.speed || 0,
-              course: rawPosition.course || 0,
-              timestamp: new Date(rawPosition.updatetime || new Date().toISOString()),
-              statusText: rawPosition.statusText || 'Unknown'
+              timestamp: typeof rawPosition.timestamp === 'string' 
+                ? rawPosition.timestamp 
+                : rawPosition.updatetime || new Date().toISOString()
             };
           }
         }
 
         return {
           id: vehicle.id,
-          deviceId: vehicle.device_id,
-          deviceName: vehicle.device_name,
-          vehicleName: vehicle.device_name,
-          status: vehicle.is_active ? 'online' : 'offline',
-          lastUpdate: lastPosition ? lastPosition.timestamp : new Date(vehicle.updated_at || vehicle.created_at),
-          alerts: [], // Initialize empty alerts array
-          isOnline: vehicle.is_active,
-          isMoving: lastPosition ? lastPosition.speed > 0 : false,
-          speed: lastPosition ? lastPosition.speed : 0,
-          course: lastPosition ? lastPosition.course : 0,
+          device_id: vehicle.device_id,
+          device_name: vehicle.device_name,
+          vin: vehicle.vin,
+          license_plate: vehicle.license_plate,
+          image_urls: vehicle.image_urls,
+          fuel_tank_capacity_liters: vehicle.fuel_tank_capacity_liters,
+          manufacturer_fuel_consumption_100km_l: vehicle.manufacturer_fuel_consumption_100km_l,
+          insurance_expiration_date: vehicle.insurance_expiration_date,
+          license_expiration_date: vehicle.license_expiration_date,
           is_active: vehicle.is_active,
           envio_user_id: vehicle.envio_user_id,
-          lastPosition: lastPosition
+          last_position: lastPosition,
+          envio_users: vehicle.envio_users,
+          // Legacy compatibility
+          vehicleName: vehicle.device_name,
+          status: vehicle.is_active ? 'online' : 'offline',
+          lastUpdate: lastPosition ? new Date(lastPosition.timestamp) : new Date(vehicle.updated_at || vehicle.created_at),
+          alerts: [],
+          isOnline: vehicle.is_active,
+          isMoving: lastPosition ? lastPosition.speed > 0 : false,
+          speed: lastPosition ? lastPosition.speed : 0
         };
       });
 
@@ -96,7 +93,7 @@ export const useStableEnhancedVehicleData = () => {
       .filter(v => v.envio_user_id)
       .map(v => ({
         id: v.envio_user_id!,
-        name: v.deviceName // Use deviceName since envio_users join might not always work
+        name: v.device_name // Use device_name since envio_users join might not always work
       }));
     
     // Remove duplicates
@@ -114,8 +111,9 @@ export const useStableEnhancedVehicleData = () => {
       if (filters.search) {
         const searchTerm = filters.search.toLowerCase();
         const matchesSearch = 
-          vehicle.deviceName.toLowerCase().includes(searchTerm) ||
-          vehicle.deviceId.toLowerCase().includes(searchTerm);
+          vehicle.device_name.toLowerCase().includes(searchTerm) ||
+          vehicle.device_id.toLowerCase().includes(searchTerm) ||
+          (vehicle.license_plate && vehicle.license_plate.toLowerCase().includes(searchTerm));
         
         if (!matchesSearch) return false;
       }
@@ -144,8 +142,8 @@ export const useStableEnhancedVehicleData = () => {
 
       // Online filter
       if (filters.online !== 'all') {
-        const isOnline = vehicle.lastPosition?.timestamp ? 
-          vehicle.lastPosition.timestamp > new Date(Date.now() - 30 * 60 * 1000) : 
+        const isOnline = vehicle.last_position?.timestamp ? 
+          new Date(vehicle.last_position.timestamp) > new Date(Date.now() - 30 * 60 * 1000) : 
           false;
         
         if (filters.online === 'online' && !isOnline) return false;
@@ -167,8 +165,8 @@ export const useStableEnhancedVehicleData = () => {
     const total = vehicles.length;
     const active = vehicles.filter(v => v.is_active).length;
     const online = vehicles.filter(v => {
-      if (!v.lastPosition?.timestamp) return false;
-      return v.lastPosition.timestamp > new Date(Date.now() - 30 * 60 * 1000);
+      if (!v.last_position?.timestamp) return false;
+      return new Date(v.last_position.timestamp) > new Date(Date.now() - 30 * 60 * 1000);
     }).length;
     const alerts = vehicles.filter(v => 
       v.status?.toLowerCase().includes('alert') || 
@@ -180,22 +178,22 @@ export const useStableEnhancedVehicleData = () => {
 
   const handleVehicleAction = {
     viewMap: (vehicle: VehicleData) => {
-      console.log('View map for vehicle:', vehicle.deviceId);
+      console.log('View map for vehicle:', vehicle.device_id);
       // TODO: Implement map view
     },
     
     viewHistory: (vehicle: VehicleData) => {
-      console.log('View history for vehicle:', vehicle.deviceId);
+      console.log('View history for vehicle:', vehicle.device_id);
       // TODO: Implement history view
     },
     
     viewDetails: (vehicle: VehicleData) => {
-      console.log('View details for vehicle:', vehicle.deviceId);
+      console.log('View details for vehicle:', vehicle.device_id);
       // TODO: Implement details view
     },
     
     sendCommand: (vehicle: VehicleData) => {
-      console.log('Send command to vehicle:', vehicle.deviceId);
+      console.log('Send command to vehicle:', vehicle.device_id);
       // TODO: Implement command sending
     }
   };

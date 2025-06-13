@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -24,7 +23,7 @@ const VehicleManagement: React.FC = () => {
     setFilters 
   } = useStableEnhancedVehicleData();
 
-  const deviceIds = filteredVehicles.map(v => v.deviceId);
+  const deviceIds = filteredVehicles.map(v => v.device_id);
   const { liveData, refreshData: refreshLiveData } = useLiveVehicleData({
     deviceIds,
     pollingInterval: 30000,
@@ -37,27 +36,27 @@ const VehicleManagement: React.FC = () => {
     ? filteredVehicles.find(v => v.id === selectedVehicleId)
     : null;
 
-  // Transform VehicleData to match VehicleCard props
+  // Transform VehicleData to match VehicleCard props (using snake_case)
   const transformedSelectedVehicle = selectedVehicle ? {
     id: selectedVehicle.id,
-    device_id: selectedVehicle.deviceId,
-    device_name: selectedVehicle.deviceName,
+    device_id: selectedVehicle.device_id,
+    device_name: selectedVehicle.device_name,
     vin: selectedVehicle.vin,
-    license_plate: selectedVehicle.licensePlate,
-    image_urls: selectedVehicle.imageUrls,
-    fuel_tank_capacity_liters: selectedVehicle.fuelTankCapacityLiters,
-    manufacturer_fuel_consumption_100km_l: selectedVehicle.manufacturerFuelConsumption100kmL,
-    insurance_expiration_date: selectedVehicle.insuranceExpirationDate,
-    license_expiration_date: selectedVehicle.licenseExpirationDate,
-    is_active: selectedVehicle.isActive,
-    envio_user_id: selectedVehicle.envioUserId,
-    last_position: selectedVehicle.lastPosition ? {
-      lat: selectedVehicle.lastPosition.lat,
-      lng: selectedVehicle.lastPosition.lng,
-      speed: selectedVehicle.lastPosition.speed,
-      timestamp: selectedVehicle.lastPosition.timestamp
+    license_plate: selectedVehicle.license_plate,
+    image_urls: selectedVehicle.image_urls,
+    fuel_tank_capacity_liters: selectedVehicle.fuel_tank_capacity_liters,
+    manufacturer_fuel_consumption_100km_l: selectedVehicle.manufacturer_fuel_consumption_100km_l,
+    insurance_expiration_date: selectedVehicle.insurance_expiration_date,
+    license_expiration_date: selectedVehicle.license_expiration_date,
+    is_active: selectedVehicle.is_active,
+    envio_user_id: selectedVehicle.envio_user_id,
+    last_position: selectedVehicle.last_position ? {
+      lat: selectedVehicle.last_position.lat,
+      lng: selectedVehicle.last_position.lng,
+      speed: selectedVehicle.last_position.speed,
+      timestamp: selectedVehicle.last_position.timestamp
     } : undefined,
-    envio_users: selectedVehicle.envioUsers
+    envio_users: selectedVehicle.envio_users
   } : null;
 
   // Update filters when search or status changes
@@ -178,32 +177,32 @@ const VehicleManagement: React.FC = () => {
           ) : filteredVehicles.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredVehicles.map((vehicle) => {
-                // Transform VehicleData to match VehicleCard props
+                // Transform VehicleData to match VehicleCard props (using snake_case)
                 const transformedVehicle = {
                   id: vehicle.id,
-                  device_id: vehicle.deviceId,
-                  device_name: vehicle.deviceName,
+                  device_id: vehicle.device_id,
+                  device_name: vehicle.device_name,
                   vin: vehicle.vin,
-                  license_plate: vehicle.licensePlate,
-                  image_urls: vehicle.imageUrls,
-                  is_active: vehicle.isActive,
-                  envio_user_id: vehicle.envioUserId,
-                  last_position: vehicle.lastPosition ? {
-                    lat: vehicle.lastPosition.lat,
-                    lng: vehicle.lastPosition.lng,
-                    speed: vehicle.lastPosition.speed,
-                    timestamp: vehicle.lastPosition.timestamp
+                  license_plate: vehicle.license_plate,
+                  image_urls: vehicle.image_urls,
+                  is_active: vehicle.is_active,
+                  envio_user_id: vehicle.envio_user_id,
+                  last_position: vehicle.last_position ? {
+                    lat: vehicle.last_position.lat,
+                    lng: vehicle.last_position.lng,
+                    speed: vehicle.last_position.speed,
+                    timestamp: vehicle.last_position.timestamp
                   } : undefined,
-                  insurance_expiration_date: vehicle.insuranceExpirationDate,
-                  license_expiration_date: vehicle.licenseExpirationDate,
-                  envio_users: vehicle.envioUsers
+                  insurance_expiration_date: vehicle.insurance_expiration_date,
+                  license_expiration_date: vehicle.license_expiration_date,
+                  envio_users: vehicle.envio_users
                 };
 
                 return (
                   <VehicleCard
                     key={vehicle.id}
                     vehicle={transformedVehicle}
-                    liveData={liveData[vehicle.deviceId]}
+                    liveData={liveData[vehicle.device_id]}
                     onViewDetails={handleViewDetails}
                     onActivateWorkshop={handleActivateWorkshop}
                   />
