@@ -5,8 +5,11 @@ export interface EmailTemplate {
   id: string;
   template_name: string;
   trigger_type: string;
-  subject_template: string;
-  body_template: string;
+  subject: string;
+  html_body_template?: string;
+  text_body_template?: string;
+  body_html?: string;
+  body_text?: string;
   selected_theme_id?: string;
   is_active: boolean;
 }
@@ -44,7 +47,13 @@ export class TemplateManager {
       return null;
     }
 
-    console.log(`✅ Found template: ${template?.template_name}`);
+    console.log(`✅ Found template: ${template?.template_name}`, {
+      id: template?.id,
+      hasSubject: !!template?.subject,
+      hasHtmlTemplate: !!(template?.html_body_template || template?.body_html),
+      hasTextTemplate: !!(template?.text_body_template || template?.body_text)
+    });
+    
     return template;
   }
 
@@ -63,6 +72,7 @@ export class TemplateManager {
       return null;
     }
 
+    console.log(`✅ Found theme: ${theme?.name}`);
     return theme;
   }
 
@@ -79,6 +89,7 @@ export class TemplateManager {
       return null;
     }
 
+    console.log(`✅ Found default theme: ${theme?.name}`);
     return theme;
   }
 }

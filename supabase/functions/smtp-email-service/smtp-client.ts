@@ -56,6 +56,38 @@ export class EmailSender {
     }
   }
 
+  private validateEmailMessage(message: EmailMessage): void {
+    const errors: string[] = [];
+
+    // Validate recipient
+    if (!message.to || !message.to.trim()) {
+      errors.push('Recipient email is required');
+    }
+
+    // Validate subject
+    if (!message.subject || !message.subject.trim()) {
+      errors.push('Email subject is required');
+    }
+
+    // Validate content - must have at least text or html
+    if ((!message.text || !message.text.trim()) && (!message.html || !message.html.trim())) {
+      errors.push('Email must have either text or HTML content');
+    }
+
+    if (errors.length > 0) {
+      throw new Error(`Email Message Validation Failed: ${errors.join(', ')}`);
+    }
+
+    console.log('📧 Email message validation passed:', {
+      to: message.to,
+      subject: message.subject,
+      hasText: !!message.text?.trim(),
+      hasHtml: !!message.html?.trim(),
+      textLength: message.text?.length || 0,
+      htmlLength: message.html?.length || 0
+    });
+  }
+
   private getConnectionConfig() {
     // Determine SSL/TLS based on encryption setting and port
     let useSSL = false;
@@ -104,6 +136,9 @@ export class EmailSender {
   async sendEmail(message: EmailMessage): Promise<void> {
     // Validate configuration before attempting to send
     this.validateConfig();
+    
+    // Validate email message content
+    this.validateEmailMessage(message);
 
     const connectionConfig = this.getConnectionConfig();
     const client = new SMTPClient({
@@ -141,6 +176,8 @@ export class EmailSender {
           errorMessage = `SSL/TLS error: Check your encryption settings. Port 465 typically uses SSL, port 587 uses TLS.`;
         } else if (errorText.includes('port') || errorText.includes('refused')) {
           errorMessage = `Port error: Port ${this.config.port} may be blocked or incorrect. Try port 587 for TLS or 465 for SSL.`;
+        } else if (errorText.includes('invalidcontenttype') || errorText.includes('corrupt message')) {
+          errorMessage = `Email content error: The email content appears to be malformed or empty. This usually means the email template is not generating valid content.`;
         } else {
           errorMessage = `SMTP Error: ${error.message}`;
         }
