@@ -2,9 +2,9 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GP51AuthenticationPanel } from '@/components/admin/GP51AuthenticationPanel';
-import { GP51ConnectionTest } from '@/components/admin/GP51ConnectionTest';
 import { GP51ImportModal } from '@/components/admin/GP51ImportModal';
 import GP51Settings from '@/components/admin/GP51Settings';
+import GP51ConnectionTester from '@/components/admin/GP51ConnectionTester';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Shield, Activity, Settings, Zap, Download } from 'lucide-react';
 
@@ -51,7 +51,7 @@ const GP51IntegrationTab: React.FC = () => {
             </TabsContent>
 
             <TabsContent value="connection" className="space-y-4">
-              <GP51ConnectionTest />
+              <GP51ConnectionTester />
             </TabsContent>
 
             <TabsContent value="import" className="space-y-4">

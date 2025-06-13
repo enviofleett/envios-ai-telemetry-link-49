@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createHash } from "https://deno.land/std@0.208.0/hash/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,11 +13,9 @@ const REQUEST_TIMEOUT = 5000; // 5 seconds
 const MAX_RETRIES = 2;
 
 // Fixed MD5 hash function for Deno compatibility
-async function md5(input: string): Promise<string> {
+function md5(input: string): string {
   const encoder = new TextEncoder();
   const data = encoder.encode(input);
-  
-  const { createHash } = await import("https://deno.land/std@0.208.0/crypto/mod.ts");
   return createHash("md5").update(data).digest("hex");
 }
 
@@ -95,7 +94,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get the most recent valid GP51 session - FIXED: Using maybeSingle()
+    // Get the most recent valid GP51 session
     console.log('🔍 Fetching GP51 session from database...');
     const { data: session, error: sessionError } = await supabase
       .from('gp51_sessions')
@@ -155,8 +154,8 @@ serve(async (req) => {
 
     console.log('✅ Valid session found, fetching live data from GP51...');
 
-    // Hash the password for GP51 authentication using fixed MD5
-    const hashedPassword = await md5(session.password_hash);
+    // Hash the password for GP51 authentication
+    const hashedPassword = md5(session.password_hash);
 
     // First, get the monitor list (devices/vehicles)
     console.log('📡 Fetching GP51 monitor list...');
@@ -368,20 +367,25 @@ serve(async (req) => {
             continue;
           }
 
-          // Store in telemetry history table
-          await supabase
-            .from('vehicle_telemetry_history')
-            .insert({
-              vehicle_id: vehicle.id,
-              device_id: telem.device_id,
-              timestamp: telem.timestamp,
-              latitude: telem.latitude,
-              longitude: telem.longitude,
-              speed: telem.speed,
-              heading: telem.heading,
-              odometer: telem.odometer,
-              altitude: telem.altitude
-            });
+          // Store in telemetry history table if it exists
+          try {
+            await supabase
+              .from('vehicle_telemetry_history')
+              .insert({
+                vehicle_id: vehicle.id,
+                device_id: telem.device_id,
+                timestamp: telem.timestamp,
+                latitude: telem.latitude,
+                longitude: telem.longitude,
+                speed: telem.speed,
+                heading: telem.heading,
+                odometer: telem.odometer,
+                altitude: telem.altitude
+              });
+          } catch (historyError) {
+            // Ignore history errors if table doesn't exist
+            console.warn(`⚠️ Failed to store telemetry history for ${telem.device_id}:`, historyError);
+          }
 
         } catch (updateError) {
           console.error(`❌ Failed to process telemetry for ${telem.device_id}:`, updateError);
