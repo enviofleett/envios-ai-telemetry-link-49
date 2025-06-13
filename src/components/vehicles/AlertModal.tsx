@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -55,7 +56,7 @@ const AlertModal: React.FC<AlertModalProps> = ({
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     console.log('Alert sent:', {
-      vehicleId: vehicle.deviceId,
+      vehicleId: vehicle.device_id,
       type: alertType,
       message: message.trim(),
       timestamp: new Date().toISOString()
@@ -78,7 +79,7 @@ const AlertModal: React.FC<AlertModalProps> = ({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bell className="h-5 w-5" />
-            Send Alert - {vehicle.deviceName}
+            Send Alert - {vehicle.device_name}
           </DialogTitle>
         </DialogHeader>
 
@@ -86,8 +87,8 @@ const AlertModal: React.FC<AlertModalProps> = ({
           {/* Vehicle Info */}
           <div className="p-3 bg-gray-50 rounded-lg">
             <div className="text-sm">
-              <div className="font-medium">{vehicle.deviceName}</div>
-              <div className="text-gray-600">ID: {vehicle.deviceId}</div>
+              <div className="font-medium">{vehicle.device_name}</div>
+              <div className="text-gray-600">ID: {vehicle.device_id}</div>
             </div>
           </div>
 

@@ -9,8 +9,21 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { format } from 'date-fns';
 import type { VehicleData } from '@/types/vehicle';
 
+interface ReportFilters {
+  dateRange: {
+    from: Date | null;
+    to: Date | null;
+  };
+  vehicleIds: string[];
+  status?: string;
+}
+
 interface AdvancedReportFiltersProps {
   vehicles: VehicleData[];
+  filters: ReportFilters;
+  onFiltersChange: (newFilters: Partial<ReportFilters>) => void;
+  onGenerate: () => void;
+  isLoading: boolean;
   reportType: string;
   onReportTypeChange: (type: string) => void;
   vehicleFilter: string;
@@ -21,7 +34,6 @@ interface AdvancedReportFiltersProps {
   onDateToChange: (date: Date | null) => void;
   statusFilter: string;
   onStatusFilterChange: (status: string) => void;
-  onGenerateReport: () => void;
   isGenerating?: boolean;
 }
 
@@ -37,7 +49,7 @@ const AdvancedReportFilters: React.FC<AdvancedReportFiltersProps> = ({
   onDateToChange,
   statusFilter,
   onStatusFilterChange,
-  onGenerateReport,
+  onGenerate,
   isGenerating = false
 }) => {
   const reportTypes = [
@@ -168,7 +180,7 @@ const AdvancedReportFilters: React.FC<AdvancedReportFiltersProps> = ({
         {/* Generate Button */}
         <div className="flex items-end">
           <Button
-            onClick={onGenerateReport}
+            onClick={onGenerate}
             disabled={isGenerating}
             className="w-full"
           >
