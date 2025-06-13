@@ -1,199 +1,150 @@
 
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Car, 
-  Calendar, 
-  CheckCircle, 
-  Clock, 
-  DollarSign, 
-  Users, 
-  Wrench,
-  LogOut
-} from 'lucide-react';
 import { useWorkshopAuth } from '@/hooks/useWorkshopAuth';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Building2, Users, Settings, Activity } from 'lucide-react';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import LogoutButton from '@/components/LogoutButton';
 
 const WorkshopDashboard: React.FC = () => {
-  const { workshopUser, logout } = useWorkshopAuth();
+  const { workshopUser, isLoading } = useWorkshopAuth();
 
-  if (!workshopUser) {
-    return null;
+  if (isLoading) {
+    return <LoadingSpinner />;
   }
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'owner':
-        return 'bg-purple-100 text-purple-800';
-      case 'manager':
-        return 'bg-blue-100 text-blue-800';
-      case 'technician':
-        return 'bg-green-100 text-green-800';
-      case 'inspector':
-        return 'bg-orange-100 text-orange-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+  if (!workshopUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600">Please login to access the workshop dashboard.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Workshop Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back, {workshopUser.name}
-          </p>
+    <div className="min-h-screen bg-gray-50">
+      <LogoutButton />
+      
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Building2 className="h-8 w-8 text-primary" />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Workshop Dashboard</h1>
+              <p className="text-gray-600">Welcome back, {workshopUser.name}</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <Badge variant="secondary" className="bg-green-100 text-green-800">
+              <Activity className="h-3 w-3 mr-1" />
+              Active
+            </Badge>
+            <Badge variant="outline">
+              Role: {workshopUser.role}
+            </Badge>
+          </div>
         </div>
-        <div className="flex items-center gap-4">
-          <Badge className={getRoleBadgeColor(workshopUser.role)}>
-            {workshopUser.role}
-          </Badge>
-          <Button variant="outline" onClick={logout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
-          </Button>
+
+        {/* Dashboard Content */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Active Services
+              </CardTitle>
+              <CardDescription>
+                Ongoing maintenance and repair services
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">12</div>
+              <p className="text-xs text-muted-foreground">
+                +2 from last week
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Activity className="h-5 w-5" />
+                Pending Inspections
+              </CardTitle>
+              <CardDescription>
+                Vehicles awaiting inspection
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">5</div>
+              <p className="text-xs text-muted-foreground">
+                Due this week
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Workshop Status
+              </CardTitle>
+              <CardDescription>
+                Current workshop operations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">Operational</div>
+              <p className="text-xs text-muted-foreground">
+                All systems running
+              </p>
+            </CardContent>
+          </Card>
         </div>
-      </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Vehicles</CardTitle>
-            <Car className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">24</div>
-            <p className="text-xs text-muted-foreground">
-              +2 from last month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Appointments</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">8</div>
-            <p className="text-xs text-muted-foreground">
-              3 completed, 5 pending
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Revenue (Month)</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$12,450</div>
-            <p className="text-xs text-muted-foreground">
-              +15% from last month
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Inspections Due</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">6</div>
-            <p className="text-xs text-muted-foreground">
-              2 overdue
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Today's Schedule
-            </CardTitle>
-            <CardDescription>Upcoming appointments and tasks</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium">Oil Change - ABC123</p>
-                <p className="text-sm text-muted-foreground">9:00 AM</p>
-              </div>
-              <Badge variant="outline">
-                <Clock className="h-3 w-3 mr-1" />
-                Pending
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium">Brake Inspection - XYZ789</p>
-                <p className="text-sm text-muted-foreground">11:30 AM</p>
-              </div>
-              <Badge variant="outline" className="bg-green-100 text-green-800">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Completed
-              </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Wrench className="h-5 w-5" />
-              Quick Actions
-            </CardTitle>
-            <CardDescription>Common workshop tasks</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button className="w-full justify-start" variant="outline">
-              <Car className="h-4 w-4 mr-2" />
-              New Vehicle Check-in
-            </Button>
-            <Button className="w-full justify-start" variant="outline">
-              <Calendar className="h-4 w-4 mr-2" />
-              Schedule Appointment
-            </Button>
-            <Button className="w-full justify-start" variant="outline">
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Vehicle Inspection
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Team Status
-            </CardTitle>
-            <CardDescription>Current team availability</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm">John Smith (Technician)</span>
-              <Badge className="bg-green-100 text-green-800">Available</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Sarah Johnson (Inspector)</span>
-              <Badge className="bg-yellow-100 text-yellow-800">Busy</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Mike Davis (Technician)</span>
-              <Badge className="bg-green-100 text-green-800">Available</Badge>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Quick Actions */}
+        <div className="mt-8">
+          <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-4 text-center">
+                <Building2 className="h-8 w-8 mx-auto mb-2 text-primary" />
+                <h3 className="font-medium">New Service</h3>
+                <p className="text-sm text-muted-foreground">Create service order</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-4 text-center">
+                <Users className="h-8 w-8 mx-auto mb-2 text-primary" />
+                <h3 className="font-medium">Schedule Inspection</h3>
+                <p className="text-sm text-muted-foreground">Book inspection slot</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-4 text-center">
+                <Activity className="h-8 w-8 mx-auto mb-2 text-primary" />
+                <h3 className="font-medium">View Reports</h3>
+                <p className="text-sm text-muted-foreground">Service analytics</p>
+              </CardContent>
+            </Card>
+            
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="p-4 text-center">
+                <Settings className="h-8 w-8 mx-auto mb-2 text-primary" />
+                <h3 className="font-medium">Settings</h3>
+                <p className="text-sm text-muted-foreground">Workshop config</p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { useWorkshopAuth } from '@/hooks/useWorkshopAuth';
 import WorkshopLoginForm from '@/components/workshops/WorkshopLoginForm';
 import WorkshopDashboard from '@/components/workshops/WorkshopDashboard';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import LogoutButton from '@/components/LogoutButton';
 
 const WorkshopAuth: React.FC = () => {
   const { workshopUser, isLoading } = useWorkshopAuth();
@@ -27,6 +28,7 @@ const WorkshopAuth: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <LogoutButton />
       <WorkshopLoginForm onSuccess={() => navigate('/workshop-dashboard')} />
     </div>
   );

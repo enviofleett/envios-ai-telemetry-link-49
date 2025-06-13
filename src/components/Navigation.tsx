@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Menu, Settings, LogOut } from 'lucide-react';
+import LogoutButton from '@/components/LogoutButton';
 
 // This component is now used as fallback/mobile navigation
 // The main sidebar is handled by AppSidebar component
@@ -39,75 +40,78 @@ const Navigation = () => {
   ];
 
   return (
-    <nav className="bg-white shadow-sm border-b md:hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden"
-            >
-              <Menu className="h-6 w-6" />
-            </Button>
-            <h1 className="ml-2 text-xl font-bold text-gray-900">Envío Console</h1>
-          </div>
+    <>
+      <LogoutButton />
+      <nav className="bg-white shadow-sm border-b md:hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16">
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="md:hidden"
+              >
+                <Menu className="h-6 w-6" />
+              </Button>
+              <h1 className="ml-2 text-xl font-bold text-gray-900">Envío Console</h1>
+            </div>
 
-          <div className="flex items-center">
-            {user && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button className="outline-none focus:outline-none rounded-full">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-                      <AvatarFallback>{user?.email[0].toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56 mr-2">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link to="/settings" className="flex items-center gap-2">
-                      <Settings className="h-4 w-4" />
-                      Settings
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2">
-                    <LogOut className="h-4 w-4" />
-                    Log out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            )}
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t">
-              {navigationItems.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`block px-3 py-2 rounded-md text-base font-medium ${
-                    location.pathname === item.href
-                      ? 'bg-blue-50 text-blue-700 border-blue-500'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                  }`}
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {item.name}
-                </Link>
-              ))}
+            <div className="flex items-center">
+              {user && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="outline-none focus:outline-none rounded-full">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+                        <AvatarFallback>{user?.email[0].toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56 mr-2">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/settings" className="flex items-center gap-2">
+                        <Settings className="h-4 w-4" />
+                        Settings
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2">
+                      <LogOut className="h-4 w-4" />
+                      Log out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
-        )}
-      </div>
-    </nav>
+
+          {/* Mobile menu */}
+          {mobileMenuOpen && (
+            <div className="md:hidden">
+              <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t">
+                {navigationItems.map((item) => (
+                  <Link
+                    key={item.name}
+                    to={item.href}
+                    className={`block px-3 py-2 rounded-md text-base font-medium ${
+                      location.pathname === item.href
+                        ? 'bg-blue-50 text-blue-700 border-blue-500'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }`}
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    {item.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </nav>
+    </>
   );
 };
 
