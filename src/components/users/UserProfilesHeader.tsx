@@ -10,9 +10,7 @@ export default function UserProfilesHeader({
   return <div className="flex items-center justify-between">
       <div>
         
-        <p className="text-muted-foreground">
-          Manage user accounts and vehicle assignments
-        </p>
+        
       </div>
       <Button onClick={onCreateUser}>
         <Plus className="w-4 h-4 mr-2" />
