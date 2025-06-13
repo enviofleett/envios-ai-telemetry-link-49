@@ -1,7 +1,6 @@
-
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { SmtpClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import SmtpClient from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 // Enhanced CORS headers with all required methods
 const corsHeaders = {
