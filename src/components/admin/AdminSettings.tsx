@@ -1,11 +1,10 @@
 
 import React, { useState, useEffect, memo } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import AdminSettingsLayout from './AdminSettingsLayout';
+import { useStableAuth } from '@/hooks/useStableAuth';
+import OptimizedAdminSettings from './OptimizedAdminSettings';
 
 const AdminSettings: React.FC = memo(() => {
-  const [activeTab, setActiveTab] = useState('company');
-  const { user, isAdmin, userRole, isCheckingRole } = useAuth();
+  const { user, isAdmin, userRole, isCheckingRole } = useStableAuth();
 
   useEffect(() => {
     console.log('🔍 AdminSettings component mounted');
@@ -14,11 +13,6 @@ const AdminSettings: React.FC = memo(() => {
     console.log('📋 User Role:', userRole);
     console.log('⏳ Is Checking Role:', isCheckingRole);
   }, [user, isAdmin, userRole, isCheckingRole]);
-
-  // Memoize tab change handler
-  const handleTabChange = React.useCallback((tab: string) => {
-    setActiveTab(tab);
-  }, []);
 
   // Show loading state if still checking role
   if (isCheckingRole) {
@@ -36,12 +30,7 @@ const AdminSettings: React.FC = memo(() => {
     );
   }
 
-  return (
-    <AdminSettingsLayout 
-      activeTab={activeTab} 
-      onTabChange={handleTabChange} 
-    />
-  );
+  return <OptimizedAdminSettings />;
 });
 
 AdminSettings.displayName = 'AdminSettings';

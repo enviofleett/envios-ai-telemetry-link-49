@@ -1,9 +1,9 @@
 
 import React from 'react';
-import StableSettings from './StableSettings';
+import StableAdminSettings from './StableAdminSettings';
 
 const Settings: React.FC = () => {
-  return <StableSettings />;
+  return <StableAdminSettings />;
 };
 
 export default Settings;

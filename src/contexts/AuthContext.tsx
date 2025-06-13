@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -34,9 +34,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isCheckingRole, setIsCheckingRole] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+  
+  // Add refs to track mounting and prevent memory leaks
+  const mountedRef = useRef(true);
+  const roleCheckTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Memoize role check function to prevent recreation on every render
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (roleCheckTimeoutRef.current) {
+        clearTimeout(roleCheckTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Optimized role check function with circuit breaker pattern
   const checkUserRole = useCallback(async (userId: string, retryCount = 0) => {
+    if (!mountedRef.current) return;
+    
     if (retryCount === 0) {
       setIsCheckingRole(true);
     }
@@ -50,14 +66,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('user_id', userId)
         .single();
 
+      if (!mountedRef.current) return;
+
       if (error) {
         console.error('❌ Error checking user role:', error);
         
-        // Retry up to 3 times with exponential backoff
-        if (retryCount < 2) {
+        // Implement circuit breaker - stop retrying after 2 attempts
+        if (retryCount < 1) {
           const delay = Math.pow(2, retryCount) * 1000;
           console.log(`⏱️ Retrying role check in ${delay}ms...`);
-          setTimeout(() => checkUserRole(userId, retryCount + 1), delay);
+          roleCheckTimeoutRef.current = setTimeout(() => {
+            if (mountedRef.current) {
+              checkUserRole(userId, retryCount + 1);
+            }
+          }, delay);
           return;
         }
         
@@ -75,19 +97,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAdmin(false);
       }
     } catch (error) {
+      if (!mountedRef.current) return;
+      
       console.error('❌ Exception during role check:', error);
       
-      // Retry logic for exceptions as well
-      if (retryCount < 2) {
+      // Circuit breaker for exceptions
+      if (retryCount < 1) {
         const delay = Math.pow(2, retryCount) * 1000;
-        setTimeout(() => checkUserRole(userId, retryCount + 1), delay);
+        roleCheckTimeoutRef.current = setTimeout(() => {
+          if (mountedRef.current) {
+            checkUserRole(userId, retryCount + 1);
+          }
+        }, delay);
         return;
       }
       
       setUserRole('user');
       setIsAdmin(false);
     } finally {
-      if (retryCount === 0 || retryCount >= 2) {
+      if (mountedRef.current && (retryCount === 0 || retryCount >= 1)) {
         setIsCheckingRole(false);
       }
     }
@@ -99,7 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) {
+      if (mounted && mountedRef.current) {
         console.log('🔍 Initial session check:', session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
@@ -116,7 +144,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (mounted) {
+      if (mounted && mountedRef.current) {
         console.log('🔄 Auth state changed:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
@@ -140,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [checkUserRole]);
 
   const retryRoleCheck = useCallback(async () => {
-    if (user?.id) {
+    if (user?.id && mountedRef.current) {
       await checkUserRole(user.id);
     }
   }, [user?.id, checkUserRole]);
@@ -148,9 +176,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = useCallback(async () => {
     console.log('👋 Signing out user');
     await supabase.auth.signOut();
-    setIsAdmin(false);
-    setUserRole(null);
-    setIsCheckingRole(false);
+    if (mountedRef.current) {
+      setIsAdmin(false);
+      setUserRole(null);
+      setIsCheckingRole(false);
+    }
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -176,10 +206,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const refreshUser = useCallback(async () => {
+    if (!mountedRef.current) return;
+    
     const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-    if (user) {
-      await checkUserRole(user.id);
+    if (mountedRef.current) {
+      setUser(user);
+      if (user) {
+        await checkUserRole(user.id);
+      }
     }
   }, [checkUserRole]);
 

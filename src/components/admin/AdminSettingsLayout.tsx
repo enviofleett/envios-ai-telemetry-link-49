@@ -1,6 +1,6 @@
 
-import React from 'react';
-import SettingsSidebar from './SettingsSidebar';
+import React, { memo } from 'react';
+import StableSettingsSidebar from './StableSettingsSidebar';
 import AdminTabContentRenderer from './AdminTabContentRenderer';
 
 interface AdminSettingsLayoutProps {
@@ -8,7 +8,7 @@ interface AdminSettingsLayoutProps {
   onTabChange: (tab: string) => void;
 }
 
-const AdminSettingsLayout: React.FC<AdminSettingsLayoutProps> = ({ 
+const AdminSettingsLayout: React.FC<AdminSettingsLayoutProps> = memo(({ 
   activeTab, 
   onTabChange 
 }) => {
@@ -16,7 +16,7 @@ const AdminSettingsLayout: React.FC<AdminSettingsLayoutProps> = ({
 
   return (
     <div className="flex h-full min-h-[calc(100vh-8rem)]">
-      <SettingsSidebar 
+      <StableSettingsSidebar 
         activeTab={activeTab} 
         onTabChange={onTabChange} 
       />
@@ -28,6 +28,8 @@ const AdminSettingsLayout: React.FC<AdminSettingsLayoutProps> = ({
       </div>
     </div>
   );
-};
+});
+
+AdminSettingsLayout.displayName = 'AdminSettingsLayout';
 
 export default AdminSettingsLayout;
