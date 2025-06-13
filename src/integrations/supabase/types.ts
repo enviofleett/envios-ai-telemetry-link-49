@@ -1336,10 +1336,10 @@ export type Database = {
           created_by: string
           id: string
           recurring_pattern: string | null
-          schedule_type: string
+          schedule_type: Database["public"]["Enums"]["campaign_schedule_type_enum"]
           scheduled_for: string | null
           status: string
-          target_audience: string
+          target_audience: Database["public"]["Enums"]["campaign_target_audience_enum"]
           target_criteria: Json | null
           template_id: string | null
           updated_at: string
@@ -1351,10 +1351,10 @@ export type Database = {
           created_by: string
           id?: string
           recurring_pattern?: string | null
-          schedule_type?: string
+          schedule_type?: Database["public"]["Enums"]["campaign_schedule_type_enum"]
           scheduled_for?: string | null
           status?: string
-          target_audience?: string
+          target_audience?: Database["public"]["Enums"]["campaign_target_audience_enum"]
           target_criteria?: Json | null
           template_id?: string | null
           updated_at?: string
@@ -1366,10 +1366,10 @@ export type Database = {
           created_by?: string
           id?: string
           recurring_pattern?: string | null
-          schedule_type?: string
+          schedule_type?: Database["public"]["Enums"]["campaign_schedule_type_enum"]
           scheduled_for?: string | null
           status?: string
-          target_audience?: string
+          target_audience?: Database["public"]["Enums"]["campaign_target_audience_enum"]
           target_criteria?: Json | null
           template_id?: string | null
           updated_at?: string
@@ -7192,6 +7192,11 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      campaign_schedule_type_enum: "immediate" | "scheduled" | "recurring"
+      campaign_target_audience_enum:
+        | "all_users"
+        | "specific_users"
+        | "user_segments"
       campaign_type_enum: "one_time" | "recurring" | "event_based"
     }
     CompositeTypes: {
@@ -7309,6 +7314,12 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      campaign_schedule_type_enum: ["immediate", "scheduled", "recurring"],
+      campaign_target_audience_enum: [
+        "all_users",
+        "specific_users",
+        "user_segments",
+      ],
       campaign_type_enum: ["one_time", "recurring", "event_based"],
     },
   },

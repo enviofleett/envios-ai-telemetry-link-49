@@ -15,12 +15,14 @@ import { scheduledCampaignsService, EmailCampaign } from '@/services/emailCampai
 import { bulkEmailService } from '@/services/emailBulk/bulkEmailService';
 
 type CampaignType = 'one_time' | 'recurring' | 'event_based';
+type TargetAudience = 'all_users' | 'specific_users' | 'user_segments';
+type ScheduleType = 'immediate' | 'scheduled' | 'recurring';
 
 interface NewCampaign {
   campaign_name: string;
   campaign_type: CampaignType;
-  target_audience: string;
-  schedule_type: string;
+  target_audience: TargetAudience;
+  schedule_type: ScheduleType;
   scheduled_for?: string;
   template_id?: string;
 }
@@ -204,15 +206,32 @@ const AdvancedEmailManagementTab: React.FC = () => {
                       <Label>Target Audience</Label>
                       <Select 
                         value={newCampaign.target_audience} 
-                        onValueChange={(value) => setNewCampaign(prev => ({ ...prev, target_audience: value }))}
+                        onValueChange={(value: TargetAudience) => setNewCampaign(prev => ({ ...prev, target_audience: value }))}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all_users">All Users</SelectItem>
-                          <SelectItem value="active_users">Active Users</SelectItem>
-                          <SelectItem value="admins">Administrators</SelectItem>
+                          <SelectItem value="specific_users">Specific Users</SelectItem>
+                          <SelectItem value="user_segments">User Segments</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Schedule Type</Label>
+                      <Select 
+                        value={newCampaign.schedule_type} 
+                        onValueChange={(value: ScheduleType) => setNewCampaign(prev => ({ ...prev, schedule_type: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="immediate">Immediate</SelectItem>
+                          <SelectItem value="scheduled">Scheduled</SelectItem>
+                          <SelectItem value="recurring">Recurring</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
