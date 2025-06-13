@@ -1230,6 +1230,59 @@ export type Database = {
         }
         Relationships: []
       }
+      email_delivery_logs: {
+        Row: {
+          created_at: string
+          email_template_id: string | null
+          error_message: string | null
+          id: string
+          recipient_email: string
+          related_entity_id: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+          template_variables: Json | null
+          trigger_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email_template_id?: string | null
+          error_message?: string | null
+          id?: string
+          recipient_email: string
+          related_entity_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+          template_variables?: Json | null
+          trigger_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email_template_id?: string | null
+          error_message?: string | null
+          id?: string
+          recipient_email?: string
+          related_entity_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          template_variables?: Json | null
+          trigger_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_delivery_logs_email_template_id_fkey"
+            columns: ["email_template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_notification_queue: {
         Row: {
           body_html: string | null
@@ -1296,42 +1349,98 @@ export type Database = {
       email_templates: {
         Row: {
           body_html: string | null
-          body_text: string
+          body_text: string | null
           created_at: string
+          html_body_template: string | null
           id: string
           is_active: boolean
+          selected_theme_id: string | null
           subject: string
           template_name: string
           template_type: string
+          text_body_template: string | null
+          trigger_type: string | null
           updated_at: string
           user_id: string
           variables: Json | null
         }
         Insert: {
           body_html?: string | null
-          body_text: string
+          body_text?: string | null
           created_at?: string
+          html_body_template?: string | null
           id?: string
           is_active?: boolean
+          selected_theme_id?: string | null
           subject: string
           template_name: string
           template_type?: string
+          text_body_template?: string | null
+          trigger_type?: string | null
           updated_at?: string
           user_id: string
           variables?: Json | null
         }
         Update: {
           body_html?: string | null
-          body_text?: string
+          body_text?: string | null
           created_at?: string
+          html_body_template?: string | null
           id?: string
           is_active?: boolean
+          selected_theme_id?: string | null
           subject?: string
           template_name?: string
           template_type?: string
+          text_body_template?: string | null
+          trigger_type?: string | null
           updated_at?: string
           user_id?: string
           variables?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_selected_theme_id_fkey"
+            columns: ["selected_theme_id"]
+            isOneToOne: false
+            referencedRelation: "email_themes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_themes: {
+        Row: {
+          created_at: string
+          description: string | null
+          footer_html: string | null
+          header_html: string | null
+          id: string
+          is_active: boolean
+          name: string
+          styles_css: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          footer_html?: string | null
+          header_html?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          styles_css?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          footer_html?: string | null
+          header_html?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          styles_css?: string | null
+          updated_at?: string
         }
         Relationships: []
       }

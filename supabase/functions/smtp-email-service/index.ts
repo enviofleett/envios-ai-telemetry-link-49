@@ -13,11 +13,13 @@ const corsHeaders = {
 
 interface EmailRequest {
   to: string;
-  subject: string;
-  message: string;
+  subject?: string;
+  message?: string;
   from?: string;
   template_id?: string;
+  trigger_type?: string;
   template_variables?: Record<string, string>;
+  related_entity_id?: string;
 }
 
 interface SMTPConfig {
@@ -30,9 +32,20 @@ interface SMTPConfig {
 }
 
 interface EmailTemplate {
+  id: string;
   subject: string;
-  body_text: string;
+  html_body_template: string;
+  text_body_template: string;
+  selected_theme_id: string;
   variables: string[];
+}
+
+interface EmailTheme {
+  id: string;
+  name: string;
+  header_html: string;
+  footer_html: string;
+  styles_css: string;
 }
 
 // Request size limit (1MB)
@@ -41,9 +54,38 @@ const MAX_REQUEST_SIZE = 1024 * 1024;
 // Timeout for SMTP operations (30 seconds)
 const SMTP_TIMEOUT = 30000;
 
+// Template variable substitution function
+function substituteVariables(template: string, variables: Record<string, string>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(variables)) {
+    const placeholder = new RegExp(`{{${key}}}`, 'g');
+    result = result.replace(placeholder, String(value));
+  }
+  return result;
+}
+
+// Apply theme to email content
+function applyTheme(content: string, theme: EmailTheme): string {
+  const styledContent = `
+    <html>
+      <head>
+        <style>${theme.styles_css}</style>
+      </head>
+      <body>
+        <div class="container">
+          ${theme.header_html}
+          ${content}
+          ${theme.footer_html}
+        </div>
+      </body>
+    </html>
+  `;
+  return styledContent;
+}
+
 serve(async (req) => {
   const requestId = crypto.randomUUID();
-  console.log(`📧 [${requestId}] SMTP Email Service Request: ${req.method} ${req.url}`);
+  console.log(`📧 [${requestId}] Enhanced SMTP Email Service Request: ${req.method} ${req.url}`);
   
   try {
     // Handle CORS preflight requests
@@ -172,7 +214,7 @@ serve(async (req) => {
       ]);
       
       emailRequest = JSON.parse(body);
-      console.log(`📝 [${requestId}] Request parsed successfully - to: ${emailRequest.to}, subject: ${emailRequest.subject}`);
+      console.log(`📝 [${requestId}] Request parsed successfully - to: ${emailRequest.to}, trigger: ${emailRequest.trigger_type || 'direct'}`);
     } catch (error) {
       console.error(`❌ [${requestId}] Failed to parse request body:`, error);
       return new Response(
@@ -188,12 +230,12 @@ serve(async (req) => {
     }
 
     // Validate required fields
-    if (!emailRequest.to || !emailRequest.subject || !emailRequest.message) {
-      console.error(`❌ [${requestId}] Missing required fields`);
+    if (!emailRequest.to) {
+      console.error(`❌ [${requestId}] Missing recipient email`);
       return new Response(
         JSON.stringify({ 
           error: 'Missing required fields',
-          message: 'Fields "to", "subject", and "message" are required'
+          message: 'Field "to" is required'
         }),
         { 
           status: 400, 
@@ -217,14 +259,6 @@ serve(async (req) => {
         }
       );
     }
-
-    // Sanitize input data
-    const sanitizedRequest = {
-      ...emailRequest,
-      to: emailRequest.to.trim().toLowerCase(),
-      subject: emailRequest.subject.trim().substring(0, 998), // Limit subject length
-      message: emailRequest.message.trim().substring(0, 50000), // Limit message length
-    };
 
     // Get user's SMTP configuration
     let smtpConfig: SMTPConfig;
@@ -254,14 +288,7 @@ serve(async (req) => {
       }
 
       smtpConfig = config;
-      console.log(`📧 [${requestId}] SMTP config loaded:`, {
-        host: smtpConfig.smtp_host,
-        port: smtpConfig.smtp_port,
-        user: smtpConfig.smtp_user,
-        use_tls: smtpConfig.use_tls,
-        use_ssl: smtpConfig.use_ssl,
-        password_length: smtpConfig.smtp_pass_encrypted?.length || 0
-      });
+      console.log(`📧 [${requestId}] SMTP config loaded for host: ${smtpConfig.smtp_host}`);
     } catch (error) {
       console.error(`❌ [${requestId}] Database error fetching SMTP config:`, error);
       return new Response(
@@ -276,204 +303,212 @@ serve(async (req) => {
       );
     }
 
-    // Process email template if provided
-    let finalMessage = sanitizedRequest.message;
-    let finalSubject = sanitizedRequest.subject;
+    // Process email template and theme if provided
+    let finalMessage = emailRequest.message || '';
+    let finalSubject = emailRequest.subject || 'FleetIQ Notification';
+    let htmlMessage = '';
+    let templateId: string | null = null;
 
-    if (sanitizedRequest.template_id) {
+    // Check if we need to fetch a template
+    if (emailRequest.template_id || emailRequest.trigger_type) {
       try {
-        console.log(`📄 [${requestId}] Processing template: ${sanitizedRequest.template_id}`);
+        console.log(`📄 [${requestId}] Fetching email template for ${emailRequest.template_id || emailRequest.trigger_type}`);
         
-        const { data: template, error: templateError } = await supabase
+        let templateQuery = supabase
           .from('email_templates')
-          .select('*')
-          .eq('id', sanitizedRequest.template_id)
+          .select('id, subject, html_body_template, text_body_template, selected_theme_id, variables')
           .eq('user_id', user.id)
-          .eq('is_active', true)
-          .single();
+          .eq('is_active', true);
+
+        if (emailRequest.template_id) {
+          templateQuery = templateQuery.eq('id', emailRequest.template_id);
+        } else if (emailRequest.trigger_type) {
+          templateQuery = templateQuery.eq('trigger_type', emailRequest.trigger_type);
+        }
+
+        const { data: template, error: templateError } = await templateQuery.single();
 
         if (template && !templateError) {
-          finalMessage = template.body_text;
-          finalSubject = template.subject;
+          console.log(`📄 [${requestId}] Template found: ${template.id}`);
+          templateId = template.id;
 
-          // Replace template variables with validation
-          if (sanitizedRequest.template_variables) {
-            for (const [key, value] of Object.entries(sanitizedRequest.template_variables)) {
-              // Validate variable names (alphanumeric and underscore only)
-              if (!/^[a-zA-Z0-9_]+$/.test(key)) {
-                console.warn(`⚠️ [${requestId}] Invalid variable name: ${key}`);
-                continue;
-              }
-              
-              const placeholder = `{{${key}}}`;
-              const sanitizedValue = String(value).substring(0, 1000); // Limit variable length
-              finalMessage = finalMessage.replace(new RegExp(placeholder, 'g'), sanitizedValue);
-              finalSubject = finalSubject.replace(new RegExp(placeholder, 'g'), sanitizedValue);
+          // Apply variable substitution
+          const variables = emailRequest.template_variables || {};
+          finalSubject = substituteVariables(template.subject, variables);
+          finalMessage = substituteVariables(template.text_body_template || '', variables);
+          htmlMessage = substituteVariables(template.html_body_template || '', variables);
+
+          // Fetch and apply theme if specified
+          if (template.selected_theme_id) {
+            console.log(`🎨 [${requestId}] Fetching theme: ${template.selected_theme_id}`);
+            
+            const { data: theme, error: themeError } = await supabase
+              .from('email_themes')
+              .select('*')
+              .eq('id', template.selected_theme_id)
+              .eq('is_active', true)
+              .single();
+
+            if (theme && !themeError) {
+              console.log(`🎨 [${requestId}] Applying theme: ${theme.name}`);
+              htmlMessage = applyTheme(htmlMessage, theme);
+            } else {
+              console.warn(`⚠️ [${requestId}] Theme not found: ${template.selected_theme_id}`);
             }
           }
-          
-          console.log(`📄 [${requestId}] Template processed successfully`);
+
+          console.log(`📄 [${requestId}] Template and theme processed successfully`);
         } else {
-          console.warn(`⚠️ [${requestId}] Template not found or inactive: ${sanitizedRequest.template_id}`);
+          console.warn(`⚠️ [${requestId}] Template not found, using direct message`);
+          if (!emailRequest.message || !emailRequest.subject) {
+            return new Response(
+              JSON.stringify({ 
+                error: 'Template not found',
+                message: 'Template not found and no direct message provided'
+              }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
         }
       } catch (error) {
         console.error(`❌ [${requestId}] Template processing error:`, error);
-        // Continue with original message if template fails
+        // Continue with direct message if template fails
+        if (!emailRequest.message || !emailRequest.subject) {
+          return new Response(
+            JSON.stringify({ 
+              error: 'Template processing failed',
+              message: 'Unable to process template and no fallback message provided'
+            }),
+            { 
+              status: 500, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+            }
+          );
+        }
       }
     }
 
-    // Enhanced SMTP connection and sending with detailed logging
+    // Sanitize final content
+    finalSubject = finalSubject.trim().substring(0, 998);
+    finalMessage = finalMessage.trim().substring(0, 50000);
+    htmlMessage = htmlMessage.trim().substring(0, 100000);
+
+    // Create delivery log entry
+    let deliveryLogId: string | null = null;
+    try {
+      console.log(`📊 [${requestId}] Creating delivery log entry`);
+      
+      const { data: logEntry, error: logError } = await supabase
+        .from('email_delivery_logs')
+        .insert({
+          email_template_id: templateId,
+          recipient_email: emailRequest.to,
+          subject: finalSubject,
+          status: 'QUEUED',
+          trigger_type: emailRequest.trigger_type || 'direct',
+          related_entity_id: emailRequest.related_entity_id,
+          template_variables: emailRequest.template_variables || {}
+        })
+        .select('id')
+        .single();
+
+      if (logEntry && !logError) {
+        deliveryLogId = logEntry.id;
+        console.log(`📊 [${requestId}] Delivery log created: ${deliveryLogId}`);
+      } else {
+        console.warn(`⚠️ [${requestId}] Failed to create delivery log:`, logError);
+      }
+    } catch (error) {
+      console.warn(`⚠️ [${requestId}] Delivery log creation error:`, error);
+    }
+
+    // Enhanced SMTP connection and sending
     const client = new SmtpClient();
     let emailSent = false;
 
     try {
-      // Enhanced connection logging
-      console.log(`🔌 [${requestId}] Attempting SMTP connection with config:`, {
+      console.log(`🔌 [${requestId}] Attempting SMTP connection to ${smtpConfig.smtp_host}:${smtpConfig.smtp_port}`);
+
+      // Connect to SMTP server
+      const connectConfig = {
         hostname: smtpConfig.smtp_host,
         port: smtpConfig.smtp_port,
         username: smtpConfig.smtp_user,
-        tls: smtpConfig.use_tls,
-        ssl: smtpConfig.use_ssl,
-        password_provided: !!smtpConfig.smtp_pass_encrypted,
-        password_length: smtpConfig.smtp_pass_encrypted?.length || 0
-      });
+        password: smtpConfig.smtp_pass_encrypted,
+        ...(smtpConfig.use_tls && { tls: true }),
+        ...(smtpConfig.use_ssl && { ssl: true }),
+      };
 
-      // Connect to SMTP server with enhanced error handling
-      try {
-        const connectConfig = {
-          hostname: smtpConfig.smtp_host,
-          port: smtpConfig.smtp_port,
-          username: smtpConfig.smtp_user,
-          password: smtpConfig.smtp_pass_encrypted,
-          ...(smtpConfig.use_tls && { tls: true }),
-          ...(smtpConfig.use_ssl && { ssl: true }),
-        };
+      const connectPromise = client.connect(connectConfig);
+      await Promise.race([
+        connectPromise,
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('SMTP connection timeout')), SMTP_TIMEOUT)
+        )
+      ]);
 
-        console.log(`🔐 [${requestId}] Connecting with config (password masked):`, {
-          ...connectConfig,
-          password: '***MASKED***'
-        });
+      console.log(`✅ [${requestId}] SMTP connection established`);
 
-        const connectPromise = client.connect(connectConfig);
+      // Send email
+      const emailData = {
+        from: emailRequest.from || smtpConfig.smtp_user,
+        to: emailRequest.to,
+        subject: finalSubject,
+        content: finalMessage,
+        ...(htmlMessage && { html: htmlMessage })
+      };
 
-        await Promise.race([
-          connectPromise,
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('SMTP connection timeout after 30 seconds')), SMTP_TIMEOUT)
-          )
-        ]);
+      console.log(`📤 [${requestId}] Sending email with ${htmlMessage ? 'HTML' : 'text'} content`);
+      
+      const sendPromise = client.send(emailData);
+      await Promise.race([
+        sendPromise,
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Email send timeout')), SMTP_TIMEOUT)
+        )
+      ]);
 
-        console.log(`✅ [${requestId}] SMTP connection established successfully`);
+      emailSent = true;
+      console.log(`✅ [${requestId}] Email sent successfully`);
 
-      } catch (connectError) {
-        console.error(`❌ [${requestId}] SMTP connection failed:`, {
-          error: connectError,
-          message: connectError instanceof Error ? connectError.message : 'Unknown connection error',
-          stack: connectError instanceof Error ? connectError.stack : undefined,
-          host: smtpConfig.smtp_host,
-          port: smtpConfig.smtp_port,
-          ssl: smtpConfig.use_ssl,
-          tls: smtpConfig.use_tls
-        });
-
-        // Log specific connection failure scenarios
-        const errorMsg = connectError instanceof Error ? connectError.message : String(connectError);
-        
-        if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('getaddrinfo')) {
-          console.error(`🌐 [${requestId}] DNS resolution failed for ${smtpConfig.smtp_host}`);
-        } else if (errorMsg.includes('ECONNREFUSED')) {
-          console.error(`🚫 [${requestId}] Connection refused by ${smtpConfig.smtp_host}:${smtpConfig.smtp_port}`);
-        } else if (errorMsg.includes('timeout')) {
-          console.error(`⏱️ [${requestId}] Connection timeout to ${smtpConfig.smtp_host}:${smtpConfig.smtp_port}`);
-        } else if (errorMsg.includes('authentication') || errorMsg.includes('login') || errorMsg.includes('535')) {
-          console.error(`🔑 [${requestId}] Authentication failed with username: ${smtpConfig.smtp_user}`);
-        } else if (errorMsg.includes('SSL') || errorMsg.includes('TLS') || errorMsg.includes('certificate')) {
-          console.error(`🔒 [${requestId}] SSL/TLS handshake failed`);
-        }
-
-        throw connectError;
-      }
-
-      // Send email with enhanced logging
-      try {
-        const emailData = {
-          from: sanitizedRequest.from || smtpConfig.smtp_user,
-          to: sanitizedRequest.to,
-          subject: finalSubject,
-          content: finalMessage,
-        };
-
-        console.log(`📤 [${requestId}] Sending email:`, {
-          from: emailData.from,
-          to: emailData.to,
-          subject: emailData.subject,
-          content_length: emailData.content.length
-        });
-        
-        const sendPromise = client.send(emailData);
-
-        const sendResult = await Promise.race([
-          sendPromise,
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Email send timeout after 30 seconds')), SMTP_TIMEOUT)
-          )
-        ]);
-
-        emailSent = true;
-        console.log(`✅ [${requestId}] Email sent successfully:`, sendResult);
-
-        // Log to email queue for tracking
+      // Update delivery log with success
+      if (deliveryLogId) {
         try {
           await supabase
-            .from('email_notification_queue')
-            .insert({
-              user_id: user.id,
-              recipient_email: sanitizedRequest.to,
-              sender_email: sanitizedRequest.from || smtpConfig.smtp_user,
-              subject: finalSubject,
-              body_text: finalMessage,
-              template_id: sanitizedRequest.template_id || null,
-              template_variables: sanitizedRequest.template_variables || {},
-              status: 'sent',
-              sent_at: new Date().toISOString(),
-            });
+            .from('email_delivery_logs')
+            .update({
+              status: 'SENT',
+              sent_at: new Date().toISOString()
+            })
+            .eq('id', deliveryLogId);
           
-          console.log(`📊 [${requestId}] Email logged to queue successfully`);
+          console.log(`📊 [${requestId}] Delivery log updated: SENT`);
         } catch (logError) {
-          console.error(`⚠️ [${requestId}] Failed to log email to queue:`, logError);
-          // Don't fail the request if logging fails
+          console.warn(`⚠️ [${requestId}] Failed to update delivery log:`, logError);
         }
-
-      } catch (sendError) {
-        console.error(`❌ [${requestId}] Email send failed:`, {
-          error: sendError,
-          message: sendError instanceof Error ? sendError.message : 'Unknown send error',
-          stack: sendError instanceof Error ? sendError.stack : undefined
-        });
-
-        throw sendError;
       }
 
     } catch (smtpError) {
-      console.error(`❌ [${requestId}] Overall SMTP operation failed:`, smtpError);
+      console.error(`❌ [${requestId}] SMTP operation failed:`, smtpError);
       
-      // Log failed email attempt
-      try {
-        await supabase
-          .from('email_notification_queue')
-          .insert({
-            user_id: user.id,
-            recipient_email: sanitizedRequest.to,
-            sender_email: sanitizedRequest.from || smtpConfig.smtp_user,
-            subject: finalSubject,
-            body_text: finalMessage,
-            template_id: sanitizedRequest.template_id || null,
-            template_variables: sanitizedRequest.template_variables || {},
-            status: 'failed',
-            error_message: smtpError instanceof Error ? smtpError.message : 'Unknown SMTP error',
-          });
-      } catch (logError) {
-        console.error(`⚠️ [${requestId}] Failed to log error to queue:`, logError);
+      // Update delivery log with failure
+      if (deliveryLogId) {
+        try {
+          await supabase
+            .from('email_delivery_logs')
+            .update({
+              status: 'FAILED',
+              error_message: smtpError instanceof Error ? smtpError.message : 'Unknown SMTP error'
+            })
+            .eq('id', deliveryLogId);
+          
+          console.log(`📊 [${requestId}] Delivery log updated: FAILED`);
+        } catch (logError) {
+          console.warn(`⚠️ [${requestId}] Failed to update delivery log:`, logError);
+        }
       }
 
       // Determine error type and status code
@@ -512,9 +547,9 @@ serve(async (req) => {
       // Ensure SMTP connection is closed
       try {
         await client.close();
-        console.log(`🔌 [${requestId}] SMTP connection closed successfully`);
+        console.log(`🔌 [${requestId}] SMTP connection closed`);
       } catch (closeError) {
-        console.error(`⚠️ [${requestId}] Error closing SMTP connection:`, closeError);
+        console.warn(`⚠️ [${requestId}] Error closing SMTP connection:`, closeError);
       }
     }
 
@@ -522,14 +557,17 @@ serve(async (req) => {
     const response = {
       success: true,
       status: 'sent',
-      to: sanitizedRequest.to,
+      to: emailRequest.to,
       subject: finalSubject,
       message: 'Email sent successfully',
+      template_used: templateId !== null,
+      template_id: templateId,
+      delivery_log_id: deliveryLogId,
       timestamp: new Date().toISOString(),
       requestId: requestId
     };
 
-    console.log(`✅ [${requestId}] Request completed successfully`);
+    console.log(`✅ [${requestId}] Enhanced email service request completed successfully`);
 
     return new Response(
       JSON.stringify(response),
