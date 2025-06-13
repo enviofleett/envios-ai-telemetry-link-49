@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { User } from '@supabase/supabase-js';
 import UserStatsCards from './UserStatsCards';
 import SimpleUserManagementTable from './SimpleUserManagementTable';
 import UserDetailsModal from './UserDetailsModal';
@@ -60,7 +60,7 @@ const SimpleUserManagement: React.FC = () => {
       try {
         const { data: authUsersResponse, error: authError } = await supabase.auth.admin.listUsers();
         if (!authError && authUsersResponse?.users) {
-          authUsersResponse.users.forEach(authUser => {
+          authUsersResponse.users.forEach((authUser: User) => {
             if (authUser.id && authUser.email) {
               emailMap[authUser.id] = authUser.email;
             }
