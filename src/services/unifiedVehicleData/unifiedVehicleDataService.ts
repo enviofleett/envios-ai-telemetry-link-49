@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehicleMetrics, SyncMetrics } from '@/types/vehicle';
 
@@ -161,10 +162,7 @@ export class UnifiedVehicleDataService {
       isOnline: isOnline && hasRecentPosition,
       isMoving: rawVehicle.last_position?.speed > 0 || false,
       alerts: rawVehicle.alerts || [],
-      is_active: rawVehicle.is_active || false,
-      // Legacy compatibility
-      device_id: rawVehicle.device_id,
-      device_name: rawVehicle.device_name
+      is_active: rawVehicle.is_active || false
     };
   }
 
