@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Search, Filter, Plus, MoreHorizontal, User, Car, Phone, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,14 +33,14 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
   onCreateUser
 }) => {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
   const [page, setPage] = useState(1);
 
   const { data, isLoading, error } = useUserProfiles({
     search,
-    status: statusFilter,
-    role: roleFilter,
+    status: statusFilter === 'all' ? '' : statusFilter,
+    role: roleFilter === 'all' ? '' : roleFilter,
     page,
     limit: 20
   });
@@ -146,7 +145,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All statuses</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="pending_admin_approval">Pending Approval</SelectItem>
             <SelectItem value="pending_email_verification">Email Pending</SelectItem>
@@ -160,7 +159,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
             <SelectValue placeholder="Filter by role" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All roles</SelectItem>
+            <SelectItem value="all">All roles</SelectItem>
             <SelectItem value="admin">Admin</SelectItem>
             <SelectItem value="fleet_manager">Fleet Manager</SelectItem>
             <SelectItem value="dispatcher">Dispatcher</SelectItem>
