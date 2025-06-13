@@ -95,13 +95,14 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get the most recent valid GP51 session
+    // Get the most recent valid GP51 session - FIXED: Using maybeSingle()
     console.log('🔍 Fetching GP51 session from database...');
-    const { data: sessions, error: sessionError } = await supabase
+    const { data: session, error: sessionError } = await supabase
       .from('gp51_sessions')
       .select('username, password_hash, token_expires_at, api_url')
       .order('token_expires_at', { ascending: false })
-      .limit(1);
+      .limit(1)
+      .maybeSingle();
 
     if (sessionError) {
       console.error('❌ Database error fetching session:', sessionError);
@@ -118,22 +119,22 @@ serve(async (req) => {
       );
     }
 
-    if (!sessions || sessions.length === 0) {
-      console.error('❌ No GP51 sessions found');
+    if (!session) {
+      console.log('❌ No GP51 sessions found - GP51 not configured');
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: 'No GP51 sessions configured',
-          details: 'Please configure GP51 credentials first'
+          error: 'GP51 integration not configured',
+          details: 'Please configure GP51 credentials in the admin settings before using this feature.',
+          action_required: 'Configure GP51 credentials in Admin Settings > GP51 Integration'
         }),
         { 
-          status: 401, 
+          status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
 
-    const session = sessions[0];
     const expiresAt = new Date(session.token_expires_at);
     const now = new Date();
 

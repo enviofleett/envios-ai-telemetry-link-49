@@ -80,24 +80,42 @@ serve(async (req) => {
   try {
     console.log('🚀 GP51 Live Import: Starting data fetch...');
 
-    // 1. Fetch latest valid session from gp51_sessions
+    // 1. Fetch latest valid session from gp51_sessions - FIXED: Using maybeSingle()
     const { data: session, error: sessionError } = await supabase
       .from("gp51_sessions")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (sessionError || !session) {
-      console.error("❌ No session found:", sessionError);
+    if (sessionError) {
+      console.error("❌ Database error fetching session:", sessionError);
       return new Response(
         JSON.stringify({ 
           success: false,
-          error: "No valid GP51 session found",
-          code: "NO_SESSION"
+          error: "Database error accessing GP51 sessions",
+          code: "DATABASE_ERROR",
+          details: sessionError.message
         }),
         { 
-          status: 401, 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    if (!session) {
+      console.log("❌ No GP51 sessions found - GP51 not configured");
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: "GP51 integration not configured",
+          code: "NO_GP51_CONFIG",
+          message: "Please configure GP51 credentials in the admin settings before using this feature.",
+          action_required: "Configure GP51 credentials in Admin Settings > GP51 Integration"
+        }),
+        { 
+          status: 400, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );

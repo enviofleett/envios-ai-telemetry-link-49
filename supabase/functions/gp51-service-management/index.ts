@@ -29,12 +29,13 @@ serve(async (req) => {
       console.log('Testing GP51 connection by validating session...');
       const startTime = Date.now();
       
-      // Check if we have any valid GP51 sessions
-      const { data: sessions, error: sessionError } = await supabase
+      // Check if we have any valid GP51 sessions - FIXED: Using maybeSingle()
+      const { data: session, error: sessionError } = await supabase
         .from('gp51_sessions')
         .select('username, password_hash, token_expires_at, api_url')
         .order('token_expires_at', { ascending: false })
-        .limit(1);
+        .limit(1)
+        .maybeSingle();
 
       if (sessionError) {
         console.error('Database error during session check:', sessionError);
@@ -58,20 +59,20 @@ serve(async (req) => {
         );
       }
 
-      if (!sessions || sessions.length === 0) {
-        console.error('No GP51 sessions found:', sessions);
+      if (!session) {
+        console.log('No GP51 sessions found - GP51 not configured');
         return new Response(
           JSON.stringify({ 
-            status: 'critical',
+            status: 'not_configured',
             isValid: false,
             expiresAt: null,
             username: null,
             lastCheck: new Date(),
-            consecutiveFailures: 1,
-            isAuthError: true,
+            consecutiveFailures: 0,
+            isAuthError: false,
             latency: Date.now() - startTime,
             needsRefresh: false,
-            errorMessage: 'No GP51 sessions configured'
+            errorMessage: 'GP51 integration not configured. Please add GP51 credentials in admin settings.'
           }),
           { 
             status: 200, 
@@ -80,7 +81,6 @@ serve(async (req) => {
         );
       }
 
-      const session = sessions[0];
       const expiresAt = new Date(session.token_expires_at);
       const now = new Date();
 
@@ -136,14 +136,16 @@ serve(async (req) => {
       console.log('Testing real GP51 API connectivity...');
       const startTime = Date.now();
       
-      // Get session first
-      const { data: sessions, error: sessionError } = await supabase
+      // Get session first - FIXED: Using maybeSingle()
+      const { data: session, error: sessionError } = await supabase
         .from('gp51_sessions')
         .select('username, password_hash, token_expires_at, api_url')
         .order('token_expires_at', { ascending: false })
-        .limit(1);
+        .limit(1)
+        .maybeSingle();
 
-      if (sessionError || !sessions || sessions.length === 0) {
+      if (sessionError) {
+        console.error('Database error during session check:', sessionError);
         return new Response(
           JSON.stringify({ 
             status: 'critical',
@@ -152,10 +154,10 @@ serve(async (req) => {
             username: null,
             lastCheck: new Date(),
             consecutiveFailures: 1,
-            isAuthError: true,
+            isAuthError: false,
             latency: Date.now() - startTime,
             needsRefresh: false,
-            errorMessage: 'No valid GP51 session found'
+            errorMessage: 'Database connection failed'
           }),
           { 
             status: 200, 
@@ -164,7 +166,28 @@ serve(async (req) => {
         );
       }
 
-      const session = sessions[0];
+      if (!session) {
+        console.log('No GP51 sessions found - GP51 not configured');
+        return new Response(
+          JSON.stringify({ 
+            status: 'not_configured',
+            isValid: false,
+            expiresAt: null,
+            username: null,
+            lastCheck: new Date(),
+            consecutiveFailures: 0,
+            isAuthError: false,
+            latency: Date.now() - startTime,
+            needsRefresh: false,
+            errorMessage: 'GP51 integration not configured. Please add GP51 credentials in admin settings.'
+          }),
+          { 
+            status: 200, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+
       const expiresAt = new Date(session.token_expires_at);
       const now = new Date();
 
