@@ -67,18 +67,17 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
 
         // Transform Supabase data to VehicleData format
         const transformedVehicles: VehicleData[] = data.map(vehicle => {
-          let lastPosition = null;
+          let last_position = null;
           
           // Safely handle JSONB position data
           if (vehicle.last_position && isValidPosition(vehicle.last_position)) {
             const pos = vehicle.last_position;
-            lastPosition = {
+            last_position = {
               lat: pos.lat,
-              lon: pos.lng || pos.lon || 0,
+              lng: pos.lng || pos.lon || 0,
               speed: pos.speed || 0,
               course: pos.course || 0,
-              timestamp: new Date(pos.timestamp || new Date()),
-              statusText: pos.statusText || 'Unknown'
+              timestamp: pos.timestamp || new Date().toISOString()
             };
           }
 
@@ -86,15 +85,19 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
           
           return {
             id: vehicle.id || vehicle.device_id || '',
-            deviceId: vehicle.device_id || '',
-            deviceName: vehicle.device_name || 'Unknown Vehicle',
-            lastPosition,
+            device_id: vehicle.device_id || '',
+            device_name: vehicle.device_name || 'Unknown Vehicle',
+            last_position,
             status: isActive ? 'online' : 'offline',
             lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
             alerts: [],
             isOnline: isActive,
-            isMoving: lastPosition ? lastPosition.speed > 0 : false,
-            is_active: isActive
+            isMoving: last_position ? last_position.speed > 0 : false,
+            is_active: isActive,
+            // Legacy compatibility properties
+            deviceId: vehicle.device_id || '',
+            deviceName: vehicle.device_name || 'Unknown Vehicle',
+            lastPosition: last_position
           } as VehicleData;
         });
 
@@ -127,8 +130,8 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
     const online = vehicles.filter(v => v.status === 'online').length;
     const offline = vehicles.filter(v => v.status === 'offline').length;
     const idle = vehicles.filter(v => {
-      if (!v.lastPosition?.timestamp) return false;
-      const lastUpdate = new Date(v.lastPosition.timestamp);
+      if (!v.last_position?.timestamp) return false;
+      const lastUpdate = new Date(v.last_position.timestamp);
       const now = new Date();
       const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
       return minutesSinceUpdate > 5 && minutesSinceUpdate <= 30;
@@ -143,7 +146,12 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
   };
 
   const getVehicleById = (deviceId: string) => {
-    return vehicles.find(v => v.deviceId === deviceId);
+    return vehicles.find(v => v.device_id === deviceId);
+  };
+
+  const setFilters = (filters: any) => {
+    // Implementation for filter setting if needed
+    console.log('Setting filters:', filters);
   };
 
   return {
@@ -154,6 +162,8 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
     isRefreshing: isFetching,
     error,
     forceRefresh,
-    getVehicleById
+    refetch,
+    getVehicleById,
+    setFilters
   };
 };

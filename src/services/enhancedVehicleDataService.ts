@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { gp51DataService, type GP51ProcessedPosition, type LiveVehicleFilterConfig } from '@/services/gp51/GP51DataService';
 import { ErrorHandlingService } from '@/services/errorHandlingService';
@@ -69,23 +70,23 @@ class EnhancedVehicleDataService {
     gp51ProcessedPosition?: GP51ProcessedPosition
   ): VehicleData {
     // Convert GP51ProcessedPosition to authoritative VehiclePosition if available
-    const lastPosition: VehiclePosition | undefined = gp51ProcessedPosition ? {
+    const last_position: VehiclePosition | undefined = gp51ProcessedPosition ? {
       lat: gp51ProcessedPosition.latitude,
-      lon: gp51ProcessedPosition.longitude,
+      lng: gp51ProcessedPosition.longitude,
       speed: gp51ProcessedPosition.speed,
       course: gp51ProcessedPosition.course,
       timestamp: gp51ProcessedPosition.timestamp,
       statusText: gp51ProcessedPosition.statusText
     } : undefined;
 
-    const lastUpdate = lastPosition 
-      ? lastPosition.timestamp
+    const lastUpdate = last_position 
+      ? last_position.timestamp
       : new Date(supabaseVehicle.updated_at);
 
-    const isOnline = lastPosition ? 
-      (Date.now() - lastPosition.timestamp.getTime()) < (5 * 60 * 1000) : false;
+    const isOnline = last_position ? 
+      (Date.now() - last_position.timestamp.getTime()) < (5 * 60 * 1000) : false;
 
-    const isMoving = lastPosition ? (lastPosition.speed > 2) : false;
+    const isMoving = last_position ? (last_position.speed > 2) : false;
 
     let status: 'online' | 'offline' | 'idle' | 'moving' = 'offline';
     if (isOnline) {
@@ -94,16 +95,20 @@ class EnhancedVehicleDataService {
 
     return {
       id: supabaseVehicle.id,
-      deviceId: supabaseVehicle.device_id,
-      deviceName: supabaseVehicle.device_name,
+      device_id: supabaseVehicle.device_id,
+      device_name: supabaseVehicle.device_name,
       status,
       lastUpdate,
-      lastPosition,
+      last_position,
       isOnline,
       isMoving,
       alerts: [], // Will be populated from alerts table if needed
       is_active: supabaseVehicle.is_active,
-      envio_user_id: supabaseVehicle.envio_user_id
+      envio_user_id: supabaseVehicle.envio_user_id,
+      // Legacy compatibility properties
+      deviceId: supabaseVehicle.device_id,
+      deviceName: supabaseVehicle.device_name,
+      lastPosition: last_position
     };
   }
 
@@ -243,7 +248,7 @@ class EnhancedVehicleDataService {
   }
 
   getVehicleById(deviceId: string): VehicleData | undefined {
-    return this.vehicles.find(v => v.deviceId === deviceId);
+    return this.vehicles.find(v => v.device_id === deviceId);
   }
 
   getMetrics(): VehicleDataMetrics {
@@ -272,14 +277,42 @@ class EnhancedVehicleDataService {
       recentlyActiveVehicles,
       // Sync properties
       lastSyncTime: this.lastSyncTime,
-      positionsUpdated: this.vehicles.filter(v => v.lastPosition).length,
-      errors: 0, // Could be enhanced to track actual errors
+      positionsUpdated: this.vehicles.length,
+      errors: 0,
       syncStatus: 'success' as const
     };
   }
 
-  isReady(): boolean {
-    return this.vehicles.length > 0 || this.lastSyncTime.getTime() > 0;
+  // Helper methods for filtering
+  getLiveVehicles(): VehicleData[] {
+    return this.vehicles.filter(v => {
+      if (!v.last_position?.timestamp) return false;
+      const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+      return v.last_position.timestamp.getTime() > fiveMinutesAgo;
+    });
+  }
+
+  getOfflineVehicles(): VehicleData[] {
+    return this.vehicles.filter(v => !v.isOnline);
+  }
+
+  getMovingVehicles(): VehicleData[] {
+    return this.vehicles.filter(v => v.isMoving);
+  }
+
+  getIdleVehicles(): VehicleData[] {
+    return this.vehicles.filter(v => v.isOnline && !v.isMoving);
+  }
+
+  getVehiclesWithAlerts(): VehicleData[] {
+    return this.vehicles.filter(v => v.alerts.length > 0);
+  }
+
+  getRecentlyActiveVehicles(timeframeMinutes: number = 30): VehicleData[] {
+    const cutoffTime = Date.now() - (timeframeMinutes * 60 * 1000);
+    return this.vehicles.filter(v => {
+      return v.last_position && v.last_position.timestamp.getTime() > cutoffTime;
+    });
   }
 
   destroy(): void {
@@ -287,75 +320,39 @@ class EnhancedVehicleDataService {
       clearInterval(this.syncInterval);
       this.syncInterval = null;
     }
-    this.subscribers = [];
-  }
-
-  // New method to get live vehicle statistics
-  getLiveVehicleStats(liveConfig?: LiveVehicleFilterConfig): {
-    totalVehicles: number;
-    liveVehicles: number;
-    offlineVehicles: number;
-    staleVehicles: number;
-  } {
-    const config = liveConfig || this.defaultLiveConfig;
-    const thresholdTime = Date.now() - (config.updateTimeThresholdMinutes * 60 * 1000);
-    
-    const totalVehicles = this.vehicles.length;
-    const liveVehicles = this.vehicles.filter(v => 
-      v.lastPosition && 
-      v.lastPosition.timestamp.getTime() > thresholdTime &&
-      v.isOnline
-    ).length;
-    const offlineVehicles = this.vehicles.filter(v => !v.isOnline).length;
-    const staleVehicles = totalVehicles - liveVehicles - offlineVehicles;
-
-    return {
-      totalVehicles,
-      liveVehicles,
-      offlineVehicles,
-      staleVehicles
-    };
+    this.subscribers.length = 0;
   }
 }
 
+// Export singleton instance
 export const enhancedVehicleDataService = new EnhancedVehicleDataService();
 
-// Standalone function exports for compatibility with existing hooks
+// Export helper functions for compatibility
 export const getEnhancedVehicles = async (options: { page: number; limit: number }) => {
-  return await enhancedVehicleDataService.getVehiclesPaginated(options);
+  return enhancedVehicleDataService.getVehiclesPaginated(options);
 };
 
-export const getVehicleDataMetrics = (vehicles?: VehicleData[]): VehicleDataMetrics => {
-  // If vehicles are provided, calculate metrics for those specific vehicles
-  if (vehicles && vehicles.length > 0) {
-    const total = vehicles.length;
-    const online = vehicles.filter(v => v.isOnline).length;
-    const offline = total - online;
-    const alerts = vehicles.reduce((sum, v) => sum + v.alerts.length, 0);
-    const recentlyActiveVehicles = vehicles.filter(v => {
+export const getVehicleDataMetrics = (vehicles: VehicleData[]): VehicleDataMetrics => {
+  const total = vehicles.length;
+  const online = vehicles.filter(v => v.isOnline).length;
+  const offline = total - online;
+  const alerts = vehicles.reduce((sum, v) => sum + v.alerts.length, 0);
+
+  return {
+    total,
+    online,
+    offline,
+    alerts,
+    totalVehicles: total,
+    onlineVehicles: online,
+    offlineVehicles: offline,
+    recentlyActiveVehicles: vehicles.filter(v => {
       const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
       return v.lastUpdate.getTime() > thirtyMinutesAgo;
-    }).length;
-
-    return {
-      // Dashboard-compatible properties
-      total,
-      online,
-      offline,
-      alerts,
-      // Legacy properties
-      totalVehicles: total,
-      onlineVehicles: online,
-      offlineVehicles: offline,
-      recentlyActiveVehicles,
-      // Sync properties
-      lastSyncTime: new Date(),
-      positionsUpdated: vehicles.filter(v => v.lastPosition).length,
-      errors: 0,
-      syncStatus: 'success' as const
-    };
-  }
-  
-  // Otherwise, use the service's cached metrics
-  return enhancedVehicleDataService.getMetrics();
+    }).length,
+    lastSyncTime: new Date(),
+    positionsUpdated: vehicles.length,
+    errors: 0,
+    syncStatus: 'success' as const
+  };
 };

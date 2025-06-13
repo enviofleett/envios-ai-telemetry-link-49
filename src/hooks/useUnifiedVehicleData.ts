@@ -85,8 +85,8 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
           if (filters.search) {
             const searchTerm = filters.search.toLowerCase();
             const matchesSearch = 
-              vehicle.deviceName.toLowerCase().includes(searchTerm) ||
-              vehicle.deviceId.toLowerCase().includes(searchTerm) ||
+              vehicle.device_name.toLowerCase().includes(searchTerm) ||
+              vehicle.device_id.toLowerCase().includes(searchTerm) ||
               (vehicle.vehicleName?.toLowerCase().includes(searchTerm) || false);
             if (!matchesSearch) return false;
           }
@@ -203,7 +203,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
   }, [vehicles]);
 
   const getVehicleById = useCallback((deviceId: string) => {
-    return vehicles.find(v => v.deviceId === deviceId);
+    return vehicles.find(v => v.device_id === deviceId);
   }, [vehicles]);
 
   const getOnlineVehicles = useCallback(() => {

@@ -1,344 +1,348 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { Navigation, MapPin, Activity } from 'lucide-react';
+import DynamicMap from '@/components/map/DynamicMap';
+import VehicleListPanel from '@/components/tracking/VehicleListPanel';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import MapDisplay from '@/components/maps/MapDisplay';
+import { 
+  Car, 
+  MapPin, 
+  Activity, 
+  AlertTriangle, 
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Maximize2
+} from 'lucide-react';
 import { useStableVehicleData } from '@/hooks/useStableVehicleData';
-import { geocodingService } from '@/services/maps/geocodingService';
+import { loadMockVehicleDataForMap } from '@/services/unifiedVehicleData/dataLoader';
 import type { VehicleData } from '@/services/unifiedVehicleData';
-
-interface MapMarker {
-  id: string;
-  latitude: number;
-  longitude: number;
-  title?: string;
-  description?: string;
-  color?: string;
-}
 
 const LiveTracking: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
-  const [vehicleAddress, setVehicleAddress] = useState<string>('');
-  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
-  
-  // Use stable vehicle data with error handling
-  const { vehicles, metrics, isLoading, error, forceRefresh } = useStableVehicleData({});
+  const [mapVehicles, setMapVehicles] = useState<VehicleData[]>([]);
+  const [vehicleAddresses, setVehicleAddresses] = useState<Map<string, string>>(new Map());
+  const [showVehicleList, setShowVehicleList] = useState(true);
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false);
 
-  // Convert vehicles to map markers
-  const mapMarkers: MapMarker[] = vehicles
-    .filter(vehicle => vehicle.lastPosition?.lat && vehicle.lastPosition?.lon)
-    .map(vehicle => {
-      const getStatusColor = () => {
-        if (!vehicle.lastPosition?.timestamp) return '#6b7280'; // gray
-        
-        const lastUpdate = new Date(vehicle.lastPosition.timestamp);
-        const now = new Date();
-        const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-        
-        if (minutesSinceUpdate <= 5) return '#10b981'; // green - online
-        if (minutesSinceUpdate <= 30) return '#f59e0b'; // yellow - idle
-        return '#ef4444'; // red - offline
-      };
+  // Use stable vehicle data hook with proper property names
+  const { vehicles, metrics, isLoading, forceRefresh } = useStableVehicleData({
+    refetchInterval: 30000,
+    search: '',
+    status: 'all'
+  });
 
-      return {
-        id: vehicle.deviceId,
-        latitude: vehicle.lastPosition!.lat,
-        longitude: vehicle.lastPosition!.lon,
-        title: vehicle.deviceName || vehicle.deviceId,
-        description: `Speed: ${vehicle.lastPosition?.speed || 0} km/h`,
-        color: getStatusColor()
-      };
+  // Filter for vehicles with valid positions
+  const vehiclesWithPositions = useMemo(() => {
+    return vehicles.filter(vehicle => 
+      vehicle.last_position?.lat && 
+      vehicle.last_position?.lng
+    );
+  }, [vehicles]);
+
+  // Load map-specific vehicles on mount
+  useEffect(() => {
+    const mockMapVehicles = loadMockVehicleDataForMap();
+    setMapVehicles(mockMapVehicles);
+
+    // Generate mock addresses
+    const addresses = new Map<string, string>();
+    mockMapVehicles.forEach((vehicle, index) => {
+      const mockAddresses = [
+        '123 Broadway, New York, NY',
+        '456 Fifth Avenue, New York, NY',
+        '789 Madison Avenue, New York, NY',
+        '321 Park Avenue, New York, NY',
+        '654 Lexington Avenue, New York, NY'
+      ];
+      addresses.set(vehicle.device_id, mockAddresses[index % mockAddresses.length]);
     });
+    setVehicleAddresses(addresses);
+  }, []);
 
-  // Handle marker click
-  const handleMarkerClick = async (marker: MapMarker) => {
-    const vehicle = vehicles.find(v => v.deviceId === marker.id);
-    if (vehicle) {
-      setSelectedVehicle(vehicle);
-      
-      // Get address for selected vehicle
-      if (vehicle.lastPosition?.lat && vehicle.lastPosition?.lon) {
-        setIsLoadingAddress(true);
-        try {
-          const address = await geocodingService.reverseGeocodeCoordinates(
-            vehicle.lastPosition.lat,
-            vehicle.lastPosition.lon
-          );
-          setVehicleAddress(address || 'Address not available');
-        } catch (error) {
-          console.error('Failed to get address:', error);
-          setVehicleAddress('Failed to load address');
-        } finally {
-          setIsLoadingAddress(false);
-        }
-      }
-    }
-  };
+  // Combine vehicles for map display (real + mock)
+  const allMapVehicles = useMemo(() => {
+    const combinedVehicles = [...vehiclesWithPositions, ...mapVehicles];
+    return combinedVehicles.map(vehicle => ({
+      id: vehicle.device_id,
+      lat: vehicle.last_position?.lat || 0,
+      lng: vehicle.last_position?.lng || 0,
+      name: vehicle.device_name || vehicle.device_id,
+      status: vehicle.status || 'offline',
+      speed: vehicle.last_position?.speed || 0,
+      lastUpdate: vehicle.lastUpdate || new Date(),
+      course: vehicle.last_position?.course || 0,
+      isSelected: selectedVehicle?.device_id === vehicle.device_id
+    }));
+  }, [vehiclesWithPositions, mapVehicles, selectedVehicle]);
 
-  // Handle vehicle list item click
+  // Calculate enhanced metrics
+  const enhancedMetrics = useMemo(() => {
+    const allVehicles = [...vehicles, ...mapVehicles];
+    const now = new Date();
+    
+    const online = allVehicles.filter(v => {
+      if (!v.last_position?.timestamp) return false;
+      const lastUpdate = new Date(v.last_position.timestamp);
+      return (now.getTime() - lastUpdate.getTime()) < (5 * 60 * 1000); // 5 minutes
+    }).length;
+    
+    const moving = allVehicles.filter(v => v.last_position?.speed && v.last_position.speed > 5).length;
+    const idle = online - moving;
+    const offline = allVehicles.length - online;
+
+    return {
+      total: allVehicles.length,
+      online,
+      moving,
+      idle,
+      offline,
+      alerts: allVehicles.reduce((sum, v) => sum + (v.alerts?.length || 0), 0)
+    };
+  }, [vehicles, mapVehicles]);
+
   const handleVehicleSelect = (vehicle: VehicleData) => {
     setSelectedVehicle(vehicle);
-    
-    // If vehicle has position, get address
-    if (vehicle.lastPosition?.lat && vehicle.lastPosition?.lon) {
-      handleMarkerClick({
-        id: vehicle.deviceId,
-        latitude: vehicle.lastPosition.lat,
-        longitude: vehicle.lastPosition.lon
-      });
+  };
+
+  const handleMapVehicleClick = (vehicleId: string) => {
+    const allVehicles = [...vehicles, ...mapVehicles];
+    const vehicle = allVehicles.find(v => v.device_id === vehicleId);
+    if (vehicle) {
+      setSelectedVehicle(vehicle);
     }
   };
 
-  const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.lastPosition?.timestamp) return 'offline';
-    
-    const lastUpdate = new Date(vehicle.lastPosition.timestamp);
-    const now = new Date();
-    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-    
-    if (minutesSinceUpdate <= 5) return 'online';
-    if (minutesSinceUpdate <= 30) return 'idle';
-    return 'offline';
+  const handleRefreshAddresses = async () => {
+    // Mock refresh - in real app would geocode positions
+    console.log('Refreshing addresses...');
+    await forceRefresh();
   };
 
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'online': return 'default';
-      case 'idle': return 'secondary';
-      default: return 'destructive';
-    }
+  const handleTripHistory = (vehicle: VehicleData) => {
+    console.log('Opening trip history for:', vehicle.device_name);
+    // TODO: Implement trip history modal
   };
 
-  if (error) {
-    return (
-      <ProtectedRoute>
-        <Layout>
-          <div className="space-y-6">
-            <div className="flex items-center gap-3">
-              <Navigation className="h-8 w-8 text-primary" />
-              <div>
-                <h1 className="text-3xl font-bold">Live Tracking</h1>
-                <p className="text-sm text-muted-foreground">
-                  Real-time vehicle location monitoring and fleet tracking
-                </p>
-              </div>
-            </div>
-            
-            <Card>
-              <CardContent className="p-6">
-                <div className="text-center text-red-600">
-                  Error loading vehicle data: {error}
-                  <div className="mt-4">
-                    <Button onClick={forceRefresh} variant="outline">
-                      Retry
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </Layout>
-      </ProtectedRoute>
-    );
-  }
+  const handleSendAlert = (vehicle: VehicleData) => {
+    console.log('Sending alert to:', vehicle.device_name);
+    // TODO: Implement alert sending
+  };
+
+  const toggleVehicleList = () => {
+    setShowVehicleList(!showVehicleList);
+  };
+
+  const toggleMapFullscreen = () => {
+    setIsMapFullscreen(!isMapFullscreen);
+  };
 
   return (
     <ProtectedRoute>
       <Layout>
-        <div className="space-y-6">
-          <div className="flex items-center gap-3">
-            <Navigation className="h-8 w-8 text-primary" />
-            <div>
-              <h1 className="text-3xl font-bold">Live Tracking</h1>
-              <p className="text-sm text-muted-foreground">
-                Real-time vehicle location monitoring and fleet tracking
-              </p>
+        <div className="h-full flex flex-col space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MapPin className="h-8 w-8 text-primary" />
+              <div>
+                <h1 className="text-3xl font-bold">Live Tracking</h1>
+                <p className="text-sm text-muted-foreground">
+                  Real-time vehicle monitoring and location tracking
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleVehicleList}
+                className="flex items-center gap-2"
+              >
+                {showVehicleList ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {showVehicleList ? 'Hide' : 'Show'} Vehicle List
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleMapFullscreen}
+                className="flex items-center gap-2"
+              >
+                <Maximize2 className="h-4 w-4" />
+                {isMapFullscreen ? 'Exit' : 'Fullscreen'}
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={forceRefresh}
+                disabled={isLoading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </div>
           </div>
 
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Metrics Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-green-600" />
-                  <div>
-                    <p className="text-sm font-medium">Online</p>
-                    <p className="text-2xl font-bold">{metrics.online}</p>
-                  </div>
+                  <Car className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium">Total</span>
                 </div>
+                <div className="text-2xl font-bold mt-1">{enhancedMetrics.total}</div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-yellow-600" />
-                  <div>
-                    <p className="text-sm font-medium">Idle</p>
-                    <p className="text-2xl font-bold">{metrics.idle}</p>
-                  </div>
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-sm font-medium">Online</span>
                 </div>
+                <div className="text-2xl font-bold mt-1 text-green-600">{enhancedMetrics.online}</div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-red-600" />
-                  <div>
-                    <p className="text-sm font-medium">Offline</p>
-                    <p className="text-2xl font-bold">{metrics.offline}</p>
-                  </div>
+                  <Activity className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium">Moving</span>
                 </div>
+                <div className="text-2xl font-bold mt-1 text-blue-600">{enhancedMetrics.moving}</div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-blue-600" />
-                  <div>
-                    <p className="text-sm font-medium">Total</p>
-                    <p className="text-2xl font-bold">{metrics.total}</p>
-                  </div>
+                  <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                  <span className="text-sm font-medium">Idle</span>
                 </div>
+                <div className="text-2xl font-bold mt-1 text-yellow-600">{enhancedMetrics.idle}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                  <span className="text-sm font-medium">Offline</span>
+                </div>
+                <div className="text-2xl font-bold mt-1 text-gray-600">{enhancedMetrics.offline}</div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <span className="text-sm font-medium">Alerts</span>
+                </div>
+                <div className="text-2xl font-bold mt-1 text-red-600">{enhancedMetrics.alerts}</div>
               </CardContent>
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Map Display */}
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Fleet Map</CardTitle>
+          {/* Main Content */}
+          <div className={`flex-1 flex gap-6 ${isMapFullscreen ? 'fixed inset-0 z-50 bg-white p-6' : ''}`}>
+            {/* Vehicle List Panel */}
+            {showVehicleList && !isMapFullscreen && (
+              <div className="w-80 flex-shrink-0">
+                <VehicleListPanel
+                  selectedVehicle={selectedVehicle}
+                  onVehicleSelect={handleVehicleSelect}
+                  vehicleAddresses={vehicleAddresses}
+                  onTripHistory={handleTripHistory}
+                  onSendAlert={handleSendAlert}
+                  onRefreshAddresses={handleRefreshAddresses}
+                />
+              </div>
+            )}
+
+            {/* Map Container */}
+            <div className="flex-1 min-h-0">
+              <Card className="h-full">
+                <CardHeader className="p-4 border-b">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg font-semibold">
+                      Live Map View
+                    </CardTitle>
+                    
+                    {selectedVehicle && (
+                      <Badge variant="outline" className="text-sm">
+                        Selected: {selectedVehicle.device_name || selectedVehicle.device_id}
+                      </Badge>
+                    )}
+                  </div>
                 </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <div className="h-96 flex items-center justify-center bg-gray-50 rounded-lg">
-                      <div className="text-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
-                        <p className="text-sm text-gray-600">Loading vehicles...</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <MapDisplay
-                      markers={mapMarkers}
-                      height="400px"
-                      onMarkerClick={handleMarkerClick}
-                      className="rounded-lg"
+                
+                <CardContent className="p-0 h-full">
+                  <div className="h-full min-h-[400px]">
+                    <DynamicMap
+                      vehicles={allMapVehicles}
+                      onVehicleClick={handleMapVehicleClick}
+                      selectedVehicleId={selectedVehicle?.device_id}
+                      showTrafficLayer={true}
+                      className="w-full h-full rounded-b-lg"
                     />
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Vehicle List */}
-            <div>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vehicles ({vehicles.length})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {vehicles.map((vehicle) => {
-                      const status = getVehicleStatus(vehicle);
-                      return (
-                        <div
-                          key={vehicle.deviceId}
-                          className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-gray-50 ${
-                            selectedVehicle?.deviceId === vehicle.deviceId ? 'bg-blue-50 border-blue-200' : ''
-                          }`}
-                          onClick={() => handleVehicleSelect(vehicle)}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">
-                                {vehicle.deviceName || vehicle.deviceId}
-                              </p>
-                              {vehicle.lastPosition && (
-                                <p className="text-xs text-gray-600">
-                                  Speed: {vehicle.lastPosition.speed} km/h
-                                </p>
-                              )}
-                            </div>
-                            <Badge variant={getStatusBadgeVariant(status)} className="text-xs">
-                              {status}
-                            </Badge>
-                          </div>
-                        </div>
-                      );
-                    })}
                   </div>
                 </CardContent>
               </Card>
             </div>
           </div>
 
-          {/* Vehicle Details Panel */}
+          {/* Selected Vehicle Details */}
           {selectedVehicle && (
             <Card>
-              <CardHeader>
-                <CardTitle>Vehicle Details - {selectedVehicle.deviceName || selectedVehicle.deviceId}</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">
+                  {selectedVehicle.device_name || selectedVehicle.device_id} Details
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Status</p>
-                    <Badge variant={getStatusBadgeVariant(getVehicleStatus(selectedVehicle))}>
-                      {getVehicleStatus(selectedVehicle)}
-                    </Badge>
+                    <span className="text-muted-foreground">Status:</span>
+                    <div className="font-medium">
+                      <Badge variant={selectedVehicle.status === 'online' ? 'default' : 'secondary'}>
+                        {selectedVehicle.status}
+                      </Badge>
+                    </div>
                   </div>
                   
-                  {selectedVehicle.lastPosition && (
-                    <>
-                      <div>
-                        <p className="text-sm font-medium text-gray-600">Speed</p>
-                        <p className="text-lg font-semibold">{selectedVehicle.lastPosition.speed} km/h</p>
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm font-medium text-gray-600">Coordinates</p>
-                        <p className="text-sm font-mono">
-                          {selectedVehicle.lastPosition.lat.toFixed(6)}, {selectedVehicle.lastPosition.lon.toFixed(6)}
-                        </p>
-                      </div>
-                      
-                      <div>
-                        <p className="text-sm font-medium text-gray-600">Last Update</p>
-                        <p className="text-sm">{selectedVehicle.lastPosition.timestamp.toLocaleString()}</p>
-                      </div>
-                    </>
-                  )}
-                </div>
-                
-                {/* Address Information */}
-                <div className="mt-4 pt-4 border-t">
-                  <p className="text-sm font-medium text-gray-600 mb-2">Current Location</p>
-                  {isLoadingAddress ? (
-                    <div className="flex items-center gap-2">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      <span className="text-sm text-gray-600">Loading address...</span>
+                  <div>
+                    <span className="text-muted-foreground">Speed:</span>
+                    <div className="font-medium">
+                      {selectedVehicle.last_position?.speed || 0} km/h
                     </div>
-                  ) : vehicleAddress ? (
-                    <p className="text-sm">{vehicleAddress}</p>
-                  ) : (
-                    <p className="text-sm text-gray-500">Address not available</p>
-                  )}
-                </div>
-
-                <div className="mt-4 flex gap-2">
-                  <Button size="sm" variant="outline">
-                    View History
-                  </Button>
-                  <Button size="sm">
-                    Track Live
-                  </Button>
+                  </div>
+                  
+                  <div>
+                    <span className="text-muted-foreground">Last Update:</span>
+                    <div className="font-medium">
+                      {selectedVehicle.last_position?.timestamp 
+                        ? new Date(selectedVehicle.last_position.timestamp).toLocaleTimeString()
+                        : 'N/A'
+                      }
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <span className="text-muted-foreground">Location:</span>
+                    <div className="font-medium">
+                      {vehicleAddresses.get(selectedVehicle.device_id) || 'Unknown'}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>

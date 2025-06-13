@@ -36,16 +36,17 @@ export const useStableEnhancedVehicleData = () => {
 
       // Transform the data to match our VehicleData interface with snake_case
       const transformedData: VehicleData[] = data.map(vehicle => {
-        let lastPosition: VehicleData['last_position'];
+        let last_position: VehicleData['last_position'];
         
         // Handle last position conversion, ensuring lng property
         if (vehicle.last_position && typeof vehicle.last_position === 'object') {
           const rawPosition = vehicle.last_position as any;
           if (rawPosition.lat && (rawPosition.lng || rawPosition.lon)) {
-            lastPosition = {
+            last_position = {
               lat: rawPosition.lat,
               lng: rawPosition.lng || rawPosition.lon, // Handle both lng and lon
               speed: rawPosition.speed || 0,
+              course: rawPosition.course || 0, // Add required course property
               timestamp: typeof rawPosition.timestamp === 'string' 
                 ? rawPosition.timestamp 
                 : rawPosition.updatetime || new Date().toISOString()
@@ -66,16 +67,19 @@ export const useStableEnhancedVehicleData = () => {
           license_expiration_date: vehicle.license_expiration_date,
           is_active: vehicle.is_active,
           envio_user_id: vehicle.envio_user_id,
-          last_position: lastPosition,
+          last_position: last_position,
           envio_users: vehicle.envio_users,
           // Legacy compatibility
+          deviceId: vehicle.device_id,
+          deviceName: vehicle.device_name,
           vehicleName: vehicle.device_name,
+          lastPosition: last_position,
           status: vehicle.is_active ? 'online' : 'offline',
-          lastUpdate: lastPosition ? new Date(lastPosition.timestamp) : new Date(vehicle.updated_at || vehicle.created_at),
+          lastUpdate: last_position ? new Date(last_position.timestamp) : new Date(vehicle.updated_at || vehicle.created_at),
           alerts: [],
           isOnline: vehicle.is_active,
-          isMoving: lastPosition ? lastPosition.speed > 0 : false,
-          speed: lastPosition ? lastPosition.speed : 0
+          isMoving: last_position ? last_position.speed > 0 : false,
+          speed: last_position ? last_position.speed : 0
         };
       });
 
