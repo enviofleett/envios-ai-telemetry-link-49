@@ -103,10 +103,10 @@ serve(async (req) => {
       );
     }
 
-    const { username, gp51_password } = session;
+    const { username, password_hash } = session;
 
     // Hash the password for GP51 authentication
-    const hashedPassword = await md5(gp51_password);
+    const hashedPassword = await md5(password_hash);
 
     const fetchFromGP51 = async (action: string, additionalParams: Record<string, string> = {}, retry = false) => {
       const formData = new URLSearchParams({

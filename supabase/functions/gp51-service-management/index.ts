@@ -32,7 +32,7 @@ serve(async (req) => {
       // Check if we have any valid GP51 sessions
       const { data: sessions, error: sessionError } = await supabase
         .from('gp51_sessions')
-        .select('username, gp51_password, token_expires_at, api_url')
+        .select('username, password_hash, token_expires_at, api_url')
         .order('token_expires_at', { ascending: false })
         .limit(1);
 
@@ -139,7 +139,7 @@ serve(async (req) => {
       // Get session first
       const { data: sessions, error: sessionError } = await supabase
         .from('gp51_sessions')
-        .select('username, gp51_password, token_expires_at, api_url')
+        .select('username, password_hash, token_expires_at, api_url')
         .order('token_expires_at', { ascending: false })
         .limit(1);
 
@@ -191,7 +191,7 @@ serve(async (req) => {
 
       // Hash password for authentication
       const encoder = new TextEncoder();
-      const data = encoder.encode(session.gp51_password);
+      const data = encoder.encode(session.password_hash);
       const hashBuffer = await crypto.subtle.digest('MD5', data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashedPassword = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');

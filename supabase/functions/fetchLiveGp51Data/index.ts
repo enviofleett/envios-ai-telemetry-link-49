@@ -99,7 +99,7 @@ serve(async (req) => {
     console.log('🔍 Fetching GP51 session from database...');
     const { data: sessions, error: sessionError } = await supabase
       .from('gp51_sessions')
-      .select('username, gp51_password, token_expires_at, api_url')
+      .select('username, password_hash, token_expires_at, api_url')
       .order('token_expires_at', { ascending: false })
       .limit(1);
 
@@ -155,7 +155,7 @@ serve(async (req) => {
     console.log('✅ Valid session found, fetching live data from GP51...');
 
     // Hash the password for GP51 authentication
-    const hashedPassword = await md5(session.gp51_password);
+    const hashedPassword = await md5(session.password_hash);
 
     // First, get the monitor list (devices/vehicles)
     console.log('📡 Fetching GP51 monitor list...');
