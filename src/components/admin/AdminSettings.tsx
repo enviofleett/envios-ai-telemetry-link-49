@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import MobileResponsiveAdminLayout from './MobileResponsiveAdminLayout';
+import AdminSettingsLayout from './AdminSettingsLayout';
 
 export default function AdminSettings() {
   const [activeTab, setActiveTab] = useState('packages');
@@ -40,7 +40,7 @@ export default function AdminSettings() {
         </div>
       </div>
 
-      <MobileResponsiveAdminLayout 
+      <AdminSettingsLayout 
         activeTab={activeTab} 
         onTabChange={setActiveTab} 
       />
