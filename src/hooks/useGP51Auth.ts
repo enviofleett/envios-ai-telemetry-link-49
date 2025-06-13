@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { gps51AuthService, type AuthResult } from '@/services/gp51/Gps51AuthService';
 import { useToast } from '@/hooks/use-toast';
@@ -179,7 +180,7 @@ export const useGP51Auth = () => {
     
     try {
       const result = await gps51AuthService.healthCheck();
-      updateAuthState(); // Update state after health check
+      updateAuthState();
       
       if (!result) {
         setAuthState(prev => ({ 

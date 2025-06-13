@@ -18,7 +18,7 @@ export const SessionSecurityIndicator: React.FC = () => {
   const checkSessionHealth = async () => {
     setIsChecking(true);
     try {
-      const health = await enhancedGP51SessionManager.getSessionHealth();
+      const health = enhancedGP51SessionManager.getSessionHealth();
       setSessionHealth(health);
     } catch (error) {
       console.error('Failed to check session health:', error);
@@ -30,7 +30,6 @@ export const SessionSecurityIndicator: React.FC = () => {
   useEffect(() => {
     checkSessionHealth();
     
-    // Check session health every 5 minutes
     const interval = setInterval(checkSessionHealth, 5 * 60 * 1000);
     
     return () => clearInterval(interval);

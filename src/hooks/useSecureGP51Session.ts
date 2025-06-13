@@ -10,13 +10,11 @@ export const useSecureGP51Session = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Subscribe to session changes
     const unsubscribe = enhancedGP51SessionManager.subscribe((newSession) => {
       setSession(newSession);
       setIsLoading(false);
     });
 
-    // Check for existing session
     const currentSession = enhancedGP51SessionManager.getCurrentSession();
     if (currentSession) {
       setSession(currentSession);
@@ -31,14 +29,17 @@ export const useSecureGP51Session = () => {
       setIsLoading(true);
       setError(null);
       
-      const newSession = await enhancedGP51SessionManager.createSecureSession(username, token);
+      const result = await enhancedGP51SessionManager.createSecureSession(username, token);
       
-      toast({
-        title: "Secure Session Created",
-        description: "GP51 session established with enhanced security",
-      });
-      
-      return newSession;
+      if (result.success) {
+        toast({
+          title: "Secure Session Created",
+          description: "GP51 session established with enhanced security",
+        });
+        return result.session;
+      } else {
+        throw new Error(result.error || 'Failed to create secure session');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create secure session';
       setError(errorMessage);

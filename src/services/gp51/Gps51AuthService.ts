@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { crossBrowserMD5 } from '@/utils/crossBrowserMD5';
 
@@ -15,6 +14,12 @@ export interface GP51Credentials {
   apiUrl?: string;
 }
 
+export interface AuthStatus {
+  isAuthenticated: boolean;
+  username?: string;
+  tokenExpiresAt?: Date;
+}
+
 export class Gps51AuthService {
   private static instance: Gps51AuthService;
   private currentSession: any = null;
@@ -28,21 +33,105 @@ export class Gps51AuthService {
     return Gps51AuthService.instance;
   }
 
+  async login(username: string, password: string): Promise<AuthResult> {
+    try {
+      console.log('🔐 GP51 Login attempt for user:', username);
+      
+      const result = await this.authenticate({ username, password });
+      
+      if (result.success) {
+        console.log('✅ GP51 login successful');
+      } else {
+        console.error('❌ GP51 login failed:', result.error);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('❌ GP51 login exception:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Login failed'
+      };
+    }
+  }
+
+  async logout(): Promise<AuthResult> {
+    try {
+      console.log('👋 GP51 Logout initiated');
+      await this.clearSession();
+      console.log('✅ GP51 logout successful');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ GP51 logout failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Logout failed'
+      };
+    }
+  }
+
+  async getToken(): Promise<string | null> {
+    try {
+      if (this.currentSession?.gp51_token) {
+        return this.currentSession.gp51_token;
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      const { data: session } = await supabase
+        .from('gp51_sessions')
+        .select('gp51_token, token_expires_at')
+        .eq('envio_user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (session && new Date(session.token_expires_at) > new Date()) {
+        return session.gp51_token;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to get GP51 token:', error);
+      return null;
+    }
+  }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      const token = await this.getToken();
+      return token !== null;
+    } catch (error) {
+      console.error('❌ GP51 health check failed:', error);
+      return false;
+    }
+  }
+
+  getAuthStatus(): AuthStatus {
+    if (this.currentSession) {
+      return {
+        isAuthenticated: true,
+        username: this.currentSession.username,
+        tokenExpiresAt: new Date(this.currentSession.token_expires_at)
+      };
+    }
+
+    return { isAuthenticated: false };
+  }
+
   async authenticate(credentials: GP51Credentials): Promise<AuthResult> {
     try {
       console.log('🔐 Starting GP51 authentication process...');
       
-      // Hash the password using our cross-browser MD5 utility
       const hashedPassword = await crossBrowserMD5(credentials.password);
       console.log('✅ Password hashed successfully');
 
-      // Store session in database with hashed password
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         return { success: false, error: 'User not authenticated' };
       }
 
-      // Calculate token expiration (8 hours from now)
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 8);
 
@@ -51,8 +140,8 @@ export class Gps51AuthService {
         .upsert({
           envio_user_id: user.id,
           username: credentials.username,
-          password_hash: hashedPassword, // Store the hashed password
-          gp51_token: `temp_token_${Date.now()}`, // Temporary token
+          password_hash: hashedPassword,
+          gp51_token: `temp_token_${Date.now()}`,
           token_expires_at: expiresAt.toISOString(),
           api_url: credentials.apiUrl || 'https://www.gps51.com/webapi',
           last_activity_at: new Date().toISOString()
@@ -89,7 +178,6 @@ export class Gps51AuthService {
     try {
       console.log('🧪 Testing GP51 connection...');
       
-      // Use the settings-management edge function for testing
       const { data, error } = await supabase.functions.invoke('settings-management', {
         body: {
           action: 'save-gp51-credentials',
@@ -193,4 +281,5 @@ export class Gps51AuthService {
   }
 }
 
-export const gp51AuthService = Gps51AuthService.getInstance();
+// Export the singleton instance
+export const gps51AuthService = Gps51AuthService.getInstance();

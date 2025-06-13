@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { SecurityService } from './SecurityService';
 import { crossBrowserMD5 } from '@/utils/crossBrowserMD5';
@@ -32,6 +31,7 @@ class EnhancedGP51SessionManager {
   private static instance: EnhancedGP51SessionManager;
   private currentSession: SecureGP51Session | null = null;
   private sessionStorage = new Map<string, SecureGP51Session>();
+  private subscribers: Array<(session: SecureGP51Session | null) => void> = [];
 
   private constructor() {}
 
@@ -42,17 +42,35 @@ class EnhancedGP51SessionManager {
     return EnhancedGP51SessionManager.instance;
   }
 
+  subscribe(callback: (session: SecureGP51Session | null) => void): () => void {
+    this.subscribers.push(callback);
+    
+    // Return unsubscribe function
+    return () => {
+      const index = this.subscribers.indexOf(callback);
+      if (index > -1) {
+        this.subscribers.splice(index, 1);
+      }
+    };
+  }
+
+  private notifySubscribers(): void {
+    this.subscribers.forEach(callback => {
+      try {
+        callback(this.currentSession);
+      } catch (error) {
+        console.error('Error in session subscriber:', error);
+      }
+    });
+  }
+
   async createSecureSession(username: string, password: string): Promise<{ success: boolean; session?: SecureGP51Session; error?: string }> {
     try {
       console.log('🔐 Creating secure GP51 session...');
       
-      // Hash password for storage
       const passwordHash = await crossBrowserMD5(password);
-      
-      // Generate session fingerprint
       const sessionFingerprint = await this.generateSessionFingerprint();
       
-      // Create session data
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + 8);
       
@@ -61,13 +79,12 @@ class EnhancedGP51SessionManager {
         return { success: false, error: 'User not authenticated' };
       }
 
-      // Store session in database
       const { data: sessionData, error: sessionError } = await supabase
         .from('gp51_sessions')
         .insert({
           envio_user_id: user.id,
           username,
-          password_hash: passwordHash, // Include password_hash
+          password_hash: passwordHash,
           gp51_token: `secure_token_${Date.now()}`,
           token_expires_at: expiresAt.toISOString()
         })
@@ -78,7 +95,6 @@ class EnhancedGP51SessionManager {
         return { success: false, error: sessionError.message };
       }
 
-      // Create secure session object
       const secureSession: SecureGP51Session = {
         id: sessionData.id,
         username,
@@ -92,6 +108,7 @@ class EnhancedGP51SessionManager {
 
       this.currentSession = secureSession;
       this.sessionStorage.set(secureSession.id, secureSession);
+      this.notifySubscribers();
 
       console.log('✅ Secure GP51 session created successfully');
       return { success: true, session: secureSession };
@@ -105,31 +122,28 @@ class EnhancedGP51SessionManager {
     }
   }
 
-  private async generateSessionFingerprint(): Promise<string> {
-    const fingerprint = {
-      userAgent: navigator.userAgent,
-      timestamp: Date.now(),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      language: navigator.language
-    };
-    
-    return await crossBrowserMD5(JSON.stringify(fingerprint));
+  async validateSession(sessionId?: string): Promise<boolean> {
+    const targetSessionId = sessionId || this.currentSession?.id;
+    if (!targetSessionId) return false;
+
+    const result = await this.validateSessionDetailed(targetSessionId);
+    return result.isValid;
   }
 
-  private async collectDeviceInfo(): Promise<Record<string, any>> {
-    return {
-      userAgent: navigator.userAgent,
-      platform: navigator.platform,
-      language: navigator.language,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      screen: {
-        width: screen.width,
-        height: screen.height
-      }
-    };
+  async validateCurrentSession(): Promise<SessionValidationResult> {
+    if (!this.currentSession) {
+      return {
+        isValid: false,
+        riskLevel: 'high',
+        reasons: ['No active session'],
+        actionRequired: 'reauth'
+      };
+    }
+
+    return await this.validateSessionDetailed(this.currentSession.id);
   }
 
-  async validateSession(sessionId: string): Promise<SessionValidationResult> {
+  async validateSessionDetailed(sessionId: string): Promise<SessionValidationResult> {
     try {
       const session = this.sessionStorage.get(sessionId);
       if (!session) {
@@ -141,7 +155,6 @@ class EnhancedGP51SessionManager {
         };
       }
 
-      // Check expiration
       if (new Date(session.expiresAt) <= new Date()) {
         return {
           isValid: false,
@@ -151,7 +164,6 @@ class EnhancedGP51SessionManager {
         };
       }
 
-      // Validate fingerprint
       const currentFingerprint = await this.generateSessionFingerprint();
       if (currentFingerprint !== session.sessionFingerprint) {
         return {
@@ -179,9 +191,36 @@ class EnhancedGP51SessionManager {
     }
   }
 
-  getSessionHealth(sessionId: string): SessionHealth {
-    const session = this.sessionStorage.get(sessionId);
-    if (!session) {
+  async invalidateSession(): Promise<void> {
+    try {
+      if (this.currentSession) {
+        await this.clearSession(this.currentSession.id);
+        console.log('✅ Session invalidated successfully');
+      }
+    } catch (error) {
+      console.error('❌ Failed to invalidate session:', error);
+      throw error;
+    }
+  }
+
+  async terminateSession(): Promise<void> {
+    try {
+      if (this.currentSession) {
+        await this.clearSession(this.currentSession.id);
+        console.log('✅ Session terminated successfully');
+      }
+    } catch (error) {
+      console.error('❌ Failed to terminate session:', error);
+      throw error;
+    }
+  }
+
+  getSessionHealth(sessionId?: string): SessionHealth {
+    const targetSession = sessionId ? 
+      this.sessionStorage.get(sessionId) : 
+      this.currentSession;
+
+    if (!targetSession) {
       return {
         isHealthy: false,
         riskLevel: 'high',
@@ -193,12 +232,11 @@ class EnhancedGP51SessionManager {
     const issues: string[] = [];
     let riskLevel: 'low' | 'medium' | 'high' = 'low';
 
-    // Check expiration
-    const timeUntilExpiry = new Date(session.expiresAt).getTime() - Date.now();
+    const timeUntilExpiry = new Date(targetSession.expiresAt).getTime() - Date.now();
     if (timeUntilExpiry <= 0) {
       issues.push('Session expired');
       riskLevel = 'high';
-    } else if (timeUntilExpiry < 60 * 60 * 1000) { // Less than 1 hour
+    } else if (timeUntilExpiry < 60 * 60 * 1000) {
       issues.push('Session expires soon');
       riskLevel = 'medium';
     }
@@ -206,8 +244,32 @@ class EnhancedGP51SessionManager {
     return {
       isHealthy: issues.length === 0,
       riskLevel,
-      lastValidated: session.lastValidated,
+      lastValidated: targetSession.lastValidated,
       issues
+    };
+  }
+
+  private async generateSessionFingerprint(): Promise<string> {
+    const fingerprint = {
+      userAgent: navigator.userAgent,
+      timestamp: Date.now(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      language: navigator.language
+    };
+    
+    return await crossBrowserMD5(JSON.stringify(fingerprint));
+  }
+
+  private async collectDeviceInfo(): Promise<Record<string, any>> {
+    return {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      language: navigator.language,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      screen: {
+        width: screen.width,
+        height: screen.height
+      }
     };
   }
 
@@ -217,17 +279,16 @@ class EnhancedGP51SessionManager {
 
   async clearSession(sessionId: string): Promise<void> {
     try {
-      // Remove from database
       await supabase
         .from('gp51_sessions')
         .delete()
         .eq('id', sessionId);
 
-      // Remove from memory
       this.sessionStorage.delete(sessionId);
       
       if (this.currentSession?.id === sessionId) {
         this.currentSession = null;
+        this.notifySubscribers();
       }
 
       console.log('Secure session cleared');
