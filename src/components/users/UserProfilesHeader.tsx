@@ -1,17 +1,15 @@
-
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
 interface UserProfilesHeaderProps {
   onCreateUser: () => void;
 }
-
-export default function UserProfilesHeader({ onCreateUser }: UserProfilesHeaderProps) {
-  return (
-    <div className="flex items-center justify-between">
+export default function UserProfilesHeader({
+  onCreateUser
+}: UserProfilesHeaderProps) {
+  return <div className="flex items-center justify-between">
       <div>
-        <h2 className="text-2xl font-bold">User Profiles</h2>
+        
         <p className="text-muted-foreground">
           Manage user accounts and vehicle assignments
         </p>
@@ -20,6 +18,5 @@ export default function UserProfilesHeader({ onCreateUser }: UserProfilesHeaderP
         <Plus className="w-4 h-4 mr-2" />
         Create User
       </Button>
-    </div>
-  );
+    </div>;
 }
