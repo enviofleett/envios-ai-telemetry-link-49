@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { gp51DataService, type GP51ProcessedPosition } from '@/services/gp51/GP51DataService';
+import { gp51DataService } from '@/services/gp51/GP51DataService';
+import type { GP51ProcessedPosition } from '@/types/gp51';
 import { useGP51Auth } from '@/hooks/useGP51Auth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -112,7 +113,11 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
       }
 
       // Step 2: Get live vehicle data from GP51
-      const gp51Vehicles = await gp51DataService.getDeviceList();
+      const gp51Result = await gp51DataService.getDeviceList();
+      if (!gp51Result.success) {
+        throw new Error(gp51Result.error || 'Failed to fetch GP51 devices');
+      }
+      const gp51Vehicles = gp51Result.data || [];
       
       // Step 3: If we have GP51 vehicles, get their positions
       let vehiclePositions: Map<string, GP51ProcessedPosition> = new Map();

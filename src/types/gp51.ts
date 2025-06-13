@@ -41,4 +41,56 @@ export interface GP51ProcessedPosition {
   statusText: string;
   isMoving: boolean;
   isOnline: boolean;
+  odometer?: number;
+  altitude?: number;
+}
+
+export interface GP51Device {
+  deviceId: string;
+  deviceName: string;
+  deviceType?: string;
+  groupId?: number;
+  isOnline: boolean;
+  lastUpdate?: Date;
+}
+
+export interface LiveVehicleFilterConfig {
+  includeOffline?: boolean;
+  deviceTypes?: string[];
+  groupIds?: number[];
+  lastSeenHours?: number;
+}
+
+export interface GP51ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  status?: number;
+}
+
+export interface GP51DeviceListResponse {
+  devices: GP51Device[];
+  total_devices: number;
+  fetched_at: string;
+}
+
+export interface GP51PositionsResponse {
+  positions: GP51ProcessedPosition[];
+  total_positions: number;
+  fetched_at: string;
+}
+
+export interface GP51LiveVehiclesResponse {
+  devices: GP51Device[];
+  telemetry: GP51ProcessedPosition[];
+  total_devices: number;
+  total_positions: number;
+  fetched_at: string;
+}
+
+export interface ProcessVehicleDataResult {
+  processed: number;
+  created: number;
+  updated: number;
+  errors: string[];
 }

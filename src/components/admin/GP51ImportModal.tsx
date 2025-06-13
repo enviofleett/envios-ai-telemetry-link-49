@@ -1,498 +1,384 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  Download, 
-  Upload, 
-  AlertTriangle, 
-  CheckCircle, 
-  XCircle,
-  Play,
-  Square,
-  RefreshCw,
-  Car
-} from 'lucide-react';
-import { GP51ApiService } from '@/services/vehicleData/gp51ApiService';
-import { gp51VehiclePersistenceService, VehiclePersistenceOptions } from '@/services/gp51VehiclePersistenceService';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Loader2, Users, Car, AlertTriangle, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { SystemImportOptions } from '@/types/system-import';
+import { importPreviewService, ImportPreviewData } from '@/services/systemImport/importPreviewService';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
 
-interface ImportProgress {
-  phase: 'idle' | 'fetching' | 'processing' | 'completed' | 'error';
-  totalVehicles: number;
-  processedVehicles: number;
-  successfulImports: number;
-  skippedVehicles: number;
-  errors: number;
-  currentOperation: string;
-  logs: string[];
+interface ImportPreviewModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  options: SystemImportOptions;
 }
 
-interface ImportOptions {
-  importScope: 'all' | 'specific';
-  specificDeviceIds: string[];
-  overwriteStrategy: 'update' | 'skip';
-  batchSize: number;
-}
+const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  options
+}) => {
+  const [previewData, setPreviewData] = useState<ImportPreviewData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-export const GP51ImportModal: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importOptions, setImportOptions] = useState<ImportOptions>({
-    importScope: 'all',
-    specificDeviceIds: [],
-    overwriteStrategy: 'update',
-    batchSize: 50
-  });
-  const [deviceIdsInput, setDeviceIdsInput] = useState('');
-  const [progress, setProgress] = useState<ImportProgress>({
-    phase: 'idle',
-    totalVehicles: 0,
-    processedVehicles: 0,
-    successfulImports: 0,
-    skippedVehicles: 0,
-    errors: 0,
-    currentOperation: '',
-    logs: []
-  });
-  const { toast } = useToast();
+  useEffect(() => {
+    if (isOpen) {
+      generatePreview();
+    }
+  }, [isOpen, options]);
 
-  const addLog = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    const timestamp = new Date().toLocaleTimeString();
-    const logMessage = `[${timestamp}] ${message}`;
-    setProgress(prev => ({
-      ...prev,
-      logs: [...prev.logs, logMessage]
-    }));
-    console.log(`[GP51Import] ${logMessage}`);
-  };
-
-  const updateProgress = (updates: Partial<ImportProgress>) => {
-    setProgress(prev => ({ ...prev, ...updates }));
-  };
-
-  const handleDeviceIdsChange = (value: string) => {
-    setDeviceIdsInput(value);
-    const deviceIds = value
-      .split(/[,\n]/)
-      .map(id => id.trim())
-      .filter(id => id.length > 0);
+  const generatePreview = async () => {
+    setLoading(true);
+    setError(null);
     
-    setImportOptions(prev => ({
-      ...prev,
-      specificDeviceIds: deviceIds
-    }));
-  };
-
-  const startCompleteImport = async () => {
-    if (isImporting) return;
-
-    setIsImporting(true);
-    updateProgress({
-      phase: 'fetching',
-      totalVehicles: 0,
-      processedVehicles: 0,
-      successfulImports: 0,
-      skippedVehicles: 0,
-      errors: 0,
-      currentOperation: 'Initializing import...',
-      logs: []
-    });
-
     try {
-      addLog('Starting comprehensive GP51 vehicle import...', 'info');
-      addLog(`Import scope: ${importOptions.importScope === 'all' ? 'All vehicles from account' : `${importOptions.specificDeviceIds.length} specific devices`}`, 'info');
-      addLog(`Overwrite strategy: ${importOptions.overwriteStrategy}`, 'info');
-
-      // Phase 1: Fetch vehicle data from GP51
-      updateProgress({ currentOperation: 'Fetching vehicle data from GP51...' });
+      // Use the GP51DataService to get live data
+      const liveDataResult = await gp51DataService.getLiveVehicles();
       
-      let vehicles;
-      if (importOptions.importScope === 'all') {
-        // Fetch all vehicles using the GP51 API service
-        addLog('Fetching all vehicles from GP51 account...', 'info');
-        const gp51Vehicles = await GP51ApiService.fetchVehicleList();
-        addLog(`Found ${gp51Vehicles.length} vehicles in GP51 account`, 'success');
-
-        // Get positions for all vehicles
-        const deviceIds = gp51Vehicles.map(v => v.deviceid);
-        const positions = await GP51ApiService.fetchPositions(deviceIds);
-        addLog(`Retrieved position data for ${positions.length} vehicles`, 'success');
-
-        // Process all vehicles using GP51DataService
-        vehicles = await gp51DataService.processVehicleData(gp51Vehicles, positions);
-      } else {
-        // Fetch specific devices
-        addLog(`Fetching data for ${importOptions.specificDeviceIds.length} specific devices...`, 'info');
-        const positions = await GP51ApiService.fetchPositions(importOptions.specificDeviceIds);
-        addLog(`Retrieved position data for ${positions.length} specified vehicles`, 'success');
-
-        // Process specific vehicles
-        const vehicleList = importOptions.specificDeviceIds.map(deviceid => ({
-          deviceid,
-          devicename: deviceid, // Will be updated from position data if available
-          groupname: '',
-          status: ''
-        }));
-        vehicles = await gp51DataService.processVehicleData(vehicleList, positions);
+      if (!liveDataResult.success) {
+        throw new Error(liveDataResult.error || 'Failed to fetch GP51 data');
       }
 
-      updateProgress({ 
-        phase: 'processing',
-        totalVehicles: vehicles.length,
-        currentOperation: 'Processing and saving vehicles to database...'
-      });
+      const liveData = liveDataResult.data;
+      if (!liveData) {
+        throw new Error('No data received from GP51');
+      }
 
-      addLog(`Processing ${vehicles.length} vehicles for database import...`, 'info');
-
-      // Phase 2: Save to database with progress tracking
-      const persistenceOptions: VehiclePersistenceOptions = {
-        overwriteStrategy: importOptions.overwriteStrategy,
-        batchSize: importOptions.batchSize
-      };
-
-      const onProgressUpdate = (processed: number, total: number, result: any) => {
-        updateProgress({
-          processedVehicles: processed,
-          successfulImports: progress.successfulImports + (result.success ? 1 : 0),
-          errors: progress.errors + (result.success ? 0 : 1),
-          currentOperation: `Processing vehicle ${processed}/${total}: ${result.deviceId}`
-        });
-
-        if (result.success) {
-          addLog(`✓ ${result.action} vehicle: ${result.deviceId}`, 'success');
-        } else {
-          addLog(`✗ Failed to process vehicle ${result.deviceId}: ${result.error}`, 'error');
-        }
-      };
-
-      const results = await gp51VehiclePersistenceService.saveVehiclesToSupabase(
-        vehicles,
-        persistenceOptions,
-        onProgressUpdate
+      // Process the data for preview
+      const processResult = await gp51DataService.processVehicleData(
+        liveData.devices, 
+        liveData.telemetry
       );
 
-      // Phase 3: Generate completion report
-      const successful = results.filter(r => r.success).length;
-      const failed = results.filter(r => !r.success).length;
-      const created = results.filter(r => r.action === 'created').length;
-      const updated = results.filter(r => r.action === 'updated').length;
-      const skipped = results.filter(r => r.action === 'skipped').length;
-
-      updateProgress({
-        phase: 'completed',
-        successfulImports: successful,
-        errors: failed,
-        skippedVehicles: skipped,
-        currentOperation: 'Import completed successfully!'
-      });
-
-      addLog('=== IMPORT COMPLETED ===', 'success');
-      addLog(`Total vehicles processed: ${vehicles.length}`, 'info');
-      addLog(`Successfully imported: ${successful}`, 'success');
-      addLog(`- Created: ${created}`, 'info');
-      addLog(`- Updated: ${updated}`, 'info');
-      addLog(`- Skipped: ${skipped}`, 'info');
-      addLog(`Failed: ${failed}`, failed > 0 ? 'error' : 'info');
-
-      toast({
-        title: "Import Completed",
-        description: `Successfully processed ${successful}/${vehicles.length} vehicles`,
-      });
-
-    } catch (error) {
-      console.error('Import failed:', error);
-      updateProgress({
-        phase: 'error',
-        currentOperation: 'Import failed'
-      });
-      addLog(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error');
+      // Create preview data based on the processing result
+      const previewData = {
+        summary: {
+          totalRecords: liveData.devices.length,
+          newRecords: processResult.created,
+          conflicts: processResult.errors.length,
+          estimatedDuration: `${Math.ceil(liveData.devices.length / 10)} minutes`,
+          warnings: processResult.errors.slice(0, 5) // Show first 5 errors as warnings
+        },
+        users: {
+          total: 0,
+          new: 0,
+          conflicts: 0,
+          userList: []
+        },
+        vehicles: {
+          total: liveData.devices.length,
+          new: processResult.created,
+          conflicts: processResult.errors.length,
+          vehicleList: liveData.devices.map(device => ({
+            deviceId: device.deviceId,
+            deviceName: device.deviceName,
+            username: 'N/A',
+            conflict: processResult.errors.some(error => error.includes(device.deviceId))
+          }))
+        },
+        settings: {
+          importType: options.importType,
+          batchSize: options.batchSize || 10,
+          performCleanup: options.performCleanup,
+          preserveAdminEmail: options.preserveAdminEmail || 'Default admin'
+        }
+      };
       
-      toast({
-        title: "Import Failed",
-        description: error instanceof Error ? error.message : "Unknown error occurred",
-        variant: "destructive"
-      });
+      setPreviewData(previewData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate preview');
     } finally {
-      setIsImporting(false);
+      setLoading(false);
     }
   };
 
-  const resetImport = () => {
-    setProgress({
-      phase: 'idle',
-      totalVehicles: 0,
-      processedVehicles: 0,
-      successfulImports: 0,
-      skippedVehicles: 0,
-      errors: 0,
-      currentOperation: '',
-      logs: []
-    });
+  const getStatusIcon = (hasConflicts: boolean) => {
+    return hasConflicts ? (
+      <AlertTriangle className="h-4 w-4 text-amber-500" />
+    ) : (
+      <CheckCircle className="h-4 w-4 text-green-500" />
+    );
   };
 
-  const getProgressPercentage = () => {
-    if (progress.totalVehicles === 0) return 0;
-    return Math.round((progress.processedVehicles / progress.totalVehicles) * 100);
+  const getImportTypeLabel = (type: string) => {
+    const labels = {
+      users_only: 'Users Only',
+      vehicles_only: 'Vehicles Only',
+      complete_system: 'Complete System',
+      selective: 'Selective Import'
+    };
+    return labels[type as keyof typeof labels] || type;
   };
 
-  const getPhaseIcon = () => {
-    switch (progress.phase) {
-      case 'fetching':
-      case 'processing':
-        return <RefreshCw className="w-4 h-4 animate-spin" />;
-      case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
-      case 'error':
-        return <XCircle className="w-4 h-4 text-red-600" />;
-      default:
-        return <Car className="w-4 h-4" />;
-    }
-  };
+  if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <Download className="w-4 h-4" />
-          Start Complete Import
-        </Button>
-      </DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Car className="w-5 h-5" />
-            Complete GP51 Vehicle Import
+            <Car className="h-5 w-5" />
+            Import Preview: {getImportTypeLabel(options.importType)}
           </DialogTitle>
-          <DialogDescription>
-            Import all available vehicles from your GP51 account. This includes online, offline, and inactive vehicles.
-          </DialogDescription>
         </DialogHeader>
 
-        <Tabs defaultValue="configuration" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="configuration">Configuration</TabsTrigger>
-            <TabsTrigger value="progress">Import Progress</TabsTrigger>
-            <TabsTrigger value="logs">Import Logs</TabsTrigger>
-          </TabsList>
+        {loading && (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            Analyzing import data...
+          </div>
+        )}
 
-          <TabsContent value="configuration" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Import Configuration</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Import Scope</Label>
-                  <div className="flex gap-4">
-                    <Button
-                      variant={importOptions.importScope === 'all' ? 'default' : 'outline'}
-                      onClick={() => setImportOptions(prev => ({ ...prev, importScope: 'all' }))}
-                      disabled={isImporting}
-                    >
-                      Import All Vehicles
-                    </Button>
-                    <Button
-                      variant={importOptions.importScope === 'specific' ? 'default' : 'outline'}
-                      onClick={() => setImportOptions(prev => ({ ...prev, importScope: 'specific' }))}
-                      disabled={isImporting}
-                    >
-                      Import Specific Devices
-                    </Button>
-                  </div>
-                </div>
+        {error && (
+          <Alert variant="destructive">
+            <XCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-                {importOptions.importScope === 'specific' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="deviceIds">Device IDs (comma or newline separated)</Label>
-                    <Textarea
-                      id="deviceIds"
-                      value={deviceIdsInput}
-                      onChange={(e) => handleDeviceIdsChange(e.target.value)}
-                      placeholder="Enter device IDs, separated by commas or new lines..."
-                      rows={4}
-                      disabled={isImporting}
-                    />
-                    {importOptions.specificDeviceIds.length > 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        {importOptions.specificDeviceIds.length} device(s) specified
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label>Existing Vehicle Handling</Label>
-                  <div className="flex gap-4">
-                    <Button
-                      variant={importOptions.overwriteStrategy === 'update' ? 'default' : 'outline'}
-                      onClick={() => setImportOptions(prev => ({ ...prev, overwriteStrategy: 'update' }))}
-                      disabled={isImporting}
-                    >
-                      Update Existing
-                    </Button>
-                    <Button
-                      variant={importOptions.overwriteStrategy === 'skip' ? 'default' : 'outline'}
-                      onClick={() => setImportOptions(prev => ({ ...prev, overwriteStrategy: 'skip' }))}
-                      disabled={isImporting}
-                    >
-                      Skip Existing
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="batchSize">Batch Size</Label>
-                  <Input
-                    id="batchSize"
-                    type="number"
-                    value={importOptions.batchSize}
-                    onChange={(e) => setImportOptions(prev => ({ ...prev, batchSize: parseInt(e.target.value) || 50 }))}
-                    min="1"
-                    max="100"
-                    disabled={isImporting}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Process vehicles in batches of this size for better performance
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="flex gap-2">
-              <Button 
-                onClick={startCompleteImport}
-                disabled={isImporting || (importOptions.importScope === 'specific' && importOptions.specificDeviceIds.length === 0)}
-                className="flex items-center gap-2"
-              >
-                {isImporting ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Importing...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4" />
-                    Start Complete Import
-                  </>
-                )}
-              </Button>
-              
-              {progress.phase !== 'idle' && (
-                <Button
-                  variant="outline"
-                  onClick={resetImport}
-                  disabled={isImporting}
-                >
-                  Reset
-                </Button>
-              )}
+        {previewData && (
+          <div className="space-y-6">
+            {/* Summary Section */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-blue-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-blue-600">{previewData.summary.totalRecords}</div>
+                <div className="text-sm text-blue-600">Total Records</div>
+              </div>
+              <div className="bg-green-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-green-600">{previewData.summary.newRecords}</div>
+                <div className="text-sm text-green-600">New Records</div>
+              </div>
+              <div className="bg-amber-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-amber-600">{previewData.summary.conflicts}</div>
+                <div className="text-sm text-amber-600">Conflicts</div>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold text-purple-600">{previewData.summary.estimatedDuration}</div>
+                <div className="text-sm text-purple-600">Est. Duration</div>
+              </div>
             </div>
-          </TabsContent>
 
-          <TabsContent value="progress" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  {getPhaseIcon()}
-                  Import Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {progress.phase !== 'idle' && (
-                  <>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">Current Operation</span>
-                        <Badge variant={progress.phase === 'error' ? 'destructive' : 'default'}>
-                          {progress.phase}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">{progress.currentOperation}</p>
-                    </div>
+            {/* Warnings */}
+            {previewData.summary.warnings.length > 0 && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <div className="font-medium">Warnings:</div>
+                  <ul className="mt-1 list-disc list-inside">
+                    {previewData.summary.warnings.map((warning, index) => (
+                      <li key={index}>{warning}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            )}
 
-                    {progress.totalVehicles > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>Progress</span>
-                          <span>{progress.processedVehicles} / {progress.totalVehicles}</span>
-                        </div>
-                        <Progress value={getProgressPercentage()} className="w-full" />
+            {/* Detailed Tabs */}
+            <Tabs defaultValue="users" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="users" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Users ({previewData.users.total})
+                </TabsTrigger>
+                <TabsTrigger value="vehicles" className="flex items-center gap-2">
+                  <Car className="h-4 w-4" />
+                  Vehicles ({previewData.vehicles.total})
+                </TabsTrigger>
+                <TabsTrigger value="settings" className="flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Settings
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="users" className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium">User Import Preview</h3>
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(previewData.users.conflicts > 0)}
+                    <span className="text-sm">
+                      {previewData.users.conflicts > 0 ? 'Conflicts Detected' : 'Ready to Import'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div className="text-center">
+                    <div className="text-xl font-bold">{previewData.users.total}</div>
+                    <div className="text-sm text-gray-600">Total Users</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-green-600">{previewData.users.new}</div>
+                    <div className="text-sm text-gray-600">New Users</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-amber-600">{previewData.users.conflicts}</div>
+                    <div className="text-sm text-gray-600">Conflicts</div>
+                  </div>
+                </div>
+
+                {previewData.users.userList.length > 0 && (
+                  <div className="border rounded-lg max-h-64 overflow-y-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-2 text-left">Username</th>
+                          <th className="px-4 py-2 text-left">Email</th>
+                          <th className="px-4 py-2 text-left">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewData.users.userList.slice(0, 50).map((user, index) => (
+                          <tr key={index} className="border-t">
+                            <td className="px-4 py-2">{user.username}</td>
+                            <td className="px-4 py-2">{user.email}</td>
+                            <td className="px-4 py-2">
+                              {user.conflict ? (
+                                <Badge variant="destructive">Conflict</Badge>
+                              ) : (
+                                <Badge variant="outline">New</Badge>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {previewData.users.userList.length > 50 && (
+                      <div className="p-2 text-center text-sm text-gray-500">
+                        ... and {previewData.users.userList.length - 50} more users
                       </div>
                     )}
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="text-center p-3 bg-blue-50 rounded-lg">
-                        <div className="text-2xl font-bold text-blue-600">{progress.totalVehicles}</div>
-                        <div className="text-sm text-blue-800">Total Fetched</div>
-                      </div>
-                      <div className="text-center p-3 bg-green-50 rounded-lg">
-                        <div className="text-2xl font-bold text-green-600">{progress.successfulImports}</div>
-                        <div className="text-sm text-green-800">Successfully Processed</div>
-                      </div>
-                      <div className="text-center p-3 bg-orange-50 rounded-lg">
-                        <div className="text-2xl font-bold text-orange-600">{progress.skippedVehicles}</div>
-                        <div className="text-sm text-orange-800">Skipped</div>
-                      </div>
-                      <div className="text-center p-3 bg-red-50 rounded-lg">
-                        <div className="text-2xl font-bold text-red-600">{progress.errors}</div>
-                        <div className="text-sm text-red-800">Errors</div>
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 )}
+              </TabsContent>
 
-                {progress.phase === 'idle' && (
-                  <Alert>
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      Configure your import settings and click "Start Complete Import" to begin.
-                    </AlertDescription>
-                  </Alert>
+              <TabsContent value="vehicles" className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-medium">Vehicle Import Preview</h3>
+                  <div className="flex items-center gap-2">
+                    {getStatusIcon(previewData.vehicles.conflicts > 0)}
+                    <span className="text-sm">
+                      {previewData.vehicles.conflicts > 0 ? 'Conflicts Detected' : 'Ready to Import'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div className="text-center">
+                    <div className="text-xl font-bold">{previewData.vehicles.total}</div>
+                    <div className="text-sm text-gray-600">Total Vehicles</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-green-600">{previewData.vehicles.new}</div>
+                    <div className="text-sm text-gray-600">New Vehicles</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-amber-600">{previewData.vehicles.conflicts}</div>
+                    <div className="text-sm text-gray-600">Conflicts</div>
+                  </div>
+                </div>
+
+                {previewData.vehicles.vehicleList.length > 0 && (
+                  <div className="border rounded-lg max-h-64 overflow-y-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-2 text-left">Device ID</th>
+                          <th className="px-4 py-2 text-left">Device Name</th>
+                          <th className="px-4 py-2 text-left">Owner</th>
+                          <th className="px-4 py-2 text-left">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {previewData.vehicles.vehicleList.slice(0, 50).map((vehicle, index) => (
+                          <tr key={index} className="border-t">
+                            <td className="px-4 py-2">{vehicle.deviceId}</td>
+                            <td className="px-4 py-2">{vehicle.deviceName}</td>
+                            <td className="px-4 py-2">{vehicle.username}</td>
+                            <td className="px-4 py-2">
+                              {vehicle.conflict ? (
+                                <Badge variant="destructive">Conflict</Badge>
+                              ) : (
+                                <Badge variant="outline">New</Badge>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {previewData.vehicles.vehicleList.length > 50 && (
+                      <div className="p-2 text-center text-sm text-gray-500">
+                        ... and {previewData.vehicles.vehicleList.length - 50} more vehicles
+                      </div>
+                    )}
+                  </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </TabsContent>
 
-          <TabsContent value="logs" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Import Logs</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                  {progress.logs.length > 0 ? (
-                    <div className="space-y-1">
-                      {progress.logs.map((log, index) => (
-                        <div key={index} className="text-sm font-mono text-gray-700">
-                          {log}
-                        </div>
+              <TabsContent value="settings" className="space-y-4">
+                <h3 className="text-lg font-medium">Import Configuration</h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="font-medium">Import Type:</label>
+                    <p>{getImportTypeLabel(options.importType)}</p>
+                  </div>
+                  <div>
+                    <label className="font-medium">Batch Size:</label>
+                    <p>{options.batchSize || 10} records per batch</p>
+                  </div>
+                  <div>
+                    <label className="font-medium">Data Cleanup:</label>
+                    <p>{options.performCleanup ? 'Yes' : 'No'}</p>
+                  </div>
+                  <div>
+                    <label className="font-medium">Preserve Admin:</label>
+                    <p>{options.preserveAdminEmail || 'Default admin'}</p>
+                  </div>
+                </div>
+
+                {options.importType === 'selective' && options.selectedUsernames && (
+                  <div>
+                    <label className="font-medium">Selected Users:</label>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {options.selectedUsernames.map((username, index) => (
+                        <Badge key={index} variant="outline">{username}</Badge>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-sm text-gray-500">No logs available. Start an import to see progress logs.</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={onConfirm} 
+            disabled={loading || !previewData}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Generating Preview...
+              </>
+            ) : (
+              'Start Import'
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 };
+
+export default ImportPreviewModal;
