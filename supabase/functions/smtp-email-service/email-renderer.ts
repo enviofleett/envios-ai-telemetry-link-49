@@ -1,100 +1,55 @@
 
-import { renderAsync } from 'npm:@react-email/components@0.0.22';
-import React from 'npm:react@18.3.1';
-
-export interface EmailTheme {
-  id: string;
-  name: string;
-  header_html?: string;
-  footer_html?: string;
-  styles_css?: string;
-}
-
-export interface EmailTemplate {
-  id: string;
-  template_name: string;
-  subject: string;
-  html_body_template?: string;
-  text_body_template?: string;
-  selected_theme_id?: string;
-  variables?: any[];
-}
+import type { EmailTemplate, EmailTheme } from './template-manager.ts';
 
 export class EmailRenderer {
-  static replaceVariables(template: string, variables: Record<string, string>): string {
-    let result = template;
-    
-    for (const [key, value] of Object.entries(variables)) {
-      const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'g');
-      result = result.replace(regex, value || '');
-    }
-    
-    // Clean up any remaining unreplaced variables
-    result = result.replace(/{{[^}]+}}/g, '');
-    
-    return result;
-  }
-
   static async renderEmailWithTheme(
     template: EmailTemplate,
     theme: EmailTheme | null,
     variables: Record<string, string>
-  ): Promise<{ html: string; text: string; subject: string }> {
-    // Replace variables in subject
-    const subject = this.replaceVariables(template.subject, variables);
+  ): Promise<{ subject: string; html: string; text: string }> {
     
-    // Replace variables in content
-    const htmlContent = template.html_body_template 
-      ? this.replaceVariables(template.html_body_template, variables)
-      : this.replaceVariables(template.text_body_template || '', variables);
-    
-    const textContent = template.text_body_template
-      ? this.replaceVariables(template.text_body_template, variables)
-      : this.stripHtml(htmlContent);
+    // Replace variables in subject and body
+    let subject = template.subject_template || 'Notification from FleetIQ';
+    let bodyContent = template.body_template || 'You have received a notification.';
 
-    // Apply theme if available
-    let finalHtml = htmlContent;
-    if (theme) {
-      const styles = theme.styles_css || '';
-      const header = theme.header_html || '';
-      const footer = theme.footer_html || '';
-      
-      finalHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>${styles}</style>
-        </head>
-        <body>
-          <div class="container">
-            ${header}
-            <div class="content">
-              ${htmlContent}
-            </div>
-            ${footer}
-          </div>
-        </body>
-        </html>
-      `;
-    }
+    // Replace template variables
+    Object.entries(variables).forEach(([key, value]) => {
+      const placeholder = `{{${key}}}`;
+      subject = subject.replace(new RegExp(placeholder, 'g'), value);
+      bodyContent = bodyContent.replace(new RegExp(placeholder, 'g'), value);
+    });
 
-    return {
-      html: finalHtml,
-      text: textContent,
-      subject
+    // Apply theme styling
+    const themeStyles = theme ? {
+      headerColor: theme.header_color || '#1f2937',
+      backgroundColor: theme.background_color || '#ffffff',
+      textColor: theme.text_color || '#374151',
+      fontFamily: theme.font_family || 'Arial, sans-serif'
+    } : {
+      headerColor: '#1f2937',
+      backgroundColor: '#ffffff',
+      textColor: '#374151',
+      fontFamily: 'Arial, sans-serif'
     };
-  }
 
-  private static stripHtml(html: string): string {
-    return html
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .trim();
+    const html = `
+      <div style="font-family: ${themeStyles.fontFamily}; max-width: 600px; margin: 0 auto; background-color: ${themeStyles.backgroundColor};">
+        <div style="background-color: ${themeStyles.headerColor}; color: white; padding: 20px; text-align: center;">
+          <h1 style="margin: 0; color: white;">${subject}</h1>
+        </div>
+        <div style="padding: 20px; color: ${themeStyles.textColor};">
+          ${bodyContent.replace(/\n/g, '<br>')}
+        </div>
+        <div style="background-color: #f9fafb; padding: 15px; text-align: center; border-top: 1px solid #e5e7eb;">
+          <p style="margin: 0; font-size: 12px; color: #6b7280;">
+            This is an automated message from FleetIQ.
+          </p>
+        </div>
+      </div>
+    `;
+
+    const text = bodyContent.replace(/<[^>]*>/g, ''); // Strip HTML tags for text version
+
+    return { subject, html, text };
   }
 }

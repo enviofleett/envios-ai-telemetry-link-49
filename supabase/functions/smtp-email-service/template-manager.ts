@@ -1,6 +1,26 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import type { EmailTemplate, EmailTheme } from './email-renderer.ts';
+
+export interface EmailTemplate {
+  id: string;
+  template_name: string;
+  trigger_type: string;
+  subject_template: string;
+  body_template: string;
+  selected_theme_id?: string;
+  is_active: boolean;
+}
+
+export interface EmailTheme {
+  id: string;
+  name: string;
+  header_color?: string;
+  background_color?: string;
+  text_color?: string;
+  font_family?: string;
+  logo_url?: string;
+  is_active: boolean;
+}
 
 export class TemplateManager {
   private supabase;
