@@ -1,4 +1,3 @@
-
 import { corsHeaders } from './cors.ts';
 
 export async function handleGetRequest(supabase: any, url: URL, currentUserId: string) {
@@ -92,6 +91,27 @@ export async function handlePostRequest(supabase: any, requestBody: any, current
   console.log('Creating new user:', { name, email, phone_number, gp51_user_type, role });
 
   try {
+    // Check if user with this email already exists
+    const { data: existingUser } = await supabase
+      .from('envio_users')
+      .select('id, email')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
+      console.warn(`Duplicate email registration attempt: ${email}`);
+      return new Response(
+        JSON.stringify({ 
+          error: 'This email is already registered. Please use a different email address.',
+          code: 'DUPLICATE_EMAIL'
+        }),
+        { 
+          status: 409, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
     // Create user in envio_users
     const { data: newUser, error: userError } = await supabase
       .from('envio_users')
@@ -106,7 +126,23 @@ export async function handlePostRequest(supabase: any, requestBody: any, current
       .select()
       .single();
 
-    if (userError) throw userError;
+    if (userError) {
+      // Handle specific database constraint violations
+      if (userError.code === '23505') {
+        console.warn(`Duplicate constraint violation: ${userError.message}`);
+        return new Response(
+          JSON.stringify({ 
+            error: 'This email is already registered. Please use a different email address.',
+            code: 'DUPLICATE_EMAIL'
+          }),
+          { 
+            status: 409, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+      throw userError;
+    }
 
     // Create user role
     const { error: roleError } = await supabase
@@ -116,7 +152,15 @@ export async function handlePostRequest(supabase: any, requestBody: any, current
         role: role || 'user'
       });
 
-    if (roleError) throw roleError;
+    if (roleError) {
+      // Handle duplicate role assignment
+      if (roleError.code === '23505') {
+        console.warn(`User role already exists for user ${newUser.id}`);
+        // This is not necessarily an error - user might already have a role
+      } else {
+        throw roleError;
+      }
+    }
 
     return new Response(
       JSON.stringify({ success: true, user: newUser }),
@@ -125,8 +169,11 @@ export async function handlePostRequest(supabase: any, requestBody: any, current
   } catch (error: any) {
     console.error('Error creating user:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ 
+        error: 'Failed to create user. Please try again.',
+        details: error.message 
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 }
