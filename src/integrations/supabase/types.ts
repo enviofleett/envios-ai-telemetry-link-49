@@ -1331,7 +1331,7 @@ export type Database = {
       email_campaigns: {
         Row: {
           campaign_name: string
-          campaign_type: string
+          campaign_type: Database["public"]["Enums"]["campaign_type_enum"]
           created_at: string
           created_by: string
           id: string
@@ -1346,7 +1346,7 @@ export type Database = {
         }
         Insert: {
           campaign_name: string
-          campaign_type?: string
+          campaign_type?: Database["public"]["Enums"]["campaign_type_enum"]
           created_at?: string
           created_by: string
           id?: string
@@ -1361,7 +1361,7 @@ export type Database = {
         }
         Update: {
           campaign_name?: string
-          campaign_type?: string
+          campaign_type?: Database["public"]["Enums"]["campaign_type_enum"]
           created_at?: string
           created_by?: string
           id?: string
@@ -4782,6 +4782,48 @@ export type Database = {
         }
         Relationships: []
       }
+      smtp_settings: {
+        Row: {
+          created_at: string
+          from_email: string
+          from_name: string
+          id: string
+          is_active: boolean
+          smtp_encryption: string
+          smtp_host: string
+          smtp_password: string
+          smtp_port: number
+          smtp_username: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          from_email: string
+          from_name: string
+          id?: string
+          is_active?: boolean
+          smtp_encryption?: string
+          smtp_host: string
+          smtp_password: string
+          smtp_port?: number
+          smtp_username: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          from_email?: string
+          from_name?: string
+          id?: string
+          is_active?: boolean
+          smtp_encryption?: string
+          smtp_host?: string
+          smtp_password?: string
+          smtp_port?: number
+          smtp_username?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       subscriber_packages: {
         Row: {
           created_at: string
@@ -7150,6 +7192,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      campaign_type_enum: "one_time" | "recurring" | "event_based"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -7266,6 +7309,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      campaign_type_enum: ["one_time", "recurring", "event_based"],
     },
   },
 } as const

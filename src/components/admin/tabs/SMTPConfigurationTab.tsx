@@ -25,6 +25,20 @@ interface SMTPSettings {
   from_email: string;
 }
 
+interface SMTPRecord {
+  id: string;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username: string;
+  smtp_password: string;
+  smtp_encryption: string;
+  is_active: boolean;
+  from_name: string;
+  from_email: string;
+  created_at: string;
+  updated_at: string;
+}
+
 const SMTPConfigurationTab: React.FC = () => {
   const [settings, setSettings] = useState<SMTPSettings>({
     smtp_host: '',
@@ -47,23 +61,24 @@ const SMTPConfigurationTab: React.FC = () => {
         .from('smtp_settings')
         .select('*')
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         throw error;
       }
 
       if (data) {
+        const record = data as SMTPRecord;
         setSettings({
-          id: data.id,
-          smtp_host: data.smtp_host || '',
-          smtp_port: data.smtp_port || 587,
-          smtp_username: data.smtp_username || '',
-          smtp_password: data.smtp_password || '',
-          smtp_encryption: data.smtp_encryption || 'tls',
-          is_active: data.is_active || false,
-          from_name: data.from_name || '',
-          from_email: data.from_email || ''
+          id: record.id,
+          smtp_host: record.smtp_host || '',
+          smtp_port: record.smtp_port || 587,
+          smtp_username: record.smtp_username || '',
+          smtp_password: record.smtp_password || '',
+          smtp_encryption: record.smtp_encryption || 'tls',
+          is_active: record.is_active || false,
+          from_name: record.from_name || '',
+          from_email: record.from_email || ''
         });
       }
     } catch (error) {
@@ -107,7 +122,7 @@ const SMTPConfigurationTab: React.FC = () => {
           .select()
           .single();
         if (error) throw error;
-        setSettings(prev => ({ ...prev, id: data.id }));
+        setSettings(prev => ({ ...prev, id: (data as SMTPRecord).id }));
       }
 
       toast({

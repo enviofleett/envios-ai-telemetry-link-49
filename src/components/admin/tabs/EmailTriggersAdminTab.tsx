@@ -2,14 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
 import { Zap, Mail, User, Car, AlertTriangle, Settings, Play, Pause } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -22,7 +19,7 @@ interface EmailTemplate {
   subject: string;
   is_active: boolean;
   template_type: string;
-  variables: any[];
+  variables: string[] | string; // Handle both array and string types from database
 }
 
 const EmailTriggersAdminTab: React.FC = () => {
@@ -59,7 +56,18 @@ const EmailTriggersAdminTab: React.FC = () => {
         .order('template_name');
 
       if (error) throw error;
-      setTemplates(data || []);
+      
+      // Transform the data to ensure variables is always an array
+      const transformedData = (data || []).map(template => ({
+        ...template,
+        variables: Array.isArray(template.variables) 
+          ? template.variables 
+          : typeof template.variables === 'string' 
+            ? JSON.parse(template.variables || '[]')
+            : []
+      }));
+      
+      setTemplates(transformedData);
     } catch (error) {
       console.error('Error loading email templates:', error);
       toast({
@@ -275,7 +283,7 @@ const EmailTriggersAdminTab: React.FC = () => {
                         <div>
                           <Label>Available Variables</Label>
                           <div className="flex flex-wrap gap-1 mt-1">
-                            {selectedTemplate.variables?.map((variable: string, index: number) => (
+                            {(selectedTemplate.variables as string[]).map((variable: string, index: number) => (
                               <Badge key={index} variant="outline" className="text-xs">
                                 {variable}
                               </Badge>
