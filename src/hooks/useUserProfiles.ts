@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
+import { User } from '@supabase/supabase-js';
 
 // Type guards for safe type checking
 const isValidRegistrationStatus = (status: string): status is 'pending_email_verification' | 'pending_phone_verification' | 'pending_admin_approval' | 'active' | 'rejected' => {
@@ -85,13 +86,12 @@ export const useUserProfiles = (params: UseUserProfilesParams = {}) => {
       if (error) throw error;
 
       // Get email addresses from auth.users for each profile
-      const profileIds = data?.map(p => p.id) || [];
-      let emailMap: Record<string, string> = {};
+      const emailMap: Record<string, string> = {};
       
       try {
-        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-        if (!authError && authUsers?.users) {
-          authUsers.users.forEach(authUser => {
+        const { data: authUsersResponse, error: authError } = await supabase.auth.admin.listUsers();
+        if (!authError && authUsersResponse?.users) {
+          authUsersResponse.users.forEach((authUser: User) => {
             if (authUser.id && authUser.email) {
               emailMap[authUser.id] = authUser.email;
             }

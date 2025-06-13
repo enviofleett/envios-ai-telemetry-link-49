@@ -56,16 +56,15 @@ const SimpleUserManagement: React.FC = () => {
       if (error) throw error;
 
       // Get email addresses from auth.users with proper error handling
-      let emailMap: Record<string, string> = {};
+      const emailMap: Record<string, string> = {};
       try {
-        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
-        if (!authError && authUsers?.users) {
-          emailMap = authUsers.users.reduce((acc, authUser) => {
+        const { data: authUsersResponse, error: authError } = await supabase.auth.admin.listUsers();
+        if (!authError && authUsersResponse?.users) {
+          authUsersResponse.users.forEach(authUser => {
             if (authUser.id && authUser.email) {
-              acc[authUser.id] = authUser.email;
+              emailMap[authUser.id] = authUser.email;
             }
-            return acc;
-          }, {} as Record<string, string>);
+          });
         }
       } catch (error) {
         console.warn('Could not fetch auth users:', error);

@@ -9,8 +9,8 @@ interface UserStatsCardsProps {
   pendingActivations: number;
   userDistribution: {
     admin: number;
-    manager: number;
-    operator: number;
+    fleet_manager: number;
+    dispatcher: number;
     driver: number;
   };
 }
@@ -48,11 +48,10 @@ const UserStatsCards: React.FC<UserStatsCardsProps> = ({
     },
     {
       title: "User Distribution",
-      value: "",
-      trend: "",
+      value: `${userDistribution.admin}A ${userDistribution.fleet_manager}FM ${userDistribution.dispatcher}D ${userDistribution.driver}Dr`,
+      trend: "Admin, Fleet Mgr, Dispatcher, Driver",
       icon: PieChart,
-      iconColor: "#64748b",
-      isChart: true
+      iconColor: "#64748b"
     }
   ];
 
@@ -67,22 +66,12 @@ const UserStatsCards: React.FC<UserStatsCardsProps> = ({
                 <span className="text-sm font-medium text-gray-mid">{card.title}</span>
                 <IconComponent className="w-4 h-4" style={{ color: card.iconColor }} />
               </div>
-              {card.isChart ? (
-                <div className="flex items-center justify-center h-16">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
-                    <span className="text-xs text-white font-medium">Chart</span>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="text-2xl font-bold text-primary-dark mb-1">
-                    {card.value}
-                  </div>
-                  <div className="text-xs text-gray-mid">
-                    {card.trend}
-                  </div>
-                </>
-              )}
+              <div className="text-2xl font-bold text-primary-dark mb-1">
+                {card.value}
+              </div>
+              <div className="text-xs text-gray-mid">
+                {card.trend}
+              </div>
             </CardContent>
           </Card>
         );
