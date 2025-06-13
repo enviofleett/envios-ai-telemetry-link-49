@@ -33,7 +33,7 @@ export interface BulkEmailRequest {
 
 class BulkEmailService {
   async createBulkEmailOperation(operationData: Partial<BulkEmailOperation>): Promise<BulkEmailOperation> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('bulk_email_operations')
       .insert({
         ...operationData,
@@ -47,7 +47,7 @@ class BulkEmailService {
       .single();
 
     if (error) throw error;
-    return data;
+    return data as BulkEmailOperation;
   }
 
   async processBulkEmail(request: BulkEmailRequest): Promise<BulkEmailOperation> {
@@ -143,28 +143,38 @@ class BulkEmailService {
   }
 
   async getBulkOperations(): Promise<BulkEmailOperation[]> {
-    const { data, error } = await supabase
-      .from('bulk_email_operations')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await (supabase as any)
+        .from('bulk_email_operations')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) throw error;
-    return data || [];
+      if (error) throw error;
+      return data as BulkEmailOperation[] || [];
+    } catch (error) {
+      console.warn('Bulk operations not available:', error);
+      return [];
+    }
   }
 
   async getBulkOperation(id: string): Promise<BulkEmailOperation | null> {
-    const { data, error } = await supabase
-      .from('bulk_email_operations')
-      .select('*')
-      .eq('id', id)
-      .single();
+    try {
+      const { data, error } = await (supabase as any)
+        .from('bulk_email_operations')
+        .select('*')
+        .eq('id', id)
+        .single();
 
-    if (error) throw error;
-    return data;
+      if (error) throw error;
+      return data as BulkEmailOperation;
+    } catch (error) {
+      console.warn('Bulk operation not found:', error);
+      return null;
+    }
   }
 
   private async updateOperation(id: string, updates: Partial<BulkEmailOperation>): Promise<void> {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('bulk_email_operations')
       .update(updates)
       .eq('id', id);

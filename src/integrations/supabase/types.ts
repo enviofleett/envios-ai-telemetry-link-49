@@ -521,6 +521,54 @@ export type Database = {
         }
         Relationships: []
       }
+      bulk_email_operations: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          error_log: Json | null
+          failed_items: number
+          id: string
+          operation_data: Json | null
+          operation_name: string
+          operation_type: string
+          processed_items: number
+          status: string
+          successful_items: number
+          total_items: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          error_log?: Json | null
+          failed_items?: number
+          id?: string
+          operation_data?: Json | null
+          operation_name: string
+          operation_type?: string
+          processed_items?: number
+          status?: string
+          successful_items?: number
+          total_items?: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          error_log?: Json | null
+          failed_items?: number
+          id?: string
+          operation_data?: Json | null
+          operation_name?: string
+          operation_type?: string
+          processed_items?: number
+          status?: string
+          successful_items?: number
+          total_items?: number
+        }
+        Relationships: []
+      }
       bulk_extraction_jobs: {
         Row: {
           completed_at: string | null
@@ -568,6 +616,56 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      campaign_executions: {
+        Row: {
+          campaign_id: string
+          completed_at: string | null
+          created_at: string
+          error_log: Json | null
+          execution_status: string
+          failed_count: number
+          id: string
+          sent_count: number
+          started_at: string | null
+          total_recipients: number
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          execution_status?: string
+          failed_count?: number
+          id?: string
+          sent_count?: number
+          started_at?: string | null
+          total_recipients?: number
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          execution_status?: string
+          failed_count?: number
+          id?: string
+          sent_count?: number
+          started_at?: string | null
+          total_recipients?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_executions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       company_settings: {
         Row: {
@@ -1229,6 +1327,62 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      email_campaigns: {
+        Row: {
+          campaign_name: string
+          campaign_type: string
+          created_at: string
+          created_by: string
+          id: string
+          recurring_pattern: string | null
+          schedule_type: string
+          scheduled_for: string | null
+          status: string
+          target_audience: string
+          target_criteria: Json | null
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          campaign_name: string
+          campaign_type?: string
+          created_at?: string
+          created_by: string
+          id?: string
+          recurring_pattern?: string | null
+          schedule_type?: string
+          scheduled_for?: string | null
+          status?: string
+          target_audience?: string
+          target_criteria?: Json | null
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          campaign_name?: string
+          campaign_type?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          recurring_pattern?: string | null
+          schedule_type?: string
+          scheduled_for?: string | null
+          status?: string
+          target_audience?: string
+          target_criteria?: Json | null
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       email_delivery_logs: {
         Row: {
