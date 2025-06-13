@@ -18,25 +18,33 @@ import {
   AlertTriangle,
   User,
   Car,
-  ExternalLink
+  ExternalLink,
+  History,
+  Bell
 } from 'lucide-react';
-import type { VehicleData } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface VehicleDetailsModalProps {
-  vehicle: VehicleData;
+  vehicle: VehicleData | null;
   isOpen: boolean;
   onClose: () => void;
+  onViewHistory?: (vehicle: VehicleData) => void;
+  onSendAlert?: (vehicle: VehicleData) => void;
 }
 
 const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
   vehicle,
   isOpen,
-  onClose
+  onClose,
+  onViewHistory,
+  onSendAlert
 }) => {
+  if (!vehicle) return null;
+
   const getVehicleStatus = () => {
-    if (!vehicle.lastPosition?.timestamp) return 'offline';
+    if (!vehicle.last_position?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.lastPosition.timestamp);
+    const lastUpdate = new Date(vehicle.last_position.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -53,24 +61,35 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
     }
   };
 
+  const formatLastUpdate = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+    return date.toLocaleDateString();
+  };
+
   const status = getVehicleStatus();
   const hasAlert = vehicle.status?.toLowerCase().includes('alert') || 
                   vehicle.status?.toLowerCase().includes('alarm');
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Car className="h-5 w-5" />
-            {vehicle.deviceName}
+            {vehicle.device_name}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
           {/* Status Overview */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <Badge variant={status === 'online' ? 'default' : 'secondary'} className="flex items-center gap-1">
                 <div className={`w-2 h-2 rounded-full ${getStatusColor(status)}`}></div>
                 {status.charAt(0).toUpperCase() + status.slice(1)}
@@ -82,31 +101,55 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
                 </Badge>
               )}
             </div>
-            <Button variant="outline" size="sm">
-              <ExternalLink className="h-4 w-4 mr-2" />
-              View on Map
-            </Button>
+            <div className="flex gap-2">
+              {onViewHistory && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onViewHistory(vehicle)}
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  History
+                </Button>
+              )}
+              {onSendAlert && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onSendAlert(vehicle)}
+                >
+                  <Bell className="h-4 w-4 mr-2" />
+                  Alert
+                </Button>
+              )}
+            </div>
           </div>
 
           <Separator />
 
           {/* Basic Information */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-semibold mb-2">Device Information</h4>
-              <div className="space-y-2 text-sm">
+              <h4 className="font-semibold mb-3">Device Information</h4>
+              <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Device ID:</span>
-                  <span className="font-mono">{vehicle.deviceId}</span>
+                  <span className="font-mono">{vehicle.device_id}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Device Name:</span>
-                  <span>{vehicle.deviceName}</span>
+                  <span>{vehicle.device_name}</span>
                 </div>
-                {vehicle.envio_user_id && (
+                {vehicle.license_plate && (
                   <div className="flex justify-between">
-                    <span className="text-gray-600">User ID:</span>
-                    <span className="font-mono text-xs">{vehicle.envio_user_id}</span>
+                    <span className="text-gray-600">License Plate:</span>
+                    <span>{vehicle.license_plate}</span>
+                  </div>
+                )}
+                {vehicle.vin && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">VIN:</span>
+                    <span className="font-mono text-xs">{vehicle.vin}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
@@ -117,8 +160,8 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
             </div>
 
             <div>
-              <h4 className="font-semibold mb-2">Current Status</h4>
-              <div className="space-y-2 text-sm">
+              <h4 className="font-semibold mb-3">Current Status</h4>
+              <div className="space-y-3 text-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     <Activity className="h-3 w-3 text-gray-400" />
@@ -134,17 +177,26 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
                     <span>{vehicle.status}</span>
                   </div>
                 )}
+                {vehicle.envio_users && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <User className="h-3 w-3 text-gray-400" />
+                      <span className="text-gray-600">Assigned User:</span>
+                    </div>
+                    <span>{vehicle.envio_users.name}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
           {/* Position Data */}
-          {vehicle.lastPosition && (
+          {vehicle.last_position && (
             <>
               <Separator />
               <div>
                 <h4 className="font-semibold mb-3">Latest Position Data</h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1">
@@ -152,7 +204,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
                         <span className="text-gray-600">Coordinates:</span>
                       </div>
                       <span className="font-mono text-sm">
-                        {vehicle.lastPosition.lat.toFixed(6)}, {vehicle.lastPosition.lon.toFixed(6)}
+                        {vehicle.last_position.lat.toFixed(6)}, {vehicle.last_position.lng.toFixed(6)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
@@ -160,14 +212,14 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
                         <Gauge className="h-4 w-4 text-gray-400" />
                         <span className="text-gray-600">Speed:</span>
                       </div>
-                      <span className="font-medium">{vehicle.lastPosition.speed} km/h</span>
+                      <span className="font-medium">{vehicle.last_position.speed || 0} km/h</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1">
                         <Navigation className="h-4 w-4 text-gray-400" />
                         <span className="text-gray-600">Course:</span>
                       </div>
-                      <span className="font-medium">{vehicle.lastPosition.course}°</span>
+                      <span className="font-medium">{vehicle.last_position.course || 0}°</span>
                     </div>
                   </div>
                   <div className="space-y-3">
@@ -177,15 +229,15 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
                         <span className="text-gray-600">Last Update:</span>
                       </div>
                       <span className="text-sm">
-                        {vehicle.lastPosition.timestamp.toLocaleString()}
+                        {formatLastUpdate(vehicle.last_position.timestamp)}
                       </span>
                     </div>
-                    {vehicle.lastPosition.statusText && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600">Status Text:</span>
-                        <span className="text-sm">{vehicle.lastPosition.statusText}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Timestamp:</span>
+                      <span className="text-sm font-mono">
+                        {new Date(vehicle.last_position.timestamp).toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -200,7 +252,8 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
             </Button>
             <div className="flex gap-2">
               <Button variant="outline" size="sm">
-                View History
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View on Map
               </Button>
               <Button size="sm">
                 Track Live

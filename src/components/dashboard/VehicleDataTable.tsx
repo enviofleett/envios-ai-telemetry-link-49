@@ -121,12 +121,12 @@ const VehicleDataTable: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {vehicles.slice(0, 20).map((vehicle) => (
-                  <TableRow key={vehicle.deviceId}>
+                  <TableRow key={vehicle.device_id}>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{vehicle.deviceName}</div>
+                        <div className="font-medium">{vehicle.device_name}</div>
                         <div className="text-sm text-muted-foreground">
-                          ID: {vehicle.deviceId}
+                          ID: {vehicle.device_id}
                         </div>
                       </div>
                     </TableCell>

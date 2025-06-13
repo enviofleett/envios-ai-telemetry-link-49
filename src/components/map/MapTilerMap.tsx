@@ -1,10 +1,9 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { mapTilerService } from '@/services/mapTiler/mapTilerService';
-import type { VehicleData } from '@/types/vehicle';
-import MapControls from './components/MapControls';
 import { useMapMarkers } from './hooks/useMapMarkers';
+import type { VehicleData } from '@/types/vehicle';
 
 interface MapTilerMapProps {
   vehicles: VehicleData[];
@@ -13,7 +12,6 @@ interface MapTilerMapProps {
   selectedVehicle?: VehicleData | null;
   defaultZoom?: number;
   showControls?: boolean;
-  className?: string;
 }
 
 const MapTilerMap: React.FC<MapTilerMapProps> = ({
@@ -21,67 +19,83 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
   height = '400px',
   onVehicleSelect,
   selectedVehicle,
-  defaultZoom = 12,
-  showControls = true,
-  className = ''
+  defaultZoom = 10,
+  showControls = true
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
 
-  // Use the custom hook for managing markers
-  const markersRef = useMapMarkers(
-    map.current,
-    isMapLoaded,
-    vehicles,
-    selectedVehicle,
-    onVehicleSelect
-  );
-
-  // Focus on selected vehicle
-  useEffect(() => {
-    if (selectedVehicle && map.current && isMapLoaded) {
-      if (selectedVehicle.lastPosition?.lat && selectedVehicle.lastPosition?.lon) {
-        map.current.flyTo({
-          center: [selectedVehicle.lastPosition.lon, selectedVehicle.lastPosition.lat],
-          zoom: 16,
-          duration: 1000
-        });
-      }
-    }
-  }, [selectedVehicle, isMapLoaded]);
-
   // Initialize map
   useEffect(() => {
     if (!mapContainer.current) return;
 
-    mapTilerService.initialize();
-
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: mapTilerService.getMapStyle(),
+      style: 'https://api.maptiler.com/maps/streets/style.json?key=demo',
       center: [0, 0],
-      zoom: defaultZoom,
-      attributionControl: false
+      zoom: 2
     });
+
+    if (showControls) {
+      map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
+      map.current.addControl(new maplibregl.FullscreenControl(), 'top-right');
+    }
 
     map.current.on('load', () => {
       setIsMapLoaded(true);
     });
 
     return () => {
-      markersRef.current?.forEach(({ marker }) => marker.remove());
       map.current?.remove();
     };
-  }, [defaultZoom]);
+  }, [showControls]);
+
+  // Filter vehicles with valid positions
+  const validVehicles = vehicles.filter(v => 
+    v.last_position?.lat && 
+    v.last_position?.lng &&
+    !isNaN(v.last_position.lat) &&
+    !isNaN(v.last_position.lng)
+  );
+
+  // Use markers hook
+  const markersRef = useMapMarkers(
+    map.current,
+    isMapLoaded,
+    validVehicles,
+    selectedVehicle,
+    onVehicleSelect
+  );
 
   return (
-    <div 
-      ref={mapContainer} 
-      className={`w-full ${className}`}
-      style={{ height }}
-    >
-      <MapControls map={map.current} showControls={showControls} />
+    <div className="relative w-full" style={{ height }}>
+      <div ref={mapContainer} className="absolute inset-0 rounded-lg" />
+      
+      {/* Vehicle count overlay */}
+      {validVehicles.length > 0 && (
+        <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 shadow-sm">
+          <div className="text-sm font-medium text-gray-900">
+            {validVehicles.length} vehicle{validVehicles.length !== 1 ? 's' : ''} shown
+          </div>
+        </div>
+      )}
+
+      {/* No data overlay */}
+      {validVehicles.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-50 rounded-lg">
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Vehicle Locations</h3>
+            <p className="text-gray-500">No vehicles with valid GPS coordinates</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

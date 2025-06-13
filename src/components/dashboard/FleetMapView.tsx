@@ -1,27 +1,36 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Activity, Navigation, TrendingUp, X, MapPin } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import SimpleMapPlaceholder from '@/components/map/SimpleMapPlaceholder';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { 
+  MapPin, 
+  Search, 
+  Filter, 
+  RefreshCw, 
+  Gauge, 
+  Navigation,
+  Activity,
+  AlertTriangle,
+  Car
+} from 'lucide-react';
+import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
+import MapTilerMap from '@/components/map/MapTilerMap';
+import VehicleDetailsModal from './VehicleDetailsModal';
 import type { VehicleData } from '@/types/vehicle';
 
-interface FleetMapViewProps {
-  vehicles: VehicleData[];
-  onVehicleSelect: (vehicle: VehicleData) => void;
-}
-
-const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }) => {
+const FleetMapView: React.FC = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
-  
-  const vehiclesWithPosition = vehicles.filter(v => v.lastPosition?.lat && v.lastPosition?.lon);
-  
+
+  const { vehicles, isLoading, error, forceRefresh } = useUnifiedVehicleData();
+
   const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.lastPosition?.timestamp) return 'offline';
+    if (!vehicle.last_position?.timestamp) return 'offline';
     
-    const lastUpdate = vehicle.lastPosition.timestamp;
+    const lastUpdate = new Date(vehicle.last_position.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -30,246 +39,240 @@ const FleetMapView: React.FC<FleetMapViewProps> = ({ vehicles, onVehicleSelect }
     return 'offline';
   };
 
-  const statusCounts = vehicles.reduce((acc, vehicle) => {
-    const status = getVehicleStatus(vehicle);
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+  // Filter vehicles for map display
+  const mapVehicles = useMemo(() => {
+    return vehicles.filter(v => 
+      v.last_position?.lat && 
+      v.last_position?.lng &&
+      !isNaN(v.last_position.lat) &&
+      !isNaN(v.last_position.lng)
+    );
+  }, [vehicles]);
+
+  // Filter vehicles for sidebar
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter(vehicle => {
+      // Search filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = 
+          vehicle.device_name.toLowerCase().includes(searchLower) ||
+          vehicle.device_id.toLowerCase().includes(searchLower) ||
+          (vehicle.license_plate && vehicle.license_plate.toLowerCase().includes(searchLower));
+        
+        if (!matchesSearch) return false;
+      }
+
+      // Status filter
+      if (statusFilter !== 'all') {
+        const status = getVehicleStatus(vehicle);
+        if (statusFilter !== status) return false;
+      }
+
+      return true;
+    });
+  }, [vehicles, searchTerm, statusFilter]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-green-500';
+      case 'idle': return 'bg-yellow-500';
+      default: return 'bg-gray-400';
+    }
+  };
 
   const handleVehicleSelect = (vehicle: VehicleData) => {
     setSelectedVehicle(vehicle);
-    onVehicleSelect(vehicle);
   };
 
-  const formatLastUpdate = (timestamp: Date) => {
-    const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
-    
-    if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return timestamp.toLocaleDateString();
-  };
+  if (error) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <AlertTriangle className="h-16 w-16 mx-auto text-red-500 mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Map</h2>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <Button onClick={forceRefresh}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="h-full flex">
       {/* Map Container */}
-      <div className="lg:col-span-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Navigation className="h-5 w-5" />
-              Live Fleet Map
-              <Badge variant="outline" className="ml-2">
-                {vehiclesWithPosition.length} vehicles
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <SimpleMapPlaceholder
-              vehicles={vehiclesWithPosition}
-              height="500px"
-              title="Fleet Map Coming Soon"
-            />
-          </CardContent>
-        </Card>
+      <div className="flex-1 relative">
+        {isLoading ? (
+          <div className="h-full bg-gray-100 animate-pulse flex items-center justify-center">
+            <div className="text-center">
+              <MapPin className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500">Loading map...</p>
+            </div>
+          </div>
+        ) : mapVehicles.length > 0 ? (
+          <MapTilerMap
+            vehicles={mapVehicles}
+            height="100%"
+            onVehicleSelect={handleVehicleSelect}
+            selectedVehicle={selectedVehicle}
+            showControls={true}
+          />
+        ) : (
+          <div className="h-full bg-gray-50 flex items-center justify-center">
+            <div className="text-center">
+              <MapPin className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+              <h3 className="text-xl font-semibold text-gray-700 mb-2">No Vehicle Locations</h3>
+              <p className="text-gray-500">
+                No vehicles with valid GPS coordinates found
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Vehicle Status Panel */}
-      <div className="space-y-4">
-        {/* Status Cards */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              Live Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span>Online</span>
-                </div>
-                <Badge variant="outline">{statusCounts.online || 0}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                  <span>Idle</span>
-                </div>
-                <Badge variant="outline">{statusCounts.idle || 0}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                  <span>Offline</span>
-                </div>
-                <Badge variant="outline">{statusCounts.offline || 0}</Badge>
-              </div>
+      {/* Sidebar */}
+      <div className="w-96 bg-white border-l border-gray-200 flex flex-col">
+        {/* Sidebar Header */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Fleet Vehicles</h2>
+            <Button
+              onClick={forceRefresh}
+              disabled={isLoading}
+              variant="outline"
+              size="sm"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+
+          {/* Search and Filter */}
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search vehicles..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
             </div>
-          </CardContent>
-        </Card>
+            
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All Status</option>
+              <option value="online">Online</option>
+              <option value="idle">Idle</option>
+              <option value="offline">Offline</option>
+            </select>
+          </div>
+        </div>
 
-        {/* Fleet Statistics */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Fleet Stats
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Total Vehicles:</span>
-                <span className="font-semibold">{vehicles.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">With GPS:</span>
-                <span className="font-semibold">{vehiclesWithPosition.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Moving:</span>
-                <span className="font-semibold">
-                  {vehiclesWithPosition.filter(v => 
-                    v.lastPosition?.speed && v.lastPosition.speed > 0
-                  ).length}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">GPS Coverage:</span>
-                <span className="font-semibold">
-                  {vehicles.length > 0 ? 
-                    ((vehiclesWithPosition.length / vehicles.length) * 100).toFixed(1) : 0}%
-                </span>
-              </div>
+        {/* Vehicle List */}
+        <div className="flex-1 overflow-y-auto">
+          {isLoading ? (
+            <div className="p-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="animate-pulse mb-4">
+                  <div className="bg-gray-200 h-20 rounded-lg"></div>
+                </div>
+              ))}
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {vehiclesWithPosition
-                .sort((a, b) => {
-                  const timeA = a.lastPosition?.timestamp?.getTime() || 0;
-                  const timeB = b.lastPosition?.timestamp?.getTime() || 0;
-                  return timeB - timeA;
-                })
-                .slice(0, 10)
-                .map((vehicle) => {
-                  const status = getVehicleStatus(vehicle);
-                  const getStatusColor = (status: string) => {
-                    switch (status) {
-                      case 'online': return 'bg-green-500';
-                      case 'idle': return 'bg-yellow-500';
-                      default: return 'bg-gray-400';
-                    }
-                  };
-
-                  return (
-                    <div 
-                      key={vehicle.deviceId}
-                      className="flex items-center justify-between p-2 hover:bg-gray-50 rounded cursor-pointer"
-                      onClick={() => handleVehicleSelect(vehicle)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${getStatusColor(status)}`}></div>
-                        <div>
-                          <div className="font-medium text-sm">{vehicle.deviceName}</div>
-                          <div className="text-xs text-gray-500">
-                            {vehicle.lastPosition?.speed || 0} km/h
-                          </div>
+          ) : filteredVehicles.length > 0 ? (
+            <div className="p-4 space-y-3">
+              {filteredVehicles.map((vehicle) => {
+                const status = getVehicleStatus(vehicle);
+                const isSelected = selectedVehicle?.device_id === vehicle.device_id;
+                
+                return (
+                  <Card 
+                    key={vehicle.device_id}
+                    className={`cursor-pointer transition-all duration-200 ${
+                      isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:shadow-md'
+                    }`}
+                    onClick={() => handleVehicleSelect(vehicle)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900">{vehicle.device_name}</h4>
+                          <p className="text-sm text-gray-500">ID: {vehicle.device_id}</p>
+                          {vehicle.license_plate && (
+                            <p className="text-sm text-gray-500">{vehicle.license_plate}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`} />
+                          <Badge variant="outline" className="text-xs">
+                            {status}
+                          </Badge>
                         </div>
                       </div>
-                      <div className="text-xs text-gray-500">
-                        {vehicle.lastPosition?.timestamp 
-                          ? formatLastUpdate(vehicle.lastPosition.timestamp)
-                          : 'No data'
-                        }
-                      </div>
-                    </div>
-                  );
-                })}
+
+                      {vehicle.last_position ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-1">
+                              <Gauge className="h-3 w-3 text-gray-400" />
+                              <span>{vehicle.last_position.speed || 0} km/h</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Navigation className="h-3 w-3 text-gray-400" />
+                              <span>{vehicle.last_position.course || 0}°</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-1 text-xs text-gray-500">
+                            <MapPin className="h-3 w-3" />
+                            <span>
+                              {vehicle.last_position.lat.toFixed(4)}, {vehicle.last_position.lng.toFixed(4)}
+                            </span>
+                          </div>
+                          
+                          <div className="text-xs text-gray-500">
+                            {new Date(vehicle.last_position.timestamp).toLocaleString()}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-2">
+                          <MapPin className="h-6 w-6 mx-auto text-gray-300 mb-1" />
+                          <p className="text-xs text-gray-500">No location data</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <div className="p-4 text-center">
+              <Car className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Vehicles Found</h3>
+              <p className="text-gray-500">
+                {searchTerm || statusFilter !== 'all'
+                  ? 'Try adjusting your search criteria'
+                  : 'No vehicles available'
+                }
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Vehicle Details Modal */}
-      <Dialog open={!!selectedVehicle} onOpenChange={() => setSelectedVehicle(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center justify-between">
-              <span>Vehicle Details: {selectedVehicle?.deviceName}</span>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setSelectedVehicle(null)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </DialogTitle>
-          </DialogHeader>
-          
-          {selectedVehicle && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Device ID</label>
-                  <p className="font-mono text-sm">{selectedVehicle.deviceId}</p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Status</label>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${
-                      getVehicleStatus(selectedVehicle) === 'online' ? 'bg-green-500' :
-                      getVehicleStatus(selectedVehicle) === 'idle' ? 'bg-yellow-500' : 'bg-gray-400'
-                    }`}></div>
-                    <span className="capitalize text-sm">{getVehicleStatus(selectedVehicle)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {selectedVehicle.lastPosition && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Location</label>
-                    <p className="font-mono text-sm">
-                      {selectedVehicle.lastPosition.lat.toFixed(6)}, {selectedVehicle.lastPosition.lon.toFixed(6)}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Speed</label>
-                    <p className="text-sm">{selectedVehicle.lastPosition.speed || 0} km/h</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Course</label>
-                    <p className="text-sm">{selectedVehicle.lastPosition.course || 0}°</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">Last Update</label>
-                    <p className="text-sm">{formatLastUpdate(selectedVehicle.lastPosition.timestamp)}</p>
-                  </div>
-                </div>
-              )}
-
-              {selectedVehicle.lastPosition?.statusText && (
-                <div>
-                  <label className="text-sm font-medium text-gray-600">Status Text</label>
-                  <p className="text-sm">{selectedVehicle.lastPosition.statusText}</p>
-                </div>
-              )}
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {selectedVehicle && (
+        <VehicleDetailsModal
+          vehicle={selectedVehicle}
+          isOpen={!!selectedVehicle}
+          onClose={() => setSelectedVehicle(null)}
+        />
+      )}
     </div>
   );
 };

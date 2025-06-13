@@ -3,45 +3,38 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
 import { 
   Car, 
   Activity, 
   AlertTriangle, 
   MapPin, 
+  Gauge, 
   RefreshCw,
-  Gauge,
-  Navigation,
-  Clock,
   Eye,
-  Map,
-  TrendingUp
+  Navigation
 } from 'lucide-react';
+import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
 import VehicleDetailsModal from './VehicleDetailsModal';
-import FleetMapView from './FleetMapView';
-import FleetMapWidget from './FleetMapWidget';
-import DashboardNavigation from './DashboardNavigation';
+import MapTilerMap from '@/components/map/MapTilerMap';
 import type { VehicleData } from '@/types/vehicle';
 
 const UnifiedFleetDashboard: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
-  const [showMap, setShowMap] = useState(false);
-  
-  const { 
-    vehicles, 
+  const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
+
+  const {
+    vehicles,
     metrics,
-    isLoading, 
-    isRefreshing, 
-    forceRefresh,
-    getVehiclesByStatus 
+    isLoading,
+    isRefreshing,
+    error,
+    forceRefresh
   } = useUnifiedVehicleData();
 
-  const vehiclesByStatus = getVehiclesByStatus();
-
   const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.lastUpdate) return 'offline';
+    if (!vehicle.last_position?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.lastUpdate);
+    const lastUpdate = new Date(vehicle.last_position.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -58,37 +51,40 @@ const UnifiedFleetDashboard: React.FC = () => {
     }
   };
 
-  const getStatusBadge = (vehicle: VehicleData) => {
-    const status = getVehicleStatus(vehicle);
-    const hasAlert = vehicle.alerts && vehicle.alerts.length > 0;
-    
-    if (hasAlert) {
-      return <Badge variant="destructive" className="flex items-center gap-1">
-        <AlertTriangle className="h-3 w-3" />
-        Alert
-      </Badge>;
-    }
-    
-    return <Badge variant={status === 'online' ? 'default' : 'secondary'} className="flex items-center gap-1">
-      <div className={`w-2 h-2 rounded-full ${getStatusColor(status)}`}></div>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
-    </Badge>;
-  };
-
-  const handleVehicleSelect = (vehicle: VehicleData) => {
-    setSelectedVehicle(vehicle);
-  };
+  const mapVehicles = vehicles.filter(v => 
+    v.last_position?.lat && 
+    v.last_position?.lng &&
+    !isNaN(v.last_position.lat) &&
+    !isNaN(v.last_position.lng)
+  );
 
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <div className="animate-pulse space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
-            ))}
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="bg-gray-200 h-32 rounded-lg"></div>
+            </div>
+          ))}
         </div>
+        <div className="animate-pulse">
+          <div className="bg-gray-200 h-96 rounded-lg"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <AlertTriangle className="h-16 w-16 mx-auto text-red-500 mb-4" />
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Dashboard</h2>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <Button onClick={forceRefresh}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Retry
+        </Button>
       </div>
     );
   }
@@ -96,193 +92,225 @@ const UnifiedFleetDashboard: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header with Controls */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Fleet Command Center</h1>
-          <p className="text-gray-600 mt-1">
-            Unified view of all {metrics.total} vehicles with real-time insights
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">Fleet Dashboard</h1>
+          <p className="text-gray-600">Monitor your entire fleet in real-time</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setShowMap(!showMap)}
-            className="flex items-center gap-2"
-          >
-            <Map className="h-4 w-4" />
-            {showMap ? 'Show List' : 'Show Map'}
-          </Button>
+        
+        <div className="flex items-center gap-4">
+          <div className="flex rounded-md border border-gray-300">
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className="rounded-r-none"
+            >
+              Grid
+            </Button>
+            <Button
+              variant={viewMode === 'map' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('map')}
+              className="rounded-l-none"
+            >
+              Map
+            </Button>
+          </div>
+          
           <Button
             onClick={forceRefresh}
             disabled={isRefreshing}
-            className="flex items-center gap-2"
+            variant="outline"
           >
-            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Syncing...' : 'Refresh'}
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
         </div>
       </div>
 
-      {/* Key Metrics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Metrics Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Fleet</CardTitle>
-            <Car className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{metrics.total}</div>
-            <p className="text-xs text-muted-foreground">
-              Active vehicles
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Online Now</CardTitle>
-            <Activity className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{metrics.online}</div>
-            <p className="text-xs text-muted-foreground">
-              {metrics.total > 0 ? ((metrics.online / metrics.total) * 100).toFixed(1) : 0}% of fleet
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Need Attention</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{metrics.alerts}</div>
-            <p className="text-xs text-muted-foreground">
-              Active alerts
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sync Status</CardTitle>
-            <Clock className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {metrics.positionsUpdated}
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Vehicles</p>
+                <p className="text-3xl font-bold text-gray-900">{metrics.total}</p>
+              </div>
+              <Car className="h-8 w-8 text-blue-600" />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Last sync: {metrics.lastSyncTime.toLocaleTimeString()}
-            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Online</p>
+                <p className="text-3xl font-bold text-green-600">{metrics.online}</p>
+              </div>
+              <Activity className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Offline</p>
+                <p className="text-3xl font-bold text-gray-600">{metrics.offline}</p>
+              </div>
+              <AlertTriangle className="h-8 w-8 text-gray-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Alerts</p>
+                <p className="text-3xl font-bold text-red-600">{metrics.alerts}</p>
+              </div>
+              <AlertTriangle className="h-8 w-8 text-red-600" />
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Performance Insights */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Fleet Performance Insights
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl font-bold text-green-600">
-                {metrics.total > 0 ? ((metrics.online / metrics.total) * 100).toFixed(1) : 0}%
+      {/* Main Content */}
+      {viewMode === 'map' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Fleet Map View
+              <Badge variant="outline" className="ml-2">
+                {mapVehicles.length} vehicles with GPS
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {mapVehicles.length > 0 ? (
+              <MapTilerMap
+                vehicles={mapVehicles}
+                height="600px"
+                onVehicleSelect={setSelectedVehicle}
+                selectedVehicle={selectedVehicle}
+                showControls={true}
+              />
+            ) : (
+              <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
+                <div className="text-center">
+                  <MapPin className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No GPS Data</h3>
+                  <p className="text-gray-500">
+                    No vehicles with valid GPS coordinates found
+                  </p>
+                </div>
               </div>
-              <div className="text-sm text-gray-600">Fleet Utilization</div>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl font-bold text-blue-600">
-                {vehicles.filter(v => v.isMoving).length}
-              </div>
-              <div className="text-sm text-gray-600">Vehicles Moving</div>
-            </div>
-            <div className="text-center p-4 bg-orange-50 rounded-lg">
-              <div className="text-2xl font-bold text-orange-600">
-                {metrics.errors > 0 ? metrics.errors : 0}
-              </div>
-              <div className="text-sm text-gray-600">Sync Issues</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Main Content Area */}
-      {showMap ? (
-        <FleetMapView 
-          vehicles={vehicles} 
-          onVehicleSelect={handleVehicleSelect}
-        />
+            )}
+          </CardContent>
+        </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Fleet Map Widget */}
-          <FleetMapWidget />
-          
-          {/* Vehicle Cards */}
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Vehicle Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-96 overflow-y-auto">
-                  {vehicles.slice(0, 8).map((vehicle) => {
-                    const status = getVehicleStatus(vehicle);
-                    return (
-                      <div 
-                        key={vehicle.deviceId}
-                        className="flex items-center justify-between p-3 hover:bg-gray-50 rounded cursor-pointer border"
-                        onClick={() => setSelectedVehicle(vehicle)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`}></div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              Vehicle Fleet
+              <Badge variant="outline">
+                {vehicles.length} vehicles
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {vehicles.length === 0 ? (
+              <div className="text-center py-8">
+                <Car className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Vehicles Found</h3>
+                <p className="text-gray-500">
+                  No vehicles are currently available in your fleet.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {vehicles.map((vehicle) => {
+                  const status = getVehicleStatus(vehicle);
+                  
+                  return (
+                    <Card 
+                      key={vehicle.device_id}
+                      className="hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => setSelectedVehicle(vehicle)}
+                    >
+                      <CardContent className="p-6">
+                        <div className="flex items-start justify-between mb-4">
                           <div>
-                            <div className="font-medium text-sm">{vehicle.deviceName}</div>
-                            <div className="text-xs text-gray-500">
-                              {vehicle.speed || 0} km/h
+                            <h4 className="font-semibold text-lg">{vehicle.device_name}</h4>
+                            <p className="text-sm text-gray-600">ID: {vehicle.device_id}</p>
+                            {vehicle.license_plate && (
+                              <p className="text-sm text-gray-500">{vehicle.license_plate}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`} />
+                            <Badge variant="outline" className="text-xs">
+                              {status}
+                            </Badge>
+                          </div>
+                        </div>
+
+                        {vehicle.last_position ? (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-1">
+                                <Gauge className="h-4 w-4 text-gray-400" />
+                                <span>{vehicle.last_position.speed || 0} km/h</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Navigation className="h-4 w-4 text-gray-400" />
+                                <span>{vehicle.last_position.course || 0}°</span>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 text-sm">
+                              <MapPin className="h-4 w-4 text-gray-400" />
+                              <span className="text-xs">
+                                {vehicle.last_position.lat.toFixed(4)}, {vehicle.last_position.lng.toFixed(4)}
+                              </span>
                             </div>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs text-gray-500">
-                            {vehicle.lastUpdate 
-                              ? new Date(vehicle.lastUpdate).toLocaleTimeString()
-                              : 'No data'
-                            }
+                        ) : (
+                          <div className="text-center py-4 text-gray-500">
+                            <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                            <p className="text-sm">No position data</p>
                           </div>
+                        )}
+
+                        <div className="mt-4 pt-4 border-t">
                           <Button
-                            size="sm"
                             variant="outline"
-                            className="mt-1"
+                            size="sm"
+                            className="w-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedVehicle(vehicle);
+                            }}
                           >
-                            <Eye className="h-3 w-3 mr-1" />
-                            Details
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Details
                           </Button>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
-
-      {/* Navigation to Other Pages */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Quick Navigation</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DashboardNavigation metrics={metrics} />
-        </CardContent>
-      </Card>
 
       {/* Vehicle Details Modal */}
       {selectedVehicle && (

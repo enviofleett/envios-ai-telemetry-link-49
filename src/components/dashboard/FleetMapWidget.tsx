@@ -19,9 +19,9 @@ const FleetMapWidget: React.FC = () => {
   });
 
   const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.lastPosition?.timestamp) return 'offline';
+    if (!vehicle.last_position?.timestamp) return 'offline';
     
-    const lastUpdate = vehicle.lastPosition.timestamp;
+    const lastUpdate = new Date(vehicle.last_position.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
