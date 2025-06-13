@@ -10,7 +10,7 @@ import {
   Gauge, 
   Calendar,
   Settings,
-  Workshop
+  Wrench
 } from 'lucide-react';
 
 interface VehicleCardProps {
@@ -172,7 +172,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             onClick={() => onActivateWorkshop(vehicle.id)}
             className="flex-1"
           >
-            <Workshop className="h-4 w-4 mr-1" />
+            <Wrench className="h-4 w-4 mr-1" />
             Workshop
           </Button>
         </div>

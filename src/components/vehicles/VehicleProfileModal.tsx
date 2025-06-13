@@ -20,7 +20,7 @@ import {
   Calendar,
   Camera,
   Upload,
-  Workshop,
+  Wrench,
   FileText
 } from 'lucide-react';
 import { VehicleImageGallery } from './VehicleImageGallery';

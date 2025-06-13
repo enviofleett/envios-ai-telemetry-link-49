@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Workshop, 
+  Wrench, 
   Calendar, 
   DollarSign, 
   User, 
@@ -44,7 +44,17 @@ interface Activation {
   activation_status: string;
   service_type?: string;
   activation_fee: number;
-  workshops: Workshop;
+  workshops: {
+    name: string;
+    representative_name: string;
+    email: string;
+    phone?: string;
+    city?: string;
+    rating: number;
+    review_count: number;
+    service_types: string[];
+    verified: boolean;
+  };
 }
 
 export const WorkshopActivationPanel: React.FC<WorkshopActivationPanelProps> = ({
@@ -83,7 +93,19 @@ export const WorkshopActivationPanel: React.FC<WorkshopActivationPanelProps> = (
         .order('activation_date', { ascending: false });
 
       if (error) throw error;
-      setActivations(data || []);
+      
+      // Transform the data to match our types
+      const transformedData = (data || []).map(item => ({
+        ...item,
+        workshops: {
+          ...item.workshops,
+          service_types: Array.isArray(item.workshops.service_types) 
+            ? item.workshops.service_types 
+            : []
+        }
+      })) as Activation[];
+      
+      setActivations(transformedData);
     } catch (error) {
       console.error('Error fetching activations:', error);
       toast({
@@ -103,7 +125,16 @@ export const WorkshopActivationPanel: React.FC<WorkshopActivationPanelProps> = (
         .order('rating', { ascending: false });
 
       if (error) throw error;
-      setAvailableWorkshops(data || []);
+      
+      // Transform the data to match our types
+      const transformedData = (data || []).map(workshop => ({
+        ...workshop,
+        service_types: Array.isArray(workshop.service_types) 
+          ? workshop.service_types 
+          : []
+      })) as Workshop[];
+      
+      setAvailableWorkshops(transformedData);
     } catch (error) {
       console.error('Error fetching workshops:', error);
     } finally {
@@ -123,7 +154,8 @@ export const WorkshopActivationPanel: React.FC<WorkshopActivationPanelProps> = (
           workshop_id: workshopId,
           service_type: serviceType,
           activation_fee: workshop.activation_fee,
-          expiration_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // 1 year from now
+          expiration_date: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+          activated_by: (await supabase.auth.getUser()).data.user?.id
         });
 
       if (error) throw error;
@@ -178,7 +210,7 @@ export const WorkshopActivationPanel: React.FC<WorkshopActivationPanelProps> = (
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Workshop className="h-5 w-5" />
+              <Wrench className="h-5 w-5" />
               Workshop Activations
             </div>
             <Button
@@ -252,7 +284,7 @@ export const WorkshopActivationPanel: React.FC<WorkshopActivationPanelProps> = (
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500">
-              <Workshop className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <Wrench className="h-12 w-12 mx-auto mb-4 text-gray-300" />
               <p>No workshop activations yet</p>
               <p className="text-sm">Activate workshops to access their services</p>
             </div>
