@@ -57,19 +57,29 @@ serve(async (req) => {
       }, 400);
     }
 
-    // Initialize services
-    const templateManager = new TemplateManager(supabaseUrl, supabaseAnonKey);
-    const deliveryLogger = new DeliveryLogger(supabaseUrl, supabaseAnonKey);
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(to)) {
+      return createResponse({
+        success: false,
+        error: 'Invalid recipient email format'
+      }, 400);
+    }
 
-    // Load SMTP configuration
+    // Load SMTP configuration with detailed error reporting
+    console.log('📧 Loading SMTP configuration...');
     const smtpConfig = await EmailSender.loadConfig(supabase);
     if (!smtpConfig) {
       return createResponse({
         success: false,
-        error: 'SMTP configuration not found or incomplete'
+        error: 'SMTP configuration not found or incomplete. Please configure your SMTP settings first.',
+        details: 'Check that you have set up SMTP host, port, username, password, and encryption type in your SMTP settings.'
       }, 500);
     }
 
+    // Initialize services
+    const templateManager = new TemplateManager(supabaseUrl, supabaseAnonKey);
+    const deliveryLogger = new DeliveryLogger(supabaseUrl, supabaseAnonKey);
     const emailSender = new EmailSender(smtpConfig);
 
     // Get template by trigger type
@@ -132,7 +142,9 @@ serve(async (req) => {
         await deliveryLogger.updateDeliveryLog(logId, { status: 'SENDING' });
       }
 
-      // Send email
+      console.log('📧 Attempting to send email with validated configuration...');
+      
+      // Send email with enhanced error handling
       await emailSender.sendEmail({
         to,
         subject: emailSubject,
@@ -156,7 +168,7 @@ serve(async (req) => {
     } catch (emailError) {
       console.error(`❌ Email sending failed:`, emailError);
       
-      // Log failure
+      // Log failure with detailed error information
       if (logId) {
         await deliveryLogger.logFailure(
           logId, 
@@ -164,10 +176,27 @@ serve(async (req) => {
         );
       }
 
+      // Return detailed error information for debugging
+      const errorMessage = emailError instanceof Error ? emailError.message : 'Unknown error occurred';
+      
       return createResponse({
         success: false,
         error: 'Failed to send email',
-        details: emailError instanceof Error ? emailError.message : 'Unknown error'
+        details: errorMessage,
+        troubleshooting: {
+          smtp_host: smtpConfig.hostname,
+          smtp_port: smtpConfig.port,
+          smtp_username: smtpConfig.username,
+          smtp_encryption: smtpConfig.encryption,
+          suggestions: [
+            'Verify SMTP hostname is correct (should be like smtp.gmail.com, not gmail.com)',
+            'Check that SMTP username is a valid email address',
+            'Confirm SMTP password is correct',
+            'Ensure encryption type matches your email provider requirements',
+            'For Gmail: Use App Password instead of regular password',
+            'For Office365: Use smtp.office365.com with port 587 and TLS'
+          ]
+        }
       }, 500);
     }
 
