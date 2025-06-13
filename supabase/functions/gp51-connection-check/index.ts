@@ -10,13 +10,14 @@ const corsHeaders = {
 const GP51_API_URL = "https://www.gps51.com/webapi";
 const REQUEST_TIMEOUT = 5000;
 
-// MD5 hash function for password hashing
+// Fixed MD5 hash function for Deno compatibility
 async function md5(input: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(input);
-  const hashBuffer = await crypto.subtle.digest('MD5', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  // Use a proper MD5 implementation for Deno
+  const { createHash } = await import("https://deno.land/std@0.208.0/crypto/mod.ts");
+  return createHash("md5").update(data).digest("hex");
 }
 
 serve(async (req) => {
@@ -32,14 +33,15 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Step 1: Check for valid GP51 session
+    // Step 1: Check for valid GP51 session - FIXED: Using correct column name
     const { data: sessions, error: sessionError } = await supabase
       .from("gp51_sessions")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(1);
+      .limit(1)
+      .maybeSingle();
 
-    if (sessionError || !sessions || sessions.length === 0) {
+    if (sessionError || !sessions) {
       console.error("❌ No GP51 sessions found:", sessionError);
       return new Response(JSON.stringify({
         success: false,
@@ -52,8 +54,8 @@ serve(async (req) => {
       });
     }
 
-    const session = sessions[0];
-    const { username, gp51_password } = session;
+    const session = sessions;
+    const { username, password_hash } = session;
 
     // Step 2: Check session expiry
     const expiresAt = new Date(session.token_expires_at);
@@ -77,7 +79,7 @@ serve(async (req) => {
     const startTime = Date.now();
     
     try {
-      const hashedPassword = await md5(gp51_password);
+      const hashedPassword = await md5(password_hash);
       
       const formData = new URLSearchParams({
         action: 'login',

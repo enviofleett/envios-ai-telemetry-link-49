@@ -9,6 +9,15 @@ const corsHeaders = {
 
 const GP51_API_URL = "https://www.gps51.com/webapi";
 
+// Fixed MD5 hash function for Deno compatibility
+async function md5(input: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  
+  const { createHash } = await import("https://deno.land/std@0.208.0/crypto/mod.ts");
+  return createHash("md5").update(data).digest("hex");
+}
+
 serve(async (req) => {
   console.log(`GP51 Service Management API call: ${req.method} ${req.url}`);
   
@@ -212,14 +221,10 @@ serve(async (req) => {
         );
       }
 
-      // Hash password for authentication
-      const encoder = new TextEncoder();
-      const data = encoder.encode(session.password_hash);
-      const hashBuffer = await crypto.subtle.digest('MD5', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashedPassword = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
+      // Hash password for authentication using fixed MD5
       try {
+        const hashedPassword = await md5(session.password_hash);
+
         console.log('📡 Making real GP51 API call to test connectivity...');
         
         const formData = new URLSearchParams({

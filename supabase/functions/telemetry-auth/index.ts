@@ -7,20 +7,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Proper MD5 implementation using Web Crypto API
+// Fixed MD5 hash function for Deno compatibility
 async function md5(input: string): Promise<string> {
-  try {
-    const data = new TextEncoder().encode(input);
-    const hashBuffer = await crypto.subtle.digest('MD5', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  } catch (error) {
-    // Fallback for environments where Web Crypto MD5 isn't available
-    const { createHash } = await import('https://deno.land/std@0.168.0/node/crypto.ts');
-    const hash = createHash('md5');
-    hash.update(input);
-    return hash.digest('hex');
-  }
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  
+  const { createHash } = await import("https://deno.land/std@0.168.0/crypto/mod.ts");
+  return createHash("md5").update(data).digest("hex");
 }
 
 serve(async (req) => {
@@ -46,7 +39,7 @@ serve(async (req) => {
 
     console.log('Authenticating user:', username);
 
-    // MD5 encrypt the password using proper implementation
+    // MD5 encrypt the password using fixed implementation
     const hashedPassword = await md5(password);
     console.log('Password hashed successfully');
 

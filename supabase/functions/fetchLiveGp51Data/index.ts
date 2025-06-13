@@ -11,13 +11,13 @@ const GP51_API_URL = "https://www.gps51.com/webapi";
 const REQUEST_TIMEOUT = 5000; // 5 seconds
 const MAX_RETRIES = 2;
 
-// MD5 hash function for password hashing
+// Fixed MD5 hash function for Deno compatibility
 async function md5(input: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(input);
-  const hashBuffer = await crypto.subtle.digest('MD5', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  const { createHash } = await import("https://deno.land/std@0.208.0/crypto/mod.ts");
+  return createHash("md5").update(data).digest("hex");
 }
 
 interface LiveVehicleTelemetry {
@@ -155,7 +155,7 @@ serve(async (req) => {
 
     console.log('✅ Valid session found, fetching live data from GP51...');
 
-    // Hash the password for GP51 authentication
+    // Hash the password for GP51 authentication using fixed MD5
     const hashedPassword = await md5(session.password_hash);
 
     // First, get the monitor list (devices/vehicles)
