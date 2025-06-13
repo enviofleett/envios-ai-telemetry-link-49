@@ -86,9 +86,8 @@ export async function handleGetRequest(supabase: any, url: URL, currentUserId: s
   }
 }
 
-export async function handlePostRequest(supabase: any, req: Request, currentUserId: string) {
-  const body = await req.json();
-  const { name, email, phone_number, gp51_user_type, role } = body;
+export async function handlePostRequest(supabase: any, requestBody: any, currentUserId: string) {
+  const { name, email, phone_number, gp51_user_type, role } = requestBody;
 
   console.log('Creating new user:', { name, email, phone_number, gp51_user_type, role });
 
@@ -132,17 +131,16 @@ export async function handlePostRequest(supabase: any, req: Request, currentUser
   }
 }
 
-export async function handlePutRequest(supabase: any, req: Request, url: URL, currentUserId: string) {
+export async function handlePutRequest(supabase: any, requestBody: any, url: URL, currentUserId: string) {
   const pathParts = url.pathname.split('/');
   const userId = pathParts[pathParts.length - 1];
-  const body = await req.json();
 
-  console.log('Updating user:', userId, body);
+  console.log('Updating user:', userId, requestBody);
 
   try {
     const { data: updatedUser, error } = await supabase
       .from('envio_users')
-      .update(body)
+      .update(requestBody)
       .eq('id', userId)
       .select()
       .single();

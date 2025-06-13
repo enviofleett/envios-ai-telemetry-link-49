@@ -38,16 +38,40 @@ serve(async (req) => {
         );
 
       case 'POST':
-        // Check if this is a user creation with email verification
-        const body = await req.json();
-        if (body.email && body.send_verification) {
-          // Send verification email through our SMTP system
-          await sendVerificationEmail(supabase, body.email, body.name || 'User');
+        // Parse request body once and handle JSON parsing errors
+        let requestBody;
+        try {
+          requestBody = await req.json();
+        } catch (error) {
+          console.error('Failed to parse request body:', error);
+          return new Response(
+            JSON.stringify({ error: 'Invalid JSON in request body' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
-        return await handlePostRequest(supabase, req, currentUserId);
+
+        // Check if this is a user creation with email verification
+        if (requestBody.email && requestBody.send_verification) {
+          // Send verification email through our SMTP system
+          await sendVerificationEmail(supabase, requestBody.email, requestBody.name || 'User');
+        }
+        
+        return await handlePostRequest(supabase, requestBody, currentUserId);
 
       case 'PUT':
-        return await handlePutRequest(supabase, req, url, currentUserId);
+        // Parse request body once for PUT requests
+        let putRequestBody;
+        try {
+          putRequestBody = await req.json();
+        } catch (error) {
+          console.error('Failed to parse PUT request body:', error);
+          return new Response(
+            JSON.stringify({ error: 'Invalid JSON in request body' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        return await handlePutRequest(supabase, putRequestBody, url, currentUserId);
 
       case 'DELETE':
         return await handleDeleteRequest(supabase, url, currentUserId);
