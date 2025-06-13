@@ -241,7 +241,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
                     <div className="flex items-center">
                       <Car className="w-4 h-4 mr-2 text-gray-400" />
                       <span className="text-sm text-gray-900">{profile.vehicle_count || 0}</span>
-                      {profile.vehicle_count > 0 && (
+                      {profile.vehicle_count && profile.vehicle_count > 0 && (
                         <Button
                           variant="ghost"
                           size="sm"

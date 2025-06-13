@@ -7,7 +7,7 @@ export interface UserProfile {
   id: string;
   phone_number?: string;
   registration_status: 'pending_email_verification' | 'pending_phone_verification' | 'pending_admin_approval' | 'active' | 'rejected';
-  role: 'admin' | 'user' | 'moderator' | 'driver' | 'dispatcher' | 'fleet_manager' | 'pending';
+  role: 'admin' | 'user' | 'driver' | 'dispatcher' | 'fleet_manager' | 'pending';
   company_id?: string;
   first_name?: string;
   last_name?: string;
@@ -20,7 +20,6 @@ export interface UserProfile {
     id: string;
     device_id: string;
     device_name?: string;
-    plate_number?: string;
   }>;
 }
 
@@ -45,8 +44,7 @@ export const useUserProfiles = (params: UseUserProfilesParams = {}) => {
           vehicles!vehicles_user_profile_id_fkey(
             id,
             device_id,
-            device_name,
-            plate_number
+            device_name
           )
         `);
 
@@ -81,10 +79,14 @@ export const useUserProfiles = (params: UseUserProfilesParams = {}) => {
       const profileIds = data?.map(p => p.id) || [];
       const { data: authUsers } = await supabase.auth.admin.listUsers();
       
-      const emailMap = authUsers.users.reduce((acc, user) => {
-        acc[user.id] = user.email;
-        return acc;
-      }, {} as Record<string, string>);
+      const emailMap: Record<string, string> = {};
+      if (authUsers && authUsers.users) {
+        authUsers.users.forEach(user => {
+          if (user.id && user.email) {
+            emailMap[user.id] = user.email;
+          }
+        });
+      }
 
       const enhancedProfiles = (data || []).map(profile => ({
         ...profile,
@@ -108,7 +110,7 @@ export const useUpdateUserProfile = () => {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (data: { id: string; updates: Partial<UserProfile> }) => {
+    mutationFn: async (data: { id: string; updates: Partial<Omit<UserProfile, 'email' | 'vehicle_count' | 'assigned_vehicles'>> }) => {
       const { error } = await supabase
         .from('user_profiles')
         .update(data.updates)

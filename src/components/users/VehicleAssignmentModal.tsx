@@ -25,7 +25,6 @@ interface Vehicle {
   id: string;
   device_id: string;
   device_name?: string;
-  plate_number?: string;
   user_profile_id?: string;
   is_assigned: boolean;
 }
@@ -44,10 +43,10 @@ export default function VehicleAssignmentModal({
     queryFn: async () => {
       let query = supabase
         .from('vehicles')
-        .select('id, device_id, device_name, plate_number, user_profile_id');
+        .select('id, device_id, device_name, user_profile_id');
 
       if (search.trim()) {
-        query = query.or(`device_id.ilike.%${search}%,device_name.ilike.%${search}%,plate_number.ilike.%${search}%`);
+        query = query.or(`device_id.ilike.%${search}%,device_name.ilike.%${search}%`);
       }
 
       const { data, error } = await query.order('device_id');
@@ -103,7 +102,7 @@ export default function VehicleAssignmentModal({
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <Input
-              placeholder="Search vehicles by ID, name, or plate number..."
+              placeholder="Search vehicles by ID or name..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-10"
@@ -130,7 +129,6 @@ export default function VehicleAssignmentModal({
                         </div>
                         <div className="text-sm text-gray-600">
                           ID: {vehicle.device_id}
-                          {vehicle.plate_number && ` • Plate: ${vehicle.plate_number}`}
                         </div>
                       </div>
                     </div>
@@ -173,7 +171,6 @@ export default function VehicleAssignmentModal({
                         </div>
                         <div className="text-sm text-gray-600">
                           ID: {vehicle.device_id}
-                          {vehicle.plate_number && ` • Plate: ${vehicle.plate_number}`}
                         </div>
                       </div>
                     </div>
@@ -216,7 +213,6 @@ export default function VehicleAssignmentModal({
                         </div>
                         <div className="text-sm text-gray-600">
                           ID: {vehicle.device_id}
-                          {vehicle.plate_number && ` • Plate: ${vehicle.plate_number}`}
                         </div>
                       </div>
                     </div>

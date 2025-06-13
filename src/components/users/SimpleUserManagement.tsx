@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import UserStatsCards from './UserStatsCards';
 import SimpleUserManagementTable from './SimpleUserManagementTable';
 import UserDetailsModal from './UserDetailsModal';
@@ -17,7 +18,7 @@ interface User {
   registration_status?: string;
   assigned_vehicles?: Array<{
     id: string;
-    plate_number?: string;
+    device_id?: string;
     status: string;
     last_update: string;
   }>;
@@ -39,7 +40,7 @@ const SimpleUserManagement: React.FC = () => {
         .from('user_profiles')
         .select(`
           *,
-          vehicles!vehicles_user_profile_id_fkey(id, device_id, plate_number)
+          vehicles!vehicles_user_profile_id_fkey(id, device_id)
         `)
         .order('created_at', { ascending: false });
 
@@ -62,7 +63,7 @@ const SimpleUserManagement: React.FC = () => {
         registration_status: profile.registration_status,
         assigned_vehicles: (profile.vehicles || []).map(v => ({
           id: v.id,
-          plate_number: v.plate_number,
+          device_id: v.device_id,
           status: 'active',
           last_update: new Date().toISOString()
         }))
@@ -85,8 +86,8 @@ const SimpleUserManagement: React.FC = () => {
   
   const userDistribution = {
     admin: users.filter(u => u.user_roles?.[0]?.role === 'admin').length,
-    manager: users.filter(u => u.user_roles?.[0]?.role === 'manager').length,
-    operator: users.filter(u => u.user_roles?.[0]?.role === 'operator').length,
+    fleet_manager: users.filter(u => u.user_roles?.[0]?.role === 'fleet_manager').length,
+    dispatcher: users.filter(u => u.user_roles?.[0]?.role === 'dispatcher').length,
     driver: users.filter(u => u.user_roles?.[0]?.role === 'driver').length,
   };
 
