@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import VehicleTrackingMap from '@/components/VehicleTrackingMap';
+import LiveTrackingMap from '@/components/tracking/LiveTrackingMap';
 import { useStableVehicleData } from '@/hooks/useStableVehicleData';
 
 const LiveTracking: React.FC = () => {
@@ -54,7 +54,7 @@ const LiveTracking: React.FC = () => {
         </CardHeader>
         <CardContent className="p-0">
           <div className="h-[600px] w-full">
-            <VehicleTrackingMap vehicles={vehicles} />
+            <LiveTrackingMap vehicles={vehicles} />
           </div>
         </CardContent>
       </Card>

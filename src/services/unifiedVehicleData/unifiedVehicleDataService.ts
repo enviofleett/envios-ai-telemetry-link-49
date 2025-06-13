@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehicleMetrics, SyncMetrics } from '@/types/vehicle';
 
@@ -75,7 +76,7 @@ export class UnifiedVehicleDataService {
     
     // Determine vehicle status based on last position update
     let status: 'online' | 'offline' | 'moving' | 'idle' = 'offline';
-    let parsedPosition: VehicleData['lastPosition'] = undefined;
+    let parsedPosition: VehicleData['last_position'] = undefined;
     
     if (lastPosition?.updatetime) {
       const lastUpdate = new Date(lastPosition.updatetime);
@@ -90,21 +91,20 @@ export class UnifiedVehicleDataService {
       // Transform position with proper timestamp conversion
       parsedPosition = {
         lat: lastPosition.lat,
-        lon: lastPosition.lon,
+        lng: lastPosition.lng,
         speed: lastPosition.speed || 0,
         course: lastPosition.course || 0,
-        timestamp: new Date(lastPosition.updatetime), // Convert to Date object
-        statusText: lastPosition.statusText || ''
+        timestamp: lastPosition.updatetime, // Keep as string
       };
     }
 
     return {
       id: dbVehicle.id || dbVehicle.device_id,
-      deviceId: dbVehicle.device_id,
-      deviceName: dbVehicle.device_name,
+      device_id: dbVehicle.device_id,
+      device_name: dbVehicle.device_name,
       vehicleName: dbVehicle.device_name,
       status,
-      lastUpdate: parsedPosition ? parsedPosition.timestamp : new Date(dbVehicle.updated_at || dbVehicle.created_at),
+      lastUpdate: parsedPosition ? new Date(parsedPosition.timestamp) : new Date(dbVehicle.updated_at || dbVehicle.created_at),
       alerts: [],
       isOnline: status === 'online' || status === 'moving',
       isMoving: status === 'moving',
@@ -112,7 +112,7 @@ export class UnifiedVehicleDataService {
       course: lastPosition?.course || 0,
       is_active: dbVehicle.is_active || true,
       envio_user_id: dbVehicle.envio_user_id,
-      lastPosition: parsedPosition
+      last_position: parsedPosition
     };
   }
 
@@ -164,9 +164,8 @@ export class UnifiedVehicleDataService {
       alerts: rawVehicle.alerts || [],
       is_active: rawVehicle.is_active || false,
       // Legacy compatibility
-      deviceId: rawVehicle.device_id,
-      deviceName: rawVehicle.device_name,
-      lastPosition: rawVehicle.last_position
+      device_id: rawVehicle.device_id,
+      device_name: rawVehicle.device_name
     };
   }
 

@@ -38,6 +38,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
     total: 0,
     online: 0,
     offline: 0,
+    idle: 0,
     alerts: 0,
     // Legacy properties
     totalVehicles: 0,
@@ -128,6 +129,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
         total: baseMetrics.total,
         online: baseMetrics.online,
         offline: baseMetrics.offline,
+        idle: baseMetrics.idle,
         alerts: baseMetrics.alerts,
         // Legacy properties
         totalVehicles: baseMetrics.totalVehicles,
@@ -154,6 +156,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
           total: 0,
           online: 0,
           offline: 0,
+          idle: 0,
           alerts: 0,
           totalVehicles: 0,
           onlineVehicles: 0,

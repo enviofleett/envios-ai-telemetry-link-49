@@ -5,7 +5,7 @@ export interface VehiclePosition {
   lng: number; // Standardized to 'lng' for internal consistency
   speed: number;
   course: number; // Added course property
-  timestamp: Date; // Changed from updatetime: string to timestamp: Date
+  timestamp: string; // Changed to string for consistency with database
   statusText: string;
 }
 
@@ -45,7 +45,7 @@ export interface VehicleData {
     lng: number; // Changed from lon to lng for consistency with components
     speed: number;
     course: number; // Added course property
-    timestamp: string; // Changed from Date to string for consistency
+    timestamp: string; // String for consistency with database storage
   };
   envio_users?: {
     name: string;

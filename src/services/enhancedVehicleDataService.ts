@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { gp51DataService, type GP51ProcessedPosition, type LiveVehicleFilterConfig } from '@/services/gp51/GP51DataService';
 import { ErrorHandlingService } from '@/services/errorHandlingService';
@@ -254,6 +255,7 @@ class EnhancedVehicleDataService {
     const total = this.vehicles.length;
     const online = this.vehicles.filter(v => v.isOnline).length;
     const offline = total - online;
+    const idle = this.vehicles.filter(v => v.isOnline && !v.isMoving).length;
     const alerts = this.vehicles.reduce((sum, v) => sum + v.alerts.length, 0);
     const onlineVehicles = online;
     const offlineVehicles = offline;
@@ -268,6 +270,7 @@ class EnhancedVehicleDataService {
       total,
       online,
       offline,
+      idle,
       alerts,
       // Legacy properties
       totalVehicles,
@@ -335,12 +338,14 @@ export const getVehicleDataMetrics = (vehicles: VehicleData[]): VehicleDataMetri
   const total = vehicles.length;
   const online = vehicles.filter(v => v.isOnline).length;
   const offline = total - online;
+  const idle = vehicles.filter(v => v.isOnline && !v.isMoving).length;
   const alerts = vehicles.reduce((sum, v) => sum + v.alerts.length, 0);
 
   return {
     total,
     online,
     offline,
+    idle,
     alerts,
     totalVehicles: total,
     onlineVehicles: online,

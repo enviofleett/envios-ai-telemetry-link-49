@@ -11,6 +11,7 @@ export const useEnhancedVehicleData = () => {
     total: 0,
     online: 0,
     offline: 0,
+    idle: 0,
     alerts: 0,
     // Legacy properties
     totalVehicles: 0,
@@ -40,6 +41,7 @@ export const useEnhancedVehicleData = () => {
         total: serviceMetrics.total,
         online: serviceMetrics.online,
         offline: serviceMetrics.offline,
+        idle: serviceMetrics.idle,
         alerts: serviceMetrics.alerts,
         // Legacy properties
         totalVehicles: serviceMetrics.totalVehicles,
@@ -74,6 +76,7 @@ export const useEnhancedVehicleData = () => {
       total: initialMetrics.total,
       online: initialMetrics.online,
       offline: initialMetrics.offline,
+      idle: initialMetrics.idle,
       alerts: initialMetrics.alerts,
       totalVehicles: initialMetrics.totalVehicles,
       onlineVehicles: initialMetrics.onlineVehicles,
