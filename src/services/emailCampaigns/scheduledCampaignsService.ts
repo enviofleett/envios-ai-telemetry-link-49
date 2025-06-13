@@ -39,3 +39,6 @@ class ScheduledCampaignsService {
 }
 
 export const scheduledCampaignsService = new ScheduledCampaignsService();
+
+// Export types for external use
+export { EmailCampaign, CampaignExecution } from './types';
