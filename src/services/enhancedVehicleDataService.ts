@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { gp51DataService, type GP51ProcessedPosition, type LiveVehicleFilterConfig } from '@/services/gp51/GP51DataService';
 import { ErrorHandlingService } from '@/services/errorHandlingService';
@@ -106,8 +105,7 @@ class EnhancedVehicleDataService {
       is_active: supabaseVehicle.is_active,
       envio_user_id: supabaseVehicle.envio_user_id,
       // Legacy compatibility properties
-      deviceId: supabaseVehicle.device_id,
-      deviceName: supabaseVehicle.device_name,
+      vehicleName: supabaseVehicle.device_name,
       lastPosition: last_position
     };
   }

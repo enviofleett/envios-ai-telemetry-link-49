@@ -5,26 +5,21 @@ import { Navigation, Filter, Search, MapPin } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { useStableVehicleData } from '@/hooks/useStableVehicleData';
 import type { VehicleData } from '@/types/vehicle';
 
 interface LiveTrackingMapProps {
+  vehicles: VehicleData[];
   initialSearchTerm?: string;
   initialStatusFilter?: 'all' | 'online' | 'offline' | 'alerts';
 }
 
 const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({ 
+  vehicles,
   initialSearchTerm = '',
   initialStatusFilter = 'all'
 }) => {
   const [searchTerm, setSearchTerm] = useState(initialSearchTerm);
   const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
-
-  // Use stable vehicle data with filters - fixed to use correct options
-  const { vehicles, allVehicles, isLoading } = useStableVehicleData({
-    search: searchTerm,
-    status: statusFilter
-  });
 
   const getVehicleStatus = (vehicle: VehicleData) => {
     if (!vehicle.last_position?.timestamp) return 'offline';
@@ -38,28 +33,45 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
     return 'offline';
   };
 
+  // Filter vehicles based on search and status
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter(vehicle => {
+      // Search filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = 
+          vehicle.device_name.toLowerCase().includes(searchLower) ||
+          vehicle.device_id.toLowerCase().includes(searchLower);
+        if (!matchesSearch) return false;
+      }
+
+      // Status filter
+      if (statusFilter !== 'all') {
+        const status = getVehicleStatus(vehicle);
+        switch (statusFilter) {
+          case 'online':
+            return status === 'online';
+          case 'offline':
+            return status === 'offline';
+          case 'alerts':
+            return vehicle.alerts && vehicle.alerts.length > 0;
+          default:
+            return true;
+        }
+      }
+
+      return true;
+    });
+  }, [vehicles, searchTerm, statusFilter]);
+
   // Memoized status counts to prevent recalculation
   const statusCounts = useMemo(() => {
-    return allVehicles.reduce((acc, vehicle) => {
+    return vehicles.reduce((acc, vehicle) => {
       const status = getVehicleStatus(vehicle);
       acc[status] = (acc[status] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-  }, [allVehicles]);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="animate-pulse">
-              <div className="h-64 bg-gray-200 rounded-lg"></div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  }, [vehicles]);
 
   return (
     <div className="space-y-4">
@@ -70,7 +82,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
             <Navigation className="h-5 w-5" />
             Live Vehicle Tracking
             <Badge variant="outline" className="ml-2">
-              {vehicles.length} trackable vehicles
+              {filteredVehicles.length} trackable vehicles
             </Badge>
           </CardTitle>
         </CardHeader>
@@ -99,7 +111,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Vehicles ({allVehicles.length})</SelectItem>
+                  <SelectItem value="all">All Vehicles ({vehicles.length})</SelectItem>
                   <SelectItem value="online">Online ({statusCounts.online || 0})</SelectItem>
                   <SelectItem value="offline">Offline ({statusCounts.offline || 0})</SelectItem>
                   <SelectItem value="alerts">With Alerts (0)</SelectItem>
@@ -137,7 +149,7 @@ const LiveTrackingMap: React.FC<LiveTrackingMapProps> = ({
                 Real-time vehicle positions will be displayed here
               </p>
               <Badge variant="outline" className="mt-2">
-                {vehicles.length} vehicles with valid GPS data
+                {filteredVehicles.length} vehicles with valid GPS data
               </Badge>
             </div>
           </div>

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehicleMetrics, SyncMetrics } from '@/types/vehicle';
 
