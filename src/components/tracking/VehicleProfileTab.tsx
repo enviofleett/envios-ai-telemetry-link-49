@@ -20,7 +20,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { VehicleData } from '@/types/vehicle';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface VehicleProfileTabProps {
   vehicle: VehicleData;
@@ -28,7 +28,7 @@ interface VehicleProfileTabProps {
 
 const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({ vehicle }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedVehicleName, setEditedVehicleName] = useState(vehicle.device_name);
+  const [editedVehicleName, setEditedVehicleName] = useState(vehicle.deviceName);
   const [notes, setNotes] = useState('');
   const [assignedUser, setAssignedUser] = useState('');
   const { toast } = useToast();
@@ -44,7 +44,7 @@ const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({ vehicle }) => {
 
   const handleCancel = () => {
     setIsEditing(false);
-    setEditedVehicleName(vehicle.device_name);
+    setEditedVehicleName(vehicle.deviceName);
     setNotes('');
     setAssignedUser('');
   };
@@ -61,7 +61,7 @@ const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({ vehicle }) => {
               className="text-lg font-semibold"
             />
           ) : (
-            <>{vehicle.device_name}</>
+            <>{vehicle.deviceName}</>
           )}
         </CardTitle>
         <div>
@@ -88,13 +88,13 @@ const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({ vehicle }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="deviceId">Device ID</Label>
-            <Input id="deviceId" value={vehicle.device_id} readOnly />
+            <Input id="deviceId" value={vehicle.deviceId} readOnly />
           </div>
           <div>
             <Label htmlFor="lastUpdate">Last Update</Label>
             <Input
               id="lastUpdate"
-              value={vehicle.last_position?.timestamp ? new Date(vehicle.last_position.timestamp).toLocaleString() : 'N/A'}
+              value={vehicle.lastPosition?.timestamp.toLocaleString() || 'N/A'}
               readOnly
             />
           </div>
@@ -102,7 +102,7 @@ const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({ vehicle }) => {
             <Label htmlFor="latitude">Latitude</Label>
             <Input
               id="latitude"
-              value={vehicle.last_position?.lat?.toString() || 'N/A'}
+              value={vehicle.lastPosition?.lat?.toString() || 'N/A'}
               readOnly
             />
           </div>
@@ -110,7 +110,7 @@ const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({ vehicle }) => {
             <Label htmlFor="longitude">Longitude</Label>
             <Input
               id="longitude"
-              value={vehicle.last_position?.lng?.toString() || 'N/A'}
+              value={vehicle.lastPosition?.lon?.toString() || 'N/A'}
               readOnly
             />
           </div>

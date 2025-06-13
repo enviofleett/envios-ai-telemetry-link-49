@@ -16,7 +16,7 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import type { VehicleData } from '@/types/vehicle';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface VehicleStatisticsModalProps {
   isOpen: boolean;
@@ -36,9 +36,9 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.last_position?.timestamp) return 'offline';
+    if (!vehicle.lastPosition?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.last_position.timestamp);
+    const lastUpdate = vehicle.lastPosition.timestamp;
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -50,25 +50,24 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
   const filteredVehicles = vehicles.filter(vehicle => {
     const vehicleStatus = getVehicleStatus(vehicle);
     const matchesStatus = statusType === 'online' ? vehicleStatus === 'online' : vehicleStatus === 'offline';
-    const matchesSearch = vehicle.device_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vehicle.device_id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = vehicle.deviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         vehicle.deviceId.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
-  const formatLastSeen = (timestamp: string) => {
+  const formatLastSeen = (timestamp: Date) => {
     const now = new Date();
-    const updateTime = new Date(timestamp);
-    const diffMinutes = Math.floor((now.getTime() - updateTime.getTime()) / (1000 * 60));
+    const diffMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
     
     if (diffMinutes < 1) return 'Just now';
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
     if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return updateTime.toLocaleDateString();
+    return timestamp.toLocaleDateString();
   };
 
   const getSubscriberName = (vehicle: VehicleData) => {
     // Mock subscriber name - in real implementation, this would come from user data
-    return `Subscriber ${vehicle.device_id.slice(-4)}`;
+    return `Subscriber ${vehicle.deviceId.slice(-4)}`;
   };
 
   const getPlateNumber = (vehicle: VehicleData) => {
@@ -107,7 +106,7 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
             <div className="space-y-3">
               {filteredVehicles.map((vehicle) => (
                 <div 
-                  key={vehicle.device_id}
+                  key={vehicle.deviceId}
                   className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-start justify-between">
@@ -130,24 +129,24 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
                         <div className="flex items-center gap-2">
                           <Clock className="h-3 w-3" />
                           <span>
-                            Last seen: {vehicle.last_position?.timestamp 
-                              ? formatLastSeen(vehicle.last_position.timestamp)
+                            Last seen: {vehicle.lastPosition?.timestamp 
+                              ? formatLastSeen(vehicle.lastPosition.timestamp)
                               : 'Never'
                             }
                           </span>
                         </div>
                         
                         <div className="text-xs text-gray-500">
-                          Device: {vehicle.device_name} ({vehicle.device_id})
+                          Device: {vehicle.deviceName} ({vehicle.deviceId})
                         </div>
                       </div>
                     </div>
                     
-                    {vehicle.last_position?.lat && vehicle.last_position?.lng && (
+                    {vehicle.lastPosition?.lat && vehicle.lastPosition?.lon && (
                       <div className="text-right text-xs text-gray-500">
-                        <div>Speed: {vehicle.last_position.speed || 0} km/h</div>
+                        <div>Speed: {vehicle.lastPosition.speed || 0} km/h</div>
                         <div className="font-mono">
-                          {vehicle.last_position.lat.toFixed(4)}, {vehicle.last_position.lng.toFixed(4)}
+                          {vehicle.lastPosition.lat.toFixed(4)}, {vehicle.lastPosition.lon.toFixed(4)}
                         </div>
                       </div>
                     )}

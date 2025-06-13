@@ -26,16 +26,16 @@ const LiveTracking: React.FC = () => {
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   
   // Use stable vehicle data with error handling
-  const { vehicles, metrics, isLoading, error, forceRefresh } = useStableVehicleData();
+  const { vehicles, metrics, isLoading, error, forceRefresh } = useStableVehicleData({});
 
   // Convert vehicles to map markers
   const mapMarkers: MapMarker[] = vehicles
-    .filter(vehicle => vehicle.last_position?.lat && vehicle.last_position?.lng)
+    .filter(vehicle => vehicle.lastPosition?.lat && vehicle.lastPosition?.lon)
     .map(vehicle => {
       const getStatusColor = () => {
-        if (!vehicle.last_position?.timestamp) return '#6b7280'; // gray
+        if (!vehicle.lastPosition?.timestamp) return '#6b7280'; // gray
         
-        const lastUpdate = new Date(vehicle.last_position.timestamp);
+        const lastUpdate = new Date(vehicle.lastPosition.timestamp);
         const now = new Date();
         const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
         
@@ -45,28 +45,28 @@ const LiveTracking: React.FC = () => {
       };
 
       return {
-        id: vehicle.device_id,
-        latitude: vehicle.last_position!.lat,
-        longitude: vehicle.last_position!.lng,
-        title: vehicle.device_name || vehicle.device_id,
-        description: `Speed: ${vehicle.last_position?.speed || 0} km/h`,
+        id: vehicle.deviceId,
+        latitude: vehicle.lastPosition!.lat,
+        longitude: vehicle.lastPosition!.lon,
+        title: vehicle.deviceName || vehicle.deviceId,
+        description: `Speed: ${vehicle.lastPosition?.speed || 0} km/h`,
         color: getStatusColor()
       };
     });
 
   // Handle marker click
   const handleMarkerClick = async (marker: MapMarker) => {
-    const vehicle = vehicles.find(v => v.device_id === marker.id);
+    const vehicle = vehicles.find(v => v.deviceId === marker.id);
     if (vehicle) {
       setSelectedVehicle(vehicle);
       
       // Get address for selected vehicle
-      if (vehicle.last_position?.lat && vehicle.last_position?.lng) {
+      if (vehicle.lastPosition?.lat && vehicle.lastPosition?.lon) {
         setIsLoadingAddress(true);
         try {
           const address = await geocodingService.reverseGeocodeCoordinates(
-            vehicle.last_position.lat,
-            vehicle.last_position.lng
+            vehicle.lastPosition.lat,
+            vehicle.lastPosition.lon
           );
           setVehicleAddress(address || 'Address not available');
         } catch (error) {
@@ -84,19 +84,19 @@ const LiveTracking: React.FC = () => {
     setSelectedVehicle(vehicle);
     
     // If vehicle has position, get address
-    if (vehicle.last_position?.lat && vehicle.last_position?.lng) {
+    if (vehicle.lastPosition?.lat && vehicle.lastPosition?.lon) {
       handleMarkerClick({
-        id: vehicle.device_id,
-        latitude: vehicle.last_position.lat,
-        longitude: vehicle.last_position.lng
+        id: vehicle.deviceId,
+        latitude: vehicle.lastPosition.lat,
+        longitude: vehicle.lastPosition.lon
       });
     }
   };
 
   const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.last_position?.timestamp) return 'offline';
+    if (!vehicle.lastPosition?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.last_position.timestamp);
+    const lastUpdate = new Date(vehicle.lastPosition.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -250,20 +250,20 @@ const LiveTracking: React.FC = () => {
                       const status = getVehicleStatus(vehicle);
                       return (
                         <div
-                          key={vehicle.device_id}
+                          key={vehicle.deviceId}
                           className={`p-3 rounded-lg border cursor-pointer transition-colors hover:bg-gray-50 ${
-                            selectedVehicle?.device_id === vehicle.device_id ? 'bg-blue-50 border-blue-200' : ''
+                            selectedVehicle?.deviceId === vehicle.deviceId ? 'bg-blue-50 border-blue-200' : ''
                           }`}
                           onClick={() => handleVehicleSelect(vehicle)}
                         >
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <p className="font-medium text-sm">
-                                {vehicle.device_name || vehicle.device_id}
+                                {vehicle.deviceName || vehicle.deviceId}
                               </p>
-                              {vehicle.last_position && (
+                              {vehicle.lastPosition && (
                                 <p className="text-xs text-gray-600">
-                                  Speed: {vehicle.last_position.speed} km/h
+                                  Speed: {vehicle.lastPosition.speed} km/h
                                 </p>
                               )}
                             </div>
@@ -284,7 +284,7 @@ const LiveTracking: React.FC = () => {
           {selectedVehicle && (
             <Card>
               <CardHeader>
-                <CardTitle>Vehicle Details - {selectedVehicle.device_name || selectedVehicle.device_id}</CardTitle>
+                <CardTitle>Vehicle Details - {selectedVehicle.deviceName || selectedVehicle.deviceId}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -295,23 +295,23 @@ const LiveTracking: React.FC = () => {
                     </Badge>
                   </div>
                   
-                  {selectedVehicle.last_position && (
+                  {selectedVehicle.lastPosition && (
                     <>
                       <div>
                         <p className="text-sm font-medium text-gray-600">Speed</p>
-                        <p className="text-lg font-semibold">{selectedVehicle.last_position.speed} km/h</p>
+                        <p className="text-lg font-semibold">{selectedVehicle.lastPosition.speed} km/h</p>
                       </div>
                       
                       <div>
                         <p className="text-sm font-medium text-gray-600">Coordinates</p>
                         <p className="text-sm font-mono">
-                          {selectedVehicle.last_position.lat.toFixed(6)}, {selectedVehicle.last_position.lng.toFixed(6)}
+                          {selectedVehicle.lastPosition.lat.toFixed(6)}, {selectedVehicle.lastPosition.lon.toFixed(6)}
                         </p>
                       </div>
                       
                       <div>
                         <p className="text-sm font-medium text-gray-600">Last Update</p>
-                        <p className="text-sm">{new Date(selectedVehicle.last_position.timestamp).toLocaleString()}</p>
+                        <p className="text-sm">{selectedVehicle.lastPosition.timestamp.toLocaleString()}</p>
                       </div>
                     </>
                   )}

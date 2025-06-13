@@ -10,7 +10,7 @@ import { Search, Filter, Car, RefreshCw } from 'lucide-react';
 import { useStableVehicleData } from '@/hooks/useStableVehicleData';
 import CompactVehicleCard from './CompactVehicleCard';
 import { useVehicleDetails } from '@/hooks/useVehicleDetails';
-import type { VehicleData } from '@/types/vehicle';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface VehicleListPanelProps {
   selectedVehicle?: VehicleData | null;
@@ -37,13 +37,13 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
 
   // Mock function to simulate sending an alert
   const handleSendAlert = (vehicle: VehicleData) => {
-    alert(`Simulating sending an alert to vehicle: ${vehicle.device_name}`);
+    alert(`Simulating sending an alert to vehicle: ${vehicle.deviceName}`);
   };
 
   const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.last_position?.timestamp) return 'offline';
+    if (!vehicle.lastPosition?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.last_position.timestamp);
+    const lastUpdate = new Date(vehicle.lastPosition.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -53,8 +53,8 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
 
   const filteredVehicles = (vehicles: VehicleData[]) => {
     return vehicles.filter(vehicle => {
-      const matchesSearch = vehicle.device_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            vehicle.device_id.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = vehicle.deviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            vehicle.deviceId.toLowerCase().includes(searchTerm.toLowerCase());
       
       if (statusFilter === 'all') return matchesSearch;
       
@@ -118,7 +118,7 @@ const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
             ) : (
               filteredVehicles([]).map((vehicle) => (
                 <CompactVehicleCard
-                  key={vehicle.device_id}
+                  key={vehicle.deviceId}
                   vehicle={vehicle}
                   onClick={() => onVehicleSelect?.(vehicle)}
                   onTripClick={() => openTripHistoryModal(vehicle)}

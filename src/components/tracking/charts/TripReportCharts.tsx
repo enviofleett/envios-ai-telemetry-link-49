@@ -1,7 +1,8 @@
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, ResponsiveContainer } from 'recharts';
+import ReportChartContainer from './ReportChartContainer';
 import type { TripReportData } from '@/hooks/useAdvancedReports';
 
 interface TripReportChartsProps {
@@ -10,41 +11,156 @@ interface TripReportChartsProps {
 }
 
 const TripReportCharts: React.FC<TripReportChartsProps> = ({ data, isLoading }) => {
+  // Transform data for distance chart
+  const distanceChartData = data.slice(0, 10).map((trip, index) => ({
+    vehicle: trip.vehicleName.length > 10 ? trip.vehicleName.substring(0, 10) + '...' : trip.vehicleName,
+    distance: parseFloat(trip.distance.replace(' km', '')),
+    avgSpeed: parseFloat(trip.averageSpeed.replace(' km/h', '')),
+    index
+  }));
+
+  // Transform data for trend analysis (group by date)
+  const trendData = data.reduce((acc: any[], trip) => {
+    const date = new Date(trip.startTime).toLocaleDateString();
+    const existing = acc.find(item => item.date === date);
+    
+    if (existing) {
+      existing.trips += 1;
+      existing.totalDistance += parseFloat(trip.distance.replace(' km', ''));
+    } else {
+      acc.push({
+        date,
+        trips: 1,
+        totalDistance: parseFloat(trip.distance.replace(' km', ''))
+      });
+    }
+    
+    return acc;
+  }, []).slice(0, 7);
+
+  const chartConfig = {
+    distance: {
+      label: "Distance (km)",
+      color: "#22c55e",
+    },
+    avgSpeed: {
+      label: "Avg Speed (km/h)",
+      color: "#3b82f6",
+    },
+    trips: {
+      label: "Number of Trips",
+      color: "#f59e0b",
+    },
+    totalDistance: {
+      label: "Total Distance (km)",
+      color: "#ef4444",
+    },
+  };
+
   if (isLoading) {
     return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-64 bg-gray-200 rounded-lg"></div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ReportChartContainer
+          data={[]}
+          reportType="trip"
+          isLoading={true}
+          title="Distance Analysis"
+        />
+        <ReportChartContainer
+          data={[]}
+          reportType="trip"
+          isLoading={true}
+          title="Trip Trends"
+        />
       </div>
     );
   }
 
-  const chartData = data.map(trip => ({
-    vehicleName: trip.vehicleName,
-    distance: typeof trip.distance === 'string' ? parseFloat(trip.distance) || 0 : trip.distance,
-    duration: trip.duration,
-    fuel: typeof trip.fuelConsumption === 'string' 
-      ? parseFloat(trip.fuelConsumption.replace(' L', '')) || 0 
-      : 0
-  }));
-
   return (
-    <div className="space-y-4 mb-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Trip Distance Analysis</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="vehicleName" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="distance" fill="#3b82f6" name="Distance (km)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      {/* Distance and Speed Chart */}
+      <ReportChartContainer
+        data={data}
+        reportType="trip"
+        isLoading={false}
+        title="Distance & Speed Analysis"
+      >
+        <ChartContainer config={chartConfig} className="h-64">
+          <BarChart data={distanceChartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis 
+              dataKey="vehicle" 
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis fontSize={12} tickLine={false} axisLine={false} />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent 
+                  hideLabel 
+                  className="w-[180px]"
+                  formatter={(value, name) => [
+                    `${value}${name === 'distance' ? ' km' : ' km/h'}`,
+                    chartConfig[name as keyof typeof chartConfig]?.label || name,
+                  ]}
+                />
+              }
+            />
+            <Bar 
+              dataKey="distance" 
+              fill="var(--color-distance)" 
+              radius={4}
+            />
+          </BarChart>
+        </ChartContainer>
+      </ReportChartContainer>
+
+      {/* Trip Trends Chart */}
+      <ReportChartContainer
+        data={data}
+        reportType="trip"
+        isLoading={false}
+        title="Daily Trip Trends"
+      >
+        <ChartContainer config={chartConfig} className="h-64">
+          <LineChart data={trendData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis 
+              dataKey="date" 
+              fontSize={12}
+              tickLine={false}
+              axisLine={false}
+            />
+            <YAxis fontSize={12} tickLine={false} axisLine={false} />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent 
+                  className="w-[180px]"
+                  formatter={(value, name) => [
+                    `${value}${name === 'totalDistance' ? ' km' : ''}`,
+                    chartConfig[name as keyof typeof chartConfig]?.label || name,
+                  ]}
+                />
+              }
+            />
+            <Line 
+              type="monotone" 
+              dataKey="trips" 
+              stroke="var(--color-trips)" 
+              strokeWidth={2}
+              dot={{ r: 4 }}
+            />
+            <Line 
+              type="monotone" 
+              dataKey="totalDistance" 
+              stroke="var(--color-totalDistance)" 
+              strokeWidth={2}
+              dot={{ r: 4 }}
+            />
+          </LineChart>
+        </ChartContainer>
+      </ReportChartContainer>
     </div>
   );
 };

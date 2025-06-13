@@ -1,6 +1,8 @@
 
 import { useState, useCallback } from 'react';
-import type { VehicleData } from '@/types/vehicle';
+import type { VehicleData } from '@/services/unifiedVehicleData';
+
+export type ReportType = 'trip' | 'activity' | 'maintenance' | 'alerts';
 
 export interface ReportFilters {
   dateRange: {
@@ -8,106 +10,116 @@ export interface ReportFilters {
     to: Date | null;
   };
   vehicleIds: string[];
+  reportType: ReportType;
   status?: string;
 }
 
 export interface ReportData {
   id: string;
-  type: string;
-  generatedAt: Date;
-  vehicleCount: number;
-  status: 'pending' | 'completed' | 'error';
   vehicleId: string;
   vehicleName: string;
+  type: string;
   startTime: string;
   endTime: string;
   duration: string;
   distance: string;
   averageSpeed: string;
-  fuelConsumption: string;
+  maxSpeed: string;
+  status: string;
 }
 
-const useReports = () => {
+export const useReports = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [reports, setReports] = useState<ReportData[]>([]);
-  const [activeTab, setActiveTab] = useState('trip');
+  const [reportData, setReportData] = useState<ReportData[]>([]);
+  const [activeTab, setActiveTab] = useState<ReportType>('trip');
   const [filters, setFilters] = useState<ReportFilters>({
     dateRange: {
-      from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
       to: new Date(),
     },
     vehicleIds: [],
-    status: 'all',
+    reportType: 'trip',
   });
 
-  const generateReport = useCallback(async (
-    filterParams: ReportFilters,
-    vehicles: VehicleData[]
-  ) => {
-    setIsLoading(true);
-
-    try {
-      // Filter vehicles
-      let filteredVehicles = vehicles;
-      
-      if (filterParams.vehicleIds.length > 0) {
-        filteredVehicles = vehicles.filter(vehicle => 
-          filterParams.vehicleIds.includes(vehicle.device_id)
-        );
-      }
-
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-
-      const mockReportData: ReportData[] = filteredVehicles.map((vehicle, index) => ({
-        id: `report_${vehicle.device_id}_${index}`,
-        type: 'trip',
-        generatedAt: new Date(),
-        vehicleCount: 1,
-        status: 'completed' as const,
-        vehicleId: vehicle.device_id,
-        vehicleName: vehicle.device_name,
-        startTime: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toLocaleString(),
-        endTime: new Date().toLocaleString(),
-        duration: `${Math.floor(Math.random() * 8 + 1)}h ${Math.floor(Math.random() * 60)}m`,
-        distance: `${Math.floor(Math.random() * 200 + 50)} km`,
-        averageSpeed: `${Math.floor(Math.random() * 40 + 30)} km/h`,
-        fuelConsumption: `${(Math.random() * 20 + 10).toFixed(1)} L`
-      }));
-
-      setReports(mockReportData);
-
-    } catch (error) {
-      console.error('Error generating report:', error);
-    } finally {
-      setIsLoading(false);
-    }
+  const generateMockReportData = useCallback((vehicles: VehicleData[], type: ReportType): ReportData[] => {
+    return vehicles.slice(0, 10).map((vehicle, index) => ({
+      id: `${type}-${vehicle.deviceId}-${index}`,
+      vehicleId: vehicle.deviceId,
+      vehicleName: vehicle.deviceName,
+      type: type === 'trip' ? 'Trip' : type === 'activity' ? 'Activity' : type === 'maintenance' ? 'Maintenance' : 'Alert',
+      startTime: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toLocaleString(),
+      endTime: new Date(Date.now() - Math.random() * 12 * 60 * 60 * 1000).toLocaleString(),
+      duration: `${Math.floor(Math.random() * 8 + 1)}h ${Math.floor(Math.random() * 60)}m`,
+      distance: `${Math.floor(Math.random() * 500 + 50)} km`,
+      averageSpeed: `${Math.floor(Math.random() * 60 + 20)} km/h`,
+      maxSpeed: `${Math.floor(Math.random() * 40 + 80)} km/h`,
+      status: Math.random() > 0.8 ? 'Alert' : 'Normal',
+    }));
   }, []);
+
+  const generateReport = useCallback(async (vehicles: VehicleData[]) => {
+    setIsLoading(true);
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    const filteredVehicles = filters.vehicleIds.length > 0 
+      ? vehicles.filter(v => filters.vehicleIds.includes(v.deviceId))
+      : vehicles;
+
+    const data = generateMockReportData(filteredVehicles, filters.reportType);
+    setReportData(data);
+    setIsLoading(false);
+  }, [filters, generateMockReportData]);
+
+  const exportReport = useCallback((format: 'csv' | 'pdf' = 'csv') => {
+    if (reportData.length === 0) return;
+
+    if (format === 'csv') {
+      const headers = ['Vehicle ID', 'Vehicle Name', 'Type', 'Start Time', 'End Time', 'Duration', 'Distance', 'Avg Speed', 'Max Speed', 'Status'];
+      const csvContent = [
+        headers.join(','),
+        ...reportData.map(row => [
+          row.vehicleId,
+          row.vehicleName,
+          row.type,
+          row.startTime,
+          row.endTime,
+          row.duration,
+          row.distance,
+          row.averageSpeed,
+          row.maxSpeed,
+          row.status
+        ].join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filters.reportType}-report-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    }
+  }, [reportData, filters.reportType]);
 
   const updateFilters = useCallback((newFilters: Partial<ReportFilters>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
   }, []);
 
-  const setActiveReportTab = useCallback((tab: string) => {
+  const setActiveReportTab = useCallback((tab: ReportType) => {
     setActiveTab(tab);
-  }, []);
-
-  const exportReport = useCallback((format: 'csv' | 'pdf' | 'excel') => {
-    console.log(`Exporting report in ${format} format`);
-  }, []);
+    updateFilters({ reportType: tab });
+  }, [updateFilters]);
 
   return {
+    reportData,
     isLoading,
-    reports,
     activeTab,
     filters,
-    reportData: reports,
     generateReport,
+    exportReport,
     updateFilters,
     setActiveReportTab,
-    exportReport
   };
 };
-
-export { useReports };
-export default useReports;
