@@ -14,6 +14,9 @@ import SystemSettingsTab from './tabs/SystemSettingsTab';
 import GeofencingTab from './tabs/GeofencingTab';
 import SMSSettingsTab from './tabs/SMSSettingsTab';
 import SMSLogsTab from './tabs/SMSLogsTab';
+import SMTPConfigurationTab from './tabs/SMTPConfigurationTab';
+import EmailTriggersAdminTab from './tabs/EmailTriggersAdminTab';
+import AdvancedEmailManagementTab from './tabs/AdvancedEmailManagementTab';
 
 // Import existing working tabs from settings directory
 import CompanySettingsTab from '../settings/CompanySettingsTab';
@@ -49,7 +52,15 @@ const EnhancedAdminTabRenderer: React.FC<EnhancedAdminTabRendererProps> = ({ act
       case 'email-queue':
         return <EmailQueueTab />;
       
-      // New SMS functionality
+      // New Email Management Features
+      case 'smtp-config':
+        return <SMTPConfigurationTab />;
+      case 'email-triggers':
+        return <EmailTriggersAdminTab />;
+      case 'advanced-email':
+        return <AdvancedEmailManagementTab />;
+      
+      // SMS functionality
       case 'sms-settings':
         return <SMSSettingsTab />;
       case 'sms-logs':

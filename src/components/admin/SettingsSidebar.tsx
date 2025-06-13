@@ -16,7 +16,9 @@ import {
   MapPin,
   Zap,
   BarChart3,
-  Package
+  Package,
+  Send,
+  Inbox
 } from 'lucide-react';
 
 interface SettingsSidebarProps {
@@ -43,8 +45,11 @@ const sidebarItems = [
   {
     category: 'Communication',
     items: [
+      { id: 'smtp-config', label: 'SMTP Configuration', icon: Settings },
       { id: 'email-templates', label: 'Email Templates', icon: Mail },
-      { id: 'email-queue', label: 'Email Queue', icon: Mail },
+      { id: 'email-triggers', label: 'Email Triggers', icon: Zap },
+      { id: 'email-queue', label: 'Email Queue', icon: Inbox },
+      { id: 'advanced-email', label: 'Advanced Email', icon: Send },
       { id: 'sms-settings', label: 'SMS Gateway', icon: MessageSquare },
       { id: 'sms-logs', label: 'SMS Logs', icon: MessageSquare },
     ]
