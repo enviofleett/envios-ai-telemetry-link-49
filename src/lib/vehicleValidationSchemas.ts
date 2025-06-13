@@ -4,6 +4,7 @@ import { z } from "zod"
 // Vehicle registration schema
 export const vehicleRegistrationSchema = z.object({
   userId: z.string().min(1, "User selection is required"),
+  vin: z.string().length(17, "VIN must be exactly 17 characters").regex(/^[A-HJ-NPR-Z0-9]{17}$/, "Invalid VIN format"),
   plateNumber: z.string().min(1, "Plate number is required"),
   make: z.string().min(1, "Make is required"),
   model: z.string().min(1, "Model is required"),
@@ -11,9 +12,10 @@ export const vehicleRegistrationSchema = z.object({
     .number()
     .min(1900)
     .max(new Date().getFullYear() + 1),
-  vin: z.string().min(1, "VIN is required"),
   color: z.string().min(1, "Color is required"),
   fuelType: z.string().min(1, "Fuel type is required"),
+  fuelTankCapacity: z.number().min(0).optional(),
+  manufacturerFuelConsumption: z.number().min(0).optional(),
   subscriptionPackageId: z.string().min(1, "Subscription package is required"),
   gpsTypeId: z.string().min(1, "GPS type is required"),
   simNumber: z.string().min(10, "Valid SIM number is required"),

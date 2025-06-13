@@ -5,6 +5,7 @@ import { z } from 'zod'
 // Vehicle registration schema
 const vehicleRegistrationSchema = z.object({
   userId: z.string().min(1, "User selection is required"),
+  vin: z.string().length(17, "VIN must be exactly 17 characters").regex(/^[A-HJ-NPR-Z0-9]{17}$/, "Invalid VIN format"),
   plateNumber: z.string().min(1, "Plate number is required"),
   make: z.string().min(1, "Make is required"),
   model: z.string().min(1, "Model is required"),
@@ -12,9 +13,10 @@ const vehicleRegistrationSchema = z.object({
     .number()
     .min(1900)
     .max(new Date().getFullYear() + 1),
-  vin: z.string().min(1, "VIN is required"),
   color: z.string().min(1, "Color is required"),
   fuelType: z.string().min(1, "Fuel type is required"),
+  fuelTankCapacity: z.number().min(0).optional(),
+  manufacturerFuelConsumption: z.number().min(0).optional(),
   subscriptionPackageId: z.string().min(1, "Subscription package is required"),
   gpsTypeId: z.string().min(1, "GPS type is required"),
   simNumber: z.string().min(10, "Valid SIM number is required"),
@@ -90,16 +92,18 @@ async function retrieveVehicleData(vehicleId: string): Promise<{
 // Register new vehicle
 export async function registerVehicle(formData: FormData) {
   try {
-    // Extract form data
+    // Extract form data including new VIN and fuel fields
     const rawData = {
       userId: formData.get("userId") as string,
+      vin: formData.get("vin") as string,
       plateNumber: formData.get("plateNumber") as string,
       make: formData.get("make") as string,
       model: formData.get("model") as string,
       year: Number.parseInt(formData.get("year") as string),
-      vin: formData.get("vin") as string,
       color: formData.get("color") as string,
       fuelType: formData.get("fuelType") as string,
+      fuelTankCapacity: formData.get("fuelTankCapacity") ? Number.parseFloat(formData.get("fuelTankCapacity") as string) : undefined,
+      manufacturerFuelConsumption: formData.get("manufacturerFuelConsumption") ? Number.parseFloat(formData.get("manufacturerFuelConsumption") as string) : undefined,
       subscriptionPackageId: formData.get("subscriptionPackageId") as string,
       gpsTypeId: formData.get("gpsTypeId") as string,
       simNumber: formData.get("simNumber") as string,
@@ -112,21 +116,23 @@ export async function registerVehicle(formData: FormData) {
     // Generate vehicle ID
     const vehicleId = generateVehicleId()
 
-    // Save vehicle to database
+    // Save vehicle to database with VIN and fuel data
     const { data: vehicleData, error: vehicleError } = await supabase
       .from('vehicles')
       .insert({
         device_id: vehicleId,
         device_name: `${validatedData.make} ${validatedData.model}`,
+        vin: validatedData.vin,
         envio_user_id: validatedData.userId,
         sim_number: validatedData.simNumber,
+        fuel_tank_capacity_liters: validatedData.fuelTankCapacity,
+        manufacturer_fuel_consumption_100km_l: validatedData.manufacturerFuelConsumption,
         is_active: true,
         gp51_metadata: {
           plate_number: validatedData.plateNumber,
           make: validatedData.make,
           model: validatedData.model,
           year: validatedData.year,
-          vin: validatedData.vin,
           color: validatedData.color,
           fuel_type: validatedData.fuelType,
           subscription_package_id: validatedData.subscriptionPackageId,
@@ -146,7 +152,7 @@ export async function registerVehicle(formData: FormData) {
       }
     }
 
-    console.log("Vehicle registered:", { vehicleId, ...validatedData })
+    console.log("Vehicle registered:", { vehicleId, vin: validatedData.vin, ...validatedData })
 
     return {
       success: true,

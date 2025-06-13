@@ -5729,6 +5729,7 @@ export type Database = {
           envio_user_id: string | null
           extraction_job_id: string | null
           fuel_level: number | null
+          fuel_tank_capacity_liters: number | null
           gp51_device_id: string | null
           gp51_metadata: Json | null
           gp51_username: string | null
@@ -5742,6 +5743,7 @@ export type Database = {
           license_plate: string | null
           longitude: number | null
           make: string | null
+          manufacturer_fuel_consumption_100km_l: number | null
           model: string | null
           notes: string | null
           odometer: number | null
@@ -5752,6 +5754,7 @@ export type Database = {
           speed: number | null
           status: string | null
           updated_at: string
+          vin: string | null
           year: number | null
         }
         Insert: {
@@ -5767,6 +5770,7 @@ export type Database = {
           envio_user_id?: string | null
           extraction_job_id?: string | null
           fuel_level?: number | null
+          fuel_tank_capacity_liters?: number | null
           gp51_device_id?: string | null
           gp51_metadata?: Json | null
           gp51_username?: string | null
@@ -5780,6 +5784,7 @@ export type Database = {
           license_plate?: string | null
           longitude?: number | null
           make?: string | null
+          manufacturer_fuel_consumption_100km_l?: number | null
           model?: string | null
           notes?: string | null
           odometer?: number | null
@@ -5790,6 +5795,7 @@ export type Database = {
           speed?: number | null
           status?: string | null
           updated_at?: string
+          vin?: string | null
           year?: number | null
         }
         Update: {
@@ -5805,6 +5811,7 @@ export type Database = {
           envio_user_id?: string | null
           extraction_job_id?: string | null
           fuel_level?: number | null
+          fuel_tank_capacity_liters?: number | null
           gp51_device_id?: string | null
           gp51_metadata?: Json | null
           gp51_username?: string | null
@@ -5818,6 +5825,7 @@ export type Database = {
           license_plate?: string | null
           longitude?: number | null
           make?: string | null
+          manufacturer_fuel_consumption_100km_l?: number | null
           model?: string | null
           notes?: string | null
           odometer?: number | null
@@ -5828,6 +5836,7 @@ export type Database = {
           speed?: number | null
           status?: string | null
           updated_at?: string
+          vin?: string | null
           year?: number | null
         }
         Relationships: [
@@ -6253,6 +6262,90 @@ export type Database = {
           sim_number?: string | null
           status?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      vin_api_configurations: {
+        Row: {
+          api_key_encrypted: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_tested_at: string | null
+          primary_provider: boolean
+          provider_name: string
+          rate_limit_per_day: number | null
+          secret_key_encrypted: string
+          test_error_message: string | null
+          test_status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key_encrypted: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_tested_at?: string | null
+          primary_provider?: boolean
+          provider_name?: string
+          rate_limit_per_day?: number | null
+          secret_key_encrypted: string
+          test_error_message?: string | null
+          test_status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key_encrypted?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_tested_at?: string | null
+          primary_provider?: boolean
+          provider_name?: string
+          rate_limit_per_day?: number | null
+          secret_key_encrypted?: string
+          test_error_message?: string | null
+          test_status?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      vin_decode_history: {
+        Row: {
+          api_response_time_ms: number | null
+          created_at: string
+          decode_success: boolean
+          decoded_data: Json | null
+          error_message: string | null
+          id: string
+          provider_name: string
+          user_id: string
+          vin: string
+        }
+        Insert: {
+          api_response_time_ms?: number | null
+          created_at?: string
+          decode_success: boolean
+          decoded_data?: Json | null
+          error_message?: string | null
+          id?: string
+          provider_name: string
+          user_id: string
+          vin: string
+        }
+        Update: {
+          api_response_time_ms?: number | null
+          created_at?: string
+          decode_success?: boolean
+          decoded_data?: Json | null
+          error_message?: string | null
+          id?: string
+          provider_name?: string
+          user_id?: string
+          vin?: string
         }
         Relationships: []
       }
