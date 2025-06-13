@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
 import type { GP51ProcessedPosition } from '@/types/gp51';
@@ -118,6 +119,27 @@ export class GP51VehiclePersistenceService {
       console.log(`Data fetched and persisted successfully for device ${deviceId}`);
     } catch (error) {
       console.error(`Error fetching data and persisting for device ${deviceId}:`, error);
+      throw error;
+    }
+  }
+
+  async assignUserToVehicle(vehicleId: string, userId: string): Promise<void> {
+    try {
+      console.log(`Assigning user ${userId} to vehicle ${vehicleId}...`);
+
+      const { error } = await supabase
+        .from('vehicles')
+        .update({ envio_user_id: userId })
+        .eq('id', vehicleId);
+
+      if (error) {
+        console.error(`Failed to assign user to vehicle:`, error);
+        throw error;
+      }
+
+      console.log(`User assigned to vehicle successfully`);
+    } catch (error) {
+      console.error(`Error assigning user to vehicle:`, error);
       throw error;
     }
   }

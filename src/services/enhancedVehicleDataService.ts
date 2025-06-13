@@ -1,3 +1,4 @@
+
 import { gp51DataService } from '@/services/gp51/GP51DataService';
 import type { GP51ProcessedPosition, LiveVehicleFilterConfig } from '@/types/gp51';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
@@ -98,8 +99,10 @@ class EnhancedVehicleDataService {
         const lastUpdate = position?.timestamp || new Date();
 
         return {
-          deviceId: device.deviceId,
-          deviceName: device.deviceName,
+          id: device.deviceId,
+          device_id: device.deviceId,
+          device_name: device.deviceName,
+          is_active: true,
           vehicle_name: device.deviceName,
           plateNumber: device.deviceName,
           model: 'Unknown Model',
@@ -186,8 +189,47 @@ class EnhancedVehicleDataService {
   }
 
   getVehicleById(deviceId: string): VehicleData | undefined {
-    return this.vehicles.find(v => v.deviceId === deviceId);
+    return this.vehicles.find(v => v.device_id === deviceId);
   }
 }
 
 export const enhancedVehicleDataService = EnhancedVehicleDataService.getInstance();
+
+// Export functions for backwards compatibility
+export const getEnhancedVehicles = async (options: { page: number; limit: number }) => {
+  const vehicles = enhancedVehicleDataService.getVehicles();
+  const startIndex = options.page * options.limit;
+  const endIndex = startIndex + options.limit;
+  const pageData = vehicles.slice(startIndex, endIndex);
+  
+  return {
+    data: pageData,
+    error: null,
+    hasMore: endIndex < vehicles.length
+  };
+};
+
+export const getVehicleDataMetrics = (vehicles: VehicleData[]): VehicleDataMetrics => {
+  const onlineVehicles = vehicles.filter(v => v.status === 'online');
+  const offlineVehicles = vehicles.filter(v => v.status === 'offline');
+  const recentlyActiveVehicles = vehicles.filter(v => {
+    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+    return v.lastUpdate.getTime() > thirtyMinutesAgo;
+  });
+
+  return {
+    total: vehicles.length,
+    online: onlineVehicles.length,
+    offline: offlineVehicles.length,
+    idle: onlineVehicles.length - recentlyActiveVehicles.length,
+    alerts: 0,
+    totalVehicles: vehicles.length,
+    onlineVehicles: onlineVehicles.length,
+    offlineVehicles: offlineVehicles.length,
+    recentlyActiveVehicles: recentlyActiveVehicles.length,
+    lastSyncTime: new Date(),
+    positionsUpdated: vehicles.length,
+    errors: 0,
+    syncStatus: 'success'
+  };
+};

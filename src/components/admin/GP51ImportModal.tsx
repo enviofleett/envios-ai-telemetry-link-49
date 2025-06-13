@@ -7,8 +7,45 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, Users, Car, AlertTriangle, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { SystemImportOptions } from '@/types/system-import';
-import { importPreviewService, ImportPreviewData } from '@/services/systemImport/importPreviewService';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
+
+interface ImportPreviewData {
+  summary: {
+    totalRecords: number;
+    newRecords: number;
+    conflicts: number;
+    estimatedDuration: string;
+    warnings: string[];
+  };
+  users: {
+    total: number;
+    new: number;
+    conflicts: number;
+    userList: Array<{
+      username: string;
+      email: string;
+      conflict: boolean;
+    }>;
+  };
+  vehicles: {
+    total: number;
+    new: number;
+    conflicts: number;
+    vehicleList: Array<{
+      deviceId: string;
+      deviceName: string;
+      username: string;
+      conflict: boolean;
+    }>;
+  };
+  settings: {
+    importType: string;
+    batchSize: number;
+    performCleanup: boolean;
+    preserveAdminEmail: string;
+  };
+  conflicts: any[]; // Add missing conflicts property
+}
 
 interface ImportPreviewModalProps {
   isOpen: boolean;
@@ -57,7 +94,7 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
       );
 
       // Create preview data based on the processing result
-      const previewData = {
+      const previewData: ImportPreviewData = {
         summary: {
           totalRecords: liveData.devices.length,
           newRecords: processResult.created,
@@ -87,7 +124,8 @@ const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
           batchSize: options.batchSize || 10,
           performCleanup: options.performCleanup,
           preserveAdminEmail: options.preserveAdminEmail || 'Default admin'
-        }
+        },
+        conflicts: processResult.errors.map(error => ({ message: error })) // Add conflicts property
       };
       
       setPreviewData(previewData);

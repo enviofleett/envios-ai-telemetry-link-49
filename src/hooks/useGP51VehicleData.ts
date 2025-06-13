@@ -132,44 +132,54 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
       // First, add vehicles that exist in both systems
       if (supabaseVehicles) {
         supabaseVehicles.forEach(supabaseVehicle => {
-          const gp51Position = vehiclePositions.get(supabaseVehicle.device_id) || 
-                              gp51Vehicles.find(v => v.deviceId === supabaseVehicle.device_id);
+          const gp51Position = vehiclePositions.get(supabaseVehicle.device_id);
+          const gp51Vehicle = gp51Vehicles.find(v => v.deviceId === supabaseVehicle.device_id);
           
-          if (gp51Position) {
+          if (gp51Position || gp51Vehicle) {
+            const position = gp51Position;
+            const device = gp51Vehicle;
+            
             const enhancedVehicle: EnhancedVehicle = {
               id: supabaseVehicle.id,
-              deviceId: gp51Position.deviceId,
-              deviceName: supabaseVehicle.device_name || gp51Position.deviceName || '',
+              deviceId: supabaseVehicle.device_id,
+              deviceName: supabaseVehicle.device_name || device?.deviceName || '',
               plateNumber: supabaseVehicle.device_name || '',
               model: 'Unknown Model',
               driver: 'Unknown Driver',
-              speed: gp51Position.speed,
+              speed: position?.speed || 0,
               fuel: Math.floor(Math.random() * 100), // Mock data
-              lastUpdate: gp51Position.timestamp,
-              status: gp51Position.isMoving ? 'active' : (gp51Position.isOnline ? 'idle' : 'offline'),
-              isOnline: gp51Position.isOnline,
-              isMoving: gp51Position.isMoving,
+              lastUpdate: position?.timestamp || new Date(),
+              status: position?.isMoving ? 'active' : (position?.isOnline ? 'idle' : 'offline'),
+              isOnline: position?.isOnline || device?.isOnline || false,
+              isMoving: position?.isMoving || false,
               // Required analytics properties
-              location: createVehicleLocation(gp51Position),
+              location: createVehicleLocation(position),
               engineHours: Math.floor(Math.random() * 8000) + 1000,
               mileage: Math.floor(Math.random() * 200000) + 50000,
               fuelType: 'Gasoline',
               engineSize: 2.0 + Math.random() * 2,
               // Compatibility properties
-              deviceid: gp51Position.deviceId,
-              devicename: supabaseVehicle.device_name || gp51Position.deviceName,
+              deviceid: supabaseVehicle.device_id,
+              devicename: supabaseVehicle.device_name || device?.deviceName,
               vehicle_name: supabaseVehicle.device_name,
               created_at: supabaseVehicle.created_at,
               updated_at: supabaseVehicle.updated_at,
               is_active: supabaseVehicle.is_active,
               alerts: [],
-              lastPosition: {
-                lat: gp51Position.latitude,
-                lng: gp51Position.longitude,
-                speed: gp51Position.speed,
-                course: gp51Position.course,
-                updatetime: gp51Position.timestamp.toISOString(),
-                statusText: gp51Position.statusText
+              lastPosition: position ? {
+                lat: position.latitude,
+                lng: position.longitude,
+                speed: position.speed,
+                course: position.course,
+                updatetime: position.timestamp.toISOString(),
+                statusText: position.statusText
+              } : {
+                lat: 0,
+                lng: 0,
+                speed: 0,
+                course: 0,
+                updatetime: new Date().toISOString(),
+                statusText: 'No signal'
               }
             };
             enhancedVehicles.push(enhancedVehicle);
@@ -220,20 +230,20 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
       gp51Vehicles.forEach(gp51Vehicle => {
         const existsInSupabase = supabaseVehicles?.some(sv => sv.device_id === gp51Vehicle.deviceId);
         if (!existsInSupabase) {
-          const position = vehiclePositions.get(gp51Vehicle.deviceId) || gp51Vehicle;
+          const position = vehiclePositions.get(gp51Vehicle.deviceId);
           const enhancedVehicle: EnhancedVehicle = {
-            id: position.deviceId,
-            deviceId: position.deviceId,
-            deviceName: position.deviceName || '',
-            plateNumber: position.deviceName || '',
+            id: gp51Vehicle.deviceId,
+            deviceId: gp51Vehicle.deviceId,
+            deviceName: gp51Vehicle.deviceName || '',
+            plateNumber: gp51Vehicle.deviceName || '',
             model: 'Unknown Model',
             driver: 'Unknown Driver',
-            speed: position.speed,
+            speed: position?.speed || 0,
             fuel: Math.floor(Math.random() * 100), // Mock data
-            lastUpdate: position.timestamp,
-            status: position.isMoving ? 'active' : (position.isOnline ? 'idle' : 'offline'),
-            isOnline: position.isOnline,
-            isMoving: position.isMoving,
+            lastUpdate: position?.timestamp || gp51Vehicle.lastUpdate || new Date(),
+            status: position?.isMoving ? 'active' : (gp51Vehicle.isOnline ? 'idle' : 'offline'),
+            isOnline: gp51Vehicle.isOnline,
+            isMoving: position?.isMoving || false,
             // Required analytics properties
             location: createVehicleLocation(position),
             engineHours: Math.floor(Math.random() * 8000) + 1000,
@@ -241,18 +251,25 @@ export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
             fuelType: 'Gasoline',
             engineSize: 2.0 + Math.random() * 2,
             // Compatibility properties
-            deviceid: position.deviceId,
-            devicename: position.deviceName,
-            vehicle_name: position.deviceName,
+            deviceid: gp51Vehicle.deviceId,
+            devicename: gp51Vehicle.deviceName,
+            vehicle_name: gp51Vehicle.deviceName,
             is_active: true,
             alerts: [],
-            lastPosition: {
+            lastPosition: position ? {
               lat: position.latitude,
               lng: position.longitude,
               speed: position.speed,
               course: position.course,
               updatetime: position.timestamp.toISOString(),
               statusText: position.statusText
+            } : {
+              lat: 0,
+              lng: 0,
+              speed: 0,
+              course: 0,
+              updatetime: new Date().toISOString(),
+              statusText: 'No signal'
             }
           };
           enhancedVehicles.push(enhancedVehicle);
