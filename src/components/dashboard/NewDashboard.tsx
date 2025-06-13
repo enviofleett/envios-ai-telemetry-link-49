@@ -2,7 +2,7 @@
 import React from 'react';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
 import DashboardLoadingSkeleton from './DashboardLoadingSkeleton';
-import { DashboardContent } from './DashboardContent';
+import DashboardContent from './DashboardContent';
 
 const NewDashboard: React.FC = () => {
   const { 

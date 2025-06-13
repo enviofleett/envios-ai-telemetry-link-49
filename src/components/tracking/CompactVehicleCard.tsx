@@ -3,7 +3,7 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Battery, Clock, Gauge } from 'lucide-react';
-import type { VehicleData } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface CompactVehicleCardProps {
   vehicle: VehicleData;
@@ -19,9 +19,9 @@ const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
   onAlertClick
 }) => {
   const getVehicleStatus = () => {
-    if (!vehicle.lastPosition?.timestamp) return 'offline';
+    if (!vehicle.last_position?.timestamp) return 'offline';
     
-    const lastUpdate = vehicle.lastPosition.timestamp;
+    const lastUpdate = new Date(vehicle.last_position.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -41,9 +41,9 @@ const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
   };
 
   const getLastUpdateText = () => {
-    if (!vehicle.lastPosition?.timestamp) return 'Never';
+    if (!vehicle.last_position?.timestamp) return 'Never';
     
-    const lastUpdate = vehicle.lastPosition.timestamp;
+    const lastUpdate = new Date(vehicle.last_position.timestamp);
     const now = new Date();
     const minutesSinceUpdate = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 60));
     
@@ -60,7 +60,7 @@ const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
   };
 
   const status = getVehicleStatus();
-  const speed = vehicle.lastPosition?.speed || 0;
+  const speed = vehicle.last_position?.speed || 0;
   const battery = Math.floor(Math.random() * 100); // Mock battery data
 
   const handleCardClick = () => {
@@ -85,7 +85,7 @@ const CompactVehicleCard: React.FC<CompactVehicleCardProps> = ({
       {/* Header Row */}
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-primary-dark">
-          {vehicle.deviceName || vehicle.deviceId}
+          {vehicle.device_name || vehicle.device_id}
         </span>
         <Badge variant={getStatusVariant(status)} className="capitalize">
           {status}

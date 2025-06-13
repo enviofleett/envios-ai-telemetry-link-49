@@ -3,12 +3,11 @@ import React, { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, Filter, Map, List } from 'lucide-react';
+import { Search, Map, List } from 'lucide-react';
 import MapTilerMap from '@/components/map/MapTilerMap';
 import CompactVehicleCard from './CompactVehicleCard';
 import { useStableVehicleData } from '@/hooks/useStableVehicleData';
-import type { VehicleData } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface LiveMapAndVehicleListProps {
   selectedVehicle?: VehicleData | null;
@@ -22,7 +21,7 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [showMap, setShowMap] = useState(true);
 
-  // Use stable vehicle data - fixed to use correct options
+  // Use stable vehicle data with filters - fixed to use correct options
   const { vehicles } = useStableVehicleData({ search: searchTerm });
 
   const handleVehicleSelect = (vehicle: VehicleData) => {
@@ -73,7 +72,7 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {vehicles.map((vehicle) => (
                   <CompactVehicleCard
-                    key={vehicle.deviceId}
+                    key={vehicle.device_id}
                     vehicle={vehicle}
                     onClick={handleVehicleSelect}
                   />
@@ -92,12 +91,12 @@ const LiveMapAndVehicleList: React.FC<LiveMapAndVehicleListProps> = ({
             <div className="space-y-2">
               {vehicles.map((vehicle) => (
                 <Button
-                  key={vehicle.deviceId}
+                  key={vehicle.device_id}
                   variant="outline"
                   className="w-full justify-start"
                   onClick={() => handleVehicleSelect(vehicle)}
                 >
-                  {vehicle.deviceName || vehicle.deviceId}
+                  {vehicle.device_name || vehicle.device_id}
                 </Button>
               ))}
             </div>

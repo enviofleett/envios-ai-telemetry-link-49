@@ -21,9 +21,9 @@ interface LiveVehicleCardProps {
 
 const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
   const getVehicleStatus = () => {
-    if (!vehicle.lastPosition?.timestamp) return 'offline';
+    if (!vehicle.last_position?.timestamp) return 'offline';
     
-    const lastUpdate = vehicle.lastPosition.timestamp;
+    const lastUpdate = new Date(vehicle.last_position.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -65,22 +65,23 @@ const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
     );
   };
 
-  const formatCoordinates = (lat: number, lon: number) => {
-    return `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  const formatCoordinates = (lat: number, lng: number) => {
+    return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   };
 
-  const formatLastUpdate = (timestamp: Date) => {
+  const formatLastUpdate = (timestamp: string) => {
     const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
+    const updateTime = new Date(timestamp);
+    const diffMinutes = Math.floor((now.getTime() - updateTime.getTime()) / (1000 * 60));
     
     if (diffMinutes < 1) return 'Just now';
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
     if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return timestamp.toLocaleDateString();
+    return updateTime.toLocaleDateString();
   };
 
   const status = getVehicleStatus();
-  const position = vehicle.lastPosition;
+  const position = vehicle.last_position;
   const hasAlert = vehicle.status?.toLowerCase().includes('alert') || 
                   vehicle.status?.toLowerCase().includes('alarm');
 
@@ -89,8 +90,8 @@ const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
-            <h3 className="font-semibold text-lg">{vehicle.deviceName}</h3>
-            <p className="text-sm text-gray-600">ID: {vehicle.deviceId}</p>
+            <h3 className="font-semibold text-lg">{vehicle.device_name}</h3>
+            <p className="text-sm text-gray-600">ID: {vehicle.device_id}</p>
             {vehicle.envio_user_id && (
               <div className="flex items-center gap-1 mt-1">
                 <User className="h-3 w-3 text-gray-400" />
@@ -115,9 +116,9 @@ const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
               <MapPin className="h-3 w-3 text-gray-400" />
               <span className="text-gray-600">Location</span>
             </div>
-            {position?.lat && position?.lon ? (
+            {position?.lat && position?.lng ? (
               <p className="font-mono text-xs">
-                {formatCoordinates(position.lat, position.lon)}
+                {formatCoordinates(position.lat, position.lng)}
               </p>
             ) : (
               <p className="text-gray-400 text-xs">No location data</p>
@@ -158,15 +159,7 @@ const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
           </div>
         </div>
 
-        {position?.statusText && (
-          <div className="mt-3 pt-3 border-t">
-            <p className="text-xs text-gray-600">
-              Status: <span className="font-medium">{position.statusText}</span>
-            </p>
-          </div>
-        )}
-
-        {status === 'online' && position?.lat && position?.lon && (
+        {status === 'online' && position?.lat && position?.lng && (
           <div className="mt-3 pt-3 border-t">
             <Button size="sm" variant="outline" className="w-full">
               <MapPin className="h-3 w-3 mr-1" />

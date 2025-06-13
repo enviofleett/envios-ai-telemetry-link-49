@@ -1,9 +1,10 @@
+
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
   lat: number;
-  lon: number; // Standardized to 'lon' for internal consistency
+  lng: number; // Standardized to 'lng' for internal consistency
   speed: number;
-  course: number;
+  course: number; // Added course property
   timestamp: Date; // Changed from updatetime: string to timestamp: Date
   statusText: string;
 }
@@ -43,6 +44,7 @@ export interface VehicleData {
     lat: number;
     lng: number; // Changed from lon to lng for consistency with components
     speed: number;
+    course: number; // Added course property
     timestamp: string; // Changed from Date to string for consistency
   };
   envio_users?: {

@@ -9,7 +9,7 @@ export const createMarkerElement = (
   const element = document.createElement('div');
   element.className = 'vehicle-marker';
   
-  const isSelected = selectedVehicle?.deviceId === vehicle.deviceId;
+  const isSelected = selectedVehicle?.device_id === vehicle.device_id;
   const status = getVehicleStatus(vehicle);
   const color = getStatusColor(status);
   
@@ -30,14 +30,14 @@ export const createMarkerElement = (
 };
 
 const getVehicleStatus = (vehicle: VehicleData) => {
-  if (!vehicle.lastPosition?.timestamp) return 'offline';
+  if (!vehicle.last_position?.timestamp) return 'offline';
   
-  const lastUpdate = vehicle.lastPosition.timestamp;
+  const lastUpdate = new Date(vehicle.last_position.timestamp);
   const now = new Date();
   const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
   
   if (minutesSinceUpdate > 5) return 'offline';
-  if (vehicle.lastPosition.speed > 0) return 'moving';
+  if (vehicle.last_position.speed > 0) return 'moving';
   return 'online';
 };
 

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,7 +7,7 @@ import { Calendar, Search, RefreshCw } from 'lucide-react';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import type { VehicleData } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 import type { ReportFilters as ReportFiltersType } from '@/hooks/useReports';
 
 interface ReportFiltersProps {
@@ -63,8 +64,8 @@ const ReportFilters: React.FC<ReportFiltersProps> = ({
         <SelectContent className="bg-white border border-gray-lighter">
           <SelectItem value="all">All Vehicles ({vehicles.length})</SelectItem>
           {vehicles.map((vehicle) => (
-            <SelectItem key={vehicle.deviceId} value={vehicle.deviceId}>
-              {vehicle.deviceName || vehicle.deviceId}
+            <SelectItem key={vehicle.device_id} value={vehicle.device_id}>
+              {vehicle.device_name || vehicle.device_id}
             </SelectItem>
           ))}
         </SelectContent>

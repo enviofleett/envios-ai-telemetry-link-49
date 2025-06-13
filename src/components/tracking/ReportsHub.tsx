@@ -1,217 +1,232 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Download, Search } from 'lucide-react';
-import type { VehicleData } from '@/services/unifiedVehicleData';
+import { Badge } from '@/components/ui/badge';
+import { 
+  FileText, 
+  Search, 
+  Download, 
+  Calendar,
+  Filter,
+  TrendingUp,
+  MapPin,
+  Clock,
+  BarChart3
+} from 'lucide-react';
+import ReportGenerationSection from './ReportGenerationSection';
+import { useStableVehicleData } from '@/hooks/useStableVehicleData';
 
-interface ReportsHubProps {
-  vehicles: VehicleData[];
-}
-
-interface TripReport {
-  date: string;
-  vehicleId: string;
-  plateNumber: string;
-  startTime: string;
-  endTime: string;
-  duration: string;
-  distance: string;
-}
-
-const ReportsHub: React.FC<ReportsHubProps> = ({ vehicles }) => {
-  const [activeTab, setActiveTab] = useState('trip-reports');
+const ReportsHub: React.FC = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedVehicle, setSelectedVehicle] = useState('all');
-  const [selectedPlate, setSelectedPlate] = useState('all');
-  const [fromDate, setFromDate] = useState('');
 
-  // Mock trip data
-  const mockTripReports: TripReport[] = [
+  // Use stable vehicle data
+  const { vehicles, isLoading } = useStableVehicleData();
+
+  const reportCategories = [
+    { value: 'all', label: 'All Reports' },
+    { value: 'activity', label: 'Activity Reports' },
+    { value: 'location', label: 'Location Reports' },
+    { value: 'summary', label: 'Summary Reports' },
+    { value: 'analytics', label: 'Analytics Reports' }
+  ];
+
+  const quickReports = [
     {
-      date: '6/6',
-      vehicleId: 'VH-7842',
-      plateNumber: 'ABC-123',
-      startTime: '8:15AM',
-      endTime: '9:45AM',
-      duration: '1h 30m',
-      distance: '45.2km'
+      id: 'daily_summary',
+      name: 'Daily Fleet Summary',
+      description: 'Overview of fleet activity for the last 24 hours',
+      icon: <BarChart3 className="h-5 w-5" />,
+      color: 'bg-blue-500',
+      category: 'summary'
     },
     {
-      date: '6/6',
-      vehicleId: 'VH-7842',
-      plateNumber: 'ABC-123',
-      startTime: '10:30AM',
-      endTime: '11:15AM',
-      duration: '0h 45m',
-      distance: '22.8km'
+      id: 'weekly_activity',
+      name: 'Weekly Activity Report',
+      description: 'Detailed activity patterns for the past week',
+      icon: <TrendingUp className="h-5 w-5" />,
+      color: 'bg-green-500',
+      category: 'activity'
     },
     {
-      date: '6/6',
-      vehicleId: 'VH-7842',
-      plateNumber: 'ABC-123',
-      startTime: '1:00PM',
-      endTime: '3:30PM',
-      duration: '2h 30m',
-      distance: '78.5km'
+      id: 'location_history',
+      name: 'Location History',
+      description: 'GPS tracking and route history for selected vehicles',
+      icon: <MapPin className="h-5 w-5" />,
+      color: 'bg-purple-500',
+      category: 'location'
+    },
+    {
+      id: 'usage_analytics',
+      name: 'Usage Analytics',
+      description: 'Vehicle utilization and efficiency metrics',
+      icon: <Clock className="h-5 w-5" />,
+      color: 'bg-orange-500',
+      category: 'analytics'
     }
   ];
 
-  const tabs = [
-    { id: 'trip-reports', label: 'Trip Reports' },
-    { id: 'geofence', label: 'Geofence' },
-    { id: 'mileage', label: 'Mileage' },
-    { id: 'favorite-places', label: 'Favorite Places' }
-  ];
+  const filteredReports = quickReports.filter(report => {
+    const matchesSearch = report.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         report.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || report.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
-  const handleGenerate = () => {
-    console.log('Generate report clicked');
-    // TODO: Implement report generation
+  const handleQuickGenerate = (reportId: string) => {
+    console.log('Generating quick report:', reportId);
+    // Implement quick report generation
   };
 
-  const handleExport = () => {
-    console.log('Export report clicked');
-    // TODO: Implement export functionality
-  };
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="animate-pulse">
+          <div className="h-64 bg-gray-200 rounded-lg"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <Card className="bg-white border border-gray-lighter shadow-sm">
-      <CardHeader className="p-6 border-b border-gray-lighter">
-        <CardTitle className="text-lg font-semibold text-primary-dark">
-          Reports Hub
-        </CardTitle>
-      </CardHeader>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Reports Hub</h1>
+          <p className="text-gray-600 mt-1">
+            Generate and manage vehicle tracking reports
+          </p>
+        </div>
+        <Badge variant="outline">
+          {vehicles.length} vehicles available
+        </Badge>
+      </div>
 
-      <CardContent className="p-6">
-        {/* Tab List */}
-        <div className="mb-6">
-          <div className="flex bg-gray-background rounded p-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 py-2 px-4 text-sm font-medium rounded transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-white text-primary-dark border-b-2 border-teal-primary'
-                    : 'text-gray-mid hover:text-primary-dark'
-                }`}
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Report Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Search */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Search Reports</label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search by report name or description..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            {/* Category */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Category</label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {reportCategories.map((category) => (
+                    <SelectItem key={category.value} value={category.value}>
+                      {category.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Vehicle */}
+            <div>
+              <label className="block text-sm font-medium mb-2">Vehicle</label>
+              <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select vehicle" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Vehicles</SelectItem>
+                  {vehicles.map((vehicle) => (
+                    <SelectItem key={vehicle.device_id} value={vehicle.device_id}>
+                      {vehicle.device_name || vehicle.device_id}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Reports */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Quick Reports
+            <Badge variant="outline">
+              {filteredReports.length} available
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredReports.map((report) => (
+              <div
+                key={report.id}
+                className="p-4 border rounded-lg hover:border-gray-300 transition-colors"
               >
-                {tab.label}
-              </button>
+                <div className="flex items-start gap-3">
+                  <div className={`p-2 rounded-lg text-white ${report.color}`}>
+                    {report.icon}
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-medium">{report.name}</h4>
+                    <p className="text-sm text-gray-600 mt-1">{report.description}</p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        onClick={() => handleQuickGenerate(report.id)}
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        Generate
+                      </Button>
+                      <Badge variant="secondary" className="text-xs">
+                        {report.category}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
-        </div>
 
-        {/* Filter Controls */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          {/* Vehicle Dropdown */}
-          <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
-            <SelectTrigger className="h-10 border-gray-lighter">
-              <SelectValue placeholder="Vehicle" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border border-gray-lighter">
-              <SelectItem value="all">All Vehicles</SelectItem>
-              {vehicles.map((vehicle) => (
-                <SelectItem key={vehicle.deviceId} value={vehicle.deviceId}>
-                  {vehicle.deviceName || vehicle.deviceId}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* Plate Number Dropdown */}
-          <Select value={selectedPlate} onValueChange={setSelectedPlate}>
-            <SelectTrigger className="h-10 border-gray-lighter">
-              <SelectValue placeholder="Plate #" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border border-gray-lighter">
-              <SelectItem value="all">All Plates</SelectItem>
-              <SelectItem value="ABC-123">ABC-123</SelectItem>
-              <SelectItem value="XYZ-789">XYZ-789</SelectItem>
-              <SelectItem value="DEF-456">DEF-456</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* From Date */}
-          <div className="relative">
-            <Input
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="h-10 border-gray-lighter pl-10"
-              placeholder="From Date"
-            />
-            <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-mid" />
-          </div>
-
-          {/* Generate Button */}
-          <Button
-            onClick={handleGenerate}
-            className="bg-white border border-gray-lighter text-primary-dark hover:bg-gray-background"
-            variant="outline"
-          >
-            <Search className="w-4 h-4 mr-2" />
-            Generate
-          </Button>
-        </div>
-
-        {/* Report Table */}
-        {activeTab === 'trip-reports' && (
-          <div className="border border-gray-lighter rounded">
-            {/* Table Header */}
-            <div className="flex items-center justify-between bg-gray-background px-4 py-3 border-b border-gray-lighter">
-              <h4 className="text-sm font-medium text-primary-dark">Trip Report</h4>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleExport}
-                className="bg-white border-gray-lighter text-primary-dark hover:bg-gray-background"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
+          {filteredReports.length === 0 && (
+            <div className="text-center py-8">
+              <FileText className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No Reports Found</h3>
+              <p className="text-gray-500">
+                Try adjusting your search criteria or category filter
+              </p>
             </div>
+          )}
+        </CardContent>
+      </Card>
 
-            {/* Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-background">
-                  <tr className="border-b border-gray-lighter">
-                    <th className="px-3 py-2 text-left text-sm font-medium text-gray-dark">Date</th>
-                    <th className="px-3 py-2 text-left text-sm font-medium text-gray-dark">Vehicle</th>
-                    <th className="px-3 py-2 text-left text-sm font-medium text-gray-dark">Plate</th>
-                    <th className="px-3 py-2 text-left text-sm font-medium text-gray-dark">Start</th>
-                    <th className="px-3 py-2 text-left text-sm font-medium text-gray-dark">End</th>
-                    <th className="px-3 py-2 text-left text-sm font-medium text-gray-dark">Duration</th>
-                    <th className="px-3 py-2 text-left text-sm font-medium text-gray-dark">Dist</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mockTripReports.map((report, index) => (
-                    <tr key={index} className="border-b border-gray-lighter">
-                      <td className="px-3 py-2 text-sm text-primary-dark">{report.date}</td>
-                      <td className="px-3 py-2 text-sm text-primary-dark">{report.vehicleId}</td>
-                      <td className="px-3 py-2 text-sm text-primary-dark">{report.plateNumber}</td>
-                      <td className="px-3 py-2 text-sm text-primary-dark">{report.startTime}</td>
-                      <td className="px-3 py-2 text-sm text-primary-dark">{report.endTime}</td>
-                      <td className="px-3 py-2 text-sm text-primary-dark">{report.duration}</td>
-                      <td className="px-3 py-2 text-sm text-primary-dark">{report.distance}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Placeholder for other tabs */}
-        {activeTab !== 'trip-reports' && (
-          <div className="text-center py-8 text-gray-mid">
-            {tabs.find(tab => tab.id === activeTab)?.label} functionality coming soon
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {/* Custom Report Generation */}
+      <ReportGenerationSection vehicles={vehicles} />
+    </div>
   );
 };
 
