@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GP51AuthenticationPanel } from '@/components/admin/GP51AuthenticationPanel';
-import { GP51ImportModal } from '@/components/admin/GP51ImportModal';
+import GP51ImportModal from '@/components/admin/GP51ImportModal';
 import GP51Settings from '@/components/admin/GP51Settings';
 import GP51ConnectionTester from '@/components/admin/GP51ConnectionTester';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';

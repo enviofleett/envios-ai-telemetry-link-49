@@ -97,22 +97,14 @@ export const VehicleUserAssignmentModal: React.FC<VehicleUserAssignmentModalProp
   const assignUser = async (userId: string, userName: string) => {
     setIsAssigning(true);
     try {
-      const success = await gp51VehiclePersistenceService.assignUserToVehicle(vehicleId, userId);
+      await gp51VehiclePersistenceService.assignUserToVehicle(vehicleId, userId);
       
-      if (success) {
-        toast({
-          title: "Success",
-          description: `Vehicle ${vehicleDeviceId} assigned to ${userName}`,
-        });
-        onAssignmentComplete();
-        onClose();
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to assign user to vehicle",
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Success",
+        description: `Vehicle ${vehicleDeviceId} assigned to ${userName}`,
+      });
+      onAssignmentComplete();
+      onClose();
     } catch (error) {
       console.error('Error assigning user:', error);
       toast({
@@ -128,22 +120,14 @@ export const VehicleUserAssignmentModal: React.FC<VehicleUserAssignmentModalProp
   const unassignUser = async () => {
     setIsAssigning(true);
     try {
-      const success = await gp51VehiclePersistenceService.assignUserToVehicle(vehicleId, null);
+      await gp51VehiclePersistenceService.assignUserToVehicle(vehicleId, null);
       
-      if (success) {
-        toast({
-          title: "Success",
-          description: `Vehicle ${vehicleDeviceId} unassigned from user`,
-        });
-        onAssignmentComplete();
-        onClose();
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to unassign user from vehicle",
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Success",
+        description: `Vehicle ${vehicleDeviceId} unassigned from user`,
+      });
+      onAssignmentComplete();
+      onClose();
     } catch (error) {
       console.error('Error unassigning user:', error);
       toast({

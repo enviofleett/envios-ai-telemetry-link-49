@@ -104,18 +104,30 @@ class EnhancedVehicleDataService {
           device_name: device.deviceName,
           is_active: true,
           vehicle_name: device.deviceName,
-          plateNumber: device.deviceName,
+          license_plate: device.deviceName,
+          make: 'Unknown',
           model: 'Unknown Model',
+          status: position?.isOnline ? 'online' : 'offline',
+          last_position: position ? {
+            latitude: position.latitude,
+            longitude: position.longitude,
+            speed: position.speed,
+            course: position.course,
+            timestamp: position.timestamp.toISOString()
+          } : undefined,
+          // Legacy compatibility properties
+          plateNumber: device.deviceName,
           driver: 'Unknown Driver',
           lastUpdate: lastUpdate,
-          location: {
-            lat: position?.latitude || 0,
-            lng: position?.longitude || 0,
-            address: position?.statusText || 'Unknown Location'
-          },
+          location: position ? {
+            latitude: position.latitude,
+            longitude: position.longitude,
+            speed: position.speed,
+            course: position.course,
+            address: position.statusText || 'Unknown Location'
+          } : undefined,
           speed: position?.speed || 0,
           fuel: Math.floor(Math.random() * 100),
-          status: position?.isOnline ? 'online' : 'offline',
           isOnline: position?.isOnline || false,
           isMoving: position?.isMoving || false,
           engineHours: Math.floor(Math.random() * 8000) + 1000,
@@ -123,13 +135,20 @@ class EnhancedVehicleDataService {
           fuelType: 'Gasoline',
           engineSize: 2.0 + Math.random() * 2,
           alerts: [],
-          lastPosition: {
-            lat: position?.latitude || 0,
-            lng: position?.longitude || 0,
-            speed: position?.speed || 0,
-            course: position?.course || 0,
-            updatetime: lastUpdate.toISOString(),
-            statusText: position?.statusText || 'No data'
+          lastPosition: position ? {
+            lat: position.latitude,
+            lng: position.longitude,
+            speed: position.speed,
+            course: position.course,
+            updatetime: position.timestamp.toISOString(),
+            statusText: position.statusText || 'No data'
+          } : {
+            lat: 0,
+            lng: 0,
+            speed: 0,
+            course: 0,
+            updatetime: new Date().toISOString(),
+            statusText: 'No data'
           }
         };
       });
@@ -155,7 +174,8 @@ class EnhancedVehicleDataService {
     const offlineVehicles = vehicles.filter(v => v.status === 'offline');
     const recentlyActiveVehicles = vehicles.filter(v => {
       const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
-      return v.lastUpdate.getTime() > thirtyMinutesAgo;
+      const lastUpdate = v.lastUpdate ? v.lastUpdate.getTime() : 0;
+      return lastUpdate > thirtyMinutesAgo;
     });
 
     return {
@@ -214,7 +234,8 @@ export const getVehicleDataMetrics = (vehicles: VehicleData[]): VehicleDataMetri
   const offlineVehicles = vehicles.filter(v => v.status === 'offline');
   const recentlyActiveVehicles = vehicles.filter(v => {
     const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
-    return v.lastUpdate.getTime() > thirtyMinutesAgo;
+    const lastUpdate = v.lastUpdate ? v.lastUpdate.getTime() : 0;
+    return lastUpdate > thirtyMinutesAgo;
   });
 
   return {
