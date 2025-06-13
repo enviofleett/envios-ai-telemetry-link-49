@@ -5815,11 +5815,14 @@ export type Database = {
           gp51_username: string | null
           heading: number | null
           id: string
+          image_urls: string[] | null
           import_job_type: string | null
+          insurance_expiration_date: string | null
           is_active: boolean | null
           last_position: Json | null
           last_update: string | null
           latitude: number | null
+          license_expiration_date: string | null
           license_plate: string | null
           longitude: number | null
           make: string | null
@@ -5857,11 +5860,14 @@ export type Database = {
           gp51_username?: string | null
           heading?: number | null
           id?: string
+          image_urls?: string[] | null
           import_job_type?: string | null
+          insurance_expiration_date?: string | null
           is_active?: boolean | null
           last_position?: Json | null
           last_update?: string | null
           latitude?: number | null
+          license_expiration_date?: string | null
           license_plate?: string | null
           longitude?: number | null
           make?: string | null
@@ -5899,11 +5905,14 @@ export type Database = {
           gp51_username?: string | null
           heading?: number | null
           id?: string
+          image_urls?: string[] | null
           import_job_type?: string | null
+          insurance_expiration_date?: string | null
           is_active?: boolean | null
           last_position?: Json | null
           last_update?: string | null
           latitude?: number | null
+          license_expiration_date?: string | null
           license_plate?: string | null
           longitude?: number | null
           make?: string | null
@@ -7082,6 +7091,73 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "workshop_users_workshop_id_fkey"
+            columns: ["workshop_id"]
+            isOneToOne: false
+            referencedRelation: "workshops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_vehicle_activations: {
+        Row: {
+          activated_by: string
+          activation_date: string
+          activation_fee: number | null
+          activation_status: string
+          created_at: string
+          expiration_date: string | null
+          id: string
+          notes: string | null
+          service_type: string | null
+          updated_at: string
+          vehicle_id: string
+          workshop_id: string
+        }
+        Insert: {
+          activated_by: string
+          activation_date?: string
+          activation_fee?: number | null
+          activation_status?: string
+          created_at?: string
+          expiration_date?: string | null
+          id?: string
+          notes?: string | null
+          service_type?: string | null
+          updated_at?: string
+          vehicle_id: string
+          workshop_id: string
+        }
+        Update: {
+          activated_by?: string
+          activation_date?: string
+          activation_fee?: number | null
+          activation_status?: string
+          created_at?: string
+          expiration_date?: string | null
+          id?: string
+          notes?: string | null
+          service_type?: string | null
+          updated_at?: string
+          vehicle_id?: string
+          workshop_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_vehicle_activations_activated_by_fkey"
+            columns: ["activated_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_vehicle_activations_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_vehicle_activations_workshop_id_fkey"
             columns: ["workshop_id"]
             isOneToOne: false
             referencedRelation: "workshops"
