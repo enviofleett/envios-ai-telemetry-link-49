@@ -100,8 +100,8 @@ export async function handlePostRequest(supabase: any, requestBody: any, current
         email,
         phone_number,
         gp51_user_type: gp51_user_type || 3,
-        registration_status: 'approved',
-        registration_type: 'admin_created'
+        registration_status: 'completed',
+        registration_type: 'admin'
       })
       .select()
       .single();
