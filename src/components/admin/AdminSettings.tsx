@@ -1,10 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AdminSettingsLayout from './AdminSettingsLayout';
 
-export default function AdminSettings() {
-  const [activeTab, setActiveTab] = useState('packages');
+const AdminSettings: React.FC = memo(() => {
+  const [activeTab, setActiveTab] = useState('company');
   const { user, isAdmin, userRole, isCheckingRole } = useAuth();
 
   useEffect(() => {
@@ -14,6 +14,11 @@ export default function AdminSettings() {
     console.log('📋 User Role:', userRole);
     console.log('⏳ Is Checking Role:', isCheckingRole);
   }, [user, isAdmin, userRole, isCheckingRole]);
+
+  // Memoize tab change handler
+  const handleTabChange = React.useCallback((tab: string) => {
+    setActiveTab(tab);
+  }, []);
 
   // Show loading state if still checking role
   if (isCheckingRole) {
@@ -32,18 +37,13 @@ export default function AdminSettings() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl md:text-3xl font-bold">Admin Settings</h1>
-        <div className="text-xs text-muted-foreground">
-          Logged in as: {user?.email} ({userRole})
-        </div>
-      </div>
-
-      <AdminSettingsLayout 
-        activeTab={activeTab} 
-        onTabChange={setActiveTab} 
-      />
-    </div>
+    <AdminSettingsLayout 
+      activeTab={activeTab} 
+      onTabChange={handleTabChange} 
+    />
   );
-}
+});
+
+AdminSettings.displayName = 'AdminSettings';
+
+export default AdminSettings;

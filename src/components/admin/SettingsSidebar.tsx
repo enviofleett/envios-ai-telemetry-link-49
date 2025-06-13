@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { 
   Building2, 
@@ -106,7 +106,11 @@ const sidebarItems = [
   }
 ];
 
-const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeTab, onTabChange }) => {
+const SettingsSidebar: React.FC<SettingsSidebarProps> = memo(({ activeTab, onTabChange }) => {
+  const handleItemClick = React.useCallback((itemId: string) => {
+    onTabChange(itemId);
+  }, [onTabChange]);
+
   return (
     <div className="w-64 bg-white border-r border-gray-200 h-full overflow-y-auto">
       <div className="p-4">
@@ -124,7 +128,7 @@ const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeTab, onTabChang
                   return (
                     <li key={item.id}>
                       <button
-                        onClick={() => onTabChange(item.id)}
+                        onClick={() => handleItemClick(item.id)}
                         className={cn(
                           "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
                           activeTab === item.id
@@ -145,6 +149,8 @@ const SettingsSidebar: React.FC<SettingsSidebarProps> = ({ activeTab, onTabChang
       </div>
     </div>
   );
-};
+});
+
+SettingsSidebar.displayName = 'SettingsSidebar';
 
 export default SettingsSidebar;

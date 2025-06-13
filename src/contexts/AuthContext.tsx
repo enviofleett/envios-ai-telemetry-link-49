@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -35,38 +35,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log('🔍 Initial session check:', session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('🔄 Auth state changed:', _event, session?.user?.email);
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-      
-      // Check user role when session changes
-      if (session?.user) {
-        checkUserRole(session.user.id);
-      } else {
-        setIsAdmin(false);
-        setUserRole(null);
-        setIsCheckingRole(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const checkUserRole = async (userId: string, retryCount = 0) => {
+  // Memoize role check function to prevent recreation on every render
+  const checkUserRole = useCallback(async (userId: string, retryCount = 0) => {
     if (retryCount === 0) {
       setIsCheckingRole(true);
     }
@@ -84,14 +54,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('❌ Error checking user role:', error);
         
         // Retry up to 3 times with exponential backoff
-        if (retryCount < 3) {
+        if (retryCount < 2) {
           const delay = Math.pow(2, retryCount) * 1000;
           console.log(`⏱️ Retrying role check in ${delay}ms...`);
           setTimeout(() => checkUserRole(userId, retryCount + 1), delay);
           return;
         }
         
-        // After 3 retries, default to user role
+        // After retries, default to user role
         console.warn('⚠️ Using default user role after failed retries');
         setUserRole('user');
         setIsAdmin(false);
@@ -108,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('❌ Exception during role check:', error);
       
       // Retry logic for exceptions as well
-      if (retryCount < 3) {
+      if (retryCount < 2) {
         const delay = Math.pow(2, retryCount) * 1000;
         setTimeout(() => checkUserRole(userId, retryCount + 1), delay);
         return;
@@ -117,50 +87,104 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserRole('user');
       setIsAdmin(false);
     } finally {
-      if (retryCount === 0 || retryCount >= 3) {
+      if (retryCount === 0 || retryCount >= 2) {
         setIsCheckingRole(false);
       }
     }
-  };
+  }, []);
 
-  const retryRoleCheck = async () => {
+  // Initialize auth state on mount
+  useEffect(() => {
+    let mounted = true;
+
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted) {
+        console.log('🔍 Initial session check:', session?.user?.email);
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+        
+        // Check user role if session exists
+        if (session?.user) {
+          checkUserRole(session.user.id);
+        }
+      }
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (mounted) {
+        console.log('🔄 Auth state changed:', event, session?.user?.email);
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+        
+        // Check user role when session changes
+        if (session?.user) {
+          checkUserRole(session.user.id);
+        } else {
+          setIsAdmin(false);
+          setUserRole(null);
+          setIsCheckingRole(false);
+        }
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [checkUserRole]);
+
+  const retryRoleCheck = useCallback(async () => {
     if (user?.id) {
       await checkUserRole(user.id);
     }
-  };
+  }, [user?.id, checkUserRole]);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     console.log('👋 Signing out user');
     await supabase.auth.signOut();
     setIsAdmin(false);
     setUserRole(null);
     setIsCheckingRole(false);
-  };
+  }, []);
 
-  const signIn = async (email: string, password: string) => {
-    console.log('🔐 Attempting sign in for:', email);
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     return { error };
-  };
+  }, []);
 
-  const signUp = async (email: string, password: string, name?: string, packageType?: string) => {
-    console.log('📝 Sign up not fully implemented - service being rebuilt');
-    return { error: new Error('Sign up service is being rebuilt') };
-  };
+  const signUp = useCallback(async (email: string, password: string, name?: string, packageType?: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: name,
+          package_type: packageType,
+        },
+      },
+    });
+    return { error };
+  }, []);
 
-  const refreshUser = async () => {
-    console.log('🔄 Refreshing user data');
+  const refreshUser = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     setUser(user);
     if (user) {
-      checkUserRole(user.id);
+      await checkUserRole(user.id);
     }
-  };
+  }, [checkUserRole]);
 
-  const value = {
+  // Memoize the context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
     user,
     session,
     loading,
@@ -172,7 +196,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp,
     refreshUser,
     retryRoleCheck,
-  };
+  }), [
+    user,
+    session,
+    loading,
+    isCheckingRole,
+    isAdmin,
+    userRole,
+    signOut,
+    signIn,
+    signUp,
+    refreshUser,
+    retryRoleCheck,
+  ]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={contextValue}>
+      {children}
+    </AuthContext.Provider>
+  );
 };

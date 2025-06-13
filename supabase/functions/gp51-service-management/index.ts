@@ -14,8 +14,10 @@ async function md5(input: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(input);
   
-  const { createHash } = await import("https://deno.land/std@0.208.0/crypto/mod.ts");
-  return createHash("md5").update(data).digest("hex");
+  const hashBuffer = await crypto.subtle.digest('MD5', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return hashHex;
 }
 
 serve(async (req) => {
@@ -38,7 +40,7 @@ serve(async (req) => {
       console.log('Testing GP51 connection by validating session...');
       const startTime = Date.now();
       
-      // Check if we have any valid GP51 sessions - FIXED: Using maybeSingle()
+      // Check if we have any valid GP51 sessions
       const { data: session, error: sessionError } = await supabase
         .from('gp51_sessions')
         .select('username, password_hash, token_expires_at, api_url')
@@ -145,7 +147,7 @@ serve(async (req) => {
       console.log('Testing real GP51 API connectivity...');
       const startTime = Date.now();
       
-      // Get session first - FIXED: Using maybeSingle()
+      // Get session first
       const { data: session, error: sessionError } = await supabase
         .from('gp51_sessions')
         .select('username, password_hash, token_expires_at, api_url')
