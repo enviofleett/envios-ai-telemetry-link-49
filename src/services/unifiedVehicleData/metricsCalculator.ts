@@ -1,52 +1,46 @@
 
-import { VehicleData, VehicleMetrics } from '@/types/vehicle';
+import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
 
-export class MetricsCalculator {
-  static calculateVehicleMetrics(vehicles: VehicleData[]): VehicleMetrics {
+export const calculateVehicleMetrics = (vehicles: VehicleData[]): VehicleDataMetrics => {
+  const total = vehicles.length;
+  const online = vehicles.filter(v => v.isOnline).length;
+  const offline = total - online;
+  
+  // Calculate idle vehicles (online but not moving)
+  const idle = vehicles.filter(v => {
+    if (!v.last_position?.timestamp) return false;
+    const lastUpdate = new Date(v.last_position.timestamp);
     const now = new Date();
-    const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
+    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+    return v.isOnline && !v.isMoving && minutesSinceUpdate <= 30;
+  }).length;
 
-    const online = vehicles.filter(v => {
-      if (!v.lastPosition?.timestamp) return false;
-      return v.lastPosition.timestamp > thirtyMinutesAgo;
-    }).length;
+  const alerts = vehicles.reduce((sum, v) => sum + v.alerts.length, 0);
 
-    const alerts = vehicles.filter(v => {
-      if (!v.lastPosition?.timestamp) return false;
-      return v.lastPosition.timestamp > thirtyMinutesAgo && 
-             (v.status?.toLowerCase().includes('alert') || 
-              v.status?.toLowerCase().includes('alarm'));
-    }).length;
+  // Calculate recently active vehicles (active in last 30 minutes)
+  const recentlyActive = vehicles.filter(v => {
+    if (!v.last_position?.timestamp) return false;
+    const lastUpdate = new Date(v.last_position.timestamp);
+    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+    return lastUpdate.getTime() > thirtyMinutesAgo;
+  }).length;
 
-    return {
-      total: vehicles.length,
-      online,
-      offline: vehicles.length - online,
-      alerts,
-      lastUpdateTime: now
-    };
-  }
-
-  static calculateSyncMetrics(vehicles: VehicleData[]) {
-    const now = new Date();
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-
-    const recentlyUpdated = vehicles.filter(v => {
-      if (!v.lastPosition?.timestamp) return false;
-      return v.lastPosition.timestamp > oneHourAgo;
-    }).length;
-
-    const withErrors = vehicles.filter(v => {
-      if (!v.lastPosition?.timestamp) return false;
-      return v.lastPosition.timestamp > oneHourAgo &&
-             v.status?.toLowerCase().includes('error');
-    }).length;
-
-    return {
-      totalVehicles: vehicles.length,
-      positionsUpdated: recentlyUpdated,
-      errors: withErrors,
-      lastSyncTime: now
-    };
-  }
-}
+  return {
+    // Dashboard-compatible properties
+    total,
+    online,
+    offline,
+    idle,
+    alerts,
+    // Legacy properties
+    totalVehicles: total,
+    onlineVehicles: online,
+    offlineVehicles: offline,
+    recentlyActiveVehicles: recentlyActive,
+    // Sync properties
+    lastSyncTime: new Date(),
+    positionsUpdated: vehicles.length,
+    errors: 0,
+    syncStatus: 'success' as const
+  };
+};

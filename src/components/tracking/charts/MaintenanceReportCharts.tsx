@@ -38,13 +38,15 @@ const MaintenanceReportCharts: React.FC<MaintenanceReportChartsProps> = ({ data,
     if (existing) {
       existing.count += 1;
       if (maintenance.cost) {
-        existing.totalCost += parseFloat(maintenance.cost.replace('$', '')) || 0;
+        const costValue = parseFloat(String(maintenance.cost).replace('$', '')) || 0;
+        existing.totalCost += costValue;
       }
     } else {
+      const costValue = maintenance.cost ? parseFloat(String(maintenance.cost).replace('$', '')) || 0 : 0;
       acc.push({
         type: maintenance.maintenanceType.length > 12 ? maintenance.maintenanceType.substring(0, 12) + '...' : maintenance.maintenanceType,
         count: 1,
-        totalCost: maintenance.cost ? parseFloat(maintenance.cost.replace('$', '')) || 0 : 0
+        totalCost: costValue
       });
     }
     return acc;

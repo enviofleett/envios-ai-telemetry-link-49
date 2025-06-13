@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { gp51DataService, type GP51ProcessedPosition, type LiveVehicleFilterConfig } from '@/services/gp51/GP51DataService';
 import { ErrorHandlingService } from '@/services/errorHandlingService';
@@ -75,16 +74,16 @@ class EnhancedVehicleDataService {
       lng: gp51ProcessedPosition.longitude,
       speed: gp51ProcessedPosition.speed,
       course: gp51ProcessedPosition.course,
-      timestamp: gp51ProcessedPosition.timestamp,
+      timestamp: gp51ProcessedPosition.timestamp.toISOString(),
       statusText: gp51ProcessedPosition.statusText
     } : undefined;
 
     const lastUpdate = last_position 
-      ? last_position.timestamp
+      ? new Date(last_position.timestamp)
       : new Date(supabaseVehicle.updated_at);
 
     const isOnline = last_position ? 
-      (Date.now() - last_position.timestamp.getTime()) < (5 * 60 * 1000) : false;
+      (Date.now() - new Date(last_position.timestamp).getTime()) < (5 * 60 * 1000) : false;
 
     const isMoving = last_position ? (last_position.speed > 2) : false;
 
@@ -288,7 +287,7 @@ class EnhancedVehicleDataService {
     return this.vehicles.filter(v => {
       if (!v.last_position?.timestamp) return false;
       const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
-      return v.last_position.timestamp.getTime() > fiveMinutesAgo;
+      return new Date(v.last_position.timestamp).getTime() > fiveMinutesAgo;
     });
   }
 
@@ -311,7 +310,7 @@ class EnhancedVehicleDataService {
   getRecentlyActiveVehicles(timeframeMinutes: number = 30): VehicleData[] {
     const cutoffTime = Date.now() - (timeframeMinutes * 60 * 1000);
     return this.vehicles.filter(v => {
-      return v.last_position && v.last_position.timestamp.getTime() > cutoffTime;
+      return v.last_position && new Date(v.last_position.timestamp).getTime() > cutoffTime;
     });
   }
 

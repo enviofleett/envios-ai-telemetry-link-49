@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehicleMetrics, SyncMetrics } from '@/types/vehicle';
 
@@ -138,6 +137,39 @@ export class UnifiedVehicleDataService {
     }
   }
 
+  private isValidVehicle(vehicle: any): boolean {
+    return vehicle && 
+           typeof vehicle === 'object' && 
+           vehicle.device_id && 
+           typeof vehicle.device_id === 'string' &&
+           vehicle.device_name && 
+           typeof vehicle.device_name === 'string';
+  }
+
+  private transformVehicleData(rawVehicle: any): VehicleData {
+    const isOnline = rawVehicle.is_active || false;
+    const hasRecentPosition = rawVehicle.last_position && 
+      rawVehicle.last_position.timestamp &&
+      (Date.now() - new Date(rawVehicle.last_position.timestamp).getTime()) < (5 * 60 * 1000);
+
+    return {
+      id: rawVehicle.id || rawVehicle.device_id,
+      device_id: rawVehicle.device_id,
+      device_name: rawVehicle.device_name,
+      status: isOnline ? (hasRecentPosition ? 'online' : 'idle') : 'offline',
+      lastUpdate: new Date(rawVehicle.updated_at || rawVehicle.created_at || Date.now()),
+      last_position: rawVehicle.last_position,
+      isOnline: isOnline && hasRecentPosition,
+      isMoving: rawVehicle.last_position?.speed > 0 || false,
+      alerts: rawVehicle.alerts || [],
+      is_active: rawVehicle.is_active || false,
+      // Legacy compatibility
+      deviceId: rawVehicle.device_id,
+      deviceName: rawVehicle.device_name,
+      lastPosition: rawVehicle.last_position
+    };
+  }
+
   // Public API methods
   getVehicles(): VehicleData[] {
     return [...this.vehicles];
@@ -170,8 +202,8 @@ export class UnifiedVehicleDataService {
     };
   }
 
-  getVehicleById(deviceId: string): VehicleData | undefined {
-    return this.vehicles.find(v => v.deviceId === deviceId);
+  getVehicleById(device_id: string): VehicleData | undefined {
+    return this.vehicles.find(v => v.device_id === device_id);
   }
 
   getOnlineVehicles(): VehicleData[] {

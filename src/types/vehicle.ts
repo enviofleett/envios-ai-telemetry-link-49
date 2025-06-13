@@ -171,6 +171,7 @@ export interface VehicleDataMetrics {
   total: number;
   online: number;
   offline: number;
+  idle: number; // Added missing idle property
   alerts: number;
   
   // Legacy properties (for backwards compatibility)

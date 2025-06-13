@@ -6,7 +6,7 @@ const mockLastPosition: VehiclePosition = {
   lng: -74.0060,
   speed: 0,
   course: 0,
-  timestamp: new Date(),
+  timestamp: new Date().toISOString(),
   statusText: 'parked'
 };
 
@@ -21,7 +21,7 @@ export const loadMockVehicleData = (): VehicleData[] => {
       lng: -74.0060 + (Math.random() - 0.5) * 0.1,
       speed,
       course: Math.floor(Math.random() * 360),
-      timestamp: new Date(Date.now() - Math.random() * 3600000),
+      timestamp: new Date(Date.now() - Math.random() * 3600000).toISOString(),
       statusText: isMoving ? 'moving' : 'idle'
     };
 
@@ -66,7 +66,7 @@ export const loadMockVehicleDataForMap = (): VehicleData[] => {
       lng: baseLocation.lng + (Math.random() - 0.5) * 0.01,
       speed,
       course: Math.floor(Math.random() * 360),
-      timestamp: new Date(Date.now() - Math.random() * 1800000),
+      timestamp: new Date(Date.now() - Math.random() * 1800000).toISOString(),
       statusText: isMoving ? 'moving' : isOnline ? 'idle' : 'offline'
     };
 
