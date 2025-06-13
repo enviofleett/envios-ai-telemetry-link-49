@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import SmtpClient from "https://deno.land/x/denomailer@1.6.0/mod.ts";
@@ -171,7 +172,7 @@ serve(async (req) => {
       ]);
       
       emailRequest = JSON.parse(body);
-      console.log(`📝 [${requestId}] Request parsed successfully`);
+      console.log(`📝 [${requestId}] Request parsed successfully - to: ${emailRequest.to}, subject: ${emailRequest.subject}`);
     } catch (error) {
       console.error(`❌ [${requestId}] Failed to parse request body:`, error);
       return new Response(
@@ -228,6 +229,8 @@ serve(async (req) => {
     // Get user's SMTP configuration
     let smtpConfig: SMTPConfig;
     try {
+      console.log(`🔍 [${requestId}] Fetching SMTP configuration for user: ${user.id}`);
+      
       const { data: config, error: configError } = await supabase
         .from('smtp_configurations')
         .select('*')
@@ -251,10 +254,13 @@ serve(async (req) => {
       }
 
       smtpConfig = config;
-      console.log(`📧 [${requestId}] Using SMTP config:`, {
+      console.log(`📧 [${requestId}] SMTP config loaded:`, {
         host: smtpConfig.smtp_host,
         port: smtpConfig.smtp_port,
-        user: smtpConfig.smtp_user
+        user: smtpConfig.smtp_user,
+        use_tls: smtpConfig.use_tls,
+        use_ssl: smtpConfig.use_ssl,
+        password_length: smtpConfig.smtp_pass_encrypted?.length || 0
       });
     } catch (error) {
       console.error(`❌ [${requestId}] Database error fetching SMTP config:`, error);
@@ -276,6 +282,8 @@ serve(async (req) => {
 
     if (sanitizedRequest.template_id) {
       try {
+        console.log(`📄 [${requestId}] Processing template: ${sanitizedRequest.template_id}`);
+        
         const { data: template, error: templateError } = await supabase
           .from('email_templates')
           .select('*')
@@ -314,76 +322,140 @@ serve(async (req) => {
       }
     }
 
-    // Initialize SMTP client with timeout
+    // Enhanced SMTP connection and sending with detailed logging
     const client = new SmtpClient();
     let emailSent = false;
 
     try {
-      // Connect to SMTP server with timeout
-      console.log(`🔌 [${requestId}] Connecting to SMTP server...`);
-      
-      const connectPromise = client.connect({
+      // Enhanced connection logging
+      console.log(`🔌 [${requestId}] Attempting SMTP connection with config:`, {
         hostname: smtpConfig.smtp_host,
         port: smtpConfig.smtp_port,
         username: smtpConfig.smtp_user,
-        password: smtpConfig.smtp_pass_encrypted,
-        ...(smtpConfig.use_tls && { tls: true }),
-        ...(smtpConfig.use_ssl && { ssl: true }),
+        tls: smtpConfig.use_tls,
+        ssl: smtpConfig.use_ssl,
+        password_provided: !!smtpConfig.smtp_pass_encrypted,
+        password_length: smtpConfig.smtp_pass_encrypted?.length || 0
       });
 
-      await Promise.race([
-        connectPromise,
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('SMTP connection timeout')), SMTP_TIMEOUT)
-        )
-      ]);
-
-      console.log(`✅ [${requestId}] SMTP connection established`);
-
-      // Send email with timeout
-      console.log(`📤 [${requestId}] Sending email...`);
-      
-      const sendPromise = client.send({
-        from: sanitizedRequest.from || smtpConfig.smtp_user,
-        to: sanitizedRequest.to,
-        subject: finalSubject,
-        content: finalMessage,
-      });
-
-      await Promise.race([
-        sendPromise,
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Email send timeout')), SMTP_TIMEOUT)
-        )
-      ]);
-
-      emailSent = true;
-      console.log(`✅ [${requestId}] Email sent successfully`);
-
-      // Log to email queue for tracking
+      // Connect to SMTP server with enhanced error handling
       try {
-        await supabase
-          .from('email_notification_queue')
-          .insert({
-            user_id: user.id,
-            recipient_email: sanitizedRequest.to,
-            sender_email: sanitizedRequest.from || smtpConfig.smtp_user,
-            subject: finalSubject,
-            body_text: finalMessage,
-            template_id: sanitizedRequest.template_id || null,
-            template_variables: sanitizedRequest.template_variables || {},
-            status: 'sent',
-            sent_at: new Date().toISOString(),
-          });
+        const connectConfig = {
+          hostname: smtpConfig.smtp_host,
+          port: smtpConfig.smtp_port,
+          username: smtpConfig.smtp_user,
+          password: smtpConfig.smtp_pass_encrypted,
+          ...(smtpConfig.use_tls && { tls: true }),
+          ...(smtpConfig.use_ssl && { ssl: true }),
+        };
+
+        console.log(`🔐 [${requestId}] Connecting with config (password masked):`, {
+          ...connectConfig,
+          password: '***MASKED***'
+        });
+
+        const connectPromise = client.connect(connectConfig);
+
+        await Promise.race([
+          connectPromise,
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('SMTP connection timeout after 30 seconds')), SMTP_TIMEOUT)
+          )
+        ]);
+
+        console.log(`✅ [${requestId}] SMTP connection established successfully`);
+
+      } catch (connectError) {
+        console.error(`❌ [${requestId}] SMTP connection failed:`, {
+          error: connectError,
+          message: connectError instanceof Error ? connectError.message : 'Unknown connection error',
+          stack: connectError instanceof Error ? connectError.stack : undefined,
+          host: smtpConfig.smtp_host,
+          port: smtpConfig.smtp_port,
+          ssl: smtpConfig.use_ssl,
+          tls: smtpConfig.use_tls
+        });
+
+        // Log specific connection failure scenarios
+        const errorMsg = connectError instanceof Error ? connectError.message : String(connectError);
         
-        console.log(`📊 [${requestId}] Email logged to queue`);
-      } catch (logError) {
-        console.error(`⚠️ [${requestId}] Failed to log email to queue:`, logError);
-        // Don't fail the request if logging fails
+        if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('getaddrinfo')) {
+          console.error(`🌐 [${requestId}] DNS resolution failed for ${smtpConfig.smtp_host}`);
+        } else if (errorMsg.includes('ECONNREFUSED')) {
+          console.error(`🚫 [${requestId}] Connection refused by ${smtpConfig.smtp_host}:${smtpConfig.smtp_port}`);
+        } else if (errorMsg.includes('timeout')) {
+          console.error(`⏱️ [${requestId}] Connection timeout to ${smtpConfig.smtp_host}:${smtpConfig.smtp_port}`);
+        } else if (errorMsg.includes('authentication') || errorMsg.includes('login') || errorMsg.includes('535')) {
+          console.error(`🔑 [${requestId}] Authentication failed with username: ${smtpConfig.smtp_user}`);
+        } else if (errorMsg.includes('SSL') || errorMsg.includes('TLS') || errorMsg.includes('certificate')) {
+          console.error(`🔒 [${requestId}] SSL/TLS handshake failed`);
+        }
+
+        throw connectError;
+      }
+
+      // Send email with enhanced logging
+      try {
+        const emailData = {
+          from: sanitizedRequest.from || smtpConfig.smtp_user,
+          to: sanitizedRequest.to,
+          subject: finalSubject,
+          content: finalMessage,
+        };
+
+        console.log(`📤 [${requestId}] Sending email:`, {
+          from: emailData.from,
+          to: emailData.to,
+          subject: emailData.subject,
+          content_length: emailData.content.length
+        });
+        
+        const sendPromise = client.send(emailData);
+
+        const sendResult = await Promise.race([
+          sendPromise,
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Email send timeout after 30 seconds')), SMTP_TIMEOUT)
+          )
+        ]);
+
+        emailSent = true;
+        console.log(`✅ [${requestId}] Email sent successfully:`, sendResult);
+
+        // Log to email queue for tracking
+        try {
+          await supabase
+            .from('email_notification_queue')
+            .insert({
+              user_id: user.id,
+              recipient_email: sanitizedRequest.to,
+              sender_email: sanitizedRequest.from || smtpConfig.smtp_user,
+              subject: finalSubject,
+              body_text: finalMessage,
+              template_id: sanitizedRequest.template_id || null,
+              template_variables: sanitizedRequest.template_variables || {},
+              status: 'sent',
+              sent_at: new Date().toISOString(),
+            });
+          
+          console.log(`📊 [${requestId}] Email logged to queue successfully`);
+        } catch (logError) {
+          console.error(`⚠️ [${requestId}] Failed to log email to queue:`, logError);
+          // Don't fail the request if logging fails
+        }
+
+      } catch (sendError) {
+        console.error(`❌ [${requestId}] Email send failed:`, {
+          error: sendError,
+          message: sendError instanceof Error ? sendError.message : 'Unknown send error',
+          stack: sendError instanceof Error ? sendError.stack : undefined
+        });
+
+        throw sendError;
       }
 
     } catch (smtpError) {
-      console.error(`❌ [${requestId}] SMTP Error:`, smtpError);
+      console.error(`❌ [${requestId}] Overall SMTP operation failed:`, smtpError);
       
       // Log failed email attempt
       try {
@@ -412,19 +484,23 @@ serve(async (req) => {
       if (errorMessage.includes('timeout')) {
         statusCode = 408;
         userMessage = 'Email sending timed out. Please try again.';
-      } else if (errorMessage.includes('authentication') || errorMessage.includes('login')) {
+      } else if (errorMessage.includes('authentication') || errorMessage.includes('login') || errorMessage.includes('535')) {
         statusCode = 401;
         userMessage = 'SMTP authentication failed. Please check your credentials.';
-      } else if (errorMessage.includes('connection')) {
+      } else if (errorMessage.includes('connection') || errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ENOTFOUND')) {
         statusCode = 503;
         userMessage = 'Unable to connect to SMTP server. Please check your settings.';
+      } else if (errorMessage.includes('SSL') || errorMessage.includes('TLS')) {
+        statusCode = 502;
+        userMessage = 'SSL/TLS connection failed. Please check your security settings.';
       }
 
       return new Response(
         JSON.stringify({ 
           error: 'SMTP error',
           message: userMessage,
-          details: errorMessage
+          details: errorMessage,
+          requestId: requestId
         }),
         { 
           status: statusCode, 
@@ -436,7 +512,7 @@ serve(async (req) => {
       // Ensure SMTP connection is closed
       try {
         await client.close();
-        console.log(`🔌 [${requestId}] SMTP connection closed`);
+        console.log(`🔌 [${requestId}] SMTP connection closed successfully`);
       } catch (closeError) {
         console.error(`⚠️ [${requestId}] Error closing SMTP connection:`, closeError);
       }
@@ -464,7 +540,11 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error(`❌ [${requestId}] Unexpected error:`, error);
+    console.error(`❌ [${requestId}] Unexpected error:`, {
+      error: error,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
     
     return new Response(
       JSON.stringify({ 
