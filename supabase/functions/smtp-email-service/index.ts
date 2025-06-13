@@ -23,11 +23,11 @@ serve(async (req) => {
   }
 
   try {
-    // Environment validation
+    // Environment validation - Use Service Role Key for database access
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    if (!supabaseUrl || !supabaseAnonKey) {
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
       console.error('❌ Missing Supabase environment variables');
       return createResponse({
         success: false,
@@ -35,7 +35,8 @@ serve(async (req) => {
       }, 500);
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    // Create Supabase client with Service Role Key to bypass RLS
+    const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Parse request
     const requestData: EmailRequest = await req.json();
@@ -67,7 +68,7 @@ serve(async (req) => {
     }
 
     // Load SMTP configuration with detailed error reporting
-    console.log('📧 Loading SMTP configuration...');
+    console.log('📧 Loading SMTP configuration using Service Role Key...');
     const smtpConfig = await EmailSender.loadConfig(supabase);
     if (!smtpConfig) {
       return createResponse({
@@ -77,9 +78,9 @@ serve(async (req) => {
       }, 500);
     }
 
-    // Initialize services
-    const templateManager = new TemplateManager(supabaseUrl, supabaseAnonKey);
-    const deliveryLogger = new DeliveryLogger(supabaseUrl, supabaseAnonKey);
+    // Initialize services with Service Role Key for database access
+    const templateManager = new TemplateManager(supabaseUrl, supabaseServiceRoleKey);
+    const deliveryLogger = new DeliveryLogger(supabaseUrl, supabaseServiceRoleKey);
     const emailSender = new EmailSender(smtpConfig);
 
     // Get template by trigger type
