@@ -1,14 +1,35 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GP51AuthenticationPanel } from '@/components/admin/GP51AuthenticationPanel';
 import GP51ImportModal from '@/components/admin/GP51ImportModal';
 import GP51Settings from '@/components/admin/GP51Settings';
 import GP51ConnectionTester from '@/components/admin/GP51ConnectionTester';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { Shield, Activity, Settings, Zap, Download } from 'lucide-react';
 
 const GP51IntegrationTab: React.FC = () => {
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importOptions, setImportOptions] = useState({
+    conflictResolution: 'update' as const,
+    importAll: true,
+    selectedDevices: [] as string[]
+  });
+
+  const handleOpenImportModal = () => {
+    setIsImportModalOpen(true);
+  };
+
+  const handleCloseImportModal = () => {
+    setIsImportModalOpen(false);
+  };
+
+  const handleConfirmImport = (options: any) => {
+    console.log('Import confirmed with options:', options);
+    setIsImportModalOpen(false);
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -74,7 +95,10 @@ const GP51IntegrationTab: React.FC = () => {
                     <p>• <strong>Status classification</strong> - vehicles are categorized as online, offline, or inactive</p>
                   </div>
                   
-                  <GP51ImportModal />
+                  <Button onClick={handleOpenImportModal} className="w-full">
+                    <Download className="h-4 w-4 mr-2" />
+                    Start Vehicle Import
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -92,6 +116,13 @@ const GP51IntegrationTab: React.FC = () => {
           </Tabs>
         </CardContent>
       </Card>
+
+      <GP51ImportModal
+        isOpen={isImportModalOpen}
+        onClose={handleCloseImportModal}
+        onConfirm={handleConfirmImport}
+        options={importOptions}
+      />
     </div>
   );
 };

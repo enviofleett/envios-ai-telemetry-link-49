@@ -1,11 +1,11 @@
 
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
-  lat: number;
-  lng: number; // Standardized to 'lng' for internal consistency
+  latitude: number; // Changed from 'lat' to align with GP51 API
+  longitude: number; // Changed from 'lng' to align with GP51 API
   speed: number;
-  course: number; // Added course property
-  timestamp: string; // Changed to string for consistency with database
+  course: number;
+  timestamp: string;
   statusText: string;
 }
 
@@ -41,8 +41,8 @@ export interface VehicleData {
   is_active: boolean; // Changed from isActive to match DB
   envio_user_id?: string; // Changed from envioUserId to match DB
   last_position?: {
-    lat: number;
-    lng: number; // Changed from lon to lng for consistency with components
+    latitude: number; // Updated to use latitude instead of lat
+    longitude: number; // Updated to use longitude instead of lng
     speed: number;
     course: number; // Added course property
     timestamp: string; // String for consistency with database storage

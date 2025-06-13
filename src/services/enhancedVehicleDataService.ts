@@ -1,4 +1,3 @@
-
 import { gp51DataService } from '@/services/gp51/GP51DataService';
 import type { GP51ProcessedPosition, LiveVehicleFilterConfig } from '@/types/gp51';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
@@ -134,22 +133,7 @@ class EnhancedVehicleDataService {
           mileage: Math.floor(Math.random() * 200000) + 50000,
           fuelType: 'Gasoline',
           engineSize: 2.0 + Math.random() * 2,
-          alerts: [],
-          lastPosition: position ? {
-            lat: position.latitude,
-            lng: position.longitude,
-            speed: position.speed,
-            course: position.course,
-            updatetime: position.timestamp.toISOString(),
-            statusText: position.statusText || 'No data'
-          } : {
-            lat: 0,
-            lng: 0,
-            speed: 0,
-            course: 0,
-            updatetime: new Date().toISOString(),
-            statusText: 'No data'
-          }
+          alerts: []
         };
       });
 
