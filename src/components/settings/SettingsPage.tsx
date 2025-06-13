@@ -2,10 +2,11 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Settings, Mail, Bell, Palette, Zap } from 'lucide-react';
+import { Settings, Mail, Bell, Palette, Zap, BarChart3 } from 'lucide-react';
 import SMTPConfigurationTab from './SMTPConfigurationTab';
 import EmailTemplatesTab from './EmailTemplatesTab';
 import EmailTriggersTab from './EmailTriggersTab';
+import AdvancedEmailManagement from './AdvancedEmailManagement';
 
 const SettingsPage: React.FC = () => {
   return (
@@ -16,7 +17,7 @@ const SettingsPage: React.FC = () => {
       </div>
 
       <Tabs defaultValue="smtp" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="smtp" className="flex items-center gap-2">
             <Mail className="h-4 w-4" />
             SMTP Config
@@ -28,6 +29,10 @@ const SettingsPage: React.FC = () => {
           <TabsTrigger value="triggers" className="flex items-center gap-2">
             <Zap className="h-4 w-4" />
             Email Triggers
+          </TabsTrigger>
+          <TabsTrigger value="advanced" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Advanced
           </TabsTrigger>
           <TabsTrigger value="notifications" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
@@ -45,6 +50,10 @@ const SettingsPage: React.FC = () => {
 
         <TabsContent value="triggers">
           <EmailTriggersTab />
+        </TabsContent>
+
+        <TabsContent value="advanced">
+          <AdvancedEmailManagement />
         </TabsContent>
 
         <TabsContent value="notifications">
