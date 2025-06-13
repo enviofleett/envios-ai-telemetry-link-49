@@ -2568,109 +2568,50 @@ export type Database = {
       }
       gp51_sessions: {
         Row: {
-          api_url: string | null
-          api_version: string | null
+          api_url: string
           created_at: string
-          device_count: number | null
           envio_user_id: string | null
           gp51_token: string | null
           id: string
           last_activity_at: string | null
-          last_validated_at: string | null
-          password_hash: string | null
-          session_health: string | null
-          session_metadata: Json | null
-          token_expires_at: string | null
+          password_hash: string
+          token_expires_at: string
           updated_at: string
           username: string
         }
         Insert: {
-          api_url?: string | null
-          api_version?: string | null
+          api_url?: string
           created_at?: string
-          device_count?: number | null
           envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
           last_activity_at?: string | null
-          last_validated_at?: string | null
-          password_hash?: string | null
-          session_health?: string | null
-          session_metadata?: Json | null
-          token_expires_at?: string | null
+          password_hash: string
+          token_expires_at: string
           updated_at?: string
           username: string
         }
         Update: {
-          api_url?: string | null
-          api_version?: string | null
+          api_url?: string
           created_at?: string
-          device_count?: number | null
           envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
           last_activity_at?: string | null
-          last_validated_at?: string | null
-          password_hash?: string | null
-          session_health?: string | null
-          session_metadata?: Json | null
-          token_expires_at?: string | null
+          password_hash?: string
+          token_expires_at?: string
           updated_at?: string
           username?: string
         }
         Relationships: [
           {
-            foreignKeyName: "fk_gp51_sessions_envio_user"
-            columns: ["envio_user_id"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_gp51_sessions_envio_user_id"
-            columns: ["envio_user_id"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "gp51_sessions_envio_user_id_fkey"
+            foreignKeyName: "gp51_sessions_envio_user_id_fkey1"
             columns: ["envio_user_id"]
             isOneToOne: false
             referencedRelation: "envio_users"
             referencedColumns: ["id"]
           },
         ]
-      }
-      gp51_sessions_backup_2025_06_06_09_53_33: {
-        Row: {
-          created_at: string | null
-          envio_user_id: string | null
-          gp51_token: string | null
-          id: string | null
-          token_expires_at: string | null
-          updated_at: string | null
-          username: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          envio_user_id?: string | null
-          gp51_token?: string | null
-          id?: string | null
-          token_expires_at?: string | null
-          updated_at?: string | null
-          username?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          envio_user_id?: string | null
-          gp51_token?: string | null
-          id?: string | null
-          token_expires_at?: string | null
-          updated_at?: string | null
-          username?: string | null
-        }
-        Relationships: []
       }
       gp51_sessions_backup_2025_06_06_10_05_23: {
         Row: {
@@ -2799,6 +2740,112 @@ export type Database = {
         Relationships: []
       }
       gp51_sessions_backup_full_import: {
+        Row: {
+          created_at: string | null
+          envio_user_id: string | null
+          gp51_token: string | null
+          id: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          envio_user_id?: string | null
+          gp51_token?: string | null
+          id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          envio_user_id?: string | null
+          gp51_token?: string | null
+          id?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: []
+      }
+      "gp51_sessions.": {
+        Row: {
+          api_url: string | null
+          api_version: string | null
+          created_at: string
+          device_count: number | null
+          envio_user_id: string | null
+          gp51_token: string | null
+          id: string
+          last_activity_at: string | null
+          last_validated_at: string | null
+          password_hash: string | null
+          session_health: string | null
+          session_metadata: Json | null
+          token_expires_at: string | null
+          updated_at: string
+          username: string
+        }
+        Insert: {
+          api_url?: string | null
+          api_version?: string | null
+          created_at?: string
+          device_count?: number | null
+          envio_user_id?: string | null
+          gp51_token?: string | null
+          id?: string
+          last_activity_at?: string | null
+          last_validated_at?: string | null
+          password_hash?: string | null
+          session_health?: string | null
+          session_metadata?: Json | null
+          token_expires_at?: string | null
+          updated_at?: string
+          username: string
+        }
+        Update: {
+          api_url?: string | null
+          api_version?: string | null
+          created_at?: string
+          device_count?: number | null
+          envio_user_id?: string | null
+          gp51_token?: string | null
+          id?: string
+          last_activity_at?: string | null
+          last_validated_at?: string | null
+          password_hash?: string | null
+          session_health?: string | null
+          session_metadata?: Json | null
+          token_expires_at?: string | null
+          updated_at?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_gp51_sessions_envio_user"
+            columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_gp51_sessions_envio_user_id"
+            columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gp51_sessions_envio_user_id_fkey"
+            columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      "gp51_sessions...": {
         Row: {
           created_at: string | null
           envio_user_id: string | null
@@ -5950,7 +5997,7 @@ export type Database = {
             foreignKeyName: "vehicles_session_id_fkey"
             columns: ["session_id"]
             isOneToOne: false
-            referencedRelation: "gp51_sessions"
+            referencedRelation: "gp51_sessions."
             referencedColumns: ["id"]
           },
           {
