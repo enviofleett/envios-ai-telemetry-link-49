@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { UserEmailTriggers } from '@/services/emailTriggers/userEmailTriggers';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 
 interface EnhancedRegistrationFormProps {
@@ -54,7 +54,7 @@ const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> = ({ onS
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -65,6 +65,26 @@ const EnhancedRegistrationForm: React.FC<EnhancedRegistrationFormProps> = ({ onS
       });
 
       if (error) throw error;
+
+      // Trigger welcome email
+      if (data.user) {
+        try {
+          await UserEmailTriggers.onUserRegistration(
+            data.user.id,
+            formData.email,
+            formData.name
+          );
+          
+          // Also notify admins of new registration
+          await UserEmailTriggers.notifyAdminsOfNewUser(
+            formData.email,
+            formData.name
+          );
+        } catch (emailError) {
+          console.error('Failed to send welcome email:', emailError);
+          // Don't block registration if email fails
+        }
+      }
 
       toast({
         title: "Registration Successful",
