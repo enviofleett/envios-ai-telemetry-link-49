@@ -1,9 +1,9 @@
 
 import { z } from "zod"
 
-// Vehicle registration schema
+// Vehicle registration schema - updated to use user_profile_id
 export const vehicleRegistrationSchema = z.object({
-  userId: z.string().min(1, "User selection is required"),
+  userProfileId: z.string().min(1, "User selection is required"),
   vin: z.string().length(17, "VIN must be exactly 17 characters").regex(/^[A-HJ-NPR-Z0-9]{17}$/, "Invalid VIN format"),
   plateNumber: z.string().min(1, "Plate number is required"),
   make: z.string().min(1, "Make is required"),

@@ -5195,6 +5195,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_profiles: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          phone_number: string | null
+          profile_picture_url: string | null
+          registration_status: string
+          role: Database["public"]["Enums"]["app_role"]
+          updated_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          first_name?: string | null
+          id: string
+          last_name?: string | null
+          phone_number?: string | null
+          profile_picture_url?: string | null
+          registration_status?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone_number?: string | null
+          profile_picture_url?: string | null
+          registration_status?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -5502,6 +5541,47 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicle_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          assignment_reason: string | null
+          id: string
+          is_active: boolean
+          unassigned_at: string | null
+          user_profile_id: string | null
+          vehicle_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          assignment_reason?: string | null
+          id?: string
+          is_active?: boolean
+          unassigned_at?: string | null
+          user_profile_id?: string | null
+          vehicle_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          assignment_reason?: string | null
+          id?: string
+          is_active?: boolean
+          unassigned_at?: string | null
+          user_profile_id?: string | null
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_assignments_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicle_inspections: {
         Row: {
           actual_duration_minutes: number | null
@@ -5754,6 +5834,7 @@ export type Database = {
           speed: number | null
           status: string | null
           updated_at: string
+          user_profile_id: string | null
           vin: string | null
           year: number | null
         }
@@ -5795,6 +5876,7 @@ export type Database = {
           speed?: number | null
           status?: string | null
           updated_at?: string
+          user_profile_id?: string | null
           vin?: string | null
           year?: number | null
         }
@@ -5836,6 +5918,7 @@ export type Database = {
           speed?: number | null
           status?: string | null
           updated_at?: string
+          user_profile_id?: string | null
           vin?: string | null
           year?: number | null
         }
@@ -5859,6 +5942,13 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "gp51_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -7284,7 +7374,13 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "user"
+      app_role:
+        | "admin"
+        | "user"
+        | "driver"
+        | "dispatcher"
+        | "fleet_manager"
+        | "pending"
       campaign_schedule_type_enum: "immediate" | "scheduled" | "recurring"
       campaign_target_audience_enum:
         | "all_users"
@@ -7406,7 +7502,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "user"],
+      app_role: [
+        "admin",
+        "user",
+        "driver",
+        "dispatcher",
+        "fleet_manager",
+        "pending",
+      ],
       campaign_schedule_type_enum: ["immediate", "scheduled", "recurring"],
       campaign_target_audience_enum: [
         "all_users",

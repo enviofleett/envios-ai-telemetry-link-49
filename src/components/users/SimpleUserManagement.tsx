@@ -1,8 +1,8 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
-import { useOptimizedUserData } from '@/hooks/useOptimizedUserData';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/lib/supabase';
 import UserStatsCards from './UserStatsCards';
 import SimpleUserManagementTable from './SimpleUserManagementTable';
 import UserDetailsModal from './UserDetailsModal';
@@ -30,9 +30,46 @@ const SimpleUserManagement: React.FC = () => {
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [editUser, setEditUser] = useState<User | null>(null);
 
-  const { data: usersData, isLoading } = useOptimizedUserData({
-    page: 1,
-    limit: 1000, // Get all users for stats
+  // Use the new user profiles hook instead of the old optimized hook
+  const { data: usersData, isLoading } = useQuery({
+    queryKey: ['legacy-user-data'],
+    queryFn: async () => {
+      // Fetch from user_profiles table instead of envio_users
+      const { data: profiles, error } = await supabase
+        .from('user_profiles')
+        .select(`
+          *,
+          vehicles!vehicles_user_profile_id_fkey(id, device_id, plate_number)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Get email addresses from auth.users
+      const { data: authUsers } = await supabase.auth.admin.listUsers();
+      const emailMap = authUsers.users.reduce((acc, user) => {
+        acc[user.id] = user.email;
+        return acc;
+      }, {} as Record<string, string>);
+
+      // Transform to match the expected User interface
+      const transformedUsers = (profiles || []).map(profile => ({
+        id: profile.id,
+        name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown User',
+        email: emailMap[profile.id] || '',
+        phone_number: profile.phone_number,
+        user_roles: [{ role: profile.role }],
+        registration_status: profile.registration_status,
+        assigned_vehicles: (profile.vehicles || []).map(v => ({
+          id: v.id,
+          plate_number: v.plate_number,
+          status: 'active',
+          last_update: new Date().toISOString()
+        }))
+      }));
+
+      return { users: transformedUsers };
+    }
   });
 
   if (!user) {
