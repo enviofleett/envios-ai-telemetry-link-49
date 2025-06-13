@@ -2,13 +2,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
 
-export const useUnifiedVehicleData = () => {
+export const useUnifiedVehicleData = (options?: any) => {
   const [vehicles, setVehicles] = useState<VehicleData[]>([]);
+  const [allVehicles, setAllVehicles] = useState<VehicleData[]>([]);
   const [metrics, setMetrics] = useState<VehicleDataMetrics>({
     total: 0,
     online: 0,
     offline: 0,
     alerts: 0,
+    idle: 0,
     totalVehicles: 0,
     onlineVehicles: 0,
     offlineVehicles: 0,
@@ -61,6 +63,7 @@ export const useUnifiedVehicleData = () => {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       setVehicles(mockVehicles);
+      setAllVehicles(mockVehicles);
       
       const onlineCount = mockVehicles.filter(v => {
         if (!v.last_position?.timestamp) return false;
@@ -69,11 +72,19 @@ export const useUnifiedVehicleData = () => {
         return minutesSince <= 5;
       }).length;
 
+      const idleCount = mockVehicles.filter(v => {
+        if (!v.last_position?.timestamp) return false;
+        const lastUpdate = new Date(v.last_position.timestamp);
+        const minutesSince = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
+        return minutesSince <= 5 && v.last_position.speed === 0;
+      }).length;
+
       setMetrics({
         total: mockVehicles.length,
         online: onlineCount,
         offline: mockVehicles.length - onlineCount,
         alerts: 0,
+        idle: idleCount,
         totalVehicles: mockVehicles.length,
         onlineVehicles: onlineCount,
         offlineVehicles: mockVehicles.length - onlineCount,
@@ -123,6 +134,7 @@ export const useUnifiedVehicleData = () => {
 
   return {
     vehicles,
+    allVehicles,
     metrics,
     isLoading,
     isRefreshing,

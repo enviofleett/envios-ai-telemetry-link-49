@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -17,11 +18,45 @@ const VehicleManagement: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
 
   const { 
-    filteredVehicles, 
+    vehicles: allVehicles, 
     isLoading, 
     refetch,
     setFilters 
   } = useStableEnhancedVehicleData();
+
+  // Apply filters directly here instead of using filteredVehicles from hook
+  const filteredVehicles = React.useMemo(() => {
+    let filtered = allVehicles;
+
+    if (searchTerm) {
+      filtered = filtered.filter(vehicle => 
+        vehicle.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        vehicle.device_id.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(vehicle => {
+        if (!vehicle.last_position?.timestamp) return statusFilter === 'offline';
+        
+        const lastUpdate = new Date(vehicle.last_position.timestamp);
+        const minutesSince = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
+        
+        switch (statusFilter) {
+          case 'active':
+            return minutesSince <= 5;
+          case 'offline':
+            return minutesSince > 5;
+          case 'moving':
+            return minutesSince <= 5 && vehicle.last_position.speed > 0;
+          default:
+            return true;
+        }
+      });
+    }
+
+    return filtered;
+  }, [allVehicles, searchTerm, statusFilter]);
 
   const deviceIds = filteredVehicles.map(v => v.device_id);
   const { liveData, refreshData: refreshLiveData } = useLiveVehicleData({
@@ -58,15 +93,6 @@ const VehicleManagement: React.FC = () => {
     } : undefined,
     envio_users: selectedVehicle.envio_users
   } : null;
-
-  // Update filters when search or status changes
-  React.useEffect(() => {
-    setFilters(prev => ({
-      ...prev,
-      search: searchTerm,
-      status: statusFilter
-    }));
-  }, [searchTerm, statusFilter, setFilters]);
 
   const handleRefresh = async () => {
     await refetch();

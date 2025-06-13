@@ -13,10 +13,8 @@ const FleetMapWidget: React.FC = () => {
   const [showOfflineVehicles, setShowOfflineVehicles] = useState(true);
   const navigate = useNavigate();
 
-  // Use stable vehicle data - fixed to use correct options
-  const { vehicles, allVehicles, isLoading } = useStableVehicleData({
-    status: showOfflineVehicles ? 'all' : 'online'
-  });
+  // Use stable vehicle data
+  const { vehicles, allVehicles, isLoading } = useStableVehicleData();
 
   const getVehicleStatus = (vehicle: VehicleData) => {
     if (!vehicle.last_position?.timestamp) return 'offline';
@@ -96,36 +94,23 @@ const FleetMapWidget: React.FC = () => {
         </div>
       </CardHeader>
       
-      <CardContent>
-        {/* Status Summary */}
-        <div className="flex flex-wrap gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            <span className="text-sm">Online: {statusCounts.online || 0}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-            <span className="text-sm">Idle: {statusCounts.idle || 0}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-            <span className="text-sm">Offline: {statusCounts.offline || 0}</span>
-          </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-sm font-medium">
-              Coverage: {allVehicles.length > 0 ? 
-                ((vehicles.length / allVehicles.length) * 100).toFixed(1) : 0}%
-            </span>
+      <CardContent className="p-0">
+        <div className="h-64">
+          <MapTilerMap
+            vehicles={showOfflineVehicles ? allVehicles : vehicles}
+            onVehicleSelect={handleVehicleSelect}
+            height="256px"
+            showControls={false}
+          />
+        </div>
+        
+        <div className="p-4 border-t">
+          <div className="flex justify-between text-sm">
+            <span className="text-green-600">Online: {statusCounts.online || 0}</span>
+            <span className="text-yellow-600">Idle: {statusCounts.idle || 0}</span>
+            <span className="text-red-600">Offline: {statusCounts.offline || 0}</span>
           </div>
         </div>
-
-        <MapTilerMap
-          vehicles={vehicles}
-          height="300px"
-          onVehicleSelect={handleVehicleSelect}
-          defaultZoom={10}
-          showControls={false}
-        />
       </CardContent>
     </Card>
   );
