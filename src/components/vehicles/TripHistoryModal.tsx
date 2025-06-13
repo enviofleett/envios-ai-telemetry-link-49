@@ -1,204 +1,231 @@
 
-import React from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import React, { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  MapPin,
-  Clock,
-  Route,
-  Gauge,
-  Calendar
+import { 
+  Calendar,
+  MapPin, 
+  Clock, 
+  Route, 
+  Activity,
+  Download,
+  RefreshCw
 } from 'lucide-react';
 import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface TripHistoryModalProps {
-  vehicle: VehicleData | null;
   isOpen: boolean;
   onClose: () => void;
+  vehicle: VehicleData | null;
 }
 
 interface TripRecord {
   id: string;
   startTime: string;
   endTime: string;
-  startLocation: string;
-  endLocation: string;
+  startLocation: { lat: number; lng: number; address: string };
+  endLocation: { lat: number; lng: number; address: string };
   distance: number;
-  duration: string;
+  duration: number;
   averageSpeed: number;
   maxSpeed: number;
-  status: 'completed' | 'ongoing' | 'interrupted';
+  fuelConsumed: number;
+  status: 'completed' | 'in-progress' | 'interrupted';
 }
 
-const TripHistoryModal: React.FC<TripHistoryModalProps> = ({
-  vehicle,
-  isOpen,
-  onClose
-}) => {
-  if (!vehicle) return null;
+const TripHistoryModal: React.FC<TripHistoryModalProps> = ({ isOpen, onClose, vehicle }) => {
+  const [trips, setTrips] = useState<TripRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [dateRange, setDateRange] = useState('7days');
 
-  // Mock trip data - in a real app, this would come from an API
-  const mockTrips: TripRecord[] = [
-    {
-      id: '1',
-      startTime: '2024-01-15 08:30',
-      endTime: '2024-01-15 12:45',
-      startLocation: 'Warehouse A',
-      endLocation: 'Customer Site B',
-      distance: 125.5,
-      duration: '4h 15m',
-      averageSpeed: 45,
-      maxSpeed: 78,
-      status: 'completed'
-    },
-    {
-      id: '2',
-      startTime: '2024-01-15 14:00',
-      endTime: '2024-01-15 16:30',
-      startLocation: 'Customer Site B',
-      endLocation: 'Depot C',
-      distance: 87.2,
-      duration: '2h 30m',
-      averageSpeed: 52,
-      maxSpeed: 85,
-      status: 'completed'
-    },
-    {
-      id: '3',
-      startTime: '2024-01-16 09:15',
-      endTime: 'Ongoing',
-      startLocation: 'Depot C',
-      endLocation: 'In Transit',
-      distance: 45.8,
-      duration: '1h 45m',
-      averageSpeed: 38,
-      maxSpeed: 65,
-      status: 'ongoing'
+  useEffect(() => {
+    if (isOpen && vehicle) {
+      loadTripHistory();
     }
-  ];
+  }, [isOpen, vehicle, dateRange]);
+
+  const loadTripHistory = async () => {
+    setIsLoading(true);
+    
+    try {
+      // Mock API call to fetch trip history
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Generate mock trip data
+      const mockTrips: TripRecord[] = Array.from({ length: 10 }, (_, index) => {
+        const startTime = new Date(Date.now() - (index * 24 * 60 * 60 * 1000) - Math.random() * 12 * 60 * 60 * 1000);
+        const duration = Math.floor(Math.random() * 120 + 30); // 30-150 minutes
+        const endTime = new Date(startTime.getTime() + duration * 60 * 1000);
+        const distance = Math.floor(Math.random() * 200 + 10); // 10-210 km
+        
+        return {
+          id: `trip-${index}`,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          startLocation: {
+            lat: 40.7128 + (Math.random() - 0.5) * 0.1,
+            lng: -74.0060 + (Math.random() - 0.5) * 0.1,
+            address: `Start Location ${index + 1}`
+          },
+          endLocation: {
+            lat: 40.7128 + (Math.random() - 0.5) * 0.1,
+            lng: -74.0060 + (Math.random() - 0.5) * 0.1,
+            address: `End Location ${index + 1}`
+          },
+          distance,
+          duration,
+          averageSpeed: Math.floor(distance / (duration / 60)),
+          maxSpeed: Math.floor(Math.random() * 40 + 60),
+          fuelConsumed: Number((distance * 0.08).toFixed(1)),
+          status: Math.random() > 0.1 ? 'completed' : 'interrupted'
+        };
+      });
+      
+      setTrips(mockTrips);
+    } catch (error) {
+      console.error('Error loading trip history:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatDuration = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed': return 'default';
-      case 'ongoing': return 'secondary';
+      case 'in-progress': return 'secondary';
       case 'interrupted': return 'destructive';
       default: return 'outline';
     }
   };
 
+  if (!vehicle) return null;
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Route className="h-5 w-5" />
-            Trip History - {vehicle.deviceName}
+            Trip History - {vehicle.device_name}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Summary Stats */}
-          <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">3</div>
-              <div className="text-sm text-gray-600">Total Trips</div>
+          {/* Controls */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <select
+                value={dateRange}
+                onChange={(e) => setDateRange(e.target.value)}
+                className="px-3 py-2 border rounded-md text-sm"
+              >
+                <option value="7days">Last 7 Days</option>
+                <option value="30days">Last 30 Days</option>
+                <option value="90days">Last 90 Days</option>
+              </select>
+              
+              <Button variant="outline" size="sm" onClick={loadTripHistory} disabled={isLoading}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">258.5</div>
-              <div className="text-sm text-gray-600">Total Distance (km)</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">8h 30m</div>
-              <div className="text-sm text-gray-600">Total Duration</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">45</div>
-              <div className="text-sm text-gray-600">Avg Speed (km/h)</div>
-            </div>
+
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
           </div>
 
           {/* Trip List */}
-          <ScrollArea className="h-[400px]">
-            <div className="space-y-3">
-              {mockTrips.map((trip) => (
-                <div key={trip.id} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      <span className="font-medium">
-                        {trip.startTime} - {trip.endTime}
-                      </span>
-                    </div>
-                    <Badge variant={getStatusColor(trip.status)}>
-                      {trip.status.charAt(0).toUpperCase() + trip.status.slice(1)}
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="flex items-center gap-2 mb-2">
-                        <MapPin className="h-4 w-4 text-green-500" />
-                        <span className="text-sm font-medium">Start:</span>
-                        <span className="text-sm">{trip.startLocation}</span>
-                      </div>
+          <ScrollArea className="h-96">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+                Loading trip history...
+              </div>
+            ) : trips.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Route className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                <p>No trips found for the selected period</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {trips.map((trip) => (
+                  <div key={trip.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-red-500" />
-                        <span className="text-sm font-medium">End:</span>
-                        <span className="text-sm">{trip.endLocation}</span>
+                        <Calendar className="h-4 w-4 text-gray-500" />
+                        <span className="font-medium">
+                          {new Date(trip.startTime).toLocaleDateString()}
+                        </span>
+                        <Badge variant={getStatusColor(trip.status)}>
+                          {trip.status}
+                        </Badge>
+                      </div>
+                      
+                      <div className="text-sm text-gray-600">
+                        {formatDuration(trip.duration)}
                       </div>
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="flex items-center gap-1">
-                        <Route className="h-3 w-3 text-gray-400" />
-                        <span>{trip.distance} km</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-3 w-3 text-gray-400" />
-                        <span>{trip.duration}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Gauge className="h-3 w-3 text-gray-400" />
-                        <span>{trip.averageSpeed} km/h avg</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Gauge className="h-3 w-3 text-gray-400" />
-                        <span>{trip.maxSpeed} km/h max</span>
-                      </div>
-                    </div>
-                  </div>
 
-                  <div className="flex justify-end">
-                    <Button variant="outline" size="sm">
-                      View Route
-                    </Button>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                      {/* Start Location */}
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-4 w-4 text-green-500 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">Start</p>
+                          <p className="text-xs text-gray-600">{trip.startLocation.address}</p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(trip.startTime).toLocaleTimeString()}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* End Location */}
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-4 w-4 text-red-500 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium">End</p>
+                          <p className="text-xs text-gray-600">{trip.endLocation.address}</p>
+                          <p className="text-xs text-gray-500">
+                            {new Date(trip.endTime).toLocaleTimeString()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Trip Stats */}
+                    <div className="grid grid-cols-4 gap-4 text-center text-sm">
+                      <div>
+                        <p className="font-medium">{trip.distance} km</p>
+                        <p className="text-gray-600">Distance</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">{trip.averageSpeed} km/h</p>
+                        <p className="text-gray-600">Avg Speed</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">{trip.maxSpeed} km/h</p>
+                        <p className="text-gray-600">Max Speed</p>
+                      </div>
+                      <div>
+                        <p className="font-medium">{trip.fuelConsumed} L</p>
+                        <p className="text-gray-600">Fuel</p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </ScrollArea>
-
-          {/* Actions */}
-          <div className="flex justify-between pt-4 border-t">
-            <Button variant="outline" onClick={onClose}>
-              Close
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                Export History
-              </Button>
-              <Button size="sm">
-                View All Trips
-              </Button>
-            </div>
-          </div>
         </div>
       </DialogContent>
     </Dialog>

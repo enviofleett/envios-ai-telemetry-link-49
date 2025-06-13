@@ -43,9 +43,9 @@ export const useReports = () => {
 
   const generateMockReportData = useCallback((vehicles: VehicleData[], type: ReportType): ReportData[] => {
     return vehicles.slice(0, 10).map((vehicle, index) => ({
-      id: `${type}-${vehicle.deviceId}-${index}`,
-      vehicleId: vehicle.deviceId,
-      vehicleName: vehicle.deviceName,
+      id: `${type}-${vehicle.device_id}-${index}`,
+      vehicleId: vehicle.device_id,
+      vehicleName: vehicle.device_name,
       type: type === 'trip' ? 'Trip' : type === 'activity' ? 'Activity' : type === 'maintenance' ? 'Maintenance' : 'Alert',
       startTime: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toLocaleString(),
       endTime: new Date(Date.now() - Math.random() * 12 * 60 * 60 * 1000).toLocaleString(),
@@ -64,7 +64,7 @@ export const useReports = () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     const filteredVehicles = filters.vehicleIds.length > 0 
-      ? vehicles.filter(v => filters.vehicleIds.includes(v.deviceId))
+      ? vehicles.filter(v => filters.vehicleIds.includes(v.device_id))
       : vehicles;
 
     const data = generateMockReportData(filteredVehicles, filters.reportType);

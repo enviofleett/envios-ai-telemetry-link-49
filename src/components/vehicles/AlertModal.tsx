@@ -1,163 +1,160 @@
+
 import React, { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import {
-  Bell,
-  AlertTriangle,
-  Info,
-  CheckCircle
-} from 'lucide-react';
-import type { VehicleData } from '@/types/vehicle';
+import { AlertTriangle, Send, Clock } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface AlertModalProps {
-  vehicle: VehicleData | null;
   isOpen: boolean;
   onClose: () => void;
+  vehicle: VehicleData | null;
 }
 
-type AlertType = 'info' | 'warning' | 'urgent' | 'maintenance';
-
-const AlertModal: React.FC<AlertModalProps> = ({
-  vehicle,
-  isOpen,
-  onClose
-}) => {
-  const [alertType, setAlertType] = useState<AlertType>('info');
+const AlertModal: React.FC<AlertModalProps> = ({ isOpen, onClose, vehicle }) => {
+  const [alertType, setAlertType] = useState('general');
   const [message, setMessage] = useState('');
+  const [priority, setPriority] = useState('medium');
   const [isSending, setIsSending] = useState(false);
-
-  if (!vehicle) return null;
-
-  const alertTypes = [
-    { value: 'info', label: 'Information', icon: Info, color: 'text-blue-500' },
-    { value: 'warning', label: 'Warning', icon: AlertTriangle, color: 'text-yellow-500' },
-    { value: 'urgent', label: 'Urgent', icon: AlertTriangle, color: 'text-red-500' },
-    { value: 'maintenance', label: 'Maintenance', icon: CheckCircle, color: 'text-green-500' },
-  ];
-
-  const selectedAlertType = alertTypes.find(type => type.value === alertType);
+  const { toast } = useToast();
 
   const handleSendAlert = async () => {
-    if (!message.trim()) return;
+    if (!vehicle || !message.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a message",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setIsSending(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    console.log('Alert sent:', {
-      vehicleId: vehicle.deviceId,
-      type: alertType,
-      message: message.trim(),
-      timestamp: new Date().toISOString()
-    });
+    try {
+      // Mock API call
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Simulate alert sending to vehicle
+      console.log('Sending alert to vehicle:', {
+        vehicleId: vehicle.device_id,
+        type: alertType,
+        message,
+        priority,
+        timestamp: new Date().toISOString()
+      });
 
-    setIsSending(false);
-    setMessage('');
-    onClose();
+      toast({
+        title: "Alert Sent",
+        description: `Alert sent successfully to ${vehicle.device_name}`,
+      });
+
+      // Reset form
+      setMessage('');
+      setAlertType('general');
+      setPriority('medium');
+      onClose();
+      
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to send alert. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
-  const handleClose = () => {
-    setMessage('');
-    setAlertType('info');
-    onClose();
-  };
+  if (!vehicle) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleClose}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Send Alert - {vehicle.deviceName}
+            <AlertTriangle className="h-5 w-5 text-orange-500" />
+            Send Alert to {vehicle.device_name}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           {/* Vehicle Info */}
           <div className="p-3 bg-gray-50 rounded-lg">
-            <div className="text-sm">
-              <div className="font-medium">{vehicle.deviceName}</div>
-              <div className="text-gray-600">ID: {vehicle.deviceId}</div>
-            </div>
+            <p className="text-sm text-gray-600">Vehicle: <span className="font-medium">{vehicle.device_name}</span></p>
+            <p className="text-sm text-gray-600">ID: <span className="font-medium">{vehicle.device_id}</span></p>
           </div>
 
           {/* Alert Type */}
           <div className="space-y-2">
-            <Label htmlFor="alert-type">Alert Type</Label>
-            <Select value={alertType} onValueChange={(value: AlertType) => setAlertType(value)}>
+            <label className="text-sm font-medium">Alert Type</label>
+            <Select value={alertType} onValueChange={setAlertType}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {alertTypes.map((type) => {
-                  const IconComponent = type.icon;
-                  return (
-                    <SelectItem key={type.value} value={type.value}>
-                      <div className="flex items-center gap-2">
-                        <IconComponent className={`h-4 w-4 ${type.color}`} />
-                        {type.label}
-                      </div>
-                    </SelectItem>
-                  );
-                })}
+                <SelectItem value="general">General Alert</SelectItem>
+                <SelectItem value="emergency">Emergency</SelectItem>
+                <SelectItem value="maintenance">Maintenance Required</SelectItem>
+                <SelectItem value="route">Route Change</SelectItem>
+                <SelectItem value="fuel">Fuel Warning</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Priority */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Priority</label>
+            <Select value={priority} onValueChange={setPriority}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           {/* Message */}
           <div className="space-y-2">
-            <Label htmlFor="message">Message</Label>
+            <label className="text-sm font-medium">Message</label>
             <Textarea
-              id="message"
               placeholder="Enter your alert message..."
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={4}
-              className="resize-none"
+              maxLength={500}
             />
-            <div className="text-xs text-gray-500">
-              {message.length}/500 characters
-            </div>
+            <p className="text-xs text-gray-500 text-right">{message.length}/500</p>
           </div>
 
-          {/* Preview */}
-          {message.trim() && (
-            <div className="space-y-2">
-              <Label>Preview</Label>
-              <div className="p-3 border rounded-lg bg-gray-50">
-                <div className="flex items-center gap-2 mb-2">
-                  {selectedAlertType && (
-                    <>
-                      <selectedAlertType.icon className={`h-4 w-4 ${selectedAlertType.color}`} />
-                      <Badge variant="outline">{selectedAlertType.label}</Badge>
-                    </>
-                  )}
-                </div>
-                <div className="text-sm">{message}</div>
-              </div>
-            </div>
-          )}
-
           {/* Actions */}
-          <div className="flex justify-between pt-4 border-t">
-            <Button variant="outline" onClick={handleClose}>
+          <div className="flex gap-2 pt-4">
+            <Button variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>
             <Button 
-              onClick={handleSendAlert}
-              disabled={!message.trim() || isSending}
+              onClick={handleSendAlert} 
+              disabled={isSending || !message.trim()}
+              className="flex-1"
             >
-              {isSending ? 'Sending...' : 'Send Alert'}
+              {isSending ? (
+                <>
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Alert
+                </>
+              )}
             </Button>
           </div>
         </div>

@@ -1,53 +1,44 @@
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
+  Car, 
   MapPin, 
-  Battery, 
-  Gauge, 
+  Activity, 
   Clock, 
-  Key,
-  Power,
-  PowerOff,
-  AlertTriangle,
-  Calendar,
-  Package
+  Fuel,
+  MoreHorizontal,
+  Navigation,
+  AlertTriangle
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { VehicleData } from '@/services/unifiedVehicleData';
-import DataFreshnessIndicator from './DataFreshnessIndicator';
 
 interface VehicleStatusCardProps {
-  vehicle: VehicleData | null;
-  onEngineShutdown?: (vehicleId: string) => void;
-  onEngineEnable?: (vehicleId: string) => void;
-  canControlEngine?: boolean;
-  isLoading?: boolean;
+  vehicle: VehicleData;
+  isSelected?: boolean;
+  onSelect?: () => void;
+  onViewMap?: () => void;
+  onViewHistory?: () => void;
+  onViewStats?: () => void;
+  className?: string;
 }
 
 const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
   vehicle,
-  onEngineShutdown,
-  onEngineEnable,
-  canControlEngine = false,
-  isLoading = false
+  isSelected = false,
+  onSelect,
+  onViewMap,
+  onViewHistory,
+  onViewStats,
+  className
 }) => {
-  if (!vehicle) {
-    return (
-      <Card className="w-full">
-        <CardContent className="p-6 text-center text-gray-500">
-          <MapPin className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-          <p>Select a vehicle to view its status</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   const getVehicleStatus = () => {
-    if (!vehicle.lastPosition?.timestamp) return 'offline';
+    if (!vehicle.last_position?.timestamp) return 'offline';
     
-    const lastUpdate = new Date(vehicle.lastPosition.timestamp);
+    const lastUpdate = new Date(vehicle.last_position.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -56,30 +47,7 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
     return 'offline';
   };
 
-  const getIgnitionStatus = () => {
-    // Mock ignition status - in real implementation, this would come from GP51 API
-    return Math.random() > 0.5 ? 'ON' : 'OFF';
-  };
-
-  const getBatteryLevel = () => {
-    // Mock battery level - in real implementation, this would come from GP51 API
-    return Math.floor(Math.random() * 100);
-  };
-
-  const getSubscriptionInfo = () => {
-    // Mock subscription info - in real implementation, this would come from database
-    return {
-      package: 'Premium Fleet',
-      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()
-    };
-  };
-
-  const status = getVehicleStatus();
-  const ignitionStatus = getIgnitionStatus();
-  const batteryLevel = getBatteryLevel();
-  const subscription = getSubscriptionInfo();
-
-  const getStatusColor = () => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'online': return 'bg-green-500';
       case 'idle': return 'bg-yellow-500';
@@ -87,159 +55,147 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
     }
   };
 
-  const formatCoordinates = (lat: number, lon: number) => {
-    return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+  const getStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'online': return 'default';
+      case 'idle': return 'secondary';
+      default: return 'outline';
+    }
   };
 
+  const formatLastUpdate = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+    return date.toLocaleDateString();
+  };
+
+  const status = getVehicleStatus();
+  const hasAlerts = Math.random() > 0.8; // Mock alert condition
+
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <MapPin className="h-5 w-5" />
-            {vehicle.deviceName}
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant={status === 'online' ? 'default' : 'secondary'} className="flex items-center gap-1">
-              <div className={`w-2 h-2 rounded-full ${getStatusColor()}`}></div>
-              {status.toUpperCase()}
-            </Badge>
-            <DataFreshnessIndicator 
-              lastUpdate={vehicle.lastPosition?.timestamp} 
-              size="sm"
-              showText={false}
-            />
-          </div>
-        </div>
-        <p className="text-sm text-gray-600">Device ID: {vehicle.deviceId}</p>
-      </CardHeader>
-      
-      <CardContent className="space-y-4">
-        {/* Data Freshness Status */}
-        <div className="p-3 bg-gray-50 rounded-lg">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Clock className="h-4 w-4 text-gray-400" />
-              Data Status
+    <Card 
+      className={cn(
+        "cursor-pointer transition-all duration-200 hover:shadow-md",
+        isSelected && "ring-2 ring-blue-500 ring-opacity-50",
+        className
+      )}
+      onClick={onSelect}
+    >
+      <CardContent className="p-4">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Car className="h-5 w-5 text-blue-600" />
             </div>
-            <DataFreshnessIndicator 
-              lastUpdate={vehicle.lastPosition?.timestamp} 
-              size="md"
-            />
+            
+            <div>
+              <h3 className="font-semibold text-gray-900">{vehicle.device_name}</h3>
+              <p className="text-sm text-gray-500">ID: {vehicle.device_id}</p>
+            </div>
           </div>
-          {vehicle.lastPosition?.timestamp && (
-            <p className="text-xs text-gray-500 mt-1">
-              Last update: {vehicle.lastPosition.timestamp.toLocaleString()}
-            </p>
-          )}
+
+          <div className="flex items-center gap-2">
+            {hasAlerts && (
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+            )}
+            <div className={`w-2 h-2 rounded-full ${getStatusColor(status)}`}></div>
+          </div>
         </div>
 
-        {/* Location */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <MapPin className="h-4 w-4 text-gray-400" />
-              Location
-            </div>
-            {vehicle.lastPosition?.lat && vehicle.lastPosition?.lon ? (
-              <p className="text-sm font-mono">
-                {formatCoordinates(vehicle.lastPosition.lat, vehicle.lastPosition.lon)}
-              </p>
-            ) : (
-              <p className="text-sm text-gray-400">No location data</p>
+        {/* Status and Location */}
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center justify-between">
+            <Badge variant={getStatusBadgeVariant(status)}>
+              {status}
+            </Badge>
+            
+            {vehicle.last_position && (
+              <div className="flex items-center gap-1 text-sm text-gray-600">
+                <Activity className="h-3 w-3" />
+                <span>{vehicle.last_position.speed || 0} km/h</span>
+              </div>
             )}
           </div>
 
-          {/* Battery Level */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Battery className="h-4 w-4 text-gray-400" />
-              Battery Life
+          {vehicle.last_position && (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <MapPin className="h-3 w-3" />
+              <span className="truncate">
+                {vehicle.last_position.lat.toFixed(4)}, {vehicle.last_position.lng.toFixed(4)}
+              </span>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex-1 bg-gray-200 rounded-full h-2">
-                <div 
-                  className={`h-2 rounded-full ${batteryLevel > 20 ? 'bg-green-500' : 'bg-red-500'}`}
-                  style={{ width: `${batteryLevel}%` }}
-                ></div>
-              </div>
-              <span className="text-sm font-medium">{batteryLevel}%</span>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Speed and Ignition */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Gauge className="h-4 w-4 text-gray-400" />
-              Speed
-            </div>
-            <p className="text-lg font-bold">
-              {vehicle.lastPosition?.speed || 0} km/h
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Key className="h-4 w-4 text-gray-400" />
-              Ignition Status
-            </div>
-            <Badge variant={ignitionStatus === 'ON' ? 'default' : 'secondary'}>
-              {ignitionStatus}
-            </Badge>
-          </div>
+        {/* Last Update */}
+        <div className="flex items-center gap-2 text-xs text-gray-500 mb-4">
+          <Clock className="h-3 w-3" />
+          <span>
+            Last update: {vehicle.last_position?.timestamp ? 
+              formatLastUpdate(vehicle.last_position.timestamp) : 
+              'Unknown'
+            }
+          </span>
         </div>
 
-        {/* System ID */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <AlertTriangle className="h-4 w-4 text-gray-400" />
-            System ID
-          </div>
-          <p className="text-sm font-mono">{vehicle.deviceId}</p>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewMap?.();
+            }}
+          >
+            <Navigation className="h-3 w-3 mr-1" />
+            Map
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewHistory?.();
+            }}
+          >
+            <Clock className="h-3 w-3 mr-1" />
+            History
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewStats?.();
+            }}
+          >
+            <MoreHorizontal className="h-3 w-3" />
+          </Button>
         </div>
 
-        {/* Subscription Package */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Package className="h-4 w-4 text-gray-400" />
-            Subscribed Package & Validity
-          </div>
-          <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-            <div>
-              <p className="font-medium text-blue-900">{subscription.package}</p>
-              <p className="text-sm text-blue-600">Valid until {subscription.validUntil}</p>
+        {/* Mock fuel/battery indicator */}
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1">
+              <Fuel className="h-3 w-3 text-green-600" />
+              <span>Fuel: {Math.floor(Math.random() * 40 + 60)}%</span>
             </div>
-            <Badge variant="outline" className="text-blue-600 border-blue-300">
-              Active
-            </Badge>
+            <span className="text-gray-500">
+              {Math.floor(Math.random() * 500 + 100)} km today
+            </span>
           </div>
         </div>
-
-        {/* Engine Control Buttons */}
-        {canControlEngine && (
-          <div className="flex gap-2 pt-4 border-t">
-            <Button
-              variant="destructive"
-              onClick={() => onEngineShutdown?.(vehicle.deviceId)}
-              disabled={isLoading || ignitionStatus === 'OFF'}
-              className="flex-1"
-            >
-              <PowerOff className="h-4 w-4 mr-2" />
-              Engine Shutdown
-            </Button>
-            <Button
-              variant="default"
-              onClick={() => onEngineEnable?.(vehicle.deviceId)}
-              disabled={isLoading || ignitionStatus === 'ON'}
-              className="flex-1"
-            >
-              <Power className="h-4 w-4 mr-2" />
-              Engine Enable
-            </Button>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

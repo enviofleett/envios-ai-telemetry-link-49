@@ -1,44 +1,50 @@
 
-import React from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import { 
-  Search, 
+  BarChart3, 
+  Activity, 
   MapPin, 
-  Clock,
-  Wifi,
-  WifiOff
+  Clock, 
+  Fuel, 
+  TrendingUp,
+  AlertTriangle,
+  ChevronRight
 } from 'lucide-react';
 import type { VehicleData } from '@/services/unifiedVehicleData';
 
 interface VehicleStatisticsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title: string;
-  vehicles: VehicleData[];
-  statusType: 'online' | 'offline';
+  vehicle: VehicleData;
+  children: React.ReactNode;
 }
 
-const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
-  isOpen,
-  onClose,
-  title,
-  vehicles,
-  statusType
-}) => {
-  const [searchTerm, setSearchTerm] = React.useState('');
+const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({ vehicle, children }) => {
+  const [isOpen, setIsOpen] = useState(false);
 
-  const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.lastPosition?.timestamp) return 'offline';
+  // Mock statistics data
+  const getVehicleStatistics = (vehicle: VehicleData) => {
+    const stats = {
+      totalDistance: Math.floor(Math.random() * 5000 + 1000),
+      totalTrips: Math.floor(Math.random() * 100 + 20),
+      averageSpeed: Math.floor(Math.random() * 40 + 30),
+      fuelConsumption: Math.floor(Math.random() * 200 + 100),
+      idleTime: Math.floor(Math.random() * 50 + 10),
+      drivingTime: Math.floor(Math.random() * 300 + 100),
+      alerts: Math.floor(Math.random() * 10),
+      efficiency: Math.floor(Math.random() * 30 + 70)
+    };
+
+    return stats;
+  };
+
+  const getVehicleStatus = () => {
+    if (!vehicle.last_position?.timestamp) return 'offline';
     
-    const lastUpdate = vehicle.lastPosition.timestamp;
+    const lastUpdate = new Date(vehicle.last_position.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     
@@ -47,130 +53,165 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({
     return 'offline';
   };
 
-  const filteredVehicles = vehicles.filter(vehicle => {
-    const vehicleStatus = getVehicleStatus(vehicle);
-    const matchesStatus = statusType === 'online' ? vehicleStatus === 'online' : vehicleStatus === 'offline';
-    const matchesSearch = vehicle.deviceName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         vehicle.deviceId.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
-
-  const formatLastSeen = (timestamp: Date) => {
-    const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60));
-    
-    if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return timestamp.toLocaleDateString();
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-green-500';
+      case 'idle': return 'bg-yellow-500';
+      default: return 'bg-gray-400';
+    }
   };
 
-  const getSubscriberName = (vehicle: VehicleData) => {
-    // Mock subscriber name - in real implementation, this would come from user data
-    return `Subscriber ${vehicle.deviceId.slice(-4)}`;
-  };
-
-  const getPlateNumber = (vehicle: VehicleData) => {
-    // Mock plate number - in real implementation, this would come from vehicle data
-    return `ABC-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
-  };
+  const stats = getVehicleStatistics(vehicle);
+  const status = getVehicleStatus();
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        {children}
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {statusType === 'online' ? (
-              <Wifi className="h-5 w-5 text-green-500" />
-            ) : (
-              <WifiOff className="h-5 w-5 text-red-500" />
-            )}
-            {title} ({filteredVehicles.length})
+          <DialogTitle className="flex items-center gap-3">
+            <BarChart3 className="h-6 w-6" />
+            Vehicle Statistics - {vehicle.device_name}
+            <Badge variant="outline">ID: {vehicle.device_id}</Badge>
           </DialogTitle>
         </DialogHeader>
-        
-        <div className="space-y-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search vehicles..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
 
-          {/* Vehicle List */}
-          <ScrollArea className="h-[400px]">
-            <div className="space-y-3">
-              {filteredVehicles.map((vehicle) => (
-                <div 
-                  key={vehicle.deviceId}
-                  className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-medium">{getSubscriberName(vehicle)}</h3>
-                        <Badge variant={statusType === 'online' ? 'default' : 'secondary'}>
-                          {statusType}
-                        </Badge>
-                      </div>
-                      
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-3 w-3" />
-                          <span className="font-medium cursor-pointer text-blue-600 hover:text-blue-800">
-                            {getPlateNumber(vehicle)}
-                          </span>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-3 w-3" />
-                          <span>
-                            Last seen: {vehicle.lastPosition?.timestamp 
-                              ? formatLastSeen(vehicle.lastPosition.timestamp)
-                              : 'Never'
-                            }
-                          </span>
-                        </div>
-                        
-                        <div className="text-xs text-gray-500">
-                          Device: {vehicle.deviceName} ({vehicle.deviceId})
-                        </div>
-                      </div>
+        <div className="space-y-6">
+          {/* Current Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Current Status</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`}></div>
+                  <div>
+                    <p className="text-sm text-gray-600">Status</p>
+                    <p className="font-semibold capitalize">{status}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <MapPin className="h-5 w-5 text-blue-500" />
+                  <div>
+                    <p className="text-sm text-gray-600">Location</p>
+                    <p className="font-semibold">
+                      {vehicle.last_position ? 
+                        `${vehicle.last_position.lat.toFixed(4)}, ${vehicle.last_position.lng.toFixed(4)}` : 
+                        'Unknown'
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Activity className="h-5 w-5 text-green-500" />
+                  <div>
+                    <p className="text-sm text-gray-600">Speed</p>
+                    <p className="font-semibold">
+                      {vehicle.last_position?.speed || 0} km/h
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Performance Metrics */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Performance Metrics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <TrendingUp className="h-8 w-8 mx-auto mb-2 text-blue-600" />
+                  <p className="text-2xl font-bold text-blue-600">{stats.totalDistance}</p>
+                  <p className="text-sm text-gray-600">Total Distance (km)</p>
+                </div>
+
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <MapPin className="h-8 w-8 mx-auto mb-2 text-green-600" />
+                  <p className="text-2xl font-bold text-green-600">{stats.totalTrips}</p>
+                  <p className="text-sm text-gray-600">Total Trips</p>
+                </div>
+
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <Activity className="h-8 w-8 mx-auto mb-2 text-purple-600" />
+                  <p className="text-2xl font-bold text-purple-600">{stats.averageSpeed}</p>
+                  <p className="text-sm text-gray-600">Avg Speed (km/h)</p>
+                </div>
+
+                <div className="text-center p-4 bg-orange-50 rounded-lg">
+                  <Fuel className="h-8 w-8 mx-auto mb-2 text-orange-600" />
+                  <p className="text-2xl font-bold text-orange-600">{stats.fuelConsumption}</p>
+                  <p className="text-sm text-gray-600">Fuel Used (L)</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Time Analysis */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Time Analysis</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-5 w-5 text-blue-500" />
+                    <div>
+                      <p className="font-semibold">{stats.drivingTime}h</p>
+                      <p className="text-sm text-gray-600">Driving Time</p>
                     </div>
-                    
-                    {vehicle.lastPosition?.lat && vehicle.lastPosition?.lon && (
-                      <div className="text-right text-xs text-gray-500">
-                        <div>Speed: {vehicle.lastPosition.speed || 0} km/h</div>
-                        <div className="font-mono">
-                          {vehicle.lastPosition.lat.toFixed(4)}, {vehicle.lastPosition.lon.toFixed(4)}
-                        </div>
-                      </div>
-                    )}
                   </div>
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
                 </div>
-              ))}
-              
-              {filteredVehicles.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <div className="mb-2">
-                    {statusType === 'online' ? (
-                      <Wifi className="h-12 w-12 mx-auto text-gray-300" />
-                    ) : (
-                      <WifiOff className="h-12 w-12 mx-auto text-gray-300" />
-                    )}
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-5 w-5 text-yellow-500" />
+                    <div>
+                      <p className="font-semibold">{stats.idleTime}h</p>
+                      <p className="text-sm text-gray-600">Idle Time</p>
+                    </div>
                   </div>
-                  <p>No {statusType} vehicles found</p>
-                  {searchTerm && (
-                    <p className="text-sm">Try adjusting your search terms</p>
-                  )}
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
                 </div>
-              )}
-            </div>
-          </ScrollArea>
+
+                <div className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="h-5 w-5 text-red-500" />
+                    <div>
+                      <p className="font-semibold">{stats.alerts}</p>
+                      <p className="text-sm text-gray-600">Alerts</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-gray-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Efficiency Score */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Efficiency Score</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-green-100 mb-4">
+                  <span className="text-3xl font-bold text-green-600">{stats.efficiency}%</span>
+                </div>
+                <p className="text-lg font-semibold mb-2">Excellent Performance</p>
+                <p className="text-gray-600">Based on fuel consumption, driving patterns, and maintenance schedule</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </DialogContent>
     </Dialog>

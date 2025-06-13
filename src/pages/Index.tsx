@@ -2,7 +2,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import Layout from "@/components/Layout";
-import { DashboardContent } from "@/components/dashboard/DashboardContent";
+import DashboardContent from "@/components/dashboard/DashboardContent";
 
 const Index = () => {
   const { user, loading } = useAuth();

@@ -8,7 +8,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import type { VehicleData } from '@/types/vehicle';
-import type { ReportFilters as ReportFiltersType } from '@/hooks/useReports';
+import type { ReportFilters as ReportFiltersType } from '@/hooks/useAdvancedReports';
 
 interface ReportFiltersProps {
   vehicles: VehicleData[];

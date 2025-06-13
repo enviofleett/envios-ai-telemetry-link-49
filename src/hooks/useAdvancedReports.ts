@@ -221,13 +221,13 @@ export const useAdvancedReports = () => {
   const generateMileageReports = useCallback((vehicles: VehicleData[]): MileageReportData[] => {
     const periods = ['Daily', 'Weekly', 'Monthly'];
     const filteredVehicles = filters.vehicleIds.length > 0 
-      ? vehicles.filter(v => filters.vehicleIds.includes(v.deviceId))
+      ? vehicles.filter(v => filters.vehicleIds.includes(v.device_id))
       : vehicles;
 
     return filteredVehicles.slice(0, 12).map((vehicle, index) => ({
-      id: `mileage-${vehicle.deviceId}-${index}`,
-      vehicleId: vehicle.deviceId,
-      vehicleName: vehicle.deviceName,
+      id: `mileage-${vehicle.device_id}-${index}`,
+      vehicleId: vehicle.device_id,
+      vehicleName: vehicle.device_name,
       period: periods[Math.floor(Math.random() * periods.length)],
       totalDistance: `${Math.floor(Math.random() * 2000 + 500)} km`,
       averageDistance: `${Math.floor(Math.random() * 200 + 50)} km/day`,
