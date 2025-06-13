@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +15,7 @@ interface VehicleMetrics {
   idle: number;
   offline: number;
   maintenance: number;
+  alerts: number;
 }
 
 // Type guard for position data from Supabase JSONB
@@ -137,8 +137,9 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
       return minutesSinceUpdate > 5 && minutesSinceUpdate <= 30;
     }).length;
     const maintenance = 0; // No maintenance status in current data
+    const alerts = vehicles.filter(v => v.alerts.length > 0).length;
 
-    return { total, online, idle, offline, maintenance };
+    return { total, online, idle, offline, maintenance, alerts };
   }, [vehicles]);
 
   const forceRefresh = async () => {

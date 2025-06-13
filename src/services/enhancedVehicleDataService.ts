@@ -106,7 +106,7 @@ class EnhancedVehicleDataService {
       envio_user_id: supabaseVehicle.envio_user_id,
       // Legacy compatibility properties
       vehicleName: supabaseVehicle.device_name,
-      lastPosition: last_position
+      last_position: last_position
     };
   }
 
