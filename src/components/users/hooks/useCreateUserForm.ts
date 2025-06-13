@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -89,7 +90,9 @@ export const useCreateUserForm = ({ editUser, onSuccess }: UseCreateUserFormProp
           body: {
             name: userData.name,
             email: userData.email,
-            phone_number: userData.phone_number
+            phone_number: userData.phone_number,
+            gp51_user_type: userData.gp51_user_type,
+            role: userData.role
           }
         });
 
