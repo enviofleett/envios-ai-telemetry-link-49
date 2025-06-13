@@ -23,6 +23,17 @@ import CompanySettingsTab from '../settings/CompanySettingsTab';
 import EnhancedBrandingTab from '../settings/EnhancedBrandingTab';
 import CurrencyManagementTab from '../settings/CurrencyManagementTab';
 
+// Import missing tabs
+import VinApiTab from './tabs/VinApiTab';
+import MapsTab from './tabs/MapsTab';
+import WhatsAppApiTab from './tabs/WhatsAppApiTab';
+import CSVImportTab from './tabs/CSVImportTab';
+import DataManagementTab from './tabs/DataManagementTab';
+import WorkshopsTab from './tabs/WorkshopsTab';
+import GP51ValidationTab from './tabs/GP51ValidationTab';
+import SMTPGuideTab from './tabs/SMTPGuideTab';
+import APIIntegrationsTab from './tabs/APIIntegrationsTab';
+
 interface EnhancedAdminTabRendererProps {
   activeTab: string;
 }
@@ -59,6 +70,8 @@ const EnhancedAdminTabRenderer: React.FC<EnhancedAdminTabRendererProps> = ({ act
         return <EmailTriggersAdminTab />;
       case 'advanced-email':
         return <AdvancedEmailManagementTab />;
+      case 'smtp-guide':
+        return <SMTPGuideTab />;
       
       // SMS functionality
       case 'sms-settings':
@@ -66,21 +79,45 @@ const EnhancedAdminTabRenderer: React.FC<EnhancedAdminTabRendererProps> = ({ act
       case 'sms-logs':
         return <SMSLogsTab />;
       
+      // API Integration tabs
+      case 'vin-api':
+        return <VinApiTab />;
+      case 'maps':
+        return <MapsTab />;
+      case 'whatsapp-api':
+        return <WhatsAppApiTab />;
+      case 'api-integrations':
+        return <APIIntegrationsTab />;
+      
+      // Data Management tabs
+      case 'csv-import':
+        return <CSVImportTab />;
+      case 'data-management':
+        return <DataManagementTab />;
+      
+      // User Management tabs
+      case 'workshops':
+        return <WorkshopsTab />;
+      
+      // Integration tabs
+      case 'gp51':
+        return <GP51IntegrationTab />;
+      case 'gp51-validation':
+        return <GP51ValidationTab />;
+      case 'geofencing':
+        return <GeofencingTab />;
+      
       // Phase 2 - Static tabs (to be connected next)
       case 'packages':
         return <PackagesTab />;
       case 'analytics':
         return <AnalyticsTab />;
-      case 'gp51':
-        return <GP51IntegrationTab />;
       case 'notifications':
         return <NotificationsTab />;
       case 'security':
         return <SecurityTab />;
       case 'system':
         return <SystemSettingsTab />;
-      case 'geofencing':
-        return <GeofencingTab />;
       
       default:
         return (

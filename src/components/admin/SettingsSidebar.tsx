@@ -18,7 +18,15 @@ import {
   BarChart3,
   Package,
   Send,
-  Inbox
+  Inbox,
+  Upload,
+  Car,
+  Map,
+  MessageCircle,
+  Globe,
+  CheckCircle,
+  BookOpen,
+  Link
 } from 'lucide-react';
 
 interface SettingsSidebarProps {
@@ -40,6 +48,7 @@ const sidebarItems = [
     items: [
       { id: 'users', label: 'Users', icon: Users },
       { id: 'billing', label: 'Billing', icon: FileText },
+      { id: 'workshops', label: 'Workshops', icon: Users },
     ]
   },
   {
@@ -50,8 +59,25 @@ const sidebarItems = [
       { id: 'email-triggers', label: 'Email Triggers', icon: Zap },
       { id: 'email-queue', label: 'Email Queue', icon: Inbox },
       { id: 'advanced-email', label: 'Advanced Email', icon: Send },
+      { id: 'smtp-guide', label: 'SMTP Guide', icon: BookOpen },
       { id: 'sms-settings', label: 'SMS Gateway', icon: MessageSquare },
       { id: 'sms-logs', label: 'SMS Logs', icon: MessageSquare },
+    ]
+  },
+  {
+    category: 'API Integrations',
+    items: [
+      { id: 'vin-api', label: 'VIN API', icon: Car },
+      { id: 'maps', label: 'Maps API', icon: Map },
+      { id: 'whatsapp-api', label: 'WhatsApp API', icon: MessageCircle },
+      { id: 'api-integrations', label: 'API Management', icon: Link },
+    ]
+  },
+  {
+    category: 'Data Management',
+    items: [
+      { id: 'csv-import', label: 'CSV Import', icon: Upload },
+      { id: 'data-management', label: 'Data Management', icon: Database },
     ]
   },
   {
@@ -67,6 +93,7 @@ const sidebarItems = [
     category: 'Integration',
     items: [
       { id: 'gp51', label: 'GP51 Integration', icon: MapPin },
+      { id: 'gp51-validation', label: 'GP51 Validation', icon: CheckCircle },
       { id: 'geofencing', label: 'Geofencing', icon: MapPin },
     ]
   },
