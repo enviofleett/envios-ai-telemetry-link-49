@@ -167,11 +167,9 @@ export default function UserProfileModal({
                         <div className="text-sm font-medium">
                           {vehicle.device_name || vehicle.device_id}
                         </div>
-                        {vehicle.plate_number && (
-                          <div className="text-xs text-gray-500">
-                            Plate: {vehicle.plate_number}
-                          </div>
-                        )}
+                        <div className="text-xs text-gray-500">
+                          Device ID: {vehicle.device_id}
+                        </div>
                       </div>
                     </div>
                     <Badge variant="outline">{vehicle.device_id}</Badge>

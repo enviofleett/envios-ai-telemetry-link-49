@@ -9,7 +9,8 @@ import SimpleUserManagementTable from './SimpleUserManagementTable';
 import UserDetailsModal from './UserDetailsModal';
 import CreateUserDialog from './CreateUserDialog';
 
-interface User {
+// Local interface for this component's data structure
+interface LocalUser {
   id: string;
   name: string;
   email: string;
@@ -24,12 +25,20 @@ interface User {
   }>;
 }
 
+// Type-safe role distribution interface
+interface RoleDistribution {
+  admin: number;
+  fleet_manager: number;
+  dispatcher: number;
+  driver: number;
+}
+
 const SimpleUserManagement: React.FC = () => {
   const { user } = useAuth();
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<LocalUser | null>(null);
   const [showUserDetails, setShowUserDetails] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
-  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editUser, setEditUser] = useState<LocalUser | null>(null);
 
   // Use the new user profiles hook instead of the old optimized hook
   const { data: usersData, isLoading } = useQuery({
@@ -46,15 +55,24 @@ const SimpleUserManagement: React.FC = () => {
 
       if (error) throw error;
 
-      // Get email addresses from auth.users
-      const { data: authUsers } = await supabase.auth.admin.listUsers();
-      const emailMap = authUsers.users.reduce((acc, user) => {
-        acc[user.id] = user.email;
-        return acc;
-      }, {} as Record<string, string>);
+      // Get email addresses from auth.users with proper error handling
+      let emailMap: Record<string, string> = {};
+      try {
+        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+        if (!authError && authUsers?.users) {
+          emailMap = authUsers.users.reduce((acc, authUser) => {
+            if (authUser.id && authUser.email) {
+              acc[authUser.id] = authUser.email;
+            }
+            return acc;
+          }, {} as Record<string, string>);
+        }
+      } catch (error) {
+        console.warn('Could not fetch auth users:', error);
+      }
 
-      // Transform to match the expected User interface
-      const transformedUsers = (profiles || []).map(profile => ({
+      // Transform to match the expected LocalUser interface
+      const transformedUsers: LocalUser[] = (profiles || []).map(profile => ({
         id: profile.id,
         name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown User',
         email: emailMap[profile.id] || '',
@@ -77,21 +95,21 @@ const SimpleUserManagement: React.FC = () => {
     return <Navigate to="/auth" replace />;
   }
 
-  const users = usersData?.users || [];
+  const users: LocalUser[] = usersData?.users || [];
 
   // Calculate stats
   const totalUsers = users.length;
   const usersWithVehicles = users.filter(u => u.assigned_vehicles && u.assigned_vehicles.length > 0).length;
   const pendingActivations = users.filter(u => u.registration_status === 'pending').length;
   
-  const userDistribution = {
+  const userDistribution: RoleDistribution = {
     admin: users.filter(u => u.user_roles?.[0]?.role === 'admin').length,
     fleet_manager: users.filter(u => u.user_roles?.[0]?.role === 'fleet_manager').length,
     dispatcher: users.filter(u => u.user_roles?.[0]?.role === 'dispatcher').length,
     driver: users.filter(u => u.user_roles?.[0]?.role === 'driver').length,
   };
 
-  const handleUserClick = (user: User) => {
+  const handleUserClick = (user: LocalUser) => {
     setSelectedUser(user);
     setShowUserDetails(true);
   };
@@ -101,13 +119,13 @@ const SimpleUserManagement: React.FC = () => {
     setShowCreateUser(true);
   };
 
-  const handleEditUser = (user: User) => {
+  const handleEditUser = (user: LocalUser) => {
     setEditUser(user);
     setShowCreateUser(true);
     setShowUserDetails(false);
   };
 
-  const handleDeleteUser = (user: User) => {
+  const handleDeleteUser = (user: LocalUser) => {
     if (confirm(`Are you sure you want to delete ${user.name}?`)) {
       // TODO: Implement delete functionality
       console.log('Delete user:', user.id);

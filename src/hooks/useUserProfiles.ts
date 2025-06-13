@@ -3,6 +3,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 
+// Type guards for safe type checking
+const isValidRegistrationStatus = (status: string): status is 'pending_email_verification' | 'pending_phone_verification' | 'pending_admin_approval' | 'active' | 'rejected' => {
+  return ['pending_email_verification', 'pending_phone_verification', 'pending_admin_approval', 'active', 'rejected'].includes(status);
+};
+
+const isValidRole = (role: string): role is 'admin' | 'user' | 'driver' | 'dispatcher' | 'fleet_manager' | 'pending' => {
+  return ['admin', 'user', 'driver', 'dispatcher', 'fleet_manager', 'pending'].includes(role);
+};
+
 export interface UserProfile {
   id: string;
   phone_number?: string;
@@ -53,13 +62,13 @@ export const useUserProfiles = (params: UseUserProfilesParams = {}) => {
         query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone_number.ilike.%${search}%`);
       }
 
-      // Add status filter
-      if (status) {
+      // Add status filter with type safety
+      if (status && isValidRegistrationStatus(status)) {
         query = query.eq('registration_status', status);
       }
 
-      // Add role filter
-      if (role) {
+      // Add role filter with type safety
+      if (role && isValidRole(role)) {
         query = query.eq('role', role);
       }
 
@@ -77,19 +86,34 @@ export const useUserProfiles = (params: UseUserProfilesParams = {}) => {
 
       // Get email addresses from auth.users for each profile
       const profileIds = data?.map(p => p.id) || [];
-      const { data: authUsers } = await supabase.auth.admin.listUsers();
+      let emailMap: Record<string, string> = {};
       
-      const emailMap: Record<string, string> = {};
-      if (authUsers && authUsers.users) {
-        authUsers.users.forEach(user => {
-          if (user.id && user.email) {
-            emailMap[user.id] = user.email;
-          }
-        });
+      try {
+        const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+        if (!authError && authUsers?.users) {
+          authUsers.users.forEach(authUser => {
+            if (authUser.id && authUser.email) {
+              emailMap[authUser.id] = authUser.email;
+            }
+          });
+        }
+      } catch (error) {
+        console.warn('Could not fetch auth users:', error);
       }
 
-      const enhancedProfiles = (data || []).map(profile => ({
-        ...profile,
+      const enhancedProfiles: UserProfile[] = (data || []).map(profile => ({
+        id: profile.id,
+        phone_number: profile.phone_number,
+        registration_status: isValidRegistrationStatus(profile.registration_status) 
+          ? profile.registration_status 
+          : 'pending_email_verification',
+        role: isValidRole(profile.role) ? profile.role : 'user',
+        company_id: profile.company_id,
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        profile_picture_url: profile.profile_picture_url,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
         email: emailMap[profile.id] || '',
         vehicle_count: profile.vehicles?.length || 0,
         assigned_vehicles: profile.vehicles || []
