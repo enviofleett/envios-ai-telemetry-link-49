@@ -9,7 +9,7 @@ import { PublicRegistrationService, PublicRegistrationData } from '@/services/pu
 import { Loader2, CheckCircle } from 'lucide-react';
 
 interface PublicRegistrationFormProps {
-  onSuccess: (registrationId: string, otpId: string, phoneNumber: string) => void;
+  onSuccess: (registrationId: string, otpId: string) => void;
 }
 
 const PublicRegistrationForm: React.FC<PublicRegistrationFormProps> = ({ onSuccess }) => {
@@ -71,7 +71,7 @@ const PublicRegistrationForm: React.FC<PublicRegistrationFormProps> = ({ onSucce
           title: "Registration Submitted",
           description: "Please check your phone for the verification code",
         });
-        onSuccess(result.registrationId, result.otpId, formData.phoneNumber);
+        onSuccess(result.registrationId, result.otpId);
       } else {
         toast({
           title: "Registration Failed",
@@ -137,12 +137,12 @@ const PublicRegistrationForm: React.FC<PublicRegistrationFormProps> = ({ onSucce
               type="tel"
               value={formData.phoneNumber}
               onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-              placeholder="Enter your phone number (e.g., +2348012345678)"
+              placeholder="Enter your phone number"
               disabled={isSubmitting}
               required
             />
             <p className="text-xs text-gray-500">
-              We'll send a verification code to this number via SMS
+              We'll send a verification code to this number
             </p>
           </div>
 

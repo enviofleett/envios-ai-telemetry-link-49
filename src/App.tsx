@@ -29,9 +29,6 @@ const EnhancedLiveTracking = lazy(() => import('@/pages/EnhancedLiveTracking'));
 const WorkshopSignup = lazy(() => import('@/pages/WorkshopSignup'));
 const WorkshopLogin = lazy(() => import('@/pages/WorkshopLogin'));
 const WorkshopDashboard = lazy(() => import('@/pages/WorkshopDashboard'));
-const PublicRegistration = lazy(() => import('@/pages/PublicRegistration'));
-const VerifyOTP = lazy(() => import('@/pages/VerifyOTP'));
-const RegistrationTestPage = lazy(() => import('@/components/RegistrationTestPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const queryClient = new QueryClient({
@@ -63,12 +60,6 @@ function App() {
                               <Route path="/login" element={<Login />} />
                               <Route path="/auth" element={<Auth />} />
                               
-                              {/* Public Registration Routes */}
-                              <Route path="/register" element={<PublicRegistration />} />
-                              <Route path="/public-registration" element={<PublicRegistration />} />
-                              <Route path="/verify-otp" element={<VerifyOTP />} />
-                              <Route path="/registration-test" element={<RegistrationTestPage />} />
-                              
                               {/* Workshop Routes (Public) */}
                               <Route path="/workshop-signup" element={<WorkshopSignup />} />
                               <Route path="/workshop-login" element={<WorkshopLogin />} />
@@ -81,7 +72,7 @@ function App() {
                                 </ProtectedRoute>
                               } />
                               
-                              {/* Settings route */}
+                              {/* Consolidated Settings route - removed redundant admin-settings */}
                               <Route path="/settings" element={
                                 <ProtectedRoute>
                                   <Settings />
