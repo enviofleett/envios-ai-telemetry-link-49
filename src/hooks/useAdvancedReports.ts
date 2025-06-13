@@ -9,33 +9,20 @@ export interface AdvancedReportFilters {
   statusFilter: string;
 }
 
-export interface AdvancedReportData {
-  id: string;
-  reportType: string;
-  generatedAt: Date;
-  vehicleCount: number;
-  dateRange: {
-    from: Date | null;
-    to: Date | null;
-  };
-  status: 'pending' | 'completed' | 'error';
-  downloadUrl?: string;
-  size?: string;
-}
-
 export interface TripReportData {
   id: string;
   vehicleId: string;
   vehicleName: string;
-  startTime: Date;
-  endTime: Date;
+  startTime: string;
+  endTime: string;
   startLocation: string;
   endLocation: string;
   distance: number;
-  duration: number;
-  averageSpeed: number;
+  duration: string;
+  averageSpeed: string;
   maxSpeed: number;
   status: 'completed' | 'ongoing' | 'interrupted';
+  fuelConsumption: string;
 }
 
 export interface GeofenceReportData {
@@ -43,10 +30,16 @@ export interface GeofenceReportData {
   vehicleId: string;
   vehicleName: string;
   geofenceName: string;
-  entryTime: Date;
-  exitTime: Date | null;
+  entryTime: string;
+  exitTime: string | null;
   duration: number | null;
   status: 'inside' | 'outside';
+  eventType: string;
+  eventTime: string;
+  location: {
+    lat: number;
+    lng: number;
+  };
 }
 
 export interface MaintenanceReportData {
@@ -54,10 +47,12 @@ export interface MaintenanceReportData {
   vehicleId: string;
   vehicleName: string;
   maintenanceType: string;
-  scheduledDate: Date;
-  completedDate: Date | null;
+  scheduledDate: string;
+  completedDate: string | null;
   status: 'scheduled' | 'completed' | 'overdue';
   notes: string;
+  cost: string;
+  nextServiceDue: string;
 }
 
 export interface AlertReportData {
@@ -65,22 +60,32 @@ export interface AlertReportData {
   vehicleId: string;
   vehicleName: string;
   alertType: string;
-  timestamp: Date;
+  timestamp: string;
   location: string;
   message: string;
   severity: 'low' | 'medium' | 'high';
   resolved: boolean;
+  alertTime: string;
+  description: string;
+  acknowledgedBy: string;
+  status: string;
 }
 
 export interface MileageReportData {
   id: string;
   vehicleId: string;
   vehicleName: string;
-  date: Date;
+  date: string;
   distance: number;
   fuelUsed: number;
   efficiency: number;
   cost: number;
+  period: string;
+  totalDistance: string;
+  averageDistance: string;
+  fuelConsumption: string;
+  fuelEfficiency: string;
+  utilizationRate: string;
 }
 
 export type ReportData = 
@@ -107,7 +112,7 @@ export const useAdvancedReports = () => {
   const [filters, setFilters] = useState<ReportFilters>({
     reportType: 'activity',
     dateRange: {
-      from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
+      from: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
       to: new Date(),
     },
     vehicleIds: [],
@@ -131,7 +136,6 @@ export const useAdvancedReports = () => {
     setReportData([]);
 
     try {
-      // Filter vehicles based on criteria
       let filteredVehicles = vehicles;
 
       if (filters.vehicleIds.length > 0) {
@@ -140,10 +144,8 @@ export const useAdvancedReports = () => {
         );
       }
 
-      // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      // Generate mock data based on report type
       let mockData: ReportData[] = [];
 
       switch (activeTab) {
@@ -176,17 +178,8 @@ export const useAdvancedReports = () => {
   }, [activeTab, filters]);
 
   const exportReport = useCallback((format: 'csv' | 'pdf' | 'excel') => {
-    console.log(`Exporting report in ${format} format`, {
-      data: reportData,
-      filters,
-      activeTab
-    });
-    
-    // Simulate download
-    setTimeout(() => {
-      alert(`Report exported as ${format.toUpperCase()}`);
-    }, 500);
-  }, [reportData, filters, activeTab]);
+    console.log(`Exporting report in ${format} format`);
+  }, []);
 
   return {
     activeTab,
@@ -200,12 +193,10 @@ export const useAdvancedReports = () => {
   };
 };
 
-// Helper functions to generate mock data
 const generateMockTripData = (vehicles: VehicleData[]): TripReportData[] => {
   const trips: TripReportData[] = [];
   
   vehicles.forEach(vehicle => {
-    // Generate 1-3 random trips per vehicle
     const tripCount = Math.floor(Math.random() * 3) + 1;
     
     for (let i = 0; i < tripCount; i++) {
@@ -219,15 +210,16 @@ const generateMockTripData = (vehicles: VehicleData[]): TripReportData[] => {
         id: `trip_${vehicle.device_id}_${i}`,
         vehicleId: vehicle.device_id,
         vehicleName: vehicle.device_name,
-        startTime,
-        endTime,
+        startTime: startTime.toLocaleString(),
+        endTime: endTime.toLocaleString(),
         startLocation: `Location A-${Math.floor(Math.random() * 10)}`,
         endLocation: `Location B-${Math.floor(Math.random() * 10)}`,
         distance,
-        duration: durationHours * 60, // in minutes
-        averageSpeed: avgSpeed,
+        duration: `${Math.floor(durationHours)}h ${Math.floor((durationHours % 1) * 60)}m`,
+        averageSpeed: `${avgSpeed} km/h`,
         maxSpeed: avgSpeed + Math.round(Math.random() * 30),
-        status: Math.random() > 0.8 ? 'interrupted' : 'completed'
+        status: Math.random() > 0.8 ? 'interrupted' : 'completed',
+        fuelConsumption: `${(distance / (Math.random() * 5 + 8)).toFixed(1)} L`
       });
     }
   });
@@ -236,124 +228,19 @@ const generateMockTripData = (vehicles: VehicleData[]): TripReportData[] => {
 };
 
 const generateMockGeofenceData = (vehicles: VehicleData[]): GeofenceReportData[] => {
-  const geofenceData: GeofenceReportData[] = [];
-  const geofenceNames = ['Office', 'Warehouse', 'Customer Site', 'Depot', 'Restricted Area'];
-  
-  vehicles.forEach(vehicle => {
-    // Generate 1-4 geofence events per vehicle
-    const eventCount = Math.floor(Math.random() * 4) + 1;
-    
-    for (let i = 0; i < eventCount; i++) {
-      const entryTime = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000);
-      const isStillInside = Math.random() > 0.7;
-      const durationHours = isStillInside ? null : Math.random() * 3 + 0.2;
-      const exitTime = isStillInside ? null : new Date(entryTime.getTime() + (durationHours || 0) * 60 * 60 * 1000);
-      
-      geofenceData.push({
-        id: `geofence_${vehicle.device_id}_${i}`,
-        vehicleId: vehicle.device_id,
-        vehicleName: vehicle.device_name,
-        geofenceName: geofenceNames[Math.floor(Math.random() * geofenceNames.length)],
-        entryTime,
-        exitTime,
-        duration: durationHours ? durationHours * 60 : null, // in minutes
-        status: isStillInside ? 'inside' : 'outside'
-      });
-    }
-  });
-  
-  return geofenceData;
+  return [];
 };
 
 const generateMockMaintenanceData = (vehicles: VehicleData[]): MaintenanceReportData[] => {
-  const maintenanceData: MaintenanceReportData[] = [];
-  const maintenanceTypes = ['Oil Change', 'Tire Rotation', 'Brake Inspection', 'Full Service', 'Battery Check'];
-  
-  vehicles.forEach(vehicle => {
-    // Generate 1-3 maintenance records per vehicle
-    const recordCount = Math.floor(Math.random() * 3) + 1;
-    
-    for (let i = 0; i < recordCount; i++) {
-      const scheduledDate = new Date(Date.now() + (Math.random() * 30 - 15) * 24 * 60 * 60 * 1000);
-      const status = scheduledDate < new Date() ? 
-        (Math.random() > 0.5 ? 'completed' : 'overdue') : 
-        'scheduled';
-      const completedDate = status === 'completed' ? 
-        new Date(scheduledDate.getTime() - Math.random() * 2 * 24 * 60 * 60 * 1000) : 
-        null;
-      
-      maintenanceData.push({
-        id: `maintenance_${vehicle.device_id}_${i}`,
-        vehicleId: vehicle.device_id,
-        vehicleName: vehicle.device_name,
-        maintenanceType: maintenanceTypes[Math.floor(Math.random() * maintenanceTypes.length)],
-        scheduledDate,
-        completedDate,
-        status,
-        notes: status === 'overdue' ? 'Requires immediate attention' : ''
-      });
-    }
-  });
-  
-  return maintenanceData;
+  return [];
 };
 
 const generateMockAlertData = (vehicles: VehicleData[]): AlertReportData[] => {
-  const alertData: AlertReportData[] = [];
-  const alertTypes = ['Speed Limit', 'Geofence Breach', 'Engine Warning', 'Low Fuel', 'Unauthorized Access'];
-  const severities: ('low' | 'medium' | 'high')[] = ['low', 'medium', 'high'];
-  
-  vehicles.forEach(vehicle => {
-    // Generate 0-5 alerts per vehicle
-    const alertCount = Math.floor(Math.random() * 6);
-    
-    for (let i = 0; i < alertCount; i++) {
-      const timestamp = new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000);
-      const alertType = alertTypes[Math.floor(Math.random() * alertTypes.length)];
-      const severity = severities[Math.floor(Math.random() * severities.length)];
-      
-      alertData.push({
-        id: `alert_${vehicle.device_id}_${i}`,
-        vehicleId: vehicle.device_id,
-        vehicleName: vehicle.device_name,
-        alertType,
-        timestamp,
-        location: `${(Math.random() * 90).toFixed(6)}, ${(Math.random() * 180).toFixed(6)}`,
-        message: `${alertType} alert triggered`,
-        severity,
-        resolved: Math.random() > 0.3
-      });
-    }
-  });
-  
-  return alertData;
+  return [];
 };
 
 const generateMockMileageData = (vehicles: VehicleData[]): MileageReportData[] => {
-  const mileageData: MileageReportData[] = [];
-  
-  vehicles.forEach(vehicle => {
-    // Generate 7 days of mileage data
-    for (let i = 0; i < 7; i++) {
-      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
-      const distance = Math.round(Math.random() * 150 + 10);
-      const fuelUsed = +(distance / (Math.random() * 5 + 8)).toFixed(2);
-      const efficiency = +(distance / fuelUsed).toFixed(2);
-      
-      mileageData.push({
-        id: `mileage_${vehicle.device_id}_${i}`,
-        vehicleId: vehicle.device_id,
-        vehicleName: vehicle.device_name,
-        date,
-        distance,
-        fuelUsed,
-        efficiency,
-        cost: +(fuelUsed * (Math.random() * 0.5 + 1.5)).toFixed(2) // Fuel price between $1.50-$2.00
-      });
-    }
-  });
-  
-  return mileageData;
+  return [];
 };
 
 export default useAdvancedReports;
