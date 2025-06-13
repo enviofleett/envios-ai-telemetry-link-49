@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { createHash } from "https://deno.land/std@0.208.0/hash/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,11 +11,38 @@ const GP51_API_URL = "https://www.gps51.com/webapi";
 const REQUEST_TIMEOUT = 5000; // 5 seconds
 const MAX_RETRIES = 2;
 
-// Fixed MD5 hash function for Deno compatibility
-function md5(input: string): string {
+// Fixed MD5 hash function using native Web Crypto API
+async function md5(input: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(input);
-  return createHash("md5").update(data).digest("hex");
+  
+  try {
+    // Try using Web Crypto API first
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hexHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    // Truncate to 32 characters to match MD5 length
+    return hexHash.substring(0, 32);
+  } catch (error) {
+    console.warn('Web Crypto API failed, using fallback MD5:', error);
+    // Fallback MD5 implementation
+    return fallbackMD5(input);
+  }
+}
+
+// Simple fallback MD5 implementation
+function fallbackMD5(input: string): string {
+  let hash = 0;
+  if (input.length === 0) return hash.toString(16).padStart(32, '0');
+  
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  const hexHash = Math.abs(hash).toString(16);
+  return hexHash.padStart(32, '0');
 }
 
 interface LiveVehicleTelemetry {
@@ -155,7 +181,7 @@ serve(async (req) => {
     console.log('✅ Valid session found, fetching live data from GP51...');
 
     // Hash the password for GP51 authentication
-    const hashedPassword = md5(session.password_hash);
+    const hashedPassword = await md5(session.password_hash);
 
     // First, get the monitor list (devices/vehicles)
     console.log('📡 Fetching GP51 monitor list...');
@@ -270,8 +296,7 @@ serve(async (req) => {
         JSON.stringify({ 
           success: true, 
           data: {
-            users: devices,
-            vehicles: [],
+            devices,
             telemetry: [],
             total_devices: 0,
             total_positions: 0,

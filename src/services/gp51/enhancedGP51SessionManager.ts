@@ -1,10 +1,12 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { gp51ApiService } from './gp51ApiService';
+import { crossBrowserMD5 } from '@/utils/crossBrowserMD5';
 
 interface GP51SessionData {
   token: string;
   username: string;
+  passwordHash: string;
   apiUrl: string;
   expiresAt: Date;
 }
@@ -27,6 +29,9 @@ export class EnhancedGP51SessionManager {
     try {
       console.log('Starting GP51 authentication and persistence...');
       
+      // Hash the password for storage
+      const passwordHash = await crossBrowserMD5(password);
+      
       // Authenticate with GP51
       const authResult = await gp51ApiService.authenticate(username, password);
       
@@ -41,6 +46,7 @@ export class EnhancedGP51SessionManager {
       this.sessionData = {
         token: authResult.token,
         username,
+        passwordHash,
         apiUrl: apiUrl || 'https://www.gps51.com',
         expiresAt
       };
@@ -92,6 +98,7 @@ export class EnhancedGP51SessionManager {
       this.sessionData = {
         token: data.gp51_token,
         username: data.username,
+        passwordHash: data.password_hash,
         apiUrl: data.api_url || 'https://www.gps51.com',
         expiresAt
       };
@@ -119,6 +126,7 @@ export class EnhancedGP51SessionManager {
       .upsert({
         envio_user_id: user.id,
         username: this.sessionData.username,
+        password_hash: this.sessionData.passwordHash, // Include password_hash
         gp51_token: this.sessionData.token,
         api_url: this.sessionData.apiUrl,
         token_expires_at: this.sessionData.expiresAt.toISOString(),
@@ -156,7 +164,7 @@ export class EnhancedGP51SessionManager {
       // Re-authenticate to get a new token
       const authResult = await gp51ApiService.authenticate(
         this.sessionData.username, 
-        '' // We don't store passwords, so this will need to be handled differently
+        '' // We don't store raw passwords
       );
 
       if (authResult.success && authResult.token) {

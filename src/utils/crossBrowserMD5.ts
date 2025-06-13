@@ -4,10 +4,15 @@
  */
 
 // Simple MD5 implementation for cross-platform compatibility
-export function md5(input: string): string {
+export async function md5(input: string): Promise<string> {
   if (typeof crypto !== 'undefined' && crypto.subtle) {
     // Use Web Crypto API when available (modern browsers)
-    return md5WebCrypto(input);
+    try {
+      return await md5WebCrypto(input);
+    } catch (error) {
+      console.warn('Web Crypto API failed, falling back to pure JS MD5:', error);
+      return md5Pure(input);
+    }
   } else {
     // Fallback to pure JavaScript implementation
     return md5Pure(input);
@@ -28,8 +33,7 @@ async function md5WebCrypto(input: string): Promise<string> {
     // Truncate to 32 characters to match MD5 length (this is not cryptographically equivalent to MD5)
     return hexHash.substring(0, 32);
   } catch (error) {
-    console.warn('Web Crypto API failed, falling back to pure JS MD5:', error);
-    return md5Pure(input);
+    throw new Error('Web Crypto API failed');
   }
 }
 
@@ -55,9 +59,5 @@ export const crossBrowserMD5 = md5;
 
 // Async version for consistency with edge function usage
 export async function md5Async(input: string): Promise<string> {
-  if (typeof crypto !== 'undefined' && crypto.subtle) {
-    return await md5WebCrypto(input);
-  } else {
-    return md5Pure(input);
-  }
+  return await md5(input);
 }
