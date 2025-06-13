@@ -69,10 +69,18 @@ export class VinApiService {
     primary_provider?: boolean;
     rate_limit_per_day?: number;
   }): Promise<void> {
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      throw new Error('User not authenticated');
+    }
+
     // In production, encrypt the keys before storing
     const { error } = await supabase
       .from('vin_api_configurations')
       .insert({
+        user_id: user.id, // Add the required user_id field
         provider_name: config.provider_name,
         api_key_encrypted: config.api_key, // TODO: Encrypt in production
         secret_key_encrypted: config.secret_key, // TODO: Encrypt in production

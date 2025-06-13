@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Users, Wrench, Building, CreditCard, Bell, Mail, Zap, Send, Clock, Server, BookOpen, MessageSquare, FileText, Radio, CheckCircle, Map, MapPin, Link, Car, BarChart, Shield, Upload, Database, Settings, Activity } from 'lucide-react';
@@ -8,21 +9,21 @@ import CompanyTab from './tabs/CompanyTab';
 import BillingTab from './tabs/BillingTab';
 import NotificationsTab from './tabs/NotificationsTab';
 import EmailTemplatesTab from './tabs/EmailTemplatesTab';
-import EmailTriggersTab from './tabs/EmailTriggersTab';
-import EmailCampaignsTab from './tabs/EmailCampaignsTab';
+import EmailTriggersAdminTab from './tabs/EmailTriggersAdminTab';
+import AdvancedEmailManagementTab from './tabs/AdvancedEmailManagementTab';
 import EmailQueueTab from './tabs/EmailQueueTab';
-import SmtpConfigTab from './tabs/SmtpConfigTab';
-import SmtpGuideTab from './tabs/SmsGuideTab';
-import SmsSettingsTab from './tabs/SmsSettingsTab';
-import SmsLogsTab from './tabs/SmsLogsTab';
-import Gp51IntegrationTab from './tabs/Gp51IntegrationTab';
-import Gp51ValidationTab from './tabs/Gp51ValidationTab';
+import SMTPConfigurationTab from './tabs/SMTPConfigurationTab';
+import SMTPGuideTab from './tabs/SMTPGuideTab';
+import SMSSettingsTab from './tabs/SMSSettingsTab';
+import SMSLogsTab from './tabs/SMSLogsTab';
+import GP51IntegrationTab from './tabs/GP51IntegrationTab';
+import GP51ValidationTab from './tabs/GP51ValidationTab';
 import MapsTab from './tabs/MapsTab';
 import GeofencingTab from './tabs/GeofencingTab';
-import ApiIntegrationsTab from './tabs/ApiIntegrationsTab';
+import APIIntegrationsTab from './tabs/APIIntegrationsTab';
 import AnalyticsTab from './tabs/AnalyticsTab';
 import SecurityTab from './tabs/SecurityTab';
-import CsvImportTab from './tabs/CsvImportTab';
+import CSVImportTab from './tabs/CSVImportTab';
 import DataManagementTab from './tabs/DataManagementTab';
 import SystemSettingsTab from './tabs/SystemSettingsTab';
 import HealthTab from './tabs/HealthTab';
@@ -83,29 +84,29 @@ const MobileResponsiveAdminLayout: React.FC<MobileResponsiveAdminLayoutProps> = 
       case 'email-templates':
         return <EmailTemplatesTab />;
       case 'email-triggers':
-        return <EmailTriggersTab />;
+        return <EmailTriggersAdminTab />;
       case 'email-campaigns':
-        return <EmailCampaignsTab />;
+        return <AdvancedEmailManagementTab />;
       case 'email-queue':
         return <EmailQueueTab />;
       case 'smtp-config':
-        return <SmtpConfigTab />;
+        return <SMTPConfigurationTab />;
       case 'smtp-guide':
-        return <SmtpGuideTab />;
+        return <SMTPGuideTab />;
       case 'sms-settings':
-        return <SmsSettingsTab />;
+        return <SMSSettingsTab />;
       case 'sms-logs':
-        return <SmsLogsTab />;
+        return <SMSLogsTab />;
       case 'gp51-integration':
-        return <Gp51IntegrationTab />;
+        return <GP51IntegrationTab />;
       case 'gp51-validation':
-        return <Gp51ValidationTab />;
+        return <GP51ValidationTab />;
       case 'maps':
         return <MapsTab />;
       case 'geofencing':
         return <GeofencingTab />;
       case 'api-integrations':
-        return <ApiIntegrationsTab />;
+        return <APIIntegrationsTab />;
       case 'vin-api':
         return <VinApiTab />;
       case 'analytics':
@@ -113,7 +114,7 @@ const MobileResponsiveAdminLayout: React.FC<MobileResponsiveAdminLayoutProps> = 
       case 'security':
         return <SecurityTab />;
       case 'csv-import':
-        return <CsvImportTab />;
+        return <CSVImportTab />;
       case 'data-management':
         return <DataManagementTab />;
       case 'system-settings':
