@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Menu, Settings, LogOut } from 'lucide-react';
 import LogoutButton from '@/components/LogoutButton';
+import { FeatureRestrictedLink } from "@/components/common/FeatureRestrictedLink";
 
 // This component is now used as fallback/mobile navigation
 // The main sidebar is handled by AppSidebar component
@@ -33,9 +33,9 @@ const Navigation = () => {
 
   const navigationItems = [
     { name: "Dashboard", href: "/" },
-    { name: "Vehicle Management", href: "/vehicles" },
-    { name: "User Management", href: "/users" },
-    ...(isAdmin ? [{ name: "System Import", href: "/system-import" }] : []),
+    { name: "Vehicle Management", href: "/vehicles", featureId: "vehicle_management" },
+    { name: "User Management", href: "/users", featureId: "user_management" },
+    ...(isAdmin ? [{ name: "System Import", href: "/system-import", featureId: "system_import" }] : []),
     { name: "Settings", href: "/settings" },
   ];
 
@@ -92,20 +92,39 @@ const Navigation = () => {
           {mobileMenuOpen && (
             <div className="md:hidden">
               <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t">
-                {navigationItems.map((item) => (
-                  <Link
-                    key={item.name}
-                    to={item.href}
-                    className={`block px-3 py-2 rounded-md text-base font-medium ${
-                      location.pathname === item.href
-                        ? 'bg-blue-50 text-blue-700 border-blue-500'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                    }`}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {item.name}
-                  </Link>
-                ))}
+                {navigationItems.map((item) => {
+                  if (item.featureId) {
+                    return (
+                      <FeatureRestrictedLink key={item.name} featureId={item.featureId}>
+                        <Link
+                          to={item.href}
+                          className={`block px-3 py-2 rounded-md text-base font-medium ${
+                            location.pathname === item.href
+                              ? 'bg-blue-50 text-blue-700 border-blue-500'
+                              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                          }`}
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          {item.name}
+                        </Link>
+                      </FeatureRestrictedLink>
+                    );
+                  }
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.href}
+                      className={`block px-3 py-2 rounded-md text-base font-medium ${
+                        location.pathname === item.href
+                          ? 'bg-blue-50 text-blue-700 border-blue-500'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      }`}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {item.name}
+                    </Link>
+                  );
+                })}
               </div>
             </div>
           )}

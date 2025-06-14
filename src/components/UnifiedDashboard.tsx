@@ -17,6 +17,7 @@ import VehicleDetailsModal from '@/components/vehicles/VehicleDetailsModal';
 import MapTilerMap from '@/components/map/MapTilerMap';
 import type { VehicleData } from '@/types/vehicle';
 import FeatureGate from "@/components/auth/FeatureGate";
+import { FeatureUpgradeCTA } from "@/components/common/FeatureUpgradeCTA";
 
 const UnifiedFleetDashboard: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
@@ -90,237 +91,245 @@ const UnifiedFleetDashboard: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header with Controls */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Fleet Dashboard</h1>
-          <p className="text-gray-600">Monitor your entire fleet in real-time</p>
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex rounded-md border border-gray-300">
-            <Button
-              variant={viewMode === 'grid' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('grid')}
-              className="rounded-r-none"
-            >
-              Grid
-            </Button>
-            <Button
-              variant={viewMode === 'map' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('map')}
-              className="rounded-l-none"
-            >
-              Map
-            </Button>
+    <FeatureGate featureId="vehicle_management" fallback={
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="text-xl font-bold mb-4">Vehicle Management Not Available</div>
+        <div className="mb-4 text-gray-500 text-center max-w-lg">Upgrade your package to unlock fleet vehicle management features including tracking, health and analytics.</div>
+        <FeatureUpgradeCTA feature="Vehicle Management" />
+      </div>
+    }>
+      <div className="space-y-6">
+        {/* Header with Controls */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Fleet Dashboard</h1>
+            <p className="text-gray-600">Monitor your entire fleet in real-time</p>
           </div>
           
-          <Button
-            onClick={forceRefresh}
-            disabled={isRefreshing}
-            variant="outline"
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-4">
+            <div className="flex rounded-md border border-gray-300">
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('grid')}
+                className="rounded-r-none"
+              >
+                Grid
+              </Button>
+              <Button
+                variant={viewMode === 'map' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('map')}
+                className="rounded-l-none"
+              >
+                Map
+              </Button>
+            </div>
+            
+            <Button
+              onClick={forceRefresh}
+              disabled={isRefreshing}
+              variant="outline"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* Metrics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Vehicles</p>
-                <p className="text-3xl font-bold text-gray-900">{metrics.total}</p>
+        {/* Metrics Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Vehicles</p>
+                  <p className="text-3xl font-bold text-gray-900">{metrics.total}</p>
+                </div>
+                <Car className="h-8 w-8 text-blue-600" />
               </div>
-              <Car className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Online</p>
-                <p className="text-3xl font-bold text-green-600">{metrics.online}</p>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Online</p>
+                  <p className="text-3xl font-bold text-green-600">{metrics.online}</p>
+                </div>
+                <Activity className="h-8 w-8 text-green-600" />
               </div>
-              <Activity className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Offline</p>
-                <p className="text-3xl font-bold text-gray-600">{metrics.offline}</p>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Offline</p>
+                  <p className="text-3xl font-bold text-gray-600">{metrics.offline}</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-gray-600" />
               </div>
-              <AlertTriangle className="h-8 w-8 text-gray-600" />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Alerts</p>
-                <p className="text-3xl font-bold text-red-600">{metrics.alerts}</p>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Alerts</p>
+                  <p className="text-3xl font-bold text-red-600">{metrics.alerts}</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-red-600" />
               </div>
-              <AlertTriangle className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Main Content */}
-      {viewMode === 'map' ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Fleet Map View
-              <Badge variant="outline" className="ml-2">
-                {mapVehicles.length} vehicles with GPS
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {mapVehicles.length > 0 ? (
-              <MapTilerMap
-                vehicles={mapVehicles}
-                height="600px"
-                onVehicleSelect={setSelectedVehicle}
-                selectedVehicle={selectedVehicle}
-                showControls={true}
-              />
-            ) : (
-              <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
-                <div className="text-center">
-                  <MapPin className="h-16 w-16 mx-auto text-gray-300 mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No GPS Data</h3>
+        {/* Main Content */}
+        {viewMode === 'map' ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Fleet Map View
+                <Badge variant="outline" className="ml-2">
+                  {mapVehicles.length} vehicles with GPS
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {mapVehicles.length > 0 ? (
+                <MapTilerMap
+                  vehicles={mapVehicles}
+                  height="600px"
+                  onVehicleSelect={setSelectedVehicle}
+                  selectedVehicle={selectedVehicle}
+                  showControls={true}
+                />
+              ) : (
+                <div className="h-96 bg-gray-50 rounded-lg flex items-center justify-center">
+                  <div className="text-center">
+                    <MapPin className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-700 mb-2">No GPS Data</h3>
+                    <p className="text-gray-500">
+                      No vehicles with valid GPS coordinates found
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                Vehicle Fleet
+                <Badge variant="outline">
+                  {vehicles.length} vehicles
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {vehicles.length === 0 ? (
+                <div className="text-center py-8">
+                  <Car className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Vehicles Found</h3>
                   <p className="text-gray-500">
-                    No vehicles with valid GPS coordinates found
+                    No vehicles are currently available in your fleet.
                   </p>
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Vehicle Fleet
-              <Badge variant="outline">
-                {vehicles.length} vehicles
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {vehicles.length === 0 ? (
-              <div className="text-center py-8">
-                <Car className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No Vehicles Found</h3>
-                <p className="text-gray-500">
-                  No vehicles are currently available in your fleet.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {vehicles.map((vehicle) => {
-                  const status = getVehicleStatus(vehicle);
-                  
-                  return (
-                    <Card 
-                      key={vehicle.device_id}
-                      className="hover:shadow-lg transition-shadow cursor-pointer"
-                      onClick={() => setSelectedVehicle(vehicle)}
-                    >
-                      <CardContent className="p-6">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h4 className="font-semibold text-lg">{vehicle.device_name}</h4>
-                            <p className="text-sm text-gray-600">ID: {vehicle.device_id}</p>
-                            {vehicle.license_plate && (
-                              <p className="text-sm text-gray-500">{vehicle.license_plate}</p>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`} />
-                            <Badge variant="outline" className="text-xs">
-                              {status}
-                            </Badge>
-                          </div>
-                        </div>
-
-                        {vehicle.last_position ? (
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-1">
-                                <Gauge className="h-4 w-4 text-gray-400" />
-                                <span>{vehicle.last_position.speed || 0} km/h</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Navigation className="h-4 w-4 text-gray-400" />
-                                <span>{vehicle.last_position.course || 0}°</span>
-                              </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {vehicles.map((vehicle) => {
+                    const status = getVehicleStatus(vehicle);
+                    
+                    return (
+                      <Card 
+                        key={vehicle.device_id}
+                        className="hover:shadow-lg transition-shadow cursor-pointer"
+                        onClick={() => setSelectedVehicle(vehicle)}
+                      >
+                        <CardContent className="p-6">
+                          <div className="flex items-start justify-between mb-4">
+                            <div>
+                              <h4 className="font-semibold text-lg">{vehicle.device_name}</h4>
+                              <p className="text-sm text-gray-600">ID: {vehicle.device_id}</p>
+                              {vehicle.license_plate && (
+                                <p className="text-sm text-gray-500">{vehicle.license_plate}</p>
+                              )}
                             </div>
-                            
-                            <div className="flex items-center gap-1 text-sm">
-                              <MapPin className="h-4 w-4 text-gray-400" />
-                              <span className="text-xs">
-                                {vehicle.last_position.latitude.toFixed(4)}, {vehicle.last_position.longitude.toFixed(4)}
-                              </span>
+                            <div className="flex items-center gap-2">
+                              <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`} />
+                              <Badge variant="outline" className="text-xs">
+                                {status}
+                              </Badge>
                             </div>
                           </div>
-                        ) : (
-                          <div className="text-center py-4 text-gray-500">
-                            <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                            <p className="text-sm">No position data</p>
+
+                          {vehicle.last_position ? (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-1">
+                                  <Gauge className="h-4 w-4 text-gray-400" />
+                                  <span>{vehicle.last_position.speed || 0} km/h</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Navigation className="h-4 w-4 text-gray-400" />
+                                  <span>{vehicle.last_position.course || 0}°</span>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-1 text-sm">
+                                <MapPin className="h-4 w-4 text-gray-400" />
+                                <span className="text-xs">
+                                  {vehicle.last_position.latitude.toFixed(4)}, {vehicle.last_position.longitude.toFixed(4)}
+                                </span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-center py-4 text-gray-500">
+                              <MapPin className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                              <p className="text-sm">No position data</p>
+                            </div>
+                          )}
+
+                          <div className="mt-4 pt-4 border-t">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedVehicle(vehicle);
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </Button>
                           </div>
-                        )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-                        <div className="mt-4 pt-4 border-t">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedVehicle(vehicle);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View Details
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Vehicle Details Modal */}
-      {selectedVehicle && (
-        <VehicleDetailsModal
-          vehicle={selectedVehicle}
-          isOpen={!!selectedVehicle}
-          onClose={() => setSelectedVehicle(null)}
-        />
-      )}
-    </div>
+        {/* Vehicle Details Modal */}
+        {selectedVehicle && (
+          <VehicleDetailsModal
+            vehicle={selectedVehicle}
+            isOpen={!!selectedVehicle}
+            onClose={() => setSelectedVehicle(null)}
+          />
+        )}
+      </div>
+    </FeatureGate>
   );
 };
 

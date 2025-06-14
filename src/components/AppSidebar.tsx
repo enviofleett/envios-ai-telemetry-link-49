@@ -1,4 +1,3 @@
-
 "use client"
 
 import {
@@ -31,6 +30,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Link, useLocation } from "react-router-dom"
+import { FeatureRestrictedLink } from "@/components/common/FeatureRestrictedLink"
 
 const menuItems = [
   {
@@ -104,8 +104,22 @@ const quickActions = [
 ]
 
 export function AppSidebar() {
-  const { state } = useSidebar()
-  const location = useLocation()
+  const { state } = useSidebar();
+  const location = useLocation();
+
+  // Features for demo (in production assign each menu to a feature id)
+  const menuWithFeatures = menuItems.map(item => {
+    let featureId: string | undefined;
+    if (item.title === "Vehicles") featureId = "vehicle_management";
+    if (item.title === "Maintenance") featureId = "maintenance";
+    if (item.title === "Reports") featureId = "fleet_reports";
+    if (item.title === "Tracking") featureId = "tracking";
+    if (item.title === "Marketplace") featureId = "marketplace";
+    if (item.title === "Workshop Management") featureId = "workshop_management";
+    if (item.title === "Active Services") featureId = "active_services";
+    // Add more as needed
+    return { ...item, featureId };
+  });
 
   return (
     <Sidebar variant="inset" collapsible="icon">
@@ -127,17 +141,31 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {menuWithFeatures.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
-                    isActive={location.pathname === item.url}
-                  >
-                    <Link to={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
+                  {item.featureId ? (
+                    <FeatureRestrictedLink featureId={item.featureId}>
+                      <SidebarMenuButton 
+                        asChild 
+                        isActive={location.pathname === item.url}
+                      >
+                        <Link to={item.url}>
+                          <item.icon />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </FeatureRestrictedLink>
+                  ) : (
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location.pathname === item.url}
+                    >
+                      <Link to={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  )}
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>
