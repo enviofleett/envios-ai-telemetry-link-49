@@ -1,6 +1,5 @@
 
 import React, { useState } from 'react';
-import { TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -91,7 +90,7 @@ export default function GP51ValidationTab() {
   };
 
   return (
-    <TabsContent value="gp51-validation" className="space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-lg font-medium">GP51 Integration Validation</h3>
@@ -289,6 +288,6 @@ export default function GP51ValidationTab() {
           )}
         </>
       )}
-    </TabsContent>
+    </div>
   );
 }
