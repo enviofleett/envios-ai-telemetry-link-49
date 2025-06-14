@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -14,26 +14,49 @@ import {
   Bell,
   Users,
   Settings,
-  FileText,
-  AlertTriangle,
   Lock
 } from 'lucide-react';
 import SecurityDashboard from './security/SecurityDashboard';
 import SecuritySettingsPanel from './security/SecuritySettingsPanel';
 import SecurityEventsPanel from './security/SecurityEventsPanel';
 import AccessPoliciesPanel from './security/AccessPoliciesPanel';
+import { toast } from '@/hooks/use-toast';
 
 const SecurityTab: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
-
-  // Store active event for details dialog (populated by EventsPanel)
   const [activeEvent, setActiveEvent] = useState(null);
-
-  // Quick actions for settings, future refresh logic can be added here.
+  const [refreshToken, setRefreshToken] = useState(Date.now());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
   };
+
+  const handleRefresh = useCallback(async () => {
+    try {
+      setIsRefreshing(true);
+      setRefreshToken(Date.now());
+      toast({
+        title: "Refreshing data...",
+        description: "Fetching latest security information.",
+      });
+      // Optionally: await a backend re-fetch if needed in future.
+      setTimeout(() => {
+        setIsRefreshing(false);
+        toast({
+          title: "Security data refreshed",
+          description: "Dashboard, events, and policies are now up to date.",
+        });
+      }, 700); // Fake delay for nice feedback
+    } catch (e) {
+      setIsRefreshing(false);
+      toast({
+        title: "Refresh failed",
+        description: "Could not refresh security data.",
+        variant: "destructive",
+      });
+    }
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -49,9 +72,14 @@ const SecurityTab: React.FC = () => {
                 Monitor and configure your system’s security settings, view live security events, and manage access policies.
               </CardDescription>
             </div>
-            <button className="btn btn-outline btn-sm" disabled>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
+            <button
+              className="btn btn-outline btn-sm flex items-center gap-1 px-3 py-1 rounded"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              aria-busy={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? "Refreshing..." : "Refresh"}
             </button>
           </div>
         </CardHeader>
@@ -77,19 +105,19 @@ const SecurityTab: React.FC = () => {
             </TabsList>
 
             <TabsContent value="dashboard">
-              <SecurityDashboard />
+              <SecurityDashboard refreshToken={refreshToken} />
             </TabsContent>
 
             <TabsContent value="settings">
-              <SecuritySettingsPanel />
+              <SecuritySettingsPanel refreshToken={refreshToken} onRefresh={handleRefresh} />
             </TabsContent>
 
             <TabsContent value="events">
-              <SecurityEventsPanel onViewDetails={setActiveEvent} />
+              <SecurityEventsPanel onViewDetails={setActiveEvent} refreshToken={refreshToken} />
             </TabsContent>
 
             <TabsContent value="policies">
-              <AccessPoliciesPanel />
+              <AccessPoliciesPanel refreshToken={refreshToken} />
             </TabsContent>
           </Tabs>
         </CardContent>

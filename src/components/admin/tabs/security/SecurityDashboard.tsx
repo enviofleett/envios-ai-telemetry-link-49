@@ -1,24 +1,37 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSecurityContext } from '@/components/security/SecurityProvider';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { AlertTriangle, Lock, CheckCircle, ShieldCheck, Users } from 'lucide-react';
+import { AlertTriangle, Lock, CheckCircle, ShieldCheck } from 'lucide-react';
 
-export default function SecurityDashboard() {
+interface SecurityDashboardProps {
+  refreshToken: number;
+}
+
+export default function SecurityDashboard({ refreshToken }: SecurityDashboardProps) {
   const { securityEvents } = useSecurityContext();
 
-  const eventCount = securityEvents.length;
-  const criticalEvents = securityEvents.filter(e => e.severity === 'critical');
-  const todayEvents = securityEvents.filter(e => {
+  const [eventCount, setEventCount] = useState(0);
+  const [criticalEvents, setCriticalEvents] = useState<any[]>([]);
+  const [todayEvents, setTodayEvents] = useState<any[]>([]);
+  const [lastCritical, setLastCritical] = useState<any>(null);
+
+  useEffect(() => {
+    setEventCount(securityEvents.length);
+    const critical = securityEvents.filter(e => e.severity === 'critical');
+    setCriticalEvents(critical);
     const now = new Date();
-    const eventDate = new Date(e.timestamp);
-    return (
-      eventDate.getDate() === now.getDate() &&
-      eventDate.getMonth() === now.getMonth() &&
-      eventDate.getFullYear() === now.getFullYear()
-    );
-  });
-  const lastCritical = criticalEvents[0];
+    const today = securityEvents.filter(e => {
+      const eventDate = new Date(e.timestamp);
+      return (
+        eventDate.getDate() === now.getDate() &&
+        eventDate.getMonth() === now.getMonth() &&
+        eventDate.getFullYear() === now.getFullYear()
+      );
+    });
+    setTodayEvents(today);
+    setLastCritical(critical[0]);
+  }, [securityEvents, refreshToken]);
 
   return (
     <div className="grid gap-6 md:grid-cols-3">
