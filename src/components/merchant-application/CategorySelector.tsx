@@ -1,8 +1,7 @@
 
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useCallback } from 'react';
 import { useMerchantOnboardingData } from '@/hooks/useMerchantOnboardingData';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -16,18 +15,23 @@ const CategorySelector: React.FC = () => {
 
     const feeDetails = useMemo(() => {
         if (!settings) return { fee: 0, message: '', registration_fee: 0, additionalFee: 0 };
-        const { free_categories_included, additional_category_fee, registration_fee, currency } = settings;
+        const { 
+            free_categories_included = 2, 
+            additional_category_fee = 0, 
+            registration_fee = 0, 
+            currency = 'USD' 
+        } = settings;
         const selectedCount = selectedCategoryIds.length;
         const additionalCategories = Math.max(0, selectedCount - free_categories_included);
         const additionalFee = additionalCategories * additional_category_fee;
         const totalFee = (registration_fee || 0) + additionalFee;
 
-        let message = `Includes ${free_categories_included} free categories. Each additional category costs ${currency} ${additional_category_fee.toFixed(2)}.`;
+        let message = `Includes ${free_categories_included} free categor${free_categories_included === 1 ? 'y' : 'ies'}. Each additional category costs ${currency} ${additional_category_fee.toFixed(2)}.`;
         if (selectedCount > free_categories_included) {
             message += ` You have selected ${additionalCategories} additional categor${additionalCategories > 1 ? 'ies' : 'y'}.`;
         }
         
-        return { fee: totalFee, message, registration_fee, additionalFee };
+        return { fee: totalFee, message, registration_fee: registration_fee || 0, additionalFee };
     }, [selectedCategoryIds, settings]);
 
     useEffect(() => {
@@ -48,13 +52,13 @@ const CategorySelector: React.FC = () => {
         );
     }
 
-    const handleCategoryToggle = (categoryId: string) => {
+    const handleCategoryToggle = useCallback((categoryId: string) => {
         const currentSelection = getValues('selected_category_ids') || [];
         const newSelection = currentSelection.includes(categoryId)
             ? currentSelection.filter((id: string) => id !== categoryId)
             : [...currentSelection, categoryId];
-        setValue('selected_category_ids', newSelection, { shouldDirty: true });
-    };
+        setValue('selected_category_ids', newSelection, { shouldDirty: true, shouldValidate: true });
+    }, [getValues, setValue]);
 
     return (
         <div className="space-y-4">
@@ -62,10 +66,13 @@ const CategorySelector: React.FC = () => {
             <p className="text-sm text-muted-foreground">{feeDetails.message}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {categories?.map((category) => (
-                    <Card key={category.id} className={`cursor-pointer transition-all ${selectedCategoryIds.includes(category.id) ? 'border-primary ring-2 ring-primary' : 'hover:border-primary/50'}`} onClick={() => handleCategoryToggle(category.id)}>
+                    <Card 
+                        key={category.id} 
+                        className={`cursor-pointer transition-all ${selectedCategoryIds.includes(category.id) ? 'border-primary ring-2 ring-primary' : 'hover:border-primary/50'}`} 
+                        onClick={() => handleCategoryToggle(category.id)}
+                    >
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium">{category.name}</CardTitle>
-                            <Checkbox checked={selectedCategoryIds.includes(category.id)} id={`category-${category.id}`} aria-label={category.name} />
                         </CardHeader>
                         <CardContent>
                             <p className="text-xs text-muted-foreground">{category.description}</p>
