@@ -49,7 +49,7 @@ const AdminPanel: React.FC = () => {
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Users
-              </Tabs-Trigger>
+              </TabsTrigger>
               <TabsTrigger value="notifications" className="flex items-center gap-2">
                 <Bell className="h-4 w-4" />
                 Notifications
