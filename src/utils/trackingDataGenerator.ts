@@ -29,8 +29,8 @@ export const generateGeofenceData = (days: number) => {
     plateNumber: `ABC-${index + 1}`,
     driverName: `Driver ${index + 1}`,
     location: {
-      lat: 40.7128 + (Math.random() - 0.5) * 0.1,
-      lng: -74.0060 + (Math.random() - 0.5) * 0.1,
+      latitude: 40.7128 + (Math.random() - 0.5) * 0.1, // Changed from lat
+      longitude: -74.0060 + (Math.random() - 0.5) * 0.1, // Changed from lng
       speed: Math.floor(Math.random() * 60),
       course: Math.floor(Math.random() * 360),
       timestamp: new Date().toISOString()
@@ -96,8 +96,8 @@ export const convertToEnhancedVehicle = (vehicle: VehicleData) => {
     isOnline: vehicle.isOnline || false,
     isMoving: vehicle.isMoving || false,
     location: {
-      lat: vehicle.last_position?.lat || 0,
-      lng: vehicle.last_position?.lng || 0,
+      lat: vehicle.last_position?.latitude || 0, // Corrected: changed from lat to latitude
+      lng: vehicle.last_position?.longitude || 0, // Corrected: changed from lng to longitude
       address: 'Unknown Location'
     },
     engineHours: Math.floor(Math.random() * 1000 + 100),
@@ -106,3 +106,4 @@ export const convertToEnhancedVehicle = (vehicle: VehicleData) => {
     engineSize: 2.0
   };
 };
+
