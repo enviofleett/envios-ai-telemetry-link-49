@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Database, Settings, Users, Bell, Store } from 'lucide-react';
+import { Shield, Database, Settings, Users, Bell, Store, BarChart2 } from 'lucide-react';
 import SecurityTab from './tabs/SecurityTab';
 import DataManagementTab from './tabs/DataManagementTab';
 import SystemSettingsTab from './tabs/SystemSettingsTab';
@@ -10,6 +10,7 @@ import UserManagementTab from './tabs/UserManagementTab';
 import NotificationsTab from './tabs/NotificationsTab';
 import PlatformAdminUsersPanel from './platform/PlatformAdminUsersPanel';
 import MerchantVettingTab from './tabs/MerchantVettingTab';
+import MarketplaceAnalyticsTab from './tabs/MarketplaceAnalyticsTab';
 
 const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState('security');
@@ -32,7 +33,7 @@ const AdminPanel: React.FC = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-7">
+            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
               <TabsTrigger value="security" className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
                 Security
@@ -48,7 +49,7 @@ const AdminPanel: React.FC = () => {
               <TabsTrigger value="users" className="flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Users
-              </TabsTrigger>
+              </Tabs-Trigger>
               <TabsTrigger value="notifications" className="flex items-center gap-2">
                 <Bell className="h-4 w-4" />
                 Notifications
@@ -56,6 +57,10 @@ const AdminPanel: React.FC = () => {
               <TabsTrigger value="merchant_vetting" className="flex items-center gap-2">
                 <Store className="h-4 w-4" />
                 Merchants
+              </TabsTrigger>
+              <TabsTrigger value="marketplace_analytics" className="flex items-center gap-2">
+                <BarChart2 className="h-4 w-4" />
+                Analytics
               </TabsTrigger>
               {isPlatformAdmin && (
                 <TabsTrigger value="platform_admins" className="flex items-center gap-2">
@@ -87,6 +92,10 @@ const AdminPanel: React.FC = () => {
             
             <TabsContent value="merchant_vetting" className="space-y-4">
                 <MerchantVettingTab />
+            </TabsContent>
+
+            <TabsContent value="marketplace_analytics" className="space-y-4">
+                <MarketplaceAnalyticsTab />
             </TabsContent>
 
             {isPlatformAdmin && (
