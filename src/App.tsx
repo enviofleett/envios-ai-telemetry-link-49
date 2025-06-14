@@ -34,6 +34,7 @@ const BecomeAMerchantPage = lazy(() => import('@/pages/BecomeAMerchantPage'));
 const ReferralAgentSignupPage = lazy(() => import('@/pages/ReferralAgentSignupPage'));
 const ReferralAgentManagementPage = lazy(() => import('@/pages/ReferralAgentManagement'));
 const AgentDashboard = lazy(() => import('@/pages/AgentDashboard'));
+const AgentProfilePage = lazy(() => import('@/pages/AgentProfilePage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const queryClient = new QueryClient({
@@ -105,6 +106,13 @@ function App() {
                               <Route path="/agent/dashboard" element={
                                 <ProtectedRoute requireAgent={true}>
                                   <AgentDashboard />
+                                </ProtectedRoute>
+                              } />
+                              
+                              {/* Agent Profile route */}
+                              <Route path="/agent/profile" element={
+                                <ProtectedRoute requireAgent={true}>
+                                  <AgentProfilePage />
                                 </ProtectedRoute>
                               } />
                               
