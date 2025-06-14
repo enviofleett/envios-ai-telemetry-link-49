@@ -1,6 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import type { ReferralCode, ReferralAgent, ReferralAgentWithUserDetails } from '@/types/referral';
+import type { ReferralCode, ReferralAgent, ReferralAgentWithUserDetails, ReferralAgentStatus } from '@/types/referral';
 
 export const referralApi = {
   async getReferralAgents(): Promise<ReferralAgentWithUserDetails[]> {
@@ -45,6 +44,21 @@ export const referralApi = {
     const { data, error } = await supabase
       .from('referral_codes')
       .insert(codeData)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async updateReferralAgentStatus(
+    agentId: string,
+    status: ReferralAgentStatus
+  ): Promise<ReferralAgent> {
+    const { data, error } = await supabase
+      .from('referral_agents')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', agentId)
       .select()
       .single();
 

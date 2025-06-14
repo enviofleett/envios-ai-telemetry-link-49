@@ -8834,6 +8834,7 @@ export type Database = {
         | "manager"
         | "compliance_officer"
         | "merchant"
+        | "agent"
       campaign_schedule_type_enum: "immediate" | "scheduled" | "recurring"
       campaign_target_audience_enum:
         | "all_users"
@@ -8980,6 +8981,7 @@ export const Constants = {
         "manager",
         "compliance_officer",
         "merchant",
+        "agent",
       ],
       campaign_schedule_type_enum: ["immediate", "scheduled", "recurring"],
       campaign_target_audience_enum: [
