@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,7 +13,7 @@ import {
   Navigation
 } from 'lucide-react';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
-import VehicleDetailsModal from './VehicleDetailsModal';
+import VehicleDetailsModal from '@/components/vehicles/VehicleDetailsModal';
 import MapTilerMap from '@/components/map/MapTilerMap';
 import type { VehicleData } from '@/types/vehicle';
 
@@ -52,10 +51,10 @@ const UnifiedFleetDashboard: React.FC = () => {
   };
 
   const mapVehicles = vehicles.filter(v => 
-    v.last_position?.lat && 
-    v.last_position?.lng &&
-    !isNaN(v.last_position.lat) &&
-    !isNaN(v.last_position.lng)
+    v.last_position?.latitude && 
+    v.last_position?.longitude &&
+    !isNaN(v.last_position.latitude) &&
+    !isNaN(v.last_position.longitude)
   );
 
   if (isLoading) {
@@ -277,7 +276,7 @@ const UnifiedFleetDashboard: React.FC = () => {
                             <div className="flex items-center gap-1 text-sm">
                               <MapPin className="h-4 w-4 text-gray-400" />
                               <span className="text-xs">
-                                {vehicle.last_position.lat.toFixed(4)}, {vehicle.last_position.lng.toFixed(4)}
+                                {vehicle.last_position.latitude.toFixed(4)}, {vehicle.last_position.longitude.toFixed(4)}
                               </span>
                             </div>
                           </div>

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GP51AuthenticationPanel } from '@/components/admin/GP51AuthenticationPanel';
@@ -9,9 +8,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Shield, Activity, Settings, Zap, Download } from 'lucide-react';
 
+// Define SystemImportOptions type or import it if it exists elsewhere
+interface SystemImportOptions {
+  importType: 'devices' | 'geofences' | 'all'; // Example types, adjust as needed
+  conflictResolution: 'update' | 'skip';
+  importAll: boolean;
+  selectedDevices: string[];
+}
+
+
 const GP51IntegrationTab: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [importOptions, setImportOptions] = useState({
+  // Ensure importOptions matches SystemImportOptions, including importType
+  const [importOptions, setImportOptions] = useState<SystemImportOptions>({
+    importType: 'devices', // Added missing importType
     conflictResolution: 'update' as const,
     importAll: true,
     selectedDevices: [] as string[]
@@ -25,10 +35,23 @@ const GP51IntegrationTab: React.FC = () => {
     setIsImportModalOpen(false);
   };
 
-  const handleConfirmImport = (options: any) => {
-    console.log('Import confirmed with options:', options);
+  // This function now uses the component's state for options,
+  // if the modal's onConfirm doesn't pass options back directly.
+  // Or, if modal passes options, this signature is fine: (options: SystemImportOptions)
+  const handleConfirmImport = (confirmedOptions: SystemImportOptions) => {
+    console.log('Import confirmed with options:', confirmedOptions);
+    // Potentially use confirmedOptions if the modal passes them,
+    // otherwise, use `importOptions` from this component's state.
     setIsImportModalOpen(false);
+    // Add actual import logic here, e.g., startSystemImport(confirmedOptions)
   };
+  
+  // Example function you might call (adjust as per your actual import logic)
+  const startSystemImport = (options: SystemImportOptions) => {
+    console.log("Starting system import with options:", options);
+    // Actual import logic call
+  };
+
 
   return (
     <div className="space-y-6">
@@ -120,8 +143,12 @@ const GP51IntegrationTab: React.FC = () => {
       <GP51ImportModal
         isOpen={isImportModalOpen}
         onClose={handleCloseImportModal}
-        onConfirm={handleConfirmImport}
-        options={importOptions}
+        // Assuming GP51ImportModal's onConfirm prop expects (options: SystemImportOptions) => void
+        // If it expects () => void, then it should be:
+        // onConfirm={() => handleConfirmImport(importOptions)}
+        // For now, assuming it passes options from its internal state upon confirmation:
+        onConfirm={handleConfirmImport} 
+        options={importOptions} // Pass the initial/current options to the modal
       />
     </div>
   );

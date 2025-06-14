@@ -32,7 +32,7 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: 'https://api.maptiler.com/maps/streets/style.json?key=demo',
+      style: 'https://api.maptiler.com/maps/streets/style.json?key=demo', // Replace demo with your key
       center: [0, 0],
       zoom: 2
     });
@@ -53,10 +53,10 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
 
   // Filter vehicles with valid positions
   const validVehicles = vehicles.filter(v => 
-    v.last_position?.lat && 
-    v.last_position?.lng &&
-    !isNaN(v.last_position.lat) &&
-    !isNaN(v.last_position.lng)
+    v.last_position?.latitude && 
+    v.last_position?.longitude &&
+    !isNaN(v.last_position.latitude) &&
+    !isNaN(v.last_position.longitude)
   );
 
   // Use markers hook
@@ -101,3 +101,4 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
 };
 
 export default MapTilerMap;
+

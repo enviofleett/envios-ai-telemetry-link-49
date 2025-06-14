@@ -28,10 +28,10 @@ export const useMapMarkers = (
 
     // Filter vehicles with valid positions
     const validVehicles = vehicles.filter(v => 
-      v.last_position?.lat && 
-      v.last_position?.lng &&
-      !isNaN(v.last_position.lat) &&
-      !isNaN(v.last_position.lng)
+      v.last_position?.latitude && 
+      v.last_position?.longitude &&
+      !isNaN(v.last_position.latitude) &&
+      !isNaN(v.last_position.longitude)
     );
 
     if (validVehicles.length === 0) {
@@ -45,7 +45,7 @@ export const useMapMarkers = (
     const newMarkers: VehicleMarker[] = validVehicles.map(vehicle => {
       const element = createMarkerElement(vehicle, selectedVehicle, onVehicleSelect);
       const marker = new maplibregl.Marker(element)
-        .setLngLat([vehicle.last_position!.lng, vehicle.last_position!.lat])
+        .setLngLat([vehicle.last_position!.longitude, vehicle.last_position!.latitude])
         .addTo(map);
 
       return { vehicle, marker, element };
@@ -57,12 +57,12 @@ export const useMapMarkers = (
     if (!selectedVehicle) {
       if (validVehicles.length === 1) {
         const vehicle = validVehicles[0];
-        map.setCenter([vehicle.last_position!.lng, vehicle.last_position!.lat]);
+        map.setCenter([vehicle.last_position!.longitude, vehicle.last_position!.latitude]);
         map.setZoom(16);
       } else if (validVehicles.length > 1) {
         const bounds = new maplibregl.LngLatBounds();
         validVehicles.forEach(vehicle => {
-          bounds.extend([vehicle.last_position!.lng, vehicle.last_position!.lat]);
+          bounds.extend([vehicle.last_position!.longitude, vehicle.last_position!.latitude]);
         });
         map.fitBounds(bounds, { padding: 50 });
       }
@@ -71,3 +71,4 @@ export const useMapMarkers = (
 
   return markersRef;
 };
+
