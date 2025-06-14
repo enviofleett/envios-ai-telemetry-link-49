@@ -7638,6 +7638,8 @@ export type Database = {
         | "dispatcher"
         | "fleet_manager"
         | "pending"
+        | "manager"
+        | "compliance_officer"
       campaign_schedule_type_enum: "immediate" | "scheduled" | "recurring"
       campaign_target_audience_enum:
         | "all_users"
@@ -7766,6 +7768,8 @@ export const Constants = {
         "dispatcher",
         "fleet_manager",
         "pending",
+        "manager",
+        "compliance_officer",
       ],
       campaign_schedule_type_enum: ["immediate", "scheduled", "recurring"],
       campaign_target_audience_enum: [
