@@ -2,6 +2,8 @@ import React, { Suspense } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
 import { StableErrorBoundary } from '@/components/StableErrorBoundary';
+import PlatformAdminUsersPanel from './platform/PlatformAdminUsersPanel';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Generic loader for suspended tabs
 const TabContentLoader = () => (
@@ -24,6 +26,21 @@ const ComingSoonTab: React.FC<{ tabName: string }> = ({ tabName }) => (
     </Alert>
   </div>
 );
+
+// Fallback for access denied to platform admin tabs
+function PlatformAdminPermissionDenied() {
+  return (
+    <div className="flex items-center justify-center min-h-[400px]">
+      <div className="text-center space-y-2">
+        <Shield className="h-10 w-10 text-gray-400 mx-auto" />
+        <h2 className="text-lg font-semibold text-gray-900">Access Denied</h2>
+        <div className="text-muted-foreground">
+          You must be a super admin or system admin to access this page.
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Lazy load all tab components
 // Company
@@ -59,6 +76,11 @@ interface AdminTabContentRendererProps {
 }
 
 const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activeTab }) => {
+  const { user, isAdmin, userRole } = useAuth();
+
+  const isPlatformAdmin =
+    userRole === "super_admin" || userRole === "system_admin";
+
   const renderTabContent = () => {
     switch (activeTab) {
       // Company tabs
@@ -134,6 +156,11 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
         return <AnalyticsTab />;
       case 'packages':
         return <PackageManagementDashboard />;
+
+      // Platform Administration
+      case 'platform-admin-users':
+        if (!isPlatformAdmin) return <PlatformAdminPermissionDenied />;
+        return <PlatformAdminUsersPanel />;
 
       default:
         return (

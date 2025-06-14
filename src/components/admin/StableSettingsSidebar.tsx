@@ -1,4 +1,3 @@
-
 import React, { memo, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { 
@@ -102,6 +101,12 @@ const sidebarItems = [
     items: [
       { id: 'analytics', label: 'Analytics', icon: BarChart3 },
       { id: 'packages', label: 'Packages', icon: Package },
+    ]
+  },
+  {
+    category: 'Platform Administration',
+    items: [
+      { id: 'platform-admin-users', label: 'Platform Admin Users', icon: Shield },
     ]
   }
 ];
