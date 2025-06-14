@@ -4539,6 +4539,30 @@ export type Database = {
           },
         ]
       }
+      role_permissions: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          permission: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          permission: string
+          role: Database["public"]["Enums"]["app_role"]
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          permission?: string
+          role?: Database["public"]["Enums"]["app_role"]
+        }
+        Relationships: []
+      }
       secure_sessions: {
         Row: {
           created_at: string
@@ -4584,6 +4608,42 @@ export type Database = {
           session_token?: string
           user_agent?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      security_audit_events: {
+        Row: {
+          created_at: string | null
+          detail: Json | null
+          event_type: string
+          id: string
+          ip_address: unknown | null
+          severity: string | null
+          target_user_id: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          detail?: Json | null
+          event_type: string
+          id?: string
+          ip_address?: unknown | null
+          severity?: string | null
+          target_user_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          detail?: Json | null
+          event_type?: string
+          id?: string
+          ip_address?: unknown | null
+          severity?: string | null
+          target_user_id?: string | null
+          user_agent?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -5112,6 +5172,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_creation_approvals: {
+        Row: {
+          approval_reason: string | null
+          approved_by: string | null
+          created_at: string | null
+          id: string
+          request_reason: string | null
+          requested_by: string
+          requested_role: Database["public"]["Enums"]["app_role"]
+          status: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          approval_reason?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          id?: string
+          request_reason?: string | null
+          requested_by: string
+          requested_role: Database["public"]["Enums"]["app_role"]
+          status?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          approval_reason?: string | null
+          approved_by?: string | null
+          created_at?: string | null
+          id?: string
+          request_reason?: string | null
+          requested_by?: string
+          requested_role?: Database["public"]["Enums"]["app_role"]
+          status?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_email_preferences: {
         Row: {
           created_at: string
@@ -5412,6 +5511,33 @@ export type Database = {
           registration_status?: string
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string
+        }
+        Relationships: []
+      }
+      user_role_assignments: {
+        Row: {
+          assigned_by: string
+          assigned_role: Database["public"]["Enums"]["app_role"]
+          assignee_user_id: string
+          created_at: string | null
+          id: string
+          reason: string | null
+        }
+        Insert: {
+          assigned_by: string
+          assigned_role: Database["public"]["Enums"]["app_role"]
+          assignee_user_id: string
+          created_at?: string | null
+          id?: string
+          reason?: string | null
+        }
+        Update: {
+          assigned_by?: string
+          assigned_role?: Database["public"]["Enums"]["app_role"]
+          assignee_user_id?: string
+          created_at?: string | null
+          id?: string
+          reason?: string | null
         }
         Relationships: []
       }
@@ -7558,6 +7684,10 @@ export type Database = {
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      has_permission: {
+        Args: { _user_id: string; _permission: string }
+        Returns: boolean
       }
       has_role: {
         Args: {
