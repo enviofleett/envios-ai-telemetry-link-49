@@ -1,4 +1,3 @@
-
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { MerchantApplication } from '@/types/merchant-application';
@@ -69,7 +68,7 @@ export const useMerchantApplication = () => {
     const { user } = useAuth();
     const queryClient = useQueryClient();
 
-    const { data: application, isLoading, isError, refetch } = useQuery({
+    const { data: application, isLoading, isError, error, refetch } = useQuery({
         queryKey: ['merchant-application', user?.id],
         queryFn: () => fetchApplication(user?.id),
         enabled: !!user,
@@ -117,6 +116,7 @@ export const useMerchantApplication = () => {
         application: application as MerchantApplication | null,
         isLoading,
         isError,
+        error,
         saveApplication,
         isSaving,
         uploadDoc,
