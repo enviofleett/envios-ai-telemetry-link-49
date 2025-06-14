@@ -1,0 +1,87 @@
+
+import { supabase } from '@/integrations/supabase/client';
+import type { 
+  ReferralAgent, 
+  ReferralAgentWithUserDetails, 
+  ReferralAgentStatus,
+} from '@/types/referral';
+
+export async function getReferralAgents(): Promise<ReferralAgentWithUserDetails[]> {
+  const { data: agents, error: agentsError } = await supabase.from('referral_agents').select('*');
+  if (agentsError) throw agentsError;
+
+  if (!agents || agents.length === 0) {
+    return [];
+  }
+
+  const userIds = agents.map(a => a.user_id);
+  
+  const { data: users, error: usersError } = await supabase
+    .from('envio_users')
+    .select('id, name, email')
+    .in('id', userIds);
+    
+  if (usersError) throw usersError;
+
+  const usersById = new Map(users.map(u => [u.id, u]));
+
+  return agents.map(agent => ({
+      ...agent,
+      name: usersById.get(agent.user_id)?.name ?? 'Unknown User',
+      email: usersById.get(agent.user_id)?.email ?? 'no-email@example.com',
+  }));
+}
+
+export async function getMyAgentProfile(): Promise<ReferralAgent | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data, error } = await supabase
+    .from('referral_agents')
+    .select('*')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  
+  if (error) {
+    console.error("Error fetching agent profile:", error);
+    throw error;
+  }
+  return data;
+}
+
+export async function updateMyAgentProfile(
+  details: { bank_account_details?: any }
+): Promise<ReferralAgent> {
+  const agentProfile = await getMyAgentProfile();
+  if (!agentProfile) throw new Error("Agent profile not found.");
+
+  const { data, error } = await supabase
+    .from('referral_agents')
+    .update({
+      bank_account_details: details.bank_account_details,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', agentProfile.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  if (!data) throw new Error("Failed to update profile.");
+  
+  return data;
+}
+
+export async function updateReferralAgentStatus(
+    agentId: string,
+    status: ReferralAgentStatus
+  ): Promise<ReferralAgent> {
+    const { data, error } = await supabase
+      .from('referral_agents')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', agentId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
