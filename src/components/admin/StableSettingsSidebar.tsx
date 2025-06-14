@@ -104,6 +104,12 @@ const sidebarItems = [
     ]
   },
   {
+    category: 'Marketplace',
+    items: [
+      { id: 'marketplace-settings', label: 'Marketplace Settings', icon: DollarSign }
+    ]
+  },
+  {
     category: 'Platform Administration',
     items: [
       { id: 'platform-admin-users', label: 'Platform Admin Users', icon: Shield },

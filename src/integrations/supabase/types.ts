@@ -4142,6 +4142,39 @@ export type Database = {
           },
         ]
       }
+      marketplace_settings: {
+        Row: {
+          commission_rate: number
+          connection_fee: number
+          created_at: string
+          currency: string
+          id: string
+          registration_fee: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          commission_rate?: number
+          connection_fee?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          registration_fee?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          commission_rate?: number
+          connection_fee?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          registration_fee?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       marketplace_transactions: {
         Row: {
           amount: number

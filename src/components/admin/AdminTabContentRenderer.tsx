@@ -70,6 +70,8 @@ const GeofencingTab = React.lazy(() => import('./tabs/GeofencingTab'));
 // Analytics
 const AnalyticsTab = React.lazy(() => import('./tabs/AnalyticsTab'));
 const PackageManagementDashboard = React.lazy(() => import('../packages/PackageManagementDashboard'));
+// Marketplace
+const MarketplaceSettingsTab = React.lazy(() => import('./tabs/MarketplaceSettingsTab'));
 
 interface AdminTabContentRendererProps {
   activeTab: string;
@@ -160,6 +162,10 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
         return <AnalyticsTab />;
       case 'packages':
         return <PackageManagementDashboard />;
+
+      // Marketplace tabs
+      case 'marketplace-settings':
+        return <MarketplaceSettingsTab />;
 
       // Platform Administration
       case 'platform-admin-users':
