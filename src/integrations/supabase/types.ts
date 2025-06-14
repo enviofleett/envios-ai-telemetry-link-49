@@ -108,6 +108,53 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_payout_requests: {
+        Row: {
+          admin_notes: string | null
+          agent_id: string
+          amount: number
+          created_at: string
+          id: string
+          processed_at: string | null
+          requested_at: string
+          status: Database["public"]["Enums"]["payout_request_status"]
+          transaction_ref: string | null
+          updated_at: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          agent_id: string
+          amount: number
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          requested_at?: string
+          status?: Database["public"]["Enums"]["payout_request_status"]
+          transaction_ref?: string | null
+          updated_at?: string
+        }
+        Update: {
+          admin_notes?: string | null
+          agent_id?: string
+          amount?: number
+          created_at?: string
+          id?: string
+          processed_at?: string | null
+          requested_at?: string
+          status?: Database["public"]["Enums"]["payout_request_status"]
+          transaction_ref?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_payout_requests_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "referral_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_rate_limits: {
         Row: {
           block_expires_at: string | null
@@ -5013,6 +5060,36 @@ export type Database = {
         }
         Relationships: []
       }
+      payout_request_commissions: {
+        Row: {
+          commission_id: string
+          payout_request_id: string
+        }
+        Insert: {
+          commission_id: string
+          payout_request_id: string
+        }
+        Update: {
+          commission_id?: string
+          payout_request_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_request_commissions_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "referral_commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payout_request_commissions_payout_request_id_fkey"
+            columns: ["payout_request_id"]
+            isOneToOne: false
+            referencedRelation: "agent_payout_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pending_user_registrations: {
         Row: {
           admin_assigned_user_type: number | null
@@ -8696,6 +8773,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      create_payout_request: {
+        Args: { request_amount: number; commission_ids: string[] }
+        Returns: string
+      }
       create_system_backup_for_import: {
         Args: { import_id: string }
         Returns: Json
@@ -8850,6 +8931,12 @@ export type Database = {
         | "requires_more_info"
         | "approved"
         | "rejected"
+      payout_request_status:
+        | "pending"
+        | "approved"
+        | "processing"
+        | "paid"
+        | "rejected"
       referral_agent_status:
         | "pending_approval"
         | "active"
@@ -8998,6 +9085,13 @@ export const Constants = {
         "in_review",
         "requires_more_info",
         "approved",
+        "rejected",
+      ],
+      payout_request_status: [
+        "pending",
+        "approved",
+        "processing",
+        "paid",
         "rejected",
       ],
       referral_agent_status: [

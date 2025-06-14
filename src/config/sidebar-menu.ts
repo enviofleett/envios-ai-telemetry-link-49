@@ -16,6 +16,7 @@ import {
   Store,
   User,
   Hash,
+  DollarSign,
 } from "lucide-react"
 
 export interface MenuItem {
@@ -129,6 +130,11 @@ export const agentMenuItems: MenuItem[] = [
     title: "Commissions",
     url: "/agent/commissions",
     icon: CreditCard,
+  },
+  {
+    title: "Payouts",
+    url: "/agent/payouts",
+    icon: DollarSign,
   },
   {
     title: "Profile",

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   ReferralCode, 
@@ -9,7 +8,8 @@ import type {
   ReferredUserWithDetails,
   ReferredUser,
   CommissionWithDetails,
-  ReferralCommission
+  ReferralCommission,
+  AgentPayoutRequest,
 } from '@/types/referral';
 
 export const referralApi = {
@@ -85,6 +85,7 @@ export const referralApi = {
         return {
             totalEarned: 0,
             pendingCommissions: 0,
+            processingPayouts: 0,
             earnedThisMonth: 0,
             totalCodes: 0,
             totalUsageCount: 0,
@@ -130,6 +131,10 @@ export const referralApi = {
       .filter(c => c.status === 'pending_payout')
       .reduce((sum, c) => sum + c.commission_amount, 0);
 
+    const processingPayouts = (commissions ?? [])
+      .filter(c => c.status === 'processing_payout')
+      .reduce((sum, c) => sum + c.commission_amount, 0);
+
     const earnedThisMonth = (commissions ?? [])
         .filter(c => c.status === 'paid' && new Date(c.created_at) >= startOfMonth)
         .reduce((sum, c) => sum + c.commission_amount, 0);
@@ -156,6 +161,7 @@ export const referralApi = {
     return {
       totalEarned,
       pendingCommissions,
+      processingPayouts,
       earnedThisMonth,
       totalCodes: (codes ?? []).length,
       totalUsageCount,
@@ -245,6 +251,41 @@ export const referralApi = {
       ...c,
       referred_user_name: usersById.get(c.referred_user_id)?.name ?? 'Unknown User',
     }));
+  },
+
+  async createPayoutRequest(
+    amount: number,
+    commissionIds: string[]
+  ): Promise<string> {
+    const { data, error } = await supabase.rpc('create_payout_request', {
+      request_amount: amount,
+      commission_ids: commissionIds,
+    });
+
+    if (error) {
+      console.error('Error creating payout request:', error);
+      throw error;
+    }
+    if(!data) throw new Error("Payout request failed.");
+    return data;
+  },
+
+  async getMyPayoutRequests(): Promise<AgentPayoutRequest[]> {
+    const agentProfile = await this.getMyAgentProfile();
+    if (!agentProfile) return [];
+
+    const { data, error } = await supabase
+      .from('agent_payout_requests')
+      .select('*')
+      .eq('agent_id', agentProfile.id)
+      .order('requested_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching payout requests:', error);
+      throw error;
+    }
+
+    return data || [];
   },
 
   async getReferralCodes(): Promise<ReferralCode[]> {

@@ -1,4 +1,3 @@
-
 import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -38,6 +37,7 @@ const AgentProfilePage = lazy(() => import('@/pages/AgentProfilePage'));
 const AgentReferralCodesPage = lazy(() => import('@/pages/AgentReferralCodesPage'));
 const AgentReferredUsersPage = lazy(() => import('@/pages/AgentReferredUsersPage'));
 const AgentCommissionsPage = lazy(() => import('@/pages/AgentCommissionsPage'));
+const AgentPayoutsPage = lazy(() => import('@/pages/AgentPayoutsPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const queryClient = new QueryClient({
@@ -137,6 +137,13 @@ function App() {
                               <Route path="/agent/commissions" element={
                                 <ProtectedRoute requireAgent={true}>
                                   <AgentCommissionsPage />
+                                </ProtectedRoute>
+                              } />
+
+                              {/* Agent Payouts route */}
+                              <Route path="/agent/payouts" element={
+                                <ProtectedRoute requireAgent={true}>
+                                  <AgentPayoutsPage />
                                 </ProtectedRoute>
                               } />
                               

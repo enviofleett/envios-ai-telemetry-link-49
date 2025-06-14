@@ -1,7 +1,8 @@
 
 export type ReferralAgentStatus = 'pending_approval' | 'active' | 'suspended' | 'rejected';
 export type CommissionSourceType = 'subscription_upgrade' | 'marketplace_fee';
-export type CommissionStatus = 'pending_payout' | 'paid' | 'cancelled';
+export type CommissionStatus = 'pending_payout' | 'paid' | 'cancelled' | 'processing_payout';
+export type PayoutRequestStatus = 'pending' | 'approved' | 'processing' | 'paid' | 'rejected';
 
 export interface ReferralSettings {
   id: 1;
@@ -78,6 +79,7 @@ export interface ReferralAgentWithUserDetails extends ReferralAgent {
 export interface AgentDashboardAnalytics {
   totalEarned: number;
   pendingCommissions: number;
+  processingPayouts: number;
   earnedThisMonth: number;
   totalCodes: number;
   totalUsageCount: number;
@@ -93,4 +95,15 @@ export interface ReferredUserWithDetails extends ReferredUser {
 
 export interface CommissionWithDetails extends ReferralCommission {
   referred_user_name: string;
+}
+
+export interface AgentPayoutRequest {
+    id: string;
+    agent_id: string;
+    amount: number;
+    status: PayoutRequestStatus;
+    requested_at: string;
+    processed_at?: string | null;
+    transaction_ref?: string | null;
+    admin_notes?: string | null;
 }
