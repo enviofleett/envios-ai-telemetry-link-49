@@ -32,6 +32,7 @@ const WorkshopDashboard = lazy(() => import('@/pages/WorkshopDashboard'));
 const AdminAnalytics = lazy(() => import('@/pages/AdminAnalytics'));
 const BecomeAMerchantPage = lazy(() => import('@/pages/BecomeAMerchantPage'));
 const ReferralAgentSignupPage = lazy(() => import('@/pages/ReferralAgentSignupPage'));
+const ReferralAgentManagementPage = lazy(() => import('@/pages/ReferralAgentManagement'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const queryClient = new QueryClient({
@@ -89,6 +90,13 @@ function App() {
                               <Route path="/admin/analytics" element={
                                 <ProtectedRoute requireAdmin={true}>
                                   <AdminAnalytics />
+                                </ProtectedRoute>
+                              } />
+
+                              {/* Referral Agent Management route */}
+                              <Route path="/referral-agents" element={
+                                <ProtectedRoute requireAdmin={true}>
+                                  <ReferralAgentManagementPage />
                                 </ProtectedRoute>
                               } />
                               

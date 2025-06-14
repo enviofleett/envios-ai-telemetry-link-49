@@ -88,6 +88,12 @@ export const menuItems: MenuItem[] = [
     icon: Users,
   },
   {
+    title: "Referral Agents",
+    url: "/referral-agents",
+    icon: Users,
+    featureId: "referral_management",
+  },
+  {
     title: "Market Analytics",
     url: "/admin/analytics",
     icon: BarChart3,
