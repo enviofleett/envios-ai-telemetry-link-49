@@ -1,3 +1,4 @@
+
 import React, { useMemo, useCallback } from 'react';
 import { useMerchantOnboardingData } from '@/hooks/useMerchantOnboardingData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +34,14 @@ const CategorySelector: React.FC = () => {
         return { fee: totalFee, message, registration_fee: registration_fee || 0, additionalFee };
     }, [selectedCategoryIds, settings]);
 
+    const handleCategoryToggle = useCallback((categoryId: string) => {
+        const currentSelection = getValues('selected_category_ids') || [];
+        const newSelection = currentSelection.includes(categoryId)
+            ? currentSelection.filter((id: string) => id !== categoryId)
+            : [...currentSelection, categoryId];
+        setValue('selected_category_ids', newSelection, { shouldDirty: true, shouldValidate: true });
+    }, [getValues, setValue]);
+    
     if (isLoading) {
         return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Loading categories...</div>;
     }
@@ -46,14 +55,6 @@ const CategorySelector: React.FC = () => {
             </Alert>
         );
     }
-
-    const handleCategoryToggle = useCallback((categoryId: string) => {
-        const currentSelection = getValues('selected_category_ids') || [];
-        const newSelection = currentSelection.includes(categoryId)
-            ? currentSelection.filter((id: string) => id !== categoryId)
-            : [...currentSelection, categoryId];
-        setValue('selected_category_ids', newSelection, { shouldDirty: true, shouldValidate: true });
-    }, [getValues, setValue]);
 
     return (
         <div className="space-y-4">
@@ -86,4 +87,4 @@ const CategorySelector: React.FC = () => {
     );
 };
 
-export default CategorySelector;
+export default React.memo(CategorySelector);

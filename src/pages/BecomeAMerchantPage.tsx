@@ -6,6 +6,7 @@ import MerchantApplicationForm from '@/components/merchant-application/MerchantA
 import ApplicationStatusDisplay from '@/components/merchant-application/ApplicationStatusDisplay';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import StableErrorBoundary from '@/components/StableErrorBoundary';
 
 const BecomeAMerchantPage: React.FC = () => {
   const { application, isLoading, isError, error } = useMerchantApplication();
@@ -50,7 +51,9 @@ const BecomeAMerchantPage: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {renderContent()}
+            <StableErrorBoundary>
+              {renderContent()}
+            </StableErrorBoundary>
           </CardContent>
         </Card>
       </div>
