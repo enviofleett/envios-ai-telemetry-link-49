@@ -1,6 +1,6 @@
 
 import { GP51_API_URL, REQUEST_TIMEOUT, MAX_RETRIES } from "./constants.ts";
-import { md5 } from "./crypto_utils.ts";
+import { md5_sync } from "./crypto_utils.ts"; // Changed import name
 import type { GP51Session } from "./gp51_session_utils.ts";
 
 interface CallGP51Result {
@@ -73,7 +73,7 @@ export async function fetchFromGP51(
   retryJsonParse: boolean = false
 ): Promise<FetchGP51Response> {
   const { action, session, additionalParams = {} } = options;
-  const hashedPassword = await md5(session.password_hash);
+  const hashedPassword = md5_sync(session.password_hash); // Changed to synchronous call
 
   const formData = new URLSearchParams({
     action,
@@ -121,3 +121,4 @@ export async function fetchFromGP51(
     return { error: `Invalid GP51 ${action} response (not JSON)`, raw: text, status: 502 };
   }
 }
+
