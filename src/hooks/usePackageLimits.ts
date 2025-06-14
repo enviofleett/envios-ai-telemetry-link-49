@@ -12,14 +12,15 @@ export function usePackageLimits(packageId?: string) {
     enabled: !!packageId,
     queryFn: async () => {
       if (!packageId) return { vehicleLimit: null };
-      // Fetch vehicle_limit directly from subscriber_packages
+      // Safely fetch vehicle limit, fallback to null if not present
       const { data, error } = await supabase
         .from('subscriber_packages')
         .select('vehicle_limit')
         .eq('id', packageId)
-        .single();
+        .maybeSingle();
       if (error) throw error;
-      return { vehicleLimit: data?.vehicle_limit ?? null };
+      // Only return if property actually exists (avoid runtime TS error)
+      return { vehicleLimit: data && "vehicle_limit" in data ? (data.vehicle_limit ?? null) : null };
     }
   });
 }
