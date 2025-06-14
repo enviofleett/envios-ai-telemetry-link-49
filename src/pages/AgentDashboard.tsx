@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import AgentEarningsChart from '@/components/packages/referral/agent/AgentEarningsChart';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
+import TrendIndicator from '@/components/packages/referral/agent/TrendIndicator';
 
 const AgentDashboardPage: React.FC = () => {
   const { data: analytics, isLoading, isError } = useQuery({
@@ -49,7 +50,7 @@ const AgentDashboardPage: React.FC = () => {
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">Agent Dashboard</h1>
         
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Earned</CardTitle>
@@ -58,6 +59,26 @@ const AgentDashboardPage: React.FC = () => {
             <CardContent>
               <div className="text-2xl font-bold">{formatCurrency(analytics.totalEarned)}</div>
               <p className="text-xs text-muted-foreground">All-time paid commissions</p>
+            </CardContent>
+          </Card>
+           <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Earned This Month</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(analytics.earnedThisMonth)}</div>
+              <TrendIndicator current={analytics.earnedThisMonth} previous={analytics.earnedLastMonth} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">New Referred Users</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-bold">+{analytics.referredUsersThisMonth}</div>
+                <TrendIndicator current={analytics.referredUsersThisMonth} previous={analytics.referredUsersLastMonth} />
             </CardContent>
           </Card>
           <Card>
@@ -82,22 +103,12 @@ const AgentDashboardPage: React.FC = () => {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Referred Users</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Referred Users</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">+{analytics.totalReferredUsers}</div>
-              <p className="text-xs text-muted-foreground">Total users signed up with your codes</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Code Usage</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{analytics.totalUsageCount}</div>
-              <p className="text-xs text-muted-foreground">Total uses across {analytics.totalCodes} codes</p>
+              <p className="text-xs text-muted-foreground">All-time users with your codes</p>
             </CardContent>
           </Card>
         </div>

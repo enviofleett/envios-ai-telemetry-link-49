@@ -80,9 +80,12 @@ export interface AgentDashboardAnalytics {
   pendingCommissions: number;
   processingPayouts: number;
   earnedThisMonth: number;
+  earnedLastMonth: number;
   totalCodes: number;
   totalUsageCount: number;
   totalReferredUsers: number;
+  referredUsersThisMonth: number;
+  referredUsersLastMonth: number;
   monthlyCommissions: { name: string; total: number }[];
 }
 

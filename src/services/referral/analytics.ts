@@ -16,9 +16,12 @@ export async function getAgentDashboardAnalytics(): Promise<AgentDashboardAnalyt
           pendingCommissions: 0,
           processingPayouts: 0,
           earnedThisMonth: 0,
+          earnedLastMonth: 0,
           totalCodes: 0,
           totalUsageCount: 0,
           totalReferredUsers: 0,
+          referredUsersThisMonth: 0,
+          referredUsersLastMonth: 0,
           monthlyCommissions: Array(6).fill(0).map((_, i) => {
               const d = new Date();
               d.setMonth(d.getMonth() - (5 - i));
@@ -44,6 +47,10 @@ export async function getAgentDashboardAnalytics(): Promise<AgentDashboardAnalyt
     .eq('agent_id', agentId);
   if (codesError) throw codesError;
 
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
   // Fetch referred users count
   const { count: referredUsersCount, error: referredUsersError } = await supabase
     .from('referred_users')
@@ -51,8 +58,23 @@ export async function getAgentDashboardAnalytics(): Promise<AgentDashboardAnalyt
     .eq('referring_agent_id', agentId);
   if (referredUsersError) throw referredUsersError;
 
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  // Fetch referred users this month
+  const { count: referredUsersThisMonth, error: referredUsersThisMonthError } = await supabase
+    .from('referred_users')
+    .select('*', { count: 'exact', head: true })
+    .eq('referring_agent_id', agentId)
+    .gte('signed_up_at', startOfMonth.toISOString());
+  if (referredUsersThisMonthError) throw referredUsersThisMonthError;
+  
+  // Fetch referred users last month
+  const { count: referredUsersLastMonth, error: referredUsersLastMonthError } = await supabase
+    .from('referred_users')
+    .select('*', { count: 'exact', head: true })
+    .eq('referring_agent_id', agentId)
+    .gte('signed_up_at', startOfLastMonth.toISOString())
+    .lt('signed_up_at', startOfMonth.toISOString());
+  if (referredUsersLastMonthError) throw referredUsersLastMonthError;
+
 
   const totalEarned = (commissions ?? [])
     .filter(c => c.status === 'paid')
@@ -69,6 +91,10 @@ export async function getAgentDashboardAnalytics(): Promise<AgentDashboardAnalyt
   const earnedThisMonth = (commissions ?? [])
       .filter(c => (c.status === 'paid' || c.status === 'processing_payout' || c.status === 'pending_payout') && new Date(c.created_at) >= startOfMonth)
       .reduce((sum, c) => sum + c.commission_amount, 0);
+
+  const earnedLastMonth = (commissions ?? [])
+    .filter(c => (c.status === 'paid' || c.status === 'processing_payout' || c.status === 'pending_payout') && new Date(c.created_at) >= startOfLastMonth && new Date(c.created_at) < startOfMonth)
+    .reduce((sum, c) => sum + c.commission_amount, 0);
   
   const totalUsageCount = (codes ?? []).reduce((sum, c) => sum + c.usage_count, 0);
 
@@ -94,9 +120,12 @@ export async function getAgentDashboardAnalytics(): Promise<AgentDashboardAnalyt
     pendingCommissions,
     processingPayouts,
     earnedThisMonth,
+    earnedLastMonth,
     totalCodes: (codes ?? []).length,
     totalUsageCount,
     totalReferredUsers: referredUsersCount ?? 0,
+    referredUsersThisMonth: referredUsersThisMonth ?? 0,
+    referredUsersLastMonth: referredUsersLastMonth ?? 0,
     monthlyCommissions,
   };
 }
