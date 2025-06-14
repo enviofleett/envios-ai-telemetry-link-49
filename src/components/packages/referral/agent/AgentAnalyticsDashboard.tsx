@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { referralApi } from '@/services/referral';
@@ -15,6 +16,7 @@ import {
   ChartLegendContent,
 } from '@/components/ui/chart';
 import type { ChartConfig } from '@/components/ui/chart';
+import ConversionFunnelChart from './ConversionFunnelChart';
 
 const AgentAnalyticsDashboard: React.FC = () => {
   const { data: snapshots, isLoading, isError, error } = useQuery({
@@ -44,6 +46,8 @@ const AgentAnalyticsDashboard: React.FC = () => {
     );
   }
 
+  const latestSnapshot = snapshots?.[0];
+
   const chartData = (snapshots ?? [])
     .slice()
     .reverse()
@@ -71,6 +75,13 @@ const AgentAnalyticsDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {latestSnapshot && (
+        <ConversionFunnelChart
+          referrals={latestSnapshot.total_referrals}
+          signups={latestSnapshot.total_signups}
+          conversions={latestSnapshot.total_conversions}
+        />
+      )}
       {snapshots && snapshots.length > 0 && (
         <Card>
           <CardHeader>
