@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { CategoryCommissionRate } from "@/types/category-commission-rate";
 
@@ -19,4 +18,13 @@ export async function upsertCategoryCommissionRate(payload: Partial<CategoryComm
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function deleteCategoryCommissionRate(id: string) {
+  const { error } = await supabase
+    .from("category_commission_rates")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+  return true;
 }

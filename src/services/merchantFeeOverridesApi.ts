@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { MerchantFeeOverride } from "@/types/merchant-fee-override";
 
@@ -19,4 +18,13 @@ export async function upsertMerchantFeeOverride(payload: Partial<MerchantFeeOver
     .single();
   if (error) throw error;
   return data;
+}
+
+export async function deleteMerchantFeeOverride(id: string) {
+  const { error } = await supabase
+    .from("merchant_fee_overrides")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+  return true;
 }

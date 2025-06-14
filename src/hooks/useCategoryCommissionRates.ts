@@ -1,6 +1,5 @@
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchCategoryCommissionRates, upsertCategoryCommissionRate } from "@/services/categoryCommissionRatesApi";
+import { fetchCategoryCommissionRates, upsertCategoryCommissionRate, deleteCategoryCommissionRate } from "@/services/categoryCommissionRatesApi";
 import { useToast } from "@/hooks/use-toast";
 import type { CategoryCommissionRate } from "@/types/category-commission-rate";
 
@@ -31,6 +30,24 @@ export function useCategoryCommissionRates() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteCategoryCommissionRate,
+    onSuccess: () => {
+      toast({
+        title: "Category commission deleted",
+        description: "Commission rate for category has been removed.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["category_commission_rates"] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Error",
+        description: err?.message || "Could not delete category commission rate",
+        variant: "destructive",
+      });
+    },
+  });
+
   return {
     data,
     isLoading,
@@ -38,5 +55,7 @@ export function useCategoryCommissionRates() {
     error,
     saveCategoryRate: mutation.mutate,
     isSaving: mutation.isPending,
+    deleteCategoryRate: deleteMutation.mutate,
+    isDeleting: deleteMutation.isPending,
   };
 }

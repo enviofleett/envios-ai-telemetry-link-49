@@ -1,6 +1,5 @@
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchMerchantFeeOverrides, upsertMerchantFeeOverride } from "@/services/merchantFeeOverridesApi";
+import { fetchMerchantFeeOverrides, upsertMerchantFeeOverride, deleteMerchantFeeOverride } from "@/services/merchantFeeOverridesApi";
 import { useToast } from "@/hooks/use-toast";
 import type { MerchantFeeOverride } from "@/types/merchant-fee-override";
 
@@ -31,6 +30,24 @@ export function useMerchantFeeOverrides() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteMerchantFeeOverride,
+    onSuccess: () => {
+      toast({
+        title: "Merchant fee override deleted",
+        description: "Custom fees for merchant have been removed.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["merchant_fee_overrides"] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Error",
+        description: err?.message || "Could not delete merchant fee override",
+        variant: "destructive",
+      });
+    },
+  });
+
   return {
     data,
     isLoading,
@@ -38,5 +55,7 @@ export function useMerchantFeeOverrides() {
     error,
     saveMerchantFee: mutation.mutate,
     isSaving: mutation.isPending,
+    deleteMerchantFee: deleteMutation.mutate,
+    isDeleting: deleteMutation.isPending,
   };
 }
