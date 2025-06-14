@@ -1,4 +1,5 @@
-import type { GP51AuthStatus } from '@/hooks/useGP51Auth'; // Assuming this type exists or creating a similar one
+
+// Removed import: import type { GP51AuthStatus } from '@/hooks/useGP51Auth';
 
 export interface ConnectionTestResult {
   success: boolean;
@@ -12,8 +13,12 @@ export interface ConnectionTestResult {
   timestamp?: Date;
 }
 
-export interface GP51SessionStatusDisplayProps extends GP51AuthStatus {
-  // authLoading, isAuthenticated, username, tokenExpiresAt are part of GP51AuthStatus
+// GP51AuthStatusForDisplay is used by GP51SessionStatusDisplay.tsx
+export interface GP51AuthStatusForDisplay {
+  isAuthenticated: boolean;
+  username?: string;
+  tokenExpiresAt?: Date;
+  isLoading: boolean; // Renamed from authLoading for clarity within the component
 }
 
 export interface TestResultAlertProps {
@@ -49,25 +54,6 @@ export interface GP51LiveDataFetchTestProps {
   isApiTestSuccessful: boolean | undefined;
 }
 
-// This type might be useful if useGP51Auth hook doesn't export a combined status type
-export interface GP51AuthStatusForDisplay {
-  isAuthenticated: boolean;
-  username?: string;
-  tokenExpiresAt?: Date;
-  isLoading: boolean; // Renamed from authLoading for clarity within the component
-}
-
-export interface GP51AuthStatus {
-  isAuthenticated: boolean;
-  username?: string;
-  tokenExpiresAt?: Date;
-  isLoading: boolean;
-  error: string | null;
-  isRestoringSession: boolean; // Added from useGP51Auth hook
-}
-
-export interface GP51SessionStatusDisplayProps extends Omit<GP51AuthStatus, 'error' | 'isRestoringSession'> {
-  // Currently, error and isRestoringSession are not directly used by the display component.
-  // If they were, they could be included here or the Omit could be adjusted.
-  // For now, the component expects isLoading, isAuthenticated, username, tokenExpiresAt.
-}
+// Removed GP51AuthStatus interface as it became unused
+// Removed GP51SessionStatusDisplayProps interface as it was redundant
+// and GP51SessionStatusDisplay.tsx uses GP51AuthStatusForDisplay directly.

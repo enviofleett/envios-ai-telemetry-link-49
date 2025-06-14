@@ -42,8 +42,6 @@ const GP51ConnectionTester: React.FC = () => {
           isAuthenticated={isGp51Authenticated}
           username={gp51Username}
           tokenExpiresAt={gp51TokenExpiresAt}
-          error={null} // Assuming useGP51Auth provides error, or manage it if needed
-          isRestoringSession={false} // Assuming useGP51Auth provides this, or manage it
         />
 
         <GP51ApiConnectionTest
