@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   ReferralCode, 
@@ -52,6 +53,28 @@ export const referralApi = {
       console.error("Error fetching agent profile:", error);
       throw error;
     }
+    return data;
+  },
+
+  async updateMyAgentProfile(
+    details: { bank_account_details?: any }
+  ): Promise<ReferralAgent> {
+    const agentProfile = await this.getMyAgentProfile();
+    if (!agentProfile) throw new Error("Agent profile not found.");
+
+    const { data, error } = await supabase
+      .from('referral_agents')
+      .update({
+        bank_account_details: details.bank_account_details,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', agentProfile.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) throw new Error("Failed to update profile.");
+    
     return data;
   },
 
