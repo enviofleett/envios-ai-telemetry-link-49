@@ -1,8 +1,9 @@
+
 import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from '@/components/ui/sonner';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { BrandingProvider } from '@/contexts/BrandingContext';
@@ -30,6 +31,7 @@ const WorkshopLogin = lazy(() => import('@/pages/WorkshopLogin'));
 const WorkshopDashboard = lazy(() => import('@/pages/WorkshopDashboard'));
 const AdminAnalytics = lazy(() => import('@/pages/AdminAnalytics'));
 const BecomeAMerchantPage = lazy(() => import('@/pages/BecomeAMerchantPage'));
+const ReferralAgentSignupPage = lazy(() => import('@/pages/ReferralAgentSignupPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const queryClient = new QueryClient({
@@ -61,6 +63,9 @@ function App() {
                               <Route path="/login" element={<Login />} />
                               <Route path="/auth" element={<Auth />} />
                               
+                              {/* Referral Agent Signup */}
+                              <Route path="/referral-signup" element={<ReferralAgentSignupPage />} />
+
                               {/* Workshop Routes (Public) */}
                               <Route path="/workshop-signup" element={<WorkshopSignup />} />
                               <Route path="/workshop-login" element={<WorkshopLogin />} />

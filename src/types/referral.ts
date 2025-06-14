@@ -1,0 +1,71 @@
+
+export type ReferralAgentStatus = 'pending_approval' | 'active' | 'suspended' | 'rejected';
+export type CommissionSourceType = 'subscription_upgrade' | 'marketplace_fee';
+export type CommissionStatus = 'pending_payout' | 'paid' | 'cancelled';
+
+export interface ReferralSettings {
+  id: number;
+  agent_commission_rate_subscription: number;
+  agent_commission_rate_marketplace: number;
+  commission_duration_days: number;
+  trial_package_id?: string | null;
+  trial_duration_days: number;
+  allow_subscription_commissions: boolean;
+  allow_marketplace_commissions: boolean;
+  agent_annual_fee: number;
+  updated_at: string;
+}
+
+export interface ReferralAgent {
+  id: string;
+  user_id: string;
+  status: ReferralAgentStatus;
+  bank_account_details?: any | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  subscription_expires_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ReferralCode {
+  id: string;
+  agent_id: string;
+  code: string;
+  usage_count: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ReferredUser {
+  id: string;
+  referred_user_id: string;
+  referring_agent_id: string;
+  referral_code_id?: string | null;
+  signed_up_at: string;
+  commission_earnings_end_date: string;
+}
+
+export interface ReferralCommission {
+  id: string;
+  agent_id: string;
+  referred_user_id: string;
+  source_type: CommissionSourceType;
+  source_id: string;
+  source_amount: number;
+  commission_rate: number;
+  commission_amount: number;
+  status: CommissionStatus;
+  created_at: string;
+  paid_at?: string | null;
+}
+
+export interface ReferralAgentSubscription {
+  id: string;
+  agent_id: string;
+  start_date: string;
+  end_date: string;
+  amount_paid: number;
+  payment_id?: string | null;
+  created_at: string;
+}
