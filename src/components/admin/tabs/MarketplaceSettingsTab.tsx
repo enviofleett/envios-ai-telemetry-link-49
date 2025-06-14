@@ -5,6 +5,7 @@ import CategoryCommissionRatesCard from "./marketplace-settings/CategoryCommissi
 import MerchantFeeOverridesCard from "./marketplace-settings/MerchantFeeOverridesCard";
 import CountryMarketplaceSettingsCard from "./marketplace-settings/CountryMarketplaceSettingsCard";
 import { useMarketplaceSettingsForm } from "@/hooks/useMarketplaceSettingsForm";
+import { FeeCalculatorCard } from "./marketplace-settings/FeeCalculatorCard";
 
 export const MarketplaceSettingsTab: React.FC = () => {
   const {
@@ -43,10 +44,13 @@ export const MarketplaceSettingsTab: React.FC = () => {
         />
       </MarketplaceSettingsCard>
 
-      {/* New cards for advanced marketplace admin controls */}
+      {/* Reordered cards to follow logical hierarchy */}
+      <CountryMarketplaceSettingsCard />
       <CategoryCommissionRatesCard />
       <MerchantFeeOverridesCard />
-      <CountryMarketplaceSettingsCard />
+      
+      {/* New card for fee calculator */}
+      <FeeCalculatorCard />
     </div>
   );
 };
