@@ -1,4 +1,3 @@
-
 import {
   BarChart3,
   Calendar,
@@ -83,7 +82,7 @@ export const menuItems: MenuItem[] = [
     icon: Users,
   },
   {
-    title: "Admin Analytics",
+    title: "Market Analytics",
     url: "/admin/analytics",
     icon: BarChart3,
     featureId: "admin_analytics",
