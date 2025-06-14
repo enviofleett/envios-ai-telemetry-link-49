@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { Md5 } from "https://deno.land/std@0.208.0/hash/md5.ts";
+import { Md5 } from "https://deno.land/std@0.224.0/crypto/md5.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -304,7 +304,7 @@ serve(async (req) => {
           JSON.stringify({ 
             status: 'critical',
             isValid: false,
-            username: session?.username, // session might be null if db query failed first
+            username: session?.username, 
             latency: Date.now() - startTime,
             errorMessage: apiError instanceof Error ? apiError.message : 'General error during API test.'
           }),
