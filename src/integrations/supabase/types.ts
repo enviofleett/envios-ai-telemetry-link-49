@@ -4037,13 +4037,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "marketplace_communications_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "marketplace_merchants"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "marketplace_communications_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -4054,40 +4047,25 @@ export type Database = {
       }
       marketplace_merchants: {
         Row: {
-          approved: boolean
-          commission_rate: number
-          created_at: string | null
-          email: string
+          contact_email: string | null
+          created_at: string
           id: string
-          org_name: string
-          registration_fee: number
-          suspended: boolean
-          updated_at: string | null
-          user_id: string
+          name: string
+          updated_at: string
         }
         Insert: {
-          approved?: boolean
-          commission_rate?: number
-          created_at?: string | null
-          email: string
+          contact_email?: string | null
+          created_at?: string
           id?: string
-          org_name: string
-          registration_fee?: number
-          suspended?: boolean
-          updated_at?: string | null
-          user_id: string
+          name: string
+          updated_at?: string
         }
         Update: {
-          approved?: boolean
-          commission_rate?: number
-          created_at?: string | null
-          email?: string
+          contact_email?: string | null
+          created_at?: string
           id?: string
-          org_name?: string
-          registration_fee?: number
-          suspended?: boolean
-          updated_at?: string | null
-          user_id?: string
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -4142,13 +4120,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "marketplace_orders_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "marketplace_merchants"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "marketplace_orders_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
@@ -4159,52 +4130,33 @@ export type Database = {
       }
       marketplace_products: {
         Row: {
-          category_id: string | null
-          connection_fee: number
-          created_at: string | null
+          category: string
+          created_at: string
           description: string | null
           id: string
-          is_active: boolean
           merchant_id: string | null
-          price: number
-          price_unit: string | null
-          title: string
-          updated_at: string | null
+          name: string
+          updated_at: string
         }
         Insert: {
-          category_id?: string | null
-          connection_fee?: number
-          created_at?: string | null
+          category: string
+          created_at?: string
           description?: string | null
           id?: string
-          is_active?: boolean
           merchant_id?: string | null
-          price: number
-          price_unit?: string | null
-          title: string
-          updated_at?: string | null
+          name: string
+          updated_at?: string
         }
         Update: {
-          category_id?: string | null
-          connection_fee?: number
-          created_at?: string | null
+          category?: string
+          created_at?: string
           description?: string | null
           id?: string
-          is_active?: boolean
           merchant_id?: string | null
-          price?: number
-          price_unit?: string | null
-          title?: string
-          updated_at?: string | null
+          name?: string
+          updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "marketplace_products_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "marketplace_categories"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "marketplace_products_merchant_id_fkey"
             columns: ["merchant_id"]
@@ -4288,13 +4240,6 @@ export type Database = {
           type?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "marketplace_transactions_merchant_id_fkey"
-            columns: ["merchant_id"]
-            isOneToOne: false
-            referencedRelation: "marketplace_merchants"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "marketplace_transactions_order_id_fkey"
             columns: ["order_id"]
