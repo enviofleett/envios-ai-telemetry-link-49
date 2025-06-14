@@ -4334,6 +4334,104 @@ export type Database = {
         }
         Relationships: []
       }
+      merchant_application_documents: {
+        Row: {
+          application_id: string
+          document_type: string
+          file_path: string
+          id: string
+          uploaded_at: string
+          verified: boolean
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          application_id: string
+          document_type: string
+          file_path: string
+          id?: string
+          uploaded_at?: string
+          verified?: boolean
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          application_id?: string
+          document_type?: string
+          file_path?: string
+          id?: string
+          uploaded_at?: string
+          verified?: boolean
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_application_documents_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      merchant_applications: {
+        Row: {
+          business_address: string | null
+          business_registration_id: string | null
+          business_type: string | null
+          contact_email: string
+          created_at: string
+          id: string
+          org_name: string
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["merchant_application_status"]
+          submitted_at: string | null
+          tax_id: string | null
+          updated_at: string
+          user_id: string
+          website_url: string | null
+        }
+        Insert: {
+          business_address?: string | null
+          business_registration_id?: string | null
+          business_type?: string | null
+          contact_email: string
+          created_at?: string
+          id?: string
+          org_name: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["merchant_application_status"]
+          submitted_at?: string | null
+          tax_id?: string | null
+          updated_at?: string
+          user_id: string
+          website_url?: string | null
+        }
+        Update: {
+          business_address?: string | null
+          business_registration_id?: string | null
+          business_type?: string | null
+          contact_email?: string
+          created_at?: string
+          id?: string
+          org_name?: string
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["merchant_application_status"]
+          submitted_at?: string | null
+          tax_id?: string | null
+          updated_at?: string
+          user_id?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
       merchant_fee_overrides: {
         Row: {
           billing_cycle: string | null
@@ -8353,6 +8451,13 @@ export type Database = {
         | "specific_users"
         | "user_segments"
       campaign_type_enum: "one_time" | "recurring" | "event_based"
+      merchant_application_status:
+        | "draft"
+        | "submitted"
+        | "in_review"
+        | "requires_more_info"
+        | "approved"
+        | "rejected"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -8486,6 +8591,14 @@ export const Constants = {
         "user_segments",
       ],
       campaign_type_enum: ["one_time", "recurring", "event_based"],
+      merchant_application_status: [
+        "draft",
+        "submitted",
+        "in_review",
+        "requires_more_info",
+        "approved",
+        "rejected",
+      ],
     },
   },
 } as const
