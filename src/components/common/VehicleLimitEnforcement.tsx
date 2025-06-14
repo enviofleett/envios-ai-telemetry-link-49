@@ -18,10 +18,13 @@ export const VehicleLimitEnforcement: React.FC<{
   children: React.ReactNode;
   feature?: string;
 }> = ({ currentCount, children, feature = "vehicle_limit" }) => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: pkg } = useUserPackage(user?.id);
   const { data: limits, isLoading } = usePackageLimits(pkg?.id);
   const [showUpgrade, setShowUpgrade] = React.useState(false);
+
+  // Admins are never limited
+  if (isAdmin) return <>{children}</>;
 
   if (isLoading) return null;
   if (!limits || !limits.vehicleLimit) return <>{children}</>;

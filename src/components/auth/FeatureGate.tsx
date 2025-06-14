@@ -19,12 +19,14 @@ export default function FeatureGate({
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { data: pkg, isLoading: pkgLoading } = useUserPackage(user?.id);
   const { hasFeature, isLoading: featuresLoading } = useFeatureAccess(pkg?.id);
+
+  // Admins bypass feature restrictions
+  if (isAdmin) return <>{children}</>;
 
   if (pkgLoading || featuresLoading) return null;
   if (!hasFeature(featureId)) return fallback;
   return <>{children}</>;
 }
-

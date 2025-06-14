@@ -1,6 +1,7 @@
 
 import React from "react";
 import FeatureGate from "@/components/auth/FeatureGate";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Wrap any navigation link with this component to restrict its visibility or enablement
@@ -15,7 +16,11 @@ export function FeatureRestrictedLink({
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }) {
-  // You could also add a prop for "upgrade" CTA here if desired
+  const { isAdmin } = useAuth();
+
+  // Admins always see all navigation links.
+  if (isAdmin) return <>{children}</>;
+
   return (
     <FeatureGate featureId={featureId} fallback={fallback}>
       {children}
