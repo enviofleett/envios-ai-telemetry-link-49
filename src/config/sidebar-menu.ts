@@ -121,6 +121,16 @@ export const agentMenuItems: MenuItem[] = [
     icon: Hash,
   },
   {
+    title: "Referred Users",
+    url: "/agent/referred-users",
+    icon: Users,
+  },
+  {
+    title: "Commissions",
+    url: "/agent/commissions",
+    icon: CreditCard,
+  },
+  {
     title: "Profile",
     url: "/agent/profile",
     icon: User,

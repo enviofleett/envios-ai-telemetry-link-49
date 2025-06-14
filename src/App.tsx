@@ -36,6 +36,8 @@ const ReferralAgentManagementPage = lazy(() => import('@/pages/ReferralAgentMana
 const AgentDashboard = lazy(() => import('@/pages/AgentDashboard'));
 const AgentProfilePage = lazy(() => import('@/pages/AgentProfilePage'));
 const AgentReferralCodesPage = lazy(() => import('@/pages/AgentReferralCodesPage'));
+const AgentReferredUsersPage = lazy(() => import('@/pages/AgentReferredUsersPage'));
+const AgentCommissionsPage = lazy(() => import('@/pages/AgentCommissionsPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const queryClient = new QueryClient({
@@ -121,6 +123,20 @@ function App() {
                               <Route path="/agent/referral-codes" element={
                                 <ProtectedRoute requireAgent={true}>
                                   <AgentReferralCodesPage />
+                                </ProtectedRoute>
+                              } />
+
+                              {/* Agent Referred Users route */}
+                              <Route path="/agent/referred-users" element={
+                                <ProtectedRoute requireAgent={true}>
+                                  <AgentReferredUsersPage />
+                                </ProtectedRoute>
+                              } />
+                              
+                              {/* Agent Commissions route */}
+                              <Route path="/agent/commissions" element={
+                                <ProtectedRoute requireAgent={true}>
+                                  <AgentCommissionsPage />
                                 </ProtectedRoute>
                               } />
                               
