@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -281,6 +280,16 @@ export default function GP51ValidationTab() {
                       </div>
                       <p className="text-sm text-red-700">{test.error}</p>
                       <p className="text-xs text-red-600 mt-1">Duration: {test.duration}ms</p>
+                      {Array.isArray(test.suggestedFixes) && test.suggestedFixes.length > 0 && (
+                        <div className="mt-2">
+                          <span className="block font-semibold text-red-900 mb-1">How to fix:</span>
+                          <ul className="list-disc list-inside text-sm space-y-1">
+                            {test.suggestedFixes.map((fix, idx) => (
+                              <li key={idx} className="text-red-800">{fix}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   ))}
               </CardContent>
