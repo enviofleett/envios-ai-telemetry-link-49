@@ -1,60 +1,38 @@
 
-import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import React, { useState, useMemo } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Key, AlertTriangle, Eye, Lock, RefreshCw } from 'lucide-react';
+import {
+  Shield,
+  RefreshCw,
+  Bell,
+  Users,
+  Settings,
+  FileText,
+  AlertTriangle,
+  Lock
+} from 'lucide-react';
+import SecurityDashboard from './security/SecurityDashboard';
+import SecuritySettingsPanel from './security/SecuritySettingsPanel';
+import SecurityEventsPanel from './security/SecurityEventsPanel';
+import AccessPoliciesPanel from './security/AccessPoliciesPanel';
 
 const SecurityTab: React.FC = () => {
-  // Placeholder data - will be replaced with actual security service
-  const placeholderEvents = [
-    {
-      id: '1',
-      type: 'login',
-      user: 'admin@fleetiq.com',
-      timestamp: new Date().toISOString(),
-      ip: '192.168.1.100',
-      status: 'success'
-    },
-    {
-      id: '2',
-      type: 'failed_login',
-      user: 'unknown@suspicious.com',
-      timestamp: new Date(Date.now() - 300000).toISOString(),
-      ip: '203.0.113.42',
-      status: 'blocked'
-    }
-  ];
+  const [activeTab, setActiveTab] = useState('dashboard');
 
-  const getEventIcon = (type: string) => {
-    switch (type) {
-      case 'login':
-        return <Key className="h-4 w-4 text-green-600" />;
-      case 'failed_login':
-        return <AlertTriangle className="h-4 w-4 text-red-600" />;
-      case 'password_change':
-        return <Lock className="h-4 w-4 text-blue-600" />;
-      default:
-        return <Shield className="h-4 w-4" />;
-    }
-  };
+  // Store active event for details dialog (populated by EventsPanel)
+  const [activeEvent, setActiveEvent] = useState(null);
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'success':
-        return <Badge variant="default">{status}</Badge>;
-      case 'blocked':
-      case 'failed':
-        return <Badge variant="destructive">{status}</Badge>;
-      case 'warning':
-        return <Badge variant="secondary">{status}</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+  // Quick actions for settings, future refresh logic can be added here.
+
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
   };
 
   return (
@@ -68,145 +46,50 @@ const SecurityTab: React.FC = () => {
                 Security Management
               </CardTitle>
               <CardDescription>
-                Manage security settings and monitor security events (Service temporarily unavailable)
+                Monitor and configure your system’s security settings, view live security events, and manage access policies.
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm" disabled>
+            <button className="btn btn-outline btn-sm" disabled>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
-            </Button>
+            </button>
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="settings" className="space-y-4">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
             <TabsList>
-              <TabsTrigger value="settings">Security Settings</TabsTrigger>
-              <TabsTrigger value="events">Security Events</TabsTrigger>
-              <TabsTrigger value="policies">Access Policies</TabsTrigger>
+              <TabsTrigger value="dashboard">
+                <Settings className="h-4 w-4 mr-1" />
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="settings">
+                <Lock className="h-4 w-4 mr-1" />
+                Security Settings
+              </TabsTrigger>
+              <TabsTrigger value="events">
+                <Bell className="h-4 w-4 mr-1" />
+                Events
+              </TabsTrigger>
+              <TabsTrigger value="policies">
+                <Users className="h-4 w-4 mr-1" />
+                Access Policies
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="settings" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Authentication Settings</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="two-factor">Two-Factor Authentication</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Require 2FA for all admin accounts
-                        </p>
-                      </div>
-                      <Switch id="two-factor" disabled />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
-                      <Input
-                        id="session-timeout"
-                        type="number"
-                        value="60"
-                        disabled
-                        placeholder="60"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Access Control</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="max-attempts">Max Login Attempts</Label>
-                      <Input
-                        id="max-attempts"
-                        type="number"
-                        value="5"
-                        disabled
-                        placeholder="5"
-                      />
-                    </div>
-                    <div className="pt-4">
-                      <Button disabled>
-                        Save Security Settings
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+            <TabsContent value="dashboard">
+              <SecurityDashboard />
             </TabsContent>
 
-            <TabsContent value="events" className="space-y-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium">Recent Security Events</h3>
-                <Button variant="outline" disabled>
-                  <Eye className="h-4 w-4 mr-2" />
-                  View All Events
-                </Button>
-              </div>
-              
-              <div className="space-y-4">
-                {placeholderEvents.map((event) => (
-                  <Card key={event.id} className="border border-gray-200">
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          {getEventIcon(event.type)}
-                          <div>
-                            <div className="font-medium capitalize">
-                              {event.type.replace('_', ' ')}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                              User: {event.user} | IP: {event.ip}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {new Date(event.timestamp).toLocaleString()}
-                            </div>
-                          </div>
-                        </div>
-                        {getStatusBadge(event.status)}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-
-              <div className="text-center py-4 text-muted-foreground">
-                <p>Security monitoring will be available once the service is restored.</p>
-              </div>
+            <TabsContent value="settings">
+              <SecuritySettingsPanel />
             </TabsContent>
 
-            <TabsContent value="policies" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Access Policies</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>Admin Panel Access</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Restrict admin panel to admin users only
-                        </p>
-                      </div>
-                      <Switch defaultChecked disabled />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label>API Access Control</Label>
-                        <p className="text-sm text-muted-foreground">
-                          Enable API key authentication
-                        </p>
-                      </div>
-                      <Switch defaultChecked disabled />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <TabsContent value="events">
+              <SecurityEventsPanel onViewDetails={setActiveEvent} />
+            </TabsContent>
+
+            <TabsContent value="policies">
+              <AccessPoliciesPanel />
             </TabsContent>
           </Tabs>
         </CardContent>
