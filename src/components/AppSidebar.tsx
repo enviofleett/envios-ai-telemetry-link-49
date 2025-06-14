@@ -79,6 +79,11 @@ const menuItems = [
     icon: Users,
   },
   {
+    title: "Admin Analytics",
+    url: "/admin/analytics",
+    icon: BarChart3,
+  },
+  {
     title: "Settings",
     url: "/settings",
     icon: Settings,
@@ -117,6 +122,7 @@ export function AppSidebar() {
     if (item.title === "Marketplace") featureId = "marketplace";
     if (item.title === "Workshop Management") featureId = "workshop_management";
     if (item.title === "Active Services") featureId = "active_services";
+    if (item.title === "Admin Analytics") featureId = "admin_analytics";
     // Add more as needed
     return { ...item, featureId };
   });

@@ -1,4 +1,3 @@
-
 import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -29,6 +28,7 @@ const EnhancedLiveTracking = lazy(() => import('@/pages/EnhancedLiveTracking'));
 const WorkshopSignup = lazy(() => import('@/pages/WorkshopSignup'));
 const WorkshopLogin = lazy(() => import('@/pages/WorkshopLogin'));
 const WorkshopDashboard = lazy(() => import('@/pages/WorkshopDashboard'));
+const AdminAnalytics = lazy(() => import('@/pages/AdminAnalytics'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const queryClient = new QueryClient({
@@ -76,6 +76,13 @@ function App() {
                               <Route path="/settings" element={
                                 <ProtectedRoute>
                                   <Settings />
+                                </ProtectedRoute>
+                              } />
+                              
+                              {/* Admin Analytics route */}
+                              <Route path="/admin/analytics" element={
+                                <ProtectedRoute requireAdmin={true}>
+                                  <AdminAnalytics />
                                 </ProtectedRoute>
                               } />
                               
