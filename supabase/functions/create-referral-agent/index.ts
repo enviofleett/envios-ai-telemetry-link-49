@@ -27,9 +27,10 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Insert just the user_id, status defaults to 'pending_approval' in the new schema.
     const { data, error } = await serviceClient
       .from('referral_agents')
-      .insert({ user_id: user.id, status: 'pending_approval' })
+      .insert({ user_id: user.id })
       .select()
       .single();
 

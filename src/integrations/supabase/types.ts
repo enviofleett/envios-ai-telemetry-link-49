@@ -5227,41 +5227,245 @@ export type Database = {
         }
         Relationships: []
       }
-      referral_codes: {
+      referral_agent_subscriptions: {
         Row: {
-          code: string
+          agent_id: string
+          amount_paid: number
           created_at: string
-          created_by: string | null
-          discount_percentage: number | null
-          expires_at: string | null
+          end_date: string
           id: string
-          is_active: boolean | null
-          usage_count: number | null
-          usage_limit: number | null
+          payment_id: string | null
+          start_date: string
         }
         Insert: {
-          code: string
+          agent_id: string
+          amount_paid: number
           created_at?: string
-          created_by?: string | null
-          discount_percentage?: number | null
-          expires_at?: string | null
+          end_date: string
           id?: string
-          is_active?: boolean | null
-          usage_count?: number | null
-          usage_limit?: number | null
+          payment_id?: string | null
+          start_date: string
         }
         Update: {
-          code?: string
+          agent_id?: string
+          amount_paid?: number
           created_at?: string
-          created_by?: string | null
-          discount_percentage?: number | null
-          expires_at?: string | null
+          end_date?: string
           id?: string
-          is_active?: boolean | null
-          usage_count?: number | null
-          usage_limit?: number | null
+          payment_id?: string | null
+          start_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_agent_subscriptions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "referral_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_agents: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          bank_account_details: Json | null
+          created_at: string
+          id: string
+          status: Database["public"]["Enums"]["referral_agent_status"]
+          subscription_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          bank_account_details?: Json | null
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["referral_agent_status"]
+          subscription_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          bank_account_details?: Json | null
+          created_at?: string
+          id?: string
+          status?: Database["public"]["Enums"]["referral_agent_status"]
+          subscription_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
+      }
+      referral_codes: {
+        Row: {
+          agent_id: string
+          code: string
+          created_at: string
+          id: string
+          is_active: boolean
+          usage_count: number
+        }
+        Insert: {
+          agent_id: string
+          code: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          usage_count?: number
+        }
+        Update: {
+          agent_id?: string
+          code?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          usage_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_codes_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "referral_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_commissions: {
+        Row: {
+          agent_id: string
+          commission_amount: number | null
+          commission_rate: number
+          created_at: string
+          id: string
+          paid_at: string | null
+          referred_user_id: string
+          source_amount: number
+          source_id: string
+          source_type: Database["public"]["Enums"]["commission_source_type"]
+          status: Database["public"]["Enums"]["commission_status"]
+        }
+        Insert: {
+          agent_id: string
+          commission_amount?: number | null
+          commission_rate: number
+          created_at?: string
+          id?: string
+          paid_at?: string | null
+          referred_user_id: string
+          source_amount: number
+          source_id: string
+          source_type: Database["public"]["Enums"]["commission_source_type"]
+          status?: Database["public"]["Enums"]["commission_status"]
+        }
+        Update: {
+          agent_id?: string
+          commission_amount?: number | null
+          commission_rate?: number
+          created_at?: string
+          id?: string
+          paid_at?: string | null
+          referred_user_id?: string
+          source_amount?: number
+          source_id?: string
+          source_type?: Database["public"]["Enums"]["commission_source_type"]
+          status?: Database["public"]["Enums"]["commission_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_commissions_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "referral_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_settings: {
+        Row: {
+          agent_annual_fee: number
+          agent_commission_rate_marketplace: number
+          agent_commission_rate_subscription: number
+          allow_marketplace_commissions: boolean
+          allow_subscription_commissions: boolean
+          commission_duration_days: number
+          id: number
+          trial_duration_days: number
+          trial_package_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          agent_annual_fee?: number
+          agent_commission_rate_marketplace?: number
+          agent_commission_rate_subscription?: number
+          allow_marketplace_commissions?: boolean
+          allow_subscription_commissions?: boolean
+          commission_duration_days?: number
+          id: number
+          trial_duration_days?: number
+          trial_package_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agent_annual_fee?: number
+          agent_commission_rate_marketplace?: number
+          agent_commission_rate_subscription?: number
+          allow_marketplace_commissions?: boolean
+          allow_subscription_commissions?: boolean
+          commission_duration_days?: number
+          id?: number
+          trial_duration_days?: number
+          trial_package_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      referred_users: {
+        Row: {
+          commission_earnings_end_date: string
+          id: string
+          referral_code_id: string | null
+          referred_user_id: string
+          referring_agent_id: string
+          signed_up_at: string
+        }
+        Insert: {
+          commission_earnings_end_date: string
+          id?: string
+          referral_code_id?: string | null
+          referred_user_id: string
+          referring_agent_id: string
+          signed_up_at?: string
+        }
+        Update: {
+          commission_earnings_end_date?: string
+          id?: string
+          referral_code_id?: string | null
+          referred_user_id?: string
+          referring_agent_id?: string
+          signed_up_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referred_users_referral_code_id_fkey"
+            columns: ["referral_code_id"]
+            isOneToOne: false
+            referencedRelation: "referral_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referred_users_referring_agent_id_fkey"
+            columns: ["referring_agent_id"]
+            isOneToOne: false
+            referencedRelation: "referral_agents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       registration_audit_log: {
         Row: {
@@ -8636,12 +8840,19 @@ export type Database = {
         | "specific_users"
         | "user_segments"
       campaign_type_enum: "one_time" | "recurring" | "event_based"
+      commission_source_type: "subscription_upgrade" | "marketplace_fee"
+      commission_status: "pending_payout" | "paid" | "cancelled"
       merchant_application_status:
         | "draft"
         | "submitted"
         | "in_review"
         | "requires_more_info"
         | "approved"
+        | "rejected"
+      referral_agent_status:
+        | "pending_approval"
+        | "active"
+        | "suspended"
         | "rejected"
     }
     CompositeTypes: {
@@ -8777,12 +8988,20 @@ export const Constants = {
         "user_segments",
       ],
       campaign_type_enum: ["one_time", "recurring", "event_based"],
+      commission_source_type: ["subscription_upgrade", "marketplace_fee"],
+      commission_status: ["pending_payout", "paid", "cancelled"],
       merchant_application_status: [
         "draft",
         "submitted",
         "in_review",
         "requires_more_info",
         "approved",
+        "rejected",
+      ],
+      referral_agent_status: [
+        "pending_approval",
+        "active",
+        "suspended",
         "rejected",
       ],
     },
