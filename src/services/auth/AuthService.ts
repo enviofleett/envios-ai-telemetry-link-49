@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
 import { enhancedCachingService } from '@/services/performance/EnhancedCachingService';
@@ -10,6 +9,8 @@ interface AuthState {
   isCheckingRole: boolean;
   isAdmin: boolean;
   userRole: string | null;
+  isPlatformAdmin: boolean;
+  platformAdminRoles: string[];
 }
 
 type AuthStateListener = (state: AuthState) => void;
@@ -24,6 +25,8 @@ class AuthService {
     isCheckingRole: true,
     isAdmin: false,
     userRole: null,
+    isPlatformAdmin: false,
+    platformAdminRoles: []
   };
 
   private listeners: Set<AuthStateListener> = new Set();
@@ -74,7 +77,7 @@ class AuthService {
       if (session?.user) {
         this.checkUserRole(session.user.id);
       } else {
-        this.setState({ isCheckingRole: false });
+        this.setState({ isCheckingRole: false, isPlatformAdmin: false, platformAdminRoles: [] });
       }
     });
 
@@ -112,38 +115,66 @@ class AuthService {
 
     const cacheKey = `user-role-${userId}`;
     if (!isBackground) {
-        const cachedRole = await enhancedCachingService.get<{ role: string }>(cacheKey);
+        const cachedRole = await enhancedCachingService.get<{ role: string, platformAdminRoles: string[] }>(cacheKey);
         if (cachedRole) {
             this.setState({
                 userRole: cachedRole.role,
                 isAdmin: cachedRole.role === 'admin',
                 isCheckingRole: false,
+                isPlatformAdmin: Array.isArray(cachedRole.platformAdminRoles) && cachedRole.platformAdminRoles.length > 0,
+                platformAdminRoles: cachedRole.platformAdminRoles || []
             });
             return;
         }
     }
 
     try {
+      // Query user_roles for 'admin'
       const { data: roleData, error } = await supabase
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error) {
-        if (retryCount < 1) {
-          this.roleCheckTimeoutRef = setTimeout(() => {
-            this.checkUserRole(userId, { ...options, retryCount: retryCount + 1 });
-          }, Math.pow(2, retryCount) * 1000);
-          return;
+      // Query platform_admin_roles for any row for this user via their id in platform_admin_users
+      let platformAdminRoles: string[] = [];
+      let isPlatformAdmin = false;
+      let userRole = roleData?.role || 'user';
+      let isAdmin = userRole === 'admin';
+
+      // Get platform_admin_users.id by user_id
+      const { data: adminUser, error: adminUserError } = await supabase
+        .from('platform_admin_users')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (adminUser?.id) {
+        // Get all roles
+        const { data: par, error: parError } = await supabase
+          .from('platform_admin_roles')
+          .select('role')
+          .eq('admin_user_id', adminUser.id);
+
+        if (par && Array.isArray(par)) {
+          platformAdminRoles = par.map((r: { role: string }) => r.role);
+          isPlatformAdmin = platformAdminRoles.length > 0;
         }
-        this.setState({ userRole: 'user', isAdmin: false });
-      } else if (roleData) {
-        await enhancedCachingService.set(cacheKey, { role: roleData.role }, 10 * 60 * 1000); // Cache for 10 minutes
-        this.setState({ userRole: roleData.role, isAdmin: roleData.role === 'admin' });
-      } else {
-        this.setState({ userRole: 'user', isAdmin: false });
       }
+
+      // Update cache for 10 minutes
+      await enhancedCachingService.set(
+        cacheKey, 
+        { role: userRole, platformAdminRoles }, 
+        10 * 60 * 1000
+      );
+
+      this.setState({
+        userRole,
+        isAdmin,
+        isPlatformAdmin,
+        platformAdminRoles,
+      });
     } catch (error) {
        if (retryCount < 1) {
           this.roleCheckTimeoutRef = setTimeout(() => {
@@ -151,7 +182,7 @@ class AuthService {
           }, Math.pow(2, retryCount) * 1000);
           return;
        }
-       this.setState({ userRole: 'user', isAdmin: false });
+       this.setState({ userRole: 'user', isAdmin: false, isPlatformAdmin: false, platformAdminRoles: [] });
     } finally {
       if (!isBackground || retryCount >= 1) {
           this.setState({ isCheckingRole: false });
@@ -162,9 +193,9 @@ class AuthService {
   private clearUserRole = () => {
     if(this.state.user) {
         const cacheKey = `user-role-${this.state.user.id}`;
-        enhancedCachingService.invalidateByTag(cacheKey); // Corrected: Use a method that can invalidate a key, assuming invalidateByTag can be adapted or another method is used. Or simply key based invalidation if available.
+        enhancedCachingService.invalidateByTag(cacheKey);
     }
-    this.setState({ isAdmin: false, userRole: null, isCheckingRole: false });
+    this.setState({ isAdmin: false, userRole: null, isCheckingRole: false, isPlatformAdmin: false, platformAdminRoles: [] });
   }
 
   public refreshUser = async () => {

@@ -1,4 +1,3 @@
-
 import React, { Suspense } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Shield } from 'lucide-react'; // <-- Added Shield import
@@ -77,10 +76,14 @@ interface AdminTabContentRendererProps {
 }
 
 const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activeTab }) => {
-  const { user, isAdmin, userRole } = useAuth();
+  const { user, isAdmin, userRole, isPlatformAdmin, platformAdminRoles } = useAuth();
 
-  const isPlatformAdmin =
-    userRole === "super_admin" || userRole === "system_admin";
+  // Platform admin detection
+  // Use explicit boolean check for access to platform admin pages
+  const isAllowedPlatformAdmin = isPlatformAdmin && (
+    platformAdminRoles.includes("super_admin") ||
+    platformAdminRoles.includes("system_admin")
+  );
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -160,7 +163,8 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
 
       // Platform Administration
       case 'platform-admin-users':
-        if (!isPlatformAdmin) return <PlatformAdminPermissionDenied />;
+        // Use new logic
+        if (!isAllowedPlatformAdmin) return <PlatformAdminPermissionDenied />;
         return <PlatformAdminUsersPanel />;
 
       default:

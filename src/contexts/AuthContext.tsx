@@ -10,6 +10,8 @@ interface AuthContextType {
   isCheckingRole: boolean;
   isAdmin: boolean;
   userRole: string | null;
+  isPlatformAdmin: boolean; // NEW
+  platformAdminRoles: string[]; // NEW
   signOut: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<{ data?: any; error: any }>;
   signUp: (email: string, password: string, name?: string, packageType?: string) => Promise<{ error: any }>;
@@ -42,6 +44,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signUp: authService.signUp,
     refreshUser: authService.refreshUser,
     retryRoleCheck: authService.retryRoleCheck,
+    isPlatformAdmin: authState.isPlatformAdmin,
+    platformAdminRoles: authState.platformAdminRoles,
   }), [authState]);
 
   return (
