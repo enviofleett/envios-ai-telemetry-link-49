@@ -1,8 +1,7 @@
-
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { jsonResponse, errorResponse as generalErrorResponse } from "../response-helpers.ts";
 import { getLatestGp51Session } from "../supabase-helpers.ts";
-import { calculateMd5, GP51_API_URL } from "../utils.ts";
+import { calculateMd5, md5_sync, GP51_API_URL } from "../utils.ts";
 
 export async function handleTestGp51Api(supabase: SupabaseClient, startTime: number) {
   console.log('Testing real GP51 API connectivity...');
@@ -48,7 +47,7 @@ export async function handleTestGp51Api(supabase: SupabaseClient, startTime: num
   }
 
   try {
-    const hashedPassword = calculateMd5(session.password_hash); // Assuming password_hash stores the plain password
+    const hashedPassword = md5_sync(session.password_hash); // Use correct synchronous hashing!
     console.log(`Authenticating with GP51 username: ${session.username}`);
 
     const formData = new URLSearchParams({
