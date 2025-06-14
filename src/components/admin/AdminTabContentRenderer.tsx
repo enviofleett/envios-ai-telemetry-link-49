@@ -1,6 +1,7 @@
+
 import React, { Suspense } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Shield } from 'lucide-react'; // <-- Added Shield import
 import { StableErrorBoundary } from '@/components/StableErrorBoundary';
 import PlatformAdminUsersPanel from './platform/PlatformAdminUsersPanel';
 import { useAuth } from '@/contexts/AuthContext';
