@@ -4128,33 +4128,119 @@ export type Database = {
           },
         ]
       }
+      marketplace_product_reviews: {
+        Row: {
+          author_name: string | null
+          comment: string | null
+          created_at: string
+          helpful_count: number | null
+          id: string
+          not_helpful_count: number | null
+          product_id: string
+          rating: number
+          user_id: string | null
+        }
+        Insert: {
+          author_name?: string | null
+          comment?: string | null
+          created_at?: string
+          helpful_count?: number | null
+          id?: string
+          not_helpful_count?: number | null
+          product_id: string
+          rating: number
+          user_id?: string | null
+        }
+        Update: {
+          author_name?: string | null
+          comment?: string | null
+          created_at?: string
+          helpful_count?: number | null
+          id?: string
+          not_helpful_count?: number | null
+          product_id?: string
+          rating?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_product_reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketplace_products: {
         Row: {
           category: string
+          compatibility: string[] | null
+          connection_fee: number | null
           created_at: string
           description: string | null
+          developer: string | null
+          features: string[] | null
+          icon: string | null
           id: string
           merchant_id: string | null
           name: string
+          popular: boolean | null
+          price: number
+          price_unit: string | null
+          rating: number | null
+          review_count: number | null
+          screenshots: string[] | null
+          short_description: string | null
+          size: string | null
           updated_at: string
+          version: string | null
         }
         Insert: {
           category: string
+          compatibility?: string[] | null
+          connection_fee?: number | null
           created_at?: string
           description?: string | null
+          developer?: string | null
+          features?: string[] | null
+          icon?: string | null
           id?: string
           merchant_id?: string | null
           name: string
+          popular?: boolean | null
+          price?: number
+          price_unit?: string | null
+          rating?: number | null
+          review_count?: number | null
+          screenshots?: string[] | null
+          short_description?: string | null
+          size?: string | null
           updated_at?: string
+          version?: string | null
         }
         Update: {
           category?: string
+          compatibility?: string[] | null
+          connection_fee?: number | null
           created_at?: string
           description?: string | null
+          developer?: string | null
+          features?: string[] | null
+          icon?: string | null
           id?: string
           merchant_id?: string | null
           name?: string
+          popular?: boolean | null
+          price?: number
+          price_unit?: string | null
+          rating?: number | null
+          review_count?: number | null
+          screenshots?: string[] | null
+          short_description?: string | null
+          size?: string | null
           updated_at?: string
+          version?: string | null
         }
         Relationships: [
           {
