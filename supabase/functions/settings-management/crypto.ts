@@ -1,4 +1,5 @@
-import { md5_sync } from "../../_shared/crypto_utils.ts"; // Import shared utility
+
+import { md5_sync } from "../_shared/crypto_utils.ts"; // Corrected path
 
 export function createHash(text: string): string {
   console.log(`Hashing input of length: ${text.length} using shared md5_sync.`);

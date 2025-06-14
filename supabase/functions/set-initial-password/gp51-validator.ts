@@ -1,10 +1,9 @@
-
 import { GP51ValidationResult } from './types.ts';
-import { md5_sync } from '../../_shared/crypto_utils.ts'; // Corrected path and import
+import { md5_sync } from '../_shared/crypto_utils.ts'; // Corrected path
 
 export async function validatePasswordWithGP51(username: string, password: string): Promise<GP51ValidationResult> {
   try {
-    const hashedPassword = md5_sync(password); // Changed to md5_sync
+    const hashedPassword = md5_sync(password);
     
     const authData = {
       action: 'login', // Standard action
