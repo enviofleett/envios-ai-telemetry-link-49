@@ -155,6 +155,47 @@ export type Database = {
           },
         ]
       }
+      agent_performance_snapshots: {
+        Row: {
+          agent_id: string
+          created_at: string
+          id: string
+          snapshot_date: string
+          total_commission_earned: number
+          total_conversions: number
+          total_referrals: number
+          total_signups: number
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          id?: string
+          snapshot_date: string
+          total_commission_earned?: number
+          total_conversions?: number
+          total_referrals?: number
+          total_signups?: number
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          id?: string
+          snapshot_date?: string
+          total_commission_earned?: number
+          total_conversions?: number
+          total_referrals?: number
+          total_signups?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_performance_snapshots_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "referral_agents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_rate_limits: {
         Row: {
           block_expires_at: string | null
@@ -8883,6 +8924,10 @@ export type Database = {
       }
       restore_table_from_backup: {
         Args: { backup_table: string; target_table: string }
+        Returns: undefined
+      }
+      update_agent_performance_snapshots: {
+        Args: Record<PropertyKey, never>
         Returns: undefined
       }
       update_polling_status: {

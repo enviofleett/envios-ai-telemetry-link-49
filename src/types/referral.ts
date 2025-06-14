@@ -1,4 +1,3 @@
-
 export type ReferralAgentStatus = 'pending_approval' | 'active' | 'suspended' | 'rejected';
 export type CommissionSourceType = 'subscription_upgrade' | 'marketplace_fee';
 export type CommissionStatus = 'pending_payout' | 'paid' | 'cancelled' | 'processing_payout';
@@ -106,4 +105,15 @@ export interface AgentPayoutRequest {
     processed_at?: string | null;
     transaction_ref?: string | null;
     admin_notes?: string | null;
+}
+
+export interface AgentPerformanceSnapshot {
+  id: string;
+  agent_id: string;
+  snapshot_date: string;
+  total_referrals: number;
+  total_signups: number;
+  total_conversions: number;
+  total_commission_earned: number;
+  created_at: string;
 }

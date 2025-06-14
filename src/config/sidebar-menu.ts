@@ -117,6 +117,11 @@ export const agentMenuItems: MenuItem[] = [
     icon: Home,
   },
   {
+    title: "Analytics",
+    url: "/agent/analytics",
+    icon: BarChart3,
+  },
+  {
     title: "Referral Codes",
     url: "/agent/referral-codes",
     icon: Hash,

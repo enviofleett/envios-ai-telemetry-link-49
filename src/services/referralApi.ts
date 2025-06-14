@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   ReferralCode, 
@@ -255,6 +254,25 @@ export const referralApi = {
       ...c,
       referred_user_name: usersById.get(c.referred_user_id)?.name ?? 'Unknown User',
     }));
+  },
+
+  async getAgentPerformanceSnapshots(): Promise<AgentPerformanceSnapshot[]> {
+    const agentProfile = await this.getMyAgentProfile();
+    if (!agentProfile) return [];
+
+    const { data, error } = await supabase
+      .from('agent_performance_snapshots')
+      .select('*')
+      .eq('agent_id', agentProfile.id)
+      .order('snapshot_date', { ascending: false })
+      .limit(30); // Fetch last 30 days of snapshots
+
+    if (error) {
+      console.error('Error fetching performance snapshots:', error);
+      throw error;
+    }
+
+    return data || [];
   },
 
   async createPayoutRequest(
