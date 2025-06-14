@@ -1,11 +1,24 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Returns { hasFeature(featureId: string): boolean, features: string[], isLoading, error }
  */
 export function useFeatureAccess(packageId?: string) {
+  const { isAdmin } = useAuth();
+
+  // Fast path: Admins always have all features
+  if (isAdmin) {
+    return {
+      hasFeature: (_featureId: string) => true,
+      features: [],
+      isLoading: false,
+      error: null,
+    };
+  }
+
   const { data: features, isLoading, error } = useQuery({
     queryKey: ["package-features", packageId],
     enabled: !!packageId,
