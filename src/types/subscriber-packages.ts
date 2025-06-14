@@ -82,6 +82,7 @@ export interface CreatePackageRequest {
   referral_discount_percentage?: number;
   feature_ids: string[];
   menu_permission_ids: string[];
+  vehicle_limit?: number | null;
 }
 
 export interface UpdatePackageRequest extends Partial<CreatePackageRequest> {
