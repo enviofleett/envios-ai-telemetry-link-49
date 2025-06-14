@@ -28,7 +28,7 @@ const fetchApplication = async (userId: string | undefined) => {
 const upsertApplication = async ({ userId, applicationData, applicationId }: { userId: string; applicationData: Partial<ApplicationData>; applicationId?: string }) => {
     const { data, error } = await supabase
         .from('merchant_applications')
-        .upsert({ ...applicationData, id: applicationId, user_id: userId })
+        .upsert({ ...applicationData, id: applicationId, user_id: userId } as any)
         .select(`*, merchant_application_documents(*)`)
         .single();
     if (error) throw error;
