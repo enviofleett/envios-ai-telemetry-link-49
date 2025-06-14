@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type {
   SubscriberPackage,
@@ -34,12 +33,17 @@ export const subscriberPackageApi = {
   },
 
   async createPackage(packageData: CreatePackageRequest): Promise<SubscriberPackage> {
-    const { feature_ids, menu_permission_ids, ...packageFields } = packageData;
+    const { feature_ids, menu_permission_ids, vehicle_limit, ...packageFields } = packageData;
+
+    // Include vehicle_limit if present
+    const insertFields = vehicle_limit !== undefined
+      ? { ...packageFields, vehicle_limit }
+      : packageFields;
 
     // Create the package
     const { data: packageResult, error: packageError } = await supabase
       .from('subscriber_packages')
-      .insert(packageFields)
+      .insert(insertFields)
       .select()
       .single();
 

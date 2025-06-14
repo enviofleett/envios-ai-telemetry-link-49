@@ -4050,6 +4050,44 @@ export type Database = {
           },
         ]
       }
+      package_analytics: {
+        Row: {
+          created_at: string
+          id: string
+          package_id: string
+          period_end: string
+          period_start: string
+          revenue: number | null
+          subscribers_count: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          package_id: string
+          period_end: string
+          period_start: string
+          revenue?: number | null
+          subscribers_count?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          package_id?: string
+          period_end?: string
+          period_start?: string
+          revenue?: number | null
+          subscribers_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "package_analytics_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "subscriber_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       package_feature_assignments: {
         Row: {
           assigned_at: string
@@ -4145,6 +4183,41 @@ export type Database = {
           },
           {
             foreignKeyName: "package_menu_permissions_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "subscriber_packages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      package_versions: {
+        Row: {
+          changes: Json | null
+          created_at: string
+          created_by: string | null
+          id: string
+          package_id: string
+          version_number: number
+        }
+        Insert: {
+          changes?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          package_id: string
+          version_number: number
+        }
+        Update: {
+          changes?: Json | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          package_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "package_versions_package_id_fkey"
             columns: ["package_id"]
             isOneToOne: false
             referencedRelation: "subscriber_packages"
@@ -4890,6 +4963,7 @@ export type Database = {
           subscription_fee_monthly: number | null
           updated_at: string
           user_type: string
+          vehicle_limit: number | null
         }
         Insert: {
           created_at?: string
@@ -4903,6 +4977,7 @@ export type Database = {
           subscription_fee_monthly?: number | null
           updated_at?: string
           user_type: string
+          vehicle_limit?: number | null
         }
         Update: {
           created_at?: string
@@ -4916,6 +4991,7 @@ export type Database = {
           subscription_fee_monthly?: number | null
           updated_at?: string
           user_type?: string
+          vehicle_limit?: number | null
         }
         Relationships: []
       }
@@ -4956,6 +5032,58 @@ export type Database = {
             columns: ["device_subscription_id"]
             isOneToOne: false
             referencedRelation: "device_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_migration_logs: {
+        Row: {
+          id: string
+          migrated_at: string
+          migrated_by: string | null
+          new_package_id: string | null
+          notes: string | null
+          previous_package_id: string | null
+          user_subscription_id: string
+        }
+        Insert: {
+          id?: string
+          migrated_at?: string
+          migrated_by?: string | null
+          new_package_id?: string | null
+          notes?: string | null
+          previous_package_id?: string | null
+          user_subscription_id: string
+        }
+        Update: {
+          id?: string
+          migrated_at?: string
+          migrated_by?: string | null
+          new_package_id?: string | null
+          notes?: string | null
+          previous_package_id?: string | null
+          user_subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_migration_logs_new_package_id_fkey"
+            columns: ["new_package_id"]
+            isOneToOne: false
+            referencedRelation: "subscriber_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_migration_logs_previous_package_id_fkey"
+            columns: ["previous_package_id"]
+            isOneToOne: false
+            referencedRelation: "subscriber_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_migration_logs_user_subscription_id_fkey"
+            columns: ["user_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "user_subscriptions"
             referencedColumns: ["id"]
           },
         ]

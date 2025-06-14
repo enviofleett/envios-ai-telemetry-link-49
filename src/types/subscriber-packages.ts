@@ -1,4 +1,3 @@
-
 export interface SubscriberPackage {
   id: string;
   package_name: string;
@@ -11,6 +10,7 @@ export interface SubscriberPackage {
   created_at: string;
   updated_at: string;
   created_by?: string;
+  vehicle_limit?: number | null;
 }
 
 export interface PackageFeature {

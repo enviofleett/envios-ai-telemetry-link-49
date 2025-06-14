@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +25,8 @@ const CreatePackageForm: React.FC<CreatePackageFormProps> = ({ onSuccess }) => {
     subscription_fee_annually: 0,
     referral_discount_percentage: 0,
     feature_ids: [],
-    menu_permission_ids: []
+    menu_permission_ids: [],
+    vehicle_limit: null
   });
 
   const { toast } = useToast();
@@ -187,6 +187,23 @@ const CreatePackageForm: React.FC<CreatePackageFormProps> = ({ onSuccess }) => {
                 placeholder="0.00"
               />
             </div>
+          </div>
+
+          {/* Vehicle Limit */}
+          <div className="space-y-2">
+            <Label htmlFor="vehicle_limit">Vehicle Limit</Label>
+            <Input
+              id="vehicle_limit"
+              type="number"
+              min="0"
+              step="1"
+              value={formData.vehicle_limit ?? ''}
+              onChange={(e) => setFormData(prev => ({
+                ...prev,
+                vehicle_limit: e.target.value === '' ? null : parseInt(e.target.value)
+              }))}
+              placeholder="Enter vehicle limit (leave blank for unlimited)"
+            />
           </div>
 
           {/* Features */}

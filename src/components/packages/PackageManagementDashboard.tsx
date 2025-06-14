@@ -1,4 +1,3 @@
-
 import React, { useState, Suspense } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StableErrorBoundary } from '@/components/StableErrorBoundary';
@@ -33,6 +32,18 @@ const PackageManagementDashboard: React.FC = () => {
               <PackageList />
             </Suspense>
           </StableErrorBoundary>
+          {/* Integrate new admin panels below the package list */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Suspense fallback={<TabLoader />}>
+              <AdminSubscriptionManager />
+            </Suspense>
+            <Suspense fallback={<TabLoader />}>
+              <BulkPackageAssignment />
+            </Suspense>
+            <Suspense fallback={<TabLoader />}>
+              <PackageAnalyticsDashboard />
+            </Suspense>
+          </div>
         </TabsContent>
 
         <TabsContent value="create" className="space-y-6">
@@ -64,3 +75,7 @@ const PackageManagementDashboard: React.FC = () => {
 };
 
 export default PackageManagementDashboard;
+
+import AdminSubscriptionManager from "./AdminSubscriptionManager";
+import BulkPackageAssignment from "./BulkPackageAssignment";
+import PackageAnalyticsDashboard from "./PackageAnalyticsDashboard";
