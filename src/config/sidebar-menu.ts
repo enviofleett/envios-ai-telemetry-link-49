@@ -13,6 +13,7 @@ import {
   CreditCard,
   LucideIcon,
   Store,
+  User,
 } from "lucide-react"
 
 export interface MenuItem {
@@ -105,6 +106,19 @@ export const menuItems: MenuItem[] = [
     icon: Settings,
   },
 ]
+
+export const agentMenuItems: MenuItem[] = [
+  {
+    title: "Dashboard",
+    url: "/agent/dashboard",
+    icon: Home,
+  },
+  {
+    title: "Profile",
+    url: "/agent/profile",
+    icon: User,
+  },
+];
 
 export const quickActions: QuickAction[] = [
   {

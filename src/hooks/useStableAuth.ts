@@ -9,6 +9,7 @@ export const useStableAuth = () => {
   return useMemo(() => ({
     user: auth.user,
     isAdmin: auth.isAdmin,
+    isAgent: auth.isAgent,
     userRole: auth.userRole,
     isCheckingRole: auth.isCheckingRole,
     loading: auth.loading,
@@ -19,6 +20,7 @@ export const useStableAuth = () => {
   }), [
     auth.user,
     auth.isAdmin, 
+    auth.isAgent,
     auth.userRole,
     auth.isCheckingRole,
     auth.loading,

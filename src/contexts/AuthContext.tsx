@@ -9,6 +9,7 @@ interface AuthContextType {
   loading: boolean;
   isCheckingRole: boolean;
   isAdmin: boolean;
+  isAgent: boolean;
   userRole: string | null;
   isPlatformAdmin: boolean; // NEW
   platformAdminRoles: string[]; // NEW

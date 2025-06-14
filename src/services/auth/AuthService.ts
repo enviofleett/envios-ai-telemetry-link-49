@@ -8,6 +8,7 @@ interface AuthState {
   loading: boolean;
   isCheckingRole: boolean;
   isAdmin: boolean;
+  isAgent: boolean;
   userRole: string | null;
   isPlatformAdmin: boolean;
   platformAdminRoles: string[];
@@ -24,6 +25,7 @@ class AuthService {
     loading: true,
     isCheckingRole: true,
     isAdmin: false,
+    isAgent: false,
     userRole: null,
     isPlatformAdmin: false,
     platformAdminRoles: []
@@ -120,6 +122,7 @@ class AuthService {
             this.setState({
                 userRole: cachedRole.role,
                 isAdmin: cachedRole.role === 'admin',
+                isAgent: cachedRole.role === 'agent',
                 isCheckingRole: false,
                 isPlatformAdmin: Array.isArray(cachedRole.platformAdminRoles) && cachedRole.platformAdminRoles.length > 0,
                 platformAdminRoles: cachedRole.platformAdminRoles || []
@@ -141,6 +144,7 @@ class AuthService {
       let isPlatformAdmin = false;
       let userRole = roleData?.role || 'user';
       let isAdmin = userRole === 'admin';
+      let isAgent = userRole === 'agent';
 
       // Get platform_admin_users.id by user_id
       const { data: adminUser, error: adminUserError } = await supabase
@@ -172,6 +176,7 @@ class AuthService {
       this.setState({
         userRole,
         isAdmin,
+        isAgent,
         isPlatformAdmin,
         platformAdminRoles,
       });
@@ -182,7 +187,7 @@ class AuthService {
           }, Math.pow(2, retryCount) * 1000);
           return;
        }
-       this.setState({ userRole: 'user', isAdmin: false, isPlatformAdmin: false, platformAdminRoles: [] });
+       this.setState({ userRole: 'user', isAdmin: false, isAgent: false, isPlatformAdmin: false, platformAdminRoles: [] });
     } finally {
       if (!isBackground || retryCount >= 1) {
           this.setState({ isCheckingRole: false });
@@ -195,7 +200,7 @@ class AuthService {
         const cacheKey = `user-role-${this.state.user.id}`;
         enhancedCachingService.invalidateByTag(cacheKey);
     }
-    this.setState({ isAdmin: false, userRole: null, isCheckingRole: false, isPlatformAdmin: false, platformAdminRoles: [] });
+    this.setState({ isAdmin: false, isAgent: false, userRole: null, isCheckingRole: false, isPlatformAdmin: false, platformAdminRoles: [] });
   }
 
   public refreshUser = async () => {
