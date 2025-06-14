@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Search, ArrowRight, Car, X } from 'lucide-react';
 import { MarketplaceProduct } from '@/hooks/useMarketplaceProducts';
+import MarketplaceIcon from './components/MarketplaceIcon';
 
 interface VehicleSelectionModalProps {
   product: MarketplaceProduct | null;
@@ -31,6 +32,10 @@ export const VehicleSelectionModal: React.FC<VehicleSelectionModalProps> = ({
 
   if (!product) return null;
 
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+  };
+
   const filteredVehicles = vehicles.filter(vehicle => {
     if (!vehicleSearchQuery) return true;
     return (
@@ -40,10 +45,12 @@ export const VehicleSelectionModal: React.FC<VehicleSelectionModalProps> = ({
   });
 
   const calculateTotal = () => {
-    if (!product.price.includes('$')) return 0;
-    const basePrice = parseFloat(product.price.replace('$', '').replace(',', ''));
-    return basePrice * selectedVehicles.length;
+    const basePrice = product.price || 0;
+    const connectionFee = product.connection_fee || 0;
+    return (basePrice + connectionFee) * selectedVehicles.length;
   };
+
+  const itemPrice = (product.price || 0) + (product.connection_fee || 0);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -55,11 +62,11 @@ export const VehicleSelectionModal: React.FC<VehicleSelectionModalProps> = ({
 
         <div className="space-y-6">
           <div className="flex items-center gap-3 p-4 border rounded-lg bg-muted/20">
-            <product.icon className="h-8 w-8 text-primary" />
+            <MarketplaceIcon name={product.icon} className="h-8 w-8 text-primary" />
             <div>
               <h3 className="font-semibold">{product.title}</h3>
               <p className="text-sm text-muted-foreground">
-                {product.price} {product.priceUnit}
+                {formatCurrency(itemPrice)} {product.priceUnit}
               </p>
             </div>
           </div>
@@ -99,7 +106,7 @@ export const VehicleSelectionModal: React.FC<VehicleSelectionModalProps> = ({
                         ID: {vehicle.deviceid} • Status: {vehicle.status || 'Unknown'}
                       </p>
                     </div>
-                    <div className="text-sm font-medium">{product.price}</div>
+                    <div className="text-sm font-medium">{formatCurrency(itemPrice)}</div>
                   </div>
                 ))
               ) : (
@@ -114,7 +121,7 @@ export const VehicleSelectionModal: React.FC<VehicleSelectionModalProps> = ({
             <div className="bg-primary/5 p-4 rounded-lg">
               <div className="flex items-center justify-between">
                 <span className="font-medium">Total Cost:</span>
-                <span className="text-xl font-bold">${calculateTotal().toFixed(2)}</span>
+                <span className="text-xl font-bold">{formatCurrency(calculateTotal())}</span>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {selectedVehicles.length} vehicle(s) selected

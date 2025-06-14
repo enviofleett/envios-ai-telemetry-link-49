@@ -33,11 +33,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   if (!product) return null;
 
-  const calculateTotal = () => {
-    if (!product.price.includes('$')) return 0;
-    const basePrice = parseFloat(product.price.replace('$', '').replace(',', ''));
-    return basePrice * selectedVehicles.length;
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
   };
+
+  const calculateTotal = () => {
+    const basePrice = product.price || 0;
+    const connectionFee = product.connection_fee || 0;
+    return (basePrice + connectionFee) * selectedVehicles.length;
+  };
+  
+  const itemPrice = (product.price || 0) + (product.connection_fee || 0);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -53,7 +59,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <h3 className="font-semibold mb-3">Order Summary</h3>
             <div className="flex items-center justify-between mb-2">
               <span>{product.title}</span>
-              <span>{product.price}</span>
+              <span>{formatCurrency(itemPrice)}</span>
             </div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-muted-foreground">Vehicles: {selectedVehicles.length}</span>
@@ -62,7 +68,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <Separator className="my-2" />
             <div className="flex items-center justify-between font-semibold">
               <span>Total:</span>
-              <span>${calculateTotal().toFixed(2)}</span>
+              <span>{formatCurrency(calculateTotal())}</span>
             </div>
           </div>
 
