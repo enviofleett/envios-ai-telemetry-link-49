@@ -20,7 +20,7 @@ const fetchMarketAnalytics = async (): Promise<MarketAnalyticsData> => {
     throw new Error('Could not fetch market analytics data.');
   }
   
-  return data as MarketAnalyticsData;
+  return data as unknown as MarketAnalyticsData;
 };
 
 export const useMarketAnalytics = () => {
