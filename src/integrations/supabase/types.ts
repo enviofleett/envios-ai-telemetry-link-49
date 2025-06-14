@@ -7779,6 +7779,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_platform_admin: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
       log_admin_action: {
         Args: {
           p_admin_user_id: string
