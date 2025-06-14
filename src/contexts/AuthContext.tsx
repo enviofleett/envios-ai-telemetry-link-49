@@ -35,11 +35,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   
-  // Add refs to track mounting and prevent memory leaks
   const mountedRef = useRef(true);
   const roleCheckTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       mountedRef.current = false;
@@ -49,15 +47,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  // Optimized role check function with circuit breaker pattern
   const checkUserRole = useCallback(async (userId: string, retryCount = 0) => {
     if (!mountedRef.current) return;
     
     if (retryCount === 0) {
       setIsCheckingRole(true);
     }
-    
-    console.log(`🔍 Checking user role for ${userId} (attempt ${retryCount + 1})`);
     
     try {
       const { data: roleData, error } = await supabase
@@ -69,12 +64,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!mountedRef.current) return;
 
       if (error) {
-        console.error('❌ Error checking user role:', error);
+        console.error('Error checking user role:', error);
         
-        // Implement circuit breaker - stop retrying after 2 attempts
         if (retryCount < 1) {
           const delay = Math.pow(2, retryCount) * 1000;
-          console.log(`⏱️ Retrying role check in ${delay}ms...`);
           roleCheckTimeoutRef.current = setTimeout(() => {
             if (mountedRef.current) {
               checkUserRole(userId, retryCount + 1);
@@ -83,25 +76,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
         
-        // After retries, default to user role
-        console.warn('⚠️ Using default user role after failed retries');
+        console.warn('Using default user role after failed retries');
         setUserRole('user');
         setIsAdmin(false);
       } else if (roleData) {
-        console.log('✅ User role retrieved:', roleData.role);
         setUserRole(roleData.role);
         setIsAdmin(roleData.role === 'admin');
       } else {
-        console.log('📝 No role found, defaulting to user');
         setUserRole('user');
         setIsAdmin(false);
       }
     } catch (error) {
       if (!mountedRef.current) return;
+      console.error('Exception during role check:', error);
       
-      console.error('❌ Exception during role check:', error);
-      
-      // Circuit breaker for exceptions
       if (retryCount < 1) {
         const delay = Math.pow(2, retryCount) * 1000;
         roleCheckTimeoutRef.current = setTimeout(() => {
@@ -121,36 +109,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Initialize auth state on mount
   useEffect(() => {
-    let mounted = true;
-
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted && mountedRef.current) {
-        console.log('🔍 Initial session check:', session?.user?.email);
+      if (mountedRef.current) {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
-        
-        // Check user role if session exists
         if (session?.user) {
           checkUserRole(session.user.id);
         }
       }
     });
 
-    // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (mounted && mountedRef.current) {
-        console.log('🔄 Auth state changed:', event, session?.user?.email);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (mountedRef.current) {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
         
-        // Check user role when session changes
         if (session?.user) {
           checkUserRole(session.user.id);
         } else {
@@ -162,7 +140,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     return () => {
-      mounted = false;
       subscription.unsubscribe();
     };
   }, [checkUserRole]);
@@ -174,7 +151,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user?.id, checkUserRole]);
 
   const signOut = useCallback(async () => {
-    console.log('👋 Signing out user');
     await supabase.auth.signOut();
     if (mountedRef.current) {
       setIsAdmin(false);
@@ -217,7 +193,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [checkUserRole]);
 
-  // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => ({
     user,
     session,

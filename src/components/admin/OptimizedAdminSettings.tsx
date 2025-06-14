@@ -1,24 +1,14 @@
 
-import React, { useState, useEffect, memo, useCallback } from 'react';
+import React, { useState, memo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import AdminSettingsLayout from './AdminSettingsLayout';
 
 const OptimizedAdminSettings: React.FC = memo(() => {
   const [activeTab, setActiveTab] = useState('company');
-  const { user, isAdmin, userRole, isCheckingRole } = useAuth();
-
-  // Remove all auto-refresh intervals - settings should be manually controlled
-  useEffect(() => {
-    console.log('🔍 OptimizedAdminSettings mounted - no auto-refresh enabled');
-    console.log('👤 User:', user?.email);
-    console.log('🔐 Is Admin:', isAdmin);
-    console.log('📋 User Role:', userRole);
-    console.log('⏳ Is Checking Role:', isCheckingRole);
-  }, [user, isAdmin, userRole, isCheckingRole]);
+  const { isCheckingRole } = useAuth();
 
   // Memoize tab change handler to prevent recreation on every render
   const handleTabChange = useCallback((tab: string) => {
-    console.log('📋 Admin tab changed to:', tab);
     setActiveTab(tab);
   }, []);
 

@@ -1,18 +1,10 @@
 
-import React, { useState, useEffect, memo } from 'react';
+import React, { memo } from 'react';
 import { useStableAuth } from '@/hooks/useStableAuth';
 import OptimizedAdminSettings from './OptimizedAdminSettings';
 
 const AdminSettings: React.FC = memo(() => {
-  const { user, isAdmin, userRole, isCheckingRole } = useStableAuth();
-
-  useEffect(() => {
-    console.log('🔍 AdminSettings component mounted');
-    console.log('👤 User:', user?.email);
-    console.log('🔐 Is Admin:', isAdmin);
-    console.log('📋 User Role:', userRole);
-    console.log('⏳ Is Checking Role:', isCheckingRole);
-  }, [user, isAdmin, userRole, isCheckingRole]);
+  const { isCheckingRole } = useStableAuth();
 
   // Show loading state if still checking role
   if (isCheckingRole) {
