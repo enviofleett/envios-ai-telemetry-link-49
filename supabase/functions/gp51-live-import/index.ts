@@ -1,6 +1,6 @@
-
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Md5 } from "https://deno.land/std@0.208.0/hash/md5.ts";
 
 // ENV
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -16,12 +16,10 @@ const corsHeaders = {
 };
 
 // MD5 hash function for password hashing
-async function md5(input: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(input);
-  const hashBuffer = await crypto.subtle.digest('MD5', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+function md5(input: string): string {
+  const md5Hasher = new Md5();
+  md5Hasher.update(input);
+  return md5Hasher.toString();
 }
 
 // Supabase client
@@ -120,11 +118,32 @@ serve(async (req) => {
         }
       );
     }
+    
+    // Check session expiry if token_expires_at is available and reliable
+    if (session.token_expires_at) {
+        const expiresAt = new Date(session.token_expires_at);
+        const now = new Date();
+        if (expiresAt <= now) {
+            console.error('❌ GP51 session expired:', { expiresAt, now });
+            return new Response(
+                JSON.stringify({ 
+                    success: false, 
+                    error: 'GP51 session expired',
+                    code: 'SESSION_EXPIRED',
+                    details: 'Session expired, please refresh credentials'
+                }),
+                { 
+                    status: 401, 
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                }
+            );
+        }
+    }
 
     const { username, password_hash } = session;
 
     // Hash the password for GP51 authentication
-    const hashedPassword = await md5(password_hash);
+    const hashedPassword = md5(password_hash);
 
     const fetchFromGP51 = async (action: string, additionalParams: Record<string, string> = {}, retry = false) => {
       const formData = new URLSearchParams({
@@ -150,65 +169,83 @@ serve(async (req) => {
       }
 
       const text = await response.text();
-      console.log(`📊 Raw GP51 ${action} response:`, text.substring(0, 500) + '...');
+      console.log(`📊 Raw GP51 ${action} response (first 500 chars):`, text.substring(0, 500) + (text.length > 500 ? '...' : ''));
 
       try {
         const json = JSON.parse(text);
 
         if (json.status !== 0) {
-          console.error(`🛑 GP51 API ${action} returned error status:`, json.cause || json.message);
-          return { error: json.cause || json.message || `${action} failed`, status: 401 };
+          console.error(`🛑 GP51 API ${action} returned error status:`, json.cause || json.message, json);
+          // It's better to return the full GP51 error if available
+          return { 
+            error: json.cause || json.message || `${action} failed`, 
+            status: response.status === 200 ? 400 : response.status, // If GP51 returns error with HTTP 200, use 400
+            gp51_error: json // include full GP51 error object
+          };
         }
 
         return { data: json, status: 200 };
       } catch (e) {
+        // Avoid retry loops for non-JSON responses that are persistent
+        // For now, keeping the retry logic as it was, but this could be refined.
         if (!retry) {
-          console.warn(`🔁 Retry ${action} after JSON parse failure:`, text.substring(0, 200));
+          console.warn(`🔁 Retry ${action} after JSON parse failure (response was not JSON):`, text.substring(0, 200));
           return await fetchFromGP51(action, additionalParams, true);
         }
 
-        console.error(`❌ GP51 ${action} returned invalid JSON:`, text.substring(0, 200));
-        return { error: `Invalid GP51 ${action} response`, raw: text, status: 502 };
+        console.error(`❌ GP51 ${action} returned invalid JSON after retry:`, text.substring(0, 200));
+        return { error: `Invalid GP51 ${action} response (not JSON)`, raw: text, status: 502 };
       }
     };
 
-    // 3. Attempt to fetch monitor list
-    console.log('📡 Fetching GP51 monitor list...');
-    const result = await fetchFromGP51("querymonitorlist");
+    // 3. Attempt to fetch monitor list (device list)
+    console.log('📡 Fetching GP51 monitor list (devices)...');
+    // CHANGED action from "querymonitorlist" to "getDeviceList"
+    const result = await fetchFromGP51("getDeviceList"); 
 
     if (result.error) {
       return new Response(JSON.stringify({
         success: false,
         error: result.error,
-        code: "API_ERROR"
+        code: result.status === 401 ? "AUTH_FAILED" : "API_ERROR",
+        gp51_error: result.gp51_error // include GP51 specific error if present
       }), {
         status: result.status,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const devices = result.data.groups ? 
-      result.data.groups.flatMap((group: any) => group.devices || []) : [];
-    console.log(`✅ Found ${devices.length} devices in monitor list`);
+    // Extract devices, adapting to potential variations in GP51 response structure
+    let devices = [];
+    if (result.data.devices && Array.isArray(result.data.devices)) {
+        devices = result.data.devices;
+    } else if (result.data.groups && Array.isArray(result.data.groups)) {
+        // This was the previous logic, keep as a fallback if 'devices' top-level array isn't present
+        devices = result.data.groups.flatMap((group: any) => group.devices || []);
+    } else if (Array.isArray(result.data)) { // Sometimes APIs return a direct array for lists
+        devices = result.data;
+    }
+    console.log(`✅ Found ${devices.length} devices in monitor list. Sample:`, devices.slice(0,2));
+
 
     // 4. Fetch positions for devices if any exist
     let positions = [];
     if (devices.length > 0) {
-      const deviceIds = devices.map((d: any) => d.deviceid || d.id).filter((id: string) => id);
+      const deviceIds = devices.map((d: any) => d.deviceid || d.id).filter((id: string | number) => id); // deviceid can be number
       
       if (deviceIds.length > 0) {
         console.log(`📍 Fetching positions for ${deviceIds.length} devices...`);
         
         const positionResult = await fetchFromGP51("lastposition", {
           deviceids: deviceIds.join(','),
-          lastquerypositiontime: '0'
+          lastquerypositiontime: '0' // Fetch latest positions
         });
         
         if (!positionResult.error && positionResult.data && positionResult.data.records) {
           positions = Array.isArray(positionResult.data.records) ? positionResult.data.records : [positionResult.data.records];
           console.log(`✅ Fetched ${positions.length} position records`);
         } else {
-          console.warn('⚠️ Position fetch failed:', positionResult.error);
+          console.warn('⚠️ Position fetch failed or API returned error:', positionResult.error, positionResult.gp51_error);
         }
       }
     }
