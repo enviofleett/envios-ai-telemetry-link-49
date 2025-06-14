@@ -5,11 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { gp51IntegrationTester, ValidationSuite, TestResult } from '@/services/gp51/integrationTester';
+import { gp51IntegrationTester } from '@/services/gp51/integrationTester';
 import { PlayCircle, CheckCircle, XCircle, AlertCircle, Loader2, Activity } from 'lucide-react';
 import { ValidationOverallCard } from './gp51/ValidationOverallCard';
 import { ValidationCategoryCard } from './gp51/ValidationCategoryCard';
 import { FailedTestsCard } from './gp51/FailedTestsCard';
+import type { ValidationSuite, TestResult } from '@/services/gp51/gp51ValidationTypes';
 
 export default function GP51ValidationTab() {
   const [isRunning, setIsRunning] = useState(false);

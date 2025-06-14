@@ -1,7 +1,7 @@
-
 import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { gp51IntegrationTester, ValidationSuite } from '@/services/gp51/integrationTester';
+import { gp51IntegrationTester } from '@/services/gp51/integrationTester';
+import type { ValidationSuite } from '@/services/gp51/gp51ValidationTypes';
 
 export const useGP51ValidationTesting = () => {
   const [isRunning, setIsRunning] = useState(false);
