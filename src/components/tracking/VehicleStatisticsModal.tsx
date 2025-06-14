@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,7 @@ import {
   AlertTriangle,
   ChevronRight
 } from 'lucide-react';
-import type { VehicleData } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface VehicleStatisticsModalProps {
   vehicle: VehicleData;
@@ -25,8 +24,7 @@ interface VehicleStatisticsModalProps {
 const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({ vehicle, children }) => {
   const [isOpen, setIsOpen] = useState(false);
 
-  // Mock statistics data
-  const getVehicleStatistics = (vehicle: VehicleData) => {
+  const getVehicleStatistics = (v: VehicleData) => {
     const stats = {
       totalDistance: Math.floor(Math.random() * 5000 + 1000),
       totalTrips: Math.floor(Math.random() * 100 + 20),
@@ -53,8 +51,8 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({ vehicle
     return 'offline';
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
+  const getStatusColor = (s: string) => {
+    switch (s) {
       case 'online': return 'bg-green-500';
       case 'idle': return 'bg-yellow-500';
       default: return 'bg-gray-400';
@@ -79,7 +77,6 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({ vehicle
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Current Status */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Current Status</CardTitle>
@@ -100,7 +97,7 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({ vehicle
                     <p className="text-sm text-gray-600">Location</p>
                     <p className="font-semibold">
                       {vehicle.last_position ? 
-                        `${vehicle.last_position.lat.toFixed(4)}, ${vehicle.last_position.lng.toFixed(4)}` : 
+                        `${vehicle.last_position.latitude.toFixed(4)}, ${vehicle.last_position.longitude.toFixed(4)}` : 
                         'Unknown'
                       }
                     </p>
@@ -120,7 +117,6 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({ vehicle
             </CardContent>
           </Card>
 
-          {/* Performance Metrics */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Performance Metrics</CardTitle>
@@ -154,7 +150,6 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({ vehicle
             </CardContent>
           </Card>
 
-          {/* Time Analysis */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Time Analysis</CardTitle>
@@ -197,7 +192,6 @@ const VehicleStatisticsModal: React.FC<VehicleStatisticsModalProps> = ({ vehicle
             </CardContent>
           </Card>
 
-          {/* Efficiency Score */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">Efficiency Score</CardTitle>

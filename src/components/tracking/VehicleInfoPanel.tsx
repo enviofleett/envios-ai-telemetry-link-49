@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,18 +30,17 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
     );
   }
 
-  const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.last_position?.timestamp) return 'offline';
-    const lastUpdate = new Date(vehicle.last_position.timestamp);
+  const getVehicleStatus = (v: VehicleData) => {
+    if (!v.last_position?.timestamp) return 'offline';
+    const lastUpdate = new Date(v.last_position.timestamp);
     const now = new Date();
     const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
     if (minutesSinceUpdate > 5) return 'offline';
-    if (vehicle.last_position.speed > 0) return 'moving';
+    if (v.last_position.speed > 0) return 'moving';
     return 'online';
   };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const getStatusBadge = (s: string) => {
+    switch (s) {
       case 'moving':
         return <Badge className="bg-blue-100 text-blue-800 text-xs">Moving</Badge>;
       case 'online':
@@ -51,29 +49,26 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
         return <Badge variant="secondary" className="text-xs">Offline</Badge>;
     }
   };
-
-  const getIgnitionStatus = (vehicle: VehicleData) => {
-    const speed = vehicle.last_position?.speed || 0;
+  const getIgnitionStatus = (v: VehicleData) => {
+    const speed = v.last_position?.speed || 0;
     if (speed > 0) return 'ON';
-    if (vehicle.last_position?.timestamp) {
-      const lastUpdate = new Date(vehicle.last_position.timestamp);
+    if (v.last_position?.timestamp) {
+      const lastUpdate = new Date(v.last_position.timestamp);
       const now = new Date();
       const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
       if (minutesSinceUpdate <= 5) return 'ON';
     }
     return 'OFF';
   };
-
-  const formatLastUpdate = (timestamp: string) => {
+  const formatLastUpdate = (ts: string) => {
     const now = new Date();
-    const updateTime = new Date(timestamp);
+    const updateTime = new Date(ts);
     const diffMinutes = Math.floor((now.getTime() - updateTime.getTime()) / (1000 * 60));
     if (diffMinutes < 1) return 'Just now';
     if (diffMinutes < 60) return `${diffMinutes}m ago`;
     if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
     return updateTime.toLocaleDateString();
   };
-
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text).then(() => {
       toast({
@@ -89,9 +84,10 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
     });
   };
 
-  const status = getVehicleStatus(vehicle);
-  const ignitionStatus = getIgnitionStatus(vehicle);
-  const plateNumber = vehicle.license_plate || vehicle.device_name;
+
+  const status = getVehicleStatus(vehicle!);
+  const ignitionStatus = getIgnitionStatus(vehicle!);
+  const plateNumber = vehicle!.license_plate || vehicle!.device_name;
 
   return (
     <Card className="bg-white border border-gray-lighter shadow-sm">
@@ -110,7 +106,7 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
               <Gauge className="h-4 w-4" />
               <span>Speed:</span>
             </div>
-            <p className="text-primary-dark">{vehicle.last_position?.speed || 0} km/h</p>
+            <p className="text-primary-dark">{vehicle!.last_position?.speed || 0} km/h</p>
           </div>
           <div>
             <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
@@ -125,7 +121,7 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
               <span>Last Update:</span>
             </div>
             <p className="text-primary-dark">
-              {vehicle.last_position?.timestamp ? formatLastUpdate(vehicle.last_position.timestamp) : 'Never'}
+              {vehicle!.last_position?.timestamp ? formatLastUpdate(vehicle!.last_position.timestamp) : 'Never'}
             </p>
           </div>
           <div>
@@ -134,7 +130,7 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
               <span>Location:</span>
             </div>
             <p className="text-primary-dark">
-              {vehicle.last_position?.lat}, {vehicle.last_position?.lng}
+              {vehicle!.last_position?.latitude}, {vehicle!.last_position?.longitude}
             </p>
           </div>
         </div>
@@ -144,7 +140,7 @@ const VehicleInfoPanel: React.FC<VehicleInfoPanelProps> = ({
             variant="outline"
             size="sm"
             className="bg-white border-gray-lighter text-primary-dark hover:bg-gray-background"
-            onClick={() => copyToClipboard(vehicle.device_id, "Device ID")}
+            onClick={() => copyToClipboard(vehicle!.device_id, "Device ID")}
           >
             <Copy className="h-4 w-4 mr-2" />
             Copy Device ID

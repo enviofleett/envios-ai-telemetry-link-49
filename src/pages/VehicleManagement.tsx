@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { Car, Search, Filter, RefreshCw } from 'lucide-react';
@@ -10,6 +10,7 @@ import { useStableEnhancedVehicleData } from '@/hooks/useStableEnhancedVehicleDa
 import { useLiveVehicleData } from '@/hooks/useLiveVehicleData';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import type { VehicleData } from '@/types/vehicle';
 
 const VehicleManagement: React.FC = () => {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -32,35 +33,24 @@ const VehicleManagement: React.FC = () => {
 
   const { toast } = useToast();
 
-  const selectedVehicle = selectedVehicleId 
+  const selectedVehicleData = selectedVehicleId 
     ? filteredVehicles.find(v => v.id === selectedVehicleId)
     : null;
 
-  // Transform VehicleData to match VehicleCard props (using snake_case)
-  const transformedSelectedVehicle = selectedVehicle ? {
-    id: selectedVehicle.id,
-    device_id: selectedVehicle.device_id,
-    device_name: selectedVehicle.device_name,
-    vin: selectedVehicle.vin,
-    license_plate: selectedVehicle.license_plate,
-    image_urls: selectedVehicle.image_urls,
-    fuel_tank_capacity_liters: selectedVehicle.fuel_tank_capacity_liters,
-    manufacturer_fuel_consumption_100km_l: selectedVehicle.manufacturer_fuel_consumption_100km_l,
-    insurance_expiration_date: selectedVehicle.insurance_expiration_date,
-    license_expiration_date: selectedVehicle.license_expiration_date,
-    is_active: selectedVehicle.is_active,
-    envio_user_id: selectedVehicle.envio_user_id,
-    last_position: selectedVehicle.last_position ? {
-      lat: selectedVehicle.last_position.lat,
-      lng: selectedVehicle.last_position.lng,
-      speed: selectedVehicle.last_position.speed,
-      timestamp: selectedVehicle.last_position.timestamp
+  // Transform VehicleData to match VehicleCard/ProfileModal props (which expect VehicleData from @/types/vehicle)
+  const transformedSelectedVehicle: VehicleData | null = selectedVehicleData ? {
+    ...selectedVehicleData, // Spread all properties from filteredVehicles item
+    // Ensure last_position is correctly structured if present
+    last_position: selectedVehicleData.last_position ? {
+      latitude: selectedVehicleData.last_position.latitude, // Corrected
+      longitude: selectedVehicleData.last_position.longitude, // Corrected
+      speed: selectedVehicleData.last_position.speed,
+      course: selectedVehicleData.last_position.course, // Make sure course is included
+      timestamp: selectedVehicleData.last_position.timestamp
     } : undefined,
-    envio_users: selectedVehicle.envio_users
   } : null;
 
-  // Update filters when search or status changes
-  React.useEffect(() => {
+  useEffect(() => { // Changed React.useEffect to useEffect
     setFilters(prev => ({
       ...prev,
       search: searchTerm,
@@ -167,41 +157,26 @@ const VehicleManagement: React.FC = () => {
 
           {/* Vehicle Grid */}
           {isLoading && filteredVehicles.length === 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="bg-gray-200 h-64 rounded-lg"></div>
-                </div>
-              ))}
-            </div>
+            <></>
           ) : filteredVehicles.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filteredVehicles.map((vehicle) => {
-                // Transform VehicleData to match VehicleCard props (using snake_case)
-                const transformedVehicle = {
-                  id: vehicle.id,
-                  device_id: vehicle.device_id,
-                  device_name: vehicle.device_name,
-                  vin: vehicle.vin,
-                  license_plate: vehicle.license_plate,
-                  image_urls: vehicle.image_urls,
-                  is_active: vehicle.is_active,
-                  envio_user_id: vehicle.envio_user_id,
+                // Transform VehicleData for VehicleCard
+                const transformedVehicle: VehicleData = {
+                  ...vehicle, // Spread all properties
                   last_position: vehicle.last_position ? {
-                    lat: vehicle.last_position.lat,
-                    lng: vehicle.last_position.lng,
+                    latitude: vehicle.last_position.latitude, // Corrected
+                    longitude: vehicle.last_position.longitude, // Corrected
                     speed: vehicle.last_position.speed,
+                    course: vehicle.last_position.course, // Ensure course is included
                     timestamp: vehicle.last_position.timestamp
                   } : undefined,
-                  insurance_expiration_date: vehicle.insurance_expiration_date,
-                  license_expiration_date: vehicle.license_expiration_date,
-                  envio_users: vehicle.envio_users
                 };
 
                 return (
                   <VehicleCard
                     key={vehicle.id}
-                    vehicle={transformedVehicle}
+                    vehicle={transformedVehicle} // Use the fully typed and transformed vehicle
                     liveData={liveData[vehicle.device_id]}
                     onViewDetails={handleViewDetails}
                     onActivateWorkshop={handleActivateWorkshop}
@@ -226,7 +201,7 @@ const VehicleManagement: React.FC = () => {
           <VehicleProfileModal
             isOpen={!!selectedVehicleId}
             onClose={() => setSelectedVehicleId(null)}
-            vehicle={transformedSelectedVehicle}
+            vehicle={transformedSelectedVehicle} // Pass the transformed selected vehicle
             liveData={transformedSelectedVehicle ? liveData[transformedSelectedVehicle.device_id] : undefined}
             onUpdateVehicle={handleUpdateVehicle}
           />

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -116,9 +115,9 @@ const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
               <MapPin className="h-3 w-3 text-gray-400" />
               <span className="text-gray-600">Location</span>
             </div>
-            {position?.lat && position?.lng ? (
+            {position?.latitude && position?.longitude ? (
               <p className="font-mono text-xs">
-                {formatCoordinates(position.lat, position.lng)}
+                {formatCoordinates(position.latitude, position.longitude)}
               </p>
             ) : (
               <p className="text-gray-400 text-xs">No location data</p>
@@ -159,7 +158,7 @@ const LiveVehicleCard: React.FC<LiveVehicleCardProps> = ({ vehicle }) => {
           </div>
         </div>
 
-        {status === 'online' && position?.lat && position?.lng && (
+        {status === 'online' && position?.latitude && position?.longitude && (
           <div className="mt-3 pt-3 border-t">
             <Button size="sm" variant="outline" className="w-full">
               <MapPin className="h-3 w-3 mr-1" />

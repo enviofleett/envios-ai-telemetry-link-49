@@ -1,4 +1,3 @@
-
 import React from 'react';
 import {
   Dialog,
@@ -204,7 +203,7 @@ const VehicleDetailsModal: React.FC<VehicleDetailsModalProps> = ({
                         <span className="text-gray-600">Coordinates:</span>
                       </div>
                       <span className="font-mono text-sm">
-                        {vehicle.last_position.lat.toFixed(6)}, {vehicle.last_position.lng.toFixed(6)}
+                        {vehicle.last_position.latitude.toFixed(6)}, {vehicle.last_position.longitude.toFixed(6)}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">

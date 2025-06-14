@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,7 +19,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import type { VehicleData } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface VehicleProfileTabProps {
   vehicle: VehicleData;
@@ -102,7 +101,7 @@ const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({ vehicle }) => {
             <Label htmlFor="latitude">Latitude</Label>
             <Input
               id="latitude"
-              value={vehicle.last_position?.lat?.toString() || 'N/A'}
+              value={vehicle.last_position?.latitude?.toString() || 'N/A'}
               readOnly
             />
           </div>
@@ -110,7 +109,7 @@ const VehicleProfileTab: React.FC<VehicleProfileTabProps> = ({ vehicle }) => {
             <Label htmlFor="longitude">Longitude</Label>
             <Input
               id="longitude"
-              value={vehicle.last_position?.lng?.toString() || 'N/A'}
+              value={vehicle.last_position?.longitude?.toString() || 'N/A'}
               readOnly
             />
           </div>

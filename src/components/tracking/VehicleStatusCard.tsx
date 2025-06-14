@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +13,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { VehicleData } from '@/services/unifiedVehicleData';
+import type { VehicleData } from '@/types/vehicle';
 
 interface VehicleStatusCardProps {
   vehicle: VehicleData;
@@ -127,7 +126,7 @@ const VehicleStatusCard: React.FC<VehicleStatusCardProps> = ({
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <MapPin className="h-3 w-3" />
               <span className="truncate">
-                {vehicle.last_position.lat.toFixed(4)}, {vehicle.last_position.lng.toFixed(4)}
+                {vehicle.last_position.latitude.toFixed(4)}, {vehicle.last_position.longitude.toFixed(4)}
               </span>
             </div>
           )}
