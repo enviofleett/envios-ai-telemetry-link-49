@@ -1,4 +1,3 @@
-
 import React from "react";
 import { useMarketplaceProducts } from "@/hooks/useMarketplaceProducts";
 import { useUnifiedVehicleData } from "@/hooks/useUnifiedVehicleData";
@@ -79,7 +78,6 @@ export const EnhancedMarketplace: React.FC = () => {
       <MarketplaceHeader state={state} />
       <MarketplaceBanner
         onMerchantLogin={() => state.setShowMerchantLogin(true)}
-        onMerchantRegister={() => state.setShowMerchantOnboarding(true)}
       />
       <ProductCatalog
         state={state}
