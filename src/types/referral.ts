@@ -84,3 +84,13 @@ export interface AgentDashboardAnalytics {
   totalReferredUsers: number;
   monthlyCommissions: { name: string; total: number }[];
 }
+
+export interface ReferredUserWithDetails extends ReferredUser {
+  referred_user_name: string;
+  referred_user_email: string;
+  referral_code: string;
+}
+
+export interface CommissionWithDetails extends ReferralCommission {
+  referred_user_name: string;
+}

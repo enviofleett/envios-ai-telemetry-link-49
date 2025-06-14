@@ -4,9 +4,11 @@ import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useQuery } from '@tanstack/react-query';
 import { referralApi } from '@/services/referralApi';
-import { Loader2, AlertTriangle, Users, TrendingUp, DollarSign } from 'lucide-react';
+import { Loader2, AlertTriangle, Users, TrendingUp, DollarSign, ArrowRight } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import AgentEarningsChart from '@/components/packages/referral/agent/AgentEarningsChart';
+import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
 
 const AgentDashboardPage: React.FC = () => {
   const { data: analytics, isLoading, isError } = useQuery({
@@ -94,6 +96,28 @@ const AgentDashboardPage: React.FC = () => {
           <AgentEarningsChart data={analytics.monthlyCommissions} />
         </div>
         
+        <div className="grid gap-4 md:grid-cols-1">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Manage Your Referrals</CardTitle>
+                    <CardDescription>View the users you've referred and track your commission history.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <Button asChild className="w-full sm:w-auto">
+                            <Link to="/agent/referred-users">
+                                View Referred Users <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </Button>
+                        <Button asChild variant="outline" className="w-full sm:w-auto">
+                            <Link to="/agent/commissions">
+                                Commission History <ArrowRight className="ml-2 h-4 w-4" />
+                            </Link>
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
       </div>
     </Layout>
   );
