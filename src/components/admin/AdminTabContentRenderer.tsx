@@ -48,6 +48,7 @@ const SystemSettingsTab = React.lazy(() => import('./tabs/SystemSettingsTab'));
 const SecurityTab = React.lazy(() => import('./tabs/SecurityTab'));
 // Integration
 const GP51IntegrationTab = React.lazy(() => import('./tabs/GP51IntegrationTab'));
+const GP51ValidationTab = React.lazy(() => import('./tabs/GP51ValidationTab'));
 const GeofencingTab = React.lazy(() => import('./tabs/GeofencingTab'));
 // Analytics
 const AnalyticsTab = React.lazy(() => import('./tabs/AnalyticsTab'));
@@ -124,7 +125,7 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
       case 'gp51':
         return <GP51IntegrationTab />;
       case 'gp51-validation':
-        return <ComingSoonTab tabName="GP51 Validation" />;
+        return <GP51ValidationTab />;
       case 'geofencing':
         return <GeofencingTab />;
 
