@@ -1,6 +1,9 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
+// Allowed admin roles
+export type AdminRole = "super_admin" | "system_admin" | "support_admin";
+
 export interface PlatformAdminUser {
   id: string;
   user_id: string;
@@ -8,15 +11,24 @@ export interface PlatformAdminUser {
   display_name?: string;
   created_at: string;
   updated_at: string;
-  roles: string[];
+  roles: AdminRole[];
 }
 
 export interface PlatformAdminRole {
   id: string;
   admin_user_id: string;
-  role: "super_admin" | "system_admin" | "support_admin";
+  role: AdminRole;
   assigned_by?: string;
   assigned_at: string;
+}
+
+// Type guard to ensure a string is a valid AdminRole
+function isAdminRole(role: string): role is AdminRole {
+  return (
+    role === "super_admin" ||
+    role === "system_admin" ||
+    role === "support_admin"
+  );
 }
 
 export const PlatformAdminService = {
@@ -32,13 +44,24 @@ export const PlatformAdminService = {
     return (
       data?.map((u: any) => ({
         ...u,
-        roles: u.platform_admin_roles?.map((r: any) => r.role) || [],
+        roles: Array.isArray(u.platform_admin_roles)
+          ? u.platform_admin_roles
+              .map((r: any) =>
+                isAdminRole(r.role) ? r.role : undefined
+              )
+              .filter(Boolean) as AdminRole[]
+          : [],
       })) || []
     );
   },
 
   // Add a new platform admin user with initial role
-  async addAdmin(email: string, user_id: string, display_name: string, role: "super_admin" | "system_admin" | "support_admin") {
+  async addAdmin(
+    email: string,
+    user_id: string,
+    display_name: string,
+    role: AdminRole
+  ) {
     // Insert to platform_admin_users
     const { data: userData, error: userError } = await supabase
       .from("platform_admin_users")
@@ -58,7 +81,7 @@ export const PlatformAdminService = {
   },
 
   // Assign a role to an admin user
-  async assignRole(admin_user_id: string, role: "super_admin" | "system_admin" | "support_admin") {
+  async assignRole(admin_user_id: string, role: AdminRole) {
     const { error } = await supabase
       .from("platform_admin_roles")
       .insert([{ admin_user_id, role }]);
@@ -66,7 +89,7 @@ export const PlatformAdminService = {
   },
 
   // Remove a role from an admin user
-  async removeRole(admin_user_id: string, role: "super_admin" | "system_admin" | "support_admin") {
+  async removeRole(admin_user_id: string, role: AdminRole) {
     const { error } = await supabase
       .from("platform_admin_roles")
       .delete()
@@ -76,7 +99,7 @@ export const PlatformAdminService = {
   },
 
   // Get permissions for a given admin role
-  async getPermissionsForRole(role: string): Promise<string[]> {
+  async getPermissionsForRole(role: AdminRole): Promise<string[]> {
     const { data, error } = await supabase
       .from("admin_permissions")
       .select("permission")
@@ -85,4 +108,3 @@ export const PlatformAdminService = {
     return data?.map((row: any) => row.permission) || [];
   },
 };
-
