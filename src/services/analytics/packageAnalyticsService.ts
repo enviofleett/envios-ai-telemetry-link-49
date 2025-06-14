@@ -1,58 +1,66 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export const packageAnalyticsService = {
   async getPackageSubscriptionDistribution() {
-    const { data, error } = await supabase
+    // Fetch all active subscriptions with package_id
+    const { data: subscriptions, error } = await supabase
       .from('user_subscriptions')
-      .select('package_id, count:id')
-      .eq('subscription_status', 'active')
-      .group('package_id');
+      .select('package_id')
+      .eq('subscription_status', 'active');
     if (error) throw error;
 
-    // Fetch package names for labels
-    const packageIds = data?.map((row: any) => row.package_id) || [];
+    // Count subscriptions per package_id
+    const counts: Record<string, number> = {};
+    (subscriptions || []).forEach((row: any) => {
+      counts[row.package_id] = (counts[row.package_id] || 0) + 1;
+    });
+
+    // Fetch package names for the associated IDs
+    const packageIds = Object.keys(counts);
     let packageNames: Record<string, string> = {};
     if (packageIds.length) {
       const { data: pkgs } = await supabase
         .from('subscriber_packages')
-        .select('id, package_name');
-      packageNames = Object.fromEntries((pkgs || []).map(p => [p.id, p.package_name]));
+        .select('id, package_name')
+        .in('id', packageIds);
+      packageNames = Object.fromEntries((pkgs || []).map((p: any) => [p.id, p.package_name]));
     }
 
     // Shape data for chart
-    return (data || []).map((row: any) => ({
-      id: row.package_id,
-      name: packageNames[row.package_id] || row.package_id,
-      count: row.count
+    return packageIds.map((pkgId) => ({
+      id: pkgId,
+      name: packageNames[pkgId] || pkgId,
+      count: counts[pkgId]
     }));
   },
 
   async getRevenueByPackage() {
-    // For each package, sum the total revenue from subscriptions (simulate with subscription_fee_monthly * user count)
-    // You may want to do this by joining subscriptions with package table, but let's keep it simple and display rough estimation
+    // For each package, sum estimated monthly revenue from subscriptions
     const { data: pkgs, error } = await supabase
       .from('subscriber_packages')
       .select('id, package_name, subscription_fee_monthly, subscription_fee_annually');
-
     if (error) throw error;
+
     const { data: subscriptions } = await supabase
       .from('user_subscriptions')
       .select('package_id, billing_cycle');
 
     const revenueMap: Record<string, number> = {};
-    subscriptions?.forEach(sub => {
-      const pkg = pkgs?.find(p => p.id === sub.package_id);
+    (subscriptions || []).forEach((sub: any) => {
+      const pkg = pkgs?.find((p: any) => p.id === sub.package_id);
       if (!pkg) return;
-      let fee = sub.billing_cycle === 'monthly'
-        ? (pkg.subscription_fee_monthly || 0)
-        : ((pkg.subscription_fee_annually || 0) / 12);
+      let fee =
+        sub.billing_cycle === 'monthly'
+          ? (pkg.subscription_fee_monthly || 0)
+          : ((pkg.subscription_fee_annually || 0) / 12);
       revenueMap[sub.package_id] = (revenueMap[sub.package_id] || 0) + fee;
     });
 
-    return (pkgs || []).map(pkg => ({
+    return (pkgs || []).map((pkg: any) => ({
       id: pkg.id,
       name: pkg.package_name,
-      revenue: Math.round(revenueMap[pkg.id] || 0)
+      revenue: Math.round(revenueMap[pkg.id] || 0),
     }));
   },
 
@@ -71,10 +79,10 @@ export const packageAnalyticsService = {
       .select('package_id');
 
     // Calculate usage
-    const featureMap: Record<string, { feature_name: string, count: number }> = {};
-    (features || []).forEach(f => {
-      const featurePackageIds = (assignments || []).filter(a => a.feature_id === f.id).map(a => a.package_id);
-      const count = (userSubs || []).filter(s => featurePackageIds.includes(s.package_id)).length;
+    const featureMap: Record<string, { feature_name: string; count: number }> = {};
+    (features || []).forEach((f: any) => {
+      const featurePackageIds = (assignments || []).filter((a: any) => a.feature_id === f.id).map((a: any) => a.package_id);
+      const count = (userSubs || []).filter((s: any) => featurePackageIds.includes(s.package_id)).length;
       featureMap[f.id] = { feature_name: f.feature_name, count };
     });
 
