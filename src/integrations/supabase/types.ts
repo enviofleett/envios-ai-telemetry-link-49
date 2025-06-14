@@ -691,6 +691,36 @@ export type Database = {
           },
         ]
       }
+      category_commission_rates: {
+        Row: {
+          category_id: string
+          commission_rate: number
+          country_code: string
+          created_at: string
+          currency: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          commission_rate?: number
+          country_code?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          commission_rate?: number
+          country_code?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       company_settings: {
         Row: {
           company_address: string | null
@@ -742,6 +772,42 @@ export type Database = {
           timezone?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      country_marketplace_settings: {
+        Row: {
+          billing_cycles: string[]
+          country_code: string
+          created_at: string
+          currency: string
+          default_commission_rate: number
+          default_registration_fee: number
+          id: string
+          supported_payment_methods: string[]
+          updated_at: string
+        }
+        Insert: {
+          billing_cycles?: string[]
+          country_code: string
+          created_at?: string
+          currency?: string
+          default_commission_rate?: number
+          default_registration_fee?: number
+          id?: string
+          supported_payment_methods?: string[]
+          updated_at?: string
+        }
+        Update: {
+          billing_cycles?: string[]
+          country_code?: string
+          created_at?: string
+          currency?: string
+          default_commission_rate?: number
+          default_registration_fee?: number
+          id?: string
+          supported_payment_methods?: string[]
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1625,6 +1691,7 @@ export type Database = {
       envio_users: {
         Row: {
           city: string | null
+          country_code: string | null
           created_at: string
           email: string
           gp51_user_type: number | null
@@ -1636,12 +1703,14 @@ export type Database = {
           needs_password_set: boolean | null
           otp_verified_at: string | null
           phone_number: string | null
+          preferred_currency: string | null
           registration_status: string | null
           registration_type: string | null
           updated_at: string
         }
         Insert: {
           city?: string | null
+          country_code?: string | null
           created_at?: string
           email: string
           gp51_user_type?: number | null
@@ -1653,12 +1722,14 @@ export type Database = {
           needs_password_set?: boolean | null
           otp_verified_at?: string | null
           phone_number?: string | null
+          preferred_currency?: string | null
           registration_status?: string | null
           registration_type?: string | null
           updated_at?: string
         }
         Update: {
           city?: string | null
+          country_code?: string | null
           created_at?: string
           email?: string
           gp51_user_type?: number | null
@@ -1670,6 +1741,7 @@ export type Database = {
           needs_password_set?: boolean | null
           otp_verified_at?: string | null
           phone_number?: string | null
+          preferred_currency?: string | null
           registration_status?: string | null
           registration_type?: string | null
           updated_at?: string
@@ -4148,6 +4220,8 @@ export type Database = {
           connection_fee: number
           created_at: string
           currency: string
+          default_country_code: string | null
+          default_currency: string | null
           id: string
           registration_fee: number
           updated_at: string
@@ -4158,6 +4232,8 @@ export type Database = {
           connection_fee?: number
           created_at?: string
           currency?: string
+          default_country_code?: string | null
+          default_currency?: string | null
           id?: string
           registration_fee?: number
           updated_at?: string
@@ -4168,6 +4244,8 @@ export type Database = {
           connection_fee?: number
           created_at?: string
           currency?: string
+          default_country_code?: string | null
+          default_currency?: string | null
           id?: string
           registration_fee?: number
           updated_at?: string
@@ -4253,6 +4331,51 @@ export type Database = {
           menu_code?: string
           menu_name?: string
           parent_menu_code?: string | null
+        }
+        Relationships: []
+      }
+      merchant_fee_overrides: {
+        Row: {
+          billing_cycle: string | null
+          commission_currency: string | null
+          commission_rate_override: number | null
+          country_code: string | null
+          created_at: string
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          merchant_id: string
+          registration_fee_currency: string | null
+          registration_fee_override: number | null
+          updated_at: string
+        }
+        Insert: {
+          billing_cycle?: string | null
+          commission_currency?: string | null
+          commission_rate_override?: number | null
+          country_code?: string | null
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          merchant_id: string
+          registration_fee_currency?: string | null
+          registration_fee_override?: number | null
+          updated_at?: string
+        }
+        Update: {
+          billing_cycle?: string | null
+          commission_currency?: string | null
+          commission_rate_override?: number | null
+          country_code?: string | null
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          merchant_id?: string
+          registration_fee_currency?: string | null
+          registration_fee_override?: number | null
+          updated_at?: string
         }
         Relationships: []
       }

@@ -1,7 +1,9 @@
-
 import React from "react";
 import MarketplaceSettingsCard from "./marketplace-settings/MarketplaceSettingsCard";
 import MarketplaceSettingsForm from "./marketplace-settings/MarketplaceSettingsForm";
+import CategoryCommissionRatesCard from "./marketplace-settings/CategoryCommissionRatesCard";
+import MerchantFeeOverridesCard from "./marketplace-settings/MerchantFeeOverridesCard";
+import CountryMarketplaceSettingsCard from "./marketplace-settings/CountryMarketplaceSettingsCard";
 import { useMarketplaceSettingsForm } from "@/hooks/useMarketplaceSettingsForm";
 
 export const MarketplaceSettingsTab: React.FC = () => {
@@ -30,15 +32,22 @@ export const MarketplaceSettingsTab: React.FC = () => {
     );
 
   return (
-    <MarketplaceSettingsCard>
-      <MarketplaceSettingsForm
-        form={form}
-        handleChange={handleChange}
-        handleSave={handleSave}
-        isSaving={isSaving}
-        hasId={!!settings?.id}
-      />
-    </MarketplaceSettingsCard>
+    <div className="space-y-8">
+      <MarketplaceSettingsCard>
+        <MarketplaceSettingsForm
+          form={form}
+          handleChange={handleChange}
+          handleSave={handleSave}
+          isSaving={isSaving}
+          hasId={!!settings?.id}
+        />
+      </MarketplaceSettingsCard>
+
+      {/* New cards for advanced marketplace admin controls */}
+      <CategoryCommissionRatesCard />
+      <MerchantFeeOverridesCard />
+      <CountryMarketplaceSettingsCard />
+    </div>
   );
 };
 
