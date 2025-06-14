@@ -1,17 +1,19 @@
-
-import { MD5 } from "https://deno.land/x/checksum@1.4.0/mod.ts";
+import { md5_sync } from "../../_shared/crypto_utils.ts"; // Import shared utility
 
 export function createHash(text: string): string {
-  console.log(`Hashing password of length: ${text.length}`);
+  console.log(`Hashing input of length: ${text.length} using shared md5_sync.`);
   
   try {
-    const md5Hash = new MD5().update(text).toString();
-    
-    console.log('MD5 hash generated successfully');
-    return md5Hash;
-    
+    const hash = md5_sync(text);
+    console.log('Hash generated successfully via md5_sync.');
+    return hash;
   } catch (error) {
-    console.error('MD5 hashing failed:', error);
-    throw new Error('Password hashing failed');
+    console.error('Hashing failed via md5_sync:', error);
+    // This path should ideally not be reached if md5_sync is robust.
+    // If md5_sync can throw, this error handling is relevant.
+    // Otherwise, if md5_sync is guaranteed not to throw for valid string inputs,
+    // this try-catch might be simplified or removed.
+    // For now, keeping it for safety.
+    throw new Error('Input hashing failed using shared utility.');
   }
 }

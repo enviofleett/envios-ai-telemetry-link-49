@@ -1,37 +1,11 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { md5_sync } from "../_shared/crypto_utils.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-// Improved MD5 hash implementation
-async function createMD5Hash(input: string): Promise<string> {
-  try {
-    console.log(`Creating MD5 hash for input of length: ${input.length}`);
-    
-    // Use Web Crypto API for MD5
-    const data = new TextEncoder().encode(input);
-    const hashBuffer = await crypto.subtle.digest('MD5', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    console.log('MD5 hash created successfully (lowercase hex)');
-    return hash;
-  } catch (error) {
-    console.error('MD5 creation failed, using fallback:', error);
-    
-    // Fallback implementation
-    const { createHash } = await import('https://deno.land/std@0.168.0/node/crypto.ts');
-    const hash = createHash('md5');
-    hash.update(input);
-    const result = hash.digest('hex');
-    console.log('Fallback MD5 hash created successfully');
-    return result;
-  }
-}
 
 async function testGP51Authentication(username: string, password: string): Promise<{
   success: boolean;
@@ -44,7 +18,7 @@ async function testGP51Authentication(username: string, password: string): Promi
   
   try {
     // Create MD5 hash of password
-    const hashedPassword = await createMD5Hash(password);
+    const hashedPassword = md5_sync(password);
     console.log(`✅ Password hashed successfully`);
     
     // Test Method 1: GET request (as suggested in the plan)
@@ -133,18 +107,23 @@ async function testGP51Authentication(username: string, password: string): Promi
           response: formResult
         };
       } else {
-        console.log(`❌ All methods failed. Last error: ${formResult.cause || formResult.message || 'Unknown'}`);
+        // This was the last method, so if it fails, report its specific error
+        const errorMessage = formResult.cause || formResult.message || 'Authentication failed with POST_FORM';
+        console.log(`❌ All methods failed. Last error (POST_FORM): ${errorMessage}`);
         return {
           success: false,
-          error: formResult.cause || formResult.message || 'Authentication failed with all methods'
+          error: errorMessage
         };
       }
+    } else {
+        // Handle non-ok response for formResponse
+        const errorText = await formResponse.text();
+        console.log(`❌ POST form method failed. Status: ${formResponse.status}, Response: ${errorText.substring(0,100)}`);
+         return {
+          success: false,
+          error: `POST_FORM authentication failed with HTTP status ${formResponse.status}`
+        };
     }
-    
-    return {
-      success: false,
-      error: 'All authentication methods failed'
-    };
     
   } catch (error) {
     console.error('❌ GP51 authentication test failed:', error);
@@ -166,7 +145,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    const { action, username, password } = await req.json();
+    const { action, username, password, ...otherParams } = await req.json();
     
     if (action === 'test_authentication') {
       if (!username || !password) {
@@ -187,9 +166,11 @@ serve(async (req) => {
           .from('gp51_sessions')
           .upsert({
             username: username.trim(),
+            password_hash: md5_sync(password),
             gp51_token: result.response?.token,
             auth_method: result.method,
             token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            last_validated_at: new Date().toISOString(),
             created_at: new Date().toISOString()
           }, {
             onConflict: 'username'

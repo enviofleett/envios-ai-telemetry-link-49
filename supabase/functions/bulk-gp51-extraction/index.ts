@@ -1,6 +1,6 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { md5_sync } from "../_shared/crypto_utils.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -224,7 +224,7 @@ async function extractUserData(
 }
 
 async function authenticateGP51(credentials: GP51Credentials): Promise<string> {
-  const md5Hash = await hashMD5(credentials.password);
+  const md5Hash = md5_sync(credentials.password);
   
   const authData = {
     action: 'login',
@@ -283,7 +283,7 @@ async function enrichWithPositions(vehicles: GP51Vehicle[], token: string): Prom
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        deviceids: deviceIds,
+        deviceids: deviceIds.join(','),
         lastquerypositiontime: 0
       })
     });
@@ -293,7 +293,7 @@ async function enrichWithPositions(vehicles: GP51Vehicle[], token: string): Prom
     if (result.status === 'success' && result.positions) {
       // Map positions back to vehicles
       const positionMap = new Map();
-      result.positions.forEach((pos: any) => {
+      (Array.isArray(result.positions) ? result.positions : [result.positions]).forEach((pos: any) => {
         positionMap.set(pos.deviceid, pos);
       });
 
@@ -347,12 +347,4 @@ async function storeVehicles(
       console.error(`Failed to store vehicle ${vehicle.deviceid}:`, error);
     }
   }
-}
-
-async function hashMD5(text: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-  const hashBuffer = await crypto.subtle.digest('MD5', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }

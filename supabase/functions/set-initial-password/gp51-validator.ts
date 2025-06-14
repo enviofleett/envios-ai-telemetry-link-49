@@ -1,75 +1,80 @@
 
 import { GP51ValidationResult } from './types.ts';
+import { md5_sync } from '../../_shared/crypto_utils.ts'; // Corrected path and import
 
 export async function validatePasswordWithGP51(username: string, password: string): Promise<GP51ValidationResult> {
   try {
-    const md5Hash = await hashMD5(password);
+    const hashedPassword = md5_sync(password); // Changed to md5_sync
     
     const authData = {
-      action: 'login',
-      username: username,
-      password: md5Hash
+      action: 'login', // Standard action
+      username: username.trim(), // Trim username
+      password: hashedPassword,
+      // from: 'WEB', // Optional standard params
+      // type: 'USER'  // Optional standard params
     };
 
     console.log(`Validating password for ${username} with GP51...`);
 
     // Standardized GP51 API endpoint
-    const response = await fetch('https://www.gps51.com/webapi', {
+    const GP51_API_URL = Deno.env.get("GP51_API_URL") || "https://www.gps51.com/webapi";
+
+    const response = await fetch(GP51_API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(authData)
+      // GP51 often expects 'application/x-www-form-urlencoded'
+      headers: { 
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': 'EnvioFleet/1.0/PasswordValidator'
+      },
+      body: new URLSearchParams(authData).toString() // Send as form data
     });
 
-    const result = await response.json();
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`GP51 API request failed during validation for ${username}: ${response.status} ${response.statusText}`, errorText.substring(0,100));
+        return {
+            success: false,
+            error: `GP51 API request failed (${response.status}): ${errorText.substring(0,100)}`
+        };
+    }
+    
+    const responseText = await response.text();
+    let result;
+    try {
+        result = JSON.parse(responseText);
+    } catch (e) {
+        console.error(`GP51 validation for ${username} returned invalid JSON:`, responseText.substring(0,200));
+        return {
+            success: false,
+            error: `Invalid response from GP51 (not JSON). Preview: ${responseText.substring(0,100)}`
+        };
+    }
     
     // Standardized success check - GP51 uses status: 0 for success
     if (result.status === 0 && result.token) {
       console.log(`Password validation successful for ${username}`);
       return {
         success: true,
-        token: result.token
+        token: result.token // Return the token if received
       };
     } else {
-      console.log(`Password validation failed for ${username}: ${result.cause || 'Unknown error'}`);
+      const errorMessage = result.cause || result.message || 'GP51 authentication failed during validation.';
+      console.log(`Password validation failed for ${username}: ${errorMessage} (GP51 Status: ${result.status})`);
       return {
         success: false,
-        error: result.cause || 'GP51 authentication failed'
+        error: errorMessage,
+        gp51_status: result.status // Include GP51 status for debugging
       };
     }
 
   } catch (error) {
-    console.error(`GP51 validation error for ${username}:`, error);
+    console.error(`GP51 validation error for ${username}:`, error.message, error.stack);
     return {
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : 'Unknown error during GP51 validation.'
     };
   }
 }
 
-async function hashMD5(text: string): Promise<string> {
-  try {
-    console.log(`Hashing password of length: ${text.length}`);
-    
-    // Proper MD5 implementation using Web Crypto API
-    const data = new TextEncoder().encode(text);
-    const hashBuffer = await crypto.subtle.digest('MD5', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    console.log('MD5 hash generated successfully');
-    return hash;
-    
-  } catch (error) {
-    console.error('MD5 hashing failed, using fallback:', error);
-    return await fallbackMD5(text);
-  }
-}
-
-async function fallbackMD5(text: string): Promise<string> {
-  // Fallback MD5 implementation using Deno crypto
-  const { createHash } = await import("https://deno.land/std@0.168.0/node/crypto.ts");
-  const hash = createHash('md5');
-  hash.update(text);
-  const md5Hash = hash.digest('hex');
-  console.log('Fallback MD5 hash generated successfully');
-  return md5Hash;
-}
+// Removed local hashMD5 and fallbackMD5 functions
