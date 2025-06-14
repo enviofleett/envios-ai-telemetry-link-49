@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   ReferralCode, 
@@ -11,6 +12,7 @@ import type {
   ReferralCommission,
   AgentPayoutRequest,
   CommissionStatus,
+  AgentPerformanceSnapshot,
 } from '@/types/referral';
 
 export const referralApi = {
