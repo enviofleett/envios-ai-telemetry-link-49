@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { referralApi } from '@/services/referralApi';
+import { referralApi } from '@/services/referral';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
