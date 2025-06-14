@@ -1,12 +1,20 @@
 
-import React, { useState } from 'react';
+import React, { Suspense } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Settings, Mail, Bell, Palette, Zap, BarChart3 } from 'lucide-react';
-import SMTPConfigurationTab from './SMTPConfigurationTab';
-import EmailTemplatesTab from './EmailTemplatesTab';
-import EmailTriggersTab from './EmailTriggersTab';
-import AdvancedEmailManagement from './AdvancedEmailManagement';
+import { StableErrorBoundary } from '@/components/StableErrorBoundary';
+
+const SMTPConfigurationTab = React.lazy(() => import('./SMTPConfigurationTab'));
+const EmailTemplatesTab = React.lazy(() => import('./EmailTemplatesTab'));
+const EmailTriggersTab = React.lazy(() => import('./EmailTriggersTab'));
+const AdvancedEmailManagement = React.lazy(() => import('./AdvancedEmailManagement'));
+
+const TabLoader = () => (
+  <div className="flex items-center justify-center p-10 min-h-[200px]">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+  </div>
+);
 
 const SettingsPage: React.FC = () => {
   return (
@@ -41,19 +49,35 @@ const SettingsPage: React.FC = () => {
         </TabsList>
 
         <TabsContent value="smtp">
-          <SMTPConfigurationTab />
+          <StableErrorBoundary>
+            <Suspense fallback={<TabLoader />}>
+              <SMTPConfigurationTab />
+            </Suspense>
+          </StableErrorBoundary>
         </TabsContent>
 
         <TabsContent value="templates">
-          <EmailTemplatesTab />
+          <StableErrorBoundary>
+            <Suspense fallback={<TabLoader />}>
+              <EmailTemplatesTab />
+            </Suspense>
+          </StableErrorBoundary>
         </TabsContent>
 
         <TabsContent value="triggers">
-          <EmailTriggersTab />
+          <StableErrorBoundary>
+            <Suspense fallback={<TabLoader />}>
+              <EmailTriggersTab />
+            </Suspense>
+          </StableErrorBoundary>
         </TabsContent>
 
         <TabsContent value="advanced">
-          <AdvancedEmailManagement />
+          <StableErrorBoundary>
+            <Suspense fallback={<TabLoader />}>
+              <AdvancedEmailManagement />
+            </Suspense>
+          </StableErrorBoundary>
         </TabsContent>
 
         <TabsContent value="notifications">

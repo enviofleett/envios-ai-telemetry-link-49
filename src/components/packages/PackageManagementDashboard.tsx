@@ -1,10 +1,18 @@
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import PackageList from './PackageList';
-import CreatePackageForm from './CreatePackageForm';
-import FeatureManagement from './FeatureManagement';
-import ReferralCodeManager from './ReferralCodeManager';
+import { StableErrorBoundary } from '@/components/StableErrorBoundary';
+
+const PackageList = React.lazy(() => import('./PackageList'));
+const CreatePackageForm = React.lazy(() => import('./CreatePackageForm'));
+const FeatureManagement = React.lazy(() => import('./FeatureManagement'));
+const ReferralCodeManager = React.lazy(() => import('./ReferralCodeManager'));
+
+const TabLoader = () => (
+  <div className="flex items-center justify-center p-10 min-h-[200px]">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+  </div>
+);
 
 const PackageManagementDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('packages');
@@ -20,19 +28,35 @@ const PackageManagementDashboard: React.FC = () => {
         </TabsList>
 
         <TabsContent value="packages" className="space-y-6">
-          <PackageList />
+          <StableErrorBoundary>
+            <Suspense fallback={<TabLoader />}>
+              <PackageList />
+            </Suspense>
+          </StableErrorBoundary>
         </TabsContent>
 
         <TabsContent value="create" className="space-y-6">
-          <CreatePackageForm onSuccess={() => setActiveTab('packages')} />
+          <StableErrorBoundary>
+            <Suspense fallback={<TabLoader />}>
+              <CreatePackageForm onSuccess={() => setActiveTab('packages')} />
+            </Suspense>
+          </StableErrorBoundary>
         </TabsContent>
 
         <TabsContent value="features" className="space-y-6">
-          <FeatureManagement />
+          <StableErrorBoundary>
+            <Suspense fallback={<TabLoader />}>
+              <FeatureManagement />
+            </Suspense>
+          </StableErrorBoundary>
         </TabsContent>
 
         <TabsContent value="referrals" className="space-y-6">
-          <ReferralCodeManager />
+          <StableErrorBoundary>
+            <Suspense fallback={<TabLoader />}>
+              <ReferralCodeManager />
+            </Suspense>
+          </StableErrorBoundary>
         </TabsContent>
       </Tabs>
     </div>

@@ -1,13 +1,21 @@
 
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings as SettingsIcon, Building, Palette, Bell, FileText, MapPin } from 'lucide-react';
-import CompanySettingsTab from './settings/CompanySettingsTab';
-import BrandingSettingsTab from './settings/BrandingSettingsTab';
-import NotificationsSettingsTab from './settings/NotificationsSettingsTab';
-import BillingSettingsTab from './settings/BillingSettingsTab';
-import GeocodingSettingsTab from './settings/GeocodingSettingsTab';
+import { StableErrorBoundary } from '@/components/StableErrorBoundary';
+
+const CompanySettingsTab = React.lazy(() => import('./settings/CompanySettingsTab'));
+const BrandingSettingsTab = React.lazy(() => import('./settings/BrandingSettingsTab'));
+const NotificationsSettingsTab = React.lazy(() => import('./settings/NotificationsSettingsTab'));
+const BillingSettingsTab = React.lazy(() => import('./settings/BillingSettingsTab'));
+const GeocodingSettingsTab = React.lazy(() => import('./settings/GeocodingSettingsTab'));
+
+const TabLoader = () => (
+  <div className="flex items-center justify-center p-10 min-h-[200px]">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+  </div>
+);
 
 const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('company');
@@ -50,23 +58,43 @@ const Settings: React.FC = () => {
             </TabsList>
 
             <TabsContent value="company" className="space-y-4">
-              <CompanySettingsTab />
+              <StableErrorBoundary>
+                <Suspense fallback={<TabLoader />}>
+                  <CompanySettingsTab />
+                </Suspense>
+              </StableErrorBoundary>
             </TabsContent>
 
             <TabsContent value="branding" className="space-y-4">
-              <BrandingSettingsTab />
+              <StableErrorBoundary>
+                <Suspense fallback={<TabLoader />}>
+                  <BrandingSettingsTab />
+                </Suspense>
+              </StableErrorBoundary>
             </TabsContent>
 
             <TabsContent value="notifications" className="space-y-4">
-              <NotificationsSettingsTab />
+              <StableErrorBoundary>
+                <Suspense fallback={<TabLoader />}>
+                  <NotificationsSettingsTab />
+                </Suspense>
+              </StableErrorBoundary>
             </TabsContent>
 
             <TabsContent value="billing" className="space-y-4">
-              <BillingSettingsTab />
+              <StableErrorBoundary>
+                <Suspense fallback={<TabLoader />}>
+                  <BillingSettingsTab />
+                </Suspense>
+              </StableErrorBoundary>
             </TabsContent>
 
             <TabsContent value="geocoding" className="space-y-4">
-              <GeocodingSettingsTab />
+              <StableErrorBoundary>
+                <Suspense fallback={<TabLoader />}>
+                  <GeocodingSettingsTab />
+                </Suspense>
+              </StableErrorBoundary>
             </TabsContent>
           </Tabs>
         </CardContent>
