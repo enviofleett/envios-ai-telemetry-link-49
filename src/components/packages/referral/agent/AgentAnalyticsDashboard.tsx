@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { referralApi } from '@/services/referral';
@@ -7,6 +6,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Loader2, AlertTriangle, TrendingUp } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format } from 'date-fns';
+import { Line, LineChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from '@/components/ui/chart';
+import type { ChartConfig } from '@/components/ui/chart';
 
 const AgentAnalyticsDashboard: React.FC = () => {
   const { data: snapshots, isLoading, isError, error } = useQuery({
@@ -36,49 +44,152 @@ const AgentAnalyticsDashboard: React.FC = () => {
     );
   }
 
+  const chartData = (snapshots ?? [])
+    .slice()
+    .reverse()
+    .map((s) => ({
+      date: format(new Date(s.snapshot_date), 'MMM d'),
+      Commission: s.total_commission_earned,
+      Referrals: s.total_referrals,
+      Signups: s.total_signups,
+    }));
+
+  const chartConfig = {
+    Commission: {
+      label: 'Commission',
+      color: 'hsl(var(--chart-1))',
+    },
+    Referrals: {
+      label: 'Referrals',
+      color: 'hsl(var(--chart-2))',
+    },
+    Signups: {
+      label: 'Sign-ups',
+      color: 'hsl(var(--chart-3))',
+    },
+  } satisfies ChartConfig;
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Daily Performance Snapshots</CardTitle>
-        <CardDescription>
-          A look at your referral performance over the last 30 days.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {snapshots && snapshots.length > 0 ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Referrals</TableHead>
-                <TableHead>Sign-ups</TableHead>
-                <TableHead>Conversions</TableHead>
-                <TableHead>Commission Earned</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {snapshots.map((snapshot) => (
-                <TableRow key={snapshot.id}>
-                  <TableCell>{format(new Date(snapshot.snapshot_date), 'PPP')}</TableCell>
-                  <TableCell>{snapshot.total_referrals}</TableCell>
-                  <TableCell>{snapshot.total_signups}</TableCell>
-                  <TableCell>{snapshot.total_conversions}</TableCell>
-                  <TableCell>{formatCurrency(snapshot.total_commission_earned)}</TableCell>
+    <div className="space-y-6">
+      {snapshots && snapshots.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Performance Trends (Last 30 Days)</CardTitle>
+            <CardDescription>
+              Visualize your commission earnings, referrals, and sign-ups over time.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="h-[300px] w-full">
+              <LineChart data={chartData}>
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                />
+                <YAxis
+                  yAxisId="left"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) => `$${value}`}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      indicator="line"
+                      formatter={(value, name) => {
+                        if (name === 'Commission') {
+                          return formatCurrency(value as number);
+                        }
+                        return value;
+                      }}
+                    />
+                  }
+                />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Line
+                  yAxisId="left"
+                  dataKey="Commission"
+                  type="monotone"
+                  stroke="var(--color-Commission)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="right"
+                  dataKey="Referrals"
+                  type="monotone"
+                  stroke="var(--color-Referrals)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+                <Line
+                  yAxisId="right"
+                  dataKey="Signups"
+                  type="monotone"
+                  stroke="var(--color-Signups)"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </LineChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily Performance Snapshots</CardTitle>
+          <CardDescription>
+            A look at your referral performance over the last 30 days.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {snapshots && snapshots.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Referrals</TableHead>
+                  <TableHead>Sign-ups</TableHead>
+                  <TableHead>Conversions</TableHead>
+                  <TableHead>Commission Earned</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          <div className="text-center py-10">
-            <TrendingUp className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No performance data yet</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Snapshots are generated daily. Check back tomorrow for your first report.
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              </TableHeader>
+              <TableBody>
+                {snapshots.map((snapshot) => (
+                  <TableRow key={snapshot.id}>
+                    <TableCell>{format(new Date(snapshot.snapshot_date), 'PPP')}</TableCell>
+                    <TableCell>{snapshot.total_referrals}</TableCell>
+                    <TableCell>{snapshot.total_signups}</TableCell>
+                    <TableCell>{snapshot.total_conversions}</TableCell>
+                    <TableCell>{formatCurrency(snapshot.total_commission_earned)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-10">
+              <TrendingUp className="mx-auto h-12 w-12 text-gray-400" />
+              <h3 className="mt-2 text-sm font-medium text-gray-900">No performance data yet</h3>
+              <p className="mt-1 text-sm text-gray-500">
+                Snapshots are generated daily. Check back tomorrow for your first report.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
