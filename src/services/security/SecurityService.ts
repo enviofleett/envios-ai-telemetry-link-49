@@ -376,7 +376,7 @@ export class SecurityService {
     const permissions = rolePermissions[userRole as keyof typeof rolePermissions] || [];
     
     // Log authorization attempts
-    this.logSecurityEvent({
+    SecurityService.logSecurityEvent({
       type: 'authorization',
       severity: 'low',
       description: `Authorization check: ${userRole} requesting ${requiredPermission}`,
