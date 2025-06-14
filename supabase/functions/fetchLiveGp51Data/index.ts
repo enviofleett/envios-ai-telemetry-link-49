@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { Md5 } from "https://deno.land/std@0.208.0/hash/md5.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,11 +10,15 @@ const GP51_API_URL = "https://www.gps51.com/webapi";
 const REQUEST_TIMEOUT = 5000; // 5 seconds
 const MAX_RETRIES = 2;
 
-// Corrected MD5 hash function using Deno's standard library
+// New MD5 hash function using Web Crypto API
 async function md5(input: string): Promise<string> {
-  const md5Hasher = new Md5();
-  md5Hasher.update(input);
-  return md5Hasher.toString();
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  // Assuming crypto.subtle.digest supports "MD5" in Deno/Supabase environment as per user's solution
+  const hashBuffer = await crypto.subtle.digest("MD5", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 interface LiveVehicleTelemetry {
@@ -160,12 +163,11 @@ serve(async (req) => {
     // First, get the monitor list (devices/vehicles)
     console.log('📡 Fetching GP51 monitor list (devices)...');
     const monitorFormData = new URLSearchParams({
-      action: 'getDeviceList', // CHANGED from querymonitorlist
+      action: 'getDeviceList', 
       username: session.username,
-      password: hashedPassword,
+      password: hashedPassword, // hashedPassword is now from the async md5
       from: 'WEB',
       type: 'USER'
-      // Consider adding other parameters if GP51 API docs specify for 'getDeviceList'
     });
 
     console.log(`Attempting to fetch device list with action: 'getDeviceList'`);
@@ -304,7 +306,7 @@ serve(async (req) => {
     const positionFormData = new URLSearchParams({
       action: 'lastposition',
       username: session.username,
-      password: hashedPassword,
+      password: hashedPassword, // ensure hashedPassword is used here as well
       from: 'WEB',
       type: 'USER',
       deviceids: deviceIds.join(','),

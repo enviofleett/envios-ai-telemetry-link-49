@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Md5 } from "https://deno.land/std@0.208.0/hash/md5.ts";
 
 // ENV
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -15,11 +14,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// MD5 hash function for password hashing
-function md5(input: string): string {
-  const md5Hasher = new Md5();
-  md5Hasher.update(input);
-  return md5Hasher.toString();
+// New MD5 hash function using Web Crypto API
+async function md5(input: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input);
+  const hashBuffer = await crypto.subtle.digest("MD5", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 // Supabase client
@@ -78,7 +80,7 @@ serve(async (req) => {
   try {
     console.log('🚀 GP51 Live Import: Starting data fetch...');
 
-    // 1. Fetch latest valid session from gp51_sessions - FIXED: Using maybeSingle()
+    // 1. Fetch latest valid session from gp51_sessions
     const { data: session, error: sessionError } = await supabase
       .from("gp51_sessions")
       .select("*")
@@ -142,14 +144,14 @@ serve(async (req) => {
 
     const { username, password_hash } = session;
 
-    // Hash the password for GP51 authentication
-    const hashedPassword = md5(password_hash);
+    // Hash the password for GP51 authentication - using new async md5
+    const hashedPassword = await md5(password_hash);
 
     const fetchFromGP51 = async (action: string, additionalParams: Record<string, string> = {}, retry = false) => {
       const formData = new URLSearchParams({
         action,
         username,
-        password: hashedPassword,
+        password: hashedPassword, // hashedPassword is from the new async md5
         from: 'WEB',
         type: 'USER',
         ...additionalParams
@@ -176,18 +178,15 @@ serve(async (req) => {
 
         if (json.status !== 0) {
           console.error(`🛑 GP51 API ${action} returned error status:`, json.cause || json.message, json);
-          // It's better to return the full GP51 error if available
           return { 
             error: json.cause || json.message || `${action} failed`, 
-            status: response.status === 200 ? 400 : response.status, // If GP51 returns error with HTTP 200, use 400
-            gp51_error: json // include full GP51 error object
+            status: response.status === 200 ? 400 : response.status, 
+            gp51_error: json 
           };
         }
 
         return { data: json, status: 200 };
       } catch (e) {
-        // Avoid retry loops for non-JSON responses that are persistent
-        // For now, keeping the retry logic as it was, but this could be refined.
         if (!retry) {
           console.warn(`🔁 Retry ${action} after JSON parse failure (response was not JSON):`, text.substring(0, 200));
           return await fetchFromGP51(action, additionalParams, true);
@@ -200,7 +199,6 @@ serve(async (req) => {
 
     // 3. Attempt to fetch monitor list (device list)
     console.log('📡 Fetching GP51 monitor list (devices)...');
-    // CHANGED action from "querymonitorlist" to "getDeviceList"
     const result = await fetchFromGP51("getDeviceList"); 
 
     if (result.error) {
@@ -215,14 +213,13 @@ serve(async (req) => {
       });
     }
 
-    // Extract devices, adapting to potential variations in GP51 response structure
+    // Extract devices
     let devices = [];
     if (result.data.devices && Array.isArray(result.data.devices)) {
         devices = result.data.devices;
     } else if (result.data.groups && Array.isArray(result.data.groups)) {
-        // This was the previous logic, keep as a fallback if 'devices' top-level array isn't present
         devices = result.data.groups.flatMap((group: any) => group.devices || []);
-    } else if (Array.isArray(result.data)) { // Sometimes APIs return a direct array for lists
+    } else if (Array.isArray(result.data)) { 
         devices = result.data;
     }
     console.log(`✅ Found ${devices.length} devices in monitor list. Sample:`, devices.slice(0,2));
@@ -231,14 +228,14 @@ serve(async (req) => {
     // 4. Fetch positions for devices if any exist
     let positions = [];
     if (devices.length > 0) {
-      const deviceIds = devices.map((d: any) => d.deviceid || d.id).filter((id: string | number) => id); // deviceid can be number
+      const deviceIds = devices.map((d: any) => d.deviceid || d.id).filter((id: string | number) => id); 
       
       if (deviceIds.length > 0) {
         console.log(`📍 Fetching positions for ${deviceIds.length} devices...`);
         
         const positionResult = await fetchFromGP51("lastposition", {
           deviceids: deviceIds.join(','),
-          lastquerypositiontime: '0' // Fetch latest positions
+          lastquerypositiontime: '0' 
         });
         
         if (!positionResult.error && positionResult.data && positionResult.data.records) {
