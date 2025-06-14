@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { referralApi } from '@/services/referralApi';
@@ -11,6 +10,7 @@ import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import RequestPayoutModal from './RequestPayoutModal';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CommissionStatus } from '@/types/referral';
 
 const CommissionHistoryTable: React.FC = () => {
   const { data: commissions, isLoading, isError, error, refetch } = useQuery({
@@ -38,7 +38,7 @@ const CommissionHistoryTable: React.FC = () => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status: CommissionStatus) => {
     switch (status) {
       case 'paid':
         return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
@@ -53,8 +53,8 @@ const CommissionHistoryTable: React.FC = () => {
     }
   };
 
-  const handleSelectAll = (checked: boolean | 'indeterminate') => {
-    if (checked === true) {
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
       setSelectedCommissionIds(payableCommissions.map(c => c.id));
     } else {
       setSelectedCommissionIds([]);
@@ -103,14 +103,12 @@ const CommissionHistoryTable: React.FC = () => {
                 <TableRow>
                   <TableHead className="w-12">
                     <Checkbox
-                      checked={
-                        payableCommissions.length > 0 &&
-                        (selectedCommissionIds.length === payableCommissions.length
-                          ? true
-                          : selectedCommissionIds.length > 0
-                          ? 'indeterminate'
-                          : false)
-                      }
+                      checked={(() => {
+                        if (payableCommissions.length === 0) return false;
+                        if (selectedCommissionIds.length === payableCommissions.length) return true;
+                        if (selectedCommissionIds.length > 0) return 'indeterminate';
+                        return false;
+                      })()}
                       onCheckedChange={handleSelectAll}
                       disabled={payableCommissions.length === 0}
                     />

@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   ReferralCode, 
@@ -10,6 +11,7 @@ import type {
   CommissionWithDetails,
   ReferralCommission,
   AgentPayoutRequest,
+  CommissionStatus,
 } from '@/types/referral';
 
 export const referralApi = {
@@ -100,11 +102,13 @@ export const referralApi = {
     const agentId = agentProfile.id;
 
     // Fetch commissions
-    const { data: commissions, error: commissionsError } = await supabase
+    const { data: rawCommissions, error: commissionsError } = await supabase
       .from('referral_commissions')
       .select('commission_amount, status, created_at')
       .eq('agent_id', agentId);
     if (commissionsError) throw commissionsError;
+
+    const commissions = rawCommissions as { commission_amount: number; status: CommissionStatus; created_at: string; }[] | null;
 
     // Fetch codes
     const { data: codes, error: codesError } = await supabase
@@ -136,7 +140,7 @@ export const referralApi = {
       .reduce((sum, c) => sum + c.commission_amount, 0);
 
     const earnedThisMonth = (commissions ?? [])
-        .filter(c => c.status === 'paid' && new Date(c.created_at) >= startOfMonth)
+        .filter(c => (c.status === 'paid' || c.status === 'processing_payout' || c.status === 'pending_payout') && new Date(c.created_at) >= startOfMonth)
         .reduce((sum, c) => sum + c.commission_amount, 0);
     
     const totalUsageCount = (codes ?? []).reduce((sum, c) => sum + c.usage_count, 0);
@@ -152,7 +156,7 @@ export const referralApi = {
         const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
 
         const total = (commissions ?? [])
-            .filter(c => c.status === 'paid' && new Date(c.created_at) >= monthStart && new Date(c.created_at) <= monthEnd)
+            .filter(c => (c.status === 'paid') && new Date(c.created_at) >= monthStart && new Date(c.created_at) <= monthEnd)
             .reduce((sum, c) => sum + c.commission_amount, 0);
         
         monthlyCommissions.push({ name: month, total });
