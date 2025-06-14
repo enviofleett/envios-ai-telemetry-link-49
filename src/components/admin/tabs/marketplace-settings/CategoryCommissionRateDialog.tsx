@@ -60,9 +60,9 @@ export const CategoryCommissionRateDialog: React.FC<Props> = ({ isOpen, onClose,
   }, [isOpen, initialData, reset]);
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
-    const upsertPayload: Partial<CategoryCommissionRate> & { category_id: string; country_code: string; } = {
+    const upsertPayload = {
+        ...initialData,
         ...values,
-        id: initialData?.id,
     };
     saveCategoryRate(upsertPayload, {
       onSuccess: () => {

@@ -22,8 +22,8 @@ const formSchema = z.object({
   default_commission_rate: z.coerce.number().min(0),
   default_registration_fee: z.coerce.number().min(0),
   currency: z.string().min(3).max(3, "Currency must be 3 characters"),
-  billing_cycles: z.array(z.string()).nonempty("Select at least one billing cycle"),
-  supported_payment_methods: z.array(z.string()).nonempty("Select at least one payment method"),
+  billing_cycles: z.array(z.string()).refine(value => value.length > 0, "Select at least one billing cycle"),
+  supported_payment_methods: z.array(z.string()).refine(value => value.length > 0, "Select at least one payment method"),
 });
 
 const ALL_BILLING_CYCLES = ["monthly", "quarterly", "yearly"];
