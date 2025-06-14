@@ -1,0 +1,88 @@
+import { supabase } from '@/integrations/supabase/client';
+
+export const packageAnalyticsService = {
+  async getPackageSubscriptionDistribution() {
+    const { data, error } = await supabase
+      .from('user_subscriptions')
+      .select('package_id, count:id')
+      .eq('subscription_status', 'active')
+      .group('package_id');
+    if (error) throw error;
+
+    // Fetch package names for labels
+    const packageIds = data?.map((row: any) => row.package_id) || [];
+    let packageNames: Record<string, string> = {};
+    if (packageIds.length) {
+      const { data: pkgs } = await supabase
+        .from('subscriber_packages')
+        .select('id, package_name');
+      packageNames = Object.fromEntries((pkgs || []).map(p => [p.id, p.package_name]));
+    }
+
+    // Shape data for chart
+    return (data || []).map((row: any) => ({
+      id: row.package_id,
+      name: packageNames[row.package_id] || row.package_id,
+      count: row.count
+    }));
+  },
+
+  async getRevenueByPackage() {
+    // For each package, sum the total revenue from subscriptions (simulate with subscription_fee_monthly * user count)
+    // You may want to do this by joining subscriptions with package table, but let's keep it simple and display rough estimation
+    const { data: pkgs, error } = await supabase
+      .from('subscriber_packages')
+      .select('id, package_name, subscription_fee_monthly, subscription_fee_annually');
+
+    if (error) throw error;
+    const { data: subscriptions } = await supabase
+      .from('user_subscriptions')
+      .select('package_id, billing_cycle');
+
+    const revenueMap: Record<string, number> = {};
+    subscriptions?.forEach(sub => {
+      const pkg = pkgs?.find(p => p.id === sub.package_id);
+      if (!pkg) return;
+      let fee = sub.billing_cycle === 'monthly'
+        ? (pkg.subscription_fee_monthly || 0)
+        : ((pkg.subscription_fee_annually || 0) / 12);
+      revenueMap[sub.package_id] = (revenueMap[sub.package_id] || 0) + fee;
+    });
+
+    return (pkgs || []).map(pkg => ({
+      id: pkg.id,
+      name: pkg.package_name,
+      revenue: Math.round(revenueMap[pkg.id] || 0)
+    }));
+  },
+
+  async getFeatureUsageMatrix() {
+    // Number of users per feature (joined through assignments)
+    const { data: features } = await supabase
+      .from('package_features')
+      .select('id, feature_name, category');
+
+    const { data: assignments } = await supabase
+      .from('package_feature_assignments')
+      .select('feature_id, package_id');
+
+    const { data: userSubs } = await supabase
+      .from('user_subscriptions')
+      .select('package_id');
+
+    // Calculate usage
+    const featureMap: Record<string, { feature_name: string, count: number }> = {};
+    (features || []).forEach(f => {
+      const featurePackageIds = (assignments || []).filter(a => a.feature_id === f.id).map(a => a.package_id);
+      const count = (userSubs || []).filter(s => featurePackageIds.includes(s.package_id)).length;
+      featureMap[f.id] = { feature_name: f.feature_name, count };
+    });
+
+    return Object.values(featureMap);
+  },
+
+  async getReferralCodePerformance() {
+    const { data: codes } = await supabase.from('referral_codes').select('id, code, usage_count, discount_percentage');
+    return codes || [];
+  },
+};
