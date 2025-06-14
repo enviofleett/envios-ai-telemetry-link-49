@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,9 +7,14 @@ import DataManagementTab from './tabs/DataManagementTab';
 import SystemSettingsTab from './tabs/SystemSettingsTab';
 import UserManagementTab from './tabs/UserManagementTab';
 import NotificationsTab from './tabs/NotificationsTab';
+import PlatformAdminUsersPanel from './platform/PlatformAdminUsersPanel';
 
 const AdminPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState('security');
+
+  // Dummy: Show PlatformAdminUsersPanel only if running in platform admin mode. 
+  // Actual auth/role logic should check if user is a super_admin or system_admin.
+  const isPlatformAdmin = true;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -26,7 +30,7 @@ const AdminPanel: React.FC = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="security" className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
                 Security
@@ -47,6 +51,12 @@ const AdminPanel: React.FC = () => {
                 <Bell className="h-4 w-4" />
                 Notifications
               </TabsTrigger>
+              {isPlatformAdmin && (
+                <TabsTrigger value="platform_admins" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Platform Admins
+                </TabsTrigger>
+              )}
             </TabsList>
 
             <TabsContent value="security" className="space-y-4">
@@ -68,6 +78,12 @@ const AdminPanel: React.FC = () => {
             <TabsContent value="notifications" className="space-y-4">
               <NotificationsTab />
             </TabsContent>
+
+            {isPlatformAdmin && (
+              <TabsContent value="platform_admins" className="space-y-4">
+                <PlatformAdminUsersPanel />
+              </TabsContent>
+            )}
           </Tabs>
         </CardContent>
       </Card>

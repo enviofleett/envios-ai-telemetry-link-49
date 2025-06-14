@@ -51,6 +51,30 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_permissions: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          permission: string
+          role: Database["public"]["Enums"]["admin_role"]
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          permission: string
+          role: Database["public"]["Enums"]["admin_role"]
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          permission?: string
+          role?: Database["public"]["Enums"]["admin_role"]
+        }
+        Relationships: []
+      }
       admin_role_requests: {
         Row: {
           created_at: string
@@ -4371,6 +4395,65 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_admin_roles: {
+        Row: {
+          admin_user_id: string
+          assigned_at: string | null
+          assigned_by: string | null
+          id: string
+          role: Database["public"]["Enums"]["admin_role"]
+        }
+        Insert: {
+          admin_user_id: string
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          role: Database["public"]["Enums"]["admin_role"]
+        }
+        Update: {
+          admin_user_id?: string
+          assigned_at?: string | null
+          assigned_by?: string | null
+          id?: string
+          role?: Database["public"]["Enums"]["admin_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_admin_roles_admin_user_id_fkey"
+            columns: ["admin_user_id"]
+            isOneToOne: false
+            referencedRelation: "platform_admin_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_admin_users: {
+        Row: {
+          created_at: string | null
+          display_name: string | null
+          email: string
+          id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          display_name?: string | null
+          email: string
+          id?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          display_name?: string | null
+          email?: string
+          id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       position_logs: {
         Row: {
           alarm: number | null
@@ -7761,6 +7844,7 @@ export type Database = {
       }
     }
     Enums: {
+      admin_role: "super_admin" | "system_admin" | "support_admin"
       app_role:
         | "admin"
         | "user"
@@ -7891,6 +7975,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      admin_role: ["super_admin", "system_admin", "support_admin"],
       app_role: [
         "admin",
         "user",
