@@ -74,3 +74,13 @@ export interface ReferralAgentWithUserDetails extends ReferralAgent {
   name: string;
   email: string;
 }
+
+export interface AgentDashboardAnalytics {
+  totalEarned: number;
+  pendingCommissions: number;
+  earnedThisMonth: number;
+  totalCodes: number;
+  totalUsageCount: number;
+  totalReferredUsers: number;
+  monthlyCommissions: { name: string; total: number }[];
+}
