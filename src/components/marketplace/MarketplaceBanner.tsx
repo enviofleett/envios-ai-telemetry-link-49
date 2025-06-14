@@ -1,17 +1,17 @@
 
+```tsx
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Store, LogIn, UserPlus } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface MarketplaceBannerProps {
   onMerchantLogin: () => void;
-  onMerchantRegister: () => void;
 }
 
 export const MarketplaceBanner: React.FC<MarketplaceBannerProps> = ({
   onMerchantLogin,
-  onMerchantRegister
 }) => {
   return (
     <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-green-200">
@@ -34,9 +34,11 @@ export const MarketplaceBanner: React.FC<MarketplaceBannerProps> = ({
               <LogIn className="h-4 w-4 mr-2" />
               Login
             </Button>
-            <Button onClick={onMerchantRegister} className="bg-green-600 hover:bg-green-700">
-              <UserPlus className="h-4 w-4 mr-2" />
-              Register Your Store
+            <Button asChild className="bg-green-600 hover:bg-green-700">
+              <Link to="/merchant-application">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Register Your Store
+              </Link>
             </Button>
           </div>
         </div>
@@ -44,3 +46,4 @@ export const MarketplaceBanner: React.FC<MarketplaceBannerProps> = ({
     </Card>
   );
 };
+```

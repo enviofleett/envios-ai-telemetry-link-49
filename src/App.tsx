@@ -29,6 +29,7 @@ const WorkshopSignup = lazy(() => import('@/pages/WorkshopSignup'));
 const WorkshopLogin = lazy(() => import('@/pages/WorkshopLogin'));
 const WorkshopDashboard = lazy(() => import('@/pages/WorkshopDashboard'));
 const AdminAnalytics = lazy(() => import('@/pages/AdminAnalytics'));
+const BecomeAMerchantPage = lazy(() => import('@/pages/BecomeAMerchantPage'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 
 const queryClient = new QueryClient({
@@ -120,6 +121,12 @@ function App() {
                                 </ProtectedRoute>
                               } />
                               
+                              <Route path="/merchant-application" element={
+                                <ProtectedRoute>
+                                  <BecomeAMerchantPage />
+                                </ProtectedRoute>
+                              } />
+
                               {/* Dynamic routes from nav-items */}
                               {navItems.map(({ to, page }) => (
                                 <Route key={to} path={to} element={

@@ -12,6 +12,7 @@ import {
   Building2,
   CreditCard,
   LucideIcon,
+  Store,
 } from "lucide-react"
 
 export interface MenuItem {
@@ -75,6 +76,11 @@ export const menuItems: MenuItem[] = [
     url: "/marketplace",
     icon: ShoppingCart,
     featureId: "marketplace",
+  },
+  {
+    title: "Become a Merchant",
+    url: "/merchant-application",
+    icon: Store,
   },
   {
     title: "Users",
