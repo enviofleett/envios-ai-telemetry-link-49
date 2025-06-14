@@ -7,6 +7,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { gp51IntegrationTester, ValidationSuite, TestResult } from '@/services/gp51/integrationTester';
 import { PlayCircle, CheckCircle, XCircle, AlertCircle, Loader2, Activity } from 'lucide-react';
+import { ValidationOverallCard } from './gp51/ValidationOverallCard';
+import { ValidationCategoryCard } from './gp51/ValidationCategoryCard';
+import { FailedTestsCard } from './gp51/FailedTestsCard';
 
 export default function GP51ValidationTab() {
   const [isRunning, setIsRunning] = useState(false);
@@ -147,154 +150,26 @@ export default function GP51ValidationTab() {
 
       {results && (
         <>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Overall Results</span>
-                <Badge variant={results.overall.successRate >= 80 ? "default" : "destructive"}>
-                  {results.overall.successRate}% Success Rate
-                </Badge>
-              </CardTitle>
-              <CardDescription>
-                {results.overall.passedTests} of {results.overall.totalTests} tests passed
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Test Progress</span>
-                  <span>{results.overall.passedTests}/{results.overall.totalTests}</span>
-                </div>
-                <Progress value={results.overall.successRate} className="w-full" />
-              </div>
-            </CardContent>
-          </Card>
+          <ValidationOverallCard overall={results.overall} />
 
           <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Credential Saving</span>
-                  <Badge variant={getCategoryBadgeVariant(getCategoryStatus(results.credentialSaving))}>
-                    {results.credentialSaving.filter(t => t.success).length}/{results.credentialSaving.length}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {results.credentialSaving.map((test, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 border rounded">
-                    <div className="flex items-center gap-2">
-                      {getTestIcon(test)}
-                      <span className="text-sm">{test.testName}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{test.duration}ms</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Session Management</span>
-                  <Badge variant={getCategoryBadgeVariant(getCategoryStatus(results.sessionManagement))}>
-                    {results.sessionManagement.filter(t => t.success).length}/{results.sessionManagement.length}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {results.sessionManagement.map((test, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 border rounded">
-                    <div className="flex items-center gap-2">
-                      {getTestIcon(test)}
-                      <span className="text-sm">{test.testName}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{test.duration}ms</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Vehicle Data Sync</span>
-                  <Badge variant={getCategoryBadgeVariant(getCategoryStatus(results.vehicleDataSync))}>
-                    {results.vehicleDataSync.filter(t => t.success).length}/{results.vehicleDataSync.length}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {results.vehicleDataSync.map((test, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 border rounded">
-                    <div className="flex items-center gap-2">
-                      {getTestIcon(test)}
-                      <span className="text-sm">{test.testName}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{test.duration}ms</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Error Recovery</span>
-                  <Badge variant={getCategoryBadgeVariant(getCategoryStatus(results.errorRecovery))}>
-                    {results.errorRecovery.filter(t => t.success).length}/{results.errorRecovery.length}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {results.errorRecovery.map((test, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 border rounded">
-                    <div className="flex items-center gap-2">
-                      {getTestIcon(test)}
-                      <span className="text-sm">{test.testName}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{test.duration}ms</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+            <ValidationCategoryCard label="Credential Saving" tests={results.credentialSaving} />
+            <ValidationCategoryCard label="Session Management" tests={results.sessionManagement} />
+            <ValidationCategoryCard label="Vehicle Data Sync" tests={results.vehicleDataSync} />
+            <ValidationCategoryCard label="Error Recovery" tests={results.errorRecovery} />
           </div>
 
-          {results.credentialSaving.concat(results.sessionManagement, results.vehicleDataSync, results.errorRecovery)
-            .filter(test => !test.success).length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-red-600">Failed Tests</CardTitle>
-                <CardDescription>
-                  Tests that failed and require attention
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {results.credentialSaving.concat(results.sessionManagement, results.vehicleDataSync, results.errorRecovery)
-                  .filter(test => !test.success)
-                  .map((test, index) => (
-                    <div key={index} className="p-3 border border-red-200 rounded bg-red-50">
-                      <div className="flex items-center gap-2 mb-1">
-                        <XCircle className="h-4 w-4 text-red-600" />
-                        <span className="font-medium text-red-900">{test.testName}</span>
-                      </div>
-                      <p className="text-sm text-red-700">{test.error}</p>
-                      <p className="text-xs text-red-600 mt-1">Duration: {test.duration}ms</p>
-                      {Array.isArray(test.suggestedFixes) && test.suggestedFixes.length > 0 && (
-                        <div className="mt-2">
-                          <span className="block font-semibold text-red-900 mb-1">How to fix:</span>
-                          <ul className="list-disc list-inside text-sm space-y-1">
-                            {test.suggestedFixes.map((fix, idx) => (
-                              <li key={idx} className="text-red-800">{fix}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-              </CardContent>
-            </Card>
-          )}
+          <FailedTestsCard
+            failedTests={
+              results.credentialSaving
+                .concat(
+                  results.sessionManagement,
+                  results.vehicleDataSync,
+                  results.errorRecovery
+                )
+                .filter(test => !test.success)
+            }
+          />
         </>
       )}
     </div>
