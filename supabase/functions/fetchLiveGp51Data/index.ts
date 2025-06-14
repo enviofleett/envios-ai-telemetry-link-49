@@ -1,6 +1,6 @@
-
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { Md5 } from "https://deno.land/std@0.208.0/hash/md5.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,38 +11,11 @@ const GP51_API_URL = "https://www.gps51.com/webapi";
 const REQUEST_TIMEOUT = 5000; // 5 seconds
 const MAX_RETRIES = 2;
 
-// Fixed MD5 hash function using native Web Crypto API
+// Corrected MD5 hash function using Deno's standard library
 async function md5(input: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(input);
-  
-  try {
-    // Try using Web Crypto API first
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hexHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    // Truncate to 32 characters to match MD5 length
-    return hexHash.substring(0, 32);
-  } catch (error) {
-    console.warn('Web Crypto API failed, using fallback MD5:', error);
-    // Fallback MD5 implementation
-    return fallbackMD5(input);
-  }
-}
-
-// Simple fallback MD5 implementation
-function fallbackMD5(input: string): string {
-  let hash = 0;
-  if (input.length === 0) return hash.toString(16).padStart(32, '0');
-  
-  for (let i = 0; i < input.length; i++) {
-    const char = input.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  
-  const hexHash = Math.abs(hash).toString(16);
-  return hexHash.padStart(32, '0');
+  const md5Hasher = new Md5();
+  md5Hasher.update(input);
+  return md5Hasher.toString();
 }
 
 interface LiveVehicleTelemetry {
@@ -66,8 +39,9 @@ async function callGP51WithRetry(
   attempt: number = 1
 ): Promise<{ success: boolean; response?: Response; error?: string; statusCode?: number }> {
   try {
-    console.log(`GP51 API call attempt ${attempt}/${MAX_RETRIES + 1}`);
-    console.log('Form data:', Object.fromEntries(formData.entries()));
+    console.log(`GP51 API call attempt ${attempt}/${MAX_RETRIES + 1} to ${GP51_API_URL}`);
+    const payloadString = formData.toString();
+    console.log('Form data:', payloadString);
     
     // Create abort controller for timeout
     const controller = new AbortController();
@@ -80,7 +54,7 @@ async function callGP51WithRetry(
         'Accept': 'application/json',
         'User-Agent': 'EnvioFleet/1.0'
       },
-      body: formData.toString(),
+      body: payloadString,
       signal: controller.signal
     });
 
@@ -184,15 +158,17 @@ serve(async (req) => {
     const hashedPassword = await md5(session.password_hash);
 
     // First, get the monitor list (devices/vehicles)
-    console.log('📡 Fetching GP51 monitor list...');
+    console.log('📡 Fetching GP51 monitor list (devices)...');
     const monitorFormData = new URLSearchParams({
-      action: 'querymonitorlist',
+      action: 'getDeviceList', // CHANGED from querymonitorlist
       username: session.username,
       password: hashedPassword,
       from: 'WEB',
       type: 'USER'
+      // Consider adding other parameters if GP51 API docs specify for 'getDeviceList'
     });
 
+    console.log(`Attempting to fetch device list with action: 'getDeviceList'`);
     const monitorResult = await callGP51WithRetry(monitorFormData);
 
     if (!monitorResult.success) {
@@ -213,7 +189,7 @@ serve(async (req) => {
 
     const response = monitorResult.response!;
     const responseText = await response.text();
-    console.log('📊 Raw GP51 API response:', responseText.substring(0, 500) + '...');
+    console.log('📊 Raw GP51 API monitor list response:', responseText.substring(0, 500) + '...');
     
     if (!response.ok) {
       console.error(`GP51 API HTTP error: ${response.status} ${response.statusText}`);
@@ -268,26 +244,35 @@ serve(async (req) => {
 
     // Check GP51 response status
     if (responseData.status !== 0) {
-      console.error('GP51 API returned error:', responseData);
+      console.error('GP51 API (getDeviceList) returned error:', responseData);
       return new Response(
         JSON.stringify({ 
           success: false,
-          error: 'GP51 API logic error',
-          details: responseData.cause || responseData.message || 'GP51 API request failed',
-          statusCode: response.status
+          error: 'GP51 API logic error during device list fetch',
+          details: responseData.cause || responseData.message || 'GP51 API request for device list failed',
+          statusCode: response.status,
+          gp51_status: responseData.status
         }),
         { 
-          status: 401,
+          status: response.status === 200 ? 400 : response.status,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
       );
     }
 
-    console.log('✅ Monitor data fetched successfully');
+    console.log('✅ Monitor data (device list) fetched successfully');
 
     // Extract devices from the response
-    const devices = responseData.groups ? 
-      responseData.groups.flatMap((group: any) => group.devices || []) : [];
+    let devices = [];
+    if (responseData.devices && Array.isArray(responseData.devices)) {
+        devices = responseData.devices;
+    } else if (responseData.groups && Array.isArray(responseData.groups)) {
+        devices = responseData.groups.flatMap((group: any) => group.devices || []);
+    } else if (Array.isArray(responseData)) { // Sometimes APIs return a direct array
+        devices = responseData;
+    }
+    console.log(`Extracted ${devices.length} devices. Sample:`, devices.slice(0,2));
+
     const deviceIds = devices.map((device: any) => device.deviceid || device.id).filter((id: string) => id);
 
     if (deviceIds.length === 0) {
@@ -358,7 +343,7 @@ serve(async (req) => {
         console.warn('⚠️ Position response parse failed:', posParseError);
       }
     } else {
-      console.warn('⚠️ Position fetch failed:', positionResult.error);
+      console.warn('⚠️ Position fetch failed or API returned error:', positionResult.error, `Status: ${positionResult.statusCode}`);
     }
 
     // Update vehicles table with latest telemetry data and store history
