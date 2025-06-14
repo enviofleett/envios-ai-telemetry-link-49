@@ -1,4 +1,3 @@
-
 import React, { Suspense } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle } from 'lucide-react';
@@ -52,8 +51,7 @@ const GP51IntegrationTab = React.lazy(() => import('./tabs/GP51IntegrationTab'))
 const GeofencingTab = React.lazy(() => import('./tabs/GeofencingTab'));
 // Analytics
 const AnalyticsTab = React.lazy(() => import('./tabs/AnalyticsTab'));
-const PackagesTab = React.lazy(() => import('./tabs/PackagesTab'));
-
+const PackageManagementDashboard = React.lazy(() => import('../packages/PackageManagementDashboard'));
 
 interface AdminTabContentRendererProps {
   activeTab: string;
@@ -134,7 +132,7 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
       case 'analytics':
         return <AnalyticsTab />;
       case 'packages':
-        return <PackagesTab />;
+        return <PackageManagementDashboard />;
 
       default:
         return (
@@ -160,4 +158,3 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
 };
 
 export default AdminTabContentRenderer;
-
