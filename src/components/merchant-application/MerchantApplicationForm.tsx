@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMerchantApplication } from '@/hooks/useMerchantApplication';
@@ -40,9 +40,10 @@ const MerchantApplicationForm: React.FC = () => {
         },
     });
 
+    const { reset } = form;
     useEffect(() => {
         if (application) {
-            form.reset({
+            reset({
                 org_name: application.org_name || '',
                 contact_email: application.contact_email || user?.email || '',
                 business_address: application.business_address || '',
@@ -54,9 +55,9 @@ const MerchantApplicationForm: React.FC = () => {
                 total_fee: application.total_fee || 0,
             });
         }
-    }, [application, form, user]);
+    }, [application, user, reset]);
 
-    const calculateTotalFee = (selectedCategoryIds: string[]): number => {
+    const calculateTotalFee = useCallback((selectedCategoryIds: string[]): number => {
         if (!settings) {
             return application?.total_fee || 0;
         }
@@ -70,18 +71,18 @@ const MerchantApplicationForm: React.FC = () => {
         const additionalFee = additionalCategories * additional_category_fee;
         const totalFee = (registration_fee || 0) + additionalFee;
         return totalFee;
-    }
+    }, [settings, application?.total_fee]);
 
-    const handleSaveDraft: SubmitHandler<ApplicationFormValues> = async (data) => {
+    const handleSaveDraft: SubmitHandler<ApplicationFormValues> = useCallback(async (data) => {
         const dataWithFee = { ...data, total_fee: calculateTotalFee(data.selected_category_ids) };
         await saveApplication(dataWithFee);
-    };
+    }, [calculateTotalFee, saveApplication]);
 
-    const handleSubmitApplication: SubmitHandler<ApplicationFormValues> = async (data) => {
+    const handleSubmitApplication: SubmitHandler<ApplicationFormValues> = useCallback(async (data) => {
         const dataWithFee = { ...data, total_fee: calculateTotalFee(data.selected_category_ids) };
         await saveApplication(dataWithFee);
         await submit();
-    };
+    }, [calculateTotalFee, saveApplication, submit]);
     
     return (
         <Form {...form}>
@@ -123,3 +124,4 @@ const MerchantApplicationForm: React.FC = () => {
 };
 
 export default MerchantApplicationForm;
+
