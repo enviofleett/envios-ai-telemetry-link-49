@@ -2,8 +2,8 @@
 import type { VehicleData, VehiclePosition } from '@/types/vehicle';
 
 const mockLastPosition: VehiclePosition = {
-  lat: 40.7128,
-  lng: -74.0060,
+  latitude: 40.7128, // Changed from lat
+  longitude: -74.0060, // Changed from lng
   speed: 0,
   course: 0,
   timestamp: new Date().toISOString(),
@@ -17,8 +17,8 @@ export const loadMockVehicleData = (): VehicleData[] => {
     const isOnline = Math.random() > 0.2;
     
     const last_position: VehiclePosition = {
-      lat: 40.7128 + (Math.random() - 0.5) * 0.1,
-      lng: -74.0060 + (Math.random() - 0.5) * 0.1,
+      latitude: 40.7128 + (Math.random() - 0.5) * 0.1, // Changed from lat
+      longitude: -74.0060 + (Math.random() - 0.5) * 0.1, // Changed from lng
       speed,
       course: Math.floor(Math.random() * 360),
       timestamp: new Date(Date.now() - Math.random() * 3600000).toISOString(),
@@ -32,7 +32,7 @@ export const loadMockVehicleData = (): VehicleData[] => {
       vin: `VIN${String(index + 1).padStart(8, '0')}`,
       license_plate: `ABC-${String(index + 1).padStart(3, '0')}`,
       is_active: isOnline,
-      last_position,
+      last_position, // This is now correctly typed VehiclePosition
       status: isOnline ? (isMoving ? 'moving' : 'idle') : 'offline',
       lastUpdate: new Date(Date.now() - Math.random() * 3600000),
       isOnline,
@@ -41,7 +41,7 @@ export const loadMockVehicleData = (): VehicleData[] => {
       // Legacy compatibility
       deviceId: `device-${String(index + 1).padStart(3, '0')}`,
       deviceName: `Vehicle ${index + 1}`,
-      lastPosition: last_position
+      lastPosition: last_position // This is also VehiclePosition
     };
   });
 };
@@ -62,8 +62,8 @@ export const loadMockVehicleDataForMap = (): VehicleData[] => {
     const isOnline = Math.random() > 0.15;
     
     const last_position: VehiclePosition = {
-      lat: baseLocation.lat + (Math.random() - 0.5) * 0.01,
-      lng: baseLocation.lng + (Math.random() - 0.5) * 0.01,
+      latitude: baseLocation.lat + (Math.random() - 0.5) * 0.01, // Changed from lat, source baseLocation still uses lat
+      longitude: baseLocation.lng + (Math.random() - 0.5) * 0.01, // Changed from lng, source baseLocation still uses lng
       speed,
       course: Math.floor(Math.random() * 360),
       timestamp: new Date(Date.now() - Math.random() * 1800000).toISOString(),
@@ -77,7 +77,7 @@ export const loadMockVehicleDataForMap = (): VehicleData[] => {
       vin: `MVVIN${String(index + 1).padStart(5, '0')}`,
       license_plate: `NY-${String(index + 1).padStart(4, '0')}`,
       is_active: isOnline,
-      last_position,
+      last_position, // Correctly typed VehiclePosition
       status: isOnline ? (isMoving ? 'moving' : 'idle') : 'offline',
       lastUpdate: new Date(Date.now() - Math.random() * 1800000),
       isOnline,
@@ -86,7 +86,7 @@ export const loadMockVehicleDataForMap = (): VehicleData[] => {
       // Legacy compatibility
       deviceId: `mv-${String(index + 1).padStart(3, '0')}`,
       deviceName: `${baseLocation.name.split(' ')[0]} Unit ${index + 1}`,
-      lastPosition: last_position
+      lastPosition: last_position // Also VehiclePosition
     };
   });
 };

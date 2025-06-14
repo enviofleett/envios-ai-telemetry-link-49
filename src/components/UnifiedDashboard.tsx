@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Label } from "@/components/ui/label"; // Added import
+import { Label } from "@/components/ui/label";
 import { 
   Car, 
   MapPin, 
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
 import VehicleDetailsModal from '@/components/vehicles/VehicleDetailsModal'; // Adjusted path
+import MapTilerMap from '@/components/map/MapTilerMap'; // Added import
 import type { VehicleData } from '@/types/vehicle';
 
 const UnifiedFleetDashboard: React.FC = () => {

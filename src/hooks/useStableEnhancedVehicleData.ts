@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,59 +33,76 @@ export const useStableEnhancedVehicleData = () => {
         throw error;
       }
 
-      // Transform the data to match our VehicleData interface with snake_case
-      const transformedData: VehicleData[] = data.map(vehicle => {
-        let last_position: VehicleData['last_position'];
+      // Transform the data to match our VehicleData interface
+      const transformedData: VehicleData[] = data.map(dbVehicle => {
+        let appLastPosition: VehicleData['last_position'] = undefined;
+        const rawDbPosition = dbVehicle.last_position as any; // Data from Supabase potentially with lat/lng/lon
         
-        // Handle last position conversion, ensuring lng property
-        if (vehicle.last_position && typeof vehicle.last_position === 'object') {
-          const rawPosition = vehicle.last_position as any;
-          if (rawPosition.lat && (rawPosition.lng || rawPosition.lon)) {
-            last_position = {
-              lat: rawPosition.lat,
-              lng: rawPosition.lng || rawPosition.lon, // Handle both lng and lon
-              speed: rawPosition.speed || 0,
-              course: rawPosition.course || 0, // Add required course property
-              timestamp: typeof rawPosition.timestamp === 'string' 
-                ? rawPosition.timestamp 
-                : rawPosition.updatetime || new Date().toISOString()
-            };
-          }
+        if (rawDbPosition && (rawDbPosition.lat != null && (rawDbPosition.lng != null || rawDbPosition.lon != null))) {
+          appLastPosition = {
+            latitude: rawDbPosition.lat,
+            longitude: rawDbPosition.lng || rawDbPosition.lon,
+            speed: rawDbPosition.speed || 0,
+            course: rawDbPosition.course || 0,
+            timestamp: typeof rawDbPosition.timestamp === 'string' 
+              ? rawDbPosition.timestamp 
+              : rawDbPosition.updatetime || new Date().toISOString()
+          };
+        }
+
+        // Determine status based on the transformed appLastPosition and dbVehicle.is_active
+        let status: VehicleData['status'] = 'offline';
+        if (dbVehicle.is_active) {
+            if (appLastPosition && appLastPosition.timestamp) {
+                const lastUpdate = new Date(appLastPosition.timestamp);
+                const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
+                if (minutesSinceUpdate <= 5) {
+                    status = appLastPosition.speed > 0 ? 'moving' : 'online';
+                } else if (minutesSinceUpdate <= 30) {
+                    status = 'idle';
+                } else {
+                    status = 'offline'; // if active but position is too old
+                }
+            } else {
+                 status = 'idle'; // Active but no position data, consider idle or online based on policy
+            }
         }
 
         return {
-          id: vehicle.id,
-          device_id: vehicle.device_id,
-          device_name: vehicle.device_name,
-          vin: vehicle.vin,
-          license_plate: vehicle.license_plate,
-          image_urls: vehicle.image_urls,
-          fuel_tank_capacity_liters: vehicle.fuel_tank_capacity_liters,
-          manufacturer_fuel_consumption_100km_l: vehicle.manufacturer_fuel_consumption_100km_l,
-          insurance_expiration_date: vehicle.insurance_expiration_date,
-          license_expiration_date: vehicle.license_expiration_date,
-          is_active: vehicle.is_active,
-          envio_user_id: vehicle.envio_user_id,
-          last_position: last_position,
-          envio_users: vehicle.envio_users,
-          // Legacy compatibility
-          deviceId: vehicle.device_id,
-          deviceName: vehicle.device_name,
-          vehicleName: vehicle.device_name,
-          lastPosition: last_position,
-          status: vehicle.is_active ? 'online' : 'offline',
-          lastUpdate: last_position ? new Date(last_position.timestamp) : new Date(vehicle.updated_at || vehicle.created_at),
-          alerts: [],
-          isOnline: vehicle.is_active,
-          isMoving: last_position ? last_position.speed > 0 : false,
-          speed: last_position ? last_position.speed : 0
+          id: dbVehicle.id,
+          device_id: dbVehicle.device_id,
+          device_name: dbVehicle.device_name,
+          vin: dbVehicle.vin,
+          license_plate: dbVehicle.license_plate,
+          image_urls: dbVehicle.image_urls,
+          fuel_tank_capacity_liters: dbVehicle.fuel_tank_capacity_liters,
+          manufacturer_fuel_consumption_100km_l: dbVehicle.manufacturer_fuel_consumption_100km_l,
+          insurance_expiration_date: dbVehicle.insurance_expiration_date,
+          license_expiration_date: dbVehicle.license_expiration_date,
+          is_active: dbVehicle.is_active,
+          envio_user_id: dbVehicle.envio_user_id,
+          last_position: appLastPosition, // This is correctly {latitude, longitude}
+          envio_users: dbVehicle.envio_users,
+          
+          // Legacy and status properties for VehicleData
+          status: status,
+          lastUpdate: appLastPosition ? new Date(appLastPosition.timestamp) : new Date(dbVehicle.updated_at || dbVehicle.created_at),
+          isOnline: status === 'online' || status === 'moving',
+          isMoving: status === 'moving',
+          speed: appLastPosition?.speed || 0,
+          course: appLastPosition?.course || 0,
+          alerts: [], // Assuming alerts are handled elsewhere or default to empty
+
+          // Redundant legacy fields if not strictly needed by VehicleData type, but keeping for compatibility if used
+          vehicleName: dbVehicle.device_name,
+          // lastPosition: appLastPosition, // if VehicleData.lastPosition expects {latitude, longitude}
         };
       });
 
       console.log(`Successfully fetched ${transformedData.length} vehicles`);
       return transformedData;
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
@@ -97,10 +113,9 @@ export const useStableEnhancedVehicleData = () => {
       .filter(v => v.envio_user_id)
       .map(v => ({
         id: v.envio_user_id!,
-        name: v.device_name // Use device_name since envio_users join might not always work
+        name: v.envio_users?.name || v.device_name // Prefer joined user name
       }));
     
-    // Remove duplicates
     const uniqueUsers = users.filter((user, index, self) => 
       index === self.findIndex(u => u.id === user.id)
     );
@@ -117,47 +132,38 @@ export const useStableEnhancedVehicleData = () => {
         const matchesSearch = 
           vehicle.device_name.toLowerCase().includes(searchTerm) ||
           vehicle.device_id.toLowerCase().includes(searchTerm) ||
-          (vehicle.license_plate && vehicle.license_plate.toLowerCase().includes(searchTerm));
+          (vehicle.license_plate && vehicle.license_plate.toLowerCase().includes(searchTerm)) ||
+          (vehicle.vin && vehicle.vin.toLowerCase().includes(searchTerm));
         
         if (!matchesSearch) return false;
       }
 
-      // Status filter
+      // Status filter (based on VehicleData's status property)
       if (filters.status !== 'all') {
-        const status = vehicle.status?.toLowerCase() || '';
-        switch (filters.status) {
-          case 'active':
-            if (!vehicle.is_active) return false;
-            break;
-          case 'moving':
-            if (!status.includes('moving')) return false;
-            break;
-          case 'stopped':
-            if (!status.includes('stopped') && !status.includes('idle')) return false;
-            break;
-          case 'alert':
-            if (!status.includes('alert') && !status.includes('alarm')) return false;
-            break;
-          case 'offline':
-            if (vehicle.is_active) return false;
-            break;
-        }
-      }
-
-      // Online filter
-      if (filters.online !== 'all') {
-        const isOnline = vehicle.last_position?.timestamp ? 
-          new Date(vehicle.last_position.timestamp) > new Date(Date.now() - 30 * 60 * 1000) : 
-          false;
-        
-        if (filters.online === 'online' && !isOnline) return false;
-        if (filters.online === 'offline' && isOnline) return false;
+        const vehicleStatus = vehicle.status || 'offline'; // Default to offline if undefined
+        if (filters.status === 'active' && !vehicle.is_active) return false; // is_active might be more reliable for "active" filter
+        if (filters.status === 'moving' && vehicleStatus !== 'moving') return false;
+        if (filters.status === 'online' && vehicleStatus !== 'online' && vehicleStatus !== 'moving') return false;
+        if (filters.status === 'idle' && vehicleStatus !== 'idle') return false;
+        if (filters.status === 'offline' && vehicleStatus !== 'offline') return false;
+        // 'alert' status would need specific handling if alerts are part of VehicleData
       }
 
       // User filter
       if (filters.user !== 'all') {
         if (filters.user === 'unassigned' && vehicle.envio_user_id) return false;
         if (filters.user !== 'unassigned' && vehicle.envio_user_id !== filters.user) return false;
+      }
+
+      // Online filter (more specific than status, based on recent timestamp)
+      // This might be redundant if 'status' already correctly reflects this.
+      if (filters.online !== 'all') {
+        const isConsideredOnline = vehicle.last_position?.timestamp ? 
+          new Date(vehicle.last_position.timestamp) > new Date(Date.now() - 5 * 60 * 1000) : // 5 minutes for truly online
+          false;
+        
+        if (filters.online === 'online' && !isConsideredOnline) return false;
+        if (filters.online === 'offline' && isConsideredOnline) return false;
       }
 
       return true;
@@ -167,14 +173,10 @@ export const useStableEnhancedVehicleData = () => {
   // Vehicle statistics
   const statistics: VehicleStatistics = useMemo(() => {
     const total = vehicles.length;
-    const active = vehicles.filter(v => v.is_active).length;
-    const online = vehicles.filter(v => {
-      if (!v.last_position?.timestamp) return false;
-      return new Date(v.last_position.timestamp) > new Date(Date.now() - 30 * 60 * 1000);
-    }).length;
+    const active = vehicles.filter(v => v.is_active).length; // Based on is_active flag
+    const online = vehicles.filter(v => v.status === 'online' || v.status === 'moving').length; // Based on derived status
     const alerts = vehicles.filter(v => 
-      v.status?.toLowerCase().includes('alert') || 
-      v.status?.toLowerCase().includes('alarm')
+      v.alerts && v.alerts.length > 0 // Assuming alerts is an array
     ).length;
 
     return { total, active, online, alerts };
@@ -203,8 +205,8 @@ export const useStableEnhancedVehicleData = () => {
   };
 
   return {
-    vehicles,
-    filteredVehicles,
+    vehicles, // This is Array<VehicleData> with last_position: {latitude, longitude}
+    filteredVehicles, // Same as above
     userOptions,
     statistics,
     filters,

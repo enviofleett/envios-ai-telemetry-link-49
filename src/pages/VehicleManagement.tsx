@@ -12,13 +12,30 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { VehicleData } from '@/types/vehicle';
 
+// This is the type VehicleCard and VehicleProfileModal expect for their 'vehicle.last_position' prop
+// based on the TypeScript error messages.
+type ComponentExpectedLastPosition = {
+  lat: number;
+  lng: number;
+  speed: number;
+  timestamp: string;
+  // course is NOT in the error message for VehicleCard/VehicleProfileModal's last_position prop
+};
+
+// This is the type VehicleCard and VehicleProfileModal expect for their 'vehicle' prop.
+// It's VehicleData but with 'last_position' changed to ComponentExpectedLastPosition.
+type VehicleForComponent = Omit<VehicleData, 'last_position'> & {
+  last_position?: ComponentExpectedLastPosition;
+};
+
+
 const VehicleManagement: React.FC = () => {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
   const { 
-    filteredVehicles, 
+    filteredVehicles, // This is VehicleData[] (last_position has latitude/longitude)
     isLoading, 
     refetch,
     setFilters 
@@ -33,24 +50,25 @@ const VehicleManagement: React.FC = () => {
 
   const { toast } = useToast();
 
+  // Find the selected vehicle (it's of type VehicleData)
   const selectedVehicleData = selectedVehicleId 
-    ? filteredVehicles.find(v => v.id === selectedVehicleId)
+    ? filteredVehicles.find(v => v.id === selectedVehicleId) // This is VehicleData | undefined
     : null;
 
-  // Transform VehicleData to match VehicleCard/ProfileModal props (which expect VehicleData from @/types/vehicle)
-  const transformedSelectedVehicle: VehicleData | null = selectedVehicleData ? {
-    ...selectedVehicleData, // Spread all properties from filteredVehicles item
-    // Ensure last_position is correctly structured if present
-    last_position: selectedVehicleData.last_position ? {
-      latitude: selectedVehicleData.last_position.latitude, // Corrected
-      longitude: selectedVehicleData.last_position.longitude, // Corrected
+  // Transform selectedVehicleData for VehicleProfileModal
+  const vehicleForModal: VehicleForComponent | null = selectedVehicleData ? {
+    ...selectedVehicleData, // Spread all properties from VehicleData
+    last_position: selectedVehicleData.last_position ? { // Transform last_position
+      lat: selectedVehicleData.last_position.latitude,
+      lng: selectedVehicleData.last_position.longitude,
       speed: selectedVehicleData.last_position.speed,
-      course: selectedVehicleData.last_position.course, // Make sure course is included
-      timestamp: selectedVehicleData.last_position.timestamp
+      timestamp: selectedVehicleData.last_position.timestamp,
+      // No course here, as it's not in ComponentExpectedLastPosition
     } : undefined,
   } : null;
 
-  useEffect(() => { // Changed React.useEffect to useEffect
+
+  useEffect(() => {
     setFilters(prev => ({
       ...prev,
       search: searchTerm,
@@ -141,6 +159,8 @@ const VehicleManagement: React.FC = () => {
                 <option value="active">Active</option>
                 <option value="offline">Offline</option>
                 <option value="moving">Moving</option>
+                <option value="online">Online</option>
+                <option value="idle">Idle</option>
               </select>
             </div>
 
@@ -157,26 +177,26 @@ const VehicleManagement: React.FC = () => {
 
           {/* Vehicle Grid */}
           {isLoading && filteredVehicles.length === 0 ? (
-            <></>
+            <></> // Or a loading spinner for the grid
           ) : filteredVehicles.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredVehicles.map((vehicle) => {
+              {filteredVehicles.map((vehicle) => { // vehicle is VehicleData
                 // Transform VehicleData for VehicleCard
-                const transformedVehicle: VehicleData = {
-                  ...vehicle, // Spread all properties
-                  last_position: vehicle.last_position ? {
-                    latitude: vehicle.last_position.latitude, // Corrected
-                    longitude: vehicle.last_position.longitude, // Corrected
+                const vehicleForCard: VehicleForComponent = {
+                  ...vehicle, // Spread all properties from VehicleData
+                  last_position: vehicle.last_position ? { // Transform last_position
+                    lat: vehicle.last_position.latitude,
+                    lng: vehicle.last_position.longitude,
                     speed: vehicle.last_position.speed,
-                    course: vehicle.last_position.course, // Ensure course is included
-                    timestamp: vehicle.last_position.timestamp
+                    timestamp: vehicle.last_position.timestamp,
+                    // No course here
                   } : undefined,
                 };
 
                 return (
                   <VehicleCard
                     key={vehicle.id}
-                    vehicle={transformedVehicle} // Use the fully typed and transformed vehicle
+                    vehicle={vehicleForCard} // Pass the transformed vehicle
                     liveData={liveData[vehicle.device_id]}
                     onViewDetails={handleViewDetails}
                     onActivateWorkshop={handleActivateWorkshop}
@@ -201,8 +221,8 @@ const VehicleManagement: React.FC = () => {
           <VehicleProfileModal
             isOpen={!!selectedVehicleId}
             onClose={() => setSelectedVehicleId(null)}
-            vehicle={transformedSelectedVehicle} // Pass the transformed selected vehicle
-            liveData={transformedSelectedVehicle ? liveData[transformedSelectedVehicle.device_id] : undefined}
+            vehicle={vehicleForModal} // Pass the transformed selected vehicle for the modal
+            liveData={selectedVehicleData ? liveData[selectedVehicleData.device_id] : undefined}
             onUpdateVehicle={handleUpdateVehicle}
           />
         </div>

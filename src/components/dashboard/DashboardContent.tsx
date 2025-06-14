@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -209,7 +208,7 @@ const DashboardContent: React.FC = () => {
                           <div className="flex items-center gap-2 text-sm text-gray-500">
                             <MapPin className="h-4 w-4" />
                             <span>
-                              {vehicle.last_position.lat.toFixed(4)}, {vehicle.last_position.lng.toFixed(4)}
+                              {vehicle.last_position.latitude.toFixed(4)}, {vehicle.last_position.longitude.toFixed(4)}
                             </span>
                           </div>
                         </div>

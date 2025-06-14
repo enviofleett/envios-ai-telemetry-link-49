@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehicleMetrics, SyncMetrics } from '@/types/vehicle';
 
@@ -72,47 +71,53 @@ export class UnifiedVehicleDataService {
   }
 
   private transformDatabaseVehicle(dbVehicle: any): VehicleData {
-    const lastPosition = dbVehicle.last_position;
+    const dbLastPosition = dbVehicle.last_position as any; // Treat as raw from DB
     
-    // Determine vehicle status based on last position update
     let status: 'online' | 'offline' | 'moving' | 'idle' = 'offline';
     let parsedPosition: VehicleData['last_position'] = undefined;
     
-    if (lastPosition?.updatetime) {
-      const lastUpdate = new Date(lastPosition.updatetime);
+    if (dbLastPosition?.updatetime) {
+      const lastUpdate = new Date(dbLastPosition.updatetime);
       const minutesSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60);
       
       if (minutesSinceUpdate <= 5) {
-        status = lastPosition.speed > 0 ? 'moving' : 'online';
+        status = dbLastPosition.speed > 0 ? 'moving' : 'online';
       } else if (minutesSinceUpdate <= 30) {
         status = 'idle';
       }
 
       // Transform position with proper timestamp conversion
-      parsedPosition = {
-        lat: lastPosition.lat,
-        lng: lastPosition.lng,
-        speed: lastPosition.speed || 0,
-        course: lastPosition.course || 0,
-        timestamp: lastPosition.updatetime, // Keep as string
-      };
+      // Ensure source properties are dbLastPosition.lat and (dbLastPosition.lng or dbLastPosition.lon)
+      if (dbLastPosition.lat != null && (dbLastPosition.lng != null || dbLastPosition.lon != null)) {
+        parsedPosition = {
+          latitude: dbLastPosition.lat,
+          longitude: dbLastPosition.lng || dbLastPosition.lon, // Handle both lng and lon
+          speed: dbLastPosition.speed || 0,
+          course: dbLastPosition.course || 0,
+          timestamp: dbLastPosition.updatetime, // Keep as string
+        };
+      }
     }
 
     return {
       id: dbVehicle.id || dbVehicle.device_id,
       device_id: dbVehicle.device_id,
       device_name: dbVehicle.device_name,
-      vehicleName: dbVehicle.device_name,
+      // vehicleName: dbVehicle.device_name, // This was in VehicleData, if needed, add back
       status,
       lastUpdate: parsedPosition ? new Date(parsedPosition.timestamp) : new Date(dbVehicle.updated_at || dbVehicle.created_at),
-      alerts: [],
+      alerts: [], // Ensure alerts is part of VehicleData if used
       isOnline: status === 'online' || status === 'moving',
       isMoving: status === 'moving',
-      speed: lastPosition?.speed || 0,
-      course: lastPosition?.course || 0,
+      speed: parsedPosition?.speed || 0, // Use parsedPosition's speed
+      course: parsedPosition?.course || 0, // Use parsedPosition's course
       is_active: dbVehicle.is_active || true,
       envio_user_id: dbVehicle.envio_user_id,
-      last_position: parsedPosition
+      last_position: parsedPosition,
+      // Legacy compatibility if VehicleData still has these
+      // deviceId: dbVehicle.device_id,
+      // deviceName: dbVehicle.device_name,
+      // lastPosition: parsedPosition, // if lastPosition legacy prop is VehicleData['last_position'] type
     };
   }
 
@@ -148,19 +153,41 @@ export class UnifiedVehicleDataService {
 
   private transformVehicleData(rawVehicle: any): VehicleData {
     const isOnline = rawVehicle.is_active || false;
-    const hasRecentPosition = rawVehicle.last_position && 
-      rawVehicle.last_position.timestamp &&
-      (Date.now() - new Date(rawVehicle.last_position.timestamp).getTime()) < (5 * 60 * 1000);
+    const rawLastPosition = rawVehicle.last_position as any;
+    let appLastPosition: VehicleData['last_position'] = undefined;
+    let hasRecentPosition = false;
 
+    if (rawLastPosition && rawLastPosition.timestamp) {
+        const updateTime = new Date(rawLastPosition.timestamp);
+        hasRecentPosition = (Date.now() - updateTime.getTime()) < (5 * 60 * 1000);
+        if (rawLastPosition.latitude != null && rawLastPosition.longitude != null) {
+             appLastPosition = {
+                latitude: rawLastPosition.latitude,
+                longitude: rawLastPosition.longitude,
+                speed: rawLastPosition.speed || 0,
+                course: rawLastPosition.course || 0,
+                timestamp: rawLastPosition.timestamp,
+            };
+        } else if (rawLastPosition.lat != null && (rawLastPosition.lng != null || rawLastPosition.lon != null) ) { // Fallback if source is lat/lng
+            appLastPosition = {
+                latitude: rawLastPosition.lat,
+                longitude: rawLastPosition.lng || rawLastPosition.lon,
+                speed: rawLastPosition.speed || 0,
+                course: rawLastPosition.course || 0,
+                timestamp: rawLastPosition.timestamp,
+            };
+        }
+    }
+    
     return {
       id: rawVehicle.id || rawVehicle.device_id,
       device_id: rawVehicle.device_id,
       device_name: rawVehicle.device_name,
       status: isOnline ? (hasRecentPosition ? 'online' : 'idle') : 'offline',
       lastUpdate: new Date(rawVehicle.updated_at || rawVehicle.created_at || Date.now()),
-      last_position: rawVehicle.last_position,
+      last_position: appLastPosition,
       isOnline: isOnline && hasRecentPosition,
-      isMoving: rawVehicle.last_position?.speed > 0 || false,
+      isMoving: appLastPosition?.speed != null && appLastPosition.speed > 0,
       alerts: rawVehicle.alerts || [],
       is_active: rawVehicle.is_active || false
     };
