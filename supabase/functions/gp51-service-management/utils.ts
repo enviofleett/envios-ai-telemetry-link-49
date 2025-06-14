@@ -1,5 +1,5 @@
 
-import { Md5 } from "https://deno.land/std@0.224.0/crypto/mod.ts";
+import { Md5 } from "https://deno.land/std@0.208.0/crypto/mod.ts";
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
