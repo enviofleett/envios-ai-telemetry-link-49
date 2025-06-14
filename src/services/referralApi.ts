@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { ReferralCode, ReferralAgent, ReferralAgentWithUserDetails, ReferralAgentStatus } from '@/types/referral';
 
@@ -26,6 +27,23 @@ export const referralApi = {
         name: usersById.get(agent.user_id)?.name ?? 'Unknown User',
         email: usersById.get(agent.user_id)?.email ?? 'no-email@example.com',
     }));
+  },
+
+  async getMyAgentProfile(): Promise<ReferralAgent | null> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data, error } = await supabase
+      .from('referral_agents')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    
+    if (error) {
+      console.error("Error fetching agent profile:", error);
+      throw error;
+    }
+    return data;
   },
 
   async getReferralCodes(): Promise<ReferralCode[]> {

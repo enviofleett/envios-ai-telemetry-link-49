@@ -1,3 +1,4 @@
+
 import {
   BarChart3,
   Calendar,
@@ -14,6 +15,7 @@ import {
   LucideIcon,
   Store,
   User,
+  Hash,
 } from "lucide-react"
 
 export interface MenuItem {
@@ -112,6 +114,11 @@ export const agentMenuItems: MenuItem[] = [
     title: "Dashboard",
     url: "/agent/dashboard",
     icon: Home,
+  },
+  {
+    title: "Referral Codes",
+    url: "/agent/referral-codes",
+    icon: Hash,
   },
   {
     title: "Profile",

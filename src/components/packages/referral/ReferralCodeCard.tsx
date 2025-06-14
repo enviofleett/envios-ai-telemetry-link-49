@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,12 +51,14 @@ const ReferralCodeCard: React.FC<ReferralCodeCardProps> = ({ code, agentName }) 
           </span>
         </div>
 
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-muted-foreground">Agent</span>
-          <span className="text-sm font-medium truncate" title={agentName ?? code.agent_id}>
-            {agentName ?? 'Unknown Agent'}
-          </span>
-        </div>
+        {agentName && (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Agent</span>
+            <span className="text-sm font-medium truncate" title={agentName}>
+              {agentName}
+            </span>
+          </div>
+        )}
 
         <div className="flex items-center justify-between pt-2">
           <Badge variant={code.is_active ? 'default' : 'secondary'}>
