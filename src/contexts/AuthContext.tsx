@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -31,7 +30,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isCheckingRole, setIsCheckingRole] = useState(false);
+  const [isCheckingRole, setIsCheckingRole] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   
@@ -39,6 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const roleCheckTimeoutRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       if (roleCheckTimeoutRef.current) {
@@ -47,10 +47,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const checkUserRole = useCallback(async (userId: string, retryCount = 0) => {
+  const checkUserRole = useCallback(async (userId: string, options: { isBackground?: boolean; retryCount?: number } = {}) => {
+    const { isBackground = false, retryCount = 0 } = options;
     if (!mountedRef.current) return;
     
-    if (retryCount === 0) {
+    if (!isBackground && retryCount === 0) {
       setIsCheckingRole(true);
     }
     
@@ -70,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const delay = Math.pow(2, retryCount) * 1000;
           roleCheckTimeoutRef.current = setTimeout(() => {
             if (mountedRef.current) {
-              checkUserRole(userId, retryCount + 1);
+              checkUserRole(userId, { ...options, retryCount: retryCount + 1 });
             }
           }, delay);
           return;
@@ -94,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const delay = Math.pow(2, retryCount) * 1000;
         roleCheckTimeoutRef.current = setTimeout(() => {
           if (mountedRef.current) {
-            checkUserRole(userId, retryCount + 1);
+            checkUserRole(userId, { ...options, retryCount: retryCount + 1 });
           }
         }, delay);
         return;
@@ -103,8 +104,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserRole('user');
       setIsAdmin(false);
     } finally {
-      if (mountedRef.current && (retryCount === 0 || retryCount >= 1)) {
-        setIsCheckingRole(false);
+      if (mountedRef.current) {
+        const isFinalAttempt = retryCount >= 1;
+        if (!isBackground && (retryCount === 0 || isFinalAttempt)) {
+          setIsCheckingRole(false);
+        }
       }
     }
   }, []);
@@ -117,6 +121,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(false);
         if (session?.user) {
           checkUserRole(session.user.id);
+        } else {
+          setIsCheckingRole(false);
         }
       }
     });
@@ -129,12 +135,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(session?.user ?? null);
         setLoading(false);
         
-        if (session?.user) {
+        if (event === 'SIGNED_IN' && session?.user) {
           checkUserRole(session.user.id);
-        } else {
+        } else if (event === 'SIGNED_OUT') {
           setIsAdmin(false);
           setUserRole(null);
           setIsCheckingRole(false);
+        } else if (event === 'USER_UPDATED' && session?.user) {
+          checkUserRole(session.user.id, { isBackground: true });
         }
       }
     });
@@ -144,9 +152,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [checkUserRole]);
 
+  const refreshUser = useCallback(async () => {
+    if (!mountedRef.current) return;
+    
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (mountedRef.current) {
+      setUser(authUser);
+      if (authUser) {
+        await checkUserRole(authUser.id, { isBackground: true });
+      }
+    }
+  }, [checkUserRole]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      if (user && document.visibilityState === 'visible') {
+        refreshUser();
+      }
+    }, 5 * 60 * 1000); // every 5 minutes
+
+    return () => clearInterval(intervalId);
+  }, [user, refreshUser]);
+
   const retryRoleCheck = useCallback(async () => {
     if (user?.id && mountedRef.current) {
-      await checkUserRole(user.id);
+      await checkUserRole(user.id, { isBackground: false });
     }
   }, [user?.id, checkUserRole]);
 
@@ -180,18 +210,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
     return { error };
   }, []);
-
-  const refreshUser = useCallback(async () => {
-    if (!mountedRef.current) return;
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    if (mountedRef.current) {
-      setUser(user);
-      if (user) {
-        await checkUserRole(user.id);
-      }
-    }
-  }, [checkUserRole]);
 
   const contextValue = useMemo(() => ({
     user,
