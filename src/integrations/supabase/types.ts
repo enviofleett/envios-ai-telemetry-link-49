@@ -3911,6 +3911,288 @@ export type Database = {
         }
         Relationships: []
       }
+      marketplace_categories: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      marketplace_communications: {
+        Row: {
+          buyer_id: string | null
+          id: string
+          merchant_id: string | null
+          message: string | null
+          order_id: string | null
+          sent_at: string | null
+          sent_via: string | null
+          type: string
+        }
+        Insert: {
+          buyer_id?: string | null
+          id?: string
+          merchant_id?: string | null
+          message?: string | null
+          order_id?: string | null
+          sent_at?: string | null
+          sent_via?: string | null
+          type: string
+        }
+        Update: {
+          buyer_id?: string | null
+          id?: string
+          merchant_id?: string | null
+          message?: string | null
+          order_id?: string | null
+          sent_at?: string | null
+          sent_via?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_communications_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_communications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketplace_merchants: {
+        Row: {
+          approved: boolean
+          commission_rate: number
+          created_at: string | null
+          email: string
+          id: string
+          org_name: string
+          registration_fee: number
+          suspended: boolean
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          approved?: boolean
+          commission_rate?: number
+          created_at?: string | null
+          email: string
+          id?: string
+          org_name: string
+          registration_fee?: number
+          suspended?: boolean
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          approved?: boolean
+          commission_rate?: number
+          created_at?: string | null
+          email?: string
+          id?: string
+          org_name?: string
+          registration_fee?: number
+          suspended?: boolean
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      marketplace_orders: {
+        Row: {
+          amount: number
+          buyer_id: string | null
+          commission_amount: number
+          commission_percent: number
+          connection_fee: number
+          created_at: string | null
+          id: string
+          merchant_id: string | null
+          merchant_payout: number
+          paid_at: string | null
+          product_id: string | null
+          status: string
+          updated_at: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          amount: number
+          buyer_id?: string | null
+          commission_amount?: number
+          commission_percent?: number
+          connection_fee?: number
+          created_at?: string | null
+          id?: string
+          merchant_id?: string | null
+          merchant_payout?: number
+          paid_at?: string | null
+          product_id?: string | null
+          status?: string
+          updated_at?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          amount?: number
+          buyer_id?: string | null
+          commission_amount?: number
+          commission_percent?: number
+          connection_fee?: number
+          created_at?: string | null
+          id?: string
+          merchant_id?: string | null
+          merchant_payout?: number
+          paid_at?: string | null
+          product_id?: string | null
+          status?: string
+          updated_at?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_orders_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketplace_products: {
+        Row: {
+          category_id: string | null
+          connection_fee: number
+          created_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          merchant_id: string | null
+          price: number
+          price_unit: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          connection_fee?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          merchant_id?: string | null
+          price: number
+          price_unit?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          connection_fee?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          merchant_id?: string | null
+          price?: number
+          price_unit?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_products_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_merchants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketplace_transactions: {
+        Row: {
+          amount: number
+          buyer_id: string | null
+          created_at: string | null
+          details: Json | null
+          id: string
+          merchant_id: string | null
+          order_id: string | null
+          status: string
+          type: string
+        }
+        Insert: {
+          amount: number
+          buyer_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          merchant_id?: string | null
+          order_id?: string | null
+          status?: string
+          type: string
+        }
+        Update: {
+          amount?: number
+          buyer_id?: string | null
+          created_at?: string | null
+          details?: Json | null
+          id?: string
+          merchant_id?: string | null
+          order_id?: string | null
+          status?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_transactions_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_permissions: {
         Row: {
           created_at: string
@@ -6116,6 +6398,57 @@ export type Database = {
           total_duration?: number | null
         }
         Relationships: []
+      }
+      vehicle_service_connections: {
+        Row: {
+          buyer_id: string | null
+          created_at: string | null
+          end_date: string | null
+          id: string
+          order_id: string | null
+          product_id: string | null
+          start_date: string | null
+          status: string
+          vehicle_id: string
+        }
+        Insert: {
+          buyer_id?: string | null
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          order_id?: string | null
+          product_id?: string | null
+          start_date?: string | null
+          status?: string
+          vehicle_id: string
+        }
+        Update: {
+          buyer_id?: string | null
+          created_at?: string | null
+          end_date?: string | null
+          id?: string
+          order_id?: string | null
+          product_id?: string | null
+          start_date?: string | null
+          status?: string
+          vehicle_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_service_connections_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_service_connections_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vehicle_telemetry_history: {
         Row: {

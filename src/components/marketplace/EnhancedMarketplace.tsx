@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -87,13 +86,21 @@ export const EnhancedMarketplace: React.FC = () => {
     });
   };
 
-  const handleMerchantRegistration = (data: any) => {
-    console.log('Merchant registration:', data);
-    setShowMerchantOnboarding(false);
-    toast({
-      title: 'Registration Submitted',
-      description: 'Your merchant application has been submitted for review.',
-    });
+  const handleMerchantRegistration = async (data: any) => {
+    try {
+      setShowMerchantOnboarding(false);
+      // (Optional) Show onboarding confirmation or refresh merchant center
+      toast({
+        title: 'Registration Submitted',
+        description: 'Please complete payment and await admin approval.',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Registration Failed',
+        description: err.message || 'An error occurred.',
+        variant: "destructive",
+      });
+    }
   };
 
   // If merchant, show merchant dashboard
