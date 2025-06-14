@@ -1,4 +1,5 @@
 
+// MarketplaceSettings type definition for all layers.
 export interface MarketplaceSettings {
   id?: string | null;
   commission_rate: number;
