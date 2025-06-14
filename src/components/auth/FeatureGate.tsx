@@ -1,6 +1,6 @@
 
 import React from "react";
-import { useUser } from "@/hooks/useUser"; // Needs to exist: provides { user }
+import { useAuth } from "@/contexts/AuthContext";
 import { useUserPackage } from "@/hooks/useUserPackage";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
@@ -19,7 +19,7 @@ export default function FeatureGate({
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }) {
-  const { user } = useUser(); // must exist, or replace with your auth context
+  const { user } = useAuth();
   const { data: pkg, isLoading: pkgLoading } = useUserPackage(user?.id);
   const { hasFeature, isLoading: featuresLoading } = useFeatureAccess(pkg?.id);
 
@@ -27,3 +27,4 @@ export default function FeatureGate({
   if (!hasFeature(featureId)) return fallback;
   return <>{children}</>;
 }
+
