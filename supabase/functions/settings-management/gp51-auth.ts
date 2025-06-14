@@ -1,61 +1,115 @@
 
-// crypto.ts createHash is not needed here if gp51-auth-service handles hashing.
-// const GP51_API_URL = "https://www.gps51.com/webapi"; // Not needed if gp51-auth-service handles API URL
+import { createHash } from './crypto.ts';
+
+const GP51_API_URL = "https://www.gps51.com/webapi";
 
 export async function authenticateWithGP51({ 
   username, 
   password, 
-  apiUrl // apiUrl might still be relevant if different users can have different API endpoints
+  apiUrl 
 }: { 
   username: string; 
   password: string; 
-  apiUrl?: string; // This could be passed to gp51-auth-service if it supports dynamic API URLs
+  apiUrl?: string;
 }) {
   const trimmedUsername = username.trim();
-  console.log('🔐 Standardizing GP51 credential validation for user (via settings-management):', trimmedUsername);
+  console.log('🔐 Starting improved GP51 credential validation for user:', trimmedUsername);
   
   try {
-    // Directly call the centralized gp51-auth-service
-    // Ensure the SUPABASE_FUNCTIONS_URL is correctly set or use relative path if invoking from another function (less common)
-    // For client-to-function, supabase.functions.invoke is fine. For function-to-function, direct fetch or service client.
-    // Here, settings-management is an edge function, so it can invoke another.
-    
-    // We need a Supabase client instance here to call other functions, or use fetch.
-    // This function is part of an edge function, so Deno.env.get for Supabase URL/keys.
-    // However, it's simpler if `settings-management/index.ts` invokes `gp51-auth-service` directly.
-    // This helper `gp51-auth.ts` becomes less critical if the main function handles invocation.
-
-    // Let's assume settings-management/index.ts will use supabase.functions.invoke
-    // This function then just prepares the payload or can be removed if logic is simple enough in index.ts
-    
-    console.log(`Attempting to use 'gp51-auth-service' for authentication.`);
-    // The actual invocation should happen in settings-management/index.ts
-    // This function now primarily serves to indicate the intent.
-    // The result processing will be handled by the caller (settings-management/index.ts).
-
-    // This function's role diminishes significantly. It might just return the parameters needed
-    // for settings-management/index.ts to call gp51-auth-service.
-    // Or, settings-management/index.ts can bypass this helper entirely.
-
-    // For now, let's indicate it prepares for gp51-auth-service call:
-    return {
-      useCentralAuthService: true,
-      authServicePayload: {
+    // Use the new authentication service for testing
+    const testResponse = await fetch('http://localhost:54321/functions/v1/gp51-auth-service', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         action: 'test_authentication',
         username: trimmedUsername,
+        password: password
+      })
+    });
+
+    if (!testResponse.ok) {
+      throw new Error(`Authentication service error: ${testResponse.status}`);
+    }
+
+    const result = await testResponse.json();
+    
+    if (result.success) {
+      console.log(`✅ GP51 authentication successful using method: ${result.method}`);
+      return {
+        success: true,
+        token: result.token,
+        username: trimmedUsername,
         password: password,
-        // apiUrl: apiUrl // if gp51-auth-service supports custom API URLs
-      }
-    };
+        apiUrl: apiUrl || GP51_API_URL,
+        method: result.method
+      };
+    } else {
+      console.error(`❌ GP51 authentication failed: ${result.error}`);
+      return {
+        success: false,
+        error: result.error,
+        username: trimmedUsername
+      };
+    }
 
   } catch (error) {
-    console.error('❌ GP51 authentication process failed within settings-management/gp51-auth.ts:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Authentication failed',
-      username: trimmedUsername,
-      useCentralAuthService: false, // Indicate failure to even prepare
-    };
+    console.error('❌ GP51 authentication process failed:', error);
+    
+    // Fallback to original method if new service is not available
+    console.log('🔄 Falling back to original authentication method...');
+    
+    try {
+      const hashedPassword = createHash(password);
+      
+      // Try GET method as suggested in the plan
+      const getUrl = `${GP51_API_URL}?action=login&username=${encodeURIComponent(trimmedUsername)}&password=${encodeURIComponent(hashedPassword)}`;
+      
+      const response = await fetch(getUrl, {
+        method: 'GET',
+        headers: { 
+          'Accept': 'application/json',
+          'User-Agent': 'FleetIQ/1.0'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const text = await response.text();
+      console.log('📊 Raw GP51 auth response:', text.substring(0, 200) + '...');
+
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (jsonError) {
+        throw new Error('Invalid response format from GP51 server');
+      }
+
+      if (result.status === 0 && result.token) {
+        console.log(`✅ Fallback authentication successful for ${trimmedUsername}`);
+        return {
+          success: true,
+          token: result.token,
+          username: trimmedUsername,
+          password: password,
+          apiUrl: apiUrl || GP51_API_URL,
+          method: 'GET_FALLBACK'
+        };
+      } else {
+        const errorMessage = result.message || result.error || `Authentication failed (status: ${result.status})`;
+        throw new Error(errorMessage);
+      }
+
+    } catch (fallbackError) {
+      console.error(`❌ Fallback authentication also failed:`, fallbackError);
+      return {
+        success: false,
+        error: fallbackError instanceof Error ? fallbackError.message : 'Authentication failed',
+        username: trimmedUsername
+      };
+    }
   }
 }
-

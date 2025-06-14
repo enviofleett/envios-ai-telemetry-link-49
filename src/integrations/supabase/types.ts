@@ -2569,13 +2569,11 @@ export type Database = {
       gp51_sessions: {
         Row: {
           api_url: string
-          auth_method: string | null
           created_at: string
           envio_user_id: string | null
           gp51_token: string | null
           id: string
           last_activity_at: string | null
-          last_validated_at: string | null
           password_hash: string
           token_expires_at: string
           updated_at: string
@@ -2583,13 +2581,11 @@ export type Database = {
         }
         Insert: {
           api_url?: string
-          auth_method?: string | null
           created_at?: string
           envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
           last_activity_at?: string | null
-          last_validated_at?: string | null
           password_hash: string
           token_expires_at: string
           updated_at?: string
@@ -2597,13 +2593,11 @@ export type Database = {
         }
         Update: {
           api_url?: string
-          auth_method?: string | null
           created_at?: string
           envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
           last_activity_at?: string | null
-          last_validated_at?: string | null
           password_hash?: string
           token_expires_at?: string
           updated_at?: string
