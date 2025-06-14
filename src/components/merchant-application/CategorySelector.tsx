@@ -1,5 +1,4 @@
-
-import React, { useMemo, useEffect, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { useMerchantOnboardingData } from '@/hooks/useMerchantOnboardingData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
@@ -33,10 +32,6 @@ const CategorySelector: React.FC = () => {
         
         return { fee: totalFee, message, registration_fee: registration_fee || 0, additionalFee };
     }, [selectedCategoryIds, settings]);
-
-    useEffect(() => {
-        setValue('total_fee', feeDetails.fee, { shouldDirty: true });
-    }, [feeDetails.fee, setValue]);
 
     if (isLoading) {
         return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin"/> Loading categories...</div>;

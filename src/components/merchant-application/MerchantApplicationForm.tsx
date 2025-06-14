@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,6 +14,7 @@ import DocumentUploader from './DocumentUploader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import CategorySelector from './CategorySelector';
+import { useMerchantOnboardingData } from '@/hooks/useMerchantOnboardingData';
 
 const applicationSchema = z.object({
   org_name: z.string().min(2, { message: "Organization name is required." }),
@@ -37,6 +39,7 @@ const MerchantApplicationForm: React.FC = () => {
         isSaving, 
         isSubmitting,
     } = useMerchantApplication();
+    const { settings } = useMerchantOnboardingData();
 
     const form = useForm<ApplicationFormValues>({
         resolver: zodResolver(applicationSchema),
@@ -69,12 +72,30 @@ const MerchantApplicationForm: React.FC = () => {
         }
     }, [application, form, user]);
 
+    const calculateTotalFee = (selectedCategoryIds: string[]): number => {
+        if (!settings) {
+            return application?.total_fee || 0;
+        }
+        const { 
+            free_categories_included = 2, 
+            additional_category_fee = 0, 
+            registration_fee = 0, 
+        } = settings;
+        const selectedCount = selectedCategoryIds.length;
+        const additionalCategories = Math.max(0, selectedCount - free_categories_included);
+        const additionalFee = additionalCategories * additional_category_fee;
+        const totalFee = (registration_fee || 0) + additionalFee;
+        return totalFee;
+    }
+
     const handleSaveDraft: SubmitHandler<ApplicationFormValues> = async (data) => {
-        await saveApplication(data);
+        const dataWithFee = { ...data, total_fee: calculateTotalFee(data.selected_category_ids) };
+        await saveApplication(dataWithFee);
     };
 
     const handleSubmitApplication: SubmitHandler<ApplicationFormValues> = async (data) => {
-        await saveApplication(data);
+        const dataWithFee = { ...data, total_fee: calculateTotalFee(data.selected_category_ids) };
+        await saveApplication(dataWithFee);
         await submit();
     };
     
