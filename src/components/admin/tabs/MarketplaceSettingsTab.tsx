@@ -5,22 +5,24 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Utility for fetching marketplace settings
 async function fetchMarketplaceSettings() {
-  const { data, error } = await window.supabase
+  const { data, error } = await supabase
     .from("marketplace_settings")
     .select("*")
     .order("created_at", { ascending: true })
     .limit(1)
-    .single();
+    .maybeSingle();
   if (error) throw error;
   return data;
 }
 
 // Utility for updating marketplace settings
 async function updateMarketplaceSettings(values: any) {
-  const { data, error } = await window.supabase
+  const { data, error } = await supabase
     .from("marketplace_settings")
     .update({ ...values, updated_at: new Date().toISOString() })
     .eq("id", values.id)
@@ -32,7 +34,7 @@ async function updateMarketplaceSettings(values: any) {
 
 // Utility for creating initial row if not exists (admins only)
 async function createMarketplaceSettings(values: any) {
-  const { data, error } = await window.supabase
+  const { data, error } = await supabase
     .from("marketplace_settings")
     .insert({
       commission_rate: values.commission_rate,
@@ -50,9 +52,7 @@ async function createMarketplaceSettings(values: any) {
 export const MarketplaceSettingsTab: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  // Fetch admin user for setting updated_by (assumes Auth context exposes user)
-  const user = window.supabase.auth.user?.() ?? {};
+  const { user } = useAuth();
 
   const {
     data: settings,
@@ -87,7 +87,6 @@ export const MarketplaceSettingsTab: React.FC = () => {
     },
   });
 
-  // Local state for editing fields
   const [form, setForm] = React.useState({
     commission_rate: settings?.commission_rate ?? 10,
     registration_fee: settings?.registration_fee ?? 100,
@@ -119,14 +118,17 @@ export const MarketplaceSettingsTab: React.FC = () => {
   const handleSave = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
+      if (!user?.id) {
+        toast({ title: "Auth error", description: "Admin user not found.", variant: "destructive" });
+        return;
+      }
       if (form.id) {
         updateMutation.mutate({ ...form, updated_by: user.id });
       } else {
         createMutation.mutate({ ...form, updated_by: user.id });
       }
     },
-    // eslint-disable-next-line
-    [form, user.id]
+    [form, user, toast, updateMutation, createMutation]
   );
 
   if (isLoading)
@@ -226,4 +228,3 @@ export const MarketplaceSettingsTab: React.FC = () => {
 };
 
 export default MarketplaceSettingsTab;
-
