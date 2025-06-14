@@ -3,7 +3,6 @@ import type {
   SubscriberPackage,
   PackageFeature,
   MenuPermission,
-  ReferralCode,
   UserSubscription,
   CreatePackageRequest,
   UpdatePackageRequest
@@ -197,53 +196,6 @@ export const subscriberPackageApi = {
 
     if (error) throw error;
     return data?.map(item => item.menu_permissions).filter(Boolean) as MenuPermission[] || [];
-  },
-
-  // Referral codes
-  async getReferralCodes(): Promise<ReferralCode[]> {
-    const { data, error } = await supabase
-      .from('referral_codes')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return (data || []) as ReferralCode[];
-  },
-
-  async createReferralCode(codeData: Pick<ReferralCode, 'code' | 'discount_percentage'> & Partial<Omit<ReferralCode, 'code' | 'discount_percentage'>>): Promise<ReferralCode> {
-    const { data, error } = await supabase
-      .from('referral_codes')
-      .insert(codeData)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data as ReferralCode;
-  },
-
-  async validateReferralCode(code: string): Promise<ReferralCode | null> {
-    const { data, error } = await supabase
-      .from('referral_codes')
-      .select('*')
-      .eq('code', code)
-      .eq('is_active', true)
-      .single();
-
-    if (error && error.code !== 'PGRST116') throw error;
-    
-    if (data) {
-      // Check if code is expired
-      if (data.expires_at && new Date(data.expires_at) < new Date()) {
-        return null;
-      }
-      
-      // Check if usage limit is reached
-      if (data.usage_limit && data.usage_count >= data.usage_limit) {
-        return null;
-      }
-    }
-
-    return data as ReferralCode | null;
   },
 
   // User subscriptions

@@ -69,3 +69,8 @@ export interface ReferralAgentSubscription {
   payment_id?: string | null;
   created_at: string;
 }
+
+export interface ReferralAgentWithUserDetails extends ReferralAgent {
+  name: string;
+  email: string;
+}
