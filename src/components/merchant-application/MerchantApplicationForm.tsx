@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,6 +11,8 @@ import { Loader2, Send, Save, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import DocumentUploader from './DocumentUploader';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
+import CategorySelector from './CategorySelector';
 
 const applicationSchema = z.object({
   org_name: z.string().min(2, { message: "Organization name is required." }),
@@ -21,6 +22,8 @@ const applicationSchema = z.object({
   business_type: z.string().optional(),
   business_registration_id: z.string().optional(),
   tax_id: z.string().optional(),
+  selected_category_ids: z.array(z.string()).min(1, { message: "Please select at least one business category." }).default([]),
+  total_fee: z.number().optional(),
 });
 
 type ApplicationFormValues = z.infer<typeof applicationSchema>;
@@ -44,7 +47,9 @@ const MerchantApplicationForm: React.FC = () => {
             website_url: '',
             business_type: '',
             business_registration_id: '',
-            tax_id: ''
+            tax_id: '',
+            selected_category_ids: [],
+            total_fee: 0,
         },
     });
 
@@ -57,7 +62,9 @@ const MerchantApplicationForm: React.FC = () => {
                 website_url: application.website_url || '',
                 business_type: application.business_type || '',
                 business_registration_id: application.business_registration_id || '',
-                tax_id: application.tax_id || ''
+                tax_id: application.tax_id || '',
+                selected_category_ids: application.selected_category_ids || [],
+                total_fee: application.total_fee || 0,
             });
         }
     }, [application, form, user]);
@@ -186,6 +193,24 @@ const MerchantApplicationForm: React.FC = () => {
                         )}
                     />
                 </div>
+
+                <Separator />
+                
+                <CategorySelector />
+                <FormField
+                  control={form.control}
+                  name="selected_category_ids"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                         <input type="hidden" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <Separator />
 
                 {application && <DocumentUploader />}
 

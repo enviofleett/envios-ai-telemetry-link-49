@@ -4254,36 +4254,42 @@ export type Database = {
       }
       marketplace_settings: {
         Row: {
+          additional_category_fee: number
           commission_rate: number
           connection_fee: number
           created_at: string
           currency: string
           default_country_code: string | null
           default_currency: string | null
+          free_categories_included: number
           id: string
           registration_fee: number
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          additional_category_fee?: number
           commission_rate?: number
           connection_fee?: number
           created_at?: string
           currency?: string
           default_country_code?: string | null
           default_currency?: string | null
+          free_categories_included?: number
           id?: string
           registration_fee?: number
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          additional_category_fee?: number
           commission_rate?: number
           connection_fee?: number
           created_at?: string
           currency?: string
           default_country_code?: string | null
           default_currency?: string | null
+          free_categories_included?: number
           id?: string
           registration_fee?: number
           updated_at?: string
@@ -4414,13 +4420,16 @@ export type Database = {
           contact_email: string
           created_at: string
           id: string
+          is_paid: boolean
           org_name: string
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          selected_category_ids: string[] | null
           status: Database["public"]["Enums"]["merchant_application_status"]
           submitted_at: string | null
           tax_id: string | null
+          total_fee: number | null
           updated_at: string
           user_id: string
           website_url: string | null
@@ -4432,13 +4441,16 @@ export type Database = {
           contact_email: string
           created_at?: string
           id?: string
+          is_paid?: boolean
           org_name: string
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          selected_category_ids?: string[] | null
           status?: Database["public"]["Enums"]["merchant_application_status"]
           submitted_at?: string | null
           tax_id?: string | null
+          total_fee?: number | null
           updated_at?: string
           user_id: string
           website_url?: string | null
@@ -4450,18 +4462,84 @@ export type Database = {
           contact_email?: string
           created_at?: string
           id?: string
+          is_paid?: boolean
           org_name?: string
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          selected_category_ids?: string[] | null
           status?: Database["public"]["Enums"]["merchant_application_status"]
           submitted_at?: string | null
           tax_id?: string | null
+          total_fee?: number | null
           updated_at?: string
           user_id?: string
           website_url?: string | null
         }
         Relationships: []
+      }
+      merchant_categories: {
+        Row: {
+          created_at: string
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+        }
+        Relationships: []
+      }
+      merchant_category_selections: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          merchant_application_id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          merchant_application_id: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          merchant_application_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merchant_category_selections_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "merchant_category_selections_merchant_application_id_fkey"
+            columns: ["merchant_application_id"]
+            isOneToOne: false
+            referencedRelation: "merchant_applications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       merchant_fee_overrides: {
         Row: {

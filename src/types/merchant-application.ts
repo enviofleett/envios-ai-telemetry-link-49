@@ -25,6 +25,9 @@ export interface MerchantApplication {
   created_at: string;
   updated_at: string;
   documents?: MerchantApplicationDocument[];
+  selected_category_ids?: string[] | null;
+  total_fee?: number | null;
+  is_paid: boolean;
 }
 
 export interface MerchantApplicationDocument {
@@ -36,4 +39,11 @@ export interface MerchantApplicationDocument {
   verified: boolean;
   verified_by?: string | null;
   verified_at?: string | null;
+}
+
+export interface MerchantCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
 }
