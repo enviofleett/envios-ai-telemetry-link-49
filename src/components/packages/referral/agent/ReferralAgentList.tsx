@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from '@/components/ui/badge';
-import { referralApi } from '@/services/referralApi';
+import { referralApi } from '@/services/referral';
 import type { ReferralAgentWithUserDetails, ReferralAgentStatus } from '@/types/referral';
 import { toast } from 'sonner';
 

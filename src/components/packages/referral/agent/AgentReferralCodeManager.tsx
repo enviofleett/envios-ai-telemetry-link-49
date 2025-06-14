@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { referralApi } from '@/services/referralApi';
+import { referralApi } from '@/services/referral';
 import AgentReferralCodeList from './AgentReferralCodeList';
 import CreateAgentReferralCodeForm from './CreateAgentReferralCodeForm';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

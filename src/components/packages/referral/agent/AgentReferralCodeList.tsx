@@ -1,8 +1,7 @@
-
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { referralApi } from '@/services/referralApi';
+import { referralApi } from '@/services/referral';
 import ReferralCodeCard from '../ReferralCodeCard';
 import { Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';

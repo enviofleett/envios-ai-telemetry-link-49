@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { referralApi } from '@/services/referralApi';
+import { referralApi } from '@/services/referral';
 import ReferralAgentList from './ReferralAgentList';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';

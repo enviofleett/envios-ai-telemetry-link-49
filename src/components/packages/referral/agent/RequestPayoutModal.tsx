@@ -1,7 +1,6 @@
-
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { referralApi } from '@/services/referralApi';
+import { referralApi } from '@/services/referral';
 import {
   Dialog,
   DialogContent,

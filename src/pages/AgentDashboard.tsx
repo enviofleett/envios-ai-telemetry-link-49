@@ -1,8 +1,9 @@
+
 import React from 'react';
 import Layout from '@/components/Layout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useQuery } from '@tanstack/react-query';
-import { referralApi } from '@/services/referralApi';
+import { referralApi } from '@/services/referral';
 import { Loader2, AlertTriangle, Users, TrendingUp, DollarSign, ArrowRight, Clock } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import AgentEarningsChart from '@/components/packages/referral/agent/AgentEarningsChart';
