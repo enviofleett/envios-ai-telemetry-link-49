@@ -22,9 +22,9 @@ const DocumentList: React.FC<DocumentListProps> = ({ documents }) => {
                             </div>
                             <div className="flex items-center gap-2">
                                 {doc.verified ? (
-                                    <CheckCircle className="h-4 w-4 text-green-500" title="Verified" />
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
                                 ) : (
-                                    <XCircle className="h-4 w-4 text-gray-400" title="Not Verified" />
+                                    <XCircle className="h-4 w-4 text-gray-400" />
                                 )}
                                 <Button variant="link" size="sm" asChild>
                                     <a href={`/storage/v1/object/public/merchant-documents/${doc.file_path}`} target="_blank" rel="noreferrer">View</a>

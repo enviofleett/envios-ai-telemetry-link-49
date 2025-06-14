@@ -74,7 +74,7 @@ const MerchantApplicationForm: React.FC = () => {
     const renderInfoRequest = () => {
         if (application?.status === 'requires_more_info' && application.rejection_reason) {
             return (
-                <Alert variant="yellow" className="mb-6">
+                <Alert variant="default" className="mb-6 bg-yellow-100 border-yellow-200 text-yellow-800 [&>svg]:text-yellow-500">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>Action Required</AlertTitle>
                     <AlertDescription>
