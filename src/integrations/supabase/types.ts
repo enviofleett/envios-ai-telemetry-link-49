@@ -4359,6 +4359,61 @@ export type Database = {
         }
         Relationships: []
       }
+      marketplace_order_items: {
+        Row: {
+          created_at: string | null
+          id: string
+          merchant_id: string
+          order_id: string
+          price: number
+          product_id: string
+          quantity: number
+          vehicle_ids: string[]
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          merchant_id: string
+          order_id: string
+          price: number
+          product_id: string
+          quantity: number
+          vehicle_ids: string[]
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          merchant_id?: string
+          order_id?: string
+          price?: number
+          product_id?: string
+          quantity?: number
+          vehicle_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_order_items_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketplace_orders: {
         Row: {
           amount: number
