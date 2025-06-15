@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -55,7 +54,11 @@ export const UserMappingDialog: React.FC<UserMappingDialogProps> = ({
           .from('envio_users')
           .select('id, name');
 
-        if (error) throw error;
+        if (error) {
+          console.error('Error fetching GP51 users:', error);
+          toast({ title: 'Error', description: 'Could not fetch GP51 users.', variant: 'destructive' });
+          return;
+        }
 
         if (!data) {
           setGp51Users([]);
@@ -101,7 +104,12 @@ export const UserMappingDialog: React.FC<UserMappingDialogProps> = ({
         .update(updatePayload)
         .eq('id', selectedVehicleId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error mapping vehicle:', error);
+        toast({ title: 'Error', description: 'Could not map vehicle.', variant: 'destructive' });
+        setIsLoading(false);
+        return;
+      }
 
       toast({ title: 'Success', description: `Vehicle ${vehicleToUpdate.device_name} mapped to ${selectedGP51User.username}.` });
       onMappingSuccess();

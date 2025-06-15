@@ -45,14 +45,19 @@ export const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = (
     try {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('*')
+        .select('id, gp51_device_id, name, user_id, sim_number, created_at, updated_at')
         .is('user_id', null);
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching unassigned vehicles:', error);
+        toast({ title: 'Error', description: 'Could not fetch unassigned vehicles.', variant: 'destructive' });
+        setUnassignedVehicles([]);
+        return;
+      }
       if (!data) {
         setUnassignedVehicles([]);
         return;
       }
-      const dbRecords: VehicleDbRecord[] = data;
+      const dbRecords: VehicleDbRecord[] = data as VehicleDbRecord[];
       setUnassignedVehicles(dbRecords.map(mapDbToDisplay));
     } catch (error) {
       console.error('Error fetching unassigned vehicles:', error);
@@ -65,15 +70,19 @@ export const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = (
     try {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('*')
+        .select('id, gp51_device_id, name, user_id, sim_number, created_at, updated_at')
         .eq('user_id', userId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching user vehicles:', error);
+        toast({ title: 'Error', description: 'Could not fetch user vehicles.', variant: 'destructive' });
+        return;
+      }
       if (!data) {
         setUserVehicles([]);
         return;
       }
-      const dbRecords: VehicleDbRecord[] = data;
+      const dbRecords: VehicleDbRecord[] = data as VehicleDbRecord[];
       setUserVehicles(dbRecords.map(mapDbToDisplay));
     } catch (error) {
       console.error('Error fetching user vehicles:', error);
@@ -88,7 +97,11 @@ export const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = (
         .from('vehicles')
         .update({ user_id: user.id })
         .eq('id', vehicleId);
-      if (error) throw error;
+      if (error) {
+        console.error('Error assigning vehicle:', error);
+        toast({ title: 'Error', description: 'Could not assign vehicle.', variant: 'destructive' });
+        return;
+      }
       toast({ title: 'Success', description: 'Vehicle assigned successfully.' });
       fetchUnassignedVehicles();
       fetchUserVehicles(user.id);
@@ -104,7 +117,11 @@ export const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = (
         .from('vehicles')
         .update({ user_id: null })
         .eq('id', vehicleId);
-      if (error) throw error;
+      if (error) {
+        console.error('Error unassigning vehicle:', error);
+        toast({ title: 'Error', description: 'Could not unassign vehicle.', variant: 'destructive' });
+        return;
+      }
       toast({ title: 'Success', description: 'Vehicle unassigned successfully.' });
       fetchUnassignedVehicles();
       if (user) {
