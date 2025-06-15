@@ -15,42 +15,13 @@ async function testGP51Authentication(username: string, password: string): Promi
   response?: any;
 }> {
   const trimmedUsername = username.trim();
-  console.log(`🔐 Testing GP51 authentication for user: ${trimmedUsername}`);
+  console.log(`🔐 Standardizing GP51 authentication for user: ${trimmedUsername}`);
   
   try {
-    // Create MD5 hash of password
     const hashedPassword = md5_sync(password);
-    console.log(`✅ Password hashed successfully`);
+    console.log(`✅ Password hashed successfully. Using POST_JSON method.`);
     
-    // Test Method 1: GET request (as suggested in the plan)
-    console.log('🌐 Testing Method 1: GET request format...');
-    const getUrl = `https://www.gps51.com/webapi?action=login&username=${encodeURIComponent(trimmedUsername)}&password=${encodeURIComponent(hashedPassword)}`;
-    
-    const getResponse = await fetch(getUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'FleetIQ/1.0'
-      }
-    });
-    
-    if (getResponse.ok) {
-      const getResult = await getResponse.json();
-      console.log(`📊 GET response status: ${getResult.status}`);
-      
-      if (getResult.status === 0 && getResult.token) {
-        console.log(`✅ GET method successful!`);
-        return {
-          success: true,
-          method: 'GET',
-          response: getResult
-        };
-      }
-    }
-    
-    // Test Method 2: POST with JSON (current implementation)
-    console.log('🌐 Testing Method 2: POST with JSON...');
-    const postResponse = await fetch('https://www.gps51.com/webapi', {
+    const response = await fetch('https://www.gps51.com/webapi?action=login', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -58,74 +29,41 @@ async function testGP51Authentication(username: string, password: string): Promi
         'User-Agent': 'FleetIQ/1.0'
       },
       body: JSON.stringify({
-        action: 'login',
+        action: 'login', // Redundant but safe
         username: trimmedUsername,
-        password: hashedPassword
+        password: hashedPassword,
+        from: 'WEB',
+        type: 'USER',
       })
     });
     
-    if (postResponse.ok) {
-      const postResult = await postResponse.json();
-      console.log(`📊 POST JSON response status: ${postResult.status}`);
-      
-      if (postResult.status === 0 && postResult.token) {
-        console.log(`✅ POST JSON method successful!`);
-        return {
-          success: true,
-          method: 'POST_JSON',
-          response: postResult
-        };
-      }
-    }
-    
-    // Test Method 3: POST with form data
-    console.log('🌐 Testing Method 3: POST with form data...');
-    const formData = new URLSearchParams({
-      action: 'login',
-      username: trimmedUsername,
-      password: hashedPassword
-    });
-    
-    const formResponse = await fetch('https://www.gps51.com/webapi', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-        'User-Agent': 'FleetIQ/1.0'
-      },
-      body: formData.toString()
-    });
-    
-    if (formResponse.ok) {
-      const formResult = await formResponse.json();
-      console.log(`📊 POST form response status: ${formResult.status}`);
-      
-      if (formResult.status === 0 && formResult.token) {
-        console.log(`✅ POST form method successful!`);
-        return {
-          success: true,
-          method: 'POST_FORM',
-          response: formResult
-        };
-      } else {
-        // This was the last method, so if it fails, report its specific error
-        const errorMessage = formResult.cause || formResult.message || 'Authentication failed with POST_FORM';
-        console.log(`❌ All methods failed. Last error (POST_FORM): ${errorMessage}`);
-        return {
-          success: false,
-          error: errorMessage
-        };
-      }
-    } else {
-        // Handle non-ok response for formResponse
-        const errorText = await formResponse.text();
-        console.log(`❌ POST form method failed. Status: ${formResponse.status}, Response: ${errorText.substring(0,100)}`);
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.log(`❌ POST JSON method failed. Status: ${response.status}, Response: ${errorText.substring(0,200)}`);
          return {
           success: false,
-          error: `POST_FORM authentication failed with HTTP status ${formResponse.status}`
+          error: `Authentication failed with HTTP status ${response.status}`
         };
     }
+
+    const postResult = await response.json();
+    console.log(`📊 POST JSON response status: ${postResult.status}`);
     
+    if (postResult.status === 0 && postResult.token) {
+      console.log(`✅ POST JSON method successful!`);
+      return {
+        success: true,
+        method: 'POST_JSON',
+        response: postResult
+      };
+    } else {
+      const errorMessage = postResult.cause || postResult.message || 'Authentication failed';
+      console.log(`❌ POST JSON method failed. Error: ${errorMessage}`);
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
   } catch (error) {
     console.error('❌ GP51 authentication test failed:', error);
     return {
