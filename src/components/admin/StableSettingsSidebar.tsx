@@ -1,4 +1,3 @@
-
 import React, { memo, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { 
@@ -27,7 +26,8 @@ import {
   CheckCircle,
   BookOpen,
   Link,
-  Bot
+  Bot,
+  CreditCard
 } from 'lucide-react';
 
 interface StableSettingsSidebarProps {
@@ -71,7 +71,14 @@ const sidebarItems = [
       { id: 'vin-api', label: 'VIN API', icon: Car },
       { id: 'maps', label: 'Maps API', icon: Map },
       { id: 'whatsapp-api', label: 'WhatsApp API', icon: MessageCircle },
+      { id: 'payment-gateway', label: 'Payment Gateway', icon: CreditCard }, // NEW: Paystack config
       { id: 'api-integrations', label: 'API Management', icon: Link },
+    ]
+  },
+  {
+    category: 'Workshop Management', // NEW category
+    items: [
+      { id: 'workshop-payments', label: 'Workshop Payments', icon: DollarSign },
     ]
   },
   {
@@ -79,6 +86,7 @@ const sidebarItems = [
     items: [
       { id: 'csv-import', label: 'CSV Import', icon: Upload },
       { id: 'data-management', label: 'Data Management', icon: Database },
+      { id: 'transaction-management', label: 'Transaction Management', icon: FileText }, // NEW
     ]
   },
   {
@@ -103,6 +111,7 @@ const sidebarItems = [
     items: [
       { id: 'analytics', label: 'Analytics', icon: BarChart3 },
       { id: 'packages', label: 'Packages', icon: Package },
+      { id: 'payment-analytics', label: 'Payment Analytics', icon: BarChart3 }, // NEW analytics
     ]
   },
   {

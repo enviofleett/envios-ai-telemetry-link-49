@@ -74,7 +74,11 @@ const PackageManagementDashboard = React.lazy(() => import('../packages/PackageM
 // Marketplace
 const MarketplaceSettingsTab = React.lazy(() => import('./tabs/MarketplaceSettingsTab'));
 const AIAssistantTab = React.lazy(() => import('./tabs/AIAssistantTab'));
-
+// Payment Gateway
+const PaymentGatewayTab = React.lazy(() => import('./tabs/PaymentGatewayTab'));
+const WorkshopPaymentsTab = React.lazy(() => import('./tabs/WorkshopPaymentsTab'));
+const PaymentAnalyticsTab = React.lazy(() => import('./tabs/PaymentAnalyticsTab'));
+const TransactionManagementTab = React.lazy(() => import('./tabs/TransactionManagementTab'));
 
 interface AdminTabContentRendererProps {
   activeTab: string;
@@ -172,6 +176,16 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
       
       case 'ai-assistant-settings':
         return <AIAssistantTab />;
+
+      // Payment Gateway tabs
+      case 'payment-gateway':
+        return <PaymentGatewayTab />;
+      case 'workshop-payments':
+        return <WorkshopPaymentsTab />;
+      case 'payment-analytics':
+        return <PaymentAnalyticsTab />;
+      case 'transaction-management':
+        return <TransactionManagementTab />;
 
       // Platform Administration
       case 'platform-admin-users':
