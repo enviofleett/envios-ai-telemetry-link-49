@@ -4,6 +4,7 @@ import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { Users } from 'lucide-react';
 import EnhancedUserManagement from '@/components/users/EnhancedUserManagement';
+import SystemHealthDashboard from '@/components/admin/SystemHealthDashboard';
 
 const UserManagement: React.FC = () => {
   return (
@@ -20,7 +21,13 @@ const UserManagement: React.FC = () => {
             </div>
           </div>
           
-          <EnhancedUserManagement />
+          <div className="border-t pt-6 mt-6">
+            <SystemHealthDashboard />
+          </div>
+
+          <div className="border-t pt-6 mt-6">
+            <EnhancedUserManagement />
+          </div>
         </div>
       </Layout>
     </ProtectedRoute>
