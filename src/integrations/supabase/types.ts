@@ -5333,6 +5333,53 @@ export type Database = {
           },
         ]
       }
+      paystack_settings: {
+        Row: {
+          created_at: string
+          environment: string
+          id: string
+          is_active: boolean
+          last_test_status: string | null
+          public_key: string
+          updated_at: string
+          user_id: string
+          webhook_secret: string | null
+          webhook_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          environment?: string
+          id?: string
+          is_active?: boolean
+          last_test_status?: string | null
+          public_key: string
+          updated_at?: string
+          user_id: string
+          webhook_secret?: string | null
+          webhook_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          environment?: string
+          id?: string
+          is_active?: boolean
+          last_test_status?: string | null
+          public_key?: string
+          updated_at?: string
+          user_id?: string
+          webhook_secret?: string | null
+          webhook_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paystack_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pending_user_registrations: {
         Row: {
           admin_assigned_user_type: number | null
