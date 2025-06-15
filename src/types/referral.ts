@@ -1,7 +1,6 @@
-
 export type ReferralAgentStatus = 'pending_approval' | 'active' | 'suspended' | 'rejected';
 export type CommissionSourceType = 'subscription_upgrade' | 'marketplace_fee';
-export type CommissionStatus = 'pending_payout' | 'paid' | 'cancelled';
+export type CommissionStatus = 'pending_payout' | 'paid' | 'cancelled' | 'processing_payout';
 export type PayoutRequestStatus = 'pending' | 'approved' | 'processing' | 'paid' | 'rejected';
 
 export interface ReferralSettings {
