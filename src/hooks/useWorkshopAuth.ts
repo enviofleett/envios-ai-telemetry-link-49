@@ -5,6 +5,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { WorkshopUser, WorkshopSession, WorkshopLoginData } from '@/types/workshop-auth';
 
+// Define allowed roles array
+const ALLOWED_ROLES = ['owner', 'manager', 'technician', 'inspector'] as const;
+type WorkshopRole = typeof ALLOWED_ROLES[number];
+
+// Type guard: does the value match one of the allowed roles?
+function isWorkshopRole(role: string): role is WorkshopRole {
+  return (ALLOWED_ROLES as readonly string[]).includes(role);
+}
+
 export const useWorkshopAuth = () => {
   const [workshopUser, setWorkshopUser] = useState<WorkshopUser | null>(null);
   const [workshopSession, setWorkshopSession] = useState<WorkshopSession | null>(null);
@@ -39,14 +48,10 @@ export const useWorkshopAuth = () => {
             .maybeSingle();
 
           if (userRecord && !userError) {
-            // Fix for strict typing: ensure role matches the allowed set
-            let role: WorkshopUser['role'] = 
-              (['owner', 'manager', 'technician', 'inspector'] as const).includes(userRecord.role)
-                ? userRecord.role
-                : 'technician'; // fallback to 'technician' if not matched
-
+            // Strict typing: cast to WorkshopRole only if valid, else fallback
+            const validRole = isWorkshopRole(userRecord.role) ? userRecord.role : 'technician';
             setWorkshopSession(sessionRecord);
-            setWorkshopUser({ ...userRecord, role });
+            setWorkshopUser({ ...userRecord, role: validRole });
           } else {
             localStorage.removeItem('workshop_session');
           }
@@ -65,7 +70,6 @@ export const useWorkshopAuth = () => {
   // Login mutation - USE SECURE SERVICE
   const loginMutation = useMutation({
     mutationFn: async (loginData: WorkshopLoginData) => {
-      // Secure: call our new service function!
       const { WorkshopAuthService } = await import('@/services/workshop/WorkshopAuthService');
       const result = await WorkshopAuthService.authenticateWorkshopUser(
         loginData.email,
@@ -86,14 +90,10 @@ export const useWorkshopAuth = () => {
         .maybeSingle();
       if (sessionError || !session) throw new Error('Failed to create session');
 
-      // Fix for strict typing: ensure role matches allowed set
-      let role: WorkshopUser['role'] = 
-        (['owner', 'manager', 'technician', 'inspector'] as const).includes(result.user.role)
-          ? result.user.role
-          : 'technician';
-
+      // Strict typing: cast to WorkshopRole only if valid, else fallback
+      const validRole = isWorkshopRole(result.user.role) ? result.user.role : 'technician';
       return {
-        user: { ...result.user, role },
+        user: { ...result.user, role: validRole },
         session
       };
     },
@@ -124,11 +124,9 @@ export const useWorkshopAuth = () => {
           .update({ is_active: false })
           .eq('id', workshopSession.id);
       }
-      
       setWorkshopUser(null);
       setWorkshopSession(null);
       localStorage.removeItem('workshop_session');
-      
       toast({
         title: "Logged Out",
         description: "You have been successfully logged out."
@@ -143,21 +141,18 @@ export const useWorkshopAuth = () => {
     queryKey: ['workshop-users', workshopUser?.workshop_id],
     queryFn: async () => {
       if (!workshopUser?.workshop_id) return [];
-      
-      // NEW: select envio_user_id as well
+
       const { data, error } = await supabase
         .from('workshop_users')
-        .select('*, envio_user_id') // additional explicit select, just in case
+        .select('*, envio_user_id')
         .eq('workshop_id', workshopUser.workshop_id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      // Fix for strict typing: ensure all roles properly typed
+      // Enforce strict roles in all user objects
       return (data as WorkshopUser[]).map(user => ({
         ...user,
-        role: (
-          ['owner', 'manager', 'technician', 'inspector'] as const
-        ).includes(user.role) ? user.role : 'technician'
+        role: isWorkshopRole(user.role) ? user.role : 'technician'
       }));
     },
     enabled: !!workshopUser?.workshop_id
