@@ -1,4 +1,3 @@
-
 // Trigger re-deploy - 2025-06-14
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
@@ -147,7 +146,19 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    const { action, username, password, ...otherParams } = await req.json();
+    const body = await req.json().catch((e) => {
+      console.error('Failed to parse JSON body:', e.message);
+      return null;
+    });
+
+    if (!body) {
+      return new Response(JSON.stringify({ error: 'Invalid JSON in request body' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const { action, username, password, ...otherParams } = body;
     
     if (action === 'test_authentication') {
       if (!username || !password) {

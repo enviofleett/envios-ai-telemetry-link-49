@@ -1,5 +1,4 @@
-
-import { Md5 } from "https://deno.land/std@0.208.0/crypto/mod.ts";
+import { Md5 } from "https://deno.land/std@0.208.0/hash/md5.ts";
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,4 +12,3 @@ export function calculateMd5(input: string): string {
   md5hasher.update(input);
   return md5hasher.toString();
 }
-

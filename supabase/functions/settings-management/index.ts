@@ -63,6 +63,10 @@ serve(async (req) => {
 
 
     switch (action) {
+      case 'health-check': {
+        console.log('[settings-management] Executing health-check action.');
+        return new Response(JSON.stringify({ success: true, message: "Settings management is healthy" }), { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+      }
       case 'get-gp51-status': {
         console.log('[settings-management] Executing get-gp51-status action.');
         const data = await getGP51Status();
