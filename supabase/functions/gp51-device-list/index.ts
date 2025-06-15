@@ -18,46 +18,30 @@ serve(async (req) => {
       return sessionError;
     }
 
-    console.log("Attempting to fetch device list from GP51...");
+    console.log("[gp51-device-list] Attempting to fetch device list from GP51 with 'querymonitorlist' action...");
 
-    const potentialActions = ["getdevicelist", "getmonitor", "monitor"];
-    let gp51Result: FetchGP51Response | undefined;
-    let successfulAction: string | null = null;
+    const gp51Result = await fetchFromGP51({
+      action: "querymonitorlist",
+      session: session!,
+      // As per docs, username is a parameter for querymonitorlist in the body
+      additionalParams: {
+        username: session!.username,
+      },
+    });
 
-    for (const action of potentialActions) {
-      console.log(`[gp51-device-list] Trying action: '${action}'`);
-      gp51Result = await fetchFromGP51({
-        action: action,
-        session: session!,
-      });
-
-      if (!gp51Result.error) {
-        successfulAction = action;
-        break;
-      }
-      
-      const cause = (gp51Result.gp51_error?.cause || gp51Result.error || "").toLowerCase();
-      if (!cause.includes("action not found") && !cause.includes("action invalid")) {
-        console.error(`[gp51-device-list] Unrecoverable error with action '${action}':`, gp51Result.error);
-        break; 
-      }
-      
-      console.warn(`[gp51-device-list] Action '${action}' failed with 'action not found'. Trying next action.`);
-    }
-
-    if (!successfulAction || !gp51Result || gp51Result.error) {
-      console.error("[gp51-device-list] All attempts to fetch device list from GP51 failed.", gp51Result);
+    if (gp51Result.error) {
+      console.error("[gp51-device-list] Failed to fetch device list from GP51.", gp51Result);
       return errorResponse(
-        `GP51 API error: ${gp51Result?.error || 'All potential actions failed'}`,
-        gp51Result?.status || 400,
-        gp51Result?.gp51_error || { triedActions: potentialActions }
+        `GP51 API error: ${gp51Result.error}`,
+        gp51Result.status || 400,
+        gp51Result.gp51_error || { triedAction: "querymonitorlist" }
       );
     }
     
-    console.log(`[gp51-device-list] Successfully fetched data with action: '${successfulAction}'`);
+    console.log(`[gp51-device-list] Successfully fetched data with action: 'querymonitorlist'`);
 
     const resultData = gp51Result.data;
-    const devices = resultData?.groups?.flatMap((g: any) => g.devices || []) || resultData?.devicelist || [];
+    const devices = resultData?.groups?.flatMap((g: any) => g.devices || []) || [];
     
     console.log(`[gp51-device-list] Successfully parsed ${devices.length} devices.`);
     

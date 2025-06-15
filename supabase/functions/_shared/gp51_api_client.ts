@@ -1,6 +1,6 @@
-// Trigger re-deploy - 2025-06-14
+
+// Trigger re-deploy - 2025-06-15
 import { GP51_API_URL, REQUEST_TIMEOUT, MAX_RETRIES } from "./constants.ts";
-import { md5_sync } from "./crypto_utils.ts"; // Changed import name
 import type { GP51Session } from "./gp51_session_utils.ts";
 
 interface CallGP51Result {
@@ -11,24 +11,26 @@ interface CallGP51Result {
 }
 
 async function callGP51WithRetry(
-  formData: URLSearchParams,
+  url: string,
+  body: string,
   attempt: number = 1,
 ): Promise<CallGP51Result> {
   try {
     console.log(`GP51 API call attempt ${attempt}/${MAX_RETRIES + 1}`);
-    console.log('Form data:', Object.fromEntries(formData.entries()));
+    console.log('URL:', url);
+    console.log('JSON Body:', body);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
 
-    const response = await fetch(GP51_API_URL, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
         'Accept': 'application/json',
         'User-Agent': 'EnvioFleet/1.0',
       },
-      body: formData.toString(),
+      body: body,
       signal: controller.signal,
     });
 
@@ -43,7 +45,7 @@ async function callGP51WithRetry(
       const delay = attempt * 1000;
       console.log(`Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      return callGP51WithRetry(formData, attempt + 1);
+      return callGP51WithRetry(url, body, attempt + 1);
     }
 
     return {
@@ -73,18 +75,20 @@ export async function fetchFromGP51(
   retryJsonParse: boolean = false
 ): Promise<FetchGP51Response> {
   const { action, session, additionalParams = {} } = options;
-  const hashedPassword = md5_sync(session.password_hash); // Changed to synchronous call
 
-  const formData = new URLSearchParams({
-    action,
+  if (!session.gp51_token) {
+    console.error("❌ GP51 session is missing a token.");
+    return { error: 'GP51 session is invalid (missing token)', status: 401 };
+  }
+  
+  const url = `${GP51_API_URL}?action=${action}&token=${session.gp51_token}`;
+
+  const body = JSON.stringify({
     username: session.username,
-    password: hashedPassword,
-    from: 'WEB',
-    type: 'USER',
     ...additionalParams,
   });
 
-  const result = await callGP51WithRetry(formData);
+  const result = await callGP51WithRetry(url, body);
 
   if (!result.success) {
     return { error: result.error || 'Network error after retries', status: result.statusCode || 502 };

@@ -5,6 +5,7 @@ import { errorResponse } from "./response_utils.ts";
 export interface GP51Session {
   username: string;
   password_hash: string;
+  gp51_token: string;
   token_expires_at?: string; // Or Date, adjust as per actual usage
   // Add any other relevant fields from your gp51_sessions table
 }
@@ -43,6 +44,18 @@ export async function getValidGp51Session(): Promise<{ session?: GP51Session; er
   }
   
   const session = sessionData as GP51Session;
+
+  if (!session.gp51_token) {
+    console.error("❌ GP51 session in database is missing a token.");
+    return {
+      errorResponse: errorResponse(
+        "GP51 session is invalid (missing token)",
+        401,
+        "Session is invalid, please re-authenticate in admin settings.",
+        "INVALID_SESSION"
+      )
+    };
+  }
 
   if (session.token_expires_at) {
       const expiresAt = new Date(session.token_expires_at);
