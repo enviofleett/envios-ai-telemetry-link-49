@@ -64,7 +64,20 @@ const SMTPConfigurationTab: React.FC = () => {
       if (error) throw error;
       
       if (data) {
-        setConfig({ ...data, smtp_password: '' });
+        setConfig({
+          id: data.id,
+          provider_name: data.provider_name || 'custom',
+          smtp_host: data.smtp_host || '',
+          smtp_port: data.smtp_port || 587,
+          smtp_user: data.smtp_user || '',
+          smtp_password: '', // Always empty password field for security
+          use_tls: data.use_tls === true,
+          use_ssl: data.use_ssl === true,
+          is_active: data.is_active === true,
+          last_test_status: data.last_test_status,
+          last_test_message: data.last_test_message,
+          last_tested_at: data.last_tested_at,
+        });
       }
     } catch (error: any) {
       console.error('Error loading SMTP config:', error);
