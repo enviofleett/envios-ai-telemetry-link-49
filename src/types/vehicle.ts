@@ -52,14 +52,6 @@ export interface VehicleData {
     email: string;
   }; // Changed from envioUsers to match DB join
   
-  // Delivery-specific fields
-  driver?: {
-    name: string;
-    avatarUrl?: string;
-  };
-  deliveries?: DeliveryOrder[];
-  deliveryStatus?: 'available' | 'delivering' | 'offline';
-  
   // Legacy compatibility properties
   vehicleName?: string;
   make?: string;
@@ -258,17 +250,6 @@ interface UseUnifiedVehicleDataResult {
 }
 
 // Types for the Parking Monitoring System
-export interface DeliveryOrder {
-  id: string;
-  customerName: string;
-  customerAddress: string;
-  customerPhone: string;
-  status: 'pending' | 'in_transit' | 'delivered' | 'failed';
-  estimatedDeliveryTime: string;
-  actualDeliveryTime?: string;
-  items: { name: string; quantity: number }[];
-}
-
 export interface VehicleParkingEvent {
   id: string;
   vehicle_device_id: string;

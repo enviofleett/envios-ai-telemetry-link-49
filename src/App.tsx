@@ -1,4 +1,3 @@
-
 import { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
@@ -24,7 +23,6 @@ const Settings = lazy(() => import('@/pages/Settings'));
 const ActiveServices = lazy(() => import('@/pages/ActiveServices'));
 const Maintenance = lazy(() => import('@/pages/Maintenance'));
 const WorkshopManagement = lazy(() => import('@/pages/WorkshopManagement'));
-const LiveTracking = lazy(() => import('@/pages/LiveTracking'));
 const EnhancedLiveTracking = lazy(() => import('@/pages/EnhancedLiveTracking'));
 const WorkshopSignup = lazy(() => import('@/pages/WorkshopSignup'));
 const WorkshopLogin = lazy(() => import('@/pages/WorkshopLogin'));
@@ -179,12 +177,6 @@ function App() {
                               
                               {/* Tracking routes */}
                               <Route path="/tracking" element={
-                                <ProtectedRoute>
-                                  <LiveTracking />
-                                </ProtectedRoute>
-                              } />
-                              
-                              <Route path="/enhanced-tracking" element={
                                 <ProtectedRoute>
                                   <EnhancedLiveTracking />
                                 </ProtectedRoute>
