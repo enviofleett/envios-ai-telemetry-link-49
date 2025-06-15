@@ -1,5 +1,5 @@
+
 import React, { memo, useMemo } from 'react';
-import { cn } from '@/lib/utils';
 import { 
   Building2, 
   Palette, 
@@ -29,6 +29,7 @@ import {
   Bot,
   CreditCard
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface StableSettingsSidebarProps {
   activeTab: string;
@@ -63,6 +64,8 @@ const sidebarItems = [
       { id: 'smtp-guide', label: 'SMTP Guide', icon: BookOpen },
       { id: 'sms-settings', label: 'SMS Gateway', icon: MessageSquare },
       { id: 'sms-logs', label: 'SMS Logs', icon: MessageSquare },
+      // NEW TAB: SMS Delivery Status
+      { id: 'sms-delivery-status', label: 'SMS Delivery Status', icon: MessageSquare },
     ]
   },
   {
@@ -71,12 +74,12 @@ const sidebarItems = [
       { id: 'vin-api', label: 'VIN API', icon: Car },
       { id: 'maps', label: 'Maps API', icon: Map },
       { id: 'whatsapp-api', label: 'WhatsApp API', icon: MessageCircle },
-      { id: 'payment-gateway', label: 'Payment Gateway', icon: CreditCard }, // NEW: Paystack config
+      { id: 'payment-gateway', label: 'Payment Gateway', icon: CreditCard },
       { id: 'api-integrations', label: 'API Management', icon: Link },
     ]
   },
   {
-    category: 'Workshop Management', // NEW category
+    category: 'Workshop Management',
     items: [
       { id: 'workshop-payments', label: 'Workshop Payments', icon: DollarSign },
     ]
@@ -86,7 +89,7 @@ const sidebarItems = [
     items: [
       { id: 'csv-import', label: 'CSV Import', icon: Upload },
       { id: 'data-management', label: 'Data Management', icon: Database },
-      { id: 'transaction-management', label: 'Transaction Management', icon: FileText }, // NEW
+      { id: 'transaction-management', label: 'Transaction Management', icon: FileText },
     ]
   },
   {
@@ -111,7 +114,7 @@ const sidebarItems = [
     items: [
       { id: 'analytics', label: 'Analytics', icon: BarChart3 },
       { id: 'packages', label: 'Packages', icon: Package },
-      { id: 'payment-analytics', label: 'Payment Analytics', icon: BarChart3 }, // NEW analytics
+      { id: 'payment-analytics', label: 'Payment Analytics', icon: BarChart3 },
     ]
   },
   {
@@ -135,14 +138,12 @@ const sidebarItems = [
 ];
 
 const StableSettingsSidebar: React.FC<StableSettingsSidebarProps> = memo(({ activeTab, onTabChange }) => {
-  // Memoize the click handler to prevent recreation
   const handleItemClick = useMemo(() => {
     return (itemId: string) => {
       onTabChange(itemId);
     };
   }, [onTabChange]);
 
-  // Memoize the rendered items to prevent unnecessary re-renders
   const renderedCategories = useMemo(() => {
     return sidebarItems.map((category) => (
       <div key={category.category}>
@@ -178,7 +179,6 @@ const StableSettingsSidebar: React.FC<StableSettingsSidebarProps> = memo(({ acti
     <div className="w-64 bg-white border-r border-gray-200 h-full overflow-y-auto">
       <div className="p-4">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Admin Settings</h2>
-        
         <nav className="space-y-6">
           {renderedCategories}
         </nav>

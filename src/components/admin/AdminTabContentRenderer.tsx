@@ -58,6 +58,7 @@ const EmailQueueTab = React.lazy(() => import('./tabs/EmailQueueTab'));
 const AdvancedEmailManagementTab = React.lazy(() => import('./tabs/AdvancedEmailManagementTab'));
 const SMSSettingsTab = React.lazy(() => import('./tabs/SMSSettingsTab'));
 const SMSLogsTab = React.lazy(() => import('./tabs/SMSLogsTab'));
+const SMSDeliveryStatusTab = React.lazy(() => import('./tabs/SMSDeliveryStatusTab'));
 // System
 const HealthTab = React.lazy(() => import('./tabs/HealthTab'));
 const NotificationsTab = React.lazy(() => import('./tabs/NotificationsTab'));
@@ -129,6 +130,8 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
         return <SMSSettingsTab />;
       case 'sms-logs':
         return <SMSLogsTab />;
+      case 'sms-delivery-status':
+        return <SMSDeliveryStatusTab />;
 
       // API Integrations tabs
       case 'vin-api':
