@@ -1,4 +1,5 @@
-// Trigger re-deploy - 2025-06-14
+
+// Trigger re-deploy - 2025-06-15
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { md5_sync } from "../_shared/crypto_utils.ts";
@@ -79,10 +80,28 @@ serve(async (req) => {
   }
 
   try {
+    // Use the service role key to bypass RLS for database operations.
+    // The user's auth token is passed in the Authorization header to identify the user.
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', // IMPORTANT: Use service role key
+      {
+        global: {
+          headers: { Authorization: req.headers.get('Authorization')! },
+        },
+      }
     );
+
+    // Get the authenticated user making the request.
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      console.error('Authentication error in gp51-auth-service:', userError?.message || 'User not found');
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     const body = await req.json().catch((e) => {
       console.error('Failed to parse JSON body:', e.message);
@@ -112,10 +131,11 @@ serve(async (req) => {
       const result = await testGP51Authentication(username, password);
       
       if (result.success) {
-        // Store successful session
+        // Store successful session, now with the correct user association.
         const { error: sessionError } = await supabase
           .from('gp51_sessions')
           .upsert({
+            envio_user_id: user.id, // Link session to the authenticated user.
             username: username.trim(),
             password_hash: md5_sync(password),
             gp51_token: result.response?.token,
@@ -124,11 +144,19 @@ serve(async (req) => {
             last_validated_at: new Date().toISOString(),
             created_at: new Date().toISOString()
           }, {
-            onConflict: 'username'
+            onConflict: 'username' // Assuming 'username' has a UNIQUE constraint.
           });
 
         if (sessionError) {
-          console.warn('Failed to store session:', sessionError);
+          console.error('Failed to store session:', sessionError);
+          // Return an actual error instead of silently failing.
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Failed to store session in database: ${sessionError.message}`,
+          }), {
+            status: 500, // Internal Server Error
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
         }
 
         return new Response(JSON.stringify({
