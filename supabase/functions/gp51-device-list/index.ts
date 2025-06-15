@@ -1,16 +1,14 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { getValidGp51Session } from "../_shared/gp51_session_utils.ts";
-import { errorResponse } from "../_shared/response_utils.ts";
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { jsonResponse, errorResponse } from "../_shared/response_utils.ts";
+import { fetchFromGP51, FetchGP51Response } from "../_shared/gp51_api_client.ts";
+import { handleCorsOptionsRequest } from "../_shared/cors.ts";
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+  const corsResponse = handleCorsOptionsRequest(req);
+  if (corsResponse) {
+    return corsResponse;
   }
 
   try {
@@ -20,52 +18,53 @@ serve(async (req) => {
       return sessionError;
     }
 
-    // FIX: Using 'getmonitorlist' which is the correct action for the GP51 API to get all devices.
-    const action = "getmonitorlist";
-    const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
-    const apiUrl = `${GP51_API_BASE}/webapi`;
+    console.log("Attempting to fetch device list from GP51...");
 
-    const form = new URLSearchParams();
-    form.append("action", action);
-    form.append("username", session.username);
-    // The password_hash from the DB is the MD5 hash of the password
-    form.append("password", session.password_hash);
-    form.append("from", "WEB");
-    form.append("type", "USER");
+    const potentialActions = ["getdevicelist", "getmonitor", "monitor"];
+    let gp51Result: FetchGP51Response | undefined;
+    let successfulAction: string | null = null;
 
-    console.log(`Calling GP51 API at ${apiUrl} with action ${action}`);
+    for (const action of potentialActions) {
+      console.log(`[gp51-device-list] Trying action: '${action}'`);
+      gp51Result = await fetchFromGP51({
+        action: action,
+        session: session!,
+      });
 
-    const gp51Response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString(),
-    });
-
-    const responseText = await gp51Response.text();
-
-    if (!gp51Response.ok) {
-      console.error(`GP51 API request failed with status: ${gp51Response.status}`, responseText);
-      return errorResponse(`GP51 API request failed`, 502, responseText);
-    }
-    
-    const result = JSON.parse(responseText);
-
-    if (result.status !== 0) {
-      console.error("GP51 API returned an error:", result);
-      return errorResponse(`GP51 API error: ${result.cause || 'Unknown error'}`, 400, result);
+      if (!gp51Result.error) {
+        successfulAction = action;
+        break;
+      }
+      
+      const cause = (gp51Result.gp51_error?.cause || gp51Result.error || "").toLowerCase();
+      if (!cause.includes("action not found") && !cause.includes("action invalid")) {
+        console.error(`[gp51-device-list] Unrecoverable error with action '${action}':`, gp51Result.error);
+        break; 
+      }
+      
+      console.warn(`[gp51-device-list] Action '${action}' failed with 'action not found'. Trying next action.`);
     }
 
-    // The devices are nested inside groups, so we flatten them into a single array.
-    const devices = result.groups?.flatMap(g => g.devices) || [];
-    console.log(`Successfully fetched ${devices.length} devices from GP51.`);
+    if (!successfulAction || !gp51Result || gp51Result.error) {
+      console.error("[gp51-device-list] All attempts to fetch device list from GP51 failed.", gp51Result);
+      return errorResponse(
+        `GP51 API error: ${gp51Result?.error || 'All potential actions failed'}`,
+        gp51Result?.status || 400,
+        gp51Result?.gp51_error || { triedActions: potentialActions }
+      );
+    }
     
-    return new Response(JSON.stringify({ success: true, devices }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
+    console.log(`[gp51-device-list] Successfully fetched data with action: '${successfulAction}'`);
+
+    const resultData = gp51Result.data;
+    const devices = resultData?.groups?.flatMap((g: any) => g.devices || []) || resultData?.devicelist || [];
+    
+    console.log(`[gp51-device-list] Successfully parsed ${devices.length} devices.`);
+    
+    return jsonResponse({ success: true, devices });
 
   } catch (error) {
-    console.error("Error in gp51-device-list function:", error);
-    return errorResponse(`Internal server error: ${error.message}`, 500);
+    console.error("[gp51-device-list] Critical error in function:", error);
+    return errorResponse(`Internal server error: ${error.message}`, 500, error.stack);
   }
 });

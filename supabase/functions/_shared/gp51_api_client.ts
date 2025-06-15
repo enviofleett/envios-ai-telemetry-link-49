@@ -1,4 +1,3 @@
-
 // Trigger re-deploy - 2025-06-14
 import { GP51_API_URL, REQUEST_TIMEOUT, MAX_RETRIES } from "./constants.ts";
 import { md5_sync } from "./crypto_utils.ts"; // Changed import name
@@ -122,4 +121,3 @@ export async function fetchFromGP51(
     return { error: `Invalid GP51 ${action} response (not JSON)`, raw: text, status: 502 };
   }
 }
-
