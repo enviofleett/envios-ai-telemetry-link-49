@@ -192,7 +192,9 @@ const SMSLogsTab = () => {
       header: "Sent At",
       cell: ({ row }) => {
         const sentAt = row.getValue("created_at");
-        return new Date(sentAt).toLocaleString();
+        return sentAt
+          ? new Date(sentAt as string).toLocaleString()
+          : "";
       },
     },
   ];
