@@ -4335,6 +4335,66 @@ export type Database = {
           },
         ]
       }
+      marketplace_escrow_transactions: {
+        Row: {
+          amount: number
+          buyer_id: string
+          created_at: string | null
+          escrow_release_at: string | null
+          id: string
+          merchant_id: string
+          order_id: string
+          paystack_reference: string | null
+          reason: string | null
+          released_at: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          amount: number
+          buyer_id: string
+          created_at?: string | null
+          escrow_release_at?: string | null
+          id?: string
+          merchant_id: string
+          order_id: string
+          paystack_reference?: string | null
+          reason?: string | null
+          released_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          buyer_id?: string
+          created_at?: string | null
+          escrow_release_at?: string | null
+          id?: string
+          merchant_id?: string
+          order_id?: string
+          paystack_reference?: string | null
+          reason?: string | null
+          released_at?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_escrow_transactions_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_escrow_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       marketplace_merchants: {
         Row: {
           contact_email: string | null
@@ -4422,10 +4482,14 @@ export type Database = {
           commission_percent: number
           connection_fee: number
           created_at: string | null
+          escrow_status: string | null
+          escrow_transaction_id: string | null
           id: string
           merchant_id: string | null
           merchant_payout: number
           paid_at: string | null
+          payment_method: string | null
+          payment_status: string | null
           product_id: string | null
           status: string
           updated_at: string | null
@@ -4438,10 +4502,14 @@ export type Database = {
           commission_percent?: number
           connection_fee?: number
           created_at?: string | null
+          escrow_status?: string | null
+          escrow_transaction_id?: string | null
           id?: string
           merchant_id?: string | null
           merchant_payout?: number
           paid_at?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
           product_id?: string | null
           status?: string
           updated_at?: string | null
@@ -4454,10 +4522,14 @@ export type Database = {
           commission_percent?: number
           connection_fee?: number
           created_at?: string | null
+          escrow_status?: string | null
+          escrow_transaction_id?: string | null
           id?: string
           merchant_id?: string | null
           merchant_payout?: number
           paid_at?: string | null
+          payment_method?: string | null
+          payment_status?: string | null
           product_id?: string | null
           status?: string
           updated_at?: string | null
@@ -4465,10 +4537,78 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "marketplace_orders_escrow_transaction_id_fkey"
+            columns: ["escrow_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_escrow_transactions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "marketplace_orders_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "marketplace_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      marketplace_payment_disputes: {
+        Row: {
+          buyer_id: string
+          created_at: string | null
+          escrow_transaction_id: string
+          id: string
+          merchant_id: string
+          order_id: string
+          reason: string | null
+          resolution: string | null
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          buyer_id: string
+          created_at?: string | null
+          escrow_transaction_id: string
+          id?: string
+          merchant_id: string
+          order_id: string
+          reason?: string | null
+          resolution?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          buyer_id?: string
+          created_at?: string | null
+          escrow_transaction_id?: string
+          id?: string
+          merchant_id?: string
+          order_id?: string
+          reason?: string | null
+          resolution?: string | null
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketplace_payment_disputes_escrow_transaction_id_fkey"
+            columns: ["escrow_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_escrow_transactions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_payment_disputes_merchant_id_fkey"
+            columns: ["merchant_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_merchants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketplace_payment_disputes_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "marketplace_orders"
             referencedColumns: ["id"]
           },
         ]
@@ -4685,6 +4825,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      marketplace_webhook_events: {
+        Row: {
+          error_message: string | null
+          event: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          received_at: string | null
+          reference: string | null
+          status: string
+          type: string
+        }
+        Insert: {
+          error_message?: string | null
+          event: string
+          id?: string
+          payload: Json
+          processed_at?: string | null
+          received_at?: string | null
+          reference?: string | null
+          status?: string
+          type: string
+        }
+        Update: {
+          error_message?: string | null
+          event?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          received_at?: string | null
+          reference?: string | null
+          status?: string
+          type?: string
+        }
+        Relationships: []
       }
       menu_permissions: {
         Row: {
