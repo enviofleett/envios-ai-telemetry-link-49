@@ -54,8 +54,12 @@ const ProviderThresholdsCard: React.FC<ProviderThresholdsCardProps> = ({ thresho
     defaultValues,
   });
 
-  const mutation = useMutation({
-    mutationFn: ({ provider, values }: { provider: string; values: { daily_limit: number; monthly_limit: number } }) =>
+  const mutation = useMutation<
+    AiProviderThreshold | null,
+    Error,
+    { provider: string; values: { daily_limit: number; monthly_limit: number } }
+  >({
+    mutationFn: ({ provider, values }) =>
       updateAiProviderThreshold(provider, values),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['aiProviderThresholds'] });
@@ -138,8 +142,8 @@ const ProviderThresholdsCard: React.FC<ProviderThresholdsCardProps> = ({ thresho
               })}
             </div>
             <div className="flex justify-end">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" disabled={isSubmitting || mutation.isPending}>
+                {(isSubmitting || mutation.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Thresholds
               </Button>
             </div>
