@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useSystemHealth } from '@/hooks/useSystemHealth';
 import { useGP51ValidationTesting } from '@/hooks/useGP51ValidationTesting';
@@ -8,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Server, Database, CheckCircle, AlertTriangle, PlayCircle, Activity, Thermometer } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import type { TestResult } from '@/services/gp51/gp51ValidationTypes';
 
 const HealthMetricCard = ({ title, value, status, icon, children }: { title: string; value: string; status?: 'healthy' | 'warning' | 'critical'; icon: React.ReactNode; children?: React.ReactNode }) => {
   const getStatusColor = () => {
@@ -141,14 +141,19 @@ const SystemHealthDashboard: React.FC = () => {
                     </div>
                      <Button variant="ghost" size="sm" onClick={clearResults} className="ml-4">Clear</Button>
                   </div>
-                  {Object.entries(results.suites).map(([suiteName, suiteResult]) => (
+                  {Object.entries({
+                    credentialSaving: results.credentialSaving,
+                    sessionManagement: results.sessionManagement,
+                    vehicleDataSync: results.vehicleDataSync,
+                    errorRecovery: results.errorRecovery,
+                  }).map(([suiteName, tests]) => (
                     <div key={suiteName}>
                       <h4 className="font-semibold capitalize">{suiteName.replace(/([A-Z])/g, ' $1')}</h4>
-                      {suiteResult.tests.map(test => (
-                        <div key={test.name} className="flex items-center gap-2 text-sm ml-2">
+                      {tests.map((test: TestResult) => (
+                        <div key={test.testName} className="flex items-center gap-2 text-sm ml-2">
                           {test.success ? <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" /> : <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />}
-                          <span className='font-medium'>{test.name}</span>
-                          <span className="text-muted-foreground">({test.durationMs}ms)</span>
+                          <span className='font-medium'>{test.testName}</span>
+                          <span className="text-muted-foreground">({test.duration}ms)</span>
                           {!test.success && <span className="text-destructive text-xs">{test.error}</span>}
                         </div>
                       ))}
