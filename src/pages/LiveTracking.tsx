@@ -1,90 +1,77 @@
 
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import LiveTrackingMap from '@/components/tracking/LiveTrackingMap';
+import React, { useState } from 'react';
+import DeliveryTrackingMap from '@/components/delivery/DeliveryTrackingMap';
+import DeliveryVehiclesPanel from '@/components/delivery/DeliveryVehiclesPanel';
+import ActiveDeliveriesPanel from '@/components/delivery/ActiveDeliveriesPanel';
 import { useStableVehicleData } from '@/hooks/useStableVehicleData';
+import type { VehicleData } from '@/types/vehicle';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 
 const LiveTracking: React.FC = () => {
-  const { vehicles, metrics, isLoading, error } = useStableVehicleData();
+  const { vehicles, isLoading, error } = useStableVehicleData();
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
+
+  // NOTE: This is temporary mock data to demonstrate the UI.
+  // In a real application, this would come from your backend.
+  const vehiclesWithDeliveries = vehicles.map((v, index) => ({
+    ...v,
+    driver: {
+      name: v.device_name || `Driver ${index + 1}`,
+      avatarUrl: `https://i.pravatar.cc/48?u=${v.device_id}`,
+    },
+    deliveryStatus: index % 3 === 0 ? 'delivering' : (index % 3 === 1 ? 'available' : 'offline'),
+    deliveries: index % 3 === 0 ? [
+      {
+        id: `order-${v.device_id}-1`,
+        customerName: 'John Doe',
+        customerAddress: '123 Main St, Anytown, USA',
+        customerPhone: '555-1234',
+        status: 'in_transit',
+        estimatedDeliveryTime: new Date(Date.now() + 30 * 60000).toISOString(),
+        items: [{ name: 'Large Pizza', quantity: 1 }],
+      },
+      {
+        id: `order-${v.device_id}-2`,
+        customerName: 'Jane Smith',
+        customerAddress: '456 Oak Ave, Anytown, USA',
+        customerPhone: '555-5678',
+        status: 'pending',
+        estimatedDeliveryTime: new Date(Date.now() + 60 * 60000).toISOString(),
+        items: [{ name: 'Gadget Pro', quantity: 2 }],
+      },
+    ] : [],
+  }));
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="h-64 bg-gray-200 rounded"></div>
-        </div>
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="w-8 h-8 animate-spin text-gray-500" />
+        <p className="ml-2 text-gray-500">Loading Tracking Data...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-8">
-        <p className="text-red-600">Error loading tracking data: {error}</p>
+      <div className="flex items-center justify-center h-screen text-red-600">
+        <AlertTriangle className="w-8 h-8 mr-2" />
+        <p>Error loading tracking data: {error}</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Live Tracking</h1>
-          <p className="text-gray-600 mt-1">
-            Real-time vehicle location and status monitoring
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="outline">
-            {metrics.total} vehicles
-          </Badge>
-          <Badge variant="outline" className="bg-green-50 text-green-700">
-            {metrics.online} online
-          </Badge>
-        </div>
+    <div className="flex flex-col h-full max-h-screen overflow-hidden">
+      <div className="flex-grow-[3] h-0"> {/* 60% height */}
+        <DeliveryTrackingMap vehicles={vehiclesWithDeliveries} selectedVehicle={selectedVehicle} onVehicleSelect={setSelectedVehicle} />
       </div>
-
-      {/* Map */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Live Vehicle Positions</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="h-[600px] w-full">
-            <LiveTrackingMap vehicles={vehicles} />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Vehicle Status Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold">{metrics.total}</div>
-            <div className="text-sm text-gray-600">Total Vehicles</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">{metrics.online}</div>
-            <div className="text-sm text-gray-600">Online</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-gray-600">{metrics.offline}</div>
-            <div className="text-sm text-gray-600">Offline</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-red-600">{metrics.alerts}</div>
-            <div className="text-sm text-gray-600">Alerts</div>
-          </CardContent>
-        </Card>
+      <div className="flex flex-grow-[2] h-0 border-t border-gray-200"> {/* 40% height */}
+        <div className="w-[30%] border-r border-gray-200">
+          <DeliveryVehiclesPanel vehicles={vehiclesWithDeliveries} selectedVehicle={selectedVehicle} onVehicleSelect={setSelectedVehicle} />
+        </div>
+        <div className="w-[70%]">
+          <ActiveDeliveriesPanel vehicle={selectedVehicle} />
+        </div>
       </div>
     </div>
   );

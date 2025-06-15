@@ -71,7 +71,11 @@ const EditFeatureModal: React.FC<EditFeatureModalProps> = ({ feature, isOpen, on
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     if (!feature) return;
-    mutation.mutate({ id: feature.id, ...values });
+    mutation.mutate({
+      id: feature.id,
+      feature_name: values.feature_name,
+      description: values.description,
+    });
   };
 
   if (!feature) return null;
