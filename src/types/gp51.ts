@@ -37,7 +37,7 @@ export interface VehicleGP51Metadata {
   statusText?: string;
   timestamp?: string;
   isMoving?: boolean;
-  vehicleStatus?: 'online' | 'offline';
+  vehicleStatus?: 'online' | 'offline' | 'inactive' | 'idle' | 'moving';
   lastGP51Sync?: string;
   importSource?: string;
   imei?: string;
