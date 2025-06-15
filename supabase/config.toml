@@ -1,1 +1,34 @@
+
+# Supabase project configuration.
+# See https://supabase.com/docs/guides/cli/config
+
 project_id = "bjkqxmvjuewshomihjqm"
+
+[api]
+schemas = ["public", "storage", "graphql"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+major_version = 15
+shadow_db_provider = "supabase"
+
+[studio]
+enabled = true
+
+[functions]
+  # This function handles test authentication and should not require a JWT
+  [functions."gp51-auth-service"]
+    verify_jwt = false
+
+  # This function is for public user registration and is called without a session
+  [functions."public-registration"]
+    verify_jwt = false
+  
+  # This new function validates usernames and is called from public forms
+  [functions."gp51-registration-validator"]
+    verify_jwt = false
+
+  # This function manages users and should only be accessible by authenticated users
+  [functions."user-management"]
+    verify_jwt = true
