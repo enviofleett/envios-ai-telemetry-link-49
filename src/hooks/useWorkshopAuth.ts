@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -149,9 +148,10 @@ export const useWorkshopAuth = () => {
     queryFn: async () => {
       if (!workshopUser?.workshop_id) return [];
       
+      // NEW: select envio_user_id as well
       const { data, error } = await supabase
         .from('workshop_users')
-        .select('*')
+        .select('*, envio_user_id') // additional explicit select, just in case
         .eq('workshop_id', workshopUser.workshop_id)
         .order('created_at', { ascending: false });
 

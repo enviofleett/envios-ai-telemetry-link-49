@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface WorkshopAuthResult {
@@ -10,7 +9,8 @@ export interface WorkshopAuthResult {
 }
 
 export interface CreateWorkshopUserData {
-  workshopId: string;
+  workshop_id: string;
+  envio_user_id?: string;
   email: string;
   name: string;
   role: 'owner' | 'manager' | 'technician' | 'inspector';
@@ -60,11 +60,21 @@ export class WorkshopAuthService {
       // Hash the password
       const { hash, salt } = await this.hashPassword(userData.password);
 
-      // Create workshop user with direct insert
+      // Fetch the logged in main user (envio_user) if possible
+      let mainUserId = userData.envio_user_id;
+      if (!mainUserId) {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user?.id) mainUserId = user.id;
+        } catch {}
+      }
+
+      // Create workshop user with new envio_user_id linkage
       const { data: user, error } = await supabase
         .from('workshop_users')
         .insert({
-          workshop_id: userData.workshopId,
+          workshop_id: userData.workshop_id,
+          envio_user_id: mainUserId ?? null,
           email: userData.email,
           name: userData.name,
           role: userData.role,

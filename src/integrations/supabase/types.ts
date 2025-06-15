@@ -8636,6 +8636,7 @@ export type Database = {
           id: string
           notes: string | null
           payment_status: string | null
+          paystack_transaction_id: string | null
           updated_at: string
           user_id: string
           workshop_id: string
@@ -8648,6 +8649,7 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_status?: string | null
+          paystack_transaction_id?: string | null
           updated_at?: string
           user_id: string
           workshop_id: string
@@ -8660,6 +8662,7 @@ export type Database = {
           id?: string
           notes?: string | null
           payment_status?: string | null
+          paystack_transaction_id?: string | null
           updated_at?: string
           user_id?: string
           workshop_id?: string
@@ -8893,7 +8896,7 @@ export type Database = {
           transaction_type: string
           updated_at: string
           vehicle_id: string | null
-          workshop_id: string | null
+          workshop_id: string
         }
         Insert: {
           amount: number
@@ -8911,7 +8914,7 @@ export type Database = {
           transaction_type: string
           updated_at?: string
           vehicle_id?: string | null
-          workshop_id?: string | null
+          workshop_id: string
         }
         Update: {
           amount?: number
@@ -8929,7 +8932,7 @@ export type Database = {
           transaction_type?: string
           updated_at?: string
           vehicle_id?: string | null
-          workshop_id?: string | null
+          workshop_id?: string
         }
         Relationships: [
           {
@@ -8959,6 +8962,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string
+          envio_user_id: string | null
           id: string
           is_active: boolean
           name: string
@@ -8970,6 +8974,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email: string
+          envio_user_id?: string | null
           id?: string
           is_active?: boolean
           name: string
@@ -8981,6 +8986,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string
+          envio_user_id?: string | null
           id?: string
           is_active?: boolean
           name?: string
@@ -8990,6 +8996,13 @@ export type Database = {
           workshop_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "workshop_users_envio_user_id_fkey"
+            columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "workshop_users_workshop_id_fkey"
             columns: ["workshop_id"]

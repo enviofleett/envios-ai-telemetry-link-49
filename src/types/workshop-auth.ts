@@ -2,6 +2,7 @@
 export interface WorkshopUser {
   id: string;
   workshop_id: string;
+  envio_user_id?: string; // <-- NEW: Link to main user identity
   email: string;
   name: string;
   role: 'owner' | 'manager' | 'technician' | 'inspector';
@@ -27,6 +28,7 @@ export interface WorkshopLoginData {
 
 export interface CreateWorkshopUserData {
   workshop_id: string;
+  envio_user_id?: string; // <-- NEW: for user creation
   email: string;
   name: string;
   role: 'owner' | 'manager' | 'technician' | 'inspector';
