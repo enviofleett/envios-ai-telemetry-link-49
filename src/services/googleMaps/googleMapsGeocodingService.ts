@@ -1,3 +1,6 @@
+import { supabase } from '@/integrations/supabase/client';
+import { GoogleMapsGeocodingResult } from './googleMapsGeocodingService';
+
 export interface GoogleMapsGeocodingResult {
   results: Array<{
     formatted_address: string;
@@ -45,11 +48,19 @@ class GoogleMapsGeocodingService {
 
   async testConnection(): Promise<boolean> {
     if (!this.isConfigured()) {
-      throw new Error('No API key configured on the backend.');
+      throw new Error('Google Maps is not configured.');
     }
-    // This will be updated to call a proxied endpoint.
-    console.warn('testConnection is temporarily disabled until geocoding proxy is implemented.');
-    return false;
+    try {
+      const { data, error } = await supabase.functions.invoke('geocoding-proxy', {
+        body: { provider: 'google-maps', lat: 40.7128, lon: -74.0060, isTest: true },
+      });
+
+      if (error) throw error;
+      return data.success === true;
+    } catch (error) {
+      console.error('Google Maps connection test failed via proxy:', error);
+      return false;
+    }
   }
 
   async reverseGeocode(lat: number, lon: number): Promise<string> {
@@ -57,10 +68,26 @@ class GoogleMapsGeocodingService {
       return `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
     }
 
-    // NOTE: This will be updated to call the secure geocoding proxy edge function.
-    // This will fail for now, which is an expected part of the security transition.
-    console.warn('reverseGeocode is temporarily disabled until geocoding proxy is implemented.');
-    throw new Error('Geocoding is temporarily unavailable while security is being upgraded.');
+    try {
+      const { data, error } = await supabase.functions.invoke<GoogleMapsGeocodingResult>('geocoding-proxy', {
+        body: { provider: 'google-maps', lat, lon },
+      });
+
+      if (error) {
+        throw new Error(`Proxy error: ${error.message}`);
+      }
+
+      if (data.status !== 'OK' || !data.results || data.results.length === 0) {
+        console.warn('Google Maps geocoding returned no results:', data.status);
+        throw new Error(`Google Maps API returned status: ${data.status}`);
+      }
+      
+      return this.formatGoogleMapsAddress(data.results[0]);
+
+    } catch (error) {
+        console.error('Error reverse geocoding with Google Maps via proxy:', error);
+        throw error; // Re-throw to be caught by unified service
+    }
   }
 
   private formatGoogleMapsAddress(result: any): string {

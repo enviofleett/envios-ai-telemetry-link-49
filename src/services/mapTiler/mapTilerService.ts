@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { ReverseGeocodingResult } from './mapTilerService';
 
 export interface MapTilerConfig {
   apiKey: string;
@@ -78,12 +79,19 @@ class MapTilerService {
 
   async testConnection(): Promise<boolean> {
     if (!this.isConfigured()) {
-      throw new Error('No API key configured on the backend.');
+      throw new Error('MapTiler is not configured.');
     }
-    // This will be updated to call a proxied endpoint.
-    // For now, it will fail, which is expected until the proxy is built.
-    console.warn('testConnection is temporarily disabled until geocoding proxy is implemented.');
-    return false;
+    try {
+      const { data, error } = await supabase.functions.invoke('geocoding-proxy', {
+        body: { provider: 'maptiler', lat: 48.8566, lon: 2.3522, isTest: true }, // Paris coordinates
+      });
+
+      if (error) throw error;
+      return data.success === true;
+    } catch (error) {
+      console.error('MapTiler connection test failed via proxy:', error);
+      return false;
+    }
   }
 
   getMapStyle(): string {
@@ -102,10 +110,26 @@ class MapTilerService {
       return this.formatCoordinates(lat, lon);
     }
     
-    // NOTE: This will be updated to call the secure geocoding proxy edge function.
-    // This will fail for now, which is an expected part of the security transition.
-    console.warn('reverseGeocode is temporarily disabled until geocoding proxy is implemented.');
-    throw new Error('Geocoding is temporarily unavailable while security is being upgraded.');
+    try {
+      const { data, error } = await supabase.functions.invoke<ReverseGeocodingResult>('geocoding-proxy', {
+        body: { provider: 'maptiler', lat, lon },
+      });
+
+      if (error) {
+        throw new Error(`Proxy error: ${error.message}`);
+      }
+
+      if (!data.features || data.features.length === 0) {
+        console.warn('MapTiler geocoding returned no results');
+        throw new Error('MapTiler API returned no features.');
+      }
+      
+      return this.formatAddress(data.features[0]);
+
+    } catch (error) {
+        console.error('Error reverse geocoding with MapTiler via proxy:', error);
+        throw error; // Re-throw to be caught by unified service
+    }
   }
 
   private formatCoordinates(lat: number, lon: number): string {

@@ -206,9 +206,15 @@ class EnhancedUnifiedGeocodingService {
     for (const testProvider of providersToTest) {
       if (this.isProviderConfigured(testProvider)) {
         try {
-          await this.geocodeWithProvider(testProvider, 40.7128, -74.0060); // Test with NYC coordinates
-          results[testProvider] = true;
-          await databaseGeocodingService.updateTestStatus(testProvider, 'success');
+          let success = false;
+          if (testProvider === 'google-maps') {
+            success = await googleMapsGeocodingService.testConnection();
+          } else if (testProvider === 'maptiler') {
+            success = await mapTilerService.testConnection();
+          }
+          
+          results[testProvider] = success;
+          await databaseGeocodingService.updateTestStatus(testProvider, success ? 'success' : 'failed', success ? undefined : 'Connection test failed');
         } catch (error) {
           results[testProvider] = false;
           await databaseGeocodingService.updateTestStatus(
