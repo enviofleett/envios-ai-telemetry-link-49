@@ -2,10 +2,11 @@
 import React from 'react';
 import Layout from '@/components/Layout';
 import MarketplaceAnalyticsTab from '@/components/admin/tabs/MarketplaceAnalyticsTab';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, Bot } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ReferralAnalyticsTab from '@/components/admin/tabs/ReferralAnalyticsTab';
 import CustomerAnalyticsTab from '@/components/admin/tabs/CustomerAnalyticsTab';
+import AIAssistantTab from '@/components/admin/tabs/AIAssistantTab';
 
 const AdminAnalytics: React.FC = () => {
   return (
@@ -25,6 +26,10 @@ const AdminAnalytics: React.FC = () => {
             <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
             <TabsTrigger value="customers">Customers</TabsTrigger>
             <TabsTrigger value="referrals">Referrals</TabsTrigger>
+            <TabsTrigger value="ai-assistant">
+              <Bot className="h-4 w-4 mr-2" />
+              AI Assistant
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="marketplace">
             <MarketplaceAnalyticsTab />
@@ -34,6 +39,9 @@ const AdminAnalytics: React.FC = () => {
           </TabsContent>
           <TabsContent value="referrals">
             <ReferralAnalyticsTab />
+          </TabsContent>
+          <TabsContent value="ai-assistant">
+            <AIAssistantTab />
           </TabsContent>
         </Tabs>
       </div>
