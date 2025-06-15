@@ -27,6 +27,7 @@ import { useDeviceManagement } from '@/hooks/useDeviceManagement';
 import FeatureGate from "@/components/auth/FeatureGate";
 import { FeatureUpgradeCTA } from "@/components/common/FeatureUpgradeCTA";
 import { VehicleLimitEnforcement } from "@/components/common/VehicleLimitEnforcement";
+import type { VehicleData } from '@/types/vehicle';
 
 const DeviceManagementTable: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -122,7 +123,7 @@ const DeviceManagementTable: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {devices?.map((device) => (
+                  {devices?.map((device: VehicleData) => (
                     <TableRow
                       key={device.device_id}
                       className="hover:bg-gray-50 cursor-pointer"
@@ -148,7 +149,11 @@ const DeviceManagementTable: React.FC = () => {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <DeviceStatusBadge status="online" />
+                        <DeviceStatusBadge status={
+                          !device.is_active || device.status === 'offline' || device.status === 'inactive'
+                            ? 'offline'
+                            : 'online'
+                        } />
                       </TableCell>
                       <TableCell>
                         <BatteryIndicator level={85} />

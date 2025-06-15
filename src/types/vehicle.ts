@@ -64,7 +64,7 @@ export interface VehicleData {
   make?: string;
   model?: string;
   year?: number;
-  status?: 'online' | 'offline' | 'idle' | 'moving';
+  status?: 'online' | 'offline' | 'idle' | 'moving' | 'inactive';
   lastUpdate?: Date;
   position?: {
     latitude: number;

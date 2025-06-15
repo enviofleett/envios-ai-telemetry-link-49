@@ -41,4 +41,5 @@ export interface VehicleGP51Metadata {
   lastGP51Sync?: string;
   importSource?: string;
   imei?: string;
+  [key: string]: any;
 }
