@@ -1,4 +1,5 @@
-import { Md5 } from "https://deno.land/std@0.208.0/hash/md5.ts";
+
+import { md5 } from "npm:js-md5";
 
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,7 +9,5 @@ export const corsHeaders = {
 export const GP51_API_URL = "https://www.gps51.com/webapi";
 
 export function calculateMd5(input: string): string {
-  const md5hasher = new Md5();
-  md5hasher.update(input);
-  return md5hasher.toString();
+  return md5(input);
 }
