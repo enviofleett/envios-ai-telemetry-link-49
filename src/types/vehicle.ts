@@ -1,4 +1,3 @@
-
 /**
  * Represents the exact schema of a record from the `public.vehicles` table.
  * This is the source of truth from the database.
@@ -22,7 +21,7 @@ export interface VehicleData {
   id: string;
   device_id: string; // Mapped from gp51_device_id
   device_name: string; // Mapped from name
-  user_id: string;
+  user_id: string | null;
   sim_number: string | null;
   created_at: string;
   updated_at: string;
@@ -69,6 +68,17 @@ export interface VehicleData {
     address?: string;
   };
   gp51_metadata?: any;
+  
+  // Properties from enhancedVehicleDataService
+  driver?: { name: string; };
+  deliveries?: any[];
+  deliveryStatus?: string;
+  fuel?: number;
+  engineHours?: number;
+  mileage?: number;
+  fuelType?: string;
+  engineSize?: number;
+  envio_user_id?: string;
 }
 
 // Alias for backwards compatibility with components that used this type name

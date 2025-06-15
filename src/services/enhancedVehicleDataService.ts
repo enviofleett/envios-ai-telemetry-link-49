@@ -112,9 +112,13 @@ class EnhancedVehicleDataService {
           id: device.deviceId,
           device_id: device.deviceId,
           device_name: device.deviceName,
+          user_id: null, // Not available from GP51 device list
+          sim_number: null, // Not available from GP51 device list
+          created_at: new Date().toISOString(), // Placeholder
+          updated_at: new Date().toISOString(), // Placeholder
           is_active: true,
-          vehicle_name: device.deviceName,
-          license_plate: device.deviceName,
+          vehicleName: device.deviceName,
+          license_plate: device.deviceName, // Using deviceName as placeholder
           make: 'Unknown',
           model: 'Unknown Model',
           status: position?.isOnline ? 'online' : 'offline',
@@ -132,16 +136,14 @@ class EnhancedVehicleDataService {
           deliveries: [],
           deliveryStatus: position?.isOnline ? 'available' : 'offline',
 
-          plateNumber: device.deviceName,
           lastUpdate: lastUpdate,
           location: position ? {
             latitude: position.latitude,
             longitude: position.longitude,
-            speed: position.speed,
-            course: position.course,
             address: position.statusText || 'Unknown Location'
           } : undefined,
           speed: position?.speed || 0,
+          course: position?.course || 0,
           fuel: Math.floor(Math.random() * 100),
           isOnline: position?.isOnline || false,
           isMoving: position?.isMoving || false,

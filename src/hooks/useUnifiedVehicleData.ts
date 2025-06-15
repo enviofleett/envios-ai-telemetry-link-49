@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { getEnhancedVehicles, getVehicleDataMetrics } from '@/services/enhancedVehicleDataService';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
@@ -109,7 +108,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
 
           // User filter
           if (filters.user && filters.user !== 'all') {
-            if (vehicle.envio_user_id !== filters.user) return false;
+            if (vehicle.user_id !== filters.user) return false;
           }
 
           return true;

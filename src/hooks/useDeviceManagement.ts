@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData } from '@/types/vehicle';
@@ -16,12 +15,12 @@ export const useDeviceManagement = (searchQuery: string = '') => {
     queryFn: async (): Promise<VehicleData[]> => {
       let queryBuilder = supabase
         .from('vehicles')
-        .select('id, gp51_device_id, name, license_plate, created_at, updated_at, user_id, sim_number')
+        .select('id, gp51_device_id, name, created_at, updated_at, user_id, sim_number')
         .order('created_at', { ascending: false });
 
       if (searchQuery) {
         queryBuilder = queryBuilder.or(
-          `gp51_device_id.ilike.%${searchQuery}%,name.ilike.%${searchQuery}%,license_plate.ilike.%${searchQuery}%`
+          `gp51_device_id.ilike.%${searchQuery}%,name.ilike.%${searchQuery}%`
         );
       }
 
@@ -41,7 +40,7 @@ export const useDeviceManagement = (searchQuery: string = '') => {
         sim_number: dbVehicle.sim_number,
         created_at: dbVehicle.created_at,
         updated_at: dbVehicle.updated_at,
-        license_plate: dbVehicle.license_plate,
+        license_plate: undefined, // Not in DB
         status: getVehicleStatus(),
         is_active: false, // Default value, since it's not in DB
         gp51_metadata: {}, // Default value

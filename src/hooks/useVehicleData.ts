@@ -1,6 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import type { VehicleData } from '@/types/vehicle';
 
 export interface VehicleDataFilters {
   search?: string;
@@ -14,36 +15,25 @@ export interface VehicleDataFilters {
 export const useVehicleData = (filters: VehicleDataFilters = {}) => {
   return useQuery({
     queryKey: ['vehicles', filters],
-    queryFn: async () => {
+    queryFn: async (): Promise<VehicleData[]> => {
       console.log('🚗 Fetching vehicle data with filters:', filters);
       
       let query = supabase
         .from('vehicles')
         .select(`
           id,
-          device_id,
-          device_name,
-          status,
+          gp51_device_id,
+          name,
           created_at,
           updated_at,
-          vehicle_positions!left(
-            lat,
-            lon,
-            speed,
-            course,
-            updatetime
-          )
+          user_id,
+          sim_number
         `)
         .order('updated_at', { ascending: false });
 
       // Apply search filter
       if (filters.search) {
-        query = query.or(`device_name.ilike.%${filters.search}%,device_id.ilike.%${filters.search}%`);
-      }
-
-      // Apply status filter
-      if (filters.status && filters.status.length > 0) {
-        query = query.in('status', filters.status);
+        query = query.or(`name.ilike.%${filters.search}%,gp51_device_id.ilike.%${filters.search}%`);
       }
 
       // Apply date range filter
@@ -61,9 +51,22 @@ export const useVehicleData = (filters: VehicleDataFilters = {}) => {
       }
 
       // Transform data to include lastPosition for easier access
-      const transformedData = data?.map(vehicle => ({
-        ...vehicle,
-        lastPosition: vehicle.vehicle_positions?.[0] || null
+      const transformedData: VehicleData[] = data?.map(vehicle => ({
+        id: vehicle.id,
+        device_id: vehicle.gp51_device_id,
+        device_name: vehicle.name,
+        user_id: vehicle.user_id,
+        sim_number: vehicle.sim_number,
+        created_at: vehicle.created_at,
+        updated_at: vehicle.updated_at,
+        status: 'offline', // Default status, as it's not in DB
+        lastUpdate: new Date(vehicle.updated_at),
+        is_active: false, // Default value
+        last_position: undefined,
+        alerts: [],
+        isOnline: false,
+        isMoving: false,
+        vehicleName: vehicle.name,
       })) || [];
 
       console.log('✅ Vehicle data fetched successfully:', transformedData.length, 'vehicles');

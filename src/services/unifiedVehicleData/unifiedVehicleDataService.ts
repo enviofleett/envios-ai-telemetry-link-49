@@ -103,7 +103,6 @@ export class UnifiedVehicleDataService {
       id: dbVehicle.id || dbVehicle.device_id,
       device_id: dbVehicle.device_id,
       device_name: dbVehicle.device_name,
-      // vehicleName: dbVehicle.device_name, // This was in VehicleData, if needed, add back
       status,
       lastUpdate: parsedPosition ? new Date(parsedPosition.timestamp) : new Date(dbVehicle.updated_at || dbVehicle.created_at),
       alerts: [], // Ensure alerts is part of VehicleData if used
@@ -112,12 +111,11 @@ export class UnifiedVehicleDataService {
       speed: parsedPosition?.speed || 0, // Use parsedPosition's speed
       course: parsedPosition?.course || 0, // Use parsedPosition's course
       is_active: dbVehicle.is_active || true,
-      envio_user_id: dbVehicle.envio_user_id,
+      user_id: dbVehicle.user_id,
       last_position: parsedPosition,
-      // Legacy compatibility if VehicleData still has these
-      // deviceId: dbVehicle.device_id,
-      // deviceName: dbVehicle.device_name,
-      // lastPosition: parsedPosition, // if lastPosition legacy prop is VehicleData['last_position'] type
+      sim_number: dbVehicle.sim_number,
+      created_at: dbVehicle.created_at,
+      updated_at: dbVehicle.updated_at,
     };
   }
 
@@ -183,6 +181,10 @@ export class UnifiedVehicleDataService {
       id: rawVehicle.id || rawVehicle.device_id,
       device_id: rawVehicle.device_id,
       device_name: rawVehicle.device_name,
+      user_id: rawVehicle.user_id,
+      sim_number: rawVehicle.sim_number,
+      created_at: rawVehicle.created_at,
+      updated_at: rawVehicle.updated_at,
       status: isOnline ? (hasRecentPosition ? 'online' : 'idle') : 'offline',
       lastUpdate: new Date(rawVehicle.updated_at || rawVehicle.created_at || Date.now()),
       last_position: appLastPosition,
