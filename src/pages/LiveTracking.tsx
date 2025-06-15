@@ -13,7 +13,7 @@ const LiveTracking: React.FC = () => {
 
   // NOTE: This is temporary mock data to demonstrate the UI.
   // In a real application, this would come from your backend.
-  const vehiclesWithDeliveries = vehicles.map((v, index) => ({
+  const vehiclesWithDeliveries: VehicleData[] = vehicles.map((v, index) => ({
     ...v,
     driver: {
       name: v.device_name || `Driver ${index + 1}`,

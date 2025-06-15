@@ -114,9 +114,16 @@ class EnhancedVehicleDataService {
             course: position.course,
             timestamp: position.timestamp.toISOString()
           } : undefined,
+          
+          // Delivery-specific fields
+          driver: {
+            name: device.deviceName || 'Unknown Driver',
+          },
+          deliveries: [],
+          deliveryStatus: position?.isOnline ? 'available' : 'offline',
+
           // Legacy compatibility properties
           plateNumber: device.deviceName,
-          driver: 'Unknown Driver',
           lastUpdate: lastUpdate,
           location: position ? {
             latitude: position.latitude,
