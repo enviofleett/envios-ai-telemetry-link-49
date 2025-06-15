@@ -1,5 +1,4 @@
-
-// Trigger re-deploy - 2025-06-15
+// Trigger re-deploy - 2025-06-14
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { md5_sync } from "../_shared/crypto_utils.ts";
@@ -16,13 +15,42 @@ async function testGP51Authentication(username: string, password: string): Promi
   response?: any;
 }> {
   const trimmedUsername = username.trim();
-  console.log(`🔐 Standardizing GP51 authentication for user: ${trimmedUsername}`);
+  console.log(`🔐 Testing GP51 authentication for user: ${trimmedUsername}`);
   
   try {
+    // Create MD5 hash of password
     const hashedPassword = md5_sync(password);
-    console.log(`✅ Password hashed successfully. Using POST_JSON method.`);
+    console.log(`✅ Password hashed successfully`);
     
-    const response = await fetch('https://www.gps51.com/webapi?action=login', {
+    // Test Method 1: GET request (as suggested in the plan)
+    console.log('🌐 Testing Method 1: GET request format...');
+    const getUrl = `https://www.gps51.com/webapi?action=login&username=${encodeURIComponent(trimmedUsername)}&password=${encodeURIComponent(hashedPassword)}`;
+    
+    const getResponse = await fetch(getUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'FleetIQ/1.0'
+      }
+    });
+    
+    if (getResponse.ok) {
+      const getResult = await getResponse.json();
+      console.log(`📊 GET response status: ${getResult.status}`);
+      
+      if (getResult.status === 0 && getResult.token) {
+        console.log(`✅ GET method successful!`);
+        return {
+          success: true,
+          method: 'GET',
+          response: getResult
+        };
+      }
+    }
+    
+    // Test Method 2: POST with JSON (current implementation)
+    console.log('🌐 Testing Method 2: POST with JSON...');
+    const postResponse = await fetch('https://www.gps51.com/webapi', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -30,41 +58,74 @@ async function testGP51Authentication(username: string, password: string): Promi
         'User-Agent': 'FleetIQ/1.0'
       },
       body: JSON.stringify({
-        action: 'login', // Redundant but safe
+        action: 'login',
         username: trimmedUsername,
-        password: hashedPassword,
-        from: 'WEB',
-        type: 'USER',
+        password: hashedPassword
       })
     });
     
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.log(`❌ POST JSON method failed. Status: ${response.status}, Response: ${errorText.substring(0,200)}`);
+    if (postResponse.ok) {
+      const postResult = await postResponse.json();
+      console.log(`📊 POST JSON response status: ${postResult.status}`);
+      
+      if (postResult.status === 0 && postResult.token) {
+        console.log(`✅ POST JSON method successful!`);
+        return {
+          success: true,
+          method: 'POST_JSON',
+          response: postResult
+        };
+      }
+    }
+    
+    // Test Method 3: POST with form data
+    console.log('🌐 Testing Method 3: POST with form data...');
+    const formData = new URLSearchParams({
+      action: 'login',
+      username: trimmedUsername,
+      password: hashedPassword
+    });
+    
+    const formResponse = await fetch('https://www.gps51.com/webapi', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': 'FleetIQ/1.0'
+      },
+      body: formData.toString()
+    });
+    
+    if (formResponse.ok) {
+      const formResult = await formResponse.json();
+      console.log(`📊 POST form response status: ${formResult.status}`);
+      
+      if (formResult.status === 0 && formResult.token) {
+        console.log(`✅ POST form method successful!`);
+        return {
+          success: true,
+          method: 'POST_FORM',
+          response: formResult
+        };
+      } else {
+        // This was the last method, so if it fails, report its specific error
+        const errorMessage = formResult.cause || formResult.message || 'Authentication failed with POST_FORM';
+        console.log(`❌ All methods failed. Last error (POST_FORM): ${errorMessage}`);
+        return {
+          success: false,
+          error: errorMessage
+        };
+      }
+    } else {
+        // Handle non-ok response for formResponse
+        const errorText = await formResponse.text();
+        console.log(`❌ POST form method failed. Status: ${formResponse.status}, Response: ${errorText.substring(0,100)}`);
          return {
           success: false,
-          error: `Authentication failed with HTTP status ${response.status}`
+          error: `POST_FORM authentication failed with HTTP status ${formResponse.status}`
         };
     }
-
-    const postResult = await response.json();
-    console.log(`📊 POST JSON response status: ${postResult.status}`);
     
-    if (postResult.status === 0 && postResult.token) {
-      console.log(`✅ POST JSON method successful!`);
-      return {
-        success: true,
-        method: 'POST_JSON',
-        response: postResult
-      };
-    } else {
-      const errorMessage = postResult.cause || postResult.message || 'Authentication failed';
-      console.log(`❌ POST JSON method failed. Error: ${errorMessage}`);
-      return {
-        success: false,
-        error: errorMessage
-      };
-    }
   } catch (error) {
     console.error('❌ GP51 authentication test failed:', error);
     return {
@@ -80,28 +141,10 @@ serve(async (req) => {
   }
 
   try {
-    // Use the service role key to bypass RLS for database operations.
-    // The user's auth token is passed in the Authorization header to identify the user.
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '', // IMPORTANT: Use service role key
-      {
-        global: {
-          headers: { Authorization: req.headers.get('Authorization')! },
-        },
-      }
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
-
-    // Get the authenticated user making the request.
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      console.error('Authentication error in gp51-auth-service:', userError?.message || 'User not found');
-      return new Response(JSON.stringify({ error: 'Authentication required' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
 
     const body = await req.json().catch((e) => {
       console.error('Failed to parse JSON body:', e.message);
@@ -131,11 +174,10 @@ serve(async (req) => {
       const result = await testGP51Authentication(username, password);
       
       if (result.success) {
-        // Store successful session, now with the correct user association.
+        // Store successful session
         const { error: sessionError } = await supabase
           .from('gp51_sessions')
           .upsert({
-            envio_user_id: user.id, // Link session to the authenticated user.
             username: username.trim(),
             password_hash: md5_sync(password),
             gp51_token: result.response?.token,
@@ -144,19 +186,11 @@ serve(async (req) => {
             last_validated_at: new Date().toISOString(),
             created_at: new Date().toISOString()
           }, {
-            onConflict: 'username' // Assuming 'username' has a UNIQUE constraint.
+            onConflict: 'username'
           });
 
         if (sessionError) {
-          console.error('Failed to store session:', sessionError);
-          // Return an actual error instead of silently failing.
-          return new Response(JSON.stringify({
-            success: false,
-            error: `Failed to store session in database: ${sessionError.message}`,
-          }), {
-            status: 500, // Internal Server Error
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
+          console.warn('Failed to store session:', sessionError);
         }
 
         return new Response(JSON.stringify({

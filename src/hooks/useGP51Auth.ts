@@ -1,9 +1,20 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { GP51SessionManager } from '@/services/gp51/sessionManager';
+import { calculateMd5 } from '@/lib/crypto';
+
+// Constants
+const GP51_API_URL = 'https://www.gps51.com/webapi';
+const GP51_SESSION_KEY = 'gp51_session';
+const API_TIMEOUT = 15000; // 15 seconds
 
 // Interfaces
+interface GP51Session {
+  username: string;
+  token: string;
+  expiresAt: string; // ISO string
+}
+
 export interface AuthResult {
   success: boolean;
   error?: string;
@@ -18,6 +29,14 @@ interface AuthState {
   isRestoringSession: boolean;
 }
 
+interface GP51LoginResponse {
+  status: number; // 0 for success, non-zero for error
+  cause?: string; // Error message
+  message?: string; // Alternative error message
+  token?: string;
+}
+
+
 export const useGP51Auth = () => {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -31,14 +50,16 @@ export const useGP51Auth = () => {
     setAuthState(prev => ({ ...prev, error: null }));
   }, []);
   
-  // Effect for restoring session from database on initial load
+  // Effect for restoring session from localStorage on initial load
   useEffect(() => {
-    console.log('🔍 useGP51Auth: Initializing and restoring session from database...');
-    const restoreSession = async () => {
-      try {
-        const { valid, session } = await GP51SessionManager.validateSession();
-        if (valid && session) {
-          const expiresAt = new Date(session.token_expires_at);
+    console.log('🔍 useGP51Auth: Initializing and restoring session...');
+    try {
+      const storedSession = localStorage.getItem(GP51_SESSION_KEY);
+      if (storedSession) {
+        const session: GP51Session = JSON.parse(storedSession);
+        const expiresAt = new Date(session.expiresAt);
+        
+        if (expiresAt > new Date()) {
           console.log(`✅ Restored session for ${session.username}. Expires at: ${expiresAt.toLocaleString()}`);
           setAuthState(prev => ({
             ...prev,
@@ -47,20 +68,21 @@ export const useGP51Auth = () => {
             tokenExpiresAt: expiresAt,
           }));
         } else {
-          console.log('No valid session found in database or session expired.');
+          console.log(' session expired. Clearing.');
+          localStorage.removeItem(GP51_SESSION_KEY);
         }
-      } catch (error) {
-        console.error('Failed to restore session from database:', error);
-      } finally {
-        setAuthState(prev => ({ ...prev, isRestoringSession: false }));
       }
-    };
-    restoreSession();
+    } catch (error) {
+      console.error('Failed to restore session:', error);
+      localStorage.removeItem(GP51_SESSION_KEY);
+    } finally {
+      setAuthState(prev => ({ ...prev, isRestoringSession: false }));
+    }
   }, []);
   
 
   const login = useCallback(async (username: string, password: string): Promise<AuthResult> => {
-    console.log(`🔐 useGP51Auth: Starting login for ${username} via edge function`);
+    console.log(`🔐 useGP51Auth: Starting login for ${username}`);
     setAuthState(prev => ({ 
       ...prev, 
       isLoading: true, 
@@ -68,53 +90,69 @@ export const useGP51Auth = () => {
       isRestoringSession: false 
     }));
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
+
     try {
-      // Clear any previous sessions before attempting a new login to ensure a clean state.
-      await GP51SessionManager.clearAllSessions();
+      const hashedPassword = calculateMd5(password);
+      const trimmedUsername = username.trim();
+      
+      const url = new URL(GP51_API_URL);
+      url.searchParams.append('action', 'login');
 
-      const { data, error } = await supabase.functions.invoke('gp51-auth-service', {
-        body: {
-          action: 'test_authentication',
-          username: username,
-          password: password,
-        }
+      console.log('📡 Sending login request to GP51 via POST');
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: trimmedUsername,
+          password: hashedPassword,
+          from: 'WEB',
+          type: 'USER',
+        }),
+        signal: controller.signal
       });
-      
-      if (error) {
-        throw new Error(error.message);
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
 
-      if (!data.success) {
-        throw new Error(data.error || 'Invalid username or password');
+      const data: GP51LoginResponse = await response.json();
+      console.log('📊 GP51 Login Response:', data);
+
+      if (data.status !== 0 || !data.token) {
+        throw new Error(data.cause || data.message || 'Invalid username or password');
       }
 
-      console.log('✅ useGP51Auth: Login successful via edge function. Session stored in database.');
-      
-      // Fetch the newly created session from the database to populate the auth state.
-      const { valid, session } = await GP51SessionManager.validateSession();
+      console.log('✅ useGP51Auth: Login successful');
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // Token expires in 24 hours
+      const session: GP51Session = {
+        username: trimmedUsername,
+        token: data.token,
+        expiresAt: expiresAt.toISOString(),
+      };
 
-      if (valid && session) {
-        const expiresAt = new Date(session.token_expires_at);
-        setAuthState({
-          isAuthenticated: true,
-          username: session.username,
-          tokenExpiresAt: expiresAt,
-          isLoading: false,
-          error: null,
-          isRestoringSession: false,
-        });
+      localStorage.setItem(GP51_SESSION_KEY, JSON.stringify(session));
+      setAuthState({
+        isAuthenticated: true,
+        username: trimmedUsername,
+        tokenExpiresAt: expiresAt,
+        isLoading: false,
+        error: null,
+        isRestoringSession: false,
+      });
 
-        toast({
-          title: "Login Successful",
-          description: `Connected to GP51 as ${session.username}.`,
-        });
-        return { success: true };
-      } else {
-        throw new Error("Failed to retrieve session from database after login.");
-      }
+      toast({
+        title: "Login Successful",
+        description: `Connected to GP51 as ${trimmedUsername}.`,
+      });
+      return { success: true };
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorMessage = error instanceof Error 
+        ? (error.name === 'AbortError' ? 'GP51 connection timed out. Please try again.' : error.message)
+        : 'An unknown error occurred';
         
       console.error('❌ useGP51Auth: Login failed:', errorMessage);
       setAuthState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
@@ -125,67 +163,56 @@ export const useGP51Auth = () => {
       });
       return { success: false, error: errorMessage };
     } finally {
+      clearTimeout(timeoutId);
       setAuthState(prev => ({ ...prev, isLoading: false }));
     }
   }, [toast]);
 
   const logout = useCallback(async (): Promise<AuthResult> => {
-    console.log('👋 useGP51Auth: Logging out and clearing database session...');
-    
-    try {
-      await GP51SessionManager.clearAllSessions();
-      setAuthState({
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-        isRestoringSession: false,
-        username: undefined,
-        tokenExpiresAt: undefined,
-      });
-      toast({
-        title: "Logged Out",
-        description: "Disconnected from GP51.",
-      });
-      return { success: true };
-    } catch(error) {
-        console.error("Failed to clear sessions during logout", error);
-        // Still log out on the client side even if server-side clearing fails
-        setAuthState({
-            isAuthenticated: false,
-            isLoading: false,
-            error: "Failed to clear server session, but logged out locally.",
-            isRestoringSession: false,
-            username: undefined,
-            tokenExpiresAt: undefined,
-        });
-        return { success: false, error: "Failed to clear server session." };
-    }
+    console.log('👋 useGP51Auth: Logging out...');
+    localStorage.removeItem(GP51_SESSION_KEY);
+    setAuthState({
+      isAuthenticated: false,
+      isLoading: false,
+      error: null,
+      isRestoringSession: false,
+      username: undefined,
+      tokenExpiresAt: undefined,
+    });
+    toast({
+      title: "Logged Out",
+      description: "Disconnected from GP51.",
+    });
+    return { success: true };
   }, [toast]);
 
   const getToken = useCallback(async (): Promise<string | null> => {
-    const { valid, session } = await GP51SessionManager.validateSession();
-    if (!valid || !session) {
-      if (authState.isAuthenticated) {
-        console.warn("Session invalid or expired, logging out.");
-        logout();
-      }
-      return null;
-    }
-    return session.gp51_token;
-  }, [logout, authState.isAuthenticated]);
+    const storedSession = localStorage.getItem(GP51_SESSION_KEY);
+    if (!storedSession) return null;
 
-  // Health check now validates the session in the database
+    const session: GP51Session = JSON.parse(storedSession);
+    if (new Date(session.expiresAt) < new Date()) {
+        console.warn("Attempted to get an expired token.");
+        await logout();
+        return null;
+    }
+    return session.token;
+  }, [logout]);
+
+  // Health check can be expanded to ping an endpoint like 'getuserinfo'
   const healthCheck = useCallback(async (): Promise<boolean> => {
     setAuthState(prev => ({ ...prev, isLoading: true }));
-    const { valid } = await GP51SessionManager.validateSession();
-    if (!valid) {
+    const token = await getToken();
+    if (!token) {
         setAuthState(prev => ({ ...prev, isLoading: false, error: 'Not authenticated.' }));
         return false;
     }
-    console.log('✅ Health check passed (database session valid).');
+    // For now, we assume if token exists and is not expired, it's healthy.
+    // A future improvement would be to call a lightweight API endpoint here.
+    console.log('✅ Health check passed (local session valid).');
     setAuthState(prev => ({ ...prev, isLoading: false }));
     return true;
-  }, []);
+  }, [getToken]);
 
   return {
     ...authState,

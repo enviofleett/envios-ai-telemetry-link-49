@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { CORS_HEADERS } from '../_shared/cors.ts';
@@ -13,44 +12,19 @@ import {
 import { createHash } from "./crypto.ts";
 
 async function getGP51Token(apiUrl: string, username: string, password_md5: string): Promise<string> {
-    const url = new URL(apiUrl);
-    if (!url.searchParams.has('action')) {
-      url.searchParams.append('action', 'login');
-    }
-    
-    console.log(`[settings-management] Authenticating ${username} with GP51 via POST to ${url.toString()}`);
-
-    const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'FleetIQ/1.0'
-        },
-        body: JSON.stringify({
-          username: username.trim(),
-          password: password_md5,
-          from: 'WEB',
-          type: 'USER',
-        }),
+    const loginUrl = `${apiUrl}/user/login`;
+    const loginParams = new URLSearchParams({
+        username,
+        password: password_md5,
+        autologin: '1'
     });
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        console.error(`[settings-management] GP51 API Error: ${response.status} ${response.statusText}`, errorBody);
-        throw new Error(`GP51 API Error: ${response.status} ${response.statusText}`);
-    }
-
+    const response = await fetch(`${loginUrl}?${loginParams.toString()}`);
     const data = await response.json();
-    console.log('[settings-management] GP51 Login Response:', data);
 
-    if (data.status !== 0 || !data.token) {
-        const errorMessage = data.cause || data.message || 'Failed to authenticate with GP51';
-        console.error(`[settings-management] GP51 Authentication failed: ${errorMessage}`);
-        throw new Error(errorMessage);
+    if (!data.success || !data.token) {
+        throw new Error(data.error || 'Failed to authenticate with GP51');
     }
-    
-    console.log(`[settings-management] Successfully received token for ${username}`);
     return data.token;
 }
 
