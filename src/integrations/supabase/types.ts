@@ -9033,6 +9033,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      get_customer_analytics: {
+        Args: { p_limit?: number }
+        Returns: Json
+      }
       get_geocoding_statistics: {
         Args: { p_user_id: string }
         Returns: Json

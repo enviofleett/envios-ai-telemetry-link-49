@@ -5,6 +5,7 @@ import MarketplaceAnalyticsTab from '@/components/admin/tabs/MarketplaceAnalytic
 import { BarChart3 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ReferralAnalyticsTab from '@/components/admin/tabs/ReferralAnalyticsTab';
+import CustomerAnalyticsTab from '@/components/admin/tabs/CustomerAnalyticsTab';
 
 const AdminAnalytics: React.FC = () => {
   return (
@@ -17,15 +18,19 @@ const AdminAnalytics: React.FC = () => {
             </h1>
         </div>
         <p className="text-muted-foreground">
-          Detailed insights into marketplace performance and referral program success.
+          Detailed insights into marketplace performance, referral programs, and customer behavior.
         </p>
         <Tabs defaultValue="marketplace" className="w-full">
           <TabsList>
             <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
+            <TabsTrigger value="customers">Customers</TabsTrigger>
             <TabsTrigger value="referrals">Referrals</TabsTrigger>
           </TabsList>
           <TabsContent value="marketplace">
             <MarketplaceAnalyticsTab />
+          </TabsContent>
+          <TabsContent value="customers">
+            <CustomerAnalyticsTab />
           </TabsContent>
           <TabsContent value="referrals">
             <ReferralAnalyticsTab />
