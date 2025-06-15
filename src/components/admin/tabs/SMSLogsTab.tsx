@@ -287,13 +287,27 @@ const SMSLogsTab = () => {
             <PaginationContent>
               <PaginationPrevious
                 href="#"
-                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
-                disabled={page === 1}
+                aria-disabled={page === 1}
+                onClick={(e) => {
+                  if (page === 1) {
+                    e.preventDefault();
+                    return;
+                  }
+                  setPage((prev) => Math.max(prev - 1, 1));
+                }}
+                className={page === 1 ? "pointer-events-none opacity-50" : ""}
               />
               <PaginationNext
                 href="#"
-                onClick={() => setPage((prev) => prev + 1)}
-                disabled={page === Math.ceil(pagination.total / pagination.limit)}
+                aria-disabled={page === Math.ceil(pagination.total / pagination.limit)}
+                onClick={(e) => {
+                  if (page === Math.ceil(pagination.total / pagination.limit)) {
+                    e.preventDefault();
+                    return;
+                  }
+                  setPage((prev) => prev + 1);
+                }}
+                className={page === Math.ceil(pagination.total / pagination.limit) ? "pointer-events-none opacity-50" : ""}
               />
             </PaginationContent>
           </Pagination>
