@@ -14,7 +14,6 @@ import SystemSettingsTab from './tabs/SystemSettingsTab';
 import GeofencingTab from './tabs/GeofencingTab';
 import SMSSettingsTab from './tabs/SMSSettingsTab';
 import SMSLogsTab from './tabs/SMSLogsTab';
-import SMTPConfigurationTab from './tabs/SMTPConfigurationTab';
 import EmailTriggersAdminTab from './tabs/EmailTriggersAdminTab';
 import AdvancedEmailManagementTab from './tabs/AdvancedEmailManagementTab';
 
@@ -22,6 +21,7 @@ import AdvancedEmailManagementTab from './tabs/AdvancedEmailManagementTab';
 import CompanySettingsTab from '../settings/CompanySettingsTab';
 import EnhancedBrandingTab from '../settings/EnhancedBrandingTab';
 import CurrencyManagementTab from '../settings/CurrencyManagementTab';
+import SMTPConfigurationTab from '../settings/SMTPConfigurationTab'; // Corrected import path
 
 // Import missing tabs
 import VinApiTab from './tabs/VinApiTab';
