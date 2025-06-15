@@ -88,6 +88,7 @@ export interface VehicleData {
   battery?: number;
   temperature?: number;
   alerts?: string[];
+  gp51_metadata?: VehicleGP51Metadata;
 }
 
 // Enhanced vehicle interface with all analytics properties

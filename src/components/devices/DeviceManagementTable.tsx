@@ -123,7 +123,7 @@ const DeviceManagementTable: React.FC = () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {devices?.map((device: VehicleData) => (
+                  {devices?.map((device) => (
                     <TableRow
                       key={device.device_id}
                       className="hover:bg-gray-50 cursor-pointer"
@@ -134,7 +134,7 @@ const DeviceManagementTable: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium">{device.device_id}</span>
+                          <span className="font-medium">{device.device_name}</span>
                           <span className="text-sm text-gray-500">
                             {device.license_plate || 'N/A'}
                           </span>
