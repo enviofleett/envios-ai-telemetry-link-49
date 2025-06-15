@@ -68,6 +68,11 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
 }
 
 export async function saveSmtpSettings(settings: any) {
+  // Log received settings, masking password for security
+  const loggableSettings = { ...settings };
+  if (loggableSettings.smtp_password) loggableSettings.smtp_password = '********';
+  console.log('[db-smtp] Received settings for saving:', loggableSettings);
+  
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -75,6 +80,7 @@ export async function saveSmtpSettings(settings: any) {
 
   const { id, smtp_host, smtp_port, smtp_user, smtp_password, use_tls, use_ssl, from_name, from_email } = settings;
 
+  console.log('[db-smtp] Validating required fields...');
   const requiredFields = {
     'SMTP Host': smtp_host,
     'SMTP Port': smtp_port,
@@ -88,8 +94,11 @@ export async function saveSmtpSettings(settings: any) {
     .map(([key]) => key);
 
   if (missingFields.length > 0) {
-    throw new Error(`Missing required SMTP fields: ${missingFields.join(', ')}.`);
+    const errorMsg = `Missing required SMTP fields: ${missingFields.join(', ')}.`;
+    console.error(`[db-smtp] Validation failed: ${errorMsg}`);
+    throw new Error(errorMsg);
   }
+  console.log('[db-smtp] All required fields are present.');
   
   let smtp_encryption = 'none';
   if (use_ssl) smtp_encryption = 'ssl';
@@ -108,20 +117,28 @@ export async function saveSmtpSettings(settings: any) {
   };
 
   if (smtp_password) {
+    console.log('[db-smtp] SMTP password provided, preparing for encryption...');
     const encryptionKey = Deno.env.get('ENCRYPTION_KEY');
     if (!encryptionKey) {
-      console.error('ENCRYPTION_KEY environment variable not set.');
+      console.error('[db-smtp] CRITICAL: ENCRYPTION_KEY environment variable not set.');
       throw new Error('Server configuration error: ENCRYPTION_KEY is missing.');
     }
     if (new TextEncoder().encode(encryptionKey).length !== 32) {
-      console.error('Invalid ENCRYPTION_KEY length. It must be 32 bytes (256 bits).');
+      console.error(`[db-smtp] CRITICAL: Invalid ENCRYPTION_KEY length. Expected 32 bytes, got ${new TextEncoder().encode(encryptionKey).length}.`);
       throw new Error('Server configuration error: Invalid ENCRYPTION_KEY. It must be a 32-byte string.');
     }
+    console.log('[db-smtp] Encryption key found and has valid length. Encrypting password...');
     upsertData.smtp_password_encrypted = await encrypt(smtp_password, encryptionKey);
+    console.log('[db-smtp] Password encrypted successfully.');
+  } else {
+    console.log('[db-smtp] No SMTP password provided, skipping encryption.');
   }
 
   // Remove undefined properties before upsert to avoid inserting nulls
   Object.keys(upsertData).forEach(key => upsertData[key] === undefined && delete upsertData[key]);
+  const finalLoggableData = { ...upsertData };
+  if (finalLoggableData.smtp_password_encrypted) finalLoggableData.smtp_password_encrypted = '********';
+  console.log('[db-smtp] Final data for upsert:', finalLoggableData);
 
   const { data, error } = await supabase
     .from('smtp_settings')
@@ -130,14 +147,14 @@ export async function saveSmtpSettings(settings: any) {
     .single();
 
   if (error) {
-    console.error('Error saving SMTP settings:', error);
+    console.error('[db-smtp] Supabase upsert error:', error);
     if (error.code === '23502') { // not_null_violation
         throw new Error(`Database error: A required field is missing. Details: ${error.details}`);
     }
     throw new Error(`Failed to save SMTP settings: ${error.message}`);
   }
 
-  console.log('SMTP settings saved successfully.');
+  console.log('[db-smtp] SMTP settings saved successfully to database. Result ID:', data?.id);
   return data;
 }
 
