@@ -1,7 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
-import type { GP51ProcessedPosition } from '@/types/gp51';
+import type { GP51ProcessedPosition, VehicleGP51Metadata } from '@/types/gp51';
 
 export class GP51VehiclePersistenceService {
   private static instance: GP51VehiclePersistenceService;
@@ -24,24 +24,26 @@ export class GP51VehiclePersistenceService {
         throw new Error('User not authenticated');
       }
 
+      const gp51_metadata: VehicleGP51Metadata = {
+        latitude: position.latitude,
+        longitude: position.longitude,
+        speed: position.speed,
+        course: position.course,
+        status: position.status,
+        statusText: position.statusText,
+        timestamp: position.timestamp.toISOString(),
+        isMoving: position.isMoving,
+        vehicleStatus: position.isOnline ? 'online' : 'offline',
+        lastGP51Sync: new Date().toISOString(),
+        importSource: 'gp51_live'
+      };
+
       const vehicleData = {
         device_id: deviceId,
         device_name: position.deviceName || deviceId,
         envio_user_id: user.id,
         is_active: true,
-        gp51_metadata: {
-          latitude: position.latitude,
-          longitude: position.longitude,
-          speed: position.speed,
-          course: position.course,
-          status: position.status,
-          statusText: position.statusText,
-          timestamp: position.timestamp.toISOString(),
-          isMoving: position.isMoving,
-          vehicleStatus: position.isOnline ? 'online' : 'offline',
-          lastGP51Sync: new Date().toISOString(),
-          importSource: 'gp51_live'
-        }
+        gp51_metadata,
       };
 
       const { error } = await supabase
@@ -69,25 +71,29 @@ export class GP51VehiclePersistenceService {
         throw new Error('User not authenticated');
       }
 
-      const vehicleData = positions.map(position => ({
-        device_id: position.deviceId,
-        device_name: position.deviceName || position.deviceId,
-        envio_user_id: user.id,
-        is_active: true,
-        gp51_metadata: {
-          latitude: position.latitude,
-          longitude: position.longitude,
-          speed: position.speed,
-          course: position.course,
-          status: position.status,
-          statusText: position.statusText,
-          timestamp: position.timestamp.toISOString(),
-          isMoving: position.isMoving,
-          vehicleStatus: position.isOnline ? 'online' : 'offline',
-          lastGP51Sync: new Date().toISOString(),
-          importSource: 'gp51_live'
-        }
-      }));
+      const vehicleData = positions.map(position => {
+        const gp51_metadata: VehicleGP51Metadata = {
+            latitude: position.latitude,
+            longitude: position.longitude,
+            speed: position.speed,
+            course: position.course,
+            status: position.status,
+            statusText: position.statusText,
+            timestamp: position.timestamp.toISOString(),
+            isMoving: position.isMoving,
+            vehicleStatus: position.isOnline ? 'online' : 'offline',
+            lastGP51Sync: new Date().toISOString(),
+            importSource: 'gp51_live'
+        };
+
+        return {
+            device_id: position.deviceId,
+            device_name: position.deviceName || position.deviceId,
+            envio_user_id: user.id,
+            is_active: true,
+            gp51_metadata
+        };
+      });
 
       const { error } = await supabase
         .from('vehicles')
