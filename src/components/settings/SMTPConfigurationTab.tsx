@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,8 @@ interface SMTPConfig {
   last_test_status?: 'success' | 'failure' | null;
   last_test_message?: string | null;
   last_tested_at?: string | null;
+  from_name: string;
+  from_email: string;
 }
 
 const SMTP_PROVIDERS = {
@@ -45,6 +48,8 @@ const SMTPConfigurationTab: React.FC = () => {
     use_tls: true,
     use_ssl: false,
     is_active: true,
+    from_name: '',
+    from_email: '',
   });
 
   useEffect(() => {
@@ -81,6 +86,8 @@ const SMTPConfigurationTab: React.FC = () => {
           last_test_status: data.last_test_status as 'success' | 'failure' | null,
           last_test_message: data.last_test_message,
           last_tested_at: data.last_tested_at,
+          from_name: data.from_name || '',
+          from_email: data.from_email || '',
         });
       }
     } catch (error: any) {
@@ -200,8 +207,19 @@ const SMTPConfigurationTab: React.FC = () => {
 
           <div className="space-y-2">
             <Label htmlFor="smtp-pass">Password / App Password</Label>
-            <Input id="smtp-pass" type="password" value={config.smtp_password} onChange={(e) => setConfig(prev => ({ ...prev, smtp_password: e.target.value }))} placeholder="Enter new password to update" />
+            <Input id="smtp-pass" type="password" value={config.smtp_password || ''} onChange={(e) => setConfig(prev => ({ ...prev, smtp_password: e.target.value }))} placeholder="Enter new password to update" />
             <p className="text-sm text-muted-foreground">For security, this field is always empty. Enter a new password only if you need to change it.</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="from-name">Sender Name</Label>
+              <Input id="from-name" value={config.from_name} onChange={(e) => setConfig(prev => ({ ...prev, from_name: e.target.value }))} placeholder="Your Company Name" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="from-email">Sender Email</Label>
+              <Input id="from-email" type="email" value={config.from_email} onChange={(e) => setConfig(prev => ({ ...prev, from_email: e.target.value }))} placeholder="noreply@example.com" />
+            </div>
           </div>
 
           <div className="flex gap-6">
