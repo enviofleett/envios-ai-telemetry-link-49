@@ -3,13 +3,15 @@ import React, { useState } from 'react';
 import DeliveryTrackingMap from '@/components/delivery/DeliveryTrackingMap';
 import DeliveryVehiclesPanel from '@/components/delivery/DeliveryVehiclesPanel';
 import ActiveDeliveriesPanel from '@/components/delivery/ActiveDeliveriesPanel';
-import { useEnhancedVehicleData } from '@/hooks/useEnhancedVehicleData';
+import { useSimpleVehicleData } from '@/hooks/useSimpleVehicleData';
 import type { VehicleData, DeliveryOrder } from '@/types/vehicle';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 
 const LiveTracking: React.FC = () => {
-  const { vehicles, isLoading, metrics } = useEnhancedVehicleData();
+  const { data, isLoading, error } = useSimpleVehicleData();
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
+
+  const vehicles = data?.vehicles || [];
 
   // NOTE: This is temporary mock data to demonstrate the UI.
   // In a real application, this would come from your backend.
@@ -51,11 +53,11 @@ const LiveTracking: React.FC = () => {
     );
   }
 
-  if (metrics.syncStatus === 'error') {
+  if (error) {
     return (
       <div className="flex items-center justify-center h-screen text-red-600">
         <AlertTriangle className="w-8 h-8 mr-2" />
-        <p>Error loading tracking data: {metrics.errorMessage || 'Sync failed'}</p>
+        <p>Error loading tracking data: {error.message || 'An unknown error occurred'}</p>
       </div>
     );
   }
