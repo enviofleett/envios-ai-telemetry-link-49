@@ -1,5 +1,5 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { crossBrowserMD5 } from '@/utils/crossBrowserMD5';
 
 export interface AuthResult {
   success: boolean;
@@ -24,7 +24,9 @@ export class Gps51AuthService {
   private static instance: Gps51AuthService;
   private currentSession: any = null;
 
-  private constructor() {}
+  private constructor() {
+    this.restoreSession();
+  }
 
   static getInstance(): Gps51AuthService {
     if (!Gps51AuthService.instance) {
@@ -36,22 +38,55 @@ export class Gps51AuthService {
   async login(username: string, password: string): Promise<AuthResult> {
     try {
       console.log('🔐 GP51 Login attempt for user:', username);
-      
       const result = await this.authenticate({ username, password });
       
       if (result.success) {
         console.log('✅ GP51 login successful');
+        await this.restoreSession(); // Refresh local session state from DB
       } else {
         console.error('❌ GP51 login failed:', result.error);
+        this.currentSession = null;
       }
       
       return result;
     } catch (error) {
       console.error('❌ GP51 login exception:', error);
+      this.currentSession = null;
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Login failed'
       };
+    }
+  }
+
+  private async authenticate(credentials: GP51Credentials): Promise<AuthResult> {
+    try {
+      console.log('Authenticating with gp51-auth-service...');
+      
+      const { data, error: functionError } = await supabase.functions.invoke('gp51-auth-service', {
+        body: {
+          action: 'test_authentication',
+          username: credentials.username,
+          password: credentials.password
+        }
+      });
+
+      if (functionError) {
+        throw new Error(functionError.message);
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Authentication failed on the service-side');
+      }
+      
+      console.log('✅ gp51-auth-service reports success.', data);
+      
+      return { success: true, token: data.token };
+
+    } catch (error) {
+      console.error('❌ GP51 authentication process failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown authentication error';
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -71,215 +106,80 @@ export class Gps51AuthService {
   }
 
   async getToken(): Promise<string | null> {
-    try {
-      if (this.currentSession?.gp51_token) {
-        return this.currentSession.gp51_token;
-      }
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-
-      const { data: session } = await supabase
-        .from('gp51_sessions')
-        .select('gp51_token, token_expires_at')
-        .eq('envio_user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (session && new Date(session.token_expires_at) > new Date()) {
-        return session.gp51_token;
-      }
-
-      return null;
-    } catch (error) {
-      console.error('❌ Failed to get GP51 token:', error);
-      return null;
+    await this.restoreSession(); // Always make sure session is fresh
+    if (this.currentSession && new Date(this.currentSession.token_expires_at) > new Date()) {
+      return this.currentSession.gp51_token;
     }
-  }
-
-  async healthCheck(): Promise<boolean> {
-    try {
-      const token = await this.getToken();
-      return token !== null;
-    } catch (error) {
-      console.error('❌ GP51 health check failed:', error);
-      return false;
-    }
+    return null;
   }
 
   getAuthStatus(): AuthStatus {
-    if (this.currentSession) {
+    if (this.currentSession && this.currentSession.token_expires_at && new Date(this.currentSession.token_expires_at) > new Date()) {
       return {
         isAuthenticated: true,
         username: this.currentSession.username,
         tokenExpiresAt: new Date(this.currentSession.token_expires_at)
       };
     }
-
     return { isAuthenticated: false };
   }
 
-  async authenticate(credentials: GP51Credentials): Promise<AuthResult> {
+  async restoreSession(): Promise<void> {
     try {
-      console.log('🔐 Starting GP51 authentication process...');
-      
-      const hashedPassword = await crossBrowserMD5(credentials.password);
-      console.log('✅ Password hashed successfully');
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        return { success: false, error: 'User not authenticated' };
-      }
-
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 8);
-
-      const { data: sessionData, error: sessionError } = await supabase
+      const { data, error } = await supabase
         .from('gp51_sessions')
-        .upsert({
-          envio_user_id: user.id,
-          username: credentials.username,
-          password_hash: hashedPassword,
-          gp51_token: `temp_token_${Date.now()}`,
-          token_expires_at: expiresAt.toISOString(),
-          api_url: credentials.apiUrl || 'https://www.gps51.com/webapi',
-          last_activity_at: new Date().toISOString()
-        }, {
-          onConflict: 'username'
-        })
-        .select()
-        .single();
-
-      if (sessionError) {
-        console.error('❌ Failed to store GP51 session:', sessionError);
-        return { success: false, error: 'Failed to store session data' };
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (error) {
+        console.error('DB error restoring session:', error);
+        this.currentSession = null;
+        return;
+      };
+      
+      if (data && data.token_expires_at && new Date(data.token_expires_at) > new Date()) {
+        this.currentSession = data;
+        console.log(`✅ GP51 Session restored for user: ${data.username}`);
+      } else {
+        if(data) {
+            console.log('Found session but it is expired.');
+        } else {
+            console.log('No valid GP51 session found in database.');
+        }
+        this.currentSession = null;
       }
-
-      this.currentSession = sessionData;
-      console.log('✅ GP51 authentication successful');
-
-      return {
-        success: true,
-        token: sessionData.gp51_token,
-        sessionId: sessionData.id
-      };
-
     } catch (error) {
-      console.error('❌ GP51 authentication failed:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Authentication failed'
-      };
+      console.error('❌ Failed to restore GP51 session:', error);
+      this.currentSession = null;
     }
   }
 
-  async testConnection(credentials: GP51Credentials): Promise<{ success: boolean; error?: string }> {
+  private async clearSession(): Promise<void> {
     try {
-      console.log('🧪 Testing GP51 connection...');
-      
-      const { data, error } = await supabase.functions.invoke('settings-management', {
-        body: {
-          action: 'save-gp51-credentials',
-          username: credentials.username,
-          password: credentials.password,
-          apiUrl: credentials.apiUrl,
-          testOnly: true
-        }
-      });
+      console.log('Clearing all GP51 sessions from database...');
+      const { error } = await supabase
+        .from('gp51_sessions')
+        .delete()
+        .neq('username', 'placeholder_for_no_op_delete');
 
       if (error) {
-        console.error('🔥 Connection test failed:', error);
-        return { success: false, error: error.message };
-      }
-
-      if (data.success) {
-        console.log('✅ GP51 connection test successful');
-        return { success: true };
-      } else {
-        console.error('🔥 GP51 API returned error:', data.error);
-        return { success: false, error: data.error || 'Connection test failed' };
-      }
-    } catch (error) {
-      console.error('🔥 Connection test error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Connection test failed' 
-      };
-    }
-  }
-
-  async saveCredentials(credentials: GP51Credentials): Promise<{ success: boolean; error?: string }> {
-    try {
-      const { data, error } = await supabase.functions.invoke('settings-management', {
-        body: { 
-          action: 'save-gp51-credentials',
-          username: credentials.username,
-          password: credentials.password,
-          apiUrl: credentials.apiUrl,
-          testOnly: false
-        }
-      });
-      
-      if (error) throw error;
-      
-      return { success: data.success, error: data.error };
-    } catch (error) {
-      console.error('Failed to save GP51 credentials:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to save credentials' 
-      };
-    }
-  }
-
-  async getConnectionStatus(): Promise<{ connected: boolean; username?: string; error?: string }> {
-    try {
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: { action: 'get-gp51-status' }
-      });
-      
-      if (error) throw error;
-      
-      return {
-        connected: data.success || false,
-        username: data.username,
-        error: data.error
-      };
-    } catch (error) {
-      console.error('Failed to get GP51 status:', error);
-      return { 
-        connected: false, 
-        error: error instanceof Error ? error.message : 'Failed to check status' 
-      };
-    }
-  }
-
-  async clearSession(): Promise<void> {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('gp51_sessions')
-          .delete()
-          .eq('envio_user_id', user.id);
+        throw error;
       }
 
       this.currentSession = null;
-      console.log('GP51 session cleared');
+      console.log('All GP51 sessions cleared from database.');
     } catch (error) {
-      console.error('Failed to clear GP51 session:', error);
+      console.error('Failed to clear sessions:', error);
+      throw error;
     }
   }
 
-  getCurrentSession() {
-    return this.currentSession;
-  }
-
-  isAuthenticated(): boolean {
-    return this.currentSession !== null;
+  async healthCheck(): Promise<boolean> {
+    await this.restoreSession();
+    return this.getAuthStatus().isAuthenticated;
   }
 }
 
-// Export the singleton instance
 export const gps51AuthService = Gps51AuthService.getInstance();

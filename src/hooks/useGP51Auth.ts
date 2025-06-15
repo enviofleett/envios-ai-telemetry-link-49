@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { gps51AuthService, type AuthResult } from '@/services/gp51/Gps51AuthService';
 import { useToast } from '@/hooks/use-toast';
@@ -40,7 +39,7 @@ export const useGP51Auth = () => {
     console.log('🔍 useGP51Auth: Initializing hook and checking auth status...');
     
     const initializeAuth = async () => {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await gps51AuthService.restoreSession();
       updateAuthState();
     };
     
@@ -48,8 +47,8 @@ export const useGP51Auth = () => {
     
     const interval = setInterval(() => {
       console.log('🔄 useGP51Auth: Periodic auth status check...');
-      updateAuthState();
-    }, 30000);
+      gps51AuthService.restoreSession().then(() => updateAuthState());
+    }, 60000); // Check every minute
     
     return () => clearInterval(interval);
   }, [updateAuthState]);
