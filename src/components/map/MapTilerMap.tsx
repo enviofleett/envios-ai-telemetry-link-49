@@ -54,7 +54,7 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
         }
         // For all other URLs (e.g., the fallback demo style), do not modify the request.
         return { url };
-      }) as maplibregl.RequestTransformFunction,
+      }) as unknown as maplibregl.RequestTransformFunction,
     });
 
     if (showControls) {
