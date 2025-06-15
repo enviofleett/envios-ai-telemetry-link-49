@@ -1,7 +1,7 @@
 
 import React, { Suspense } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, Shield } from 'lucide-react'; // <-- Added Shield import
+import { AlertTriangle, Shield } from 'lucide-react';
 import { StableErrorBoundary } from '@/components/StableErrorBoundary';
 import PlatformAdminUsersPanel from './platform/PlatformAdminUsersPanel';
 import { useAuth } from '@/contexts/AuthContext';
@@ -68,6 +68,7 @@ const SecurityTab = React.lazy(() => import('./tabs/SecurityTab'));
 const GP51IntegrationTab = React.lazy(() => import('./tabs/GP51IntegrationTab'));
 const GP51ValidationTab = React.lazy(() => import('./tabs/GP51ValidationTab'));
 const GeofencingTab = React.lazy(() => import('./tabs/GeofencingTab'));
+const MapsTab = React.lazy(() => import('./tabs/MapsTab'));
 // Analytics
 const AnalyticsTab = React.lazy(() => import('./tabs/AnalyticsTab'));
 const PackageManagementDashboard = React.lazy(() => import('../packages/PackageManagementDashboard'));
@@ -130,7 +131,7 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
       case 'vin-api':
         return <ComingSoonTab tabName="VIN API" />;
       case 'maps':
-        return <ComingSoonTab tabName="Maps API" />;
+        return <MapsTab />;
       case 'whatsapp-api':
         return <ComingSoonTab tabName="WhatsApp API" />;
       case 'api-integrations':
