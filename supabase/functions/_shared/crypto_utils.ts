@@ -1,12 +1,13 @@
 
 // Trigger re-deploy - 2025-06-14
-import md5 from "npm:js-md5";
+import { md5 as md5Hash } from "npm:js-md5";
 
 /**
  * MD5 hash function (synchronous) - always use this to avoid recursion/stack issues
  */
 export function md5_sync(input: string): string {
-  return md5(input);
+  // Use the renamed import to call the actual library function
+  return md5Hash(input);
 }
 
 /**
@@ -16,6 +17,6 @@ export function md5_sync(input: string): string {
  */
 export async function md5(input: string): Promise<string> {
   console.warn("The async md5 function is deprecated. Use md5_sync if possible.");
-  // FIX: This was causing a stack overflow due to recursion. Now correctly calls the sync version.
+  // This call is now safe as the recursion is broken.
   return md5_sync(input);
 }
