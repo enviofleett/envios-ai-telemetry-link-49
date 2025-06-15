@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { encrypt } from '../_shared/encryption.ts';
 
@@ -73,7 +72,7 @@ export async function saveSmtpSettings(settings: any) {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
-  const { id, smtp_host, smtp_port, smtp_user, smtp_password, use_tls, use_ssl, provider_name = 'custom', from_name, from_email } = settings;
+  const { id, smtp_host, smtp_port, smtp_user, smtp_password, use_tls, use_ssl, from_name, from_email } = settings;
 
   if (!smtp_host || !smtp_port || !smtp_user) {
     throw new Error("Missing required SMTP fields: host, port, and user are required.");
@@ -89,7 +88,6 @@ export async function saveSmtpSettings(settings: any) {
     smtp_port,
     smtp_username: smtp_user, // Map UI field to DB column
     smtp_encryption,
-    provider_name,
     is_active: true,
     updated_at: new Date().toISOString(),
     from_name,

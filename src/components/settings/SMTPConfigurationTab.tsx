@@ -66,7 +66,7 @@ const SMTPConfigurationTab: React.FC = () => {
         // The DB has smtp_username and smtp_encryption. We map them to the component's state.
         const providerKey = Object.keys(SMTP_PROVIDERS).find(
           key => SMTP_PROVIDERS[key as keyof typeof SMTP_PROVIDERS].host === data.smtp_host
-        ) || data.provider_name || 'custom';
+        ) || 'custom';
 
         setConfig({
           id: data.id,
