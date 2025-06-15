@@ -1,4 +1,3 @@
-
 import { gp51DataService } from '@/services/gp51/GP51DataService';
 import type { GP51ProcessedPosition } from '@/types/gp51';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
@@ -98,15 +97,11 @@ class EnhancedVehicleDataService {
       const deviceIds = devices.map(d => d.deviceId);
 
       // Step 2: Fetch positions for all devices
-      const positionsResult = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
+      const vehiclePositions = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
 
-      if (!positionsResult.success) {
+      if (vehiclePositions.size === 0) {
           console.warn('⚠️ Could not fetch positions, proceeding with device list only.');
       }
-
-      const positions = positionsResult.data || [];
-      const vehiclePositions = new Map<string, GP51ProcessedPosition>();
-      positions.forEach(pos => vehiclePositions.set(pos.deviceId, pos));
 
       // Step 3: Transform and merge data
       const transformedVehicles: VehicleData[] = devices.map(device => {
@@ -128,7 +123,7 @@ class EnhancedVehicleDataService {
             longitude: position.longitude,
             speed: position.speed,
             course: position.course,
-            timestamp: position.timestamp
+            timestamp: position.timestamp.toISOString()
           } : undefined,
           
           driver: {

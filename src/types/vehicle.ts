@@ -191,7 +191,7 @@ export interface VehicleDataMetrics {
   lastSyncTime: Date;
   positionsUpdated: number;
   errors: number;
-  syncStatus: 'success' | 'error' | 'pending';
+  syncStatus: 'success' | 'error' | 'pending' | 'syncing';
   errorMessage?: string;
 }
 

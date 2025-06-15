@@ -34,7 +34,15 @@ export class GP51DataService {
         return { success: false, error: data.error };
       }
 
-      const devices: GP51Device[] = data.devices || [];
+      const devices: GP51Device[] = (data.devices || []).map((d: any) => ({
+        deviceId: d.deviceId || d.deviceid,
+        deviceName: d.deviceName || d.devicename,
+        deviceType: d.deviceType || d.devicetype,
+        groupId: d.groupId || d.groupid,
+        isOnline: d.isOnline || false,
+        lastUpdate: d.lastUpdate ? new Date(d.lastUpdate) : undefined
+      }));
+
       console.log(`✅ GP51DataService: Retrieved ${devices.length} devices`);
       
       return { success: true, data: devices };
@@ -47,11 +55,12 @@ export class GP51DataService {
     }
   }
 
-  async getMultipleDevicesLastPositions(deviceIds: string[]): Promise<GP51ApiResponse<GP51ProcessedPosition[]>> {
+  async getMultipleDevicesLastPositions(deviceIds: string[]): Promise<Map<string, GP51ProcessedPosition>> {
+    const positionsMap = new Map<string, GP51ProcessedPosition>();
     try {
       if (deviceIds.length === 0) {
         console.log('🗺️ GP51DataService: No device IDs provided for position fetch. Skipping.');
-        return { success: true, data: [] };
+        return positionsMap;
       }
 
       console.log(`🗺️ GP51DataService: Fetching positions for ${deviceIds.length} devices...`);
@@ -64,24 +73,42 @@ export class GP51DataService {
 
       if (error) {
         console.error('❌ GP51DataService: Positions fetch failed:', error);
-        return { success: false, error: error.message };
+        return positionsMap;
       }
 
       if (!data.success) {
         console.error('❌ GP51DataService: GP51 positions API error:', data.error);
-        return { success: false, error: data.error };
+        return positionsMap;
       }
 
-      const positions: GP51ProcessedPosition[] = data.telemetry || [];
+      const positions: any[] = data.telemetry || [];
       console.log(`✅ GP51DataService: Retrieved positions for ${positions.length} devices`);
-      return { success: true, data: positions };
+      
+      positions.forEach(pos => {
+        if (pos.deviceId) {
+          positionsMap.set(pos.deviceId, {
+            ...pos,
+            timestamp: new Date(pos.timestamp) // Convert string to Date for type consistency
+          });
+        }
+      });
+
     } catch (error) {
       console.error('❌ GP51DataService: Positions exception:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Failed to fetch positions' 
-      };
     }
+    return positionsMap;
+  }
+  
+  // Stub for backward compatibility with read-only components
+  async getLiveVehicles(): Promise<any> {
+      console.warn('GP51DataService.getLiveVehicles is deprecated and should not be used.');
+      return { success: true, data: { devices: [], telemetry: [] } };
+  }
+
+  // Stub for backward compatibility with read-only components
+  async processVehicleData(): Promise<any> {
+      console.warn('GP51DataService.processVehicleData is deprecated and should not be used.');
+      return { success: true, created: 0, updated: 0, errors: [] };
   }
 }
 
