@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -65,7 +64,6 @@ export const useStableEnhancedVehicleData = () => {
           isOnline: status === 'online',
           isMoving: false,
           alerts: [],
-          vehicleName: dbVehicle.name,
         };
       });
 

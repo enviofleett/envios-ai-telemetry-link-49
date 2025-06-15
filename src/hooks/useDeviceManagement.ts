@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehicleDbRecord, VehicleStatus } from '@/types/vehicle';
@@ -26,7 +25,6 @@ const mapDbToDisplayVehicle = (dbVehicle: VehicleDbRecord): VehicleData => {
         isOnline: false,
         isMoving: false,
         lastUpdate: new Date(dbVehicle.updated_at),
-        vehicleName: dbVehicle.name,
         license_plate: undefined, // Not in DB
     };
 };

@@ -86,8 +86,7 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
             const searchTerm = filters.search.toLowerCase();
             const matchesSearch = 
               vehicle.device_name.toLowerCase().includes(searchTerm) ||
-              vehicle.device_id.toLowerCase().includes(searchTerm) ||
-              (vehicle.vehicleName?.toLowerCase().includes(searchTerm) || false);
+              vehicle.device_id.toLowerCase().includes(searchTerm);
             if (!matchesSearch) return false;
           }
 

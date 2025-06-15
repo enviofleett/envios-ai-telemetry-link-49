@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehicleDbRecord } from '@/types/vehicle';
@@ -71,7 +70,6 @@ export const useVehicleData = (filters: VehicleDataFilters = {}) => {
         alerts: [],
         isOnline: false,
         isMoving: false,
-        vehicleName: vehicle.name,
       }));
 
       console.log('✅ Vehicle data fetched successfully:', transformedData.length, 'vehicles');
