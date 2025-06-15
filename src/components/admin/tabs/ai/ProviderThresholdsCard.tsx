@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -76,7 +75,16 @@ const ProviderThresholdsCard: React.FC<ProviderThresholdsCardProps> = ({ thresho
   const onSubmit = async (values: ProviderThresholdsFormValues) => {
     const updatePromises = (
       Object.keys(values) as Array<keyof ProviderThresholdsFormValues>
-    ).map(provider => mutation.mutateAsync({ provider, values: values[provider] }));
+    ).map(provider => {
+      const providerValues = values[provider];
+      // Zod validation should ensure these are numbers, but to satisfy TypeScript,
+      // we create a safe object. The nullish coalescing operator (??) provides a fallback.
+      const safeValues = {
+        daily_limit: providerValues.daily_limit ?? 0,
+        monthly_limit: providerValues.monthly_limit ?? 0,
+      };
+      return mutation.mutateAsync({ provider, values: safeValues });
+    });
 
     try {
       await Promise.all(updatePromises);
