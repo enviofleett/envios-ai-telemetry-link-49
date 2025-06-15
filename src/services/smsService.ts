@@ -1,110 +1,10 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { SMSConfig, SMSLog, SMSLogsResponse, BalanceResponse } from './smsService';
 
-export interface SMSConfig {
-  username: string;
-  password: string;
-  sender: string;
-  route: number;
-}
+export type { SMSConfig, SMSLog, SMSLogsResponse, BalanceResponse };
 
-export interface SMSLog {
-  id: string;
-  recipient_phone: string;
-  message: string;
-  event_type: string;
-  status: string;
-  provider_name: string;
-  provider_response: any;
-  sent_at: string | null;
-  failed_at: string | null;
-  error_message: string | null;
-  created_at: string;
-}
-
-export interface SMSLogsResponse {
-  success: boolean;
-  logs: SMSLog[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
-}
-
-export interface BalanceResponse {
-  success: boolean;
-  balance?: string;
-  error?: string;
-}
-
-// Encryption utility for secure credential storage
-class CredentialEncryption {
-  private static async getEncryptionKey(): Promise<CryptoKey> {
-    const keyMaterial = await crypto.subtle.importKey(
-      'raw',
-      new TextEncoder().encode('envio-sms-encryption-key-v1'),
-      { name: 'PBKDF2' },
-      false,
-      ['deriveKey']
-    );
-    
-    return await crypto.subtle.deriveKey(
-      {
-        name: 'PBKDF2',
-        salt: new TextEncoder().encode('envio-salt'),
-        iterations: 100000,
-        hash: 'SHA-256',
-      },
-      keyMaterial,
-      { name: 'AES-GCM', length: 256 },
-      false,
-      ['encrypt', 'decrypt']
-    );
-  }
-
-  static async encrypt(plaintext: string): Promise<string> {
-    const key = await this.getEncryptionKey();
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const encoded = new TextEncoder().encode(plaintext);
-    
-    const encrypted = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      encoded
-    );
-    
-    const combined = new Uint8Array(iv.length + encrypted.byteLength);
-    combined.set(iv);
-    combined.set(new Uint8Array(encrypted), iv.length);
-    
-    return btoa(String.fromCharCode(...combined));
-  }
-
-  static async decrypt(encryptedData: string): Promise<string> {
-    try {
-      const key = await this.getEncryptionKey();
-      const combined = new Uint8Array(
-        atob(encryptedData).split('').map(char => char.charCodeAt(0))
-      );
-      
-      const iv = combined.slice(0, 12);
-      const encrypted = combined.slice(12);
-      
-      const decrypted = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        encrypted
-      );
-      
-      return new TextDecoder().decode(decrypted);
-    } catch (error) {
-      console.error('Decryption failed:', error);
-      throw new Error('Failed to decrypt credentials');
-    }
-  }
-}
+// Client-side encryption has been removed for better security.
+// All credential handling is now done server-side via Edge Functions.
 
 class SMSService {
   private async makeRequest(data: any) {
@@ -123,6 +23,7 @@ class SMSService {
     console.log('🔍 Validating SMS credentials using balance check...');
     
     try {
+      // This remains a client-side check for immediate feedback before saving.
       const validationUrl = `https://sms.mysmstab.com/api/?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=balance`;
       
       const response = await fetch(validationUrl);
@@ -156,7 +57,6 @@ class SMSService {
   async validateAndSaveCredentials(config: SMSConfig): Promise<{ success: boolean; message: string; balance?: string }> {
     console.log('🧪 Starting credential validation and save process...');
     
-    // Step 1: Validate credentials using balance check
     const validationResult = await this.validateCredentials(config.username, config.password);
     
     if (!validationResult.success) {
@@ -166,9 +66,8 @@ class SMSService {
       };
     }
     
-    // Step 2: Save credentials to database if validation passed
     try {
-      console.log('💾 Saving validated credentials to database...');
+      console.log('💾 Saving validated credentials to database via edge function...');
       await this.saveSMSConfiguration(config);
       
       return {
@@ -197,16 +96,6 @@ class SMSService {
     });
   }
 
-  async testConfiguration(config: SMSConfig, testRecipient?: string) {
-    console.log('🧪 Testing SMS configuration');
-    
-    return this.makeRequest({
-      action: 'test_config',
-      config,
-      recipient: testRecipient
-    });
-  }
-
   async getSMSLogs(page: number = 1, limit: number = 50): Promise<SMSLogsResponse> {
     console.log(`📋 Fetching SMS logs - Page ${page}`);
     
@@ -218,69 +107,68 @@ class SMSService {
   }
 
   async saveSMSConfiguration(config: SMSConfig) {
-    console.log('💾 Saving SMS configuration with encryption...');
+    console.log('💾 Calling edge function to save SMS configuration...');
     
     try {
-      // Encrypt the password before saving
-      const encryptedPassword = await CredentialEncryption.encrypt(config.password);
-      
-      const { data, error } = await supabase
-        .from('sms_configurations')
-        .upsert({
-          user_id: (await supabase.auth.getUser()).data.user?.id,
-          provider_name: 'mysms',
-          username: config.username,
-          password_encrypted: encryptedPassword,
-          sender_id: config.sender,
-          route: config.route.toString(),
-          is_active: true,
-          is_default: true
-        }, {
-          onConflict: 'user_id,provider_name'
-        })
-        .select()
-        .single();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("User must be authenticated to save SMS settings.");
 
-      if (error) {
-        throw new Error(`Failed to save SMS configuration: ${error.message}`);
-      }
+        const { data, error } = await supabase.functions.invoke('settings-management', {
+            body: {
+                action: 'save-sms-settings',
+                userId: user.id,
+                username: config.username,
+                password: config.password,
+                sender: config.sender,
+                route: config.route
+            }
+        });
 
-      console.log('✅ SMS configuration saved successfully with encryption');
-      return data;
+        if (error) throw error;
+        if (!data.success) throw new Error(data.error);
+
+        console.log('✅ SMS configuration saved successfully via edge function');
+        return data.data;
     } catch (error) {
-      console.error('❌ Failed to save SMS configuration:', error);
-      throw error;
+        console.error('❌ Failed to save SMS configuration via edge function:', error);
+        throw error;
     }
   }
 
   async getSMSConfiguration() {
-    console.log('📖 Getting SMS configuration');
+    console.log('📖 Getting SMS configuration via edge function...');
     
-    const { data, error } = await supabase
-      .from('sms_configurations')
-      .select('*')
-      .eq('is_active', true)
-      .single();
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return null;
 
-    if (error && error.code !== 'PGRST116') {
-      throw new Error(`Failed to get SMS configuration: ${error.message}`);
+        const { data, error } = await supabase.functions.invoke('settings-management', {
+            body: { action: 'get-sms-settings' }
+        });
+
+        if (error) throw error;
+
+        if (data && data.success) {
+            return data.data;
+        }
+        return null;
+    } catch (error) {
+        console.error('Failed to get SMS configuration:', error);
+        return null;
     }
+  }
 
-    // Decrypt password if configuration exists
-    if (data && data.password_encrypted) {
-      try {
-        const decryptedPassword = await CredentialEncryption.decrypt(data.password_encrypted);
-        return {
-          ...data,
-          password_decrypted: decryptedPassword
-        };
-      } catch (error) {
-        console.error('Failed to decrypt password:', error);
-        throw new Error('Failed to decrypt stored credentials');
-      }
+  async getProviderBalance(): Promise<BalanceResponse> {
+    try {
+      const { data, error } = await supabase.functions.invoke('sms-gateway', {
+        body: { action: 'get_balance' }
+      });
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching SMS provider balance:', error);
+      return { success: false, error: 'Failed to fetch balance.' };
     }
-
-    return data;
   }
 
   validatePhoneNumber(phone: string): boolean {

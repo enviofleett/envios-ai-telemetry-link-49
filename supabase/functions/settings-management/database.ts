@@ -1,6 +1,5 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { encrypt } from '../_shared/encryption.ts';
+import { encrypt, decrypt } from '../_shared/encryption.ts';
 
 export async function saveGP51Session(username: string, token: string, apiUrl?: string, userId?: string) {
   const supabase = createClient(
@@ -243,4 +242,90 @@ export async function getGP51Status() {
       error: 'Failed to check GP51 status'
     };
   }
+}
+
+export async function saveSmsSettings(settings: any) {
+  const loggableSettings = { ...settings };
+  if (loggableSettings.password) loggableSettings.password = '********';
+  console.log('[db-sms] Received SMS settings for saving:', loggableSettings);
+
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+  
+  const { username, password, sender, route, userId } = settings;
+
+  const upsertData: any = {
+    user_id: userId,
+    provider_name: 'mysms', // Hardcoded for now
+    username,
+    sender_id: sender,
+    route: route.toString(),
+    is_active: true,
+    is_default: true,
+    updated_at: new Date().toISOString()
+  }
+
+  if (password) {
+    console.log('[db-sms] SMS password provided, encrypting...');
+    const encryptionKey = Deno.env.get('ENCRYPTION_KEY');
+    if (!encryptionKey) {
+      console.error('[db-sms] CRITICAL: ENCRYPTION_KEY environment variable not set.');
+      throw new Error('Server configuration error: ENCRYPTION_KEY is missing.');
+    }
+    upsertData.password_encrypted = await encrypt(password, encryptionKey);
+    console.log('[db-sms] Password encrypted successfully.');
+  }
+
+  const { data, error } = await supabase
+    .from('sms_configurations')
+    .upsert(upsertData, { onConflict: 'user_id,provider_name' })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[db-sms] Supabase upsert error:', error);
+    throw new Error(`Failed to save SMS settings: ${error.message}`);
+  }
+  
+  console.log('[db-sms] SMS settings saved successfully to database. Result ID:', data?.id);
+  // Don't return encrypted password to client
+  if (data) delete data.password_encrypted;
+  return data;
+}
+
+export async function getSmsSettings(userId: string) {
+    console.log('[db-sms] Getting SMS settings for user:', userId);
+    const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { data, error } = await supabase
+      .from('sms_configurations')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .single();
+
+    if (error) {
+        if (error.code === 'PGRST116') { // No rows found
+            return null;
+        }
+        console.error('[db-sms] Error fetching SMS config:', error);
+        throw new Error(`Failed to get SMS configuration: ${error.message}`);
+    }
+
+    if (data && data.password_encrypted) {
+        const encryptionKey = Deno.env.get('ENCRYPTION_KEY');
+        if (!encryptionKey) {
+            console.error('[db-sms] CRITICAL: ENCRYPTION_KEY is missing for decryption.');
+            throw new Error('Server configuration error: cannot decrypt credentials.');
+        }
+        data.password = await decrypt(data.password_encrypted, encryptionKey);
+        delete data.password_encrypted;
+    }
+    
+    return data;
 }

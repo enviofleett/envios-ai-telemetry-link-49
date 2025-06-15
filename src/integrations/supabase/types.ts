@@ -6116,53 +6116,65 @@ export type Database = {
       }
       sms_logs: {
         Row: {
+          cost: number | null
           created_at: string
           delivered_at: string | null
+          delivery_status: string | null
           error_message: string | null
           event_type: string
           id: string
           max_retries: number
           message: string
+          provider_message_id: string | null
           provider_response: Json | null
           recipient_phone: string
           retry_count: number
           scheduled_for: string | null
           sent_at: string | null
           status: string
+          status_updated_at: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          cost?: number | null
           created_at?: string
           delivered_at?: string | null
+          delivery_status?: string | null
           error_message?: string | null
           event_type: string
           id?: string
           max_retries?: number
           message: string
+          provider_message_id?: string | null
           provider_response?: Json | null
           recipient_phone: string
           retry_count?: number
           scheduled_for?: string | null
           sent_at?: string | null
           status?: string
+          status_updated_at?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          cost?: number | null
           created_at?: string
           delivered_at?: string | null
+          delivery_status?: string | null
           error_message?: string | null
           event_type?: string
           id?: string
           max_retries?: number
           message?: string
+          provider_message_id?: string | null
           provider_response?: Json | null
           recipient_phone?: string
           retry_count?: number
           scheduled_for?: string | null
           sent_at?: string | null
           status?: string
+          status_updated_at?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -6240,6 +6252,36 @@ export type Database = {
           updated_at?: string
           user_id?: string
           variables?: Json | null
+        }
+        Relationships: []
+      }
+      sms_webhook_logs: {
+        Row: {
+          id: string
+          is_processed: boolean
+          processing_error: string | null
+          provider: string
+          received_at: string
+          request_body: Json | null
+          request_headers: Json | null
+        }
+        Insert: {
+          id?: string
+          is_processed?: boolean
+          processing_error?: string | null
+          provider: string
+          received_at?: string
+          request_body?: Json | null
+          request_headers?: Json | null
+        }
+        Update: {
+          id?: string
+          is_processed?: boolean
+          processing_error?: string | null
+          provider?: string
+          received_at?: string
+          request_body?: Json | null
+          request_headers?: Json | null
         }
         Relationships: []
       }
@@ -7003,6 +7045,79 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      user_sms_limits: {
+        Row: {
+          created_at: string
+          daily_limit: number
+          hourly_limit: number
+          monthly_budget: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          daily_limit?: number
+          hourly_limit?: number
+          monthly_budget?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          daily_limit?: number
+          hourly_limit?: number
+          monthly_budget?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sms_limits_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_sms_usage: {
+        Row: {
+          daily_count: number
+          hourly_count: number
+          last_daily_reset: string
+          last_hourly_reset: string
+          last_monthly_reset: string
+          monthly_spend: number
+          user_id: string
+        }
+        Insert: {
+          daily_count?: number
+          hourly_count?: number
+          last_daily_reset?: string
+          last_hourly_reset?: string
+          last_monthly_reset?: string
+          monthly_spend?: number
+          user_id: string
+        }
+        Update: {
+          daily_count?: number
+          hourly_count?: number
+          last_daily_reset?: string
+          last_hourly_reset?: string
+          last_monthly_reset?: string
+          monthly_spend?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_sms_usage_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_subscriptions: {
         Row: {

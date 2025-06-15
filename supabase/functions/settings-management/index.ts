@@ -1,8 +1,14 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { CORS_HEADERS } from '../_shared/cors.ts';
-import { saveGP51Session, getGP51Status, saveSmtpSettings, updateSmtpTestStatus } from './database.ts';
+import { 
+  saveGP51Session, 
+  getGP51Status, 
+  saveSmtpSettings, 
+  updateSmtpTestStatus,
+  saveSmsSettings,
+  getSmsSettings
+} from './database.ts';
 import { createHash } from "./crypto.ts";
 
 async function getGP51Token(apiUrl: string, username: string, password_md5: string): Promise<string> {
@@ -32,7 +38,6 @@ serve(async (req) => {
     const body = await req.json();
     const { action } = body;
     
-    // Log request body, masking sensitive fields for security
     const loggableBody = { ...body };
     if (loggableBody.password) loggableBody.password = '********';
     if (loggableBody.smtp_password) loggableBody.smtp_password = '********';
@@ -43,7 +48,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
     
-    // Auth check
     console.log('[settings-management] Verifying user authentication...');
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -107,6 +111,18 @@ serve(async (req) => {
         await updateSmtpTestStatus(testStatus, testMessage);
         
         return new Response(JSON.stringify(invokeData), { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+      }
+      case 'save-sms-settings': {
+        console.log('[settings-management] Executing save-sms-settings action.');
+        const data = await saveSmsSettings({ ...body, userId: user.id });
+        console.log('[settings-management] SMS settings saved successfully.');
+        return new Response(JSON.stringify({ success: true, data }), { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
+      }
+      case 'get-sms-settings': {
+        console.log('[settings-management] Executing get-sms-settings action.');
+        const data = await getSmsSettings(user.id);
+        console.log('[settings-management] SMS settings retrieved.');
+        return new Response(JSON.stringify({ success: true, data }), { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } });
       }
       default:
         console.error(`[settings-management] Invalid action received: '${action}'`);
