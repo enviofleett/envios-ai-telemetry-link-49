@@ -1400,15 +1400,7 @@ export type Database = {
           is_active?: boolean | null
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "device_configurations_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "vehicles"
-            referencedColumns: ["device_id"]
-          },
-        ]
+        Relationships: []
       }
       device_group_assignments: {
         Row: {
@@ -1605,13 +1597,6 @@ export type Database = {
           tag_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "device_tag_assignments_device_id_fkey"
-            columns: ["device_id"]
-            isOneToOne: false
-            referencedRelation: "vehicles"
-            referencedColumns: ["device_id"]
-          },
           {
             foreignKeyName: "device_tag_assignments_tag_id_fkey"
             columns: ["tag_id"]
@@ -1992,11 +1977,13 @@ export type Database = {
           name: string
           needs_password_set: boolean | null
           otp_verified_at: string | null
+          package_id: string | null
           phone_number: string | null
           preferred_currency: string | null
           registration_status: string | null
           registration_type: string | null
           updated_at: string
+          user_type: Database["public"]["Enums"]["app_user_type"] | null
         }
         Insert: {
           city?: string | null
@@ -2011,11 +1998,13 @@ export type Database = {
           name: string
           needs_password_set?: boolean | null
           otp_verified_at?: string | null
+          package_id?: string | null
           phone_number?: string | null
           preferred_currency?: string | null
           registration_status?: string | null
           registration_type?: string | null
           updated_at?: string
+          user_type?: Database["public"]["Enums"]["app_user_type"] | null
         }
         Update: {
           city?: string | null
@@ -2030,13 +2019,23 @@ export type Database = {
           name?: string
           needs_password_set?: boolean | null
           otp_verified_at?: string | null
+          package_id?: string | null
           phone_number?: string | null
           preferred_currency?: string | null
           registration_status?: string | null
           registration_type?: string | null
           updated_at?: string
+          user_type?: Database["public"]["Enums"]["app_user_type"] | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "envio_users_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "packages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       envio_users_backup_2025_06_06_09_53_33: {
         Row: {
@@ -2586,6 +2585,30 @@ export type Database = {
         }
         Relationships: []
       }
+      gp51_admin_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          last_used_at: string | null
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          last_used_at?: string | null
+          token: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          last_used_at?: string | null
+          token?: string
+        }
+        Relationships: []
+      }
       gp51_connection_health: {
         Row: {
           created_at: string
@@ -2747,15 +2770,7 @@ export type Database = {
           updated_at?: string | null
           vehicle_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "gp51_device_management_vehicle_id_fkey"
-            columns: ["vehicle_id"]
-            isOneToOne: false
-            referencedRelation: "vehicles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       gp51_health_metrics: {
         Row: {
@@ -5486,6 +5501,42 @@ export type Database = {
           },
         ]
       }
+      packages: {
+        Row: {
+          associated_user_type: Database["public"]["Enums"]["app_user_type"]
+          created_at: string
+          description: string | null
+          features: Json | null
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          associated_user_type: Database["public"]["Enums"]["app_user_type"]
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price?: number
+          updated_at?: string
+        }
+        Update: {
+          associated_user_type?: Database["public"]["Enums"]["app_user_type"]
+          created_at?: string
+          description?: string | null
+          features?: Json | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payment_methods: {
         Row: {
           billing_address: Json | null
@@ -7691,15 +7742,7 @@ export type Database = {
           unparked_at?: string | null
           vehicle_device_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "vehicle_parking_events_vehicle_device_id_fkey"
-            columns: ["vehicle_device_id"]
-            isOneToOne: false
-            referencedRelation: "vehicles"
-            referencedColumns: ["device_id"]
-          },
-        ]
+        Relationships: []
       }
       vehicle_parking_patterns: {
         Row: {
@@ -7738,15 +7781,7 @@ export type Database = {
           updated_at?: string
           vehicle_device_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "vehicle_parking_patterns_vehicle_device_id_fkey"
-            columns: ["vehicle_device_id"]
-            isOneToOne: false
-            referencedRelation: "vehicles"
-            referencedColumns: ["device_id"]
-          },
-        ]
+        Relationships: []
       }
       vehicle_position_cache: {
         Row: {
@@ -7923,179 +7958,42 @@ export type Database = {
           timestamp?: string
           vehicle_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "vehicle_telemetry_history_vehicle_id_fkey"
-            columns: ["vehicle_id"]
-            isOneToOne: false
-            referencedRelation: "vehicles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       vehicles: {
         Row: {
-          acc_status: string | null
-          activation_status: string | null
-          alarm_status: string | null
-          altitude: number | null
-          color: string | null
           created_at: string
-          device_id: string
-          device_name: string
-          device_type: string | null
-          envio_user_id: string | null
-          extraction_job_id: string | null
-          fuel_level: number | null
-          fuel_tank_capacity_liters: number | null
-          gp51_device_id: string | null
-          gp51_metadata: Json | null
-          gp51_username: string | null
-          heading: number | null
+          gp51_device_id: string
           id: string
-          image_urls: string[] | null
-          import_job_type: string | null
-          insurance_expiration_date: string | null
-          is_active: boolean | null
-          last_position: Json | null
-          last_update: string | null
-          latitude: number | null
-          license_expiration_date: string | null
-          license_plate: string | null
-          longitude: number | null
-          make: string | null
-          manufacturer_fuel_consumption_100km_l: number | null
-          model: string | null
-          notes: string | null
-          odometer: number | null
-          satellites: number | null
-          session_id: string | null
-          signal_strength: number | null
+          name: string
           sim_number: string | null
-          speed: number | null
-          status: string | null
           updated_at: string
-          user_profile_id: string | null
-          vin: string | null
-          year: number | null
+          user_id: string
         }
         Insert: {
-          acc_status?: string | null
-          activation_status?: string | null
-          alarm_status?: string | null
-          altitude?: number | null
-          color?: string | null
           created_at?: string
-          device_id: string
-          device_name: string
-          device_type?: string | null
-          envio_user_id?: string | null
-          extraction_job_id?: string | null
-          fuel_level?: number | null
-          fuel_tank_capacity_liters?: number | null
-          gp51_device_id?: string | null
-          gp51_metadata?: Json | null
-          gp51_username?: string | null
-          heading?: number | null
+          gp51_device_id: string
           id?: string
-          image_urls?: string[] | null
-          import_job_type?: string | null
-          insurance_expiration_date?: string | null
-          is_active?: boolean | null
-          last_position?: Json | null
-          last_update?: string | null
-          latitude?: number | null
-          license_expiration_date?: string | null
-          license_plate?: string | null
-          longitude?: number | null
-          make?: string | null
-          manufacturer_fuel_consumption_100km_l?: number | null
-          model?: string | null
-          notes?: string | null
-          odometer?: number | null
-          satellites?: number | null
-          session_id?: string | null
-          signal_strength?: number | null
+          name: string
           sim_number?: string | null
-          speed?: number | null
-          status?: string | null
           updated_at?: string
-          user_profile_id?: string | null
-          vin?: string | null
-          year?: number | null
+          user_id: string
         }
         Update: {
-          acc_status?: string | null
-          activation_status?: string | null
-          alarm_status?: string | null
-          altitude?: number | null
-          color?: string | null
           created_at?: string
-          device_id?: string
-          device_name?: string
-          device_type?: string | null
-          envio_user_id?: string | null
-          extraction_job_id?: string | null
-          fuel_level?: number | null
-          fuel_tank_capacity_liters?: number | null
-          gp51_device_id?: string | null
-          gp51_metadata?: Json | null
-          gp51_username?: string | null
-          heading?: number | null
+          gp51_device_id?: string
           id?: string
-          image_urls?: string[] | null
-          import_job_type?: string | null
-          insurance_expiration_date?: string | null
-          is_active?: boolean | null
-          last_position?: Json | null
-          last_update?: string | null
-          latitude?: number | null
-          license_expiration_date?: string | null
-          license_plate?: string | null
-          longitude?: number | null
-          make?: string | null
-          manufacturer_fuel_consumption_100km_l?: number | null
-          model?: string | null
-          notes?: string | null
-          odometer?: number | null
-          satellites?: number | null
-          session_id?: string | null
-          signal_strength?: number | null
+          name?: string
           sim_number?: string | null
-          speed?: number | null
-          status?: string | null
           updated_at?: string
-          user_profile_id?: string | null
-          vin?: string | null
-          year?: number | null
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "vehicles_envio_user_id_fkey"
-            columns: ["envio_user_id"]
+            foreignKeyName: "vehicles_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vehicles_extraction_job_id_fkey"
-            columns: ["extraction_job_id"]
-            isOneToOne: false
-            referencedRelation: "bulk_extraction_jobs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vehicles_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "gp51_sessions."
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vehicles_user_profile_id_fkey"
-            columns: ["user_profile_id"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -9186,13 +9084,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "workshop_transactions_vehicle_id_fkey"
-            columns: ["vehicle_id"]
-            isOneToOne: false
-            referencedRelation: "vehicles"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "workshop_transactions_workshop_id_fkey"
             columns: ["workshop_id"]
             isOneToOne: false
@@ -9310,13 +9201,6 @@ export type Database = {
             columns: ["activated_by"]
             isOneToOne: false
             referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workshop_vehicle_activations_vehicle_id_fkey"
-            columns: ["vehicle_id"]
-            isOneToOne: false
-            referencedRelation: "vehicles"
             referencedColumns: ["id"]
           },
           {
@@ -9653,6 +9537,7 @@ export type Database = {
         | "compliance_officer"
         | "merchant"
         | "agent"
+      app_user_type: "end_user" | "sub_admin"
       campaign_schedule_type_enum: "immediate" | "scheduled" | "recurring"
       campaign_target_audience_enum:
         | "all_users"
@@ -9811,6 +9696,7 @@ export const Constants = {
         "merchant",
         "agent",
       ],
+      app_user_type: ["end_user", "sub_admin"],
       campaign_schedule_type_enum: ["immediate", "scheduled", "recurring"],
       campaign_target_audience_enum: [
         "all_users",
