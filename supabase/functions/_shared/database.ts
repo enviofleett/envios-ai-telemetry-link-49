@@ -329,3 +329,53 @@ export async function getSmsSettings(userId: string) {
     
     return data;
 }
+
+/**
+ * Returns paginated SMS logs for a user.
+ * @param {string} userId - The user's UUID.
+ * @param {number} page - The page number (1-based).
+ * @param {number} limit - The number of logs per page.
+ * @param {any} [supabase] - Optional Supabase client, or will create new.
+ * @returns {Promise<{ success: boolean, data: any[], total: number, page: number, limit: number, error?: string }>}
+ */
+export async function getSmsLogsPaginated(userId: string, page = 1, limit = 50, supabaseClient?: any) {
+  try {
+    const supabase = supabaseClient || createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    // Fetch paginated logs, newest first
+    const from = (page - 1) * limit, to = from + limit - 1;
+    const { data: logs, error } = await supabase
+      .from('sms_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    // Get total count
+    const { count, error: countError } = await supabase
+      .from('sms_logs')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    if (countError) throw countError;
+
+    return {
+      success: true,
+      data: logs || [],
+      total: count || 0,
+      page, limit
+    };
+  } catch (error) {
+    return {
+      success: false,
+      data: [],
+      total: 0,
+      page, limit,
+      error: error.message
+    };
+  }
+}
