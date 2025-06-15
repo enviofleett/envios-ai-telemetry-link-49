@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { crossBrowserMD5 } from './crossBrowserMD5';
 
@@ -147,17 +146,17 @@ export class GP51ApiService {
 
   async getDeviceList(): Promise<{ success: boolean; devices?: GP51Device[]; error?: string }> {
     try {
-      console.log(`Fetching device list via edge function`);
+      console.log(`Fetching device list via new edge function 'gp51-device-list'`);
       
-      const { data, error } = await supabase.functions.invoke('fetchLiveGp51Data');
+      const { data, error } = await supabase.functions.invoke('gp51-device-list');
       
       if (error) {
         console.error('Device list fetch failed:', error);
         return { success: false, error: error.message };
       }
 
-      if (data.success && data.data && data.data.devices) {
-        const devices = data.data.devices;
+      if (data.success && data.devices) {
+        const devices = data.devices;
         console.log(`Successfully fetched ${devices.length} devices`);
         return { success: true, devices };
       } else {
