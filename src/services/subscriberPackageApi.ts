@@ -162,6 +162,20 @@ export const subscriberPackageApi = {
     return (data || []) as PackageFeature[];
   },
 
+  async updateFeature(featureData: { id: string; feature_name: string; description?: string; }): Promise<PackageFeature> {
+    const { id, ...updateFields } = featureData;
+
+    const { data, error } = await supabase
+      .from('package_features')
+      .update(updateFields)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as PackageFeature;
+  },
+
   async getPackageFeatures(packageId: string): Promise<PackageFeature[]> {
     const { data, error } = await supabase
       .from('package_feature_assignments')
