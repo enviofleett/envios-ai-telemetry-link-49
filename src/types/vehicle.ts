@@ -1,4 +1,67 @@
-import type { VehicleGP51Metadata } from './gp51';
+/**
+ * Represents the exact schema of a record from the `public.vehicles` table.
+ * This is the source of truth from the database.
+ */
+export interface VehicleDbRecord {
+  id: string;
+  user_id: string;
+  gp51_device_id: string;
+  name: string;
+  sim_number: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Represents the rich vehicle data object used throughout the application's UI.
+ * It's a combination of the `VehicleDbRecord` and other derived or fetched data
+ * (e.g., from GP51 API, or joined tables).
+ */
+export interface VehicleData {
+  id: string;
+  device_id: string; // Mapped from gp51_device_id
+  device_name: string; // Mapped from name
+  user_id: string;
+  sim_number: string | null;
+  created_at: string;
+  updated_at: string;
+
+  // Joined data
+  envio_users?: {
+    name: string;
+    email: string;
+  };
+  user_email?: string; // for legacy compatibility
+
+  // Derived/fetched data (placeholders, to be populated by services)
+  status: 'online' | 'offline' | 'idle' | 'moving' | 'inactive';
+  last_position?: {
+    latitude: number;
+    longitude: number;
+    speed: number;
+    course: number;
+    timestamp: string;
+  };
+  is_active: boolean; // This property is no longer in the DB
+  isOnline?: boolean;
+  isMoving?: boolean;
+  speed?: number;
+  course?: number;
+
+  // Other UI-related properties
+  vin?: string;
+  license_plate?: string;
+  make?: string;
+  model?: string;
+  year?: number;
+  color?: string;
+  alerts?: string[];
+  
+  // Legacy compatibility
+  lastUpdate?: Date;
+  vehicleName?: string;
+}
+
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
   latitude: number; // Changed from 'lat' to align with GP51 API
@@ -27,109 +90,6 @@ export interface VehicleLocation {
 }
 
 // Enhanced vehicle data interface - the primary type for UI components
-export interface VehicleData {
-  id: string;
-  device_id: string; // Changed from deviceId to match DB
-  device_name: string; // Changed from deviceName to match DB
-  vin?: string;
-  license_plate?: string; // Changed from licensePlate to match DB
-  image_urls?: string[]; // Changed from imageUrls to match DB
-  fuel_tank_capacity_liters?: number; // Changed from fuelTankCapacityLiters to match DB
-  manufacturer_fuel_consumption_100km_l?: number; // Changed from manufacturerFuelConsumption100kmL to match DB
-  insurance_expiration_date?: string; // Changed from insuranceExpirationDate to match DB
-  license_expiration_date?: string; // Changed from licenseExpirationDate to match DB
-  is_active: boolean; // Changed from isActive to match DB
-  envio_user_id?: string; // Changed from envioUserId to match DB
-  last_position?: {
-    latitude: number; // Updated to use latitude instead of lat
-    longitude: number; // Updated to use longitude instead of lng
-    speed: number;
-    course: number; // Added course property
-    timestamp: string; // String for consistency with database storage
-  };
-  envio_users?: {
-    name: string;
-    email: string;
-  }; // Changed from envioUsers to match DB join
-  
-  // Legacy compatibility properties
-  vehicleName?: string;
-  make?: string;
-  model?: string;
-  year?: number;
-  status?: 'online' | 'offline' | 'idle' | 'moving' | 'inactive';
-  lastUpdate?: Date;
-  position?: {
-    latitude: number;
-    longitude: number;
-    speed: number;
-    course: number;
-    address?: string;
-  };
-  location?: {
-    latitude: number;
-    longitude: number;
-    speed: number;
-    course: number;
-    address?: string;
-  };
-  speed?: number;
-  course?: number;
-  isOnline?: boolean;
-  isMoving?: boolean;
-  fuel?: number;
-  battery?: number;
-  temperature?: number;
-  alerts?: string[];
-  gp51_metadata?: VehicleGP51Metadata;
-}
-
-// Enhanced vehicle interface with all analytics properties
-export interface EnhancedVehicle {
-  id: string;
-  deviceId: string; // Standardized camelCase
-  deviceName: string; // Standardized camelCase
-  plateNumber: string;
-  model: string;
-  driver: string;
-  speed: number;
-  fuel: number;
-  lastUpdate: Date;
-  status: 'active' | 'idle' | 'maintenance' | 'offline';
-  isOnline: boolean;
-  isMoving: boolean;
-  
-  // Analytics properties - now required for all EnhancedVehicle objects
-  location: VehicleLocation; // Updated to use VehicleLocation interface
-  engineHours: number;
-  mileage: number;
-  fuelType: string;
-  engineSize: number;
-  
-  // Optional compatibility properties
-  deviceid?: string; // For backward compatibility
-  devicename?: string; // For backward compatibility
-  vehicle_name?: string;
-  make?: string;
-  year?: number;
-  license_plate?: string;
-  vin?: string;
-  color?: string;
-  fuel_type?: string;
-  created_at?: string;
-  updated_at?: string;
-  is_active?: boolean;
-  alerts?: string[];
-  lastPosition?: {
-    lat: number;
-    lng: number;
-    speed: number;
-    course: number;
-    updatetime: string;
-    statusText: string;
-  };
-}
-
 // Analytics data interfaces
 export interface FuelRecord {
   date: string;

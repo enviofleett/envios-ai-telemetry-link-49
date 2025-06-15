@@ -1,4 +1,3 @@
-
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -71,13 +70,11 @@ export const useOptimizedVehicleData = (params: UseOptimizedVehicleDataParams = 
           .from('vehicles')
           .select(`
             id,
-            device_id,
-            device_name,
-            status,
-            last_position,
-            assigned_user:envio_users(id, name)
+            gp51_device_id,
+            name,
+            envio_users(id, name)
           `)
-          .order('device_name', { ascending: true });
+          .order('name', { ascending: true });
 
         if (vehiclesError) {
           console.error('Direct database access failed:', vehiclesError);
@@ -88,29 +85,13 @@ export const useOptimizedVehicleData = (params: UseOptimizedVehicleDataParams = 
 
         // Transform vehicle data with proper type checking and safe parsing
         const optimizedVehicles: OptimizedVehicle[] = (vehicles || []).map(vehicle => {
-          // Safely parse last_position if it's a JSON string or object
-          let lastPosition: OptimizedVehicle['last_position'] = undefined;
-          
-          if (vehicle.last_position) {
-            try {
-              if (typeof vehicle.last_position === 'string') {
-                lastPosition = JSON.parse(vehicle.last_position);
-              } else if (typeof vehicle.last_position === 'object') {
-                lastPosition = vehicle.last_position as OptimizedVehicle['last_position'];
-              }
-            } catch (error) {
-              console.warn('Failed to parse last_position for vehicle:', vehicle.device_id, error);
-              lastPosition = undefined;
-            }
-          }
-
           return {
             id: vehicle.id,
-            device_id: vehicle.device_id || '',
-            device_name: vehicle.device_name || 'Unknown Device',
-            status: (vehicle.status === 'online' || vehicle.status === 'offline') ? vehicle.status : 'offline',
-            last_position: lastPosition,
-            assigned_user: vehicle.assigned_user || undefined
+            device_id: vehicle.gp51_device_id || '',
+            device_name: vehicle.name || 'Unknown Device',
+            status: 'offline', // No longer in DB, default to offline
+            last_position: undefined, // No longer in DB
+            assigned_user: vehicle.envio_users || undefined,
           };
         });
 

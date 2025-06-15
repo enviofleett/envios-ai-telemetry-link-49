@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -23,9 +22,9 @@ interface VehicleAssignmentModalProps {
 
 interface Vehicle {
   id: string;
-  device_id: string;
-  device_name?: string;
-  user_profile_id?: string;
+  device_id: string; // This is gp51_device_id
+  device_name?: string; // This is name
+  user_id?: string;
   is_assigned: boolean;
 }
 
@@ -38,24 +37,27 @@ export default function VehicleAssignmentModal({
   const assignVehicle = useAssignVehicleToUser();
   const unassignVehicle = useUnassignVehicleFromUser();
 
-  const { data: vehicles, isLoading } = useQuery({
-    queryKey: ['vehicles-for-assignment', search],
+  const { data: vehicles, isLoading, error } = useQuery({
+    queryKey: ['vehicles-for-assignment', search, user?.id],
     queryFn: async () => {
       let query = supabase
         .from('vehicles')
-        .select('id, device_id, device_name, user_profile_id');
+        .select('id, gp51_device_id, name, user_id');
 
       if (search.trim()) {
-        query = query.or(`device_id.ilike.%${search}%,device_name.ilike.%${search}%`);
+        query = query.or(`gp51_device_id.ilike.%${search}%,name.ilike.%${search}%`);
       }
 
-      const { data, error } = await query.order('device_id');
+      const { data, error } = await query.order('gp51_device_id');
       
       if (error) throw error;
 
-      return (data || []).map(vehicle => ({
-        ...vehicle,
-        is_assigned: vehicle.user_profile_id === user?.id
+      return (data || []).map((vehicle): Vehicle => ({
+        id: vehicle.id,
+        device_id: vehicle.gp51_device_id,
+        device_name: vehicle.name ?? undefined,
+        user_id: vehicle.user_id ?? undefined,
+        is_assigned: vehicle.user_id === user?.id
       }));
     },
     enabled: open && !!user,
@@ -64,6 +66,8 @@ export default function VehicleAssignmentModal({
   const handleAssignVehicle = async (vehicleId: string) => {
     if (!user) return;
     
+    // NOTE: This mutation likely needs to be updated to set `user_id`
+    // instead of `user_profile_id`.
     await assignVehicle.mutateAsync({
       vehicleId,
       userId: user.id,
@@ -72,6 +76,7 @@ export default function VehicleAssignmentModal({
   };
 
   const handleUnassignVehicle = async (vehicleId: string) => {
+    // NOTE: This mutation likely needs to be updated.
     await unassignVehicle.mutateAsync({
       vehicleId,
       reason: 'Manual unassignment via admin panel'
@@ -79,10 +84,11 @@ export default function VehicleAssignmentModal({
   };
 
   if (!user) return null;
+  if (error) return <div>Error loading vehicles.</div>;
 
   const assignedVehicles = vehicles?.filter(v => v.is_assigned) || [];
-  const availableVehicles = vehicles?.filter(v => !v.user_profile_id) || [];
-  const otherAssignedVehicles = vehicles?.filter(v => v.user_profile_id && !v.is_assigned) || [];
+  const availableVehicles = vehicles?.filter(v => !v.user_id) || [];
+  const otherAssignedVehicles = vehicles?.filter(v => v.user_id && !v.is_assigned) || [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

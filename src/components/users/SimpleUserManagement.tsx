@@ -41,47 +41,34 @@ const SimpleUserManagement: React.FC = () => {
   const [editUser, setEditUser] = useState<LocalUser | null>(null);
 
   // Use the new user profiles hook instead of the old optimized hook
-  const { data: usersData, isLoading } = useQuery({
-    queryKey: ['legacy-user-data'],
+  const { data: usersData, isLoading, error } = useQuery({
+    queryKey: ['envio-users-with-vehicles'],
     queryFn: async () => {
-      // Fetch from user_profiles table instead of envio_users
-      const { data: profiles, error } = await supabase
-        .from('user_profiles')
+      const { data: users, error } = await supabase
+        .from('envio_users')
         .select(`
           *,
-          vehicles!vehicles_user_profile_id_fkey(id, device_id)
+          vehicles (id, gp51_device_id, name)
         `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-
-      // Get email addresses from auth.users with proper error handling
-      const emailMap: Record<string, string> = {};
-      try {
-        const { data: authUsersResponse, error: authError } = await supabase.auth.admin.listUsers();
-        if (!authError && authUsersResponse?.users) {
-          authUsersResponse.users.forEach((authUser: User) => {
-            if (authUser.id && authUser.email) {
-              emailMap[authUser.id] = authUser.email;
-            }
-          });
-        }
-      } catch (error) {
-        console.warn('Could not fetch auth users:', error);
+      if (error) {
+        console.error("Error fetching users and vehicles:", error);
+        throw error;
       }
 
       // Transform to match the expected LocalUser interface
-      const transformedUsers: LocalUser[] = (profiles || []).map(profile => ({
-        id: profile.id,
-        name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown User',
-        email: emailMap[profile.id] || '',
-        phone_number: profile.phone_number,
-        user_roles: [{ role: profile.role }],
-        registration_status: profile.registration_status,
-        assigned_vehicles: (profile.vehicles || []).map(v => ({
+      const transformedUsers: LocalUser[] = (users || []).map(user => ({
+        id: user.id,
+        name: user.name || 'Unknown User',
+        email: user.email,
+        phone_number: user.phone_number,
+        user_roles: [{ role: user.user_type || 'end_user' }], // Use new user_type
+        registration_status: user.registration_status,
+        assigned_vehicles: (user.vehicles || []).map(v => ({
           id: v.id,
-          device_id: v.device_id,
-          status: 'active',
+          device_id: v.gp51_device_id, // Use correct field from new schema
+          status: 'active', // Placeholder status
           last_update: new Date().toISOString()
         }))
       }));
@@ -90,6 +77,10 @@ const SimpleUserManagement: React.FC = () => {
     }
   });
 
+  if (error) {
+    return <div>Error loading users: {(error as Error).message}</div>;
+  }
+  
   if (!user) {
     return <Navigate to="/auth" replace />;
   }
