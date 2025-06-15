@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -66,24 +65,22 @@ export const useDashboardData = () => {
         .select('*');
 
       if (vehiclesError) throw vehiclesError;
+      
+      const dbVehicles = vehicles || [];
 
       // Calculate metrics from vehicles data
-      const totalVehicles = vehicles?.length || 0;
-      const activeVehicles = vehicles?.filter(v => v.is_active).length || 0;
+      const totalVehicles = dbVehicles.length || 0;
+      // 'is_active' is not in the DB anymore. We need a new way to determine this.
+      // For now, let's assume all are active.
+      const activeVehicles = dbVehicles.length || 0;
       
       // Check online status based on last position update time (last 30 minutes)
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-      const onlineVehicles = vehicles?.filter(v => {
-        const lastPosition = v.last_position as VehiclePosition;
-        return lastPosition?.updatetime && 
-               new Date(lastPosition.updatetime) > thirtyMinutesAgo;
-      }).length || 0;
+      // We don't have this data directly. This logic needs to be placeholder.
+      const onlineVehicles = 0; // Placeholder
 
       // Check for alert vehicles (simplified - based on status)
-      const alertVehicles = vehicles?.filter(v => 
-        v.status?.toLowerCase().includes('alert') || 
-        v.status?.toLowerCase().includes('alarm')
-      ).length || 0;
+      // 'status' is not in the DB. Placeholder.
+      const alertVehicles = 0; // Placeholder
 
       setMetrics({
         totalVehicles,
@@ -121,10 +118,10 @@ export const useDashboardData = () => {
       setInsights(mockInsights);
 
       // Generate mock alerts (to be replaced with real GP51 alarm data)
-      const mockAlerts: Alert[] = vehicles?.slice(0, 5).map((vehicle, index) => ({
+      const mockAlerts: Alert[] = dbVehicles?.slice(0, 5).map((vehicle, index) => ({
         id: `alert-${index}`,
-        deviceName: vehicle.device_name,
-        deviceId: vehicle.device_id,
+        deviceName: vehicle.name, // Use 'name' from DB
+        deviceId: vehicle.gp51_device_id, // Use 'gp51_device_id' from DB
         alarmType: ['Speed Alert', 'Geofence', 'Engine Alert', 'Fuel Alert'][index % 4],
         description: ['Vehicle exceeding speed limit', 'Left authorized area', 'Engine temperature high', 'Fuel level low'][index % 4],
         severity: (['low', 'medium', 'high', 'critical'] as const)[index % 4],

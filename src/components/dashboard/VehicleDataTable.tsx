@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -143,7 +142,7 @@ const VehicleDataTable: React.FC = () => {
                       <div className="flex items-center gap-1">
                         <MapPin className="h-3 w-3 text-muted-foreground" />
                         <span className="text-sm">
-                          {formatLocation(vehicle.location?.latitude, vehicle.location?.longitude)}
+                          {formatLocation(vehicle.last_position?.latitude, vehicle.last_position?.longitude)}
                         </span>
                       </div>
                     </TableCell>

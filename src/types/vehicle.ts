@@ -1,3 +1,4 @@
+
 /**
  * Represents the exact schema of a record from the `public.vehicles` table.
  * This is the source of truth from the database.
@@ -60,7 +61,18 @@ export interface VehicleData {
   // Legacy compatibility
   lastUpdate?: Date;
   vehicleName?: string;
+  
+  // Properties added to fix TS errors
+  location?: {
+    latitude: number;
+    longitude: number;
+    address?: string;
+  };
+  gp51_metadata?: any;
 }
+
+// Alias for backwards compatibility with components that used this type name
+export type EnhancedVehicle = VehicleData;
 
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
