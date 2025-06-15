@@ -150,6 +150,35 @@ class ParkingMonitorService {
   }
 
   private async analyzeNightParkingPattern(deviceId: string, position: PositionUpdate['position']): Promise<void> {
+    // Get user associated with vehicle to check feature access
+    const { data: vehicleData, error: vehicleError } = await supabase
+      .from('vehicles')
+      .select('envio_user_id')
+      .eq('device_id', deviceId)
+      .single();
+
+    if (vehicleError || !vehicleData?.envio_user_id) {
+      console.warn(`ParkingMonitor: Could not find user for vehicle ${deviceId} to check feature access.`, vehicleError);
+      return;
+    }
+    const userId = vehicleData.envio_user_id;
+
+    // Check if the user has the 'ai_parking_monitor' feature using the new DB function
+    const { data: hasFeature, error: featureCheckError } = await supabase.rpc('user_has_feature', {
+      _user_id: userId,
+      _feature_id_text: 'ai_parking_monitor',
+    });
+
+    if (featureCheckError) {
+      console.error(`ParkingMonitor: Error checking 'ai_parking_monitor' feature for user ${userId}.`, featureCheckError);
+      return; // Fail silently to not disrupt other processes
+    }
+
+    if (!hasFeature) {
+      // User does not have the feature, so we stop here.
+      return; 
+    }
+
     const { data: patterns, error } = await supabase
       .from('vehicle_parking_patterns')
       .select('*')

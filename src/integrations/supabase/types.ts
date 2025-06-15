@@ -9250,6 +9250,10 @@ export type Database = {
         }
         Returns: string
       }
+      user_has_feature: {
+        Args: { _user_id: string; _feature_id_text: string }
+        Returns: boolean
+      }
     }
     Enums: {
       admin_role: "super_admin" | "system_admin" | "support_admin"
