@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,20 +35,37 @@ const GP51ApiSettingsTab: React.FC = () => {
   });
 
   // Fetch vehicle statistics
-  const { data: vehicleStats } = useQuery({
+  const { data: vehicleStats, isLoading: vehicleStatsLoading } = useQuery({
     queryKey: ['vehicle-stats'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch total vehicle count
+      const { count, error: countError } = await supabase
         .from('vehicles')
-        .select('status, updated_at')
-        .order('updated_at', { ascending: false });
-      
-      if (error) throw error;
-      
-      const total = data?.length || 0;
-      const online = data?.filter(v => v.status === 'online').length || 0;
-      const lastUpdate = data?.[0]?.updated_at;
-      
+        .select('*', { count: 'exact', head: true });
+
+      if (countError) {
+        console.error('Error fetching vehicle count:', countError);
+        throw countError;
+      }
+
+      // Fetch the last update time
+      const { data: lastUpdateData, error: lastUpdateError } = await supabase
+        .from('vehicles')
+        .select('updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(1);
+
+      if (lastUpdateError) {
+        console.error('Error fetching last vehicle update:', lastUpdateError);
+        throw lastUpdateError;
+      }
+
+      const total = count ?? 0;
+      // 'online' count cannot be determined here because 'status' is a derived field,
+      // not a database column. This metric should be sourced from a dedicated service.
+      const online = 0; 
+      const lastUpdate = lastUpdateData?.[0]?.updated_at;
+
       return { total, online, lastUpdate };
     },
     refetchInterval: 60000,
@@ -259,7 +275,7 @@ const GP51ApiSettingsTab: React.FC = () => {
                 <Label htmlFor="active-devices">Active Devices</Label>
                 <Input 
                   id="active-devices" 
-                  value={vehicleStats ? `${vehicleStats.online} / ${vehicleStats.total}` : 'Loading...'} 
+                  value={vehicleStatsLoading ? 'Loading...' : vehicleStats ? `${vehicleStats.online} / ${vehicleStats.total}` : 'N/A'} 
                   readOnly 
                 />
               </div>
