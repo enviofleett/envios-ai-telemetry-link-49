@@ -1,303 +1,306 @@
+import {
+  ColumnDef,
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import { useEffect, useState } from "react";
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useToast } from '@/hooks/use-toast';
-import { Loader2, RefreshCw, MessageSquare, Calendar, Filter, Search } from 'lucide-react';
-import { smsService, type SMSLog, type SMSLogsResponse } from '@/services/smsService';
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "@/components/ui/use-toast";
+import { smsService, SMSLog, SMSLogsResponse } from "@/services/smsService";
 
-export default function SMSLogsTab() {
-  const [logs, setLogs] = useState<SMSLog[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 50,
-    total: 0,
-    pages: 0
-  });
-  const [filters, setFilters] = useState({
-    status: 'all',
-    eventType: 'all',
-    search: ''
-  });
-  const { toast } = useToast();
+interface CreateEventFormProps {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  onEventCreated: () => void;
+}
 
-  useEffect(() => {
-    loadSMSLogs();
-  }, [pagination.page, pagination.limit]);
+const CreateEventForm: React.FC<CreateEventFormProps> = ({ open, setOpen, onEventCreated }) => {
+  const [recipientPhone, setRecipientPhone] = useState("");
+  const [message, setMessage] = useState("");
+  const [eventType, setEventType] = useState("CUSTOM");
+  const [loading, setLoading] = useState(false);
 
-  const loadSMSLogs = async () => {
-    setIsLoading(true);
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
     try {
-      const response: SMSLogsResponse = await smsService.getSMSLogs(pagination.page, pagination.limit);
-      setLogs(response.logs);
-      setPagination(response.pagination);
-    } catch (error) {
+      const isValidPhone = smsService.validatePhoneNumber(recipientPhone);
+      if (!isValidPhone) {
+        toast({
+          title: "Invalid Phone Number",
+          description: "Please enter a valid phone number.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const formattedPhoneNumber = smsService.formatPhoneNumber(recipientPhone);
+      await smsService.sendSMS(formattedPhoneNumber, message, eventType);
       toast({
-        title: "Failed to Load SMS Logs",
-        description: error instanceof Error ? error.message : "An error occurred",
-        variant: "destructive"
+        title: "Success",
+        description: "SMS event created successfully.",
+      });
+      onEventCreated();
+      setOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create SMS event.",
+        variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleRefresh = () => {
-    loadSMSLogs();
-  };
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle>Create SMS Event</DialogTitle>
+          <DialogDescription>Create a new SMS event to send.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="recipientPhone">Recipient Phone</Label>
+            <Input
+              type="tel"
+              id="recipientPhone"
+              value={recipientPhone}
+              onChange={(e) => setRecipientPhone(e.target.value)}
+              placeholder="Recipient Phone"
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="message">Message</Label>
+            <Input
+              type="text"
+              id="message"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Message"
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="eventType">Event Type</Label>
+            <Select value={eventType} onValueChange={setEventType}>
+              <SelectTrigger>
+                <SelectValue placeholder="Event Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="CUSTOM">Custom</SelectItem>
+                <SelectItem value="NOTIFICATION">Notification</SelectItem>
+                <SelectItem value="REMINDER">Reminder</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Creating..." : "Create Event"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
 
-  const handlePageChange = (newPage: number) => {
-    setPagination(prev => ({ ...prev, page: newPage }));
-  };
+const SMSLogsTab = () => {
+  const [smsLogsResponse, setSmsLogsResponse] = useState<SMSLogsResponse | null>(null);
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      sent: { label: 'Sent', class: 'bg-green-100 text-green-800' },
-      failed: { label: 'Failed', class: 'bg-red-100 text-red-800' },
-      pending: { label: 'Pending', class: 'bg-yellow-100 text-yellow-800' },
-      delivered: { label: 'Delivered', class: 'bg-blue-100 text-blue-800' },
-      expired: { label: 'Expired', class: 'bg-gray-100 text-gray-800' }
+  useEffect(() => {
+    const fetchSMSLogs = async () => {
+      try {
+        const response = await smsService.getSMSLogs(page, limit);
+        setSmsLogsResponse(response);
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to fetch SMS logs.",
+          variant: "destructive",
+        });
+      }
     };
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
-    
-    return (
-      <Badge className={config.class}>
-        {config.label}
-      </Badge>
-    );
+    fetchSMSLogs();
+  }, [page, limit]);
+
+  const logs = smsLogsResponse?.data ?? [];
+  const pagination = {
+    total: smsLogsResponse?.total ?? 0,
+    page: smsLogsResponse?.page ?? 1,
+    limit: smsLogsResponse?.limit ?? 50,
   };
 
-  const getEventTypeBadge = (eventType: string) => {
-    const typeConfig = {
-      OTP: { label: 'OTP', class: 'bg-purple-100 text-purple-800' },
-      TRIP_UPDATE: { label: 'Trip Update', class: 'bg-blue-100 text-blue-800' },
-      MAINTENANCE: { label: 'Maintenance', class: 'bg-orange-100 text-orange-800' },
-      VIOLATION_ALERT: { label: 'Violation', class: 'bg-red-100 text-red-800' },
-      REGISTRATION: { label: 'Registration', class: 'bg-green-100 text-green-800' },
-      CUSTOM: { label: 'Custom', class: 'bg-gray-100 text-gray-800' }
-    };
+  const columns: ColumnDef<SMSLog>[] = [
+    {
+      accessorKey: "recipient_phone",
+      header: "Recipient Phone",
+    },
+    {
+      accessorKey: "message",
+      header: "Message",
+    },
+    {
+      accessorKey: "event_type",
+      header: "Event Type",
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+    },
+    {
+      accessorKey: "provider_name",
+      header: "Provider",
+    },
+    {
+      accessorKey: "cost",
+      header: "Cost",
+    },
+    {
+      accessorKey: "created_at",
+      header: "Sent At",
+      cell: ({ row }) => {
+        const sentAt = row.getValue("created_at");
+        return new Date(sentAt).toLocaleString();
+      },
+    },
+  ];
 
-    const config = typeConfig[eventType as keyof typeof typeConfig] || typeConfig.CUSTOM;
-    
-    return (
-      <Badge variant="outline" className={config.class}>
-        {config.label}
-      </Badge>
-    );
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString();
-  };
-
-  const filteredLogs = logs.filter(log => {
-    const statusMatch = filters.status === 'all' || log.status === filters.status;
-    const eventTypeMatch = filters.eventType === 'all' || log.event_type === filters.eventType;
-    const searchMatch = filters.search === '' || 
-      log.recipient_phone.toLowerCase().includes(filters.search.toLowerCase()) ||
-      log.message.toLowerCase().includes(filters.search.toLowerCase());
-    
-    return statusMatch && eventTypeMatch && searchMatch;
+  const table = useReactTable({
+    data: logs,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
+  const handleEventCreated = () => {
+    setPage(1);
+    toast({
+      title: "Success",
+      description: "Event created successfully. Refreshing logs...",
+    });
+  };
+
   return (
-    <div className="space-y-6">
+    <div>
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">SMS Activity Logs</h2>
-          <p className="text-muted-foreground">Monitor SMS delivery status and activity</p>
-        </div>
-        <Button onClick={handleRefresh} disabled={isLoading} variant="outline">
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <h2 className="text-2xl font-bold tracking-tight">SMS Logs</h2>
+        <DialogTrigger asChild>
+          <Button onClick={() => setIsCreateEventOpen(true)}>Create Event</Button>
+        </DialogTrigger>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filters
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Search</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Phone or message..."
-                  value={filters.search}
-                  onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                  className="pl-10"
-                />
-              </div>
-            </div>
+      <CreateEventForm open={isCreateEventOpen} setOpen={setIsCreateEventOpen} onEventCreated={handleEventCreated} />
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <Select
-                value={filters.status}
-                onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="sent">Sent</SelectItem>
-                  <SelectItem value="failed">Failed</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="delivered">Delivered</SelectItem>
-                </SelectContent>
-              </Select>
+      <div className="py-4">
+        <div className="rounded-md border">
+          <ScrollArea>
+            <div className="relative min-w-[600px] overflow-auto">
+              <table className="w-full caption-bottom text-sm">
+                <thead>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => {
+                        return (
+                          <th key={header.id} className="h-12 px-4 text-left align-middle font-medium text-muted-foreground [&:has([role=columnheader][data-state=sorted])]:after:content-['\u2191_']">
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(
+                                header.column.columnDef.header,
+                                header.getContext()
+                              )}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {table.getRowModel().rows?.length ? (
+                    table.getRowModel().rows.map((row) => (
+                      <tr key={row.id} data-state={row.getIsSelected() && "selected"} className="border-b transition-colors data-[state=selected]:bg-muted hover:bg-muted/50">
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id} className="p-4 align-middle [&:has([role=checkbox])]:pr-0">
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={columns.length} className="h-24 text-center">
+                        No results.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Event Type</label>
-              <Select
-                value={filters.eventType}
-                onValueChange={(value) => setFilters(prev => ({ ...prev, eventType: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="OTP">OTP</SelectItem>
-                  <SelectItem value="TRIP_UPDATE">Trip Update</SelectItem>
-                  <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-                  <SelectItem value="VIOLATION_ALERT">Violation Alert</SelectItem>
-                  <SelectItem value="REGISTRATION">Registration</SelectItem>
-                  <SelectItem value="CUSTOM">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Per Page</label>
-              <Select
-                value={pagination.limit.toString()}
-                onValueChange={(value) => setPagination(prev => ({ ...prev, limit: parseInt(value), page: 1 }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          </ScrollArea>
+        </div>
+        <div className="flex items-center justify-between py-4">
+          <div className="space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setLimit((prev) => (prev > 5 ? prev - 5 : 5))}
+              disabled={limit <= 5}
+            >
+              Decrease Limit
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setLimit(limit + 5)}>
+              Increase Limit
+            </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            SMS Logs ({pagination.total} total)
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="ml-2">Loading SMS logs...</span>
-            </div>
-          ) : filteredLogs.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No SMS logs found
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Recipient</TableHead>
-                      <TableHead>Message</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Provider</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredLogs.map((log) => (
-                      <TableRow key={log.id}>
-                        <TableCell className="font-medium">
-                          {log.recipient_phone}
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {log.message}
-                        </TableCell>
-                        <TableCell>
-                          {getEventTypeBadge(log.event_type)}
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(log.status)}
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            <div>{formatDate(log.created_at)}</div>
-                            {log.sent_at && (
-                              <div className="text-xs text-muted-foreground">
-                                Sent: {formatDate(log.sent_at)}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{log.provider_name}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
-              {pagination.pages > 1 && (
-                <div className="flex items-center justify-between mt-4">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} results
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(pagination.page - 1)}
-                      disabled={pagination.page <= 1}
-                    >
-                      Previous
-                    </Button>
-                    <span className="px-3 py-1 text-sm">
-                      Page {pagination.page} of {pagination.pages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(pagination.page + 1)}
-                      disabled={pagination.page >= pagination.pages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+          <Pagination>
+            <PaginationContent>
+              <PaginationPrevious
+                href="#"
+                onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+                disabled={page === 1}
+              />
+              <PaginationNext
+                href="#"
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={page === Math.ceil(pagination.total / pagination.limit)}
+              />
+            </PaginationContent>
+          </Pagination>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+export default SMSLogsTab;
