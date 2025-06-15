@@ -57,10 +57,9 @@ export class WorkshopAuthService {
 
   static async createWorkshopUser(userData: CreateWorkshopUserData): Promise<WorkshopAuthResult> {
     try {
-      // Hash the password
       const { hash, salt } = await this.hashPassword(userData.password);
 
-      // Fetch the logged in main user (envio_user) if possible
+      // Get envio_user_id from auth if not provided
       let mainUserId = userData.envio_user_id;
       if (!mainUserId) {
         try {
@@ -69,7 +68,7 @@ export class WorkshopAuthService {
         } catch {}
       }
 
-      // Create workshop user with new envio_user_id linkage
+      // NEW: Insert password_hash/salt
       const { data: user, error } = await supabase
         .from('workshop_users')
         .insert({
@@ -78,10 +77,12 @@ export class WorkshopAuthService {
           email: userData.email,
           name: userData.name,
           role: userData.role,
-          permissions: userData.permissions
+          permissions: userData.permissions,
+          password_hash: hash,
+          password_salt: salt
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
@@ -89,7 +90,6 @@ export class WorkshopAuthService {
       const tokenArray = new Uint8Array(32);
       crypto.getRandomValues(tokenArray);
       const token = Array.from(tokenArray, byte => byte.toString(16).padStart(2, '0')).join('');
-
       return {
         success: true,
         user,
@@ -106,14 +106,14 @@ export class WorkshopAuthService {
 
   static async authenticateWorkshopUser(email: string, password: string, workshopId: string): Promise<WorkshopAuthResult> {
     try {
-      // Find user by email and workshop - use existing workshop_users table
+      // Find user by email and workshop
       const { data: user, error } = await supabase
         .from('workshop_users')
         .select('*')
         .eq('email', email)
         .eq('workshop_id', workshopId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       if (error || !user) {
         return {
@@ -122,11 +122,19 @@ export class WorkshopAuthService {
         };
       }
 
-      // For now, skip password verification since the fields might not exist yet
-      // In production, you would verify the password here
-      console.log('User found, skipping password verification for now');
+      // Validate password
+      if (!user.password_hash || !user.password_salt) {
+        return {
+          success: false,
+          error: "Account password not set. Please reset your password or contact support."
+        };
+      }
+      const passwordValid = await this.verifyPassword(password, user.password_hash, user.password_salt);
+      if (!passwordValid) {
+        return { success: false, error: 'Invalid credentials' };
+      }
 
-      // Create a simple session object
+      // Issue session object
       const session = {
         id: crypto.randomUUID(),
         workshop_user_id: user.id,
@@ -134,7 +142,6 @@ export class WorkshopAuthService {
         expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
         created_at: new Date().toISOString()
       };
-
       return {
         success: true,
         user,

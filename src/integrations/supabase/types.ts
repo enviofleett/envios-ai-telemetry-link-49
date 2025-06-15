@@ -5340,6 +5340,8 @@ export type Database = {
           id: string
           is_active: boolean
           last_test_status: string | null
+          last_webhook_event: string | null
+          last_webhook_status: string | null
           public_key: string
           updated_at: string
           user_id: string
@@ -5352,6 +5354,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_test_status?: string | null
+          last_webhook_event?: string | null
+          last_webhook_status?: string | null
           public_key: string
           updated_at?: string
           user_id: string
@@ -5364,6 +5368,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_test_status?: string | null
+          last_webhook_event?: string | null
+          last_webhook_status?: string | null
           public_key?: string
           updated_at?: string
           user_id?: string
@@ -8887,8 +8893,10 @@ export type Database = {
           customer_id: string | null
           id: string
           metadata: Json | null
+          payment_error: string | null
           payment_method: string | null
           payment_status: string
+          payment_verified: boolean | null
           service_description: string | null
           stripe_charge_id: string | null
           stripe_payment_intent_id: string | null
@@ -8905,8 +8913,10 @@ export type Database = {
           customer_id?: string | null
           id?: string
           metadata?: Json | null
+          payment_error?: string | null
           payment_method?: string | null
           payment_status?: string
+          payment_verified?: boolean | null
           service_description?: string | null
           stripe_charge_id?: string | null
           stripe_payment_intent_id?: string | null
@@ -8923,8 +8933,10 @@ export type Database = {
           customer_id?: string | null
           id?: string
           metadata?: Json | null
+          payment_error?: string | null
           payment_method?: string | null
           payment_status?: string
+          payment_verified?: boolean | null
           service_description?: string | null
           stripe_charge_id?: string | null
           stripe_payment_intent_id?: string | null
@@ -8966,6 +8978,8 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          password_hash: string | null
+          password_salt: string | null
           permissions: string[]
           role: string
           updated_at: string
@@ -8978,6 +8992,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          password_hash?: string | null
+          password_salt?: string | null
           permissions?: string[]
           role: string
           updated_at?: string
@@ -8990,6 +9006,8 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          password_hash?: string | null
+          password_salt?: string | null
           permissions?: string[]
           role?: string
           updated_at?: string
