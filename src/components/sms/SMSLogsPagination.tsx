@@ -22,7 +22,7 @@ const SMSLogsPagination: React.FC<SMSLogsPaginationProps> = ({ page, limit, tota
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setLimit((prev) => (prev > 5 ? prev - 5 : 5))}
+          onClick={() => setLimit(limit > 5 ? limit - 5 : 5)}
           disabled={limit <= 5}
         >
           Decrease Limit
@@ -64,3 +64,4 @@ const SMSLogsPagination: React.FC<SMSLogsPaginationProps> = ({ page, limit, tota
 };
 
 export default SMSLogsPagination;
+
