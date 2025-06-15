@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { enhancedUnifiedGeocodingService } from '@/services/geocoding/enhancedUnifiedGeocodingService';
 import { databaseGeocodingService } from '@/services/geocoding/databaseGeocodingService';
@@ -6,11 +5,9 @@ import { useToast } from '@/hooks/use-toast';
 
 export interface EnhancedGeocodingApiConfig {
   mapTiler: {
-    apiKey: string | null;
     isConfigured: boolean;
   };
   googleMaps: {
-    apiKey: string | null;
     isConfigured: boolean;
   };
   isLoading: boolean;
@@ -20,11 +17,9 @@ export interface EnhancedGeocodingApiConfig {
 export const useEnhancedGeocodingApi = () => {
   const [config, setConfig] = useState<EnhancedGeocodingApiConfig>({
     mapTiler: {
-      apiKey: null,
       isConfigured: false,
     },
     googleMaps: {
-      apiKey: null,
       isConfigured: false,
     },
     isLoading: true,
@@ -50,13 +45,9 @@ export const useEnhancedGeocodingApi = () => {
       setConfig(prev => ({
         ...prev,
         mapTiler: {
-          apiKey: mapTilerConfig?.api_key_encrypted ? 
-            databaseGeocodingService.decryptApiKey(mapTilerConfig.api_key_encrypted) : null,
           isConfigured: !!mapTilerConfig?.api_key_encrypted
         },
         googleMaps: {
-          apiKey: googleMapsConfig?.api_key_encrypted ? 
-            databaseGeocodingService.decryptApiKey(googleMapsConfig.api_key_encrypted) : null,
           isConfigured: !!googleMapsConfig?.api_key_encrypted
         },
         isLoading: false
@@ -96,14 +87,13 @@ export const useEnhancedGeocodingApi = () => {
         setConfig(prev => ({
           ...prev,
           mapTiler: {
-            apiKey,
             isConfigured: true
           }
         }));
         
         toast({
           title: 'MapTiler API Key Saved',
-          description: 'MapTiler integration is now configured and saved to database'
+          description: 'MapTiler configuration has been securely saved.'
         });
 
         // Reload statistics
@@ -137,14 +127,13 @@ export const useEnhancedGeocodingApi = () => {
         setConfig(prev => ({
           ...prev,
           googleMaps: {
-            apiKey,
             isConfigured: true
           }
         }));
         
         toast({
           title: 'Google Maps API Key Saved',
-          description: 'Google Maps geocoding is now configured and saved to database'
+          description: 'Google Maps configuration has been securely saved.'
         });
 
         // Reload statistics

@@ -16,5 +16,6 @@ export function md5_sync(input: string): string {
  */
 export async function md5(input: string): Promise<string> {
   console.warn("The async md5 function is deprecated. Use md5_sync if possible.");
+  // FIX: This was causing a stack overflow due to recursion. Now correctly calls the sync version.
   return md5_sync(input);
 }

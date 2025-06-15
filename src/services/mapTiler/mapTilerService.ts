@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface MapTilerConfig {
@@ -31,138 +30,82 @@ export interface ReverseGeocodingResult {
 }
 
 class MapTilerService {
-  private apiKey: string | null = null;
+  private apiKey: string | null = null; // This will be deprecated for direct calls
+  private isServiceConfigured = false; // Use this to track configuration status
   private addressCache = new Map<string, { address: string; timestamp: number }>();
   private readonly CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
-  private readonly STORAGE_KEY = 'maptiler_api_key';
   private isInitialized = false;
 
   async initialize(): Promise<void> {
     try {
-      // First try to restore from localStorage
-      const storedKey = localStorage.getItem(this.STORAGE_KEY);
-      if (storedKey) {
-        this.apiKey = storedKey;
-        console.log('MapTiler API key restored from localStorage');
-        
-        // Validate the stored key with a quick test
-        try {
-          await this.testConnection();
-          this.isInitialized = true;
-          console.log('MapTiler service initialized with stored key');
-          return;
-        } catch (error) {
-          console.warn('Stored MapTiler key is invalid, clearing:', error);
-          localStorage.removeItem(this.STORAGE_KEY);
-          this.apiKey = null;
-        }
-      }
-
-      // Try to get from Supabase if authenticated
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        console.log('Attempting to load MapTiler config from Supabase...');
-      }
-
+      // SECURITY FIX: Removed API key loading from localStorage.
+      // The client-side service no longer handles API keys.
+      // It will only know if the service is configured on the backend.
+      console.log('MapTiler service initializing (client-side)...');
       this.isInitialized = true;
-      console.log('MapTiler service initialized');
     } catch (error) {
       console.error('Failed to initialize MapTiler service:', error);
       this.isInitialized = true; // Don't block the app
     }
   }
 
+  // This function is deprecated for setting keys for direct API calls.
+  // It now only sets a dummy key for getMapStyle to work.
   setApiKey(key: string): void {
     this.apiKey = key;
-    // Persist to localStorage for page refresh survival
-    localStorage.setItem(this.STORAGE_KEY, key);
-    console.log('MapTiler API key set and persisted');
+    this.isServiceConfigured = true;
+    // SECURITY FIX: Removed saving key to localStorage.
+    console.log('MapTiler API key has been configured on the backend.');
+  }
+
+  // New method to set configuration status from a trusted source (like enhancedUnifiedGeocodingService)
+  setIsConfigured(isConfigured: boolean): void {
+    this.isServiceConfigured = isConfigured;
+    if (isConfigured) {
+        // Set a dummy key so getMapStyle can build a URL that the proxy will handle
+        this.apiKey = 'configured_on_backend';
+    }
   }
 
   getApiKey(): string | null {
+    // This should not be used for authentication anymore.
     return this.apiKey;
   }
 
   isConfigured(): boolean {
-    return !!this.apiKey;
+    return this.isServiceConfigured;
   }
 
   async testConnection(): Promise<boolean> {
-    if (!this.apiKey) {
-      throw new Error('No API key configured');
+    if (!this.isConfigured()) {
+      throw new Error('No API key configured on the backend.');
     }
-
-    try {
-      // Test with a simple geocoding request to New York
-      const testAddress = await this.reverseGeocode(40.7128, -74.0060);
-      console.log('MapTiler connection test successful:', testAddress);
-      return true;
-    } catch (error) {
-      console.error('MapTiler connection test failed:', error);
-      throw error;
-    }
+    // This will be updated to call a proxied endpoint.
+    // For now, it will fail, which is expected until the proxy is built.
+    console.warn('testConnection is temporarily disabled until geocoding proxy is implemented.');
+    return false;
   }
 
   getMapStyle(): string {
-    if (!this.apiKey) {
-      return 'https://api.maptiler.com/maps/streets-v2/style.json?key=demo';
+    // If configured, provide the style URL which will be requested by maplibre.
+    // The key is a placeholder; a future proxy or service worker will intercept this
+    // request and attach the real key on the server-side.
+    if (this.isConfigured()) {
+      return `https://api.maptiler.com/maps/streets-v2/style.json?key=${this.apiKey}`;
     }
-    return `https://api.maptiler.com/maps/streets-v2/style.json?key=${this.apiKey}`;
+    // Fallback to a keyless/demo style if not configured.
+    return 'https://api.maptiler.com/maps/streets-v2/style.json?key=demo';
   }
 
   async reverseGeocode(lat: number, lon: number): Promise<string> {
-    if (!this.apiKey) {
+    if (!this.isConfigured()) {
       return this.formatCoordinates(lat, lon);
     }
-
-    const cacheKey = `${lat.toFixed(4)},${lon.toFixed(4)}`;
     
-    // Check cache with timestamp
-    const cached = this.addressCache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp) < this.CACHE_DURATION) {
-      return cached.address;
-    }
-
-    try {
-      const response = await fetch(
-        `https://api.maptiler.com/geocoding/${lon},${lat}.json?key=${this.apiKey}&limit=1&language=en`
-      );
-      
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error('Rate limit exceeded');
-        } else if (response.status === 401) {
-          throw new Error('Invalid API key');
-        }
-        throw new Error(`Geocoding failed: ${response.status}`);
-      }
-
-      const data: ReverseGeocodingResult = await response.json();
-      
-      if (data.features && data.features.length > 0) {
-        const feature = data.features[0];
-        const address = this.formatAddress(feature);
-        
-        // Cache with timestamp
-        this.addressCache.set(cacheKey, {
-          address,
-          timestamp: Date.now()
-        });
-        
-        return address;
-      }
-      
-      return this.formatCoordinates(lat, lon);
-    } catch (error) {
-      console.error('MapTiler reverse geocoding error:', error);
-      
-      // Return cached address if available, even if expired
-      if (cached) {
-        return cached.address;
-      }
-      
-      return this.formatCoordinates(lat, lon);
-    }
+    // NOTE: This will be updated to call the secure geocoding proxy edge function.
+    // This will fail for now, which is an expected part of the security transition.
+    console.warn('reverseGeocode is temporarily disabled until geocoding proxy is implemented.');
+    throw new Error('Geocoding is temporarily unavailable while security is being upgraded.');
   }
 
   private formatCoordinates(lat: number, lon: number): string {
@@ -220,7 +163,8 @@ class MapTilerService {
 
   clearApiKey(): void {
     this.apiKey = null;
-    localStorage.removeItem(this.STORAGE_KEY);
+    this.isServiceConfigured = false;
+    // SECURITY FIX: Removed clearing key from localStorage.
   }
 
   // Get cache statistics

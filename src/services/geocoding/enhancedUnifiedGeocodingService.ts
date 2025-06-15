@@ -38,10 +38,10 @@ class EnhancedUnifiedGeocodingService {
       mapTilerService.initialize()
     ]);
 
-    // Load configuration from database
+    // Load configuration from database to check which providers are configured
     await this.loadConfigurationFromDatabase();
     
-    console.log('Enhanced unified geocoding service initialized with database integration');
+    console.log('Enhanced unified geocoding service initialized for secure, proxied requests.');
   }
 
   private async loadConfigurationFromDatabase(): Promise<void> {
@@ -51,17 +51,17 @@ class EnhancedUnifiedGeocodingService {
         databaseGeocodingService.getGeocodingConfiguration('maptiler')
       ]);
 
-      // Set API keys from database if available
+      // SECURITY FIX: Removed API key decryption and local storage.
+      // The client no longer needs to know the API keys. It only needs to
+      // know which providers are configured to make proxied requests.
       if (googleConfig?.api_key_encrypted) {
-        const decryptedKey = databaseGeocodingService.decryptApiKey(googleConfig.api_key_encrypted);
-        googleMapsGeocodingService.setApiKey(decryptedKey);
+        googleMapsGeocodingService.setIsConfigured(true);
       }
 
       if (mapTilerConfig?.api_key_encrypted) {
-        const decryptedKey = databaseGeocodingService.decryptApiKey(mapTilerConfig.api_key_encrypted);
-        mapTilerService.setApiKey(decryptedKey);
+        mapTilerService.setIsConfigured(true);
       }
-
+      
       // Update primary provider based on database config
       if (googleConfig?.primary_provider) {
         this.config.primaryProvider = 'google-maps';
@@ -170,6 +170,7 @@ class EnhancedUnifiedGeocodingService {
     isPrimary: boolean = false
   ): Promise<boolean> {
     try {
+      // This now calls the secure edge function via databaseGeocodingService
       const success = await databaseGeocodingService.saveGeocodingConfiguration(
         provider, 
         apiKey, 
@@ -177,11 +178,11 @@ class EnhancedUnifiedGeocodingService {
       );
 
       if (success) {
-        // Update local services
+        // Update local services state to reflect that it is now configured.
         if (provider === 'google-maps') {
-          googleMapsGeocodingService.setApiKey(apiKey);
+          googleMapsGeocodingService.setIsConfigured(true);
         } else if (provider === 'maptiler') {
-          mapTilerService.setApiKey(apiKey);
+          mapTilerService.setIsConfigured(true);
         }
 
         // Update config

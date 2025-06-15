@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GeocodingConfigurationRow {
@@ -53,28 +52,34 @@ class DatabaseGeocodingService {
     }
   }
 
+  /**
+   * Securely saves the geocoding configuration by invoking a Supabase edge function.
+   * The API key is sent to the function and encrypted server-side.
+   * It never stores the plaintext key on the client.
+   */
   async saveGeocodingConfiguration(
     provider: 'google-maps' | 'maptiler',
     apiKey: string,
     isPrimary: boolean = false
   ): Promise<boolean> {
     try {
-      // Simple encryption for API key storage (base64 encoding)
-      const encryptedKey = btoa(apiKey);
-
-      const { error } = await supabase.rpc('upsert_geocoding_configuration', {
-        p_provider_name: provider,
-        p_api_key_encrypted: encryptedKey,
-        p_is_active: true,
-        p_primary_provider: isPrimary
+      // SECURITY: Invoke edge function to handle encryption and database upsert.
+      // The raw API key never leaves the user's browser to our database directly.
+      const { data, error } = await supabase.functions.invoke('geocoding-config', {
+        body: { provider, apiKey, isPrimary },
       });
 
       if (error) {
-        console.error('Error saving geocoding configuration:', error);
+        console.error('Error invoking geocoding-config function:', error.message);
+        return false;
+      }
+      
+      if (data.error) {
+        console.error('Edge function returned an error:', data.error);
         return false;
       }
 
-      return true;
+      return data.success === true;
     } catch (error) {
       console.error('Database error saving geocoding configuration:', error);
       return false;
@@ -196,15 +201,6 @@ class DatabaseGeocodingService {
       }
     } catch (error) {
       console.error('Database error caching address:', error);
-    }
-  }
-
-  decryptApiKey(encryptedKey: string): string {
-    try {
-      return atob(encryptedKey);
-    } catch (error) {
-      console.error('Error decrypting API key:', error);
-      return '';
     }
   }
 }
