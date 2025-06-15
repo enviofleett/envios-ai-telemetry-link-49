@@ -7294,6 +7294,100 @@ export type Database = {
           },
         ]
       }
+      vehicle_parking_events: {
+        Row: {
+          address: string | null
+          created_at: string
+          duration_minutes: number | null
+          id: string
+          is_night_parking: boolean
+          latitude: number
+          longitude: number
+          parked_at: string
+          unparked_at: string | null
+          vehicle_device_id: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          is_night_parking?: boolean
+          latitude: number
+          longitude: number
+          parked_at: string
+          unparked_at?: string | null
+          vehicle_device_id: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          id?: string
+          is_night_parking?: boolean
+          latitude?: number
+          longitude?: number
+          parked_at?: string
+          unparked_at?: string | null
+          vehicle_device_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_parking_events_vehicle_device_id_fkey"
+            columns: ["vehicle_device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["device_id"]
+          },
+        ]
+      }
+      vehicle_parking_patterns: {
+        Row: {
+          address: string | null
+          created_at: string
+          id: string
+          is_primary_night_location: boolean
+          last_seen_at: string
+          latitude: number
+          longitude: number
+          parking_count: number
+          updated_at: string
+          vehicle_device_id: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          is_primary_night_location?: boolean
+          last_seen_at: string
+          latitude: number
+          longitude: number
+          parking_count?: number
+          updated_at?: string
+          vehicle_device_id: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          id?: string
+          is_primary_night_location?: boolean
+          last_seen_at?: string
+          latitude?: number
+          longitude?: number
+          parking_count?: number
+          updated_at?: string
+          vehicle_device_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_parking_patterns_vehicle_device_id_fkey"
+            columns: ["vehicle_device_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["device_id"]
+          },
+        ]
+      }
       vehicle_position_cache: {
         Row: {
           device_id: string

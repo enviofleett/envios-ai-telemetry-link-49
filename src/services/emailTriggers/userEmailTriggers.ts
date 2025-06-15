@@ -79,4 +79,46 @@ export class UserEmailTriggers {
       console.error('❌ Failed to notify admins of new user:', error);
     }
   }
+
+  // Notify user of unusual overnight parking
+  static async notifyOfUnusualParking(vehicleDeviceId: string, address: string): Promise<void> {
+    try {
+      // Find user associated with the vehicle
+      const { data: vehicleData, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select(`
+          device_name,
+          envio_users (
+            email,
+            name
+          )
+        `)
+        .eq('device_id', vehicleDeviceId)
+        .single();
+
+      if (vehicleError || !vehicleData || !vehicleData.envio_users) {
+        console.error(`❌ Could not find user for vehicle ${vehicleDeviceId}`, vehicleError);
+        return;
+      }
+
+      const user = vehicleData.envio_users;
+      const vehicleName = vehicleData.device_name || vehicleDeviceId;
+
+      await emailTriggerService.sendBulkTriggeredEmail([user.email], {
+        trigger_type: 'unusual_parking_alert',
+        template_variables: {
+          user_name: user.name,
+          vehicle_name: vehicleName,
+          parking_location: address,
+          timestamp: new Date().toLocaleString(),
+        },
+        fallback_subject: `Unusual Parking Alert for ${vehicleName}`,
+        fallback_message: `Hello ${user.name},\n\nYour vehicle ${vehicleName} has been parked at an unusual overnight location: ${address}.\n\nPlease verify this is expected.`
+      });
+
+      console.log(`✅ Unusual parking notification triggered for user: ${user.email}`);
+    } catch (error) {
+      console.error('❌ Failed to trigger unusual parking notification:', error);
+    }
+  }
 }

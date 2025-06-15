@@ -247,3 +247,30 @@ interface UseUnifiedVehicleDataResult {
   getIdleVehicles: () => VehicleData[];
   // Removed separate syncMetrics - all data is now in metrics
 }
+
+// Types for the Parking Monitoring System
+export interface VehicleParkingEvent {
+  id: string;
+  vehicle_device_id: string;
+  parked_at: string;
+  unparked_at?: string;
+  duration_minutes?: number;
+  latitude: number;
+  longitude: number;
+  address?: string;
+  is_night_parking: boolean;
+  created_at: string;
+}
+
+export interface VehicleParkingPattern {
+  id: string;
+  vehicle_device_id: string;
+  latitude: number;
+  longitude: number;
+  address?: string;
+  parking_count: number;
+  is_primary_night_location: boolean;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
+}

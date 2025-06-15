@@ -1,7 +1,7 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { GP51SessionManager } from './sessionManager';
 import { gp51ErrorReporter } from './errorReporter';
+import { parkingMonitorService } from '@/services/vehiclePosition/parkingMonitorService';
 
 interface PositionUpdate {
   deviceId: string;
@@ -148,6 +148,9 @@ export class RealTimePositionService {
   }
 
   private notifyCallbacks(update: PositionUpdate): void {
+    // Notify the parking monitor service
+    parkingMonitorService.processPositionUpdate(update);
+
     this.callbacks.forEach(callback => {
       try {
         callback(update);
