@@ -125,7 +125,7 @@ export const useStableEnhancedVehicleData = () => {
   const statistics: VehicleStatistics = useMemo(() => {
     const total = vehicles.length;
     const active = vehicles.filter(v => v.is_active).length;
-    const online = vehicles.filter(v => v.status === 'online' || v.status === 'moving').length;
+    const online = vehicles.filter(v => v.isOnline || v.isMoving).length;
     const alerts = vehicles.filter(v => v.alerts && v.alerts.length > 0).length;
 
     return { total, active, online, alerts };
