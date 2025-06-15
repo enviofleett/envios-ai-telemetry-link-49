@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   GP51ApiResponse, 
@@ -106,8 +105,9 @@ export class GP51DataService {
   }
 
   // Stub for backward compatibility with read-only components
-  async processVehicleData(): Promise<any> {
-      console.warn('GP51DataService.processVehicleData is deprecated and should not be used.');
+  // Updated to accept any arguments to avoid breaking read-only components.
+  async processVehicleData(...args: any[]): Promise<any> {
+      console.warn('GP51DataService.processVehicleData is deprecated and should not be used. It was called with:', args);
       return { success: true, created: 0, updated: 0, errors: [] };
   }
 }
