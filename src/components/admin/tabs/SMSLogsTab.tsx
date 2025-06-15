@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { DialogTrigger } from "@/components/ui/dialog";
 import SMSLogsTable from "@/components/sms/SMSLogsTable";
@@ -11,6 +10,8 @@ import { toast } from "@/components/ui/use-toast";
 // The main tab brings together other subcomponents.
 const SMSLogsTab = () => {
   const [isCreateEventOpen, setIsCreateEventOpen] = useState(false);
+
+  // --- EXISTING LOGS HOOK USAGE ---
   const {
     smsLogsResponse,
     setSmsLogsResponse,
@@ -20,6 +21,21 @@ const SMSLogsTab = () => {
     setLimit,
     loading,
   } = useSMSLogs(1, 10);
+
+  // --- Listen for SMS config update that should re-enable testing etc ---
+  useEffect(() => {
+    function handleConfigUpdate() {
+      // You would add logic here to refresh whatever needs a valid config
+      // E.g. you could refetch config, clear warnings, etc
+      // For now, just a placeholder to demo pattern
+      console.log('🔄 SMS config was updated, trigger dependent refresh as needed');
+    }
+    window.addEventListener('smsConfigUpdated', handleConfigUpdate);
+
+    return () => {
+      window.removeEventListener('smsConfigUpdated', handleConfigUpdate);
+    };
+  }, []);
 
   const logs = smsLogsResponse?.data ?? [];
   const pagination = {

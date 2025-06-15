@@ -71,6 +71,11 @@ class SMSService {
       console.log('💾 Saving validated credentials to database via edge function...');
       await this.saveSMSConfiguration(config);
       
+      // REFRESH STATE: Optionally trigger refetch or event for SMS config update
+      if (typeof window !== "undefined" && window.dispatchEvent) {
+        window.dispatchEvent(new CustomEvent('smsConfigUpdated'));
+      }
+      
       return {
         success: true,
         message: 'Credentials verified and saved successfully!',
