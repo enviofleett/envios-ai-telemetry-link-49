@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { AiAssistantSettings, AiProviderThreshold } from '@/types/ai';
 
@@ -47,7 +48,7 @@ export async function getAiProviderThresholds(): Promise<AiProviderThreshold[]> 
 
 export async function updateAiProviderThreshold(
   provider: string,
-  limits: { daily_limit?: number; monthly_limit?: number }
+  limits: { daily_limit: number; monthly_limit: number }
 ): Promise<AiProviderThreshold | null> {
   const { data, error } = await supabase
     .from('ai_provider_thresholds')
