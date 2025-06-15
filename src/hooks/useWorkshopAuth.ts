@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -38,8 +39,14 @@ export const useWorkshopAuth = () => {
             .maybeSingle();
 
           if (userRecord && !userError) {
+            // Fix for strict typing: ensure role matches the allowed set
+            let role: WorkshopUser['role'] = 
+              (['owner', 'manager', 'technician', 'inspector'] as const).includes(userRecord.role)
+                ? userRecord.role
+                : 'technician'; // fallback to 'technician' if not matched
+
             setWorkshopSession(sessionRecord);
-            setWorkshopUser(userRecord);
+            setWorkshopUser({ ...userRecord, role });
           } else {
             localStorage.removeItem('workshop_session');
           }
@@ -57,13 +64,13 @@ export const useWorkshopAuth = () => {
 
   // Login mutation - USE SECURE SERVICE
   const loginMutation = useMutation({
-    mutationFn: async (loginData) => {
+    mutationFn: async (loginData: WorkshopLoginData) => {
       // Secure: call our new service function!
       const { WorkshopAuthService } = await import('@/services/workshop/WorkshopAuthService');
       const result = await WorkshopAuthService.authenticateWorkshopUser(
         loginData.email,
         loginData.password,
-        loginData.workshop_id
+        loginData.workshop_id as string // make sure this exists
       );
       if (!result.success) throw new Error(result.error || 'Invalid credentials');
       // Create session in DB
@@ -78,8 +85,15 @@ export const useWorkshopAuth = () => {
         .select()
         .maybeSingle();
       if (sessionError || !session) throw new Error('Failed to create session');
+
+      // Fix for strict typing: ensure role matches allowed set
+      let role: WorkshopUser['role'] = 
+        (['owner', 'manager', 'technician', 'inspector'] as const).includes(result.user.role)
+          ? result.user.role
+          : 'technician';
+
       return {
-        user: result.user,
+        user: { ...result.user, role },
         session
       };
     },
@@ -138,17 +152,28 @@ export const useWorkshopAuth = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as WorkshopUser[];
+      // Fix for strict typing: ensure all roles properly typed
+      return (data as WorkshopUser[]).map(user => ({
+        ...user,
+        role: (
+          ['owner', 'manager', 'technician', 'inspector'] as const
+        ).includes(user.role) ? user.role : 'technician'
+      }));
     },
     enabled: !!workshopUser?.workshop_id
   });
+
+  // Typesafe version of login()
+  const login = (loginData: WorkshopLoginData) => {
+    loginMutation.mutate(loginData);
+  };
 
   return {
     workshopUser,
     workshopSession,
     workshopUsers,
     isLoading,
-    login: loginMutation.mutate,
+    login,
     logout,
     isLoggingIn: loginMutation.isPending
   };

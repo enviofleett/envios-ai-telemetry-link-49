@@ -22,12 +22,13 @@ const WorkshopLoginForm: React.FC<WorkshopLoginFormProps> = ({ onSuccess }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedWorkshopId) return; // Prevent submit with no workshop
     login({
       email,
       password,
       workshop_id: selectedWorkshopId
     });
-    
+
     if (onSuccess) {
       onSuccess();
     }
