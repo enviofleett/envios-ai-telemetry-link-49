@@ -839,6 +839,157 @@ export type Database = {
         }
         Relationships: []
       }
+      chatbot_bundle_purchases: {
+        Row: {
+          bundle_id: string
+          expires_at: string | null
+          id: string
+          payment_id: string | null
+          prompts_granted: number
+          prompts_used: number
+          purchased_at: string
+          user_id: string
+        }
+        Insert: {
+          bundle_id: string
+          expires_at?: string | null
+          id?: string
+          payment_id?: string | null
+          prompts_granted: number
+          prompts_used?: number
+          purchased_at?: string
+          user_id: string
+        }
+        Update: {
+          bundle_id?: string
+          expires_at?: string | null
+          id?: string
+          payment_id?: string | null
+          prompts_granted?: number
+          prompts_used?: number
+          purchased_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbot_bundle_purchases_bundle_id_fkey"
+            columns: ["bundle_id"]
+            isOneToOne: false
+            referencedRelation: "chatbot_bundles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chatbot_bundles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          prompt_count: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price: number
+          prompt_count: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          prompt_count?: number
+        }
+        Relationships: []
+      }
+      chatbot_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      chatbot_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbot_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chatbot_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chatbot_usage_tracking: {
+        Row: {
+          id: string
+          prompt_count: number
+          updated_at: string
+          usage_period_start: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          prompt_count?: number
+          updated_at?: string
+          usage_period_start: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          prompt_count?: number
+          updated_at?: string
+          usage_period_start?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       company_settings: {
         Row: {
           company_address: string | null
@@ -6163,6 +6314,7 @@ export type Database = {
       }
       subscriber_packages: {
         Row: {
+          chatbot_prompt_limit: number
           created_at: string
           created_by: string | null
           description: string | null
@@ -6177,6 +6329,7 @@ export type Database = {
           vehicle_limit: number | null
         }
         Insert: {
+          chatbot_prompt_limit?: number
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -6191,6 +6344,7 @@ export type Database = {
           vehicle_limit?: number | null
         }
         Update: {
+          chatbot_prompt_limit?: number
           created_at?: string
           created_by?: string | null
           description?: string | null

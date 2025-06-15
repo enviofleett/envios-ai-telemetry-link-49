@@ -11,6 +11,7 @@ export interface SubscriberPackage {
   updated_at: string;
   created_by?: string;
   vehicle_limit?: number | null;
+  chatbot_prompt_limit: number;
 }
 
 export interface PackageFeature {
@@ -83,6 +84,7 @@ export interface CreatePackageRequest {
   feature_ids: string[];
   menu_permission_ids: string[];
   vehicle_limit?: number | null;
+  chatbot_prompt_limit?: number;
 }
 
 export interface UpdatePackageRequest extends Partial<CreatePackageRequest> {

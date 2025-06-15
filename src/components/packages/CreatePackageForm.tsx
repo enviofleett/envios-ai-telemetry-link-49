@@ -26,7 +26,8 @@ const CreatePackageForm: React.FC<CreatePackageFormProps> = ({ onSuccess }) => {
     referral_discount_percentage: 0,
     feature_ids: [],
     menu_permission_ids: [],
-    vehicle_limit: null
+    vehicle_limit: null,
+    chatbot_prompt_limit: 0,
   });
 
   const { toast } = useToast();
@@ -189,21 +190,38 @@ const CreatePackageForm: React.FC<CreatePackageFormProps> = ({ onSuccess }) => {
             </div>
           </div>
 
-          {/* Vehicle Limit */}
-          <div className="space-y-2">
-            <Label htmlFor="vehicle_limit">Vehicle Limit</Label>
-            <Input
-              id="vehicle_limit"
-              type="number"
-              min="0"
-              step="1"
-              value={formData.vehicle_limit ?? ''}
-              onChange={(e) => setFormData(prev => ({
-                ...prev,
-                vehicle_limit: e.target.value === '' ? null : parseInt(e.target.value)
-              }))}
-              placeholder="Enter vehicle limit (leave blank for unlimited)"
-            />
+          {/* Limits */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="vehicle_limit">Vehicle Limit</Label>
+              <Input
+                id="vehicle_limit"
+                type="number"
+                min="0"
+                step="1"
+                value={formData.vehicle_limit ?? ''}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  vehicle_limit: e.target.value === '' ? null : parseInt(e.target.value)
+                }))}
+                placeholder="Enter vehicle limit (leave blank for unlimited)"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="chatbot_prompt_limit">Chatbot Prompt Limit (Monthly)</Label>
+              <Input
+                id="chatbot_prompt_limit"
+                type="number"
+                min="0"
+                step="1"
+                value={formData.chatbot_prompt_limit ?? 0}
+                onChange={(e) => setFormData(prev => ({
+                  ...prev,
+                  chatbot_prompt_limit: parseInt(e.target.value) || 0
+                }))}
+                placeholder="e.g., 100"
+              />
+            </div>
           </div>
 
           {/* Features */}
