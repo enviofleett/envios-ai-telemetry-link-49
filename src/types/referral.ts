@@ -120,3 +120,18 @@ export interface AgentPerformanceSnapshot {
   total_commission_earned: number;
   created_at: string;
 }
+
+export interface TopAgent {
+  agent_id: string;
+  agent_name: string;
+  agent_email: string;
+  total_commission: number;
+}
+
+export interface SystemReferralAnalytics {
+  total_referrals: number;
+  total_signups: number;
+  total_conversions: number;
+  total_commission: number;
+  top_agents: TopAgent[];
+}
