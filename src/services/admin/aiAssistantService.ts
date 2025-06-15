@@ -13,7 +13,7 @@ export async function getAiAssistantSettings(): Promise<AiAssistantSettings | nu
     console.error('Error fetching AI assistant settings:', error);
     throw error;
   }
-  return data;
+  return data as AiAssistantSettings | null;
 }
 
 export async function updateAiAssistantSettings(
@@ -30,5 +30,5 @@ export async function updateAiAssistantSettings(
     console.error('Error updating AI assistant settings:', error);
     throw error;
   }
-  return data;
+  return data as AiAssistantSettings | null;
 }
