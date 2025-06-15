@@ -1,4 +1,3 @@
-
 export type AiProvider = 'openai' | 'google_gemini' | 'anthropic_claude' | 'hugging_face';
 
 export interface AiAssistantSettings {
@@ -33,3 +32,10 @@ export const AI_PROVIDER_CONFIG: Record<AiProvider, { name: string; secretName: 
     docsUrl: 'https://huggingface.co/settings/tokens'
   }
 };
+
+export interface AiProviderThreshold {
+  provider: AiProvider;
+  daily_limit: number;
+  monthly_limit: number;
+  updated_at: string;
+}

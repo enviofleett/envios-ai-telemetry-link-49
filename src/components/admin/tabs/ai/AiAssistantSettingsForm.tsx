@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { getAiAssistantSettings, updateAiAssistantSettings } from '@/services/admin/aiAssistantService';
+import { getAiAssistantSettings, updateAiAssistantSettings, getAiProviderThresholds } from '@/services/admin/aiAssistantService';
 import type { AiAssistantSettings } from '@/types/ai';
 import { AI_PROVIDER_CONFIG } from '@/types/ai';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Loader2, AlertTriangle, ExternalLink } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import ProviderThresholdsCard from './ProviderThresholdsCard';
 
 const formSchema = z.object({
   is_active: z.boolean(),
@@ -30,9 +31,14 @@ const AiAssistantSettingsForm: React.FC = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: settings, isLoading, isError, error } = useQuery({
+  const { data: settings, isLoading: isLoadingSettings, isError: isErrorSettings, error: errorSettings } = useQuery({
     queryKey: ['aiAssistantSettings'],
     queryFn: getAiAssistantSettings,
+  });
+
+  const { data: thresholds, isLoading: isLoadingThresholds, isError: isErrorThresholds, error: errorThresholds } = useQuery({
+    queryKey: ['aiProviderThresholds'],
+    queryFn: getAiProviderThresholds,
   });
 
   const mutation = useMutation({
@@ -81,6 +87,10 @@ const AiAssistantSettingsForm: React.FC = () => {
     mutation.mutate(values);
   };
   
+  const isLoading = isLoadingSettings || isLoadingThresholds;
+  const isError = isErrorSettings || isErrorThresholds;
+  const error = errorSettings || errorThresholds;
+
   if (isLoading) {
     return <div className="flex justify-center items-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>;
   }
@@ -209,6 +219,8 @@ const AiAssistantSettingsForm: React.FC = () => {
             </CardContent>
           </Card>
         )}
+
+        {thresholds && <ProviderThresholdsCard thresholds={thresholds} />}
 
         <Card>
           <CardHeader>

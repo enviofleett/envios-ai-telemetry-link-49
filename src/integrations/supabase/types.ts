@@ -226,6 +226,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_provider_thresholds: {
+        Row: {
+          daily_limit: number
+          monthly_limit: number
+          provider: string
+          updated_at: string
+        }
+        Insert: {
+          daily_limit?: number
+          monthly_limit?: number
+          provider: string
+          updated_at?: string
+        }
+        Update: {
+          daily_limit?: number
+          monthly_limit?: number
+          provider?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       api_rate_limits: {
         Row: {
           block_expires_at: string | null
