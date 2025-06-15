@@ -78,21 +78,6 @@ export async function saveSmtpSettings(settings: any) {
     throw new Error("Missing required SMTP fields: host, port, and user are required.");
   }
 
-  // Check for corrupted data if an ID is provided, which indicates an update.
-  if (id) {
-    const { data: existingSetting } = await supabase
-      .from('smtp_settings')
-      .select('smtp_password_encrypted')
-      .eq('id', id)
-      .single();
-
-    // Heuristic for corruption: if the "encrypted" password contains an '@' and no new password is provided.
-    // This indicates the old, corrupted email address is still stored as the password.
-    if (existingSetting?.smtp_password_encrypted?.includes('@') && !smtp_password) {
-      throw new Error("Your saved SMTP configuration is corrupted. Please re-enter your password and save again to fix it.");
-    }
-  }
-
   let smtp_encryption = 'none';
   if (use_ssl) smtp_encryption = 'ssl';
   else if (use_tls) smtp_encryption = 'tls';
