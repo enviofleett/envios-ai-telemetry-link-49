@@ -7,12 +7,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// This function's primary goal is to check if a username is available on GP51.
-// It is designed to be called from public-facing registration forms.
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+  const request_ip = req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip');
 
   try {
     // This function uses the anon key as it's called from public registration pages
@@ -22,26 +26,43 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
+    // Rate Limiting
+    const { data: rateLimit, error: rateLimitError } = await supabaseAdmin.rpc('check_rate_limit', {
+        p_identifier: request_ip,
+        p_endpoint: 'gp51-registration-validator',
+    });
+
+    if (rateLimitError || !rateLimit) {
+        console.warn('Rate limit check failed:', rateLimitError?.message);
+        if(!rateLimit){
+            return new Response(JSON.stringify({ usernameAvailable: false, message: 'Too many requests. Please try again later.' }), {
+                status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+        }
+    }
+
     const { username } = await req.json();
 
     if (!username) {
       return new Response(JSON.stringify({ usernameAvailable: false, message: 'Username is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // Basic Input Validation
+    if (!/^[a-zA-Z0-9_.-@]{3,50}$/.test(username)) {
+      await supabaseAdmin.rpc('log_security_event', { p_action_type: 'USERNAME_VALIDATION_FAIL', p_ip_address: request_ip, p_success: false, p_error_message: 'Invalid username format', p_request_details: { username } });
+      return new Response(JSON.stringify({ usernameAvailable: false, message: 'Invalid username format.' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' }});
+    }
     
-    // Protect the admin account from being checked or registered.
     if (username.toLowerCase() === 'chudesyl@gmail.com') {
       return new Response(JSON.stringify({ usernameAvailable: false, message: 'This username is reserved.' }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     console.log(`[gp51-validator] Validating username availability for: ${username}`);
 
-    // We invoke the auth service with a dummy password. The goal is only to check for user existence.
     const { data: authResult, error: authError } = await supabase.functions.invoke('gp51-auth-service', {
       body: {
         action: 'test_authentication',
@@ -52,15 +73,15 @@ serve(async (req) => {
 
     if (authError) {
         console.error(`[gp51-validator] Error invoking auth service:`, authError.message);
+        await supabaseAdmin.rpc('log_security_event', { p_action_type: 'USERNAME_VALIDATION_FAIL', p_ip_address: request_ip, p_success: false, p_error_message: `Auth service invocation error: ${authError.message}`, p_request_details: { username } });
         return new Response(JSON.stringify({ usernameAvailable: false, message: 'Could not connect to GP51 validation service.' }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
     
     if (authResult.success) {
-      // If auth succeeds, the username is taken.
       console.log(`[gp51-validator] Validation fail: Username '${username}' already exists.`);
+      await supabaseAdmin.rpc('log_security_event', { p_action_type: 'USERNAME_VALIDATION_TAKEN', p_ip_address: request_ip, p_success: false, p_request_details: { username } });
       return new Response(JSON.stringify({
         usernameAvailable: false,
         message: 'Username is already taken.',
@@ -68,9 +89,7 @@ serve(async (req) => {
     }
 
     const gp51ErrorMessage = (authResult.error || '').toLowerCase();
-    console.log(`[gp51-validator] Auth service failed for '${username}' with message: "${gp51ErrorMessage}"`);
-
-    // This is the expected success condition for an available username.
+    
     if (gp51ErrorMessage.includes('user not exist') || gp51ErrorMessage.includes('user does not exist')) {
       console.log(`[gp51-validator] Validation success: Username '${username}' is available.`);
       return new Response(JSON.stringify({
@@ -79,17 +98,17 @@ serve(async (req) => {
       }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // This indicates the user exists, so the username is not available.
     if (gp51ErrorMessage.includes('password error') || gp51ErrorMessage.includes('password is error')) {
       console.log(`[gp51-validator] Validation fail: Username '${username}' exists.`);
+      await supabaseAdmin.rpc('log_security_event', { p_action_type: 'USERNAME_VALIDATION_TAKEN', p_ip_address: request_ip, p_success: false, p_request_details: { username } });
       return new Response(JSON.stringify({
         usernameAvailable: false,
         message: 'Username is already taken.',
       }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // For any other error, we fail safely by saying the username is not available.
     console.warn(`[gp51-validator] Validation fail due to unhandled GP51 error for '${username}'. Error: ${gp51ErrorMessage}`);
+    await supabaseAdmin.rpc('log_security_event', { p_action_type: 'USERNAME_VALIDATION_FAIL', p_ip_address: request_ip, p_success: false, p_error_message: `Unhandled GP51 error: ${gp51ErrorMessage}`, p_request_details: { username } });
     return new Response(JSON.stringify({
       usernameAvailable: false,
       message: `Could not verify username with GP51 at this time. Please try again later.`,
@@ -97,6 +116,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('[gp51-validator] Critical error:', error);
+    await supabaseAdmin.rpc('log_security_event', { p_action_type: 'USERNAME_VALIDATION_FAIL', p_ip_address: request_ip, p_success: false, p_error_message: `Internal Server Error: ${error.message}` });
     return new Response(JSON.stringify({ usernameAvailable: false, message: 'Internal server error during validation.' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

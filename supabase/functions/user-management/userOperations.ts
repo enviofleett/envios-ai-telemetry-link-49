@@ -207,37 +207,75 @@ export async function updateUser(supabase: any, userId: string, updateData: any,
   if (updateData.gp51_username !== undefined) userData.gp51_username = updateData.gp51_username;
   if (updateData.gp51_user_type !== undefined) userData.gp51_user_type = updateData.gp51_user_type;
 
-  if (currentUserId !== userId && !(await isUserAdmin(supabase, currentUserId))) {
+  const isAdmin = await isUserAdmin(supabase, currentUserId);
+  if (currentUserId !== userId && !isAdmin) {
     throw new Error('Admin access required');
+  }
+
+  // Password update logic
+  if (updateData.password) {
+    if (!isAdmin) {
+      throw new Error('Admin access required to change passwords.');
+    }
+    if (String(updateData.password).length < 6) {
+      throw new Error('Password must be at least 6 characters long.');
+    }
+
+    console.log(`🔄 Admin ${currentUserId} is updating password for user ${userId}`);
+
+    const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: updateData.password,
+    });
+
+    if (authError) {
+      console.error('Error updating user password in Supabase Auth:', authError);
+      throw new Error(`Failed to update password in Auth: ${authError.message}`);
+    }
+
+    console.log(`✅ Password updated successfully in Supabase Auth for user ${userId}`);
   }
 
   // Get current user data to check for GP51 username
   const { data: currentUser } = await supabase
     .from('envio_users')
-    .select('gp51_username')
+    .select('gp51_username, name, email')
     .eq('id', userId)
     .single();
 
   // If user has GP51 username, update in GP51 first
-  if (currentUser?.gp51_username && (updateData.name || updateData.email)) {
+  if (currentUser?.gp51_username && (updateData.name || updateData.email || updateData.password)) {
     console.log(`🔄 Updating user in GP51: ${currentUser.gp51_username}`);
     
     try {
+      const gp51UpdatePayload: any = {
+        action: 'edituser',
+        username: currentUser.gp51_username,
+        showname: updateData.name || currentUser.name,
+        email: updateData.email || currentUser.email,
+      };
+
+      // Also update password in GP51 if provided
+      if (updateData.password) {
+        gp51UpdatePayload.password = updateData.password;
+      }
+
       const { data, error } = await supabase.functions.invoke('gp51-user-management', {
-        body: {
-          action: 'edituser',
-          username: currentUser.gp51_username,
-          showname: updateData.name || currentUser.name,
-          email: updateData.email || currentUser.email
-        }
+        body: gp51UpdatePayload
       });
 
       if (error || (data && !data.success)) {
         console.error('GP51 user update failed:', error || data);
-        throw new Error(`GP51 user update failed: ${error?.message || data?.error || 'Unknown error'}`);
+        // Do not throw an error, just log it, as Supabase password is already updated.
+        // This prevents a state mismatch. The sync can be retried later.
+        console.warn(`GP51 user update failed but continuing: ${error?.message || data?.error || 'Unknown error'}`);
+      } else {
+        console.log('✅ User updated successfully in GP51');
       }
-
-      console.log('✅ User updated successfully in GP51');
 
       // Update tracking table
       await supabase
@@ -249,7 +287,7 @@ export async function updateUser(supabase: any, userId: string, updateData: any,
 
     } catch (error) {
       console.error('Exception during GP51 user update:', error);
-      throw new Error(`GP51 user update failed: ${error.message}`);
+      console.warn(`GP51 user update failed but continuing: ${error.message}`);
     }
   }
 
