@@ -1,5 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { SMSConfig, SMSLog, SMSLogsResponse, BalanceResponse } from './smsService';
+import type { SMSConfig, SMSLog, SMSLogsResponse, BalanceResponse } from '@/types/sms';
 
 export type { SMSConfig, SMSLog, SMSLogsResponse, BalanceResponse };
 
