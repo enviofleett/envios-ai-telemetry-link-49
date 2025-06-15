@@ -1,5 +1,5 @@
 
-import md5 from 'js-md5';
+import md5 = require('js-md5');
 
 /**
  * Calculates the MD5 hash of a string.
