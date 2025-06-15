@@ -8968,7 +8968,11 @@ export type Database = {
         | "user_segments"
       campaign_type_enum: "one_time" | "recurring" | "event_based"
       commission_source_type: "subscription_upgrade" | "marketplace_fee"
-      commission_status: "pending_payout" | "paid" | "cancelled"
+      commission_status:
+        | "pending_payout"
+        | "paid"
+        | "cancelled"
+        | "processing_payout"
       merchant_application_status:
         | "draft"
         | "submitted"
@@ -9123,7 +9127,12 @@ export const Constants = {
       ],
       campaign_type_enum: ["one_time", "recurring", "event_based"],
       commission_source_type: ["subscription_upgrade", "marketplace_fee"],
-      commission_status: ["pending_payout", "paid", "cancelled"],
+      commission_status: [
+        "pending_payout",
+        "paid",
+        "cancelled",
+        "processing_payout",
+      ],
       merchant_application_status: [
         "draft",
         "submitted",

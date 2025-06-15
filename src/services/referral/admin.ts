@@ -45,7 +45,7 @@ export async function getSystemReferralAnalytics(): Promise<SystemReferralAnalyt
         supabase
             .from('referral_commissions')
             .select('agent_id, commission_amount')
-            .in('status', ['paid', 'pending_payout', 'processing_payout'])
+            .in('status', ['paid', 'pending_payout', 'processing_payout'] as any)
     ]);
 
     if (snapshotsError) {
