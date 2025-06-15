@@ -1,7 +1,12 @@
+
 /**
  * Stub implementations for settings-management database functions.
  * Replace these with actual implementations as needed.
  */
+
+// ---- ADDED IMPORTS ----
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { encrypt, decrypt } from '../_shared/encryption.ts';
 
 // Save GP51 session
 export async function saveGP51Session(username, token, apiUrl, userId) {
