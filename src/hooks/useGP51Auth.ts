@@ -29,6 +29,14 @@ interface AuthState {
   isRestoringSession: boolean;
 }
 
+interface GP51LoginResponse {
+  status: number; // 0 for success, non-zero for error
+  cause?: string; // Error message
+  message?: string; // Alternative error message
+  token?: string;
+}
+
+
 export const useGP51Auth = () => {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -86,33 +94,33 @@ export const useGP51Auth = () => {
     const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
 
     try {
-      // The password must be MD5 hashed. E.g., "Octopus360%" -> "9e023908f51272714a275466b033d526"
       const hashedPassword = calculateMd5(password);
       const trimmedUsername = username.trim();
-      const params = new URLSearchParams({
-        action: 'login',
-        username: trimmedUsername,
-        password: hashedPassword,
-      });
       
-      const url = `${GP51_API_URL}?${params.toString()}`;
-      console.log('📡 Sending login request to GP51');
+      const url = new URL(GP51_API_URL);
+      url.searchParams.append('action', 'login');
 
-      const response = await fetch(url, {
-        method: 'GET',
+      console.log('📡 Sending login request to GP51 via POST');
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: trimmedUsername,
+          password: hashedPassword,
+          from: 'WEB',
+          type: 'USER',
+        }),
         signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
-
       if (!response.ok) {
-        throw new Error(`Network error: ${response.status} ${response.statusText}`);
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      const data: GP51LoginResponse = await response.json();
       console.log('📊 GP51 Login Response:', data);
 
-      // Abnormal response handling: check GP51-specific status
       if (data.status !== 0 || !data.token) {
         throw new Error(data.cause || data.message || 'Invalid username or password');
       }
@@ -147,7 +155,7 @@ export const useGP51Auth = () => {
         : 'An unknown error occurred';
         
       console.error('❌ useGP51Auth: Login failed:', errorMessage);
-      setAuthState(prev => ({ ...prev, error: errorMessage }));
+      setAuthState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
       toast({
         title: "Login Failed",
         description: errorMessage,
