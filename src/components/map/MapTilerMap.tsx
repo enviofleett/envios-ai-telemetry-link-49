@@ -39,7 +39,7 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
       style: styleUrl,
       center: [0, 0],
       zoom: 2,
-      transformRequest: async (url: string, resourceType?: maplibregl.ResourceType) => {
+      transformRequest: (async (url: string, resourceType?: maplibregl.ResourceType) => {
         // Only transform requests going to our own Supabase proxy.
         if (url.startsWith(SUPABASE_URL)) {
           const { data: { session } } = await supabase.auth.getSession();
@@ -54,7 +54,7 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
         }
         // For all other URLs (e.g., the fallback demo style), do not modify the request.
         return { url };
-      }
+      }) as maplibregl.RequestTransformFunction,
     });
 
     if (showControls) {
