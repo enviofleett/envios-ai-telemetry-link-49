@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { encrypt } from '../_shared/encryption.ts';
 
@@ -72,22 +73,27 @@ export async function saveSmtpSettings(settings: any) {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
 
-  const { id, smtp_host, smtp_port, smtp_user, smtp_password, use_tls, use_ssl, provider_name = 'custom' } = settings;
+  const { id, smtp_host, smtp_port, smtp_user, smtp_password, use_tls, use_ssl, provider_name = 'custom', from_name, from_email } = settings;
 
   if (!smtp_host || !smtp_port || !smtp_user) {
     throw new Error("Missing required SMTP fields: host, port, and user are required.");
   }
 
+  let smtp_encryption = 'none';
+  if (use_ssl) smtp_encryption = 'ssl';
+  else if (use_tls) smtp_encryption = 'tls';
+
   const upsertData: any = {
     id: id || undefined,
     smtp_host,
     smtp_port,
-    smtp_user,
-    use_tls,
-    use_ssl,
+    smtp_username: smtp_user, // Map UI field to DB column
+    smtp_encryption,
     provider_name,
     is_active: true,
     updated_at: new Date().toISOString(),
+    from_name,
+    from_email,
   };
 
   if (smtp_password) {
@@ -98,6 +104,9 @@ export async function saveSmtpSettings(settings: any) {
     }
     upsertData.smtp_password_encrypted = await encrypt(smtp_password, encryptionKey);
   }
+
+  // Remove undefined properties before upsert to avoid inserting nulls
+  Object.keys(upsertData).forEach(key => upsertData[key] === undefined && delete upsertData[key]);
 
   const { data, error } = await supabase
     .from('smtp_settings')

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -64,17 +63,22 @@ const SMTPConfigurationTab: React.FC = () => {
       if (error) throw error;
       
       if (data) {
+        // The DB has smtp_username and smtp_encryption. We map them to the component's state.
+        const providerKey = Object.keys(SMTP_PROVIDERS).find(
+          key => SMTP_PROVIDERS[key as keyof typeof SMTP_PROVIDERS].host === data.smtp_host
+        ) || data.provider_name || 'custom';
+
         setConfig({
           id: data.id,
-          provider_name: data.provider_name || 'custom',
+          provider_name: providerKey,
           smtp_host: data.smtp_host || '',
           smtp_port: data.smtp_port || 587,
-          smtp_user: data.smtp_user || '',
-          smtp_password: '', // Always empty password field for security
-          use_tls: data.use_tls === true,
-          use_ssl: data.use_ssl === true,
+          smtp_user: data.smtp_username || '', // Map from smtp_username
+          smtp_password: '', // Always empty for security
+          use_tls: data.smtp_encryption === 'tls', // Map from smtp_encryption
+          use_ssl: data.smtp_encryption === 'ssl', // Map from smtp_encryption
           is_active: data.is_active === true,
-          last_test_status: data.last_test_status,
+          last_test_status: data.last_test_status as 'success' | 'failure' | null,
           last_test_message: data.last_test_message,
           last_tested_at: data.last_tested_at,
         });
@@ -115,7 +119,7 @@ const SMTPConfigurationTab: React.FC = () => {
       if (!data.success) throw new Error(data.error);
 
       toast({ title: "Configuration Saved", description: "SMTP settings saved successfully." });
-      setConfig(prev => ({ ...data.data, smtp_password: '' }));
+      await loadSMTPConfig(); // Reload data from DB to ensure consistency
     } catch (error: any) {
       toast({ title: "Save Failed", description: error.message, variant: "destructive" });
     } finally {
@@ -202,11 +206,11 @@ const SMTPConfigurationTab: React.FC = () => {
 
           <div className="flex gap-6">
             <div className="flex items-center space-x-2">
-              <Switch id="use-tls" checked={config.use_tls} onCheckedChange={(checked) => setConfig(prev => ({ ...prev, use_tls: checked }))} />
+              <Switch id="use-tls" checked={config.use_tls} onCheckedChange={(checked) => setConfig(prev => ({ ...prev, use_tls: checked, use_ssl: checked ? false : prev.use_ssl }))} />
               <Label htmlFor="use-tls">Use TLS</Label>
             </div>
             <div className="flex items-center space-x-2">
-              <Switch id="use-ssl" checked={config.use_ssl} onCheckedChange={(checked) => setConfig(prev => ({ ...prev, use_ssl: checked }))} />
+              <Switch id="use-ssl" checked={config.use_ssl} onCheckedChange={(checked) => setConfig(prev => ({ ...prev, use_ssl: checked, use_tls: checked ? false : prev.use_tls }))} />
               <Label htmlFor="use-ssl">Use SSL</Label>
             </div>
           </div>

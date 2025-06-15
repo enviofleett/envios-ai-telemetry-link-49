@@ -194,9 +194,9 @@ export class EmailSender {
     try {
       const { data: settings, error } = await supabase
         .from('smtp_settings')
-        .select('*, smtp_password_encrypted')
+        .select('*')
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       if (error || !settings) {
         console.error('❌ Failed to load SMTP settings:', error ? error.message : 'No active settings found.');
@@ -221,12 +221,12 @@ export class EmailSender {
       console.log('📧 Loaded SMTP settings:', {
         host: settings.smtp_host,
         port: settings.smtp_port,
-        username: settings.smtp_user,
+        username: settings.smtp_username, // Corrected from smtp_user
         encryption: settings.smtp_encryption,
         hasPassword: !!settings.smtp_password_encrypted
       });
 
-      if (!settings.smtp_host || !settings.smtp_port || !settings.smtp_user) {
+      if (!settings.smtp_host || !settings.smtp_port || !settings.smtp_username) { // Corrected from smtp_user
         console.error('❌ Incomplete SMTP configuration - missing required fields');
         return null;
       }
@@ -234,7 +234,7 @@ export class EmailSender {
       return {
         hostname: settings.smtp_host,
         port: settings.smtp_port,
-        username: settings.smtp_user,
+        username: settings.smtp_username, // Corrected from smtp_user
         password: decryptedPassword,
         encryption: settings.smtp_encryption || 'tls',
       };
