@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Package, Users, Wrench, Building, CreditCard, Bell, Mail, Zap, Send, Clock, Server, BookOpen, MessageSquare, FileText, Radio, CheckCircle, Map, MapPin, Link, Car, BarChart, Shield, Upload, Database, Settings, Activity } from 'lucide-react';
@@ -12,7 +11,7 @@ import EmailTemplatesTab from './tabs/EmailTemplatesTab';
 import EmailTriggersAdminTab from './tabs/EmailTriggersAdminTab';
 import AdvancedEmailManagementTab from './tabs/AdvancedEmailManagementTab';
 import EmailQueueTab from './tabs/EmailQueueTab';
-import SMTPConfigurationTab from './tabs/SMTPConfigurationTab';
+import SMTPConfigurationTab from '../settings/SMTPConfigurationTab';
 import SMTPGuideTab from './tabs/SMTPGuideTab';
 import SMSSettingsTab from './tabs/SMSSettingsTab';
 import SMSLogsTab from './tabs/SMSLogsTab';

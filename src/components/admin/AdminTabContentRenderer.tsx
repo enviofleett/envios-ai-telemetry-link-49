@@ -1,4 +1,3 @@
-
 import React, { Suspense } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Shield } from 'lucide-react';
@@ -52,7 +51,7 @@ const CurrencyManagementTab = React.lazy(() => import('../settings/CurrencyManag
 const UsersTab = React.lazy(() => import('./tabs/UsersTab'));
 const BillingTab = React.lazy(() => import('./tabs/BillingTab'));
 // Communication
-const SMTPConfigurationTab = React.lazy(() => import('./tabs/SMTPConfigurationTab'));
+const SMTPConfigurationTab = React.lazy(() => import('../settings/SMTPConfigurationTab'));
 const EmailTemplatesTab = React.lazy(() => import('./tabs/EmailTemplatesTab'));
 const EmailTriggersAdminTab = React.lazy(() => import('./tabs/EmailTriggersAdminTab'));
 const EmailQueueTab = React.lazy(() => import('./tabs/EmailQueueTab'));
