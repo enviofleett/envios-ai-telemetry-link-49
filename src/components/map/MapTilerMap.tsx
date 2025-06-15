@@ -5,7 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useMapMarkers } from './hooks/useMapMarkers';
 import type { VehicleData } from '@/types/vehicle';
 import { mapTilerService } from '@/services/mapTiler/mapTilerService';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_URL } from '@/integrations/supabase/client';
 
 interface MapTilerMapProps {
   vehicles: VehicleData[];
@@ -39,9 +39,9 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
       style: styleUrl,
       center: [0, 0],
       zoom: 2,
-      transformRequest: async (url, resourceType) => {
+      transformRequest: async (url: string, resourceType?: maplibregl.ResourceType): Promise<maplibregl.RequestParameters> => {
         // Only transform requests going to our own Supabase proxy.
-        if (url.startsWith(supabase.supabaseUrl)) {
+        if (url.startsWith(SUPABASE_URL)) {
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
             return {

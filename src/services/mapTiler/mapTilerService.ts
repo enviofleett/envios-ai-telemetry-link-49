@@ -1,5 +1,4 @@
-
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, SUPABASE_URL } from '@/integrations/supabase/client';
 
 export interface MapTilerConfig {
   apiKey: string;
@@ -97,7 +96,7 @@ class MapTilerService {
   getMapStyle(): string {
     // If configured, provide the style URL which will be handled by the map-proxy edge function.
     if (this.isConfigured()) {
-      const functionUrl = `${supabase.supabaseUrl}/functions/v1/map-proxy`;
+      const functionUrl = `${SUPABASE_URL}/functions/v1/map-proxy`;
       // The path requested here will be forwarded by the proxy to MapTiler
       return `${functionUrl}/maps/streets-v2/style.json`;
     }
