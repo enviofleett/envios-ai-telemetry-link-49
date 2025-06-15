@@ -1,9 +1,9 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useMapMarkers } from './hooks/useMapMarkers';
 import type { VehicleData } from '@/types/vehicle';
+import { mapTilerService } from '@/services/mapTiler/mapTilerService';
 
 interface MapTilerMapProps {
   vehicles: VehicleData[];
@@ -30,9 +30,11 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
   useEffect(() => {
     if (!mapContainer.current) return;
 
+    mapTilerService.initialize();
+
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: 'https://api.maptiler.com/maps/streets/style.json?key=demo', // Replace demo with your key
+      style: mapTilerService.getMapStyle(),
       center: [0, 0],
       zoom: 2
     });
@@ -101,4 +103,3 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
 };
 
 export default MapTilerMap;
-

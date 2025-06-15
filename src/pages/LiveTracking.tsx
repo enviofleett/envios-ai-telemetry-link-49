@@ -3,12 +3,12 @@ import React, { useState } from 'react';
 import DeliveryTrackingMap from '@/components/delivery/DeliveryTrackingMap';
 import DeliveryVehiclesPanel from '@/components/delivery/DeliveryVehiclesPanel';
 import ActiveDeliveriesPanel from '@/components/delivery/ActiveDeliveriesPanel';
-import { useStableVehicleData } from '@/hooks/useStableVehicleData';
-import type { VehicleData } from '@/types/vehicle';
+import { useEnhancedVehicleData } from '@/hooks/useEnhancedVehicleData';
+import type { VehicleData, DeliveryOrder } from '@/types/vehicle';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 
 const LiveTracking: React.FC = () => {
-  const { vehicles, isLoading, error } = useStableVehicleData();
+  const { vehicles, isLoading, metrics } = useEnhancedVehicleData();
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
 
   // NOTE: This is temporary mock data to demonstrate the UI.
@@ -26,7 +26,7 @@ const LiveTracking: React.FC = () => {
         customerName: 'John Doe',
         customerAddress: '123 Main St, Anytown, USA',
         customerPhone: '555-1234',
-        status: 'in_transit',
+        status: 'in_transit' as DeliveryOrder['status'],
         estimatedDeliveryTime: new Date(Date.now() + 30 * 60000).toISOString(),
         items: [{ name: 'Large Pizza', quantity: 1 }],
       },
@@ -35,7 +35,7 @@ const LiveTracking: React.FC = () => {
         customerName: 'Jane Smith',
         customerAddress: '456 Oak Ave, Anytown, USA',
         customerPhone: '555-5678',
-        status: 'pending',
+        status: 'pending' as DeliveryOrder['status'],
         estimatedDeliveryTime: new Date(Date.now() + 60 * 60000).toISOString(),
         items: [{ name: 'Gadget Pro', quantity: 2 }],
       },
@@ -51,11 +51,11 @@ const LiveTracking: React.FC = () => {
     );
   }
 
-  if (error) {
+  if (metrics.syncStatus === 'error') {
     return (
       <div className="flex items-center justify-center h-screen text-red-600">
         <AlertTriangle className="w-8 h-8 mr-2" />
-        <p>Error loading tracking data: {error}</p>
+        <p>Error loading tracking data: {metrics.errorMessage || 'Sync failed'}</p>
       </div>
     );
   }
