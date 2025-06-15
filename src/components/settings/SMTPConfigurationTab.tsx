@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -111,6 +110,16 @@ const SMTPConfigurationTab: React.FC = () => {
   };
 
   const handleSave = async () => {
+    // Client-side validation
+    if (!config.smtp_host || !config.smtp_port || !config.smtp_user || !config.from_name || !config.from_email) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill out all required fields: SMTP Host, Port, Email/Username, Sender Name, and Sender Email.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const configData: any = { ...config };
@@ -135,26 +144,49 @@ const SMTPConfigurationTab: React.FC = () => {
   };
 
   const handleTestEmail = async () => {
+    // Client-side validation before saving and testing
+    if (!config.smtp_host || !config.smtp_port || !config.smtp_user || !config.from_name || !config.from_email) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill out all required fields before sending a test email.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setTesting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('settings-management', {
+      // Step 1: Save configuration
+      const configData: any = { ...config };
+      if (!configData.smtp_password?.trim()) {
+        delete configData.smtp_password;
+      }
+      
+      const { data: saveData, error: saveError } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'save-smtp-settings', ...configData }
+      });
+      
+      if (saveError) throw new Error(`Save failed: ${saveError.message}`);
+      if (!saveData.success) throw new Error(`Save failed: ${saveData.error}`);
+
+      toast({ title: "Configuration Saved", description: "Now sending test email..." });
+      
+      // Step 2: Test the connection
+      const { data: testData, error: testError } = await supabase.functions.invoke('settings-management', {
         body: { action: 'test-smtp-connection' }
       });
 
-      if (error) throw new Error(error.message);
+      if (testError) throw new Error(testError.message);
       
-      if (data.success) {
+      if (testData.success) {
         toast({ title: "Test Email Sent", description: "Check your inbox for a confirmation email." });
       } else {
-        throw new Error(data.error || 'Test failed. Please check credentials and server settings.');
+        throw new Error(testData.error || 'Test failed. Please check credentials and server settings.');
       }
-      // Reload config to get latest test status
-      await loadSMTPConfig();
     } catch (error: any) {
-      toast({ title: "Test Failed", description: error.message, variant: "destructive" });
-       // Reload config to get latest test status even on failure
-      await loadSMTPConfig();
+      toast({ title: "Process Failed", description: error.message, variant: "destructive" });
     } finally {
+      await loadSMTPConfig(); // Reload config to get latest test status
       setTesting(false);
     }
   };

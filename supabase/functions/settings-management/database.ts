@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { encrypt } from '../_shared/encryption.ts';
 
@@ -74,10 +75,22 @@ export async function saveSmtpSettings(settings: any) {
 
   const { id, smtp_host, smtp_port, smtp_user, smtp_password, use_tls, use_ssl, from_name, from_email } = settings;
 
-  if (!smtp_host || !smtp_port || !smtp_user) {
-    throw new Error("Missing required SMTP fields: host, port, and user are required.");
-  }
+  const requiredFields = {
+    'SMTP Host': smtp_host,
+    'SMTP Port': smtp_port,
+    'SMTP User': smtp_user,
+    'Sender Name': from_name,
+    'Sender Email': from_email,
+  };
 
+  const missingFields = Object.entries(requiredFields)
+    .filter(([_, value]) => !value)
+    .map(([key]) => key);
+
+  if (missingFields.length > 0) {
+    throw new Error(`Missing required SMTP fields: ${missingFields.join(', ')}.`);
+  }
+  
   let smtp_encryption = 'none';
   if (use_ssl) smtp_encryption = 'ssl';
   else if (use_tls) smtp_encryption = 'tls';
@@ -98,7 +111,11 @@ export async function saveSmtpSettings(settings: any) {
     const encryptionKey = Deno.env.get('ENCRYPTION_KEY');
     if (!encryptionKey) {
       console.error('ENCRYPTION_KEY environment variable not set.');
-      throw new Error('Server configuration error: encryption key is missing.');
+      throw new Error('Server configuration error: ENCRYPTION_KEY is missing.');
+    }
+    if (new TextEncoder().encode(encryptionKey).length !== 32) {
+      console.error('Invalid ENCRYPTION_KEY length. It must be 32 bytes (256 bits).');
+      throw new Error('Server configuration error: Invalid ENCRYPTION_KEY. It must be a 32-byte string.');
     }
     upsertData.smtp_password_encrypted = await encrypt(smtp_password, encryptionKey);
   }
@@ -108,12 +125,15 @@ export async function saveSmtpSettings(settings: any) {
 
   const { data, error } = await supabase
     .from('smtp_settings')
-    .upsert(upsertData)
+    .upsert(upsertData, { onConflict: 'id' }) // Use 'id' for conflict to handle new inserts correctly
     .select()
     .single();
 
   if (error) {
     console.error('Error saving SMTP settings:', error);
+    if (error.code === '23502') { // not_null_violation
+        throw new Error(`Database error: A required field is missing. Details: ${error.details}`);
+    }
     throw new Error(`Failed to save SMTP settings: ${error.message}`);
   }
 
