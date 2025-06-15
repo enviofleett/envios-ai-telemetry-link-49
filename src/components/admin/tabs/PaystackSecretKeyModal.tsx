@@ -67,8 +67,30 @@ const PaystackSecretKeyModal: React.FC<PaystackSecretKeyModalProps> = ({ open, o
           <Button variant="outline" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleSave} loading={loading}>
-            Save Secret Key
+          <Button onClick={handleSave} disabled={loading}>
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v4l3.73-3.73A8.001 8.001 0 014 12z"
+                  />
+                </svg>
+                Saving...
+              </span>
+            ) : (
+              "Save Secret Key"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
