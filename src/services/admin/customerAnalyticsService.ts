@@ -32,6 +32,6 @@ export const customerAnalyticsService = {
       throw new Error('Could not fetch customer analytics data.');
     }
     
-    return data as CustomerAnalyticsData;
+    return data as unknown as CustomerAnalyticsData;
   },
 };
