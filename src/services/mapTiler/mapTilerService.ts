@@ -1,5 +1,4 @@
 import { supabase } from '@/integrations/supabase/client';
-import { ReverseGeocodingResult } from './mapTilerService';
 
 export interface MapTilerConfig {
   apiKey: string;

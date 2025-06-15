@@ -1,5 +1,5 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { GoogleMapsGeocodingResult } from './googleMapsGeocodingService';
 
 export interface GoogleMapsGeocodingResult {
   results: Array<{
