@@ -1,4 +1,3 @@
-
 /**
  * Stub implementations for settings-management database functions.
  * Replace these with actual implementations as needed.
@@ -47,20 +46,20 @@ export async function saveSmsSettings(settings) {
   }
   const encryptedPassword = await encrypt(password, encryptionKey);
 
-  // Upsert configuration for this user.
+  // Upsert configuration for this user using correct columns.
   const { data, error } = await supabase
     .from('sms_configurations')
     .upsert({
       user_id: userId,
       provider_name: 'mysms',
-      api_username: username,
-      api_password_encrypted: encryptedPassword,
+      username,                       // Correct column
+      password_encrypted: encryptedPassword, // Correct column
       sender_id: sender,
       route: route ? Number(route) : 1,
       is_active: true,
       is_default: true,
       updated_at: new Date().toISOString(),
-    }, { onConflict: ['user_id', 'provider_name'] }) // Only one config per user/provider.
+    }, { onConflict: ['user_id', 'provider_name'] })
     .select();
 
   if (error) {
@@ -80,7 +79,7 @@ export async function getSmsSettings(userId) {
   if (!encryptionKey) throw new Error('Encryption key missing in server environment');
   if (!userId) throw new Error('User ID required');
 
-  // Get most recent active config for this user.
+  // Get most recent active config for this user, using correct fields.
   const { data, error } = await supabase
     .from('sms_configurations')
     .select('*')
@@ -97,7 +96,7 @@ export async function getSmsSettings(userId) {
 
   let decryptedPassword = "";
   try {
-    decryptedPassword = await decrypt(data.api_password_encrypted, encryptionKey);
+    decryptedPassword = await decrypt(data.password_encrypted, encryptionKey);
   } catch (e) {
     console.error('[getSmsSettings] Password decrypt failed', e);
     throw new Error('SMS password could not be decrypted');
@@ -105,7 +104,7 @@ export async function getSmsSettings(userId) {
 
   // Match the schema expected by the SMS API/gateway function
   return {
-    username: data.api_username,
+    username: data.username,
     password: decryptedPassword,
     sender_id: data.sender_id,
     route: data.route
