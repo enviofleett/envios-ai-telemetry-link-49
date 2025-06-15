@@ -1,8 +1,7 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { CORS_HEADERS } from '../_shared/cors.ts';
-import { getSmsSettings } from "../settings-management/database.ts";
+import { getSmsSettings } from "../_shared/database.ts";
 
 const SMS_COST_PER_SEGMENT = 0.02; // Example cost in USD, can be moved to config
 
