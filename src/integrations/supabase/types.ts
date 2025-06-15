@@ -6243,54 +6243,6 @@ export type Database = {
         }
         Relationships: []
       }
-      smtp_configurations: {
-        Row: {
-          created_at: string
-          id: string
-          is_active: boolean
-          is_default: boolean
-          provider_name: string
-          smtp_host: string
-          smtp_pass_encrypted: string
-          smtp_port: number
-          smtp_user: string
-          updated_at: string
-          use_ssl: boolean
-          use_tls: boolean
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          is_default?: boolean
-          provider_name?: string
-          smtp_host: string
-          smtp_pass_encrypted: string
-          smtp_port?: number
-          smtp_user: string
-          updated_at?: string
-          use_ssl?: boolean
-          use_tls?: boolean
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          is_default?: boolean
-          provider_name?: string
-          smtp_host?: string
-          smtp_pass_encrypted?: string
-          smtp_port?: number
-          smtp_user?: string
-          updated_at?: string
-          use_ssl?: boolean
-          use_tls?: boolean
-          user_id?: string
-        }
-        Relationships: []
-      }
       smtp_settings: {
         Row: {
           created_at: string
@@ -6298,9 +6250,12 @@ export type Database = {
           from_name: string
           id: string
           is_active: boolean
+          last_test_message: string | null
+          last_test_status: string | null
+          last_tested_at: string | null
           smtp_encryption: string
           smtp_host: string
-          smtp_password: string
+          smtp_password_encrypted: string
           smtp_port: number
           smtp_username: string
           updated_at: string
@@ -6311,9 +6266,12 @@ export type Database = {
           from_name: string
           id?: string
           is_active?: boolean
+          last_test_message?: string | null
+          last_test_status?: string | null
+          last_tested_at?: string | null
           smtp_encryption?: string
           smtp_host: string
-          smtp_password: string
+          smtp_password_encrypted: string
           smtp_port?: number
           smtp_username: string
           updated_at?: string
@@ -6324,9 +6282,12 @@ export type Database = {
           from_name?: string
           id?: string
           is_active?: boolean
+          last_test_message?: string | null
+          last_test_status?: string | null
+          last_tested_at?: string | null
           smtp_encryption?: string
           smtp_host?: string
-          smtp_password?: string
+          smtp_password_encrypted?: string
           smtp_port?: number
           smtp_username?: string
           updated_at?: string

@@ -1,5 +1,6 @@
 
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts';
+import { decrypt } from '../_shared/encryption.ts';
 
 export interface SMTPConfig {
   hostname: string;
@@ -193,24 +194,39 @@ export class EmailSender {
     try {
       const { data: settings, error } = await supabase
         .from('smtp_settings')
-        .select('*')
+        .select('*, smtp_password_encrypted')
         .eq('is_active', true)
         .single();
 
       if (error || !settings) {
-        console.error('❌ Failed to load SMTP settings:', error);
+        console.error('❌ Failed to load SMTP settings:', error ? error.message : 'No active settings found.');
         return null;
+      }
+      
+      let decryptedPassword = '';
+      if (settings.smtp_password_encrypted) {
+        const encryptionKey = Deno.env.get('ENCRYPTION_KEY');
+        if (!encryptionKey) {
+            console.error('❌ ENCRYPTION_KEY is not set. Cannot decrypt SMTP password.');
+            throw new Error('Server configuration error: encryption key missing.');
+        }
+        try {
+            decryptedPassword = await decrypt(settings.smtp_password_encrypted, encryptionKey);
+        } catch (e) {
+            console.error('❌ Failed to decrypt SMTP password:', e);
+            throw new Error('Failed to decrypt SMTP password. Check your ENCRYPTION_KEY or re-save the password.');
+        }
       }
 
       console.log('📧 Loaded SMTP settings:', {
         host: settings.smtp_host,
         port: settings.smtp_port,
-        username: settings.smtp_username,
+        username: settings.smtp_user,
         encryption: settings.smtp_encryption,
-        hasPassword: !!settings.smtp_password
+        hasPassword: !!settings.smtp_password_encrypted
       });
 
-      if (!settings.smtp_host || !settings.smtp_port || !settings.smtp_username || !settings.smtp_password) {
+      if (!settings.smtp_host || !settings.smtp_port || !settings.smtp_user) {
         console.error('❌ Incomplete SMTP configuration - missing required fields');
         return null;
       }
@@ -218,8 +234,8 @@ export class EmailSender {
       return {
         hostname: settings.smtp_host,
         port: settings.smtp_port,
-        username: settings.smtp_username,
-        password: settings.smtp_password,
+        username: settings.smtp_user,
+        password: decryptedPassword,
         encryption: settings.smtp_encryption || 'tls',
       };
     } catch (error) {

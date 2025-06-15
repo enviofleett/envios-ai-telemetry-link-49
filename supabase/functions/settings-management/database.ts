@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { encrypt } from '../_shared/encryption.ts';
 
 export async function saveGP51Session(username: string, token: string, apiUrl?: string, userId?: string) {
   const supabase = createClient(
@@ -63,6 +64,76 @@ export async function saveGP51Session(username: string, token: string, apiUrl?: 
     console.error('Error in saveGP51Session:', error);
     throw error;
   }
+}
+
+export async function saveSmtpSettings(settings: any) {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+
+  const { id, smtp_host, smtp_port, smtp_user, smtp_password, use_tls, use_ssl, provider_name = 'custom' } = settings;
+
+  if (!smtp_host || !smtp_port || !smtp_user) {
+    throw new Error("Missing required SMTP fields: host, port, and user are required.");
+  }
+
+  const upsertData: any = {
+    id: id || undefined,
+    smtp_host,
+    smtp_port,
+    smtp_user,
+    use_tls,
+    use_ssl,
+    provider_name,
+    is_active: true,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (smtp_password) {
+    const encryptionKey = Deno.env.get('ENCRYPTION_KEY');
+    if (!encryptionKey) {
+      console.error('ENCRYPTION_KEY environment variable not set.');
+      throw new Error('Server configuration error: encryption key is missing.');
+    }
+    upsertData.smtp_password_encrypted = await encrypt(smtp_password, encryptionKey);
+  }
+
+  const { data, error } = await supabase
+    .from('smtp_settings')
+    .upsert(upsertData)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error saving SMTP settings:', error);
+    throw new Error(`Failed to save SMTP settings: ${error.message}`);
+  }
+
+  console.log('SMTP settings saved successfully.');
+  return data;
+}
+
+export async function updateSmtpTestStatus(status: 'success' | 'failure', message: string) {
+    const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+
+  const { data, error } = await supabase
+    .from('smtp_settings')
+    .update({
+      last_test_status: status,
+      last_test_message: message,
+      last_tested_at: new Date().toISOString()
+    })
+    .eq('is_active', true);
+
+  if (error) {
+    console.error('Error updating SMTP test status:', error);
+  }
+
+  return { success: !error, data };
 }
 
 export async function getGP51Status() {

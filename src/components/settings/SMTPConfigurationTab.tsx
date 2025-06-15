@@ -6,55 +6,31 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mail, Save, TestTube } from 'lucide-react';
+import { Mail, Save, TestTube, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface SMTPConfig {
   id?: string;
-  user_id?: string;
   provider_name: string;
   smtp_host: string;
   smtp_port: number;
   smtp_user: string;
-  smtp_pass_encrypted: string;
+  smtp_password?: string;
   use_tls: boolean;
   use_ssl: boolean;
   is_active: boolean;
-  is_default: boolean;
-  created_at?: string;
-  updated_at?: string;
+  last_test_status?: 'success' | 'failure' | null;
+  last_test_message?: string | null;
+  last_tested_at?: string | null;
 }
 
 const SMTP_PROVIDERS = {
-  gmail: {
-    name: 'Gmail',
-    host: 'smtp.gmail.com',
-    port: 587,
-    tls: true,
-    ssl: false,
-  },
-  outlook: {
-    name: 'Outlook',
-    host: 'smtp-mail.outlook.com',
-    port: 587,
-    tls: true,
-    ssl: false,
-  },
-  yahoo: {
-    name: 'Yahoo',
-    host: 'smtp.mail.yahoo.com',
-    port: 587,
-    tls: true,
-    ssl: false,
-  },
-  custom: {
-    name: 'Custom SMTP',
-    host: '',
-    port: 587,
-    tls: true,
-    ssl: false,
-  },
+  gmail: { name: 'Gmail', host: 'smtp.gmail.com', port: 587, tls: true, ssl: false },
+  outlook: { name: 'Outlook', host: 'smtp-mail.outlook.com', port: 587, tls: true, ssl: false },
+  yahoo: { name: 'Yahoo', host: 'smtp.mail.yahoo.com', port: 587, tls: true, ssl: false },
+  custom: { name: 'Custom SMTP', host: '', port: 587, tls: true, ssl: false },
 };
 
 const SMTPConfigurationTab: React.FC = () => {
@@ -66,11 +42,10 @@ const SMTPConfigurationTab: React.FC = () => {
     smtp_host: '',
     smtp_port: 587,
     smtp_user: '',
-    smtp_pass_encrypted: '',
+    smtp_password: '',
     use_tls: true,
     use_ssl: false,
     is_active: true,
-    is_default: true,
   });
 
   useEffect(() => {
@@ -78,18 +53,24 @@ const SMTPConfigurationTab: React.FC = () => {
   }, []);
 
   const loadSMTPConfig = async () => {
+    setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('smtp_configurations')
+        .from('smtp_settings')
         .select('*')
-        .eq('is_default', true)
-        .single();
+        .eq('is_active', true)
+        .maybeSingle();
 
-      if (data && !error) {
-        setConfig(data);
+      if (error) throw error;
+      
+      if (data) {
+        setConfig({ ...data, smtp_password: '' });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading SMTP config:', error);
+      toast({ title: "Load Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -108,33 +89,22 @@ const SMTPConfigurationTab: React.FC = () => {
   const handleSave = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      // Prepare the data for database insertion
-      const configData = {
-        ...config,
-        user_id: user.id
-      };
-
-      const { error } = await supabase
-        .from('smtp_configurations')
-        .upsert(configData, {
-          onConflict: 'user_id,provider_name'
-        });
-
-      if (error) throw error;
-
-      toast({
-        title: "Configuration Saved",
-        description: "SMTP configuration has been saved successfully.",
+      const configData: any = { ...config };
+      if (!configData.smtp_password?.trim()) {
+        delete configData.smtp_password;
+      }
+      
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'save-smtp-settings', ...configData }
       });
+      
+      if (error) throw new Error(error.message);
+      if (!data.success) throw new Error(data.error);
+
+      toast({ title: "Configuration Saved", description: "SMTP settings saved successfully." });
+      setConfig(prev => ({ ...data.data, smtp_password: '' }));
     } catch (error: any) {
-      toast({
-        title: "Save Failed",
-        description: error.message,
-        variant: "destructive"
-      });
+      toast({ title: "Save Failed", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -143,29 +113,23 @@ const SMTPConfigurationTab: React.FC = () => {
   const handleTestEmail = async () => {
     setTesting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      const response = await supabase.functions.invoke('smtp-email-service', {
-        body: {
-          to: user.email,
-          subject: 'SMTP Test Email',
-          message: 'This is a test email to verify your SMTP configuration is working correctly.',
-        }
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'test-smtp-connection' }
       });
 
-      if (response.error) throw response.error;
-
-      toast({
-        title: "Test Email Sent",
-        description: "Check your inbox to verify the email was delivered.",
-      });
+      if (error) throw new Error(error.message);
+      
+      if (data.success) {
+        toast({ title: "Test Email Sent", description: "Check your inbox for a confirmation email." });
+      } else {
+        throw new Error(data.error || 'Test failed. Please check credentials and server settings.');
+      }
+      // Reload config to get latest test status
+      await loadSMTPConfig();
     } catch (error: any) {
-      toast({
-        title: "Test Failed",
-        description: error.message,
-        variant: "destructive"
-      });
+      toast({ title: "Test Failed", description: error.message, variant: "destructive" });
+       // Reload config to get latest test status even on failure
+      await loadSMTPConfig();
     } finally {
       setTesting(false);
     }
@@ -174,30 +138,28 @@ const SMTPConfigurationTab: React.FC = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Mail className="h-5 w-5" />
-          SMTP Configuration
-        </CardTitle>
-        <CardDescription>
-          Configure your SMTP settings to send emails from the platform
-        </CardDescription>
+        <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5" /> SMTP Configuration</CardTitle>
+        <CardDescription>Configure system-wide SMTP settings for sending emails.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {config.last_test_status === 'failure' && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Last Connection Test Failed</AlertTitle>
+            <AlertDescription>
+              {config.last_test_message || "Unknown error."}
+              {config.last_tested_at && ` (Tested at: ${new Date(config.last_tested_at).toLocaleString()})`}
+            </AlertDescription>
+          </Alert>
+        )}
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="provider">Email Provider</Label>
-            <Select
-              value={config.provider_name}
-              onValueChange={handleProviderChange}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select email provider" />
-              </SelectTrigger>
+            <Select value={config.provider_name} onValueChange={handleProviderChange}>
+              <SelectTrigger><SelectValue placeholder="Select email provider" /></SelectTrigger>
               <SelectContent>
                 {Object.entries(SMTP_PROVIDERS).map(([key, provider]) => (
-                  <SelectItem key={key} value={key}>
-                    {provider.name}
-                  </SelectItem>
+                  <SelectItem key={key} value={key}>{provider.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -206,87 +168,45 @@ const SMTPConfigurationTab: React.FC = () => {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="smtp-host">SMTP Host</Label>
-              <Input
-                id="smtp-host"
-                value={config.smtp_host}
-                onChange={(e) => setConfig(prev => ({ ...prev, smtp_host: e.target.value }))}
-                placeholder="smtp.gmail.com"
-              />
+              <Input id="smtp-host" value={config.smtp_host} onChange={(e) => setConfig(prev => ({ ...prev, smtp_host: e.target.value }))} placeholder="smtp.example.com" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="smtp-port">SMTP Port</Label>
-              <Input
-                id="smtp-port"
-                type="number"
-                value={config.smtp_port}
-                onChange={(e) => setConfig(prev => ({ ...prev, smtp_port: parseInt(e.target.value) }))}
-                placeholder="587"
-              />
+              <Input id="smtp-port" type="number" value={config.smtp_port} onChange={(e) => setConfig(prev => ({ ...prev, smtp_port: parseInt(e.target.value) || 0 }))} placeholder="587" />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="smtp-user">Email Address</Label>
-            <Input
-              id="smtp-user"
-              type="email"
-              value={config.smtp_user}
-              onChange={(e) => setConfig(prev => ({ ...prev, smtp_user: e.target.value }))}
-              placeholder="your-email@example.com"
-            />
+            <Label htmlFor="smtp-user">Email Address / Username</Label>
+            <Input id="smtp-user" type="email" value={config.smtp_user} onChange={(e) => setConfig(prev => ({ ...prev, smtp_user: e.target.value }))} placeholder="your-email@example.com" />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="smtp-pass">Password / App Password</Label>
-            <Input
-              id="smtp-pass"
-              type="password"
-              value={config.smtp_pass_encrypted}
-              onChange={(e) => setConfig(prev => ({ ...prev, smtp_pass_encrypted: e.target.value }))}
-              placeholder="Your email password or app-specific password"
-            />
-            <p className="text-sm text-muted-foreground">
-              For Gmail, use an App Password instead of your regular password
-            </p>
+            <Input id="smtp-pass" type="password" value={config.smtp_password} onChange={(e) => setConfig(prev => ({ ...prev, smtp_password: e.target.value }))} placeholder="Enter new password to update" />
+            <p className="text-sm text-muted-foreground">For security, this field is always empty. Enter a new password only if you need to change it.</p>
           </div>
 
           <div className="flex gap-6">
             <div className="flex items-center space-x-2">
-              <Switch
-                id="use-tls"
-                checked={config.use_tls}
-                onCheckedChange={(checked) => setConfig(prev => ({ ...prev, use_tls: checked }))}
-              />
+              <Switch id="use-tls" checked={config.use_tls} onCheckedChange={(checked) => setConfig(prev => ({ ...prev, use_tls: checked }))} />
               <Label htmlFor="use-tls">Use TLS</Label>
             </div>
             <div className="flex items-center space-x-2">
-              <Switch
-                id="use-ssl"
-                checked={config.use_ssl}
-                onCheckedChange={(checked) => setConfig(prev => ({ ...prev, use_ssl: checked }))}
-              />
+              <Switch id="use-ssl" checked={config.use_ssl} onCheckedChange={(checked) => setConfig(prev => ({ ...prev, use_ssl: checked }))} />
               <Label htmlFor="use-ssl">Use SSL</Label>
             </div>
           </div>
         </div>
 
         <div className="flex gap-4">
-          <Button 
-            onClick={handleSave} 
-            disabled={loading}
-            className="flex items-center gap-2"
-          >
+          <Button onClick={handleSave} disabled={loading || testing} className="flex items-center gap-2">
             <Save className="h-4 w-4" />
             {loading ? 'Saving...' : 'Save Configuration'}
           </Button>
-          <Button 
-            variant="outline" 
-            onClick={handleTestEmail} 
-            disabled={testing}
-            className="flex items-center gap-2"
-          >
+          <Button variant="outline" onClick={handleTestEmail} disabled={testing || loading} className="flex items-center gap-2">
             <TestTube className="h-4 w-4" />
-            {testing ? 'Testing...' : 'Send Test Email'}
+            {testing ? 'Testing...' : 'Save & Send Test Email'}
           </Button>
         </div>
       </CardContent>
