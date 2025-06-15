@@ -1,3 +1,4 @@
+
 import React, { Suspense } from 'react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, Shield } from 'lucide-react'; // <-- Added Shield import
@@ -72,6 +73,8 @@ const AnalyticsTab = React.lazy(() => import('./tabs/AnalyticsTab'));
 const PackageManagementDashboard = React.lazy(() => import('../packages/PackageManagementDashboard'));
 // Marketplace
 const MarketplaceSettingsTab = React.lazy(() => import('./tabs/MarketplaceSettingsTab'));
+const AIAssistantTab = React.lazy(() => import('./tabs/AIAssistantTab'));
+
 
 interface AdminTabContentRendererProps {
   activeTab: string;
@@ -166,6 +169,9 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
       // Marketplace tabs
       case 'marketplace-settings':
         return <MarketplaceSettingsTab />;
+      
+      case 'ai-assistant-settings':
+        return <AIAssistantTab />;
 
       // Platform Administration
       case 'platform-admin-users':

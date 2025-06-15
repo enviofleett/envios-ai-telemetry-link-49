@@ -1,3 +1,4 @@
+
 import React, { memo, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { 
@@ -25,7 +26,8 @@ import {
   Globe,
   CheckCircle,
   BookOpen,
-  Link
+  Link,
+  Bot
 } from 'lucide-react';
 
 interface StableSettingsSidebarProps {
@@ -101,6 +103,12 @@ const sidebarItems = [
     items: [
       { id: 'analytics', label: 'Analytics', icon: BarChart3 },
       { id: 'packages', label: 'Packages', icon: Package },
+    ]
+  },
+  {
+    category: 'AI Assistant',
+    items: [
+      { id: 'ai-assistant-settings', label: 'Settings', icon: Bot },
     ]
   },
   {

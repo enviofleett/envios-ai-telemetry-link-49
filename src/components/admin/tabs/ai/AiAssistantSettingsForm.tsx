@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -14,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, AlertTriangle } from 'lucide-react';
+import { Loader2, AlertTriangle, ExternalLink } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -63,6 +62,9 @@ const AiAssistantSettingsForm: React.FC = () => {
       system_prompt: '',
     },
   });
+
+  const watchedProvider = form.watch('provider');
+  const selectedProviderConfig = AI_PROVIDER_CONFIG[watchedProvider];
 
   useEffect(() => {
     if (settings) {
@@ -171,6 +173,42 @@ const AiAssistantSettingsForm: React.FC = () => {
             />
           </CardContent>
         </Card>
+
+        {selectedProviderConfig && (
+          <Card>
+            <CardHeader>
+              <CardTitle>API Key Configuration</CardTitle>
+              <CardDescription>
+                Securely manage the API key for {selectedProviderConfig.name}.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Action Required: Set API Key</AlertTitle>
+                <AlertDescription>
+                  <div className="space-y-2">
+                    <p>
+                      To use {selectedProviderConfig.name}, you need to set the API key as a secret in your project settings.
+                    </p>
+                    <p>
+                      The required secret name is: <code className="relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-sm font-semibold">{selectedProviderConfig.secretName}</code>
+                    </p>
+                    <p>
+                      You can create your API key here:
+                      <a href={selectedProviderConfig.docsUrl} target="_blank" rel="noopener noreferrer" className="ml-2 font-medium text-blue-600 hover:underline flex items-center">
+                        {selectedProviderConfig.name} API Keys Page <ExternalLink className="ml-1 h-4 w-4" />
+                      </a>
+                    </p>
+                    <p className="text-xs text-muted-foreground pt-2">
+                      API keys are sensitive and should be managed as secrets. They are not stored in the database.
+                    </p>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

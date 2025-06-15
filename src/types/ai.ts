@@ -2,7 +2,7 @@
 export type AiProvider = 'openai' | 'google_gemini' | 'anthropic_claude' | 'hugging_face';
 
 export interface AiAssistantSettings {
-  id: 1;
+  id: number;
   provider: AiProvider;
   model: string;
   system_prompt: string | null;
