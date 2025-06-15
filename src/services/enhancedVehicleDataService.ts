@@ -1,5 +1,6 @@
+
 import { gp51DataService } from '@/services/gp51/GP51DataService';
-import type { GP51ProcessedPosition, LiveVehicleFilterConfig } from '@/types/gp51';
+import type { GP51ProcessedPosition } from '@/types/gp51';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
 
 class EnhancedVehicleDataService {
@@ -75,27 +76,42 @@ class EnhancedVehicleDataService {
   async syncWithGP51(): Promise<void> {
     try {
       console.log('🔄 EnhancedVehicleDataService: Starting GP51 sync...');
+      this.metrics.syncStatus = 'syncing';
+      this.notifySubscribers();
+
+      // Step 1: Fetch all devices
+      const deviceListResult = await gp51DataService.getDeviceList();
+
+      if (!deviceListResult.success || !deviceListResult.data) {
+        throw new Error(deviceListResult.error || 'Failed to fetch device list from GP51');
+      }
       
-      const liveDataResult = await gp51DataService.getLiveVehicles({
-        includeOffline: true
-      });
+      const devices = deviceListResult.data;
+      if (devices.length === 0) {
+          console.log('✅ EnhancedVehicleDataService: Sync completed - no devices found.');
+          this.vehicles = [];
+          this.metrics = this.calculateMetrics([]);
+          this.notifySubscribers();
+          return;
+      }
+      
+      const deviceIds = devices.map(d => d.deviceId);
 
-      if (!liveDataResult.success) {
-        throw new Error(liveDataResult.error || 'Failed to fetch live vehicle data');
+      // Step 2: Fetch positions for all devices
+      const positionsResult = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
+
+      if (!positionsResult.success) {
+          console.warn('⚠️ Could not fetch positions, proceeding with device list only.');
       }
 
-      const liveData = liveDataResult.data;
-      if (!liveData) {
-        throw new Error('No live data received from GP51');
-      }
-
-      // Transform GP51 data to VehicleData format
+      const positions = positionsResult.data || [];
       const vehiclePositions = new Map<string, GP51ProcessedPosition>();
-      liveData.telemetry.forEach(pos => vehiclePositions.set(pos.deviceId, pos));
+      positions.forEach(pos => vehiclePositions.set(pos.deviceId, pos));
 
-      const transformedVehicles: VehicleData[] = liveData.devices.map(device => {
+      // Step 3: Transform and merge data
+      const transformedVehicles: VehicleData[] = devices.map(device => {
         const position = vehiclePositions.get(device.deviceId);
-        const lastUpdate = position?.timestamp || new Date();
+        const lastUpdate = position?.timestamp ? new Date(position.timestamp) : new Date(0);
 
         return {
           id: device.deviceId,
@@ -112,17 +128,15 @@ class EnhancedVehicleDataService {
             longitude: position.longitude,
             speed: position.speed,
             course: position.course,
-            timestamp: position.timestamp.toISOString()
+            timestamp: position.timestamp
           } : undefined,
           
-          // Delivery-specific fields
           driver: {
             name: device.deviceName || 'Unknown Driver',
           },
           deliveries: [],
           deliveryStatus: position?.isOnline ? 'available' : 'offline',
 
-          // Legacy compatibility properties
           plateNumber: device.deviceName,
           lastUpdate: lastUpdate,
           location: position ? {
@@ -148,7 +162,7 @@ class EnhancedVehicleDataService {
       this.metrics = this.calculateMetrics(transformedVehicles);
       this.notifySubscribers();
 
-      console.log(`✅ EnhancedVehicleDataService: Sync completed - ${transformedVehicles.length} vehicles`);
+      console.log(`✅ EnhancedVehicleDataService: Sync completed - ${transformedVehicles.length} vehicles processed.`);
     } catch (error) {
       console.error('❌ EnhancedVehicleDataService: Sync failed:', error);
       this.metrics = {
@@ -206,7 +220,6 @@ class EnhancedVehicleDataService {
 
 export const enhancedVehicleDataService = EnhancedVehicleDataService.getInstance();
 
-// Export functions for backwards compatibility
 export const getEnhancedVehicles = async (options: { page: number; limit: number }) => {
   const vehicles = enhancedVehicleDataService.getVehicles();
   const startIndex = options.page * options.limit;
