@@ -1,5 +1,5 @@
 
-import md5 = require('js-md5');
+import md5 from 'js-md5';
 
 /**
  * Calculates the MD5 hash of a string.
@@ -10,5 +10,9 @@ import md5 = require('js-md5');
  * @returns A 32-digit lowercase hexadecimal string.
  */
 export function calculateMd5(input: string): string {
-  return md5(input);
+  // The 'js-md5' package is a CommonJS module. TypeScript's static analysis
+  // sometimes struggles with the module's type when `esModuleInterop` is not set.
+  // We cast `md5` to `any` to bypass the compile-time check, as Vite will
+  // ensure it's a callable function at runtime.
+  return (md5 as any)(input);
 }
