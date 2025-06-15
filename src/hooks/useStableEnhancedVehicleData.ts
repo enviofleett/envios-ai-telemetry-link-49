@@ -1,8 +1,8 @@
+
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { VehicleData, FilterState, VehicleStatistics } from '@/types/vehicle';
-import { VehicleDbRecord } from '@/types/vehicle'; // Using the new DbRecord type
+import { VehicleData, FilterState, VehicleStatistics, VehicleDbRecord, VehicleStatus } from '@/types/vehicle';
 
 export const useStableEnhancedVehicleData = () => {
   const [filters, setFilters] = useState<FilterState>({
@@ -15,13 +15,19 @@ export const useStableEnhancedVehicleData = () => {
   // Fetch vehicles with user information
   const { data: vehicles = [], isLoading, error, refetch } = useQuery({
     queryKey: ['stable-enhanced-vehicles'],
-    queryFn: async () => {
+    queryFn: async (): Promise<VehicleData[]> => {
       console.log('Fetching vehicles with user information...');
       
       const { data, error } = await supabase
         .from('vehicles')
         .select(`
-          *,
+          id,
+          gp51_device_id,
+          name,
+          sim_number,
+          user_id,
+          created_at,
+          updated_at,
           envio_users (
             name,
             email
@@ -35,9 +41,9 @@ export const useStableEnhancedVehicleData = () => {
       }
 
       // Transform the data to match our VehicleData interface
-      const transformedData: VehicleData[] = (data || []).map((dbVehicle: VehicleDbRecord & { envio_users: any }) => {
-        // is_active and status are no longer in the DB. Defaulting them.
-        const status: VehicleData['status'] = 'offline';
+      const dbRecords: (VehicleDbRecord & { envio_users: any })[] = data || [];
+      const transformedData: VehicleData[] = dbRecords.map((dbVehicle) => {
+        const status: VehicleStatus = 'offline';
         
         return {
           id: dbVehicle.id,
@@ -48,14 +54,12 @@ export const useStableEnhancedVehicleData = () => {
           created_at: dbVehicle.created_at,
           updated_at: dbVehicle.updated_at,
           envio_users: dbVehicle.envio_users,
-          
-          // Derived and default properties
           status: status,
           is_active: true, // Default to true
-          last_position: undefined, // No longer in DB
+          last_position: undefined,
           lastUpdate: new Date(dbVehicle.updated_at),
-          isOnline: status === 'online' || status === 'moving',
-          isMoving: status === 'moving',
+          isOnline: status === 'online',
+          isMoving: false,
           alerts: [],
           vehicleName: dbVehicle.name,
         };

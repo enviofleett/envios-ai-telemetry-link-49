@@ -12,6 +12,13 @@ export interface VehicleDbRecord {
   updated_at: string;
 }
 
+// For Supabase insert operations (omit auto-generated fields)
+export type VehicleInsert = Omit<VehicleDbRecord, 'id' | 'created_at' | 'updated_at'>;
+
+// For Supabase update operations (all fields optional)
+export type VehicleUpdate = Partial<Omit<VehicleDbRecord, 'id' | 'created_at' | 'updated_at'>>;
+
+
 /**
  * Represents the rich vehicle data object used throughout the application's UI.
  * It's a combination of the `VehicleDbRecord` and other derived or fetched data
@@ -34,7 +41,7 @@ export interface VehicleData {
   user_email?: string; // for legacy compatibility
 
   // Derived/fetched data (placeholders, to be populated by services)
-  status: 'online' | 'offline' | 'idle' | 'moving' | 'inactive';
+  status: VehicleStatus;
   last_position?: {
     latitude: number;
     longitude: number;
@@ -42,7 +49,7 @@ export interface VehicleData {
     course: number;
     timestamp: string;
   };
-  is_active: boolean; // This property is no longer in the DB
+  is_active: boolean; 
   isOnline?: boolean;
   isMoving?: boolean;
   speed?: number;
@@ -60,13 +67,10 @@ export interface VehicleData {
   // Legacy compatibility
   lastUpdate?: Date;
   vehicleName?: string;
+  plateNumber?: string | null;
   
   // Properties added to fix TS errors
-  location?: {
-    latitude: number;
-    longitude: number;
-    address?: string;
-  };
+  location?: VehicleLocation;
   gp51_metadata?: any;
   
   // Properties from enhancedVehicleDataService
@@ -81,8 +85,12 @@ export interface VehicleData {
   envio_user_id?: string;
 }
 
-// Alias for backwards compatibility with components that used this type name
+// Alias for backwards compatibility
 export type EnhancedVehicle = VehicleData;
+export type RawVehicleData = VehicleDbRecord;
+
+// Define the comprehensive status enum, including 'active'
+export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active';
 
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
@@ -106,9 +114,9 @@ export interface GP51RawPosition {
 
 // Vehicle location interface for enhanced vehicles
 export interface VehicleLocation {
-  lat: number;
-  lng: number;
-  address: string;
+  latitude: number;
+  longitude: number;
+  address?: string;
 }
 
 // Enhanced vehicle data interface - the primary type for UI components

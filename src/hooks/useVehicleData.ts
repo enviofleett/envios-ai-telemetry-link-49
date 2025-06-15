@@ -1,7 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { VehicleData } from '@/types/vehicle';
+import type { VehicleData, VehicleDbRecord } from '@/types/vehicle';
 
 export interface VehicleDataFilters {
   search?: string;
@@ -50,8 +50,9 @@ export const useVehicleData = (filters: VehicleDataFilters = {}) => {
         throw error;
       }
 
-      // Transform data to include lastPosition for easier access
-      const transformedData: VehicleData[] = data?.map(vehicle => ({
+      // Transform data to VehicleData format
+      const dbRecords: VehicleDbRecord[] = data || [];
+      const transformedData: VehicleData[] = dbRecords.map(vehicle => ({
         id: vehicle.id,
         device_id: vehicle.gp51_device_id,
         device_name: vehicle.name,
@@ -67,7 +68,7 @@ export const useVehicleData = (filters: VehicleDataFilters = {}) => {
         isOnline: false,
         isMoving: false,
         vehicleName: vehicle.name,
-      })) || [];
+      }));
 
       console.log('✅ Vehicle data fetched successfully:', transformedData.length, 'vehicles');
       return transformedData;
