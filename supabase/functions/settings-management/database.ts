@@ -38,24 +38,48 @@ export async function saveSmsSettings(settings) {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
   const encryptionKey = Deno.env.get('ENCRYPTION_KEY');
-  if (!encryptionKey) throw new Error('Encryption key missing in server environment');
+  if (!encryptionKey) {
+    console.error('[saveSmsSettings] ENCRYPTION_KEY missing in environment');
+    throw new Error('Encryption key missing in server environment');
+  }
+  if (typeof encryptionKey !== 'string' || encryptionKey.length !== 32) {
+    console.error(`[saveSmsSettings] ENCRYPTION_KEY is invalid length: ${encryptionKey.length} (should be 32)`);
+    throw new Error('Invalid encryption key in environment: must be exactly 32 characters');
+  }
 
   const { userId, username, password, sender, route } = settings;
   if (!userId || !username || !password || !sender) {
+    console.error('[saveSmsSettings] Missing required fields (userId, username, password, sender)', { userId, username, sender });
     throw new Error('Missing required fields (userId, username, password, sender)');
   }
-  const encryptedPassword = await encrypt(password, encryptionKey);
+  let encryptedPassword = '';
+  try {
+    encryptedPassword = await encrypt(password, encryptionKey);
+  } catch (err) {
+    console.error('[saveSmsSettings] Password encryption failed:', err);
+    throw new Error('Failed to encrypt SMS password');
+  }
 
-  // Upsert configuration for this user using correct columns.
+  // Defensive: Always store route as string (DB expects text)
+  let safeRoute = '1';
+  if (route) {
+    safeRoute = typeof route === 'string' ? route : String(route);
+  }
+
+  // Detailed logs before upsert
+  console.log('[saveSmsSettings] Saving/upserting SMS config:', {
+    user_id: userId, provider_name: 'mysms', username, sender, route: safeRoute
+  });
+
   const { data, error } = await supabase
     .from('sms_configurations')
     .upsert({
       user_id: userId,
       provider_name: 'mysms',
-      username,                       // Correct column
-      password_encrypted: encryptedPassword, // Correct column
+      username,
+      password_encrypted: encryptedPassword,
       sender_id: sender,
-      route: route ? Number(route) : 1,
+      route: safeRoute,
       is_active: true,
       is_default: true,
       updated_at: new Date().toISOString(),
@@ -66,7 +90,12 @@ export async function saveSmsSettings(settings) {
     console.error('[saveSmsSettings] Failed to upsert SMS config:', error);
     throw new Error(error.message || 'Failed to save SMS settings');
   }
-  return data?.[0] ?? {};
+  if (!data || !data[0]) {
+    console.error('[saveSmsSettings] No config returned after upsert');
+    throw new Error('SMS settings not saved; possible upsert error or permission issue.');
+  }
+  console.log('[saveSmsSettings] SMS config saved successfully:', data[0]);
+  return data[0];
 }
 
 // Get SMS settings
@@ -76,10 +105,22 @@ export async function getSmsSettings(userId) {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
   const encryptionKey = Deno.env.get('ENCRYPTION_KEY');
-  if (!encryptionKey) throw new Error('Encryption key missing in server environment');
-  if (!userId) throw new Error('User ID required');
+  if (!encryptionKey) {
+    console.error('[getSmsSettings] ENCRYPTION_KEY missing in environment');
+    throw new Error('Encryption key missing in server environment');
+  }
+  if (typeof encryptionKey !== 'string' || encryptionKey.length !== 32) {
+    console.error(`[getSmsSettings] ENCRYPTION_KEY is invalid length: ${encryptionKey.length} (should be 32)`);
+    throw new Error('Invalid encryption key in environment: must be exactly 32 characters');
+  }
+  if (!userId) {
+    console.error('[getSmsSettings] User ID required');
+    throw new Error('User ID required');
+  }
 
-  // Get most recent active config for this user, using correct fields.
+  // Detailed log before select
+  console.log('[getSmsSettings] Reading SMS config for userId:', userId);
+
   const { data, error } = await supabase
     .from('sms_configurations')
     .select('*')
@@ -92,7 +133,10 @@ export async function getSmsSettings(userId) {
     console.error('[getSmsSettings] Error reading SMS config:', error);
     throw new Error(error.message || 'Failed to load SMS settings');
   }
-  if (!data) return null;
+  if (!data) {
+    console.warn('[getSmsSettings] No SMS config found for user');
+    return null;
+  }
 
   let decryptedPassword = "";
   try {
