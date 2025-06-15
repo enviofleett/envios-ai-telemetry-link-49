@@ -150,9 +150,9 @@ const DeviceManagementTable: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         <DeviceStatusBadge status={
-                          !device.is_active || device.status === 'offline' || device.status === 'inactive'
-                            ? 'offline'
-                            : 'online'
+                          device.status === 'online' || device.status === 'moving' || device.status === 'idle'
+                            ? 'online'
+                            : 'offline'
                         } />
                       </TableCell>
                       <TableCell>

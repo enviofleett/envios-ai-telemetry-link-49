@@ -1,3 +1,4 @@
+import type { VehicleGP51Metadata } from './gp51';
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
   latitude: number; // Changed from 'lat' to align with GP51 API
