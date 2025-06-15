@@ -196,6 +196,36 @@ export type Database = {
           },
         ]
       }
+      ai_assistant_settings: {
+        Row: {
+          created_at: string
+          id: number
+          is_active: boolean
+          model: string
+          provider: string
+          system_prompt: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          is_active?: boolean
+          model?: string
+          provider?: string
+          system_prompt?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          is_active?: boolean
+          model?: string
+          provider?: string
+          system_prompt?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       api_rate_limits: {
         Row: {
           block_expires_at: string | null

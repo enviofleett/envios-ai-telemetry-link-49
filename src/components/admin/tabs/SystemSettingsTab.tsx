@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, Database, Bell, Shield, Globe } from 'lucide-react';
+import { Settings, Database, Bell, Shield, Globe, Bot } from 'lucide-react';
+import AiAssistantSettingsForm from './ai/AiAssistantSettingsForm';
 
 const SystemSettingsTab: React.FC = () => {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -32,6 +32,10 @@ const SystemSettingsTab: React.FC = () => {
               <TabsTrigger value="database">Database</TabsTrigger>
               <TabsTrigger value="notifications">Notifications</TabsTrigger>
               <TabsTrigger value="security">Security</TabsTrigger>
+              <TabsTrigger value="ai-assistant">
+                <Bot className="h-4 w-4 mr-2" />
+                AI Assistant
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-4">
@@ -256,6 +260,10 @@ const SystemSettingsTab: React.FC = () => {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+            
+            <TabsContent value="ai-assistant" className="space-y-4">
+              <AiAssistantSettingsForm />
             </TabsContent>
           </Tabs>
         </CardContent>
