@@ -74,8 +74,8 @@ const ProviderThresholdsCard: React.FC<ProviderThresholdsCardProps> = ({ thresho
   });
 
   const onSubmit = async (values: ProviderThresholdsFormValues) => {
-    const updatePromises = (Object.keys(values) as Array<keyof ProviderThresholdsFormValues>).map(provider => 
-      mutation.mutateAsync({ provider, values: values[provider] })
+    const updatePromises = Object.entries(values).map(([provider, limits]) =>
+      mutation.mutateAsync({ provider, values: limits })
     );
 
     try {
