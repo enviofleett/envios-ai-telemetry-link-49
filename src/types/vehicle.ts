@@ -74,7 +74,7 @@ export interface VehicleData {
   gp51_metadata?: any;
   
   // Properties from enhancedVehicleDataService
-  driver?: { name: string; };
+  driver?: { name: string; } | string | null;
   deliveries?: any[];
   deliveryStatus?: string;
   fuel?: number;
@@ -89,8 +89,8 @@ export interface VehicleData {
 export type EnhancedVehicle = VehicleData;
 export type RawVehicleData = VehicleDbRecord;
 
-// Define the comprehensive status enum, including 'active'
-export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active';
+// Define the comprehensive status enum, including 'active' and 'unknown'
+export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'unknown';
 
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {

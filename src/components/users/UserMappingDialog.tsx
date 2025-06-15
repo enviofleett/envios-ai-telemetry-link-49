@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -52,13 +53,18 @@ export const UserMappingDialog: React.FC<UserMappingDialogProps> = ({
       try {
         const { data, error } = await supabase
           .from('envio_users')
-          .select('id, username');
+          .select('id, name');
 
         if (error) throw error;
 
+        if (!data) {
+          setGp51Users([]);
+          return;
+        }
+
         const mappedUsers: GP51User[] = data.map(user => ({
           userId: user.id,
-          username: user.username,
+          username: user.name,
         }));
         setGp51Users(mappedUsers);
       } catch (error) {

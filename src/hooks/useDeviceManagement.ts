@@ -52,9 +52,13 @@ export const useDeviceManagement = (searchQuery: string = '') => {
         console.error('Error fetching devices:', error);
         throw error;
       }
+      
+      if (!data) {
+        return [];
+      }
 
       // Transform the raw data to match the VehicleData interface
-      const dbRecords: VehicleDbRecord[] = data || [];
+      const dbRecords: VehicleDbRecord[] = data;
       const transformedData: VehicleData[] = dbRecords.map(mapDbToDisplayVehicle);
 
       return transformedData;

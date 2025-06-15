@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { VehicleData, FilterState, VehicleStatistics, VehicleDbRecord, VehicleStatus } from '@/types/vehicle';
@@ -39,9 +39,13 @@ export const useStableEnhancedVehicleData = () => {
         console.error('Error fetching vehicles:', error);
         throw error;
       }
+      
+      if (!data) {
+        return [];
+      }
 
       // Transform the data to match our VehicleData interface
-      const dbRecords: (VehicleDbRecord & { envio_users: any })[] = data || [];
+      const dbRecords: (VehicleDbRecord & { envio_users: any })[] = data;
       const transformedData: VehicleData[] = dbRecords.map((dbVehicle) => {
         const status: VehicleStatus = 'offline';
         

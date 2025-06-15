@@ -50,8 +50,12 @@ export const useVehicleData = (filters: VehicleDataFilters = {}) => {
         throw error;
       }
 
+      if (!data) {
+        return [];
+      }
+
       // Transform data to VehicleData format
-      const dbRecords: VehicleDbRecord[] = data || [];
+      const dbRecords: VehicleDbRecord[] = data;
       const transformedData: VehicleData[] = dbRecords.map(vehicle => ({
         id: vehicle.id,
         device_id: vehicle.gp51_device_id,

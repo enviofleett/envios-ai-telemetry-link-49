@@ -48,7 +48,11 @@ export const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = (
         .select('*')
         .is('user_id', null);
       if (error) throw error;
-      const dbRecords: VehicleDbRecord[] = data || [];
+      if (!data) {
+        setUnassignedVehicles([]);
+        return;
+      }
+      const dbRecords: VehicleDbRecord[] = data;
       setUnassignedVehicles(dbRecords.map(mapDbToDisplay));
     } catch (error) {
       console.error('Error fetching unassigned vehicles:', error);
@@ -65,7 +69,11 @@ export const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = (
         .eq('user_id', userId);
 
       if (error) throw error;
-      const dbRecords: VehicleDbRecord[] = data || [];
+      if (!data) {
+        setUserVehicles([]);
+        return;
+      }
+      const dbRecords: VehicleDbRecord[] = data;
       setUserVehicles(dbRecords.map(mapDbToDisplay));
     } catch (error) {
       console.error('Error fetching user vehicles:', error);
