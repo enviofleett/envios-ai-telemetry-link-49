@@ -1,9 +1,11 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useMapMarkers } from './hooks/useMapMarkers';
 import type { VehicleData } from '@/types/vehicle';
 import { mapTilerService } from '@/services/mapTiler/mapTilerService';
+import { supabase } from '@/integrations/supabase/client';
 
 interface MapTilerMapProps {
   vehicles: VehicleData[];
@@ -30,13 +32,29 @@ const MapTilerMap: React.FC<MapTilerMapProps> = ({
   useEffect(() => {
     if (!mapContainer.current) return;
 
-    mapTilerService.initialize();
+    const styleUrl = mapTilerService.getMapStyle();
 
     map.current = new maplibregl.Map({
       container: mapContainer.current,
-      style: mapTilerService.getMapStyle(),
+      style: styleUrl,
       center: [0, 0],
-      zoom: 2
+      zoom: 2,
+      transformRequest: async (url, resourceType) => {
+        // Only transform requests going to our own Supabase proxy.
+        if (url.startsWith(supabase.supabaseUrl)) {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            return {
+              url: url,
+              headers: {
+                'Authorization': `Bearer ${session.access_token}`
+              }
+            };
+          }
+        }
+        // For all other URLs (e.g., the fallback demo style), do not modify the request.
+        return { url };
+      }
     });
 
     if (showControls) {

@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface MapTilerConfig {
@@ -94,14 +95,15 @@ class MapTilerService {
   }
 
   getMapStyle(): string {
-    // If configured, provide the style URL which will be requested by maplibre.
-    // The key is a placeholder; a future proxy or service worker will intercept this
-    // request and attach the real key on the server-side.
+    // If configured, provide the style URL which will be handled by the map-proxy edge function.
     if (this.isConfigured()) {
-      return `https://api.maptiler.com/maps/streets-v2/style.json?key=${this.apiKey}`;
+      const functionUrl = `${supabase.supabaseUrl}/functions/v1/map-proxy`;
+      // The path requested here will be forwarded by the proxy to MapTiler
+      return `${functionUrl}/maps/streets-v2/style.json`;
     }
     // Fallback to a keyless/demo style if not configured.
-    return 'https://api.maptiler.com/maps/streets-v2/style.json?key=demo';
+    // This will NOT be proxied and will be watermarked.
+    return `https://api.maptiler.com/maps/streets-v2/style.json?key=get-your-own-dataviz-key`;
   }
 
   async reverseGeocode(lat: number, lon: number): Promise<string> {
