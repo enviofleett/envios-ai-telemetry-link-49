@@ -2,7 +2,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData } from '@/types/vehicle';
 
-interface AnalyticsMetrics {
+export interface AnalyticsMetrics {
   totalVehicles: number;
   activeVehicles: number;
   offlineVehicles: number;
@@ -18,6 +18,28 @@ interface AnalyticsMetrics {
     uptime: number;
     errorRate: number;
   };
+}
+
+export interface FleetMetrics {
+  totalVehicles: number;
+  activeVehicles: number;
+  onlineVehicles: number;
+  offlineVehicles: number;
+  utilizationRate: number;
+  averageSpeed: number;
+  fuelEfficiency: number;
+}
+
+export interface VehicleAnalytics {
+  deviceId: string;
+  deviceName: string;
+  status: string;
+  lastUpdate: Date;
+  totalDistance: number;
+  fuelConsumption: number;
+  averageSpeed: number;
+  drivingTime: number;
+  alerts: number;
 }
 
 class AnalyticsService {
@@ -53,7 +75,7 @@ class AnalyticsService {
     }
 
     try {
-      // Fetch vehicles with error handling
+      // Fetch vehicles with error handling using correct column names
       const { data: vehiclesData, error: vehiclesError } = await supabase
         .from('vehicles')
         .select('id, gp51_device_id, name, user_id, created_at, updated_at');
@@ -129,7 +151,7 @@ class AnalyticsService {
 
       const vehicles = vehiclesData || [];
       
-      // Transform database records to VehicleData
+      // Transform database records to VehicleData using correct column names
       const transformedVehicles: VehicleData[] = vehicles.map(vehicle => ({
         id: vehicle.id,
         device_id: vehicle.gp51_device_id,

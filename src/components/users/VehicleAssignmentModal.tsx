@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -66,20 +67,15 @@ export default function VehicleAssignmentModal({
   const handleAssignVehicle = async (vehicleId: string) => {
     if (!user) return;
     
-    // NOTE: This mutation likely needs to be updated to set `user_id`
-    // instead of `user_profile_id`.
-    await assignVehicle.mutateAsync({
+    assignVehicle.mutate({
       vehicleId,
-      userId: user.id,
-      reason: 'Manual assignment via admin panel'
+      userId: user.id
     });
   };
 
   const handleUnassignVehicle = async (vehicleId: string) => {
-    // NOTE: This mutation likely needs to be updated.
-    await unassignVehicle.mutateAsync({
-      vehicleId,
-      reason: 'Manual unassignment via admin panel'
+    unassignVehicle.mutate({
+      vehicleId
     });
   };
 

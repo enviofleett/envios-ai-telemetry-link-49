@@ -25,7 +25,7 @@ export const useUserProfiles = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch user profiles with error handling
+  // Fetch user profiles with error handling - query from user_profiles table only
   const { data: profiles = [], isLoading, error, refetch } = useQuery({
     queryKey: ['user-profiles', searchTerm],
     queryFn: async (): Promise<UserProfile[]> => {
@@ -41,9 +41,7 @@ export const useUserProfiles = () => {
           first_name,
           last_name,
           created_at,
-          updated_at,
-          email,
-          profile_picture_url
+          updated_at
         `)
         .order('created_at', { ascending: false });
 
@@ -51,22 +49,34 @@ export const useUserProfiles = () => {
         query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone_number.ilike.%${searchTerm}%`);
       }
 
-      const { data, error } = await query;
+      const { data, error: dbError } = await query;
 
-      if (error) {
-        console.error('Error fetching user profiles:', error);
-        throw error;
+      if (dbError) {
+        console.error('Error fetching user profiles:', dbError);
+        throw dbError;
       }
 
       if (!data) {
         return [];
       }
 
+      // Get email data from envio_users table separately
+      const { data: envioUsers, error: envioError } = await supabase
+        .from('envio_users')
+        .select('id, email, name');
+
+      if (envioError) {
+        console.error('Error fetching envio users:', envioError);
+      }
+
+      const envioUsersMap = new Map(envioUsers?.map(user => [user.id, user]) || []);
+
       // Transform data and safely handle vehicle assignments
       return data.map(profile => {
+        const envioUser = envioUsersMap.get(profile.id);
         const fullName = profile.first_name && profile.last_name 
           ? `${profile.first_name} ${profile.last_name}` 
-          : profile.first_name || profile.last_name || 'Unknown User';
+          : profile.first_name || profile.last_name || envioUser?.name || 'Unknown User';
 
         return {
           id: profile.id,
@@ -76,8 +86,8 @@ export const useUserProfiles = () => {
           first_name: profile.first_name || '',
           last_name: profile.last_name || '',
           full_name: fullName,
-          email: profile.email || '',
-          profile_picture_url: profile.profile_picture_url || '',
+          email: envioUser?.email || '',
+          profile_picture_url: '',
           vehicle_count: 0, // Will be populated separately if needed
           created_at: profile.created_at,
           updated_at: profile.updated_at,
@@ -159,9 +169,9 @@ export const useUserProfiles = () => {
     }
   });
 
-  // Update user profile
+  // Update user profile - only use fields that exist in user_profiles table
   const updateProfileMutation = useMutation({
-    mutationFn: async ({ userId, updates }: { userId: string; updates: Partial<Pick<UserProfile, 'first_name' | 'last_name' | 'phone_number' | 'email' | 'role' | 'registration_status'>> }) => {
+    mutationFn: async ({ userId, updates }: { userId: string; updates: Partial<Pick<UserProfile, 'first_name' | 'last_name' | 'phone_number' | 'role' | 'registration_status'>> }) => {
       const { error } = await supabase
         .from('user_profiles')
         .update(updates)

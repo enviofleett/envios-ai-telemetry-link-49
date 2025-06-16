@@ -1,5 +1,4 @@
-
-import md5 from 'js-md5';
+import * as md5Lib from 'js-md5';
 
 export class SecurityService {
   static generateSessionToken(): string {
@@ -7,12 +6,12 @@ export class SecurityService {
     const randomBytes = crypto.getRandomValues(new Uint8Array(16));
     const randomString = Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
     const combinedString = `${timestamp}_${randomString}`;
-    return md5(combinedString);
+    return md5Lib.default(combinedString);
   }
 
   static hashPassword(password: string, salt?: string): string {
     const actualSalt = salt || this.generateSalt();
-    return md5(`${password}${actualSalt}`);
+    return md5Lib.default(`${password}${actualSalt}`);
   }
 
   static generateSalt(): string {
@@ -48,5 +47,5 @@ export class SecurityService {
 }
 
 export const calculateMd5 = (input: string): string => {
-  return md5(input);
+  return md5Lib.default(input);
 };

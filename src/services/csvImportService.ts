@@ -157,17 +157,25 @@ class CSVImportService {
     const invalidRows: ImportPreviewData['invalid_rows'] = [];
     const conflicts: ImportPreviewData['conflicts'] = [];
 
-    // Get existing device IDs for conflict detection
-    const { data: existingVehicles } = await supabase
+    // Get existing device IDs for conflict detection using correct column name
+    const { data: existingVehicles, error: vehiclesError } = await supabase
       .from('vehicles')
-      .select('device_id');
+      .select('gp51_device_id');
     
-    const existingDeviceIds = new Set(existingVehicles?.map(v => v.device_id) || []);
+    if (vehiclesError) {
+      console.error('Error fetching existing vehicles:', vehiclesError);
+    }
+    
+    const existingDeviceIds = new Set(existingVehicles?.map(v => v.gp51_device_id) || []);
 
     // Get existing users for email validation
-    const { data: existingUsers } = await supabase
+    const { data: existingUsers, error: usersError } = await supabase
       .from('envio_users')
       .select('email');
+    
+    if (usersError) {
+      console.error('Error fetching existing users:', usersError);
+    }
     
     const existingEmails = new Set(existingUsers?.map(u => u.email) || []);
 
