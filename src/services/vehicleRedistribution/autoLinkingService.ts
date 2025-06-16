@@ -21,14 +21,14 @@ export class AutoLinkingService {
         return false;
       }
 
-      // Link vehicle to user
+      // Link vehicle to user - using correct column names
       const { error: linkError } = await supabase
         .from('vehicles')
         .update({ 
-          envio_user_id: user.id,
+          user_id: user.id, // Corrected from envio_user_id
           updated_at: new Date().toISOString()
         })
-        .eq('device_id', deviceId);
+        .eq('gp51_device_id', deviceId); // Corrected from device_id
 
       if (linkError) {
         console.error(`Failed to auto-link vehicle ${deviceId}:`, linkError);
@@ -50,12 +50,12 @@ export class AutoLinkingService {
     }
 
     try {
-      // Find unassigned vehicles for this GP51 username
+      // Find unassigned vehicles for this GP51 username - using correct column names
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
-        .select('id, device_id')
+        .select('id, gp51_device_id') // Corrected column name
         .eq('gp51_username', gp51Username)
-        .is('envio_user_id', null)
+        .is('user_id', null) // Corrected from envio_user_id
         .eq('is_active', true);
 
       if (vehiclesError) throw vehiclesError;
@@ -65,15 +65,15 @@ export class AutoLinkingService {
         return 0;
       }
 
-      // Link all matching vehicles to the user
+      // Link all matching vehicles to the user - using correct column names
       const { error: linkError } = await supabase
         .from('vehicles')
         .update({ 
-          envio_user_id: userId,
+          user_id: userId, // Corrected from envio_user_id
           updated_at: new Date().toISOString()
         })
         .eq('gp51_username', gp51Username)
-        .is('envio_user_id', null);
+        .is('user_id', null); // Corrected from envio_user_id
 
       if (linkError) {
         console.error(`Failed to auto-link vehicles for user ${userId}:`, linkError);

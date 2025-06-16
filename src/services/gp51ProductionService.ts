@@ -1,432 +1,217 @@
-
-import { SecurityService } from './securityService';
-import { AuditService } from './auditService';
 import { supabase } from '@/integrations/supabase/client';
+import { EnhancedGP51Service, createEnhancedGP51Service } from '@/integrations/gp51/client';
+import { VehicleData } from '@/types/vehicle';
+import { enhancedGP51SessionValidator } from '@/services/gp51/enhancedGP51ApiService';
+import { gp51ErrorReporter } from './gp51/errorReporter';
 
-export interface DeviceHandshakeResult {
+export interface ProductionVehicleCreationRequest {
+  gp51Username: string;
+  userId?: string;
+}
+
+export interface ProductionVehicleCreationResult {
   success: boolean;
-  deviceStatus: 'online' | 'offline' | 'error';
-  capabilities?: string[];
-  firmwareVersion?: string;
-  lastSeen?: string;
+  vehicle?: VehicleData;
   error?: string;
 }
 
-export interface DeviceConfigurationParams {
-  deviceId: string;
-  serverEndpoint: string;
-  reportingInterval: number;
-  securityKey: string;
-  operationalMode: 'tracking' | 'monitoring' | 'fleet';
-  geofenceSettings?: any;
-}
+export class ProductionVehicleService {
+  private gp51Service: EnhancedGP51Service | null = null;
+  private apiUrl: string | null = null;
+  private isInitialized = false;
 
-export class GP51ProductionService {
-  private static readonly HANDSHAKE_TIMEOUT = 30000; // 30 seconds
-  private static readonly MAX_RETRY_ATTEMPTS = 3;
-  private static readonly DEVICE_HEALTH_CHECK_INTERVAL = 60000; // 1 minute
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
 
-  /**
-   * Performs real GP51 device handshake with actual protocol communication
-   */
-  static async performRealDeviceHandshake(
-    deviceId: string, 
-    token: string,
-    timeout: number = this.HANDSHAKE_TIMEOUT
-  ): Promise<DeviceHandshakeResult> {
-    console.log(`Initiating real GP51 handshake for device: ${deviceId}`);
-    
+    const sessionResult = await enhancedGP51SessionValidator.validateGP51Session();
+
+    if (!sessionResult.valid || !sessionResult.token || !sessionResult.username || !sessionResult.apiUrl) {
+      console.warn('GP51 session is not valid. Cannot initialize ProductionVehicleService.');
+      return;
+    }
+
     try {
-      // Validate device ID format first
-      const deviceValidation = SecurityService.validateInput(deviceId, 'deviceId');
-      if (!deviceValidation.isValid) {
-        return {
-          success: false,
-          deviceStatus: 'error',
-          error: `Invalid device ID: ${deviceValidation.error}`
-        };
-      }
-
-      // Call GP51 API for real device communication
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: {
-          action: 'ping_device',
-          deviceid: deviceId,
-          timeout: timeout
-        }
-      });
-
-      if (error) {
-        await AuditService.logGP51ProtocolEvent(deviceId, 'HANDSHAKE_FAILED', {
-          error: error.message,
-          timeout
-        }, false);
-
-        return {
-          success: false,
-          deviceStatus: 'error',
-          error: `Handshake failed: ${error.message}`
-        };
-      }
-
-      // Parse GP51 response
-      if (data.status === 0 && data.device_status) {
-        const deviceStatus = data.device_status.toLowerCase();
-        const result: DeviceHandshakeResult = {
-          success: true,
-          deviceStatus: deviceStatus as 'online' | 'offline' | 'error',
-          capabilities: data.capabilities || [],
-          firmwareVersion: data.firmware_version,
-          lastSeen: data.last_seen
-        };
-
-        await AuditService.logGP51ProtocolEvent(deviceId, 'HANDSHAKE_SUCCESS', {
-          deviceStatus,
-          capabilities: result.capabilities,
-          firmwareVersion: result.firmwareVersion
-        }, true);
-
-        return result;
-      }
-
-      return {
-        success: false,
-        deviceStatus: 'offline',
-        error: data.cause || 'Device not responding'
-      };
-
+      this.gp51Service = await createEnhancedGP51Service(sessionResult.apiUrl);
+      this.apiUrl = sessionResult.apiUrl;
+      this.isInitialized = true;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown handshake error';
-      
-      await AuditService.logGP51ProtocolEvent(deviceId, 'HANDSHAKE_ERROR', {
-        error: errorMessage,
-        timeout
-      }, false);
-
-      return {
-        success: false,
-        deviceStatus: 'error',
-        error: errorMessage
-      };
-    }
-  }
-
-  /**
-   * Verifies device communication and connectivity in real-time
-   */
-  static async verifyDeviceCommunication(deviceId: string, token: string): Promise<{
-    isConnected: boolean;
-    responseTime: number;
-    signalStrength?: number;
-    lastDataReceived?: string;
-    error?: string;
-  }> {
-    const startTime = Date.now();
-    
-    try {
-      console.log(`Verifying communication for device: ${deviceId}`);
-
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: {
-          action: 'check_device_status',
-          deviceid: deviceId
-        }
+      console.error('Error initializing EnhancedGP51Service:', error);
+      gp51ErrorReporter.reportError({
+        type: 'initialization',
+        message: 'Failed to initialize EnhancedGP51Service',
+        details: error,
+        severity: 'critical'
       });
-
-      const responseTime = Date.now() - startTime;
-
-      if (error) {
-        return {
-          isConnected: false,
-          responseTime,
-          error: error.message
-        };
-      }
-
-      if (data.status === 0) {
-        return {
-          isConnected: true,
-          responseTime,
-          signalStrength: data.signal_strength,
-          lastDataReceived: data.last_data_received
-        };
-      }
-
-      return {
-        isConnected: false,
-        responseTime,
-        error: data.cause || 'Communication verification failed'
-      };
-
-    } catch (error) {
-      return {
-        isConnected: false,
-        responseTime: Date.now() - startTime,
-        error: error instanceof Error ? error.message : 'Verification error'
-      };
     }
   }
 
-  /**
-   * Configures device with GP51-compliant parameters
-   */
-  static async configureDevice(
-    params: DeviceConfigurationParams,
-    token: string
-  ): Promise<{ success: boolean; configurationId?: string; error?: string }> {
+  private async ensureInitialized(): Promise<void> {
+    if (!this.isInitialized) {
+      await this.initialize();
+      if (!this.isInitialized) {
+        throw new Error('ProductionVehicleService not properly initialized.');
+      }
+    }
+  }
+
+  async createVehicle(request: ProductionVehicleCreationRequest): Promise<ProductionVehicleCreationResult> {
+    await this.ensureInitialized();
+
+    if (!this.gp51Service) {
+      return { success: false, error: 'GP51 Service not initialized' };
+    }
+
     try {
-      console.log(`Configuring device ${params.deviceId} with GP51 parameters`);
+      const { gp51Username, userId } = request;
 
-      // Validate all configuration parameters
-      const validation = this.validateDeviceConfiguration(params);
-      if (!validation.isValid) {
-        return {
-          success: false,
-          error: `Configuration validation failed: ${validation.errors.join(', ')}`
-        };
+      // Fetch vehicles from GP51
+      const { success, vehicles, error } = await this.gp51Service.fetchVehicles();
+
+      if (!success || !vehicles) {
+        return { success: false, error: error || 'Failed to fetch vehicles from GP51' };
       }
 
-      // Send configuration to device via GP51 protocol
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: {
-          action: 'configure_device',
-          deviceid: params.deviceId,
-          server_endpoint: params.serverEndpoint,
-          reporting_interval: params.reportingInterval,
-          security_key: params.securityKey,
-          operational_mode: params.operationalMode,
-          geofence_settings: params.geofenceSettings
-        }
-      });
+      // Find the device by username
+      const deviceData = vehicles.find(v => v.username === gp51Username);
 
-      if (error) {
-        await AuditService.logGP51ProtocolEvent(params.deviceId, 'CONFIGURATION_FAILED', {
-          error: error.message,
-          params
-        }, false);
-
-        return {
-          success: false,
-          error: error.message
-        };
+      if (!deviceData) {
+        return { success: false, error: `Device with username ${gp51Username} not found in GP51` };
       }
 
-      if (data.status === 0) {
-        await AuditService.logGP51ProtocolEvent(params.deviceId, 'CONFIGURATION_SUCCESS', {
-          configurationId: data.configuration_id,
-          params
-        }, true);
+      // Create enhanced vehicle record
+      const enhancedVehicle = await this.createEnhancedVehicleRecord(deviceData, gp51Username, userId);
 
-        return {
-          success: true,
-          configurationId: data.configuration_id
-        };
+      // Insert into database
+      const { data, error: dbError } = await supabase
+        .from('vehicles')
+        .insert([
+          {
+            gp51_device_id: enhancedVehicle.device_id,
+            name: enhancedVehicle.device_name,
+            sim_number: enhancedVehicle.sim_number,
+            user_id: enhancedVehicle.user_id,
+            created_at: enhancedVehicle.created_at,
+            updated_at: enhancedVehicle.updated_at,
+            gp51_username: gp51Username,
+            is_active: true,
+          }
+        ])
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('Error inserting vehicle into database:', dbError);
+        return { success: false, error: `Database insertion error: ${dbError.message}` };
       }
 
-      return {
-        success: false,
-        error: data.cause || 'Device configuration failed'
-      };
+      if (!data) {
+        return { success: false, error: 'No data returned from database insertion' };
+      }
 
+      return { success: true, vehicle: enhancedVehicle };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Configuration error';
-      
-      await AuditService.logGP51ProtocolEvent(params.deviceId, 'CONFIGURATION_ERROR', {
-        error: errorMessage,
-        params
-      }, false);
-
-      return {
-        success: false,
-        error: errorMessage
-      };
+      console.error('Error creating vehicle:', error);
+      return { success: false, error: `Creation error: ${error instanceof Error ? error.message : 'Unknown error'}` };
     }
   }
 
-  /**
-   * Validates device configuration parameters
-   */
-  private static validateDeviceConfiguration(params: DeviceConfigurationParams): {
-    isValid: boolean;
-    errors: string[];
-  } {
-    const errors: string[] = [];
+  private determineVehicleStatus(deviceData: any): VehicleData['status'] {
+    if (!deviceData) return 'offline';
 
-    // Validate device ID
-    const deviceIdValidation = SecurityService.validateInput(params.deviceId, 'deviceId');
-    if (!deviceIdValidation.isValid) {
-      errors.push(`Device ID: ${deviceIdValidation.error}`);
-    }
+    const speed = Number(deviceData.speed) || 0;
+    const isMoving = speed > 0;
+    const isOnline = this.isDeviceOnline(deviceData);
 
-    // Validate server endpoint
-    if (!params.serverEndpoint || !this.isValidUrl(params.serverEndpoint)) {
-      errors.push('Server endpoint must be a valid URL');
-    }
+    if (!isOnline) return 'offline';
+    if (isMoving) return 'moving';
 
-    // Validate reporting interval
-    if (!params.reportingInterval || params.reportingInterval < 10 || params.reportingInterval > 3600) {
-      errors.push('Reporting interval must be between 10 and 3600 seconds');
-    }
-
-    // Validate security key
-    if (!params.securityKey || params.securityKey.length < 16) {
-      errors.push('Security key must be at least 16 characters');
-    }
-
-    // Validate operational mode
-    if (!['tracking', 'monitoring', 'fleet'].includes(params.operationalMode)) {
-      errors.push('Invalid operational mode');
-    }
-
-    return {
-      isValid: errors.length === 0,
-      errors
-    };
+    return 'idle';
   }
 
-  /**
-   * Monitors device health in real-time
-   */
-  static async startDeviceHealthMonitoring(deviceId: string): Promise<void> {
-    console.log(`Starting health monitoring for device: ${deviceId}`);
+  private isDeviceOnline(deviceData: any): boolean {
+    if (!deviceData || !deviceData.lastupdate) return false;
 
-    const monitoringInterval = setInterval(async () => {
-      try {
-        const healthStatus = await this.checkDeviceHealth(deviceId);
-        
-        // Update device status in database
-        await supabase
-          .from('vehicles')
-          .update({
-            last_position: {
-              ...healthStatus,
-              updatetime: new Date().toISOString()
-            },
-            updated_at: new Date().toISOString()
-          })
-          .eq('device_id', deviceId);
+    const lastUpdate = new Date(deviceData.lastupdate).getTime();
+    const now = Date.now();
+    const offlineDelay = deviceData.offline_delay || 300; // Default to 5 minutes
+    const maxAcceptableDelay = offlineDelay * 1000 * 1.2; // Add 20% buffer
 
-        // Log critical health issues
-        if (!healthStatus.isHealthy) {
-          await AuditService.logGP51ProtocolEvent(deviceId, 'HEALTH_ALERT', {
-            healthStatus,
-            alertLevel: healthStatus.criticalIssues ? 'critical' : 'warning'
-          }, false);
-        }
-
-      } catch (error) {
-        console.error(`Health monitoring error for device ${deviceId}:`, error);
-      }
-    }, this.DEVICE_HEALTH_CHECK_INTERVAL);
-
-    // Store monitoring reference for cleanup
-    this.storeMonitoringReference(deviceId, monitoringInterval);
+    return (now - lastUpdate) <= maxAcceptableDelay;
   }
 
-  /**
-   * Checks device health status
-   */
-  private static async checkDeviceHealth(deviceId: string): Promise<{
-    isHealthy: boolean;
-    signalStrength: number;
-    batteryLevel?: number;
-    lastCommunication: string;
-    criticalIssues: string[];
-    warnings: string[];
-  }> {
+  private async createEnhancedVehicleRecord(
+    deviceData: any,
+    gp51Username: string,
+    userId?: string
+  ): Promise<VehicleData> {
+    console.log('Creating enhanced vehicle record for device:', deviceData.deviceid);
+
     try {
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: {
-          action: 'get_device_health',
-          deviceid: deviceId
-        }
-      });
-
-      if (error || data.status !== 0) {
-        return {
-          isHealthy: false,
-          signalStrength: 0,
-          lastCommunication: new Date().toISOString(),
-          criticalIssues: ['Communication failure'],
-          warnings: []
-        };
-      }
-
-      const criticalIssues: string[] = [];
-      const warnings: string[] = [];
-
-      // Analyze health data
-      if (data.signal_strength < 20) {
-        criticalIssues.push('Low signal strength');
-      } else if (data.signal_strength < 50) {
-        warnings.push('Moderate signal strength');
-      }
-
-      if (data.battery_level && data.battery_level < 10) {
-        criticalIssues.push('Critical battery level');
-      } else if (data.battery_level && data.battery_level < 30) {
-        warnings.push('Low battery level');
-      }
-
-      return {
-        isHealthy: criticalIssues.length === 0,
-        signalStrength: data.signal_strength || 0,
-        batteryLevel: data.battery_level,
-        lastCommunication: data.last_communication || new Date().toISOString(),
-        criticalIssues,
-        warnings
+      // Create the enhanced vehicle data with explicit property assignment
+      // This avoids deep type instantiation by being explicit about each property
+      const enhancedVehicle: VehicleData = {
+        id: `temp-${deviceData.deviceid}-${Date.now()}`,
+        device_id: deviceData.deviceid?.toString() || '',
+        device_name: deviceData.devicename || `Device ${deviceData.deviceid}`,
+        user_id: userId || undefined,
+        sim_number: undefined,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        vin: undefined,
+        license_plate: undefined,
+        is_active: true,
+        // Explicitly construct last_position to avoid deep type issues
+        last_position: deviceData.lat && deviceData.lng ? {
+          latitude: Number(deviceData.lat) || 0,
+          longitude: Number(deviceData.lng) || 0,
+          speed: Number(deviceData.speed) || 0,
+          course: Number(deviceData.course) || 0,
+          timestamp: deviceData.lastupdate || new Date().toISOString()
+        } : undefined,
+        status: this.determineVehicleStatus(deviceData),
+        isOnline: this.isDeviceOnline(deviceData),
+        isMoving: (Number(deviceData.speed) || 0) > 0,
+        alerts: [],
+        lastUpdate: new Date(deviceData.lastupdate || Date.now()),
+        envio_users: userId ? { name: gp51Username, email: '' } : undefined,
+        // Additional properties with safe defaults
+        speed: Number(deviceData.speed) || 0,
+        course: Number(deviceData.course) || 0,
+        driver: undefined,
+        fuel: Number(deviceData.oil) || 0,
+        mileage: undefined,
+        plateNumber: undefined,
+        model: undefined,
+        gp51_metadata: {
+          devicetype: deviceData.devicetype,
+          groupid: deviceData.groupid,
+          username: gp51Username,
+          devicestatus: deviceData.devicestatus,
+          overduetime: deviceData.overduetime,
+          timezone: deviceData.timezone,
+          icontype: deviceData.icontype,
+          offline_delay: deviceData.offline_delay,
+          acc: deviceData.acc,
+          temperature: deviceData.temperature,
+          gsm: deviceData.gsm,
+          gps: deviceData.gps
+        },
+        image_urls: undefined,
+        fuel_tank_capacity_liters: undefined,
+        manufacturer_fuel_consumption_100km_l: undefined,
+        insurance_expiration_date: undefined,
+        license_expiration_date: undefined,
+        location: deviceData.lat && deviceData.lng ? {
+          latitude: Number(deviceData.lat) || 0,
+          longitude: Number(deviceData.lng) || 0,
+          address: undefined
+        } : undefined
       };
 
+      return enhancedVehicle;
     } catch (error) {
-      return {
-        isHealthy: false,
-        signalStrength: 0,
-        lastCommunication: new Date().toISOString(),
-        criticalIssues: ['Health check failed'],
-        warnings: []
-      };
+      console.error('Error creating enhanced vehicle record:', error);
+      throw error;
     }
-  }
-
-  /**
-   * Validates URL format
-   */
-  private static isValidUrl(string: string): boolean {
-    try {
-      new URL(string);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Stores monitoring reference for cleanup
-   */
-  private static storeMonitoringReference(deviceId: string, interval: NodeJS.Timeout): void {
-    // In a production environment, this would be stored in a more persistent way
-    // For now, we'll use a simple map
-    if (!window.deviceMonitoringIntervals) {
-      window.deviceMonitoringIntervals = new Map();
-    }
-    window.deviceMonitoringIntervals.set(deviceId, interval);
-  }
-
-  /**
-   * Stops device health monitoring
-   */
-  static stopDeviceHealthMonitoring(deviceId: string): void {
-    if (window.deviceMonitoringIntervals?.has(deviceId)) {
-      clearInterval(window.deviceMonitoringIntervals.get(deviceId));
-      window.deviceMonitoringIntervals.delete(deviceId);
-      console.log(`Stopped health monitoring for device: ${deviceId}`);
-    }
-  }
-}
-
-// Extend window interface for monitoring intervals
-declare global {
-  interface Window {
-    deviceMonitoringIntervals?: Map<string, NodeJS.Timeout>;
   }
 }
