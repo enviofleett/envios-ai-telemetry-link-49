@@ -2,7 +2,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import LoginForm from '@/components/LoginForm';
+import EnhancedLoginForm from '@/components/auth/EnhancedLoginForm';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 const Login: React.FC = () => {
@@ -55,7 +55,7 @@ const Login: React.FC = () => {
             </button>
           </p>
         </div>
-        <LoginForm />
+        <EnhancedLoginForm />
       </div>
     </div>
   );
