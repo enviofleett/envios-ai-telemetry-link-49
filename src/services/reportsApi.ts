@@ -324,6 +324,128 @@ const exportReportData = async (reportType: string, reportData: any[]): Promise<
 };
 
 export const reportsApi = {
+  async getVehicleList(filters?: VehicleFilters): Promise<Vehicle[]> {
+    try {
+      console.log('Fetching vehicle list for reports...');
+      
+      let query = supabase
+        .from('vehicles')
+        .select(`
+          id,
+          gp51_device_id,
+          name,
+          user_id,
+          sim_number,
+          created_at,
+          updated_at,
+          envio_users (
+            name,
+            email
+          )
+        `);
+
+      // Apply filters using correct column names
+      if (filters?.assignedUserId) {
+        query = query.eq('user_id', filters.assignedUserId);
+      }
+
+      if (filters?.deviceId) {
+        query = query.eq('gp51_device_id', filters.deviceId);
+      }
+
+      const { data, error } = await query.order('updated_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching vehicles:', error);
+        throw error;
+      }
+
+      if (!data) {
+        return [];
+      }
+
+      // Transform to expected format
+      return data.map(vehicle => ({
+        id: vehicle.id,
+        device_id: vehicle.gp51_device_id, // Map to expected field name
+        device_name: vehicle.name, // Map to expected field name
+        user_id: vehicle.user_id,
+        sim_number: vehicle.sim_number,
+        user_email: vehicle.envio_users?.email,
+        status: 'active',
+        last_position: null,
+        created_at: vehicle.created_at,
+        updated_at: vehicle.updated_at
+      }));
+
+    } catch (error) {
+      console.error('Error in getVehicleList:', error);
+      throw error;
+    }
+  },
+
+  async generateVehicleReport(options: ReportOptions): Promise<ReportData> {
+    try {
+      console.log('Generating vehicle report with options:', options);
+      
+      const vehicles = await this.getVehicleList();
+      
+      // Filter vehicles based on date range if provided
+      const filteredVehicles = vehicles.filter(vehicle => {
+        if (!options.dateRange) return true;
+        
+        const vehicleDate = new Date(vehicle.updated_at);
+        const startDate = new Date(options.dateRange.start);
+        const endDate = new Date(options.dateRange.end);
+        
+        return vehicleDate >= startDate && vehicleDate <= endDate;
+      });
+
+      // Calculate summary data
+      const summary = {
+        total_vehicles: filteredVehicles.length,
+        active_vehicles: filteredVehicles.filter(v => v.status === 'active').length,
+        assigned_vehicles: filteredVehicles.filter(v => v.user_id).length,
+        unassigned_vehicles: filteredVehicles.filter(v => !v.user_id).length
+      };
+
+      // Group vehicles by status for charts
+      const chartData = [
+        { name: 'Active', value: summary.active_vehicles, color: '#10b981' },
+        { name: 'Inactive', value: summary.total_vehicles - summary.active_vehicles, color: '#ef4444' }
+      ];
+
+      return {
+        id: crypto.randomUUID(),
+        type: options.type,
+        title: `Vehicle Report - ${options.type}`,
+        generated_at: new Date().toISOString(),
+        data: {
+          vehicles: filteredVehicles.map(vehicle => ({
+            device_id: vehicle.device_id,
+            device_name: vehicle.device_name,
+            status: vehicle.status,
+            user_email: vehicle.user_email || 'Unassigned',
+            last_update: vehicle.updated_at
+          })),
+          summary,
+          charts: {
+            vehicle_status: chartData
+          }
+        },
+        metadata: {
+          total_records: filteredVehicles.length,
+          date_range: options.dateRange,
+          filters_applied: options.filters || {}
+        }
+      };
+
+    } catch (error) {
+      console.error('Error generating vehicle report:', error);
+      throw error;
+    }
+  },
+
   generateTripReports,
   generateGeofenceReports,
   generateMaintenanceReports,

@@ -23,6 +23,73 @@ export interface IntegrationTestSuite {
 }
 
 export class GP51IntegrationTester {
+  private cachedResults: IntegrationTestSuite | null = null;
+
+  // Add the missing runFullValidationSuite method (alias for existing method)
+  async runFullValidationSuite(): Promise<IntegrationTestSuite> {
+    const results = await this.runFullIntegrationTest();
+    this.cachedResults = results;
+    return results;
+  }
+
+  // Add the missing runQuickHealthCheck method
+  async runQuickHealthCheck(): Promise<{ healthy: boolean; issues: string[] }> {
+    const issues: string[] = [];
+    
+    try {
+      console.log('🏥 Running quick health check...');
+      
+      // Quick database connectivity test
+      const { error: dbError } = await supabase
+        .from('vehicles')
+        .select('count')
+        .limit(1);
+      
+      if (dbError) {
+        issues.push(`Database connectivity issue: ${dbError.message}`);
+      }
+
+      // Quick session validation
+      try {
+        const sessionInfo = await GP51SessionManager.validateSession();
+        if (!sessionInfo.valid) {
+          issues.push(`Session validation failed: ${sessionInfo.error || 'Unknown session error'}`);
+        }
+      } catch (error) {
+        issues.push(`Session check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+
+      // Quick vehicle data check
+      const { data: vehicles, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('id, gp51_device_id')
+        .limit(5);
+
+      if (vehicleError) {
+        issues.push(`Vehicle data access failed: ${vehicleError.message}`);
+      } else if (!vehicles || vehicles.length === 0) {
+        issues.push('No vehicles found in database');
+      }
+
+      return {
+        healthy: issues.length === 0,
+        issues
+      };
+
+    } catch (error) {
+      issues.push(`Health check exception: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return {
+        healthy: false,
+        issues
+      };
+    }
+  }
+
+  // Add the missing getResults method
+  getResults(): IntegrationTestSuite | null {
+    return this.cachedResults;
+  }
+
   async runFullIntegrationTest(): Promise<IntegrationTestSuite> {
     const startTime = Date.now();
     const results: IntegrationTestResult[] = [];
@@ -58,6 +125,7 @@ export class GP51IntegrationTester {
     };
 
     console.log(`🧪 Integration tests completed. ${passed}/${results.length} passed in ${totalDuration}ms`);
+    this.cachedResults = suite;
     return suite;
   }
 
@@ -76,7 +144,7 @@ export class GP51IntegrationTester {
           success: true,
           message: 'Session validation successful',
           duration,
-          details: { username: sessionInfo.username }
+          details: { sessionValid: true }
         };
       } else {
         return {

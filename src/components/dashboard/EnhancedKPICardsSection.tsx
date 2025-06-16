@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +9,9 @@ import {
   Clock, 
   RefreshCw,
   AlertTriangle,
-  Activity
+  Activity,
+  Database,
+  Loader2
 } from 'lucide-react';
 import { useEnhancedVehicleData } from '@/hooks/useEnhancedVehicleData';
 import { useGP51ConnectionHealth } from '@/hooks/useGP51ConnectionHealth';
@@ -197,6 +198,27 @@ const EnhancedKPICardsSection: React.FC = () => {
               <p className="text-sm text-yellow-700 mt-1">{connectionStatus.errorMessage}</p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Data Quality */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Data Quality</CardTitle>
+          <Database className="h-4 w-4 text-muted-foreground" />
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">
+            {metrics.syncStatus === 'loading' ? (
+              <Loader2 className="h-6 w-6 animate-spin" />
+            ) : (
+              `${Math.round((metrics.total - metrics.errors) / Math.max(metrics.total, 1) * 100)}%`
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {metrics.syncStatus === 'loading' ? 'Syncing...' : 
+             metrics.syncStatus === 'error' ? 'Sync Error' : 'Data Integrity'}
+          </p>
         </CardContent>
       </Card>
     </div>

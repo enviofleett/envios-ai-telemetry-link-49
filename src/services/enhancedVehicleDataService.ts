@@ -5,9 +5,23 @@ import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
 class EnhancedVehicleDataService {
   private static instance: EnhancedVehicleDataService;
   private vehicles: VehicleData[] = [];
-  private metrics: VehicleDataMetrics = this.getDefaultMetrics();
-  private subscribers: Array<() => void> = [];
-  private syncInterval: NodeJS.Timeout | null = null;
+  private lastSyncTime: Date | null = null;
+  private syncInProgress = false;
+  private syncMetrics: VehicleDataMetrics = {
+    total: 0,
+    online: 0,
+    offline: 0,
+    idle: 0,
+    alerts: 0,
+    totalVehicles: 0,
+    onlineVehicles: 0,
+    offlineVehicles: 0,
+    recentlyActiveVehicles: 0,
+    lastSyncTime: new Date(),
+    positionsUpdated: 0,
+    errors: 0,
+    syncStatus: 'loading', // Use valid status value instead of 'pending'
+  };
 
   private constructor() {
     this.startAutoSync();
@@ -73,31 +87,28 @@ class EnhancedVehicleDataService {
   }
 
   async syncWithGP51(): Promise<void> {
+    if (this.syncInProgress) {
+      console.log('⏳ Sync already in progress, skipping...');
+      return;
+    }
+
+    this.syncInProgress = true;
+    this.syncMetrics.syncStatus = 'loading'; // Use valid status value instead of 'syncing'
+
     try {
       console.log('🔄 EnhancedVehicleDataService: Starting GP51 sync...');
-      this.metrics.syncStatus = 'syncing';
-      this.notifySubscribers();
-
-      // Step 1: Fetch all devices
-      const deviceListResult = await gp51DataService.getDeviceList();
-
-      if (!deviceListResult.success || !deviceListResult.data) {
-        throw new Error(deviceListResult.error || 'Failed to fetch device list from GP51');
-      }
       
-      const devices = deviceListResult.data;
-      if (devices.length === 0) {
-          console.log('✅ EnhancedVehicleDataService: Sync completed - no devices found.');
-          this.vehicles = [];
-          this.metrics = this.calculateMetrics([]);
-          this.notifySubscribers();
-          return;
-      }
+      // Fetch devices from GP51
+      const devices = await gp51DataService.getDeviceList();
       
-      const deviceIds = devices.map(d => d.deviceId);
+      if (!devices || devices.length === 0) {
+        console.log('📭 No devices found from GP51');
+        this.syncMetrics.syncStatus = 'success';
+        return;
+      }
 
       // Step 2: Fetch positions for all devices
-      const vehiclePositions = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
+      const vehiclePositions = await gp51DataService.getMultipleDevicesLastPositions(devices.map(d => d.deviceId));
 
       if (vehiclePositions.size === 0) {
           console.warn('⚠️ Could not fetch positions, proceeding with device list only.');
@@ -156,18 +167,23 @@ class EnhancedVehicleDataService {
       });
 
       this.vehicles = transformedVehicles;
-      this.metrics = this.calculateMetrics(transformedVehicles);
+      this.syncMetrics = this.calculateMetrics(transformedVehicles);
       this.notifySubscribers();
 
       console.log(`✅ EnhancedVehicleDataService: Sync completed - ${transformedVehicles.length} vehicles processed.`);
     } catch (error) {
       console.error('❌ EnhancedVehicleDataService: Sync failed:', error);
-      this.metrics = {
-        ...this.metrics,
+      
+      this.syncMetrics = {
+        ...this.syncMetrics,
         syncStatus: 'error',
-        errorMessage: error instanceof Error ? error.message : 'Sync failed'
+        errors: this.syncMetrics.errors + 1,
+        errorMessage: error instanceof Error ? error.message : 'Unknown sync error'
       };
-      this.notifySubscribers();
+
+      throw error;
+    } finally {
+      this.syncInProgress = false;
     }
   }
 
@@ -192,7 +208,7 @@ class EnhancedVehicleDataService {
       recentlyActiveVehicles: recentlyActiveVehicles.length,
       lastSyncTime: new Date(),
       positionsUpdated: vehicles.length,
-      errors: this.metrics.syncStatus === 'error' ? 1 : 0,
+      errors: this.syncMetrics.syncStatus === 'error' ? 1 : 0,
       syncStatus: 'success',
       errorMessage: undefined
     };
@@ -207,7 +223,7 @@ class EnhancedVehicleDataService {
   }
 
   getMetrics(): VehicleDataMetrics {
-    return this.metrics;
+    return this.syncMetrics;
   }
 
   getVehicleById(deviceId: string): VehicleData | undefined {

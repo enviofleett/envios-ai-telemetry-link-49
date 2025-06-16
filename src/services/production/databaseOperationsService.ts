@@ -16,28 +16,12 @@ export class DatabaseOperationsService {
     }
   ): Promise<{ success: boolean; vehicleId?: string; error?: string }> {
     try {
+      // Map request data to correct database schema
       const vehicleData = {
-        device_id: request.deviceId,
-        device_name: request.deviceName,
-        envio_user_id: request.assignedUserId || null,
-        status: 'active',
-        is_active: true,
-        gp51_metadata: {
-          device_type: request.deviceType,
-          imei: request.imei || null,
-          sim_number: request.simNumber || null,
-          handshake_result: JSON.parse(JSON.stringify(productionData.handshakeResult)),
-          communication_check: JSON.parse(JSON.stringify(productionData.communicationCheck)),
-          configuration_id: productionData.configurationId || null,
-          production_ready: true,
-          created_by_admin: request.adminUserId,
-          creation_timestamp: new Date().toISOString()
-        },
-        last_position: {
-          status: productionData.handshakeResult.deviceStatus,
-          updatetime: new Date().toISOString(),
-          production_verified: true
-        },
+        gp51_device_id: request.deviceId, // Use correct column name
+        name: request.deviceName, // Use correct column name
+        user_id: request.assignedUserId || null, // Use correct column name
+        sim_number: request.simNumber || null, // Use correct column name
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };

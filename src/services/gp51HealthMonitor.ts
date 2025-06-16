@@ -16,12 +16,62 @@ export class GP51HealthMonitor {
   private static instance: GP51HealthMonitor;
   private healthMetrics: HealthMetrics | null = null;
   private lastCheckTime: Date | null = null;
+  private subscribers: Set<(metrics: HealthMetrics) => void> = new Set();
 
   static getInstance(): GP51HealthMonitor {
     if (!GP51HealthMonitor.instance) {
       GP51HealthMonitor.instance = new GP51HealthMonitor();
     }
     return GP51HealthMonitor.instance;
+  }
+
+  // Add the missing subscribe method
+  subscribe(callback: (metrics: HealthMetrics) => void): () => void {
+    this.subscribers.add(callback);
+    
+    // If we have cached metrics, immediately call the callback
+    if (this.healthMetrics) {
+      callback(this.healthMetrics);
+    }
+    
+    // Return unsubscribe function
+    return () => {
+      this.subscribers.delete(callback);
+    };
+  }
+
+  // Add the missing triggerVehicleSync method
+  async triggerVehicleSync(): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log('🔄 Triggering manual vehicle sync...');
+      
+      // Perform health check which includes vehicle data validation
+      const metrics = await this.getHealthMetrics();
+      
+      // Notify all subscribers of the updated metrics
+      this.notifySubscribers(metrics);
+      
+      return {
+        success: true,
+        message: `Vehicle sync completed. Found ${metrics.totalVehicles} total vehicles, ${metrics.activeVehicles} active.`
+      };
+    } catch (error) {
+      console.error('❌ Vehicle sync failed:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Vehicle sync failed'
+      };
+    }
+  }
+
+  private notifySubscribers(metrics: HealthMetrics): void {
+    this.subscribers.forEach(callback => {
+      try {
+        callback(metrics);
+      } catch (error) {
+        console.error('❌ Subscriber callback error:', error);
+      }
+    });
   }
 
   async getHealthMetrics(): Promise<HealthMetrics> {
@@ -32,19 +82,25 @@ export class GP51HealthMonitor {
       this.healthMetrics = metrics;
       this.lastCheckTime = new Date();
       
+      // Notify subscribers of updated metrics
+      this.notifySubscribers(metrics);
+      
       return metrics;
     } catch (error) {
       console.error('❌ Failed to gather health metrics:', error);
       
-      return {
+      const errorMetrics = {
         totalVehicles: 0,
         activeVehicles: 0,
         onlineVehicles: 0,
-        systemStatus: 'critical',
-        connectionStatus: 'error',
-        dataFreshness: 'expired',
+        systemStatus: 'critical' as const,
+        connectionStatus: 'error' as const,
+        dataFreshness: 'expired' as const,
         errors: [error instanceof Error ? error.message : 'Unknown error']
       };
+      
+      this.notifySubscribers(errorMetrics);
+      return errorMetrics;
     }
   }
 

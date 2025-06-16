@@ -1,12 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import { getEnhancedVehicles, getVehicleDataMetrics } from '@/services/enhancedVehicleDataService';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { enhancedVehicleDataService } from '@/services/enhancedVehicleDataService';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
-
-interface FilterOptions {
-  search?: string;
-  status?: 'all' | 'online' | 'offline' | 'alerts';
-  user?: string;
-}
 
 interface UseUnifiedVehicleDataResult {
   vehicles: VehicleData[];
@@ -30,198 +25,125 @@ interface UseUnifiedVehicleDataResult {
   getIdleVehicles: () => VehicleData[];
 }
 
-export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicleDataResult => {
-  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
-  const [metrics, setMetrics] = useState<VehicleDataMetrics>({
-    // Dashboard-compatible properties
-    total: 0,
-    online: 0,
-    offline: 0,
-    idle: 0,
-    alerts: 0,
-    // Legacy properties
-    totalVehicles: 0,
-    onlineVehicles: 0,
-    offlineVehicles: 0,
-    recentlyActiveVehicles: 0,
-    // Sync properties
-    lastSyncTime: new Date(),
-    positionsUpdated: 0,
-    errors: 0,
-    syncStatus: 'pending'
-  });
-  const [isLoading, setIsLoading] = useState(true);
+const useUnifiedVehicleData = (): UseUnifiedVehicleDataResult => {
+  const [currentPage, setCurrentPage] = useState(1);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
 
-  const fetchData = useCallback(async (pageToLoad: number, shouldAppend = false) => {
-    if (!hasMore && pageToLoad > 0) return;
+  const ITEMS_PER_PAGE = 50;
 
-    if (pageToLoad === 0) {
-      setIsLoading(true);
-    } else {
-      setIsRefreshing(true);
-    }
-    setError(null);
+  const {
+    data: vehicles = [],
+    isLoading,
+    error,
+    refetch
+  } = useQuery({
+    queryKey: ['unified-vehicle-data', currentPage],
+    queryFn: async () => {
+      const data = await enhancedVehicleDataService.getEnhancedVehicles();
+      return data;
+    },
+    refetchInterval: 30000,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
 
-    try {
-      const limit = 100;
-      const { data, error: serviceError, hasMore: moreAvailable } = await getEnhancedVehicles({
-        page: pageToLoad,
-        limit
-      });
+  // Get sync metrics from the service
+  const { 
+    data: syncData, 
+    isLoading: syncLoading, 
+    error: syncError 
+  } = useQuery({
+    queryKey: ['vehicle-sync-metrics'],
+    queryFn: async () => {
+      return enhancedVehicleDataService.getLastSyncMetrics();
+    },
+    refetchInterval: 10000,
+  });
 
-      if (serviceError) {
-        throw new Error(serviceError);
-      }
+  // Combine metrics
+  const metrics: VehicleDataMetrics = useMemo(() => {
+    const online = vehicles.filter(v => v.isOnline || v.status === 'online').length;
+    const offline = vehicles.filter(v => !v.isOnline && v.status === 'offline').length;
+    const idle = vehicles.filter(v => v.status === 'idle').length;
+    const alerts = vehicles.filter(v => v.alerts && v.alerts.length > 0).length;
 
-      // Apply filters to the fetched data
-      let filteredData = data;
-      if (filters) {
-        filteredData = data.filter(vehicle => {
-          // Search filter
-          if (filters.search) {
-            const searchTerm = filters.search.toLowerCase();
-            const matchesSearch = 
-              vehicle.device_name.toLowerCase().includes(searchTerm) ||
-              vehicle.device_id.toLowerCase().includes(searchTerm);
-            if (!matchesSearch) return false;
-          }
+    const baseMetrics = {
+      total: vehicles.length,
+      online,
+      offline,
+      idle,
+      alerts,
+      totalVehicles: vehicles.length,
+      onlineVehicles: online,
+      offlineVehicles: offline,
+      recentlyActiveVehicles: vehicles.filter(v => v.is_active).length,
+    };
 
-          // Status filter
-          if (filters.status && filters.status !== 'all') {
-            switch (filters.status) {
-              case 'online':
-                if (!vehicle.isOnline) return false;
-                break;
-              case 'offline':
-                if (vehicle.isOnline) return false;
-                break;
-              case 'alerts':
-                if (vehicle.alerts.length === 0) return false;
-                break;
-            }
-          }
-
-          // User filter
-          if (filters.user && filters.user !== 'all') {
-            if (vehicle.user_id !== filters.user) return false;
-          }
-
-          return true;
-        });
-      }
-
-      if (shouldAppend) {
-        setVehicles(prev => [...prev, ...filteredData]);
-      } else {
-        setVehicles(filteredData);
-      }
-
-      // Create expanded metrics that include sync data
-      const baseMetrics = getVehicleDataMetrics(filteredData);
-      const expandedMetrics: VehicleDataMetrics = {
-        // Dashboard-compatible properties
-        total: baseMetrics.total,
-        online: baseMetrics.online,
-        offline: baseMetrics.offline,
-        idle: baseMetrics.idle,
-        alerts: baseMetrics.alerts,
-        // Legacy properties
-        totalVehicles: baseMetrics.totalVehicles,
-        onlineVehicles: baseMetrics.onlineVehicles,
-        offlineVehicles: baseMetrics.offlineVehicles,
-        recentlyActiveVehicles: baseMetrics.recentlyActiveVehicles,
-        // Sync properties
-        lastSyncTime: new Date(),
-        positionsUpdated: filteredData.length,
-        errors: 0,
-        syncStatus: 'success'
+    if (syncData) {
+      return {
+        ...baseMetrics,
+        lastSyncTime: syncData.lastSyncTime,
+        positionsUpdated: syncData.positionsUpdated,
+        errors: syncData.errors,
+        syncStatus: syncData.syncStatus === 'pending' ? 'loading' : syncData.syncStatus, // Fix status mapping
+        errorMessage: syncData.errorMessage,
       };
-      
-      setMetrics(expandedMetrics);
-      setHasMore(moreAvailable);
-      setCurrentPage(pageToLoad);
+    }
 
-    } catch (err: any) {
-      console.error("Error in useUnifiedVehicleData:", err);
-      setError(err.message || "Failed to fetch vehicle data.");
-      if (!shouldAppend) {
-        setVehicles([]);
-        setMetrics({
-          total: 0,
-          online: 0,
-          offline: 0,
-          idle: 0,
-          alerts: 0,
-          totalVehicles: 0,
-          onlineVehicles: 0,
-          offlineVehicles: 0,
-          recentlyActiveVehicles: 0,
-          lastSyncTime: new Date(),
-          positionsUpdated: 0,
-          errors: 1,
-          syncStatus: 'error'
-        });
-      }
+    return {
+      ...baseMetrics,
+      lastSyncTime: new Date(),
+      positionsUpdated: 0,
+      errors: 0,
+      syncStatus: isLoading || syncLoading ? 'loading' : 'success', // Use valid status values
+      errorMessage: error?.message || syncError?.message,
+    };
+  }, [vehicles, syncData, isLoading, syncLoading, error, syncError]);
+
+  const forceRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await enhancedVehicleDataService.forceSync();
+      setCurrentPage(1); // Reset to first page after refresh
     } finally {
-      setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [hasMore, filters]);
+  };
 
-  useEffect(() => {
-    fetchData(0, false); // Load initial page on mount
+  const loadMore = () => {
+    setCurrentPage(prevPage => prevPage + 1);
+  };
 
-    // Set up periodic refresh of first page
-    const interval = setInterval(() => {
-      fetchData(0, false);
-    }, 60000); // Refresh every minute
+  const hasMore = useMemo(() => {
+    return vehicles.length < metrics.total;
+  }, [vehicles.length, metrics.total]);
 
-    return () => clearInterval(interval);
-  }, [fetchData]);
+  const getVehiclesByStatus = () => {
+    const online = vehicles.filter(v => v.isOnline);
+    const offline = vehicles.filter(v => !v.isOnline);
+    const alerts = vehicles.filter(v => v.alerts && v.alerts.length > 0);
+    return { online, offline, alerts };
+  };
 
-  const forceRefresh = useCallback(async () => {
-    setCurrentPage(0);
-    setHasMore(true);
-    await fetchData(0, false);
-  }, [fetchData]);
-
-  const loadMore = useCallback(() => {
-    if (!isLoading && !isRefreshing && hasMore) {
-      fetchData(currentPage + 1, true);
-    }
-  }, [isLoading, isRefreshing, hasMore, currentPage, fetchData]);
-
-  const getVehiclesByStatus = useCallback(() => {
-    return {
-      online: vehicles.filter(v => v.isOnline),
-      offline: vehicles.filter(v => !v.isOnline),
-      alerts: vehicles.filter(v => v.alerts.length > 0)
-    };
-  }, [vehicles]);
-
-  const getVehicleById = useCallback((deviceId: string) => {
+  const getVehicleById = (deviceId: string) => {
     return vehicles.find(v => v.device_id === deviceId);
-  }, [vehicles]);
+  };
 
-  const getOnlineVehicles = useCallback(() => {
+  const getOnlineVehicles = () => {
     return vehicles.filter(v => v.isOnline);
-  }, [vehicles]);
+  };
 
-  const getOfflineVehicles = useCallback(() => {
+  const getOfflineVehicles = () => {
     return vehicles.filter(v => !v.isOnline);
-  }, [vehicles]);
+  };
 
-  const getMovingVehicles = useCallback(() => {
+  const getMovingVehicles = () => {
     return vehicles.filter(v => v.isMoving);
-  }, [vehicles]);
+  };
 
-  const getIdleVehicles = useCallback(() => {
-    return vehicles.filter(v => v.isOnline && !v.isMoving);
-  }, [vehicles]);
+  const getIdleVehicles = () => {
+    return vehicles.filter(v => v.status === 'idle');
+  };
 
   return {
     vehicles,
@@ -238,6 +160,8 @@ export const useUnifiedVehicleData = (filters?: FilterOptions): UseUnifiedVehicl
     getOnlineVehicles,
     getOfflineVehicles,
     getMovingVehicles,
-    getIdleVehicles
+    getIdleVehicles,
   };
 };
+
+export default useUnifiedVehicleData;

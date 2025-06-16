@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 interface NotificationPreferences {
@@ -80,67 +79,48 @@ class NotificationPreferencesService {
     try {
       console.log('Getting vehicle alert recipients for vehicle:', vehicleId);
       
-      // Get vehicle information
+      // Get vehicle information using correct column names
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('id, device_id, envio_user_id')
+        .select('id, gp51_device_id, user_id') // Use correct column names
         .eq('id', vehicleId)
         .maybeSingle();
 
-      if (vehicleError || !vehicle) {
-        console.error('Failed to get vehicle data:', vehicleError);
+      if (vehicleError) {
+        console.error('Error fetching vehicle:', vehicleError);
         return [];
       }
 
-      const recipients: string[] = [];
+      if (!vehicle) {
+        console.log('Vehicle not found:', vehicleId);
+        return [];
+      }
 
-      // Get vehicle owner email if owner exists
-      if (vehicle.envio_user_id) {
-        const { data: owner, error: ownerError } = await supabase
+      // If vehicle has an assigned user, get their email
+      if (vehicle.user_id) {
+        const { data: user, error: userError } = await supabase
           .from('envio_users')
-          .select('email, id')
-          .eq('id', vehicle.envio_user_id)
+          .select('email')
+          .eq('id', vehicle.user_id)
           .maybeSingle();
 
-        if (owner && !ownerError) {
-          const canNotify = await this.canSendEmailNotification(
-            owner.id, 
-            'vehicle_alerts'
-          );
-          if (canNotify && owner.email) {
-            recipients.push(owner.email);
+        if (userError) {
+          console.error('Error fetching user:', userError);
+          return [];
+        }
+
+        if (user?.email) {
+          // Check if user wants to receive vehicle alerts
+          const canReceive = await this.canSendEmailNotification(vehicle.user_id, 'vehicle_alerts');
+          if (canReceive) {
+            return [user.email];
           }
         }
       }
 
-      // Get users with admin role for additional notifications
-      const { data: adminUsers, error: adminError } = await supabase
-        .from('envio_users')
-        .select(`
-          email, 
-          id,
-          user_roles!inner(role)
-        `)
-        .eq('user_roles.role', 'admin');
-
-      if (adminUsers && !adminError) {
-        for (const user of adminUsers) {
-          if (user.email) {
-            const canNotify = await this.canSendEmailNotification(
-              user.id, 
-              'vehicle_alerts'
-            );
-            if (canNotify && !recipients.includes(user.email)) {
-              recipients.push(user.email);
-            }
-          }
-        }
-      }
-
-      console.log('Found recipients for vehicle alerts:', recipients);
-      return recipients;
+      return [];
     } catch (error) {
-      console.error('Failed to get vehicle alert recipients:', error);
+      console.error('Error getting vehicle alert recipients:', error);
       return [];
     }
   }
