@@ -110,8 +110,14 @@ export class PositionOnlyApiService {
       // ULTIMATE FIX: Cast to any to break deep type inference
       const data = rawData as any;
 
-      // Extract token from session data
-      const token = data.session?.token || data.token;
+      // ULTIMATE FIX: Break down property access to eliminate inference
+      // Instead of: const token = data.session?.token || data.token;
+      // Use explicit property access with bracket notation and explicit checks
+      const sessionData = data['session'] as any;
+      const sessionToken = sessionData ? sessionData['token'] as any : undefined;
+      const directToken = data['token'] as any;
+      const token = sessionToken || directToken;
+      
       return { token };
     } catch (error) {
       console.error('❌ Failed to get session info:', error);
