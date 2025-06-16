@@ -11,10 +11,3 @@ export interface EnvioUser {
   created_at: string;
   updated_at: string;
 }
-
-export interface VehicleData {
-  device_id: string;
-  device_name: string;
-  status: string;
-  created_at: string;
-}

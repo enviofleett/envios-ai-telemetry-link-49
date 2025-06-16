@@ -12,13 +12,10 @@ export interface OwnerVehicleData {
 // Use a simple approach to avoid type inference issues
 const fetchOwnerVehicles = async (ownerId: string): Promise<OwnerVehicleData[]> => {
   try {
-    // Use any to avoid type inference problems with Supabase
-    const response = await (supabase as any)
+    const { data, error } = await supabase
       .from('vehicles')
       .select('device_id, device_name, status, created_at')
       .eq('owner_id', ownerId);
-
-    const { data, error } = response;
 
     if (error) {
       console.error('Failed to fetch owner vehicles:', error);

@@ -1,4 +1,3 @@
-
 export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
 export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading';
@@ -28,10 +27,12 @@ export interface VehicleData {
   isMoving: boolean;
   alerts: any[];
   lastUpdate: Date;
+  // Simplified envio_users to break circular dependency
   envio_users?: {
+    id?: string;
     name?: string;
     email?: string;
-  };
+  } | null;
   // Additional properties that components are accessing
   speed?: number;
   course?: number;

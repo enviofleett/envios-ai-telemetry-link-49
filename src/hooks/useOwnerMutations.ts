@@ -33,8 +33,8 @@ export const useOwnerMutations = () => {
       return data as EnvioUser;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
-      queryClient.invalidateQueries({ queryKey: ['enhanced-user-data'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] } as any);
+      queryClient.invalidateQueries({ queryKey: ['enhanced-user-data'] } as any);
       toast({
         title: "Owner Updated",
         description: "Owner profile has been successfully updated",
@@ -69,9 +69,9 @@ export const useOwnerMutations = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
-      queryClient.invalidateQueries({ queryKey: ['owner-vehicles'] });
-      queryClient.invalidateQueries({ queryKey: ['enhanced-vehicle-data'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] } as any);
+      queryClient.invalidateQueries({ queryKey: ['owner-vehicles'] } as any);
+      queryClient.invalidateQueries({ queryKey: ['enhanced-vehicle-data'] } as any);
       toast({
         title: "Vehicle Assigned",
         description: "Vehicle has been successfully assigned to owner",
@@ -106,9 +106,9 @@ export const useOwnerMutations = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
-      queryClient.invalidateQueries({ queryKey: ['owner-vehicles'] });
-      queryClient.invalidateQueries({ queryKey: ['enhanced-vehicle-data'] });
+      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] } as any);
+      queryClient.invalidateQueries({ queryKey: ['owner-vehicles'] } as any);
+      queryClient.invalidateQueries({ queryKey: ['enhanced-vehicle-data'] } as any);
       toast({
         title: "Vehicle Unassigned",
         description: "Vehicle has been successfully unassigned from owner",
