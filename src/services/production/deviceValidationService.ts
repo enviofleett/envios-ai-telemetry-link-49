@@ -56,11 +56,13 @@ export class DeviceValidationService {
       errors.push('Invalid device type - must be between 1 and 10');
     }
 
-    // Check for existing device using raw SQL to bypass TS2589
+    // Check for existing device using direct query
     try {
-      const { data: existingDevices, error: sqlError } = await supabase.rpc('check_device_exists', {
-        device_id_param: request.deviceId
-      });
+      const { data: existingDevices, error: sqlError } = await supabase
+        .from('vehicles')
+        .select('gp51_device_id')
+        .eq('gp51_device_id', request.deviceId)
+        .limit(1);
 
       if (sqlError) {
         errors.push(`Database validation failed: ${sqlError.message}`);
@@ -68,21 +70,8 @@ export class DeviceValidationService {
         errors.push(`Device ID ${request.deviceId} is already registered`);
       }
     } catch (error) {
-      // Fallback to simple check if RPC doesn't exist
-      console.warn('RPC check_device_exists not found, using fallback');
-      
-      // Use direct SQL query as absolute fallback
-      const { data: rawResult, error: rawError } = await supabase
-        .from('vehicles')
-        .select('gp51_device_id')
-        .eq('gp51_device_id', request.deviceId)
-        .limit(1);
-
-      if (rawError) {
-        errors.push(`Database validation failed: ${rawError.message}`);
-      } else if (rawResult && rawResult.length > 0) {
-        errors.push(`Device ID ${request.deviceId} is already registered`);
-      }
+      const errorMessage = error instanceof Error ? error.message : 'Database validation failed';
+      errors.push(`Database validation failed: ${errorMessage}`);
     }
 
     // Admin user validation
