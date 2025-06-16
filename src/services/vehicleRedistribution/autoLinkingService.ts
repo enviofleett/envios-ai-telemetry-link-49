@@ -9,7 +9,7 @@ export class AutoLinkingService {
     }
 
     try {
-      // Find user by GP51 username
+      // Find user by GP51 username with explicit typing
       const { data: user, error: userError } = await supabase
         .from('envio_users')
         .select('id, name')
@@ -25,10 +25,10 @@ export class AutoLinkingService {
       const { error: linkError } = await supabase
         .from('vehicles')
         .update({ 
-          user_id: user.id, // Corrected from envio_user_id
+          user_id: user.id,
           updated_at: new Date().toISOString()
         })
-        .eq('gp51_device_id', deviceId); // Corrected from device_id
+        .eq('gp51_device_id', deviceId);
 
       if (linkError) {
         console.error(`Failed to auto-link vehicle ${deviceId}:`, linkError);
@@ -50,12 +50,12 @@ export class AutoLinkingService {
     }
 
     try {
-      // Find unassigned vehicles for this GP51 username - using correct column names
+      // Find unassigned vehicles for this GP51 username with explicit typing
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
-        .select('id, gp51_device_id') // Corrected column name
+        .select('id, gp51_device_id')
         .eq('gp51_username', gp51Username)
-        .is('user_id', null) // Corrected from envio_user_id
+        .is('user_id', null)
         .eq('is_active', true);
 
       if (vehiclesError) throw vehiclesError;
@@ -65,15 +65,15 @@ export class AutoLinkingService {
         return 0;
       }
 
-      // Link all matching vehicles to the user - using correct column names
+      // Link all matching vehicles to the user
       const { error: linkError } = await supabase
         .from('vehicles')
         .update({ 
-          user_id: userId, // Corrected from envio_user_id
+          user_id: userId,
           updated_at: new Date().toISOString()
         })
         .eq('gp51_username', gp51Username)
-        .is('user_id', null); // Corrected from envio_user_id
+        .is('user_id', null);
 
       if (linkError) {
         console.error(`Failed to auto-link vehicles for user ${userId}:`, linkError);

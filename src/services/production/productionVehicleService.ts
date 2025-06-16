@@ -27,7 +27,7 @@ export interface ProductionVehicleCreationRequest {
   adminUserId: string;
   performHealthCheck: boolean;
   enableMonitoring: boolean;
-  activateOnGP51?: boolean; // Add GP51 activation flag
+  activateOnGP51?: boolean;
 }
 
 export class ProductionVehicleService {
@@ -99,7 +99,7 @@ export class ProductionVehicleService {
       const configParams: DeviceConfigurationParams = {
         deviceId: request.deviceId,
         serverEndpoint: 'https://tracking.envioapp.com/gp51',
-        reportingInterval: 30, // 30 seconds for production
+        reportingInterval: 30,
         securityKey: await DeviceValidationService.generateSecureDeviceKey(),
         operationalMode: 'tracking'
       };

@@ -1,6 +1,15 @@
 
 import { GP51ProductionService } from '../gp51ProductionService';
-import type { ProductionVehicleCreationResult } from './productionVehicleService';
+
+export interface ProductionVehicleCreationResult {
+  success: boolean;
+  vehicleId?: string;
+  deviceHandshake?: any;
+  configurationId?: string;
+  warnings: string[];
+  errors: string[];
+  isProductionReady: boolean;
+}
 
 export class ProductionReadinessService {
   /**

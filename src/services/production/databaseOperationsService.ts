@@ -1,7 +1,18 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { DeviceHandshakeResult } from '../gp51ProductionService';
-import type { ProductionVehicleCreationRequest } from './deviceValidationService';
+import type { DeviceHandshakeResult } from '../gp51ProductionService';
+
+export interface ProductionVehicleCreationRequest {
+  deviceId: string;
+  deviceName: string;
+  deviceType: number;
+  imei?: string;
+  simNumber?: string;
+  assignedUserId?: string;
+  adminUserId: string;
+  performHealthCheck?: boolean;
+  enableMonitoring?: boolean;
+}
 
 export class DatabaseOperationsService {
   /**
@@ -18,10 +29,10 @@ export class DatabaseOperationsService {
     try {
       // Map request data to correct database schema
       const vehicleData = {
-        gp51_device_id: request.deviceId, // Use correct column name
-        name: request.deviceName, // Use correct column name
-        user_id: request.assignedUserId || null, // Use correct column name
-        sim_number: request.simNumber || null, // Use correct column name
+        gp51_device_id: request.deviceId,
+        name: request.deviceName,
+        user_id: request.assignedUserId || null,
+        sim_number: request.simNumber || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
