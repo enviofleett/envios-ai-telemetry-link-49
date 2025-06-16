@@ -108,7 +108,7 @@ export class DataReconciliationService {
           id,
           gp51_device_id,
           user_id,
-          envio_users (id, gp51_username)
+          envio_users (id, name)
         `)
         .not('user_id', 'is', null);
 
@@ -149,14 +149,11 @@ export class DataReconciliationService {
 
   private async syncUserDataConsistency(job: ReconciliationJob): Promise<void> {
     try {
-      // Find users with inconsistent GP51 usernames and their vehicle assignments
+      // Find users with missing data that needs to be synced
       const { data: users, error } = await supabase
         .from('envio_users')
-        .select(`
-          id,
-          gp51_username,
-          envio_users (id, gp51_username)
-        `);
+        .select('id, name, email')
+        .not('name', 'is', null);
 
       if (error) {
         console.error('Error fetching users for consistency check:', error);
@@ -171,12 +168,12 @@ export class DataReconciliationService {
       for (const user of users) {
         job.results.itemsProcessed++;
 
-        if (user.gp51_username && user.envio_users) {
-          // Update vehicle assignments based on GP51 username consistency
+        if (user.name && user.email) {
+          // Update user data for consistency
           const { error: updateError } = await supabase
             .from('envio_users')
             .update({ 
-              gp51_username: user.envio_users.gp51_username
+              updated_at: new Date().toISOString()
             })
             .eq('id', user.id);
 

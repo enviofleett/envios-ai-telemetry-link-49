@@ -24,31 +24,17 @@ export class GP51VehiclePersistenceService {
         throw new Error('User not authenticated');
       }
 
-      const gp51_metadata: VehicleGP51Metadata = {
-        latitude: position.latitude,
-        longitude: position.longitude,
-        speed: position.speed,
-        course: position.course,
-        status: position.status,
-        statusText: position.statusText,
-        timestamp: position.timestamp.toISOString(),
-        isMoving: position.isMoving,
-        vehicleStatus: position.isOnline ? 'online' : 'offline',
-        lastGP51Sync: new Date().toISOString(),
-        importSource: 'gp51_live'
-      };
-
+      // Create vehicle data object matching the database schema
       const vehicleData = {
-        device_id: deviceId,
-        device_name: position.deviceName || deviceId,
-        envio_user_id: user.id,
-        is_active: true,
-        gp51_metadata,
+        gp51_device_id: deviceId, // Correct column name
+        name: position.deviceName || deviceId, // Correct column name
+        user_id: user.id, // Correct column name
+        sim_number: null, // Optional field
       };
 
       const { error } = await supabase
         .from('vehicles')
-        .upsert(vehicleData, { onConflict: 'device_id' });
+        .upsert(vehicleData, { onConflict: 'gp51_device_id' });
 
       if (error) {
         console.error(`Failed to persist vehicle data for device ${deviceId}:`, error);
@@ -71,33 +57,17 @@ export class GP51VehiclePersistenceService {
         throw new Error('User not authenticated');
       }
 
-      const vehicleData = positions.map(position => {
-        const gp51_metadata: VehicleGP51Metadata = {
-            latitude: position.latitude,
-            longitude: position.longitude,
-            speed: position.speed,
-            course: position.course,
-            status: position.status,
-            statusText: position.statusText,
-            timestamp: position.timestamp.toISOString(),
-            isMoving: position.isMoving,
-            vehicleStatus: position.isOnline ? 'online' : 'offline',
-            lastGP51Sync: new Date().toISOString(),
-            importSource: 'gp51_live'
-        };
-
-        return {
-            device_id: position.deviceId,
-            device_name: position.deviceName || position.deviceId,
-            envio_user_id: user.id,
-            is_active: true,
-            gp51_metadata
-        };
-      });
+      // Create vehicle data array matching the database schema
+      const vehicleData = positions.map(position => ({
+        gp51_device_id: position.deviceId, // Correct column name
+        name: position.deviceName || position.deviceId, // Correct column name
+        user_id: user.id, // Correct column name
+        sim_number: null, // Optional field
+      }));
 
       const { error } = await supabase
         .from('vehicles')
-        .upsert(vehicleData, { onConflict: 'device_id' });
+        .upsert(vehicleData, { onConflict: 'gp51_device_id' });
 
       if (error) {
         console.error('Failed to batch persist vehicle data:', error);
@@ -135,7 +105,7 @@ export class GP51VehiclePersistenceService {
 
       const { error } = await supabase
         .from('vehicles')
-        .update({ envio_user_id: userId })
+        .update({ user_id: userId }) // Correct column name
         .eq('id', vehicleId);
 
       if (error) {

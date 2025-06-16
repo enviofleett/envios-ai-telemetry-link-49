@@ -115,6 +115,9 @@ export const useStableEnhancedVehicleData = () => {
           if (vehicle.status !== 'online') return false;
         } else if (filters.status === 'offline') {
           if (vehicle.status !== 'offline') return false;
+        } else {
+          // Direct status comparison for other values
+          if (vehicle.status !== filters.status) return false;
         }
       }
 

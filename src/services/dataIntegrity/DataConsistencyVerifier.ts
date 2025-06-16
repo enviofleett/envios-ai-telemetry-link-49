@@ -1,348 +1,291 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { ConsistencyReport, ConsistencyCheck } from '@/types/dataIntegrity';
+import { ConsistencyCheck, ConsistencyReport } from '@/types/dataIntegrity';
 
 export class DataConsistencyVerifier {
-  private checks: ConsistencyCheck[] = [];
-
   async performFullConsistencyCheck(): Promise<ConsistencyReport> {
-    console.log('🔍 Starting full data consistency check...');
+    console.log('🔍 Starting comprehensive data consistency check...');
     
-    this.checks = [];
-    
+    const checks: ConsistencyCheck[] = [];
+    let checksPerformed = 0;
+    let checksPassed = 0;
+    let checksFailed = 0;
+
     try {
-      // Perform all checks
-      await this.checkVehicleDataIntegrity();
-      await this.checkUserDataIntegrity();
-      await this.checkGP51MetadataConsistency();
-      await this.checkReferentialIntegrity();
-      await this.checkDataFreshness();
+      // Check 1: Vehicle data integrity
+      console.log('Checking vehicle data integrity...');
+      const vehicleCheck = await this.checkVehicleDataIntegrity();
+      checks.push(vehicleCheck);
+      checksPerformed++;
+      vehicleCheck.status === 'passed' ? checksPassed++ : checksFailed++;
+
+      // Check 2: User-vehicle relationships
+      console.log('Checking user-vehicle relationships...');
+      const relationshipCheck = await this.checkUserVehicleRelationships();
+      checks.push(relationshipCheck);
+      checksPerformed++;
+      relationshipCheck.status === 'passed' ? checksPassed++ : checksFailed++;
+
+      // Check 3: Data duplication check
+      console.log('Checking for data duplication...');
+      const duplicationCheck = await this.checkDataDuplication();
+      checks.push(duplicationCheck);
+      checksPerformed++;
+      duplicationCheck.status === 'passed' ? checksPassed++ : checksFailed++;
 
       // Calculate overall score
-      const totalChecks = this.checks.length;
-      const passedChecks = this.checks.filter(c => c.status === 'passed').length;
-      const overallScore = totalChecks > 0 ? Math.round((passedChecks / totalChecks) * 100) : 0;
-
+      const overallScore = checksPerformed > 0 ? (checksPassed / checksPerformed) * 100 : 0;
+      
       // Determine data health
-      let dataHealth: ConsistencyReport['dataHealth'];
-      if (overallScore >= 90) dataHealth = 'excellent';
-      else if (overallScore >= 75) dataHealth = 'good';
-      else if (overallScore >= 50) dataHealth = 'fair';
-      else if (overallScore >= 25) dataHealth = 'poor';
-      else dataHealth = 'critical';
+      let dataHealth: 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
+      if (overallScore >= 90) {
+        dataHealth = 'excellent';
+      } else if (overallScore >= 75) {
+        dataHealth = 'good';
+      } else if (overallScore >= 50) {
+        dataHealth = 'fair';
+      } else if (overallScore >= 25) {
+        dataHealth = 'poor';
+      } else {
+        dataHealth = 'critical';
+      }
+
+      // Generate recommendations
+      const recommendations = this.generateRecommendations(checks);
 
       const report: ConsistencyReport = {
         timestamp: new Date().toISOString(),
-        overallScore,
-        checksPerformed: totalChecks,
-        checksPassed: passedChecks,
-        checksFailed: totalChecks - passedChecks,
-        checks: this.checks,
-        recommendations: this.generateRecommendations(),
+        overallScore: Math.round(overallScore),
+        checksPerformed,
+        checksPassed,
+        checksFailed,
+        checks,
+        recommendations,
         dataHealth
       };
 
-      console.log(`✅ Consistency check completed. Score: ${overallScore}%`);
+      console.log(`✅ Consistency check completed. Score: ${overallScore}%, Health: ${dataHealth}`);
       return report;
 
     } catch (error) {
       console.error('❌ Consistency check failed:', error);
-      throw error;
+      
+      return {
+        timestamp: new Date().toISOString(),
+        overallScore: 0,
+        checksPerformed: checksPerformed,
+        checksPassed: 0,
+        checksFailed: checksPerformed,
+        checks: checks,
+        recommendations: ['System error occurred during consistency check'],
+        dataHealth: 'critical'
+      };
     }
   }
 
-  private async checkVehicleDataIntegrity(): Promise<void> {
-    const check: ConsistencyCheck = {
-      checkType: 'vehicle_data_integrity',
-      status: 'passed',
-      message: 'Vehicle data integrity verified',
-      severity: 'medium',
-      autoFixable: false
-    };
+  private async checkVehicleDataIntegrity(): Promise<ConsistencyCheck> {
+    try {
+      const { data: vehicles, error } = await supabase
+        .from('vehicles')
+        .select('id, gp51_device_id, name, user_id, created_at, updated_at');
 
+      if (error) {
+        console.error('Error fetching vehicles for integrity check:', error);
+        return {
+          checkType: 'vehicle_data_integrity',
+          status: 'failed',
+          message: `Database query failed: ${error.message}`,
+          severity: 'high',
+          autoFixable: false
+        };
+      }
+
+      if (!vehicles) {
+        return {
+          checkType: 'vehicle_data_integrity',
+          status: 'passed',
+          message: 'No vehicles found to check',
+          severity: 'low',
+          autoFixable: false
+        };
+      }
+
+      const issues = [];
+      let validVehicles = 0;
+
+      for (const vehicle of vehicles) {
+        if (!vehicle.gp51_device_id) {
+          issues.push(`Vehicle ${vehicle.id} missing device ID`);
+        } else if (!vehicle.name) {
+          issues.push(`Vehicle ${vehicle.gp51_device_id} missing name`);
+        } else {
+          validVehicles++;
+        }
+      }
+
+      const status = issues.length === 0 ? 'passed' : (issues.length < vehicles.length / 2 ? 'warning' : 'failed');
+      
+      return {
+        checkType: 'vehicle_data_integrity',
+        status,
+        message: issues.length === 0 
+          ? `All ${validVehicles} vehicles have valid data`
+          : `Found ${issues.length} integrity issues in ${vehicles.length} vehicles`,
+        details: issues.length > 0 ? { issues: issues.slice(0, 10) } : undefined,
+        severity: issues.length === 0 ? 'low' : (issues.length < 5 ? 'medium' : 'high'),
+        autoFixable: issues.length > 0 && issues.length < 10
+      };
+
+    } catch (error) {
+      return {
+        checkType: 'vehicle_data_integrity',
+        status: 'failed',
+        message: `Exception during vehicle integrity check: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        severity: 'high',
+        autoFixable: false
+      };
+    }
+  }
+
+  private async checkUserVehicleRelationships(): Promise<ConsistencyCheck> {
     try {
       const { data: vehicles, error } = await supabase
         .from('vehicles')
         .select(`
           id,
           gp51_device_id,
-          name,
           user_id,
-          created_at,
-          updated_at,
           envio_users (
             id,
-            gp51_username
+            name
           )
         `);
 
       if (error) {
-        console.error('Error fetching vehicles for integrity check:', error);
-        check.status = 'failed';
-        check.message = `Failed to fetch vehicle data: ${error.message}`;
-        check.severity = 'high';
-        this.checks.push(check);
-        return;
-      }
-
-      if (!vehicles || vehicles.length === 0) {
-        check.status = 'warning';
-        check.message = 'No vehicles found in database';
-        check.severity = 'low';
-        this.checks.push(check);
-        return;
-      }
-
-      // Check for vehicles with missing required data
-      let issues = 0;
-      for (const vehicle of vehicles) {
-        if (!vehicle.gp51_device_id) {
-          issues++;
-        }
-        if (!vehicle.name) {
-          issues++;
-        }
-      }
-
-      if (issues > 0) {
-        check.status = 'warning';
-        check.message = `Found ${issues} vehicle data integrity issues`;
-        check.details = { issuesFound: issues, totalVehicles: vehicles.length };
-        check.severity = issues > vehicles.length * 0.1 ? 'high' : 'medium';
-      }
-
-    } catch (error) {
-      check.status = 'failed';
-      check.message = `Vehicle integrity check failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      check.severity = 'high';
-    }
-
-    this.checks.push(check);
-  }
-
-  private async checkUserDataIntegrity(): Promise<void> {
-    const check: ConsistencyCheck = {
-      checkType: 'user_data_integrity',
-      status: 'passed',
-      message: 'User data integrity verified',
-      severity: 'medium',
-      autoFixable: false
-    };
-
-    try {
-      const { data: users, error } = await supabase
-        .from('envio_users')
-        .select('id, name, email, gp51_username');
-
-      if (error) {
-        console.error('Error fetching users for integrity check:', error);
-        check.status = 'failed';
-        check.message = `Failed to fetch user data: ${error.message}`;
-        check.severity = 'high';
-        this.checks.push(check);
-        return;
-      }
-
-      if (!users || users.length === 0) {
-        check.status = 'warning';
-        check.message = 'No users found in database';
-        check.severity = 'low';
-        this.checks.push(check);
-        return;
-      }
-
-      // Check for users with missing essential data
-      const usersWithoutEmail = users.filter(u => !u.email);
-      const usersWithoutName = users.filter(u => !u.name);
-
-      if (usersWithoutEmail.length > 0 || usersWithoutName.length > 0) {
-        check.status = 'warning';
-        check.message = `Found users with missing data: ${usersWithoutEmail.length} without email, ${usersWithoutName.length} without name`;
-        check.severity = 'medium';
-      }
-
-    } catch (error) {
-      check.status = 'failed';
-      check.message = `User integrity check failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      check.severity = 'high';
-    }
-
-    this.checks.push(check);
-  }
-
-  private async checkGP51MetadataConsistency(): Promise<void> {
-    const check: ConsistencyCheck = {
-      checkType: 'gp51_metadata_consistency',
-      status: 'passed',
-      message: 'GP51 metadata consistency verified',
-      severity: 'medium',
-      autoFixable: true
-    };
-
-    try {
-      const { data: vehicles, error } = await supabase
-        .from('vehicles')
-        .select('id, gp51_device_id, name');
-
-      if (error) {
-        console.error('Error fetching vehicles for metadata check:', error);
-        check.status = 'failed';
-        check.message = `Failed to fetch vehicle data: ${error.message}`;
-        check.severity = 'high';
-        this.checks.push(check);
-        return;
+        console.error('Error checking vehicle relationships:', error);
+        return {
+          checkType: 'user_vehicle_relationships',
+          status: 'failed',
+          message: `Database query failed: ${error.message}`,
+          severity: 'high',
+          autoFixable: false
+        };
       }
 
       if (!vehicles) {
-        check.status = 'warning';
-        check.message = 'No vehicles found for metadata check';
-        check.severity = 'low';
-        this.checks.push(check);
-        return;
+        return {
+          checkType: 'user_vehicle_relationships',
+          status: 'passed',
+          message: 'No vehicles found to check relationships',
+          severity: 'low',
+          autoFixable: false
+        };
       }
 
-      // Check for duplicate device IDs
-      const deviceIds = vehicles.map(v => v.gp51_device_id).filter(Boolean);
-      const duplicates = deviceIds.filter((id, index) => deviceIds.indexOf(id) !== index);
+      const issues = [];
+      let validRelationships = 0;
 
-      if (duplicates.length > 0) {
-        check.status = 'failed';
-        check.message = `Found ${duplicates.length} duplicate device IDs`;
-        check.details = { duplicateDeviceIds: duplicates };
-        check.severity = 'high';
-        check.autoFixable = false;
-      }
-
-    } catch (error) {
-      check.status = 'failed';
-      check.message = `GP51 metadata check failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      check.severity = 'high';
-    }
-
-    this.checks.push(check);
-  }
-
-  private async checkReferentialIntegrity(): Promise<void> {
-    const check: ConsistencyCheck = {
-      checkType: 'referential_integrity',
-      status: 'passed',
-      message: 'Referential integrity verified',
-      severity: 'high',
-      autoFixable: true
-    };
-
-    try {
-      // Check for vehicles assigned to non-existent users
-      const { data: orphanedVehicles, error } = await supabase
-        .from('vehicles')
-        .select(`
-          id,
-          gp51_device_id,
-          user_id,
-          envio_users (id)
-        `)
-        .not('user_id', 'is', null);
-
-      if (error) {
-        console.error('Error checking referential integrity:', error);
-        check.status = 'failed';
-        check.message = `Failed to check referential integrity: ${error.message}`;
-        check.severity = 'high';
-        this.checks.push(check);
-        return;
-      }
-
-      if (orphanedVehicles) {
-        const orphaned = orphanedVehicles.filter(v => !v.envio_users);
-        if (orphaned.length > 0) {
-          check.status = 'failed';
-          check.message = `Found ${orphaned.length} vehicles assigned to non-existent users`;
-          check.details = { orphanedVehicles: orphaned.length };
-          check.severity = 'high';
+      for (const vehicle of vehicles) {
+        if (vehicle.user_id && !vehicle.envio_users) {
+          issues.push(`Vehicle ${vehicle.gp51_device_id} assigned to non-existent user ${vehicle.user_id}`);
+        } else {
+          validRelationships++;
         }
       }
 
-    } catch (error) {
-      check.status = 'failed';
-      check.message = `Referential integrity check failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      check.severity = 'high';
-    }
+      const status = issues.length === 0 ? 'passed' : (issues.length < vehicles.length / 2 ? 'warning' : 'failed');
+      
+      return {
+        checkType: 'user_vehicle_relationships',
+        status,
+        message: issues.length === 0 
+          ? `All ${validRelationships} vehicle relationships are valid`
+          : `Found ${issues.length} orphaned vehicle assignments`,
+        details: issues.length > 0 ? { issues: issues.slice(0, 10) } : undefined,
+        severity: issues.length === 0 ? 'low' : 'medium',
+        autoFixable: true
+      };
 
-    this.checks.push(check);
+    } catch (error) {
+      return {
+        checkType: 'user_vehicle_relationships',
+        status: 'failed',
+        message: `Exception during relationship check: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        severity: 'high',
+        autoFixable: false
+      };
+    }
   }
 
-  private async checkDataFreshness(): Promise<void> {
-    const check: ConsistencyCheck = {
-      checkType: 'data_freshness',
-      status: 'passed',
-      message: 'Data freshness verified',
-      severity: 'low',
-      autoFixable: false
-    };
-
+  private async checkDataDuplication(): Promise<ConsistencyCheck> {
     try {
-      const { data: vehicles, error } = await supabase
-        .from('vehicles')
-        .select('updated_at')
-        .order('updated_at', { ascending: false })
-        .limit(1);
+      const { data: duplicates, error } = await supabase.rpc('find_duplicate_device_ids');
 
       if (error) {
-        console.error('Error checking data freshness:', error);
-        check.status = 'failed';
-        check.message = `Failed to check data freshness: ${error.message}`;
-        check.severity = 'medium';
-        this.checks.push(check);
-        return;
+        console.error('Error checking for duplicates:', error);
+        return {
+          checkType: 'data_duplication',
+          status: 'failed',
+          message: `Database query failed: ${error.message}`,
+          severity: 'medium',
+          autoFixable: false
+        };
       }
 
-      if (vehicles && vehicles.length > 0) {
-        const lastUpdate = new Date(vehicles[0].updated_at);
-        const hoursSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60);
-        
-        if (hoursSinceUpdate > 24) {
-          check.status = 'warning';
-          check.message = `Data hasn't been updated in ${Math.round(hoursSinceUpdate)} hours`;
-          check.severity = hoursSinceUpdate > 72 ? 'medium' : 'low';
-        }
+      if (!duplicates || duplicates.length === 0) {
+        return {
+          checkType: 'data_duplication',
+          status: 'passed',
+          message: 'No duplicate device IDs found',
+          severity: 'low',
+          autoFixable: false
+        };
       }
+
+      return {
+        checkType: 'data_duplication',
+        status: 'failed',
+        message: `Found ${duplicates.length} duplicate device IDs`,
+        details: { duplicates: duplicates.slice(0, 5) },
+        severity: 'high',
+        autoFixable: false
+      };
 
     } catch (error) {
-      check.status = 'failed';
-      check.message = `Data freshness check failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      check.severity = 'medium';
+      return {
+        checkType: 'data_duplication',
+        status: 'failed',
+        message: `Exception during duplication check: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        severity: 'medium',
+        autoFixable: false
+      };
     }
-
-    this.checks.push(check);
   }
 
-  private generateRecommendations(): string[] {
+  private generateRecommendations(checks: ConsistencyCheck[]): string[] {
     const recommendations: string[] = [];
-    
-    for (const check of this.checks) {
-      if (check.status === 'failed') {
-        switch (check.checkType) {
-          case 'vehicle_data_integrity':
-            recommendations.push('Review and update vehicle records with missing required data');
-            break;
-          case 'user_data_integrity':
-            recommendations.push('Complete user profiles with missing essential information');
-            break;
-          case 'gp51_metadata_consistency':
-            recommendations.push('Resolve duplicate device IDs and metadata inconsistencies');
-            break;
-          case 'referential_integrity':
-            recommendations.push('Fix orphaned vehicle assignments and broken references');
-            break;
-          case 'data_freshness':
-            recommendations.push('Update stale data and verify data synchronization processes');
-            break;
+
+    const failedChecks = checks.filter(check => check.status === 'failed');
+    const warningChecks = checks.filter(check => check.status === 'warning');
+
+    if (failedChecks.length > 0) {
+      recommendations.push('Immediate attention required: Critical data consistency issues detected');
+      
+      failedChecks.forEach(check => {
+        if (check.autoFixable) {
+          recommendations.push(`Run auto-reconciliation for ${check.checkType}`);
+        } else {
+          recommendations.push(`Manual review required for ${check.checkType}`);
         }
-      }
+      });
     }
 
-    if (recommendations.length === 0) {
-      recommendations.push('All consistency checks passed. No immediate actions required.');
+    if (warningChecks.length > 0) {
+      recommendations.push('Monitor and schedule maintenance for warning-level issues');
+    }
+
+    if (failedChecks.length === 0 && warningChecks.length === 0) {
+      recommendations.push('Data consistency is good. Schedule regular checks to maintain quality');
     }
 
     return recommendations;
@@ -351,5 +294,5 @@ export class DataConsistencyVerifier {
 
 export const dataConsistencyVerifier = new DataConsistencyVerifier();
 
-// Export types for use in other files
-export { ConsistencyReport, ConsistencyCheck };
+// Export types for backward compatibility
+export type { ConsistencyReport, ConsistencyCheck } from '@/types/dataIntegrity';

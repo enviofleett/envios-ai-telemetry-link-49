@@ -89,8 +89,18 @@ export interface VehicleData {
 export type EnhancedVehicle = VehicleData;
 export type RawVehicleData = VehicleDbRecord;
 
-// Define the comprehensive status enum, including 'active', 'maintenance' and 'unknown'
-export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
+// Define the comprehensive status enum - including all possible values
+export type VehicleStatus = 
+  | 'online' 
+  | 'offline' 
+  | 'idle' 
+  | 'moving' 
+  | 'inactive' 
+  | 'active' 
+  | 'maintenance' 
+  | 'unknown'
+  | 'parked'
+  | 'driving';
 
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {
@@ -175,37 +185,24 @@ export interface VehicleDataMetrics {
   lastSyncTime: Date;
   positionsUpdated: number;
   errors: number;
-  syncStatus: 'success' | 'error' | 'pending' | 'syncing';
+  syncStatus: 'success' | 'error' | 'loading';
   errorMessage?: string;
 }
 
-export interface VehicleMetrics {
-  total: number;
-  online: number;
-  offline: number;
-  alerts: number;
-  lastUpdateTime: Date;
-}
-
-export interface SyncMetrics {
-  totalVehicles: number;
-  positionsUpdated: number;
-  errors: number;
-  lastSyncTime: Date;
-}
-
-export interface FilterState {
-  search: string;
-  status: string;
-  user: string;
-  online: string;
-}
-
+// Vehicle statistics for compatibility with hooks
 export interface VehicleStatistics {
   total: number;
   active: number;
   online: number;
   alerts: number;
+}
+
+// Vehicle filter state interface
+export interface FilterState {
+  search: string;
+  status: string;
+  user: string;
+  online: string;
 }
 
 export interface ReportType {
