@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -82,16 +83,16 @@ const DeviceManagementTable: React.FC<DeviceManagementTableProps> = ({
     onBulkActivate?.(selectedDevices);
   };
 
-  const getStatusVariant = (status: string) => {
+  const getStatusVariant = (status: string): "default" | "destructive" | "secondary" | "outline" => {
     switch (status) {
       case 'active':
-        return 'success';
+        return 'default'; // Changed from 'success' to 'default'
       case 'inactive':
         return 'secondary';
       case 'error':
         return 'destructive';
       default:
-        return 'default';
+        return 'outline';
     }
   };
 

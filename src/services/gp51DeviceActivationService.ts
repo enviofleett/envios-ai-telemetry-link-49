@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 // Simplified interfaces to avoid deep type instantiation
@@ -26,11 +27,6 @@ export interface DeviceActivationStatus {
   isActivated: boolean;
   status: 'active' | 'inactive' | 'error' | 'unknown';
   lastChecked?: string;
-}
-
-// Simple type for vehicle ID query result
-interface VehicleIdResult {
-  id: string;
 }
 
 export class GP51DeviceActivationService {
@@ -150,7 +146,7 @@ export class GP51DeviceActivationService {
   }
 
   /**
-   * Update local device activation tracking with aggressive type assertion to avoid TS2589
+   * Update local device activation tracking with proper type casting
    */
   private static async updateDeviceActivationStatus(
     deviceId: string, 
@@ -158,14 +154,17 @@ export class GP51DeviceActivationService {
     gp51Response?: any
   ): Promise<void> {
     try {
-      // Get vehicle ID using direct RPC call to avoid complex type inference
-      const { data: vehicleId, error: vehicleError } = await supabase
+      // Get vehicle ID using direct RPC call and properly cast the result
+      const { data: vehicleIdResult, error: vehicleError } = await supabase
         .rpc('get_vehicle_id_by_device', { device_id_param: deviceId });
 
-      if (vehicleError || !vehicleId) {
+      if (vehicleError || !vehicleIdResult) {
         console.warn(`⚠️ No vehicle found for device ${deviceId}:`, vehicleError?.message);
         return;
       }
+
+      // Ensure vehicleId is properly typed as string
+      const vehicleId = String(vehicleIdResult);
 
       // Update device management record
       const deviceManagementRecord = {
