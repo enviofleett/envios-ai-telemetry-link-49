@@ -1,6 +1,6 @@
 
 import { GP51Client } from '@/services/gp51/gp51Client';
-import { ErrorReporter } from '@/services/gp51/errorReporter';
+import { GP51ErrorReporter } from '@/services/gp51/errorReporter';
 
 export interface DeviceHandshakeResult {
   success: boolean;
@@ -39,7 +39,7 @@ export interface GP51Vehicle {
 }
 
 export class GP51ProductionService {
-  private static errorReporter = new ErrorReporter();
+  private static errorReporter = new GP51ErrorReporter();
 
   static async performRealDeviceHandshake(
     deviceId: string,
@@ -67,9 +67,14 @@ export class GP51ProductionService {
         timestamp: new Date().toISOString()
       };
     } catch (error) {
-      this.errorReporter.reportError('connectivity', 'Device handshake failed', {
-        deviceId,
-        error: error instanceof Error ? error.message : 'Unknown error'
+      this.errorReporter.reportError({
+        type: 'connectivity',
+        message: 'Device handshake failed',
+        severity: 'high',
+        details: {
+          deviceId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
       });
       
       return {
@@ -156,6 +161,15 @@ export class GP51ProductionService {
     }
   }
 
+  static stopDeviceHealthMonitoring(deviceId: string): void {
+    try {
+      console.log(`Stopping health monitoring for device ${deviceId}`);
+      // Implementation would stop monitoring processes, clear intervals, etc.
+    } catch (error) {
+      console.error(`Failed to stop monitoring for ${deviceId}:`, error);
+    }
+  }
+
   static async fetchVehicles(): Promise<GP51Vehicle[]> {
     try {
       console.log('Fetching vehicles from GP51 API...');
@@ -182,8 +196,13 @@ export class GP51ProductionService {
       return [];
     } catch (error) {
       console.error('Error fetching vehicles from GP51:', error);
-      this.errorReporter.reportError('api', 'Failed to fetch vehicles', {
-        error: error instanceof Error ? error.message : 'Unknown error'
+      this.errorReporter.reportError({
+        type: 'api',
+        message: 'Failed to fetch vehicles',
+        severity: 'medium',
+        details: {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
       });
       return [];
     }

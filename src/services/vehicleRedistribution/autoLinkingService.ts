@@ -2,14 +2,13 @@
 import { supabase } from '@/integrations/supabase/client';
 import { DataValidator } from './dataValidator';
 
-// Explicit type for vehicle query result
-interface VehicleQueryResult {
+// Simple type definitions to avoid deep instantiation
+interface BasicVehicleResult {
   id: string;
   gp51_device_id: string;
 }
 
-// Explicit type for user query result  
-interface UserQueryResult {
+interface BasicUserResult {
   id: string;
   name: string;
 }
@@ -21,23 +20,26 @@ export class AutoLinkingService {
     }
 
     try {
-      // Find user by GP51 username with explicit typing
+      // Find user by GP51 username with simple type annotation
       const { data: user, error: userError } = await supabase
         .from('envio_users')
         .select('id, name')
         .eq('gp51_username', gp51Username)
-        .single() as { data: UserQueryResult | null; error: any };
+        .single();
 
       if (userError || !user) {
         console.log(`No user found for GP51 username ${gp51Username}`);
         return false;
       }
 
+      // Cast to our simple type to avoid deep instantiation
+      const typedUser = user as BasicUserResult;
+
       // Link vehicle to user - using correct column names
       const { error: linkError } = await supabase
         .from('vehicles')
         .update({ 
-          user_id: user.id,
+          user_id: typedUser.id,
           updated_at: new Date().toISOString()
         })
         .eq('gp51_device_id', deviceId);
@@ -47,7 +49,7 @@ export class AutoLinkingService {
         return false;
       }
 
-      console.log(`Auto-linked vehicle ${deviceId} to user ${user.name} (${gp51Username})`);
+      console.log(`Auto-linked vehicle ${deviceId} to user ${typedUser.name} (${gp51Username})`);
       return true;
 
     } catch (error) {
@@ -62,13 +64,13 @@ export class AutoLinkingService {
     }
 
     try {
-      // Find unassigned vehicles for this GP51 username with explicit typing
+      // Find unassigned vehicles for this GP51 username with simple type annotation
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
         .select('id, gp51_device_id')
         .eq('gp51_username', gp51Username)
         .is('user_id', null)
-        .eq('is_active', true) as { data: VehicleQueryResult[] | null; error: any };
+        .eq('is_active', true);
 
       if (vehiclesError) throw vehiclesError;
 
@@ -76,6 +78,9 @@ export class AutoLinkingService {
         console.log(`No unassigned vehicles found for GP51 username ${gp51Username}`);
         return 0;
       }
+
+      // Cast to our simple type to avoid deep instantiation
+      const typedVehicles = vehicles as BasicVehicleResult[];
 
       // Link all matching vehicles to the user
       const { error: linkError } = await supabase
@@ -92,8 +97,8 @@ export class AutoLinkingService {
         return 0;
       }
 
-      console.log(`Auto-linked ${vehicles.length} vehicles to user ${userId} (${gp51Username})`);
-      return vehicles.length;
+      console.log(`Auto-linked ${typedVehicles.length} vehicles to user ${userId} (${gp51Username})`);
+      return typedVehicles.length;
 
     } catch (error) {
       console.error(`Auto-link failed for user ${userId}:`, error);
