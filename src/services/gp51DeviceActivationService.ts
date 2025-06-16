@@ -39,7 +39,7 @@ export class GP51DeviceActivationService {
       console.log(`🔄 Activating GP51 device: ${request.deviceId}`);
       
       // Step 1: Charge/activate device on GP51
-      const { data, error } = await supabase.functions.invoke('gp51-device-management', {
+      const { data, error } = await (supabase as any).functions.invoke('gp51-device-management', {
         body: {
           action: 'chargedevices',
           deviceids: request.deviceId,
@@ -95,8 +95,8 @@ export class GP51DeviceActivationService {
    */
   static async checkDeviceActivationStatus(deviceId: string): Promise<DeviceActivationStatus> {
     try {
-      // Check local tracking first
-      const { data: localStatus } = await supabase
+      // Check local tracking first - BYPASS: Using type bypass to prevent TS2589
+      const { data: localStatus } = await (supabase as any)
         .from('gp51_device_management')
         .select('activation_status, last_sync_at')
         .eq('gp51_device_id', deviceId)
@@ -111,7 +111,7 @@ export class GP51DeviceActivationService {
       }
 
       // If no local record, query GP51 directly
-      const { data, error } = await supabase.functions.invoke('gp51-device-management', {
+      const { data, error } = await (supabase as any).functions.invoke('gp51-device-management', {
         body: {
           action: 'queryalldevices'
         }
@@ -143,6 +143,7 @@ export class GP51DeviceActivationService {
 
   /**
    * Update local device activation tracking
+   * BYPASS: Using Supabase type bypass to prevent TS2589 on complex type inference
    */
   private static async updateDeviceActivationStatus(
     deviceId: string, 
@@ -150,8 +151,8 @@ export class GP51DeviceActivationService {
     gp51Response?: any
   ): Promise<void> {
     try {
-      // Get vehicle ID from device ID
-      const { data: vehicleData } = await supabase
+      // Get vehicle ID from device ID - BYPASS: Type bypass to prevent TS2589
+      const { data: vehicleData } = await (supabase as any)
         .from('vehicles')
         .select('id')
         .eq('device_id', deviceId)
@@ -162,7 +163,7 @@ export class GP51DeviceActivationService {
         return;
       }
 
-      // Update device management record
+      // Update device management record - BYPASS: Type bypass to prevent TS2589
       const deviceManagementRecord = {
         vehicle_id: vehicleData.id,
         gp51_device_id: deviceId,
@@ -171,19 +172,19 @@ export class GP51DeviceActivationService {
         device_properties: gp51Response || {}
       };
 
-      await supabase
+      await (supabase as any)
         .from('gp51_device_management')
         .upsert(deviceManagementRecord, {
           onConflict: 'vehicle_id,gp51_device_id'
         });
 
-      // Update vehicle record
+      // Update vehicle record - BYPASS: Type bypass to prevent TS2589
       const vehicleUpdate = {
         activation_status: status,
         updated_at: new Date().toISOString()
       };
 
-      await supabase
+      await (supabase as any)
         .from('vehicles')
         .update(vehicleUpdate)
         .eq('id', vehicleData.id);
