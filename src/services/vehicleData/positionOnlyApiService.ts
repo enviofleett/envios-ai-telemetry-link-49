@@ -1,4 +1,5 @@
 
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface PositionUpdate {
@@ -97,14 +98,17 @@ export class PositionOnlyApiService {
 
   private static async getSessionInfo(): Promise<{ token?: string }> {
     try {
-      const { data, error } = await supabase.functions.invoke('settings-management', {
+      const { data: rawData, error } = await supabase.functions.invoke('settings-management', {
         body: { action: 'get-gp51-status' }
       });
 
-      if (error || !data) {
+      if (error || !rawData) {
         console.error('❌ Failed to get session info:', error);
         return {};
       }
+
+      // ULTIMATE FIX: Cast to any to break deep type inference
+      const data = rawData as any;
 
       // Extract token from session data
       const token = data.session?.token || data.token;
@@ -115,3 +119,4 @@ export class PositionOnlyApiService {
     }
   }
 }
+
