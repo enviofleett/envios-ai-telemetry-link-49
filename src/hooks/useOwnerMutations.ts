@@ -3,7 +3,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { EnvioUser } from '@/types/owner';
-import type { LightweightEnvioUser, DatabaseUpdateResult } from '@/types/database-operations';
 
 export const useOwnerMutations = () => {
   const queryClient = useQueryClient();
@@ -31,12 +30,11 @@ export const useOwnerMutations = () => {
         throw error;
       }
 
-      // Use explicit type assertion to avoid TS2589
-      return (data as DatabaseUpdateResult) as EnvioUser;
+      return data as EnvioUser;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] } as any);
-      queryClient.invalidateQueries({ queryKey: ['enhanced-user-data'] } as any);
+      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
+      queryClient.invalidateQueries({ queryKey: ['enhanced-user-data'] });
       toast({
         title: "Owner Updated",
         description: "Owner profile has been successfully updated",
@@ -54,14 +52,13 @@ export const useOwnerMutations = () => {
 
   const assignVehicleMutation = useMutation({
     mutationFn: async (params: { deviceId: string; ownerId: string }) => {
-      // Use correct column name: gp51_device_id instead of device_id
       const { data, error } = await supabase
         .from('vehicles')
         .update({
-          user_id: params.ownerId, // Use user_id instead of owner_id
+          owner_id: params.ownerId,
           updated_at: new Date().toISOString(),
         })
-        .eq('gp51_device_id', params.deviceId) // Use gp51_device_id
+        .eq('device_id', params.deviceId)
         .select()
         .single();
 
@@ -69,13 +66,12 @@ export const useOwnerMutations = () => {
         throw error;
       }
 
-      // Use explicit type assertion to avoid TS2589
-      return data as DatabaseUpdateResult;
+      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] } as any);
-      queryClient.invalidateQueries({ queryKey: ['owner-vehicles'] } as any);
-      queryClient.invalidateQueries({ queryKey: ['enhanced-vehicle-data'] } as any);
+      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
+      queryClient.invalidateQueries({ queryKey: ['owner-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['enhanced-vehicle-data'] });
       toast({
         title: "Vehicle Assigned",
         description: "Vehicle has been successfully assigned to owner",
@@ -93,14 +89,13 @@ export const useOwnerMutations = () => {
 
   const unassignVehicleMutation = useMutation({
     mutationFn: async (deviceId: string) => {
-      // Use correct column name: gp51_device_id instead of device_id
       const { data, error } = await supabase
         .from('vehicles')
         .update({
-          user_id: null, // Use user_id instead of owner_id
+          owner_id: null,
           updated_at: new Date().toISOString(),
         })
-        .eq('gp51_device_id', deviceId) // Use gp51_device_id
+        .eq('device_id', deviceId)
         .select()
         .single();
 
@@ -108,13 +103,12 @@ export const useOwnerMutations = () => {
         throw error;
       }
 
-      // Use explicit type assertion to avoid TS2589
-      return data as DatabaseUpdateResult;
+      return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] } as any);
-      queryClient.invalidateQueries({ queryKey: ['owner-vehicles'] } as any);
-      queryClient.invalidateQueries({ queryKey: ['enhanced-vehicle-data'] } as any);
+      queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
+      queryClient.invalidateQueries({ queryKey: ['owner-vehicles'] });
+      queryClient.invalidateQueries({ queryKey: ['enhanced-vehicle-data'] });
       toast({
         title: "Vehicle Unassigned",
         description: "Vehicle has been successfully unassigned from owner",

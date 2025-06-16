@@ -12,7 +12,7 @@ const ProfessionalDashboard: React.FC = () => {
   const { user } = useAuth();
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/auth" replace />;
   }
 
   return (

@@ -1,7 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
-// Simplified interfaces to avoid deep type instantiation
 export interface GP51DeviceActivationRequest {
   deviceId: string;
   deviceName: string;
@@ -15,18 +13,7 @@ export interface GP51DeviceActivationResult {
   deviceId?: string;
   activationStatus?: 'active' | 'inactive' | 'error';
   error?: string;
-  gp51Response?: any; // Simplified to avoid deep type issues
-}
-
-export interface BulkActivationResult {
-  successful: string[];
-  failed: Array<{ deviceId: string; error: string }>;
-}
-
-export interface DeviceActivationStatus {
-  isActivated: boolean;
-  status: 'active' | 'inactive' | 'error' | 'unknown';
-  lastChecked?: string;
+  gp51Response?: any;
 }
 
 export class GP51DeviceActivationService {
@@ -79,12 +66,11 @@ export class GP51DeviceActivationService {
 
     } catch (error) {
       console.error('❌ GP51 device activation exception:', error);
-      const errorMessage = this.getErrorMessage(error);
-      await this.updateDeviceActivationStatus(request.deviceId, 'error', { error: errorMessage });
+      await this.updateDeviceActivationStatus(request.deviceId, 'error', { error: error.message });
       
       return {
         success: false,
-        error: errorMessage,
+        error: error instanceof Error ? error.message : 'Unknown error',
         activationStatus: 'error'
       };
     }
@@ -93,18 +79,18 @@ export class GP51DeviceActivationService {
   /**
    * Check if a device is activated on GP51
    */
-  static async checkDeviceActivationStatus(deviceId: string): Promise<DeviceActivationStatus> {
+  static async checkDeviceActivationStatus(deviceId: string): Promise<{
+    isActivated: boolean;
+    status: 'active' | 'inactive' | 'error' | 'unknown';
+    lastChecked?: string;
+  }> {
     try {
-      // Check local tracking first - using aggressive type assertion to avoid TS2589
-      const { data: localStatus, error: localError } = await supabase
+      // Check local tracking first
+      const { data: localStatus } = await supabase
         .from('gp51_device_management')
         .select('activation_status, last_sync_at')
         .eq('gp51_device_id', deviceId)
-        .maybeSingle();
-
-      if (localError) {
-        console.error('Error checking local device status:', localError);
-      }
+        .single();
 
       if (localStatus) {
         return {
@@ -146,7 +132,7 @@ export class GP51DeviceActivationService {
   }
 
   /**
-   * Update local device activation tracking with proper type casting
+   * Update local device activation tracking
    */
   private static async updateDeviceActivationStatus(
     deviceId: string, 
@@ -154,48 +140,39 @@ export class GP51DeviceActivationService {
     gp51Response?: any
   ): Promise<void> {
     try {
-      // Get vehicle ID using direct RPC call and properly cast the result
-      const { data: vehicleIdResult, error: vehicleError } = await supabase
-        .rpc('get_vehicle_id_by_device', { device_id_param: deviceId });
+      // Get vehicle ID from device ID
+      const { data: vehicle } = await supabase
+        .from('vehicles')
+        .select('id')
+        .eq('device_id', deviceId)
+        .single();
 
-      if (vehicleError || !vehicleIdResult) {
-        console.warn(`⚠️ No vehicle found for device ${deviceId}:`, vehicleError?.message);
+      if (!vehicle) {
+        console.warn(`⚠️ No vehicle found for device ${deviceId}`);
         return;
       }
 
-      // Ensure vehicleId is properly typed as string
-      const vehicleId = String(vehicleIdResult);
-
-      // Update device management record
-      const deviceManagementRecord = {
-        vehicle_id: vehicleId,
-        gp51_device_id: deviceId,
-        activation_status: status,
-        last_sync_at: new Date().toISOString(),
-        device_properties: gp51Response || {}
-      };
-
-      const { error: upsertError } = await supabase
+      // Update or insert device management record
+      await supabase
         .from('gp51_device_management')
-        .upsert(deviceManagementRecord, {
+        .upsert({
+          vehicle_id: vehicle.id,
+          gp51_device_id: deviceId,
+          activation_status: status,
+          last_sync_at: new Date().toISOString(),
+          device_properties: gp51Response || {}
+        }, {
           onConflict: 'vehicle_id,gp51_device_id'
         });
 
-      if (upsertError) {
-        console.error('Error upserting device management record:', upsertError);
-        return;
-      }
-
-      // Update vehicle record using RPC to avoid type issues
-      const { error: updateError } = await supabase
-        .rpc('update_vehicle_activation_status', {
-          vehicle_id_param: vehicleId,
-          status_param: status
-        });
-
-      if (updateError) {
-        console.error('Error updating vehicle status:', updateError);
-      }
+      // Update vehicle activation status
+      await supabase
+        .from('vehicles')
+        .update({
+          activation_status: status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', vehicle.id);
 
     } catch (error) {
       console.error('❌ Error updating device activation status:', error);
@@ -209,9 +186,12 @@ export class GP51DeviceActivationService {
     deviceIds: string[], 
     years: number = 1,
     adminUserId: string
-  ): Promise<BulkActivationResult> {
+  ): Promise<{
+    successful: string[];
+    failed: { deviceId: string; error: string }[];
+  }> {
     const successful: string[] = [];
-    const failed: Array<{ deviceId: string; error: string }> = [];
+    const failed: { deviceId: string; error: string }[] = [];
 
     for (const deviceId of deviceIds) {
       try {
@@ -231,24 +211,11 @@ export class GP51DeviceActivationService {
       } catch (error) {
         failed.push({ 
           deviceId, 
-          error: this.getErrorMessage(error)
+          error: error instanceof Error ? error.message : 'Unknown error' 
         });
       }
     }
 
     return { successful, failed };
-  }
-
-  /**
-   * Extract error message safely from unknown error type
-   */
-  private static getErrorMessage(error: unknown): string {
-    if (error instanceof Error) {
-      return error.message;
-    }
-    if (typeof error === 'string') {
-      return error;
-    }
-    return 'Unknown error occurred';
   }
 }

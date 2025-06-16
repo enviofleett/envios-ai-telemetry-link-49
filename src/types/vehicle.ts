@@ -27,12 +27,10 @@ export interface VehicleData {
   isMoving: boolean;
   alerts: any[];
   lastUpdate: Date;
-  // Simplified envio_users to break circular dependency
   envio_users?: {
-    id?: string;
     name?: string;
     email?: string;
-  } | null;
+  };
   // Additional properties that components are accessing
   speed?: number;
   course?: number;
@@ -41,8 +39,7 @@ export interface VehicleData {
   mileage?: number;
   plateNumber?: string;
   model?: string;
-  // Simplified JSONB metadata to prevent TS2589
-  gp51_metadata?: Record<string, unknown>;
+  gp51_metadata?: { [key: string]: any };
   image_urls?: string[];
   fuel_tank_capacity_liters?: number;
   manufacturer_fuel_consumption_100km_l?: number;

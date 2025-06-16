@@ -1,7 +1,6 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { LightweightVehicle } from '@/types/database-operations';
 
 export interface OwnerVehicleData {
   device_id: string;
@@ -13,11 +12,13 @@ export interface OwnerVehicleData {
 // Use a simple approach to avoid type inference issues
 const fetchOwnerVehicles = async (ownerId: string): Promise<OwnerVehicleData[]> => {
   try {
-    // Use correct column names that exist in the vehicles table
-    const { data, error } = await supabase
+    // Use any to avoid type inference problems with Supabase
+    const response = await (supabase as any)
       .from('vehicles')
-      .select('gp51_device_id, name, created_at, updated_at')
-      .eq('user_id', ownerId);
+      .select('device_id, device_name, status, created_at')
+      .eq('owner_id', ownerId);
+
+    const { data, error } = response;
 
     if (error) {
       console.error('Failed to fetch owner vehicles:', error);
@@ -28,11 +29,11 @@ const fetchOwnerVehicles = async (ownerId: string): Promise<OwnerVehicleData[]> 
       return [];
     }
 
-    // Transform to our expected format with correct column mapping
+    // Transform to our expected format
     return data.map((item: any) => ({
-      device_id: String(item.gp51_device_id || ''),
-      device_name: String(item.name || ''),
-      status: 'offline', // Default status since vehicles table doesn't have status column
+      device_id: String(item.device_id || ''),
+      device_name: String(item.device_name || ''),
+      status: String(item.status || ''),
       created_at: String(item.created_at || '')
     }));
   } catch (error) {

@@ -9437,10 +9437,6 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
-      get_vehicle_id_by_device: {
-        Args: { device_id_param: string }
-        Returns: string
-      }
       has_permission: {
         Args: { _user_id: string; _permission: string }
         Returns: boolean
@@ -9512,10 +9508,6 @@ export type Database = {
           p_success: boolean
           p_error_message?: string
         }
-        Returns: undefined
-      }
-      update_vehicle_activation_status: {
-        Args: { vehicle_id_param: string; status_param: string }
         Returns: undefined
       }
       upsert_geocoding_configuration: {
