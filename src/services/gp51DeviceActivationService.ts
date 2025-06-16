@@ -1,5 +1,6 @@
 
 
+
 import { supabase } from '@/integrations/supabase/client';
 
 // Simplified interfaces to avoid deep type instantiation
@@ -96,14 +97,14 @@ export class GP51DeviceActivationService {
    */
   static async checkDeviceActivationStatus(deviceId: string): Promise<DeviceActivationStatus> {
     try {
-      // Check local tracking first
-      const { data: localStatus } = await supabase
+      // Check local tracking first - use raw query to avoid type complexity
+      const response = await supabase
         .from('gp51_device_management')
         .select('activation_status, last_sync_at')
-        .eq('gp51_device_id', deviceId)
-        .single();
+        .eq('gp51_device_id', deviceId);
 
-      if (localStatus) {
+      if (response.data && response.data.length > 0) {
+        const localStatus = response.data[0] as any;
         return {
           isActivated: localStatus.activation_status === 'active',
           status: localStatus.activation_status as 'active' | 'inactive' | 'error' | 'unknown',
@@ -151,21 +152,22 @@ export class GP51DeviceActivationService {
     gp51Response?: Record<string, any>
   ): Promise<void> {
     try {
-      // Get vehicle ID from device ID - use simple query
-      const { data: vehicleData } = await supabase
+      // Get vehicle ID from device ID - use completely raw query to avoid TS2589
+      const vehicleResponse = await supabase
         .from('vehicles')
         .select('id')
-        .eq('device_id', deviceId)
-        .single();
+        .eq('device_id', deviceId);
 
-      if (!vehicleData) {
+      if (!vehicleResponse.data || vehicleResponse.data.length === 0) {
         console.warn(`⚠️ No vehicle found for device ${deviceId}`);
         return;
       }
 
+      const vehicleId = (vehicleResponse.data[0] as any).id;
+
       // Direct object construction for upsert - no complex types
       const deviceManagementRecord = {
-        vehicle_id: vehicleData.id,
+        vehicle_id: vehicleId,
         gp51_device_id: deviceId,
         activation_status: status,
         last_sync_at: new Date().toISOString(),
@@ -187,7 +189,7 @@ export class GP51DeviceActivationService {
       await supabase
         .from('vehicles')
         .update(vehicleUpdate)
-        .eq('id', vehicleData.id);
+        .eq('id', vehicleId);
 
     } catch (error) {
       console.error('❌ Error updating device activation status:', error);
