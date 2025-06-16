@@ -29,10 +29,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <BrandingProvider>
-          <CurrencyProvider>
-            <SecurityProvider>
-              <AuthProvider>
+        <AuthProvider>
+          <BrandingProvider>
+            <CurrencyProvider>
+              <SecurityProvider>
                 <Router>
                   <div className="App">
                     <Suspense fallback={<Loading />}>
@@ -46,10 +46,10 @@ function App() {
                     <Toaster />
                   </div>
                 </Router>
-              </AuthProvider>
-            </SecurityProvider>
-          </CurrencyProvider>
-        </BrandingProvider>
+              </SecurityProvider>
+            </CurrencyProvider>
+          </BrandingProvider>
+        </AuthProvider>
       </ThemeProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>
