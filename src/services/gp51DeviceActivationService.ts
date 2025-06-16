@@ -95,14 +95,14 @@ export class GP51DeviceActivationService {
    */
   static async checkDeviceActivationStatus(deviceId: string): Promise<DeviceActivationStatus> {
     try {
-      // Check local tracking first - use raw query to avoid type complexity
-      const response = await supabase
+      // Check local tracking first - use completely untyped query to avoid TS2589
+      const response = await (supabase as any)
         .from('gp51_device_management')
         .select('activation_status, last_sync_at')
         .eq('gp51_device_id', deviceId);
 
       if (response.data && response.data.length > 0) {
-        const localStatus = response.data[0] as any;
+        const localStatus = response.data[0];
         return {
           isActivated: localStatus.activation_status === 'active',
           status: localStatus.activation_status as 'active' | 'inactive' | 'error' | 'unknown',
@@ -150,8 +150,11 @@ export class GP51DeviceActivationService {
     gp51Response?: Record<string, any>
   ): Promise<void> {
     try {
-      // Get vehicle ID from device ID - use completely raw query to avoid TS2589
-      const vehicleResponse = await supabase
+      // Use completely untyped Supabase client to avoid complex type inference
+      const supabaseClient = supabase as any;
+      
+      // Get vehicle ID from device ID - completely bypass type inference
+      const vehicleResponse = await supabaseClient
         .from('vehicles')
         .select('id')
         .eq('device_id', deviceId);
@@ -161,12 +164,11 @@ export class GP51DeviceActivationService {
         return;
       }
 
-      // Extract vehicle ID directly to avoid type inference issues
-      const vehicleRecord: any = vehicleResponse.data[0];
-      const vehicleId: string = vehicleRecord.id;
+      // Extract vehicle ID with explicit typing
+      const vehicleId: string = vehicleResponse.data[0].id;
 
-      // Direct object construction for upsert - no complex types
-      const deviceManagementRecord: any = {
+      // Direct object construction for upsert - bypass all type inference
+      const deviceManagementRecord = {
         vehicle_id: vehicleId,
         gp51_device_id: deviceId,
         activation_status: status,
@@ -174,19 +176,19 @@ export class GP51DeviceActivationService {
         device_properties: gp51Response || {}
       };
 
-      await supabase
+      await supabaseClient
         .from('gp51_device_management')
         .upsert(deviceManagementRecord, {
           onConflict: 'vehicle_id,gp51_device_id'
         });
 
       // Direct object construction for vehicle update
-      const vehicleUpdate: any = {
+      const vehicleUpdate = {
         activation_status: status,
         updated_at: new Date().toISOString()
       };
 
-      await supabase
+      await supabaseClient
         .from('vehicles')
         .update(vehicleUpdate)
         .eq('id', vehicleId);
