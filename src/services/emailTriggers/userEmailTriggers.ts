@@ -1,6 +1,122 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export class UserEmailTriggers {
+  static async onUserRegistration(userId: string, userEmail: string, userName: string): Promise<void> {
+    try {
+      console.log(`📧 Sending welcome email to new user ${userName} (${userEmail})`);
+
+      // Queue email notification
+      const { error: emailError } = await supabase
+        .from('email_notification_queue')
+        .insert({
+          user_id: userId,
+          recipient_email: userEmail,
+          subject: 'Welcome to Our Platform',
+          body_text: `Dear ${userName},\n\nWelcome to our platform! We're excited to have you on board.\n\nBest regards,\nThe Team`,
+          body_html: `<p>Dear ${userName},</p><p>Welcome to our platform! We're excited to have you on board.</p><p>Best regards,<br/>The Team</p>`,
+          status: 'pending'
+        });
+
+      if (emailError) {
+        console.error('Error queuing welcome email:', emailError);
+      } else {
+        console.log('✅ Welcome email queued successfully');
+      }
+
+    } catch (error) {
+      console.error('Exception in welcome email trigger:', error);
+    }
+  }
+
+  static async notifyAdminsOfNewUser(userId: string, userEmail: string, userName: string): Promise<void> {
+    try {
+      console.log(`📧 Notifying admins of new user ${userName} (${userEmail})`);
+
+      // Get admin users
+      const { data: adminUsers, error: adminError } = await supabase
+        .from('envio_users')
+        .select(`
+          email,
+          user_roles!inner(role)
+        `)
+        .eq('user_roles.role', 'admin');
+
+      if (adminError) {
+        console.error('Error fetching admin users:', adminError);
+        return;
+      }
+
+      if (!adminUsers || adminUsers.length === 0) {
+        console.log('No admin users found to notify');
+        return;
+      }
+
+      // Send notification to each admin
+      for (const admin of adminUsers) {
+        const { error: emailError } = await supabase
+          .from('email_notification_queue')
+          .insert({
+            user_id: userId,
+            recipient_email: admin.email,
+            subject: 'New User Registration',
+            body_text: `A new user has registered on the platform:\n\nName: ${userName}\nEmail: ${userEmail}\n\nPlease review their account if necessary.`,
+            body_html: `<p>A new user has registered on the platform:</p><ul><li><strong>Name:</strong> ${userName}</li><li><strong>Email:</strong> ${userEmail}</li></ul><p>Please review their account if necessary.</p>`,
+            status: 'pending'
+          });
+
+        if (emailError) {
+          console.error(`Error queuing admin notification for ${admin.email}:`, emailError);
+        }
+      }
+
+      console.log('✅ Admin notifications queued successfully');
+
+    } catch (error) {
+      console.error('Exception in admin notification trigger:', error);
+    }
+  }
+
+  static async onPasswordResetRequest(userEmail: string, userName: string, resetToken: string): Promise<void> {
+    try {
+      console.log(`📧 Sending password reset email to ${userEmail}`);
+
+      const resetLink = `${window.location.origin}/reset-password?token=${resetToken}`;
+
+      // Get user ID for the queue
+      const { data: userData, error: userError } = await supabase
+        .from('envio_users')
+        .select('id')
+        .eq('email', userEmail)
+        .single();
+
+      if (userError) {
+        console.error('Error fetching user for password reset email:', userError);
+        return;
+      }
+
+      // Queue email notification
+      const { error: emailError } = await supabase
+        .from('email_notification_queue')
+        .insert({
+          user_id: userData.id,
+          recipient_email: userEmail,
+          subject: 'Password Reset Request',
+          body_text: `Dear ${userName},\n\nYou have requested to reset your password. Please click the following link to reset your password:\n\n${resetLink}\n\nIf you did not request a password reset, please ignore this email.\n\nBest regards,\nThe Team`,
+          body_html: `<p>Dear ${userName},</p><p>You have requested to reset your password. Please click the following link to reset your password:</p><p><a href="${resetLink}">Reset Password</a></p><p>If you did not request a password reset, please ignore this email.</p><p>Best regards,<br/>The Team</p>`,
+          status: 'pending'
+        });
+
+      if (emailError) {
+        console.error('Error queuing password reset email:', emailError);
+      } else {
+        console.log('✅ Password reset email queued successfully');
+      }
+
+    } catch (error) {
+      console.error('Exception in password reset email trigger:', error);
+    }
+  }
+
   async sendWelcomeEmail(userId: string): Promise<void> {
     try {
       console.log(`📧 Sending welcome email to user ${userId}`);

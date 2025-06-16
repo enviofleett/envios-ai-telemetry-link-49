@@ -1,3 +1,4 @@
+
 import { geofencingService } from './geofencing';
 import { notificationPreferencesService } from './notificationPreferencesService';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,19 +51,24 @@ export class EnhancedGeofencingService {
     try {
       const { data: vehicle, error } = await supabase
         .from('vehicles')
-        .select('id, device_id, device_name')
-        .eq('device_id', deviceId)
+        .select('id, gp51_device_id, name')
+        .eq('gp51_device_id', deviceId)
         .maybeSingle();
 
-      if (error || !vehicle) {
+      if (error) {
         console.error('Failed to get vehicle info:', error);
+        return null;
+      }
+
+      if (!vehicle) {
+        console.warn(`Vehicle not found for device ID: ${deviceId}`);
         return null;
       }
 
       return {
         id: vehicle.id,
-        device_id: vehicle.device_id,
-        name: vehicle.device_name || `Vehicle ${vehicle.device_id}`
+        device_id: vehicle.gp51_device_id,
+        name: vehicle.name || `Vehicle ${vehicle.gp51_device_id}`
       };
     } catch (error) {
       console.error('Error getting vehicle info:', error);

@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { dataConsistencyVerifier, ConsistencyReport } from '@/services/dataIntegrity/DataConsistencyVerifier';
+import { dataConsistencyVerifier } from '@/services/dataIntegrity/DataConsistencyVerifier';
+import { ConsistencyReport } from '@/types/dataIntegrity';
 import { dataReconciliationService, ReconciliationJob } from '@/services/dataIntegrity/DataReconciliationService';
 import { backupRollbackManager, BackupMetadata, BackupJob } from '@/services/dataIntegrity/BackupRollbackManager';
 
