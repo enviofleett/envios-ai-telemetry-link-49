@@ -1,254 +1,99 @@
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useVehicleMetrics } from '@/hooks/useVehicleMetrics';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Car, 
-  Search, 
-  Filter, 
-  Download,
-  RefreshCw,
-  MapPin,
-  Gauge,
-  Clock
-} from 'lucide-react';
-import { useVehicleData } from '@/hooks/useVehicleData';
-import { useAdvancedExport } from '@/hooks/useAdvancedExport';
-import { Progress } from '@/components/ui/progress';
+import { RefreshCw, AlertTriangle } from 'lucide-react';
 
 const VehicleManagementPanel: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  
-  const { 
-    data: vehicles, 
-    isLoading, 
-    error,
-    refetch 
-  } = useVehicleData({ search: searchTerm, status: statusFilter });
-  
-  const { exportVehicles, isExporting, progress } = useAdvancedExport();
-
-  const handleExport = (format: 'csv' | 'json' | 'excel') => {
-    exportVehicles(format, {
-      search: searchTerm,
-      status: statusFilter,
-      includePositions: true
-    });
-  };
-
-  const toggleStatusFilter = (status: string) => {
-    setStatusFilter(prev => 
-      prev.includes(status) 
-        ? prev.filter(s => s !== status)
-        : [...prev, status]
-    );
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'online': return 'bg-green-100 text-green-800';
-      case 'offline': return 'bg-gray-100 text-gray-800';
-      case 'moving': return 'bg-blue-100 text-blue-800';
-      case 'idle': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const { metrics, isLoading, error, refreshMetrics, forceSync } = useVehicleMetrics();
 
   if (isLoading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Car className="h-5 w-5" />
-            Vehicle Management
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="h-16 bg-gray-200 rounded"></div>
+      <div className="bg-white p-6 rounded-lg shadow-md">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-200 rounded w-1/3 mb-4"></div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="p-4 bg-gray-50 rounded-lg">
+                <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                <div className="h-8 bg-gray-200 rounded"></div>
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Car className="h-5 w-5" />
-            Vehicle Management
-            <Badge variant="outline">{vehicles?.length || 0} vehicles</Badge>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            >
-              <Filter className="h-4 w-4 mr-1" />
-              Filters
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleExport('csv')}
-              disabled={isExporting}
-            >
-              <Download className="h-4 w-4 mr-1" />
-              Export
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => refetch()}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Export Progress */}
-        {isExporting && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Exporting vehicle data...</span>
-              <span>{progress}%</span>
-            </div>
-            <Progress value={progress} className="h-2" />
-          </div>
-        )}
-
-        {/* Search and Filters */}
-        <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search vehicles..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-
-          {showAdvancedFilters && (
-            <div className="space-y-3 p-4 bg-gray-50 rounded-lg">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Status Filters:</label>
-                <div className="flex gap-2 flex-wrap">
-                  {['online', 'offline', 'moving', 'idle'].map((status) => (
-                    <Button
-                      key={status}
-                      variant={statusFilter.includes(status) ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => toggleStatusFilter(status)}
-                    >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport('json')}
-                  disabled={isExporting}
-                >
-                  Export JSON
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExport('excel')}
-                  disabled={isExporting}
-                >
-                  Export Excel
-                </Button>
-              </div>
-            </div>
-          )}
+    <div className="bg-white p-6 rounded-lg shadow-md">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold text-gray-800">Vehicle Fleet Overview</h2>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refreshMetrics}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={forceSync}
+            disabled={isLoading}
+          >
+            Force Sync
+          </Button>
         </div>
+      </div>
 
-        {/* Vehicle List */}
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {vehicles && vehicles.length > 0 ? (
-            vehicles.map((vehicle: any) => (
-              <div key={vehicle.id} className="border rounded-lg p-3 hover:bg-gray-50">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h4 className="font-medium">{vehicle.device_name || `Device ${vehicle.device_id}`}</h4>
-                    <p className="text-sm text-gray-600">ID: {vehicle.device_id}</p>
-                  </div>
-                  <Badge className={getStatusColor(vehicle.status)}>
-                    {vehicle.status || 'Unknown'}
-                  </Badge>
-                </div>
-
-                {vehicle.lastPosition && (
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-3 w-3 text-gray-400" />
-                      <span className="text-gray-600">Location:</span>
-                      <span className="font-mono text-xs">
-                        {vehicle.lastPosition.lat?.toFixed(4)}, {vehicle.lastPosition.lon?.toFixed(4)}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center gap-1">
-                      <Gauge className="h-3 w-3 text-gray-400" />
-                      <span className="text-gray-600">Speed:</span>
-                      <span className="font-medium">
-                        {vehicle.lastPosition.speed || 0} km/h
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1 col-span-2">
-                      <Clock className="h-3 w-3 text-gray-400" />
-                      <span className="text-gray-600">Last Update:</span>
-                      <span className="text-xs">
-                        {vehicle.lastPosition.updatetime ? 
-                          new Date(vehicle.lastPosition.updatetime).toLocaleString() : 
-                          'No data'
-                        }
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {!vehicle.lastPosition && (
-                  <div className="text-center py-4 text-gray-500">
-                    <MapPin className="h-6 w-6 mx-auto mb-2 text-gray-300" />
-                    <p className="text-sm">No location data available</p>
-                  </div>
-                )}
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Car className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-              <p>No vehicles found</p>
-              {searchTerm && (
-                <p className="text-sm mt-1">
-                  Try adjusting your search or filters
-                </p>
-              )}
-            </div>
-          )}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center">
+          <AlertTriangle className="h-4 w-4 text-red-500 mr-2" />
+          <span className="text-red-700 text-sm">{error}</span>
         </div>
-      </CardContent>
-    </Card>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-center mb-4">
+        <div className="p-4 bg-blue-50 rounded-lg">
+          <p className="text-lg font-medium text-blue-800">Total Vehicles</p>
+          <p className="text-4xl font-bold text-blue-600">{metrics.totalVehicles}</p>
+        </div>
+        <div className="p-4 bg-green-50 rounded-lg">
+          <p className="text-lg font-medium text-green-800">Online</p>
+          <p className="text-4xl font-bold text-green-600">{metrics.onlineVehicles}</p>
+        </div>
+        <div className="p-4 bg-red-50 rounded-lg">
+          <p className="text-lg font-medium text-red-800">Offline</p>
+          <p className="text-4xl font-bold text-red-600">{metrics.offlineVehicles}</p>
+        </div>
+        <div className="p-4 bg-purple-50 rounded-lg">
+          <p className="text-lg font-medium text-purple-800">Recently Active</p>
+          <p className="text-4xl font-bold text-purple-600">{metrics.recentlyActiveVehicles}</p>
+        </div>
+      </div>
+
+      <div className="flex justify-between items-center text-sm text-gray-600">
+        <div>
+          <span className="font-medium">Last Sync:</span> {metrics.lastSyncTime.toLocaleString()}
+          <span className={`ml-2 px-2 py-1 rounded text-xs ${
+            metrics.syncStatus === 'success' ? 'bg-green-100 text-green-800' :
+            metrics.syncStatus === 'error' ? 'bg-red-100 text-red-800' :
+            metrics.syncStatus === 'syncing' ? 'bg-yellow-100 text-yellow-800' :
+            'bg-gray-100 text-gray-800'
+          }`}>
+            {metrics.syncStatus}
+          </span>
+        </div>
+        <Link to="/vehicles" className="text-blue-600 hover:underline font-medium">
+          View All Vehicles →
+        </Link>
+      </div>
+    </div>
   );
 };
 

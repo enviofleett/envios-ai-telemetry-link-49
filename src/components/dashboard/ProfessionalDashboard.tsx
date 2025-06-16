@@ -12,7 +12,8 @@ const ProfessionalDashboard: React.FC = () => {
   const { user } = useAuth();
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    // FIX: Changed from /auth to /login to match our routing
+    return <Navigate to="/login" replace />;
   }
 
   return (
