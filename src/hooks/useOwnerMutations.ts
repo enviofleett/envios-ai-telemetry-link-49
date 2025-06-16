@@ -54,13 +54,14 @@ export const useOwnerMutations = () => {
 
   const assignVehicleMutation = useMutation({
     mutationFn: async (params: { deviceId: string; ownerId: string }) => {
+      // Use correct column name: gp51_device_id instead of device_id
       const { data, error } = await supabase
         .from('vehicles')
         .update({
-          owner_id: params.ownerId,
+          user_id: params.ownerId, // Use user_id instead of owner_id
           updated_at: new Date().toISOString(),
         })
-        .eq('device_id', params.deviceId)
+        .eq('gp51_device_id', params.deviceId) // Use gp51_device_id
         .select()
         .single();
 
@@ -92,13 +93,14 @@ export const useOwnerMutations = () => {
 
   const unassignVehicleMutation = useMutation({
     mutationFn: async (deviceId: string) => {
+      // Use correct column name: gp51_device_id instead of device_id
       const { data, error } = await supabase
         .from('vehicles')
         .update({
-          owner_id: null,
+          user_id: null, // Use user_id instead of owner_id
           updated_at: new Date().toISOString(),
         })
-        .eq('device_id', deviceId)
+        .eq('gp51_device_id', deviceId) // Use gp51_device_id
         .select()
         .single();
 

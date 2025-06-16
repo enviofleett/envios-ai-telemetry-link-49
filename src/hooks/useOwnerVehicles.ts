@@ -13,13 +13,11 @@ export interface OwnerVehicleData {
 // Use a simple approach to avoid type inference issues
 const fetchOwnerVehicles = async (ownerId: string): Promise<OwnerVehicleData[]> => {
   try {
-    // Use explicit type assertion to avoid TS2589
-    const response = await supabase
+    // Use correct column names that exist in the vehicles table
+    const { data, error } = await supabase
       .from('vehicles')
-      .select('device_id, device_name, status, created_at')
-      .eq('owner_id', ownerId);
-
-    const { data, error } = response;
+      .select('gp51_device_id, name, created_at, updated_at')
+      .eq('user_id', ownerId);
 
     if (error) {
       console.error('Failed to fetch owner vehicles:', error);
@@ -30,11 +28,11 @@ const fetchOwnerVehicles = async (ownerId: string): Promise<OwnerVehicleData[]> 
       return [];
     }
 
-    // Transform to our expected format with explicit typing
-    return (data as LightweightVehicle[]).map((item: LightweightVehicle) => ({
-      device_id: String(item.device_id || ''),
-      device_name: String(item.device_name || ''),
-      status: String(item.status || ''),
+    // Transform to our expected format with correct column mapping
+    return data.map((item: any) => ({
+      device_id: String(item.gp51_device_id || ''),
+      device_name: String(item.name || ''),
+      status: 'offline', // Default status since vehicles table doesn't have status column
       created_at: String(item.created_at || '')
     }));
   } catch (error) {
