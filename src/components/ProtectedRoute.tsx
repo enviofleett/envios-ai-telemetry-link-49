@@ -18,25 +18,31 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const { user, isAdmin, isAgent, loading } = useAuth();
   const location = useLocation();
 
+  // Show loading spinner while checking authentication
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    );
   }
 
+  // Redirect to login if not authenticated
   if (!user) {
-    // Redirect to login page with return url
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Check admin access requirement
   if (requireAdmin && !isAdmin) {
-    // Redirect to dashboard if user doesn't have admin access
     return <Navigate to="/" replace />;
   }
 
+  // Check agent access requirement
   if (requireAgent && !isAgent) {
-    // Redirect to dashboard if user doesn't have agent access
     return <Navigate to="/" replace />;
   }
 
+  // User is authenticated and has required permissions
   return <>{children}</>;
 };
 

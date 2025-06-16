@@ -9,6 +9,7 @@ import { BrandingProvider } from '@/contexts/BrandingContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Toaster } from '@/components/ui/toaster';
 import { SecurityProvider } from '@/components/security/SecurityProvider';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import Dashboard from '@/pages/Dashboard';
 import Login from '@/pages/Login';
 import Settings from '@/pages/Settings';
@@ -39,8 +40,22 @@ function App() {
                       <Routes>
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
-                        <Route path="/settings" element={<Settings />} />
-                        <Route path="/" element={<Dashboard />} />
+                        <Route 
+                          path="/settings" 
+                          element={
+                            <ProtectedRoute>
+                              <Settings />
+                            </ProtectedRoute>
+                          } 
+                        />
+                        <Route 
+                          path="/" 
+                          element={
+                            <ProtectedRoute>
+                              <Dashboard />
+                            </ProtectedRoute>
+                          } 
+                        />
                       </Routes>
                     </Suspense>
                     <Toaster />
