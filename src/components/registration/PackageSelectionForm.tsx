@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, Package as PackageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { RegistrationService } from '@/services/registrationService';
 import type { Package, RegistrationRequest } from '@/types/registration';
 
 const PackageSelectionForm: React.FC = () => {
@@ -30,18 +30,17 @@ const PackageSelectionForm: React.FC = () => {
   const loadPackages = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('packages-api');
+      const result = await RegistrationService.getPackages();
       
-      if (error) throw error;
-      
-      setPackages(data.packages || []);
-    } catch (error) {
-      console.error('Error loading packages:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load available packages",
-        variant: "destructive"
-      });
+      if (result.success) {
+        setPackages(result.packages || []);
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to load available packages",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -67,33 +66,29 @@ const PackageSelectionForm: React.FC = () => {
         selected_package_id: selectedPackage
       };
 
-      const { data, error } = await supabase.functions.invoke('register-user', {
-        body: registrationData
-      });
+      const result = await RegistrationService.submitRegistration(registrationData);
 
-      if (error) throw error;
+      if (result.success) {
+        toast({
+          title: "Registration Submitted",
+          description: result.message || "Your registration has been submitted for review",
+        });
 
-      toast({
-        title: "Registration Submitted",
-        description: data.message,
-      });
-
-      // Reset form
-      setFormData({
-        name: '',
-        email: '',
-        phone_number: '',
-        company_name: ''
-      });
-      setSelectedPackage('');
-
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      toast({
-        title: "Registration Failed",
-        description: error.message || "Failed to submit registration request",
-        variant: "destructive"
-      });
+        // Reset form
+        setFormData({
+          name: '',
+          email: '',
+          phone_number: '',
+          company_name: ''
+        });
+        setSelectedPackage('');
+      } else {
+        toast({
+          title: "Registration Failed",
+          description: result.error || "Failed to submit registration request",
+          variant: "destructive"
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }

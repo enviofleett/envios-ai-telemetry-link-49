@@ -1,5 +1,6 @@
 
-import React, { memo, useMemo } from 'react';
+import React, { memo } from 'react';
+import { cn } from '@/lib/utils';
 import { 
   Building2, 
   Palette, 
@@ -26,10 +27,8 @@ import {
   CheckCircle,
   BookOpen,
   Link,
-  Bot,
-  CreditCard
+  UserCheck
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 interface StableSettingsSidebarProps {
   activeTab: string;
@@ -49,6 +48,7 @@ const sidebarItems = [
     category: 'User Management',
     items: [
       { id: 'users', label: 'Users', icon: Users },
+      { id: 'registration-management', label: 'Registration Management', icon: UserCheck },
       { id: 'billing', label: 'Billing', icon: FileText },
       { id: 'workshops', label: 'Workshops', icon: Users },
     ]
@@ -56,7 +56,6 @@ const sidebarItems = [
   {
     category: 'Communication',
     items: [
-      { id: 'smtp-config', label: 'SMTP Configuration', icon: Settings },
       { id: 'email-templates', label: 'Email Templates', icon: Mail },
       { id: 'email-triggers', label: 'Email Triggers', icon: Zap },
       { id: 'email-queue', label: 'Email Queue', icon: Inbox },
@@ -64,8 +63,6 @@ const sidebarItems = [
       { id: 'smtp-guide', label: 'SMTP Guide', icon: BookOpen },
       { id: 'sms-settings', label: 'SMS Gateway', icon: MessageSquare },
       { id: 'sms-logs', label: 'SMS Logs', icon: MessageSquare },
-      // NEW TAB: SMS Delivery Status
-      { id: 'sms-delivery-status', label: 'SMS Delivery Status', icon: MessageSquare },
     ]
   },
   {
@@ -74,14 +71,7 @@ const sidebarItems = [
       { id: 'vin-api', label: 'VIN API', icon: Car },
       { id: 'maps', label: 'Maps API', icon: Map },
       { id: 'whatsapp-api', label: 'WhatsApp API', icon: MessageCircle },
-      { id: 'payment-gateway', label: 'Payment Gateway', icon: CreditCard },
       { id: 'api-integrations', label: 'API Management', icon: Link },
-    ]
-  },
-  {
-    category: 'Workshop Management',
-    items: [
-      { id: 'workshop-payments', label: 'Workshop Payments', icon: DollarSign },
     ]
   },
   {
@@ -89,7 +79,6 @@ const sidebarItems = [
     items: [
       { id: 'csv-import', label: 'CSV Import', icon: Upload },
       { id: 'data-management', label: 'Data Management', icon: Database },
-      { id: 'transaction-management', label: 'Transaction Management', icon: FileText },
     ]
   },
   {
@@ -114,73 +103,50 @@ const sidebarItems = [
     items: [
       { id: 'analytics', label: 'Analytics', icon: BarChart3 },
       { id: 'packages', label: 'Packages', icon: Package },
-      { id: 'payment-analytics', label: 'Payment Analytics', icon: BarChart3 },
-    ]
-  },
-  {
-    category: 'AI Assistant',
-    items: [
-      { id: 'ai-assistant-settings', label: 'Settings', icon: Bot },
-    ]
-  },
-  {
-    category: 'Marketplace',
-    items: [
-      { id: 'marketplace-settings', label: 'Marketplace Settings', icon: DollarSign }
-    ]
-  },
-  {
-    category: 'Platform Administration',
-    items: [
-      { id: 'platform-admin-users', label: 'Platform Admin Users', icon: Shield },
     ]
   }
 ];
 
 const StableSettingsSidebar: React.FC<StableSettingsSidebarProps> = memo(({ activeTab, onTabChange }) => {
-  const handleItemClick = useMemo(() => {
-    return (itemId: string) => {
-      onTabChange(itemId);
-    };
+  const handleItemClick = React.useCallback((itemId: string) => {
+    console.log('Settings sidebar item clicked:', itemId);
+    onTabChange(itemId);
   }, [onTabChange]);
-
-  const renderedCategories = useMemo(() => {
-    return sidebarItems.map((category) => (
-      <div key={category.category}>
-        <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-          {category.category}
-        </h3>
-        <ul className="space-y-1">
-          {category.items.map((item) => {
-            const Icon = item.icon;
-            return (
-              <li key={item.id}>
-                <button
-                  onClick={() => handleItemClick(item.id)}
-                  className={cn(
-                    "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                    activeTab === item.id
-                      ? "bg-blue-50 text-blue-700 border-r-2 border-blue-700"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-                  )}
-                >
-                  <Icon className="h-4 w-4 mr-3" />
-                  {item.label}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    ));
-  }, [activeTab, handleItemClick]);
 
   return (
     <div className="w-64 bg-white border-r border-gray-200 h-full overflow-y-auto">
       <div className="p-4">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Admin Settings</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Settings</h2>
+        
         <nav className="space-y-6">
-          {renderedCategories}
+          {sidebarItems.map((category) => (
+            <div key={category.category}>
+              <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                {category.category}
+              </h3>
+              <ul className="space-y-1">
+                {category.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <li key={item.id}>
+                      <button
+                        onClick={() => handleItemClick(item.id)}
+                        className={cn(
+                          "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                          activeTab === item.id
+                            ? "bg-blue-50 text-blue-700 border-r-2 border-blue-700"
+                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                        )}
+                      >
+                        <Icon className="h-4 w-4 mr-3" />
+                        {item.label}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
       </div>
     </div>
