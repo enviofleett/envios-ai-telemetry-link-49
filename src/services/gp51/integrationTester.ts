@@ -1,6 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { GP51SessionManager } from './sessionManager';
+import type { TestResult, ValidationSuite } from '@/types/gp51ValidationTypes';
 
 export interface IntegrationTestResult {
   testName: string;
@@ -23,16 +24,57 @@ export interface IntegrationTestSuite {
 }
 
 export class GP51IntegrationTester {
-  private cachedResults: IntegrationTestSuite | null = null;
+  private cachedResults: ValidationSuite | null = null;
 
-  // Add the missing runFullValidationSuite method (alias for existing method)
-  async runFullValidationSuite(): Promise<IntegrationTestSuite> {
-    const results = await this.runFullIntegrationTest();
-    this.cachedResults = results;
-    return results;
+  async runFullValidationSuite(): Promise<ValidationSuite> {
+    const startTime = Date.now();
+    const results: TestResult[] = [];
+
+    console.log('🧪 Starting GP51 validation suite...');
+
+    // Test 1: Session validation
+    results.push(await this.testSessionValidation());
+
+    // Test 2: Database connectivity
+    results.push(await this.testDatabaseConnectivity());
+
+    // Test 3: Vehicle data access
+    results.push(await this.testVehicleDataAccess());
+
+    // Test 4: User data access
+    results.push(await this.testUserDataAccess());
+
+    const totalDuration = Date.now() - startTime;
+    const passed = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+
+    const suite: ValidationSuite = {
+      suiteName: 'GP51 Integration Tests',
+      results,
+      overallSuccess: failed === 0,
+      totalDuration,
+      summary: {
+        passed,
+        failed,
+        total: results.length
+      },
+      overall: {
+        passedTests: passed,
+        totalTests: results.length,
+        failedTests: failed,
+        successRate: Math.round((passed / results.length) * 100)
+      },
+      credentialSaving: [],
+      sessionManagement: [],
+      vehicleDataSync: [],
+      errorRecovery: []
+    };
+
+    console.log(`🧪 Integration tests completed. ${passed}/${results.length} passed in ${totalDuration}ms`);
+    this.cachedResults = suite;
+    return suite;
   }
 
-  // Add the missing runQuickHealthCheck method
   async runQuickHealthCheck(): Promise<{ healthy: boolean; issues: string[] }> {
     const issues: string[] = [];
     
@@ -85,51 +127,32 @@ export class GP51IntegrationTester {
     }
   }
 
-  // Add the missing getResults method
-  getResults(): IntegrationTestSuite | null {
+  getResults(): ValidationSuite | null {
     return this.cachedResults;
   }
 
   async runFullIntegrationTest(): Promise<IntegrationTestSuite> {
-    const startTime = Date.now();
-    const results: IntegrationTestResult[] = [];
+    const validationSuite = await this.runFullValidationSuite();
+    
+    // Convert ValidationSuite to IntegrationTestSuite for backward compatibility
+    const integrationResults: IntegrationTestResult[] = validationSuite.results.map(result => ({
+      testName: result.testName,
+      success: result.success,
+      message: result.message,
+      duration: result.duration,
+      details: result.details
+    }));
 
-    console.log('🧪 Starting GP51 integration test suite...');
-
-    // Test 1: Session validation
-    results.push(await this.testSessionValidation());
-
-    // Test 2: Database connectivity
-    results.push(await this.testDatabaseConnectivity());
-
-    // Test 3: Vehicle data access
-    results.push(await this.testVehicleDataAccess());
-
-    // Test 4: User data access
-    results.push(await this.testUserDataAccess());
-
-    const totalDuration = Date.now() - startTime;
-    const passed = results.filter(r => r.success).length;
-    const failed = results.filter(r => !r.success).length;
-
-    const suite: IntegrationTestSuite = {
-      suiteName: 'GP51 Integration Tests',
-      results,
-      overallSuccess: failed === 0,
-      totalDuration,
-      summary: {
-        passed,
-        failed,
-        total: results.length
-      }
+    return {
+      suiteName: validationSuite.suiteName,
+      results: integrationResults,
+      overallSuccess: validationSuite.overallSuccess,
+      totalDuration: validationSuite.totalDuration,
+      summary: validationSuite.summary
     };
-
-    console.log(`🧪 Integration tests completed. ${passed}/${results.length} passed in ${totalDuration}ms`);
-    this.cachedResults = suite;
-    return suite;
   }
 
-  private async testSessionValidation(): Promise<IntegrationTestResult> {
+  private async testSessionValidation(): Promise<TestResult> {
     const startTime = Date.now();
     
     try {
@@ -144,7 +167,8 @@ export class GP51IntegrationTester {
           success: true,
           message: 'Session validation successful',
           duration,
-          details: { sessionValid: true }
+          details: { sessionValid: true },
+          timestamp: new Date()
         };
       } else {
         return {
@@ -152,7 +176,8 @@ export class GP51IntegrationTester {
           success: false,
           message: sessionInfo.error || 'Session validation failed',
           duration,
-          details: sessionInfo
+          details: sessionInfo,
+          timestamp: new Date()
         };
       }
     } catch (error) {
@@ -160,12 +185,13 @@ export class GP51IntegrationTester {
         testName: 'GP51 Session Validation',
         success: false,
         message: `Session validation exception: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        duration: Date.now() - startTime
+        duration: Date.now() - startTime,
+        timestamp: new Date()
       };
     }
   }
 
-  private async testDatabaseConnectivity(): Promise<IntegrationTestResult> {
+  private async testDatabaseConnectivity(): Promise<TestResult> {
     const startTime = Date.now();
     
     try {
@@ -183,7 +209,8 @@ export class GP51IntegrationTester {
           testName: 'Database Connectivity',
           success: false,
           message: `Database error: ${error.message}`,
-          duration
+          duration,
+          timestamp: new Date()
         };
       }
 
@@ -192,19 +219,21 @@ export class GP51IntegrationTester {
         success: true,
         message: 'Database connection successful',
         duration,
-        details: { queryResult: data }
+        details: { queryResult: data },
+        timestamp: new Date()
       };
     } catch (error) {
       return {
         testName: 'Database Connectivity',
         success: false,
         message: `Database connectivity exception: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        duration: Date.now() - startTime
+        duration: Date.now() - startTime,
+        timestamp: new Date()
       };
     }
   }
 
-  private async testVehicleDataAccess(): Promise<IntegrationTestResult> {
+  private async testVehicleDataAccess(): Promise<TestResult> {
     const startTime = Date.now();
     
     try {
@@ -222,7 +251,8 @@ export class GP51IntegrationTester {
           testName: 'Vehicle Data Access',
           success: false,
           message: `Vehicle query error: ${error.message}`,
-          duration
+          duration,
+          timestamp: new Date()
         };
       }
 
@@ -232,7 +262,8 @@ export class GP51IntegrationTester {
           success: true,
           message: 'No vehicles found, but query successful',
           duration,
-          details: { vehicleCount: 0 }
+          details: { vehicleCount: 0 },
+          timestamp: new Date()
         };
       }
 
@@ -249,19 +280,21 @@ export class GP51IntegrationTester {
         details: { 
           vehicleCount: vehicles.length,
           sampleVehicle: vehicles[0]
-        }
+        },
+        timestamp: new Date()
       };
     } catch (error) {
       return {
         testName: 'Vehicle Data Access',
         success: false,
         message: `Vehicle data access exception: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        duration: Date.now() - startTime
+        duration: Date.now() - startTime,
+        timestamp: new Date()
       };
     }
   }
 
-  private async testUserDataAccess(): Promise<IntegrationTestResult> {
+  private async testUserDataAccess(): Promise<TestResult> {
     const startTime = Date.now();
     
     try {
@@ -279,7 +312,8 @@ export class GP51IntegrationTester {
           testName: 'User Data Access',
           success: false,
           message: `User query error: ${error.message}`,
-          duration
+          duration,
+          timestamp: new Date()
         };
       }
 
@@ -289,7 +323,8 @@ export class GP51IntegrationTester {
           success: true,
           message: 'No users found, but query successful',
           duration,
-          details: { userCount: 0 }
+          details: { userCount: 0 },
+          timestamp: new Date()
         };
       }
 
@@ -306,14 +341,16 @@ export class GP51IntegrationTester {
         details: { 
           userCount: users.length,
           sampleUser: { id: users[0]?.id, hasEmail: !!users[0]?.email }
-        }
+        },
+        timestamp: new Date()
       };
     } catch (error) {
       return {
         testName: 'User Data Access',
         success: false,
         message: `User data access exception: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        duration: Date.now() - startTime
+        duration: Date.now() - startTime,
+        timestamp: new Date()
       };
     }
   }

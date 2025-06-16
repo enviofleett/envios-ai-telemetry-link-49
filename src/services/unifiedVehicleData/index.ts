@@ -1,7 +1,6 @@
 
-export { UnifiedVehicleDataService } from './unifiedVehicleDataService';
-export type { VehicleData, VehicleMetrics } from '@/types/vehicle';
+import { unifiedVehicleDataService } from './unifiedVehicleDataService';
+import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
 
-// Create and export the singleton instance
-import { UnifiedVehicleDataService } from './unifiedVehicleDataService';
-export const unifiedVehicleDataService = new UnifiedVehicleDataService();
+export { unifiedVehicleDataService };
+export type { VehicleData, VehicleDataMetrics };

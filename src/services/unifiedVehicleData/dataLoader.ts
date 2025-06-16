@@ -1,92 +1,100 @@
 
+import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehiclePosition } from '@/types/vehicle';
 
-const mockLastPosition: VehiclePosition = {
-  latitude: 40.7128, // Changed from lat
-  longitude: -74.0060, // Changed from lng
-  speed: 0,
-  course: 0,
-  timestamp: new Date().toISOString(),
-  statusText: 'parked'
-};
+class DataLoader {
+  async loadFromGP51(): Promise<VehicleData[]> {
+    // Mock GP51 data for now
+    const mockData: VehicleData[] = [
+      {
+        id: '1',
+        device_id: 'GP51001',
+        device_name: 'Fleet Vehicle 001',
+        user_id: 'user1',
+        sim_number: '1234567890',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        vin: 'VIN123456789',
+        license_plate: 'ABC-123',
+        is_active: true,
+        last_position: {
+          latitude: 40.7128,
+          longitude: -74.0060,
+          speed: 25,
+          course: 180,
+          timestamp: new Date().toISOString()
+        },
+        status: 'online',
+        isOnline: true,
+        isMoving: true,
+        alerts: [],
+        lastUpdate: new Date(),
+        lastPosition: {
+          latitude: 40.7128,
+          longitude: -74.0060,
+          speed: 25,
+          course: 180,
+          timestamp: new Date().toISOString(),
+          statusText: 'Moving'
+        }
+      }
+    ];
 
-export const loadMockVehicleData = (): VehicleData[] => {
-  return Array.from({ length: 50 }, (_, index) => {
-    const speed = Math.floor(Math.random() * 80);
-    const isMoving = speed > 5;
-    const isOnline = Math.random() > 0.2;
-    
-    const last_position: VehiclePosition = {
-      latitude: 40.7128 + (Math.random() - 0.5) * 0.1, // Changed from lat
-      longitude: -74.0060 + (Math.random() - 0.5) * 0.1, // Changed from lng
-      speed,
-      course: Math.floor(Math.random() * 360),
-      timestamp: new Date(Date.now() - Math.random() * 3600000).toISOString(),
-      statusText: isMoving ? 'moving' : 'idle'
-    };
+    return mockData;
+  }
 
-    return {
-      id: `vehicle-${index + 1}`,
-      device_id: `device-${String(index + 1).padStart(3, '0')}`,
-      device_name: `Vehicle ${index + 1}`,
-      vin: `VIN${String(index + 1).padStart(8, '0')}`,
-      license_plate: `ABC-${String(index + 1).padStart(3, '0')}`,
-      is_active: isOnline,
-      last_position, // This is now correctly typed VehiclePosition
-      status: isOnline ? (isMoving ? 'moving' : 'idle') : 'offline',
-      lastUpdate: new Date(Date.now() - Math.random() * 3600000),
-      isOnline,
-      isMoving,
-      alerts: Math.random() > 0.8 ? ['Low fuel', 'Maintenance due'] : [],
-      // Legacy compatibility
-      deviceId: `device-${String(index + 1).padStart(3, '0')}`,
-      deviceName: `Vehicle ${index + 1}`,
-      lastPosition: last_position // This is also VehiclePosition
-    };
-  });
-};
+  async loadFromDatabase(): Promise<VehicleData[]> {
+    try {
+      const { data: vehicles, error } = await supabase
+        .from('vehicles')
+        .select(`
+          id,
+          gp51_device_id,
+          name,
+          sim_number,
+          user_id,
+          created_at,
+          updated_at,
+          envio_users (
+            name,
+            email
+          )
+        `);
 
-export const loadMockVehicleDataForMap = (): VehicleData[] => {
-  const baseLocations = [
-    { lat: 40.7589, lng: -73.9851, name: 'Times Square Area' },
-    { lat: 40.7614, lng: -73.9776, name: 'Central Park South' },
-    { lat: 40.7505, lng: -73.9934, name: 'Penn Station Area' },
-    { lat: 40.7128, lng: -74.0060, name: 'Financial District' },
-    { lat: 40.7831, lng: -73.9712, name: 'Upper East Side' }
-  ];
+      if (error) {
+        console.error('Database query error:', error);
+        throw error;
+      }
 
-  return Array.from({ length: 15 }, (_, index) => {
-    const baseLocation = baseLocations[index % baseLocations.length];
-    const speed = Math.floor(Math.random() * 60);
-    const isMoving = speed > 5;
-    const isOnline = Math.random() > 0.15;
-    
-    const last_position: VehiclePosition = {
-      latitude: baseLocation.lat + (Math.random() - 0.5) * 0.01, // Changed from lat, source baseLocation still uses lat
-      longitude: baseLocation.lng + (Math.random() - 0.5) * 0.01, // Changed from lng, source baseLocation still uses lng
-      speed,
-      course: Math.floor(Math.random() * 360),
-      timestamp: new Date(Date.now() - Math.random() * 1800000).toISOString(),
-      statusText: isMoving ? 'moving' : isOnline ? 'idle' : 'offline'
-    };
+      if (!vehicles) {
+        return [];
+      }
 
-    return {
-      id: `map-vehicle-${index + 1}`,
-      device_id: `mv-${String(index + 1).padStart(3, '0')}`,
-      device_name: `${baseLocation.name.split(' ')[0]} Unit ${index + 1}`,
-      vin: `MVVIN${String(index + 1).padStart(5, '0')}`,
-      license_plate: `NY-${String(index + 1).padStart(4, '0')}`,
-      is_active: isOnline,
-      last_position, // Correctly typed VehiclePosition
-      status: isOnline ? (isMoving ? 'moving' : 'idle') : 'offline',
-      lastUpdate: new Date(Date.now() - Math.random() * 1800000),
-      isOnline,
-      isMoving,
-      alerts: Math.random() > 0.9 ? ['GPS signal weak'] : [],
-      // Legacy compatibility
-      deviceId: `mv-${String(index + 1).padStart(3, '0')}`,
-      deviceName: `${baseLocation.name.split(' ')[0]} Unit ${index + 1}`,
-      lastPosition: last_position // Also VehiclePosition
-    };
-  });
-};
+      // Transform to VehicleData with complete properties
+      const transformedVehicles: VehicleData[] = vehicles.map(vehicle => ({
+        id: vehicle.id,
+        device_id: vehicle.gp51_device_id,
+        device_name: vehicle.name,
+        user_id: vehicle.user_id,
+        sim_number: vehicle.sim_number,
+        created_at: vehicle.created_at,
+        updated_at: vehicle.updated_at,
+        envio_users: vehicle.envio_users,
+        status: 'offline',
+        is_active: true,
+        last_position: undefined,
+        isOnline: false,
+        isMoving: false,
+        alerts: [],
+        lastUpdate: new Date(vehicle.updated_at)
+      }));
+
+      return transformedVehicles;
+    } catch (error) {
+      console.error('Failed to load from database:', error);
+      throw error;
+    }
+  }
+}
+
+export const dataLoader = new DataLoader();

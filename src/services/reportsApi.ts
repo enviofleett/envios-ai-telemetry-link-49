@@ -251,3 +251,6 @@ export const getFilteredVehicles = (filters: VehicleFilters) =>
 
 export const exportReport = (reportData: any, options: ReportOptions) => 
   reportsApiService.exportReport(reportData, options);
+
+// Export the instance for backward compatibility
+export { reportsApiService as reportsApi };

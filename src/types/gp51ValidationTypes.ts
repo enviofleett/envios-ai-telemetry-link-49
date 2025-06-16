@@ -5,6 +5,9 @@ export interface TestResult {
   message: string;
   duration: number;
   details?: any;
+  timestamp: Date;
+  error?: string;
+  suggestedFixes?: string[];
 }
 
 export interface ValidationSuite {
@@ -20,6 +23,7 @@ export interface ValidationSuite {
   overall: {
     passedTests: number;
     totalTests: number;
+    failedTests: number;
     successRate: number;
   };
   credentialSaving: TestResult[];

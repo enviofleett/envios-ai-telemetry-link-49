@@ -18,31 +18,16 @@ export const useGP51ValidationTesting = () => {
       console.log('🧪 Starting comprehensive GP51 validation...');
       
       const validationResults = await gp51IntegrationTester.runFullValidationSuite();
+      setResults(validationResults);
       
-      // Transform to match ValidationSuite interface
-      const transformedResults: ValidationSuite = {
-        ...validationResults,
-        overall: {
-          passedTests: validationResults.summary.passed,
-          totalTests: validationResults.summary.total,
-          successRate: Math.round((validationResults.summary.passed / validationResults.summary.total) * 100)
-        },
-        credentialSaving: [],
-        sessionManagement: [],
-        vehicleDataSync: [],
-        errorRecovery: []
-      };
-      
-      setResults(transformedResults);
-      
-      const successRate = transformedResults.overall.successRate;
+      const successRate = validationResults.overall.successRate;
       toast({
         title: "Validation Complete",
-        description: `${transformedResults.overall.passedTests}/${transformedResults.overall.totalTests} tests passed (${successRate}%)`,
+        description: `${validationResults.overall.passedTests}/${validationResults.overall.totalTests} tests passed (${successRate}%)`,
         variant: successRate >= 80 ? "default" : "destructive"
       });
       
-      return transformedResults;
+      return validationResults;
       
     } catch (error) {
       console.error('❌ Validation failed:', error);

@@ -1,29 +1,35 @@
 
-import { VehicleData, VehicleDataMetrics } from './types';
+import type { VehicleData } from '@/types/vehicle';
+import type { VehicleDataMetrics } from './types';
 
 export class MetricsCalculator {
-  static calculateMetrics(
-    vehicles: VehicleData[], 
-    lastSyncTime: Date, 
-    syncStatus: 'success' | 'error' | 'in_progress',
-    errorMessage?: string
-  ): VehicleDataMetrics {
-    const totalVehicles = vehicles.length;
-    const onlineVehicles = vehicles.filter(v => v.status === 'online' || v.status === 'moving' || v.status === 'idle').length;
-    const offlineVehicles = vehicles.filter(v => v.status === 'offline').length;
-    
-    // Recently active = updated within last 30 minutes
+  static calculateMetrics(vehicles: VehicleData[]): VehicleDataMetrics {
+    const total = vehicles.length;
+    const online = vehicles.filter(v => v.status === 'online').length;
+    const offline = vehicles.filter(v => v.status === 'offline').length;
+    const idle = vehicles.filter(v => v.status === 'idle').length;
+    const alerts = vehicles.filter(v => v.alerts && v.alerts.length > 0).length;
+
     const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
-    const recentlyActiveVehicles = vehicles.filter(v => v.lastUpdate.getTime() > thirtyMinutesAgo).length;
+    const recentlyActive = vehicles.filter(v => {
+      const lastUpdate = v.lastUpdate ? v.lastUpdate.getTime() : 0;
+      return lastUpdate > thirtyMinutesAgo;
+    }).length;
 
     return {
-      totalVehicles,
-      onlineVehicles,
-      offlineVehicles,
-      recentlyActiveVehicles,
-      lastSyncTime,
-      syncStatus,
-      errorMessage
+      total,
+      online,
+      offline,
+      idle,
+      alerts,
+      totalVehicles: total,
+      onlineVehicles: online,
+      offlineVehicles: offline,
+      recentlyActiveVehicles: recentlyActive,
+      lastSyncTime: new Date(),
+      positionsUpdated: vehicles.length,
+      errors: 0,
+      syncStatus: 'success'
     };
   }
 }

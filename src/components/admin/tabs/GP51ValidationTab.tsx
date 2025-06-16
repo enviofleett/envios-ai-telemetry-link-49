@@ -25,27 +25,12 @@ export default function GP51ValidationTab() {
       console.log('🧪 Starting full GP51 validation suite...');
       
       const validationResults = await gp51IntegrationTester.runFullValidationSuite();
-      
-      // Transform to match ValidationSuite interface
-      const transformedResults: ValidationSuite = {
-        ...validationResults,
-        overall: {
-          passedTests: validationResults.summary.passed,
-          totalTests: validationResults.summary.total,
-          successRate: Math.round((validationResults.summary.passed / validationResults.summary.total) * 100)
-        },
-        credentialSaving: [],
-        sessionManagement: [],
-        vehicleDataSync: [],
-        errorRecovery: []
-      };
-      
-      setResults(transformedResults);
+      setResults(validationResults);
       
       toast({
         title: "Validation Complete",
-        description: `${transformedResults.overall.passedTests}/${transformedResults.overall.totalTests} tests passed (${transformedResults.overall.successRate}%)`,
-        variant: transformedResults.overall.successRate >= 80 ? "default" : "destructive"
+        description: `${validationResults.overall.passedTests}/${validationResults.overall.totalTests} tests passed (${validationResults.overall.successRate}%)`,
+        variant: validationResults.overall.successRate >= 80 ? "default" : "destructive"
       });
       
     } catch (error) {
@@ -88,23 +73,6 @@ export default function GP51ValidationTab() {
       return <CheckCircle className="h-4 w-4 text-green-600" />;
     } else {
       return <XCircle className="h-4 w-4 text-red-600" />;
-    }
-  };
-
-  const getCategoryStatus = (tests: TestResult[]) => {
-    if (tests.length === 0) return 'pending';
-    const passed = tests.filter(t => t.success).length;
-    if (passed === tests.length) return 'success';
-    if (passed === 0) return 'error';
-    return 'warning';
-  };
-
-  const getCategoryBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'success': return 'default';
-      case 'error': return 'destructive';
-      case 'warning': return 'secondary';
-      default: return 'outline';
     }
   };
 
@@ -178,13 +146,7 @@ export default function GP51ValidationTab() {
 
           <FailedTestsCard
             failedTests={
-              results.credentialSaving
-                .concat(
-                  results.sessionManagement,
-                  results.vehicleDataSync,
-                  results.errorRecovery
-                )
-                .filter(test => !test.success)
+              results.results.filter(test => !test.success)
             }
           />
         </>

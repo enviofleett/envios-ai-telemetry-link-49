@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
+import useUnifiedVehicleData from '@/hooks/useUnifiedVehicleData';
 import { useVehicleControls } from '@/hooks/useVehicleControls';
 import { useToast } from '@/hooks/use-toast';
 import { RefreshCw } from 'lucide-react';
@@ -20,10 +20,7 @@ export function EnhancedLiveTracking() {
     metrics, 
     isLoading, 
     forceRefresh 
-  } = useUnifiedVehicleData({
-    search: '',
-    status: 'all'
-  });
+  } = useUnifiedVehicleData();
 
   const {
     controlStates,
