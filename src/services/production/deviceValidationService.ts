@@ -56,20 +56,33 @@ export class DeviceValidationService {
       errors.push('Invalid device type - must be between 1 and 10');
     }
 
-    // Check for existing device - use aggressive type assertion to bypass TS2589
-    const existingVehicleQuery = await supabase
-      .from('vehicles')
-      .select('id, device_id')
-      .eq('device_id', request.deviceId)
-      .maybeSingle();
+    // Check for existing device using raw SQL to bypass TS2589
+    try {
+      const { data: existingDevices, error: sqlError } = await supabase.rpc('check_device_exists', {
+        device_id_param: request.deviceId
+      });
 
-    // Cast to any to break complex type inference
-    const vehicleQueryResult = existingVehicleQuery as any;
+      if (sqlError) {
+        errors.push(`Database validation failed: ${sqlError.message}`);
+      } else if (existingDevices && existingDevices.length > 0) {
+        errors.push(`Device ID ${request.deviceId} is already registered`);
+      }
+    } catch (error) {
+      // Fallback to simple check if RPC doesn't exist
+      console.warn('RPC check_device_exists not found, using fallback');
+      
+      // Use direct SQL query as absolute fallback
+      const { data: rawResult, error: rawError } = await supabase
+        .from('vehicles')
+        .select('gp51_device_id')
+        .eq('gp51_device_id', request.deviceId)
+        .limit(1);
 
-    if (vehicleQueryResult.error) {
-      errors.push(`Database validation failed: ${vehicleQueryResult.error.message}`);
-    } else if (vehicleQueryResult.data) {
-      errors.push(`Device ID ${request.deviceId} is already registered`);
+      if (rawError) {
+        errors.push(`Database validation failed: ${rawError.message}`);
+      } else if (rawResult && rawResult.length > 0) {
+        errors.push(`Device ID ${request.deviceId} is already registered`);
+      }
     }
 
     // Admin user validation
