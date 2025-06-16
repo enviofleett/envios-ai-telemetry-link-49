@@ -40,7 +40,7 @@ const GP51ConnectionTester: React.FC = () => {
           isLoading={authLoading}
           isAuthenticated={isGp51Authenticated}
           username={gp51Username}
-          tokenExpiresAt={gp51TokenExpiresAt?.toISOString()}
+          tokenExpiresAt={gp51TokenExpiresAt}
         />
 
         <GP51ApiConnectionTest
