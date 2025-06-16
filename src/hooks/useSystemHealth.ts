@@ -1,139 +1,87 @@
 
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { EnhancedGP51SessionManager } from '@/services/enhancedGP51SessionManager';
 
-export interface SystemHealthMetrics {
-  gp51Status: {
-    connected: boolean;
-    username?: string;
-    expiresAt?: string;
-    warningMessage?: string;
-    timeUntilExpiry?: number;
-  };
-  databaseStatus: {
-    connected: boolean;
-    responseTime?: number;
-  };
-  apiEndpoints: {
-    available: number;
-    total: number;
-    issues: string[];
-  };
-  vehicleData: {
-    total: number;
-    online: number;
-    offline: number;
-    lastUpdate?: string;
-  };
-  userMetrics: {
-    total: number;
-    active: number;
-    roles: { [key: string]: number };
-  };
-  overallHealth: 'healthy' | 'warning' | 'critical';
+interface SystemHealthMetrics {
+  totalVehicles: number;
+  activeUsers: number;
+  recentActivity: number;
+  systemUptime: number;
 }
 
 export const useSystemHealth = () => {
-  return useQuery({
-    queryKey: ['system-health'],
-    queryFn: async (): Promise<SystemHealthMetrics> => {
-      console.log('🔍 Fetching comprehensive system health metrics...');
-      
-      // Get enhanced GP51 status
-      const gp51Status = await EnhancedGP51SessionManager.getSessionStatus();
-      
-      // Test database connectivity and response time
-      const dbStart = Date.now();
-      const { data: dbTest, error: dbError } = await supabase
-        .from('vehicles')
-        .select('id')
-        .limit(1);
-      const dbResponseTime = Date.now() - dbStart;
-      
-      const databaseStatus = {
-        connected: !dbError,
-        responseTime: dbResponseTime
-      };
+  const [healthMetrics, setHealthMetrics] = useState<SystemHealthMetrics>({
+    totalVehicles: 0,
+    activeUsers: 0,
+    recentActivity: 0,
+    systemUptime: 99.9,
+  });
 
-      // Get vehicle metrics
-      const { data: vehicles, error: vehicleError } = await supabase
+  // Fetch system health data using correct column names
+  const { data: systemData, isLoading, error, refetch } = useQuery({
+    queryKey: ['system-health'],
+    queryFn: async () => {
+      console.log('Fetching system health metrics...');
+      
+      // Get total vehicles count
+      const { data: vehiclesData, error: vehiclesError } = await supabase
         .from('vehicles')
-        .select('id, status, updated_at')
+        .select('id, updated_at')
         .order('updated_at', { ascending: false });
 
-      const vehicleData = {
-        total: vehicles?.length || 0,
-        online: vehicles?.filter(v => v.status === 'online').length || 0,
-        offline: vehicles?.filter(v => v.status === 'offline').length || 0,
-        lastUpdate: vehicles?.[0]?.updated_at
-      };
-
-      // Get user metrics
-      const { data: users, error: userError } = await supabase
-        .from('envio_users')
-        .select(`
-          id, created_at,
-          user_roles!left(role)
-        `);
-
-      const userMetrics = {
-        total: users?.length || 0,
-        active: users?.length || 0, // For now, all users are considered active
-        roles: users?.reduce((acc: any, user: any) => {
-          const role = user.user_roles?.[0]?.role || 'user';
-          acc[role] = (acc[role] || 0) + 1;
-          return acc;
-        }, {}) || {}
-      };
-
-      // Test API endpoints
-      const apiTests = [
-        { name: 'Settings Management', test: () => supabase.functions.invoke('settings-management', { body: { action: 'health-check' } }) },
-        { name: 'GP51 Service', test: () => supabase.functions.invoke('gp51-service-management', { body: { action: 'test_connection' } }) }
-      ];
-
-      const apiResults = await Promise.allSettled(
-        apiTests.map(async ({ name, test }) => {
-          try {
-            await test();
-            return { name, status: 'ok' };
-          } catch (error) {
-            return { name, status: 'error', error: error instanceof Error ? error.message : 'Unknown error' };
-          }
-        })
-      );
-
-      const apiEndpoints = {
-        available: apiResults.filter(result => result.status === 'fulfilled' && result.value.status === 'ok').length,
-        total: apiTests.length,
-        issues: apiResults
-          .filter(result => result.status === 'fulfilled' && result.value.status === 'error')
-          .map(result => result.status === 'fulfilled' ? `${result.value.name}: ${result.value.error}` : 'Unknown error')
-      };
-
-      // Determine overall health
-      let overallHealth: 'healthy' | 'warning' | 'critical' = 'healthy';
-      
-      if (!databaseStatus.connected || !gp51Status.connected) {
-        overallHealth = 'critical';
-      } else if (gp51Status.warningMessage || apiEndpoints.available < apiEndpoints.total || databaseStatus.responseTime > 2000) {
-        overallHealth = 'warning';
+      if (vehiclesError) {
+        console.error('Error fetching vehicles for health check:', vehiclesError);
+        throw vehiclesError;
       }
 
-      const metrics: SystemHealthMetrics = {
-        gp51Status,
-        databaseStatus,
-        apiEndpoints,
-        vehicleData,
-        userMetrics,
-        overallHealth
-      };
+      // Get active users count
+      const { data: usersData, error: usersError } = await supabase
+        .from('envio_users')
+        .select('id, updated_at')
+        .order('updated_at', { ascending: false });
 
-      console.log('✅ System health metrics retrieved:', metrics);
-      return metrics;
+      if (usersError) {
+        console.error('Error fetching users for health check:', usersError);
+        throw usersError;
+      }
+
+      const totalVehicles = vehiclesData?.length || 0;
+      const activeUsers = usersData?.length || 0;
+      
+      // Calculate recent activity (vehicles updated in last 24 hours)
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const recentActivity = vehiclesData?.filter(v => v.updated_at > twentyFourHoursAgo).length || 0;
+
+      return {
+        totalVehicles,
+        activeUsers,
+        recentActivity,
+        systemUptime: 99.9, // Static value for now
+      };
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
-    staleTime: 15000, // Data is fresh for 15 seconds
+    refetchInterval: 60000, // Refresh every minute
   });
+
+  useEffect(() => {
+    if (systemData) {
+      setHealthMetrics(systemData);
+    }
+  }, [systemData]);
+
+  const getHealthStatus = () => {
+    if (isLoading) return 'checking';
+    if (error) return 'error';
+    if (healthMetrics.systemUptime > 99) return 'healthy';
+    if (healthMetrics.systemUptime > 95) return 'warning';
+    return 'critical';
+  };
+
+  return {
+    healthMetrics,
+    isLoading,
+    error: error?.message || null,
+    refetch,
+    getHealthStatus,
+  };
 };

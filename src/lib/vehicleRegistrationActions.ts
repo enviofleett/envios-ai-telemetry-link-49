@@ -1,414 +1,187 @@
 
-import { supabase } from '@/integrations/supabase/client'
-import { z } from 'zod'
+import { supabase } from '@/integrations/supabase/client';
+import type { VehicleDbRecord } from '@/types/vehicle';
 
-// Vehicle registration schema
-const vehicleRegistrationSchema = z.object({
-  userId: z.string().min(1, "User selection is required"),
-  vin: z.string().length(17, "VIN must be exactly 17 characters").regex(/^[A-HJ-NPR-Z0-9]{17}$/, "Invalid VIN format"),
-  plateNumber: z.string().min(1, "Plate number is required"),
-  make: z.string().min(1, "Make is required"),
-  model: z.string().min(1, "Model is required"),
-  year: z
-    .number()
-    .min(1900)
-    .max(new Date().getFullYear() + 1),
-  color: z.string().min(1, "Color is required"),
-  fuelType: z.string().min(1, "Fuel type is required"),
-  fuelTankCapacity: z.number().min(0).optional(),
-  manufacturerFuelConsumption: z.number().min(0).optional(),
-  subscriptionPackageId: z.string().min(1, "Subscription package is required"),
-  gpsTypeId: z.string().min(1, "GPS type is required"),
-  simNumber: z.string().min(10, "Valid SIM number is required"),
-  networkProviderId: z.string().min(1, "Network provider is required"),
-})
-
-// GPS configuration schema
-const gpsConfigSchema = z.object({
-  vehicleId: z.string(),
-  gpsTypeId: z.string(),
-  simNumber: z.string(),
-  networkProviderId: z.string(),
-})
-
-// Generate vehicle ID
-function generateVehicleId(): string {
-  const timestamp = Date.now().toString(36)
-  const random = Math.random().toString(36).substr(2, 5)
-  return `VH-${timestamp}${random}`.toUpperCase()
+export interface VehicleRegistrationData {
+  deviceId: string;
+  deviceName: string;
+  userId: string;
+  simNumber?: string;
 }
 
-// Simulate SMS sending for GPS configuration
-async function sendGPSConfiguration(simNumber: string, configCode: string): Promise<boolean> {
-  // In a real implementation, this would:
-  // 1. Connect to SMS gateway (Twilio, AWS SNS, etc.)
-  // 2. Send the configuration code to the SIM number
-  // 3. Return success/failure status
-
-  console.log(`Sending GPS config to ${simNumber}: ${configCode}`)
-
-  // Simulate network delay and 90% success rate
-  await new Promise((resolve) => setTimeout(resolve, 2000))
-  return Math.random() > 0.1
+export interface RegistrationResult {
+  success: boolean;
+  vehicleId?: string;
+  error?: string;
 }
 
-// Simulate vehicle data retrieval
-async function retrieveVehicleData(vehicleId: string): Promise<{
-  success: boolean
-  data?: {
-    location: string
-    speed: number
-    battery: number
-    signal: number
-    timestamp: string
-  }
-}> {
-  // In a real implementation, this would:
-  // 1. Connect to GPS device API
-  // 2. Retrieve latest vehicle data
-  // 3. Return the data or error status
+export class VehicleRegistrationActions {
+  /**
+   * Register a new vehicle in the database
+   */
+  static async registerVehicle(data: VehicleRegistrationData): Promise<RegistrationResult> {
+    try {
+      console.log('Registering vehicle:', data);
 
-  console.log(`Retrieving data for vehicle ${vehicleId}`)
-
-  // Simulate network delay and 70% success rate
-  await new Promise((resolve) => setTimeout(resolve, 3000))
-
-  if (Math.random() > 0.3) {
-    return {
-      success: true,
-      data: {
-        location: "New York, NY",
-        speed: Math.floor(Math.random() * 80),
-        battery: Math.floor(Math.random() * 100),
-        signal: Math.floor(Math.random() * 100),
-        timestamp: new Date().toISOString(),
-      },
-    }
-  }
-
-  return { success: false }
-}
-
-// Register new vehicle
-export async function registerVehicle(formData: FormData) {
-  try {
-    // Extract form data including new VIN and fuel fields
-    const rawData = {
-      userId: formData.get("userId") as string,
-      vin: formData.get("vin") as string,
-      plateNumber: formData.get("plateNumber") as string,
-      make: formData.get("make") as string,
-      model: formData.get("model") as string,
-      year: Number.parseInt(formData.get("year") as string),
-      color: formData.get("color") as string,
-      fuelType: formData.get("fuelType") as string,
-      fuelTankCapacity: formData.get("fuelTankCapacity") ? Number.parseFloat(formData.get("fuelTankCapacity") as string) : undefined,
-      manufacturerFuelConsumption: formData.get("manufacturerFuelConsumption") ? Number.parseFloat(formData.get("manufacturerFuelConsumption") as string) : undefined,
-      subscriptionPackageId: formData.get("subscriptionPackageId") as string,
-      gpsTypeId: formData.get("gpsTypeId") as string,
-      simNumber: formData.get("simNumber") as string,
-      networkProviderId: formData.get("networkProviderId") as string,
-    }
-
-    // Validate data
-    const validatedData = vehicleRegistrationSchema.parse(rawData)
-
-    // Generate vehicle ID
-    const vehicleId = generateVehicleId()
-
-    // Save vehicle to database with VIN and fuel data
-    const { data: vehicleData, error: vehicleError } = await supabase
-      .from('vehicles')
-      .insert({
-        device_id: vehicleId,
-        device_name: `${validatedData.make} ${validatedData.model}`,
-        vin: validatedData.vin,
-        envio_user_id: validatedData.userId,
-        sim_number: validatedData.simNumber,
-        fuel_tank_capacity_liters: validatedData.fuelTankCapacity,
-        manufacturer_fuel_consumption_100km_l: validatedData.manufacturerFuelConsumption,
-        is_active: true,
-        gp51_metadata: {
-          plate_number: validatedData.plateNumber,
-          make: validatedData.make,
-          model: validatedData.model,
-          year: validatedData.year,
-          color: validatedData.color,
-          fuel_type: validatedData.fuelType,
-          subscription_package_id: validatedData.subscriptionPackageId,
-          gps_type_id: validatedData.gpsTypeId,
-          network_provider_id: validatedData.networkProviderId,
-          registration_timestamp: new Date().toISOString()
-        }
-      })
-      .select()
-      .single()
-
-    if (vehicleError) {
-      console.error('Vehicle registration error:', vehicleError)
-      return {
-        success: false,
-        message: "Failed to register vehicle. Please try again.",
+      // Validate required fields
+      if (!data.deviceId || !data.deviceName || !data.userId) {
+        return {
+          success: false,
+          error: 'Missing required fields: deviceId, deviceName, or userId'
+        };
       }
-    }
 
-    console.log("Vehicle registered:", { vehicleId, vin: validatedData.vin, ...validatedData })
-
-    return {
-      success: true,
-      message: "Vehicle registered successfully",
-      vehicleId,
-      data: validatedData,
-    }
-  } catch (error) {
-    console.error("Vehicle registration error:", error)
-    if (error instanceof z.ZodError) {
-      return {
-        success: false,
-        message: "Validation failed",
-        errors: error.errors,
-      }
-    }
-    return {
-      success: false,
-      message: "Failed to register vehicle. Please try again.",
-    }
-  }
-}
-
-// Configure GPS device
-export async function configureGPS(formData: FormData) {
-  try {
-    const data = {
-      vehicleId: formData.get("vehicleId") as string,
-      gpsTypeId: formData.get("gpsTypeId") as string,
-      simNumber: formData.get("simNumber") as string,
-      networkProviderId: formData.get("networkProviderId") as string,
-    }
-
-    const validatedData = gpsConfigSchema.parse(data)
-
-    // Get GPS configuration code (would come from database)
-    const gpsConfigs = {
-      "gps-1": "AT+GPRMC=1,30,vzwinternet,,0,0,0,0",
-      "gps-2": "CONFIG:APN=vzwinternet;USER=;PASS=;INTERVAL=30",
-      "gps-3": "SETUP,vzwinternet,,30,1",
-    }
-
-    const configCode = gpsConfigs[validatedData.gpsTypeId as keyof typeof gpsConfigs]
-
-    // Send configuration to SIM
-    const configSent = await sendGPSConfiguration(validatedData.simNumber, configCode)
-
-    if (!configSent) {
-      return {
-        success: false,
-        message: "Failed to send GPS configuration",
-      }
-    }
-
-    // Update vehicle status to configuring
-    await supabase
-      .from('vehicles')
-      .update({
-        gp51_metadata: {
-          ...{},
-          gps_configuration_sent: true,
-          gps_config_sent_at: new Date().toISOString()
-        }
-      })
-      .eq('device_id', validatedData.vehicleId)
-
-    return {
-      success: true,
-      message: "GPS configuration sent successfully",
-      vehicleId: validatedData.vehicleId,
-    }
-  } catch (error) {
-    console.error("GPS configuration error:", error)
-    return {
-      success: false,
-      message: "Failed to configure GPS. Please try again.",
-    }
-  }
-}
-
-// Retrieve vehicle data
-export async function getVehicleData(vehicleId: string) {
-  try {
-    const result = await retrieveVehicleData(vehicleId)
-
-    if (!result.success) {
-      return {
-        success: false,
-        message: "Failed to retrieve vehicle data. The vehicle may not be responding.",
-      }
-    }
-
-    // Save the data to database and update vehicle status to active
-    await supabase
-      .from('vehicles')
-      .update({
-        last_position: {
-          lat: 40.7128,
-          lon: -74.0060,
-          speed: result.data?.speed || 0,
-          course: 0,
-          updatetime: result.data?.timestamp || new Date().toISOString(),
-          statusText: 'Active'
-        },
-        gp51_metadata: {
-          ...{},
-          last_data_received: result.data?.timestamp,
-          vehicle_active: true
-        }
-      })
-      .eq('device_id', vehicleId)
-
-    return {
-      success: true,
-      message: "Vehicle data retrieved successfully",
-      data: result.data,
-    }
-  } catch (error) {
-    console.error("Data retrieval error:", error)
-    return {
-      success: false,
-      message: "Failed to retrieve vehicle data. Please try again.",
-    }
-  }
-}
-
-// Process payment
-export async function processPayment(formData: FormData) {
-  try {
-    const amount = Number.parseFloat(formData.get("amount") as string)
-    const vehicleId = formData.get("vehicleId") as string
-    const paymentMethod = formData.get("paymentMethod") as string
-
-    // In a real implementation, you would:
-    // 1. Integrate with payment processor (Stripe, PayPal, etc.)
-    // 2. Process the payment
-    // 3. Update subscription status
-    // 4. Send receipt
-
-    console.log(`Processing payment: $${amount} for vehicle ${vehicleId}`)
-
-    // Simulate payment processing
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    // 95% success rate for demo
-    if (Math.random() > 0.05) {
-      // Update vehicle with payment info
-      await supabase
+      // Check if device already exists
+      const { data: existingVehicle, error: checkError } = await supabase
         .from('vehicles')
-        .update({
-          gp51_metadata: {
-            ...{},
-            payment_processed: true,
-            payment_amount: amount,
-            payment_method: paymentMethod,
-            payment_date: new Date().toISOString()
-          }
-        })
-        .eq('device_id', vehicleId)
+        .select('id')
+        .eq('gp51_device_id', data.deviceId)
+        .maybeSingle();
+
+      if (checkError) {
+        console.error('Error checking existing vehicle:', checkError);
+        return {
+          success: false,
+          error: `Database check failed: ${checkError.message}`
+        };
+      }
+
+      if (existingVehicle) {
+        return {
+          success: false,
+          error: `Vehicle with device ID ${data.deviceId} already exists`
+        };
+      }
+
+      // Insert new vehicle using correct column names
+      const vehicleData = {
+        gp51_device_id: data.deviceId,
+        name: data.deviceName,
+        user_id: data.userId,
+        sim_number: data.simNumber || null,
+      };
+
+      const { data: insertedVehicle, error: insertError } = await supabase
+        .from('vehicles')
+        .insert(vehicleData)
+        .select('id')
+        .single();
+
+      if (insertError) {
+        console.error('Error inserting vehicle:', insertError);
+        return {
+          success: false,
+          error: `Failed to register vehicle: ${insertError.message}`
+        };
+      }
+
+      console.log('Vehicle registered successfully:', insertedVehicle);
+      return {
+        success: true,
+        vehicleId: insertedVehicle.id
+      };
+
+    } catch (error) {
+      console.error('Unexpected error in vehicle registration:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  /**
+   * Update vehicle information
+   */
+  static async updateVehicle(vehicleId: string, updates: Partial<VehicleRegistrationData>): Promise<RegistrationResult> {
+    try {
+      const updateData: any = {};
+      
+      if (updates.deviceId) updateData.gp51_device_id = updates.deviceId;
+      if (updates.deviceName) updateData.name = updates.deviceName;
+      if (updates.userId) updateData.user_id = updates.userId;
+      if (updates.simNumber !== undefined) updateData.sim_number = updates.simNumber;
+
+      const { error } = await supabase
+        .from('vehicles')
+        .update(updateData)
+        .eq('id', vehicleId);
+
+      if (error) {
+        console.error('Error updating vehicle:', error);
+        return {
+          success: false,
+          error: `Failed to update vehicle: ${error.message}`
+        };
+      }
 
       return {
         success: true,
-        message: "Payment processed successfully",
-        transactionId: `TXN-${Date.now()}`,
-      }
-    }
+        vehicleId
+      };
 
-    return {
-      success: false,
-      message: "Payment failed. Please check your payment method and try again.",
-    }
-  } catch (error) {
-    console.error("Payment processing error:", error)
-    return {
-      success: false,
-      message: "Payment processing failed. Please try again.",
-    }
-  }
-}
-
-// Get all vehicles (for table display)
-export async function getVehicles(filters?: {
-  search?: string
-  status?: string
-  userId?: string
-}) {
-  try {
-    let query = supabase
-      .from('vehicles')
-      .select(`
-        *,
-        envio_users!vehicles_envio_user_id_fkey (
-          name,
-          email
-        )
-      `)
-
-    // Apply filters
-    if (filters?.userId) {
-      query = query.eq('envio_user_id', filters.userId)
-    }
-
-    if (filters?.search) {
-      const search = filters.search.toLowerCase()
-      query = query.or(
-        `device_id.ilike.%${search}%,device_name.ilike.%${search}%,gp51_metadata->>plate_number.ilike.%${search}%`
-      )
-    }
-
-    const { data: vehicles, error } = await query
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Get vehicles error:', error)
+    } catch (error) {
+      console.error('Unexpected error in vehicle update:', error);
       return {
         success: false,
-        message: "Failed to retrieve vehicles",
-        vehicles: [],
-        total: 0,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  /**
+   * Get vehicle by device ID
+   */
+  static async getVehicleByDeviceId(deviceId: string): Promise<VehicleDbRecord | null> {
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('gp51_device_id', deviceId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching vehicle:', error);
+        return null;
       }
-    }
 
-    // Transform data for display
-    const transformedVehicles = vehicles?.map((vehicle: any) => ({
-      id: vehicle.device_id,
-      userId: vehicle.envio_user_id,
-      userName: vehicle.envio_users?.name || 'Unknown',
-      plateNumber: vehicle.gp51_metadata?.plate_number || 'N/A',
-      make: vehicle.gp51_metadata?.make || 'Unknown',
-      model: vehicle.gp51_metadata?.model || 'Unknown',
-      year: vehicle.gp51_metadata?.year || 'Unknown',
-      status: vehicle.is_active ? 'active' : 'inactive',
-      subscriptionPackage: vehicle.gp51_metadata?.subscription_package_id || 'Unknown',
-      gpsType: vehicle.gp51_metadata?.gps_type_id || 'Unknown',
-      networkProvider: vehicle.gp51_metadata?.network_provider_id || 'Unknown',
-      lastDataReceived: vehicle.gp51_metadata?.last_data_received || vehicle.updated_at,
-      location: vehicle.last_position ? 
-        `${vehicle.last_position.lat?.toFixed(4)}, ${vehicle.last_position.lon?.toFixed(4)}` : 
-        'Unknown',
-      createdAt: vehicle.created_at,
-    })) || []
+      return data as VehicleDbRecord;
 
-    return {
-      success: true,
-      vehicles: transformedVehicles,
-      total: transformedVehicles.length,
+    } catch (error) {
+      console.error('Unexpected error fetching vehicle:', error);
+      return null;
     }
-  } catch (error) {
-    console.error("Get vehicles error:", error)
-    return {
-      success: false,
-      message: "Failed to retrieve vehicles",
-      vehicles: [],
-      total: 0,
+  }
+
+  /**
+   * Delete vehicle
+   */
+  static async deleteVehicle(vehicleId: string): Promise<RegistrationResult> {
+    try {
+      const { error } = await supabase
+        .from('vehicles')
+        .delete()
+        .eq('id', vehicleId);
+
+      if (error) {
+        console.error('Error deleting vehicle:', error);
+        return {
+          success: false,
+          error: `Failed to delete vehicle: ${error.message}`
+        };
+      }
+
+      return {
+        success: true,
+        vehicleId
+      };
+
+    } catch (error) {
+      console.error('Unexpected error in vehicle deletion:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
     }
   }
 }
-
-export type { vehicleRegistrationSchema as VehicleRegistrationSchema }

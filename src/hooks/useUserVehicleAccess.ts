@@ -1,133 +1,176 @@
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import type { VehicleData } from '@/types/vehicle';
 
-interface UserVehicleAccess {
-  hasAccess: boolean;
-  vehicleCount: number;
-  assignedVehicles: string[];
-  canViewAllVehicles: boolean;
-  userRole: string;
+interface VehicleAccess {
+  vehicleId: string;
+  userId: string;
+  accessLevel: 'read' | 'write' | 'admin';
+  grantedAt: string;
+  grantedBy: string;
 }
 
-export const useUserVehicleAccess = () => {
-  const { user } = useAuth();
-  const [accessInfo, setAccessInfo] = useState<UserVehicleAccess>({
-    hasAccess: false,
-    vehicleCount: 0,
-    assignedVehicles: [],
-    canViewAllVehicles: false,
-    userRole: 'user'
-  });
+export const useUserVehicleAccess = (userId?: string) => {
+  const [accessLevel, setAccessLevel] = useState<'read' | 'write' | 'admin'>('read');
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Get current user's Envio profile and role
-  const { data: userProfile } = useQuery({
-    queryKey: ['user-profile', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-
-      const { data: profile, error: profileError } = await supabase
-        .from('envio_users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) {
-        console.error('Error fetching user profile:', profileError);
-        return null;
-      }
-
-      return profile;
-    },
-    enabled: !!user?.id,
-  });
-
-  // Get user role
-  const { data: userRole } = useQuery({
-    queryKey: ['user-role', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return 'user';
-
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .single();
-
-      if (roleError) {
-        console.error('Error fetching user role:', roleError);
-        return 'user';
-      }
-
-      return roleData?.role || 'user';
-    },
-    enabled: !!user?.id,
-  });
-
-  // Get user's assigned vehicles
-  const { data: assignedVehicles } = useQuery({
-    queryKey: ['user-vehicles', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return [];
-
-      const { data: vehicles, error: vehiclesError } = await supabase
+  // Fetch vehicles accessible to user using correct column names
+  const { data: accessibleVehicles = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['user-vehicle-access', userId],
+    queryFn: async (): Promise<VehicleData[]> => {
+      if (!userId) return [];
+      
+      console.log('Fetching accessible vehicles for user:', userId);
+      
+      const { data, error } = await supabase
         .from('vehicles')
-        .select('device_id, device_name, status')
-        .eq('envio_user_id', user.id)
-        .eq('is_active', true);
+        .select('id, gp51_device_id, name, user_id, sim_number, created_at, updated_at')
+        .eq('user_id', userId)
+        .order('updated_at', { ascending: false });
 
-      if (vehiclesError) {
-        console.error('Error fetching user vehicles:', vehiclesError);
+      if (error) {
+        console.error('Error fetching user vehicles:', error);
+        throw error;
+      }
+
+      if (!data) {
         return [];
       }
 
-      return vehicles || [];
+      // Transform database records to VehicleData
+      return data.map(vehicle => ({
+        id: vehicle.id,
+        device_id: vehicle.gp51_device_id,
+        device_name: vehicle.name,
+        user_id: vehicle.user_id,
+        sim_number: vehicle.sim_number,
+        created_at: vehicle.created_at,
+        updated_at: vehicle.updated_at,
+        status: 'offline' as const,
+        is_active: true,
+        isOnline: false,
+        isMoving: false,
+        alerts: [],
+        lastUpdate: new Date(vehicle.updated_at),
+      }));
     },
-    enabled: !!user?.id,
+    enabled: !!userId,
+    refetchInterval: 30000,
   });
 
-  // Update access info when data changes
-  useEffect(() => {
-    const isAdmin = userRole === 'admin';
-    const vehicleIds = assignedVehicles?.map(v => v.device_id) || [];
-    
-    setAccessInfo({
-      hasAccess: isAdmin || vehicleIds.length > 0,
-      vehicleCount: vehicleIds.length,
-      assignedVehicles: vehicleIds,
-      canViewAllVehicles: isAdmin,
-      userRole: userRole || 'user'
-    });
+  // Get all available vehicles for assignment
+  const { data: availableVehicles = [] } = useQuery({
+    queryKey: ['available-vehicles'],
+    queryFn: async (): Promise<VehicleData[]> => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('id, gp51_device_id, name, user_id, sim_number, created_at, updated_at')
+        .is('user_id', null)
+        .order('name');
 
-    // Log access info for debugging
-    console.log('User vehicle access updated:', {
-      userId: user?.id,
-      isAdmin,
-      vehicleCount: vehicleIds.length,
-      canViewAll: isAdmin
-    });
+      if (error) {
+        console.error('Error fetching available vehicles:', error);
+        throw error;
+      }
 
-  }, [user?.id, userRole, assignedVehicles]);
+      if (!data) {
+        return [];
+      }
 
-  const verifyVehicleAccess = (deviceId: string): boolean => {
-    if (accessInfo.canViewAllVehicles) return true;
-    return accessInfo.assignedVehicles.includes(deviceId);
+      return data.map(vehicle => ({
+        id: vehicle.id,
+        device_id: vehicle.gp51_device_id,
+        device_name: vehicle.name,
+        user_id: vehicle.user_id,
+        sim_number: vehicle.sim_number,
+        created_at: vehicle.created_at,
+        updated_at: vehicle.updated_at,
+        status: 'offline' as const,
+        is_active: true,
+        isOnline: false,
+        isMoving: false,
+        alerts: [],
+        lastUpdate: new Date(vehicle.updated_at),
+      }));
+    },
+  });
+
+  // Grant access to vehicle
+  const grantAccessMutation = useMutation({
+    mutationFn: async ({ vehicleId, targetUserId }: { vehicleId: string; targetUserId: string }) => {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({ user_id: targetUserId })
+        .eq('id', vehicleId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Vehicle access granted successfully' });
+      queryClient.invalidateQueries({ queryKey: ['user-vehicle-access'] });
+      queryClient.invalidateQueries({ queryKey: ['available-vehicles'] });
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: 'Error', 
+        description: `Failed to grant access: ${error.message}`,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Revoke access from vehicle
+  const revokeAccessMutation = useMutation({
+    mutationFn: async ({ vehicleId }: { vehicleId: string }) => {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({ user_id: null })
+        .eq('id', vehicleId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Vehicle access revoked successfully' });
+      queryClient.invalidateQueries({ queryKey: ['user-vehicle-access'] });
+      queryClient.invalidateQueries({ queryKey: ['available-vehicles'] });
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: 'Error', 
+        description: `Failed to revoke access: ${error.message}`,
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Check if user has access to specific vehicle
+  const hasAccess = (vehicleId: string): boolean => {
+    return accessibleVehicles.some(vehicle => vehicle.id === vehicleId);
   };
 
-  const getAccessibleVehicles = (allVehicles: any[]): any[] => {
-    if (accessInfo.canViewAllVehicles) return allVehicles;
-    return allVehicles.filter(vehicle => 
-      accessInfo.assignedVehicles.includes(vehicle.device_id)
-    );
+  // Get access level for specific vehicle
+  const getAccessLevel = (vehicleId: string): 'none' | 'read' | 'write' | 'admin' => {
+    if (!hasAccess(vehicleId)) return 'none';
+    return accessLevel; // Could be enhanced to have per-vehicle access levels
   };
 
   return {
-    ...accessInfo,
-    userProfile,
-    verifyVehicleAccess,
-    getAccessibleVehicles,
-    isLoading: !user?.id || !userRole || assignedVehicles === undefined
+    accessibleVehicles,
+    availableVehicles,
+    isLoading,
+    error: error?.message || null,
+    refetch,
+    accessLevel,
+    setAccessLevel,
+    grantAccess: grantAccessMutation.mutate,
+    revokeAccess: revokeAccessMutation.mutate,
+    hasAccess,
+    getAccessLevel,
+    isGranting: grantAccessMutation.isPending,
+    isRevoking: revokeAccessMutation.isPending,
   };
 };

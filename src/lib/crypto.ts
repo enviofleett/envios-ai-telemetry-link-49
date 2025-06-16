@@ -1,14 +1,48 @@
 
 import md5 from 'js-md5';
 
-/**
- * Calculates the MD5 hash of a string.
- * This is required for authenticating with the GP51 API.
- * The hash should be a 32-digit lowercase hexadecimal string.
- * For example, the MD5 hash of "Octopus360%" is "9e023908f51272714a275466b033d526".
- * @param input The string to hash.
- * @returns A 32-digit lowercase hexadecimal string.
- */
-export function calculateMd5(input: string): string {
-  return md5(input);
+export class SecurityService {
+  static generateSessionToken(): string {
+    const timestamp = Date.now().toString();
+    const randomBytes = crypto.getRandomValues(new Uint8Array(16));
+    const randomString = Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+    const combinedString = `${timestamp}_${randomString}`;
+    return md5(combinedString);
+  }
+
+  static hashPassword(password: string, salt?: string): string {
+    const actualSalt = salt || this.generateSalt();
+    return md5(`${password}${actualSalt}`);
+  }
+
+  static generateSalt(): string {
+    const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+    return Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+
+  static validateInput(input: string, type: 'deviceId' | 'imei' | 'username'): { isValid: boolean; error?: string } {
+    if (!input || input.trim().length === 0) {
+      return { isValid: false, error: 'Input cannot be empty' };
+    }
+
+    switch (type) {
+      case 'deviceId':
+        if (input.length < 3 || input.length > 50) {
+          return { isValid: false, error: 'Device ID must be between 3 and 50 characters' };
+        }
+        break;
+      case 'imei':
+        if (!/^\d{15}$/.test(input)) {
+          return { isValid: false, error: 'IMEI must be exactly 15 digits' };
+        }
+        break;
+      case 'username':
+        if (input.length < 3 || input.length > 30) {
+          return { isValid: false, error: 'Username must be between 3 and 30 characters' };
+        }
+        break;
+    }
+
+    return { isValid: true };
+  }
 }

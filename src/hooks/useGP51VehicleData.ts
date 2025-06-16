@@ -1,374 +1,183 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { gp51DataService } from '@/services/gp51/GP51DataService';
-import type { GP51ProcessedPosition } from '@/types/gp51';
-import { useGP51Auth } from '@/hooks/useGP51Auth';
-import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { EnhancedVehicle, VehicleLocation } from '@/types/vehicle';
+import type { VehicleData, VehicleLocation, VehicleDbRecord } from '@/types/vehicle';
 
-export interface VehicleDataMetrics {
-  total: number;
-  online: number;
-  offline: number;
-  moving: number;
-  idle: number;
-  lastUpdateTime: Date;
-  syncStatus: 'success' | 'error' | 'pending';
-  errorMessage?: string;
+interface GP51VehicleFilters {
+  search?: string;
+  status?: string;
+  user?: string;
 }
 
-interface UseGP51VehicleDataOptions {
-  autoRefresh?: boolean;
-  refreshInterval?: number;
-  includeOffline?: boolean;
-}
+const createVehicleLocation = (lat: number, lon: number): VehicleLocation => ({
+  latitude: lat,
+  longitude: lon
+});
 
-export const useGP51VehicleData = (options: UseGP51VehicleDataOptions = {}) => {
-  const {
-    autoRefresh = true,
-    refreshInterval = 30000, // 30 seconds
-    includeOffline = true
-  } = options;
-
-  const { isAuthenticated, error: authError } = useGP51Auth();
-  const { toast } = useToast();
-
-  const [vehicles, setVehicles] = useState<EnhancedVehicle[]>([]);
-  const [metrics, setMetrics] = useState<VehicleDataMetrics>({
-    total: 0,
-    online: 0,
-    offline: 0,
-    moving: 0,
-    idle: 0,
-    lastUpdateTime: new Date(),
-    syncStatus: 'pending'
-  });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const calculateMetrics = useCallback((vehicleList: EnhancedVehicle[]): VehicleDataMetrics => {
-    const total = vehicleList.length;
-    const online = vehicleList.filter(v => v.isOnline).length;
-    const offline = total - online;
-    const moving = vehicleList.filter(v => v.isMoving).length;
-    const idle = online - moving;
-
-    return {
-      total,
-      online,
-      offline,
-      moving,
-      idle,
-      lastUpdateTime: new Date(),
-      syncStatus: 'success'
-    };
-  }, []);
-
-  const createVehicleLocation = (gp51Position?: GP51ProcessedPosition): VehicleLocation => {
-    return {
-      lat: gp51Position?.latitude || 0,
-      lng: gp51Position?.longitude || 0,
-      address: gp51Position ? 'Unknown Location' : 'No signal'
-    };
-  };
-
-  const syncVehicleData = useCallback(async (showToast = false) => {
-    if (!isAuthenticated) {
-      console.log('🚗 Skipping vehicle sync - not authenticated with GP51');
-      setMetrics(prev => ({
-        ...prev,
-        syncStatus: 'error',
-        errorMessage: 'Not authenticated with GP51'
-      }));
-      return;
-    }
-
-    const wasLoading = vehicles.length === 0;
-    if (wasLoading) {
-      setIsLoading(true);
-    } else {
-      setIsRefreshing(true);
-    }
-
-    try {
-      console.log('🚗 Starting vehicle data sync from GP51...');
-
-      // Step 1: Get vehicle metadata from Supabase
-      const { data: supabaseVehicles, error: supabaseError } = await supabase
-        .from('vehicles')
-        .select(`
-          id,
-          device_id,
-          device_name,
-          envio_user_id,
-          is_active,
-          created_at,
-          updated_at
-        `)
-        .order('created_at', { ascending: false });
-
-      if (supabaseError) {
-        throw new Error(`Supabase error: ${supabaseError.message}`);
-      }
-
-      // Step 2: Get live vehicle data from GP51
-      const gp51Result = await gp51DataService.getDeviceList();
-      if (!gp51Result.success) {
-        throw new Error(gp51Result.error || 'Failed to fetch GP51 devices');
-      }
-      const gp51Vehicles = gp51Result.data || [];
-      
-      // Step 3: If we have GP51 vehicles, get their positions
-      let vehiclePositions: Map<string, GP51ProcessedPosition> = new Map();
-      if (gp51Vehicles.length > 0) {
-        const deviceIds = gp51Vehicles.map(v => v.deviceId);
-        vehiclePositions = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
-      }
-
-      // Step 4: Merge Supabase metadata with GP51 live data
-      const enhancedVehicles: EnhancedVehicle[] = [];
-
-      // First, add vehicles that exist in both systems
-      if (supabaseVehicles) {
-        supabaseVehicles.forEach(supabaseVehicle => {
-          const gp51Position = vehiclePositions.get(supabaseVehicle.device_id);
-          const gp51Vehicle = gp51Vehicles.find(v => v.deviceId === supabaseVehicle.device_id);
-          
-          if (gp51Position || gp51Vehicle) {
-            const position = gp51Position;
-            const device = gp51Vehicle;
-            
-            const enhancedVehicle: EnhancedVehicle = {
-              id: supabaseVehicle.id,
-              deviceId: supabaseVehicle.device_id,
-              deviceName: supabaseVehicle.device_name || device?.deviceName || '',
-              plateNumber: supabaseVehicle.device_name || '',
-              model: 'Unknown Model',
-              driver: 'Unknown Driver',
-              speed: position?.speed || 0,
-              fuel: Math.floor(Math.random() * 100), // Mock data
-              lastUpdate: position?.timestamp || new Date(),
-              status: position?.isMoving ? 'active' : (position?.isOnline ? 'idle' : 'offline'),
-              isOnline: position?.isOnline || device?.isOnline || false,
-              isMoving: position?.isMoving || false,
-              // Required analytics properties
-              location: createVehicleLocation(position),
-              engineHours: Math.floor(Math.random() * 8000) + 1000,
-              mileage: Math.floor(Math.random() * 200000) + 50000,
-              fuelType: 'Gasoline',
-              engineSize: 2.0 + Math.random() * 2,
-              // Compatibility properties
-              deviceid: supabaseVehicle.device_id,
-              devicename: supabaseVehicle.device_name || device?.deviceName,
-              vehicle_name: supabaseVehicle.device_name,
-              created_at: supabaseVehicle.created_at,
-              updated_at: supabaseVehicle.updated_at,
-              is_active: supabaseVehicle.is_active,
-              alerts: [],
-              lastPosition: position ? {
-                lat: position.latitude,
-                lng: position.longitude,
-                speed: position.speed,
-                course: position.course,
-                updatetime: position.timestamp.toISOString(),
-                statusText: position.statusText
-              } : {
-                lat: 0,
-                lng: 0,
-                speed: 0,
-                course: 0,
-                updatetime: new Date().toISOString(),
-                statusText: 'No signal'
-              }
-            };
-            enhancedVehicles.push(enhancedVehicle);
-          } else if (includeOffline) {
-            // Add offline vehicle with default position data
-            const offlineVehicle: EnhancedVehicle = {
-              id: supabaseVehicle.id,
-              deviceId: supabaseVehicle.device_id,
-              deviceName: supabaseVehicle.device_name || '',
-              plateNumber: supabaseVehicle.device_name || '',
-              model: 'Unknown Model',
-              driver: 'Unknown Driver',
-              speed: 0,
-              fuel: 0,
-              lastUpdate: new Date(supabaseVehicle.updated_at || supabaseVehicle.created_at),
-              status: 'offline',
-              isOnline: false,
-              isMoving: false,
-              // Required analytics properties
-              location: createVehicleLocation(),
-              engineHours: Math.floor(Math.random() * 8000) + 1000,
-              mileage: Math.floor(Math.random() * 200000) + 50000,
-              fuelType: 'Gasoline',
-              engineSize: 2.0 + Math.random() * 2,
-              // Compatibility properties
-              deviceid: supabaseVehicle.device_id,
-              devicename: supabaseVehicle.device_name,
-              vehicle_name: supabaseVehicle.device_name,
-              created_at: supabaseVehicle.created_at,
-              updated_at: supabaseVehicle.updated_at,
-              is_active: supabaseVehicle.is_active,
-              alerts: [],
-              lastPosition: {
-                lat: 0,
-                lng: 0,
-                speed: 0,
-                course: 0,
-                updatetime: new Date(supabaseVehicle.updated_at || supabaseVehicle.created_at).toISOString(),
-                statusText: 'No signal'
-              }
-            };
-            enhancedVehicles.push(offlineVehicle);
-          }
-        });
-      }
-
-      // Add GP51-only vehicles (not in Supabase)
-      gp51Vehicles.forEach(gp51Vehicle => {
-        const existsInSupabase = supabaseVehicles?.some(sv => sv.device_id === gp51Vehicle.deviceId);
-        if (!existsInSupabase) {
-          const position = vehiclePositions.get(gp51Vehicle.deviceId);
-          const enhancedVehicle: EnhancedVehicle = {
-            id: gp51Vehicle.deviceId,
-            deviceId: gp51Vehicle.deviceId,
-            deviceName: gp51Vehicle.deviceName || '',
-            plateNumber: gp51Vehicle.deviceName || '',
-            model: 'Unknown Model',
-            driver: 'Unknown Driver',
-            speed: position?.speed || 0,
-            fuel: Math.floor(Math.random() * 100), // Mock data
-            lastUpdate: position?.timestamp || gp51Vehicle.lastUpdate || new Date(),
-            status: position?.isMoving ? 'active' : (gp51Vehicle.isOnline ? 'idle' : 'offline'),
-            isOnline: gp51Vehicle.isOnline,
-            isMoving: position?.isMoving || false,
-            // Required analytics properties
-            location: createVehicleLocation(position),
-            engineHours: Math.floor(Math.random() * 8000) + 1000,
-            mileage: Math.floor(Math.random() * 200000) + 50000,
-            fuelType: 'Gasoline',
-            engineSize: 2.0 + Math.random() * 2,
-            // Compatibility properties
-            deviceid: gp51Vehicle.deviceId,
-            devicename: gp51Vehicle.deviceName,
-            vehicle_name: gp51Vehicle.deviceName,
-            is_active: true,
-            alerts: [],
-            lastPosition: position ? {
-              lat: position.latitude,
-              lng: position.longitude,
-              speed: position.speed,
-              course: position.course,
-              updatetime: position.timestamp.toISOString(),
-              statusText: position.statusText
-            } : {
-              lat: 0,
-              lng: 0,
-              speed: 0,
-              course: 0,
-              updatetime: new Date().toISOString(),
-              statusText: 'No signal'
-            }
-          };
-          enhancedVehicles.push(enhancedVehicle);
-        }
-      });
-
-      setVehicles(enhancedVehicles);
-      setMetrics(calculateMetrics(enhancedVehicles));
-
-      console.log(`✅ Vehicle sync completed: ${enhancedVehicles.length} vehicles`);
-      
-      if (showToast) {
-        toast({
-          title: "Vehicle Data Updated",
-          description: `Synchronized ${enhancedVehicles.length} vehicles from GP51`
-        });
-      }
-
-    } catch (error) {
-      console.error('❌ Vehicle sync failed:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown sync error';
-      setMetrics(prev => ({
-        ...prev,
-        syncStatus: 'error',
-        errorMessage
-      }));
-
-      if (showToast) {
-        toast({
-          title: "Sync Failed",
-          description: errorMessage,
-          variant: "destructive"
-        });
-      }
-    } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
-    }
-  }, [isAuthenticated, includeOffline, calculateMetrics, toast, vehicles.length]);
-
-  // Initial sync and periodic refresh
-  useEffect(() => {
-    if (isAuthenticated) {
-      syncVehicleData();
-    } else if (authError) {
-      setIsLoading(false);
-      setMetrics(prev => ({
-        ...prev,
-        syncStatus: 'error',
-        errorMessage: authError
-      }));
-    }
-  }, [isAuthenticated, authError]);
-
-  useEffect(() => {
-    if (!autoRefresh || !isAuthenticated) return;
-
-    const interval = setInterval(() => {
-      syncVehicleData();
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, isAuthenticated, refreshInterval, syncVehicleData]);
-
-  const forceRefresh = useCallback(async () => {
-    await syncVehicleData(true);
-  }, [syncVehicleData]);
-
-  const getVehicleById = useCallback((deviceId: string) => {
-    return vehicles.find(v => v.deviceId === deviceId);
-  }, [vehicles]);
-
-  const getOnlineVehicles = useCallback(() => {
-    return vehicles.filter(v => v.isOnline);
-  }, [vehicles]);
-
-  const getOfflineVehicles = useCallback(() => {
-    return vehicles.filter(v => !v.isOnline);
-  }, [vehicles]);
-
-  const getMovingVehicles = useCallback(() => {
-    return vehicles.filter(v => v.isMoving);
-  }, [vehicles]);
-
-  const getIdleVehicles = useCallback(() => {
-    return vehicles.filter(v => v.isOnline && !v.isMoving);
-  }, [vehicles]);
-
+// Helper function to map database records to VehicleData
+const mapDbToVehicleData = (dbRecord: VehicleDbRecord): VehicleData => {
   return {
-    vehicles,
-    metrics,
-    isLoading,
-    isRefreshing,
-    forceRefresh,
-    getVehicleById,
-    getOnlineVehicles,
-    getOfflineVehicles,
-    getMovingVehicles,
-    getIdleVehicles
+    id: dbRecord.id,
+    device_id: dbRecord.gp51_device_id,
+    device_name: dbRecord.name,
+    user_id: dbRecord.user_id,
+    sim_number: dbRecord.sim_number,
+    created_at: dbRecord.created_at,
+    updated_at: dbRecord.updated_at,
+    status: 'offline', // Default status since not in DB
+    is_active: true, // Default value
+    isOnline: false,
+    isMoving: false,
+    alerts: [],
+    lastUpdate: new Date(dbRecord.updated_at),
   };
 };
+
+export const useGP51VehicleData = (filters?: GP51VehicleFilters) => {
+  const [page, setPage] = useState(0);
+  const [allVehicles, setAllVehicles] = useState<VehicleData[]>([]);
+
+  // Fetch vehicles from database using correct column names
+  const { data: dbVehicles = [], isLoading, error, refetch } = useQuery({
+    queryKey: ['gp51-vehicles', filters],
+    queryFn: async (): Promise<VehicleData[]> => {
+      console.log('Fetching GP51 vehicles with filters:', filters);
+      
+      let query = supabase
+        .from('vehicles')
+        .select('id, gp51_device_id, name, user_id, sim_number, created_at, updated_at')
+        .order('updated_at', { ascending: false });
+
+      // Apply search filter
+      if (filters?.search) {
+        query = query.or(`name.ilike.%${filters.search}%,gp51_device_id.ilike.%${filters.search}%`);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching vehicles:', error);
+        throw error;
+      }
+
+      if (!data) {
+        return [];
+      }
+
+      // Transform database records to VehicleData
+      const dbRecords: VehicleDbRecord[] = data;
+      return dbRecords.map(mapDbToVehicleData);
+    },
+    refetchInterval: 30000,
+  });
+
+  // Get active vehicles
+  const getActiveVehicles = useCallback(() => {
+    if (!dbVehicles) return [];
+    
+    return dbVehicles.filter(vehicle => {
+      // Apply filters
+      if (filters?.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const matchesSearch = 
+          vehicle.device_name.toLowerCase().includes(searchTerm) ||
+          vehicle.device_id.toLowerCase().includes(searchTerm);
+        if (!matchesSearch) return false;
+      }
+
+      if (filters?.status && filters.status !== 'all') {
+        if (filters.status === 'online' && !vehicle.isOnline) return false;
+        if (filters.status === 'offline' && vehicle.isOnline) return false;
+      }
+
+      if (filters?.user && filters.user !== 'all') {
+        if (vehicle.user_id !== filters.user) return false;
+      }
+
+      return true;
+    });
+  }, [dbVehicles, filters]);
+
+  // Get inactive vehicles
+  const getInactiveVehicles = useCallback(() => {
+    if (!dbVehicles) return [];
+    
+    return dbVehicles.filter(vehicle => {
+      // Apply filters similar to active vehicles
+      if (filters?.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const matchesSearch = 
+          vehicle.device_name.toLowerCase().includes(searchTerm) ||
+          vehicle.device_id.toLowerCase().includes(searchTerm);
+        if (!matchesSearch) return false;
+      }
+
+      return true;
+    });
+  }, [dbVehicles, filters]);
+
+  // Get all vehicles (combined)
+  const getAllVehicles = useCallback(() => {
+    if (!dbVehicles) return [];
+    
+    return dbVehicles.filter(vehicle => {
+      // Apply filters
+      if (filters?.search) {
+        const searchTerm = filters.search.toLowerCase();
+        const matchesSearch = 
+          vehicle.device_name.toLowerCase().includes(searchTerm) ||
+          vehicle.device_id.toLowerCase().includes(searchTerm);
+        if (!matchesSearch) return false;
+      }
+
+      return true;
+    });
+  }, [dbVehicles, filters]);
+
+  // Find vehicle by ID
+  const findVehicleById = useCallback((id: string) => {
+    if (!dbVehicles) return undefined;
+    return dbVehicles.find(vehicle => vehicle.device_id === id);
+  }, [dbVehicles]);
+
+  // Load more data (pagination)
+  const loadMore = useCallback(() => {
+    setPage(prev => prev + 1);
+  }, []);
+
+  // Update filters
+  const updateFilters = useCallback((newFilters: GP51VehicleFilters) => {
+    // Trigger refetch with new filters
+    refetch();
+  }, [refetch]);
+
+  // Get metrics
+  const getMetrics = useCallback(() => {
+    if (!dbVehicles) return { total: 0, active: 0, inactive: 0 };
+    
+    const total = dbVehicles.length;
+    const active = dbVehicles.filter(v => v.is_active).length;
+    const inactive = total - active;
+
+    return { total, active, inactive };
+  }, [dbVehicles]);
+
+  return {
+    vehicles: dbVehicles || [],
+    isLoading,
+    error: error?.message || null,
+    refetch,
+    page,
+    setPage,
+    loadMore,
+    updateFilters,
+    getActiveVehicles,
+    getInactiveVehicles,
+    getAllVehicles,
+    findVehicleById,
+    getMetrics,
+  };
+};
+
+export default useGP51VehicleData;
