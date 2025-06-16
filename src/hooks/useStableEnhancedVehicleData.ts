@@ -47,7 +47,10 @@ export const useStableEnhancedVehicleData = () => {
       // Transform the data to match our VehicleData interface
       const dbRecords: (VehicleDbRecord & { envio_users: any })[] = data;
       const transformedData: VehicleData[] = dbRecords.map((dbVehicle) => {
-        const status: VehicleStatus = 'offline' as const;
+        // Determine status dynamically - this fixes the type inference issue
+        const isAssigned = Boolean(dbVehicle.user_id);
+        const status: VehicleStatus = isAssigned ? 'active' : 'offline';
+        const isOnline = status === 'active';
         
         return {
           id: dbVehicle.id,
@@ -59,10 +62,10 @@ export const useStableEnhancedVehicleData = () => {
           updated_at: dbVehicle.updated_at,
           envio_users: dbVehicle.envio_users,
           status: status,
-          is_active: true, // Default to true
+          is_active: isAssigned,
           last_position: undefined,
           lastUpdate: new Date(dbVehicle.updated_at),
-          isOnline: status === 'online',
+          isOnline: isOnline,
           isMoving: false,
           alerts: [],
           // Initialize additional properties from VehicleData interface
