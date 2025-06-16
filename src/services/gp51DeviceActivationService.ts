@@ -17,6 +17,13 @@ export interface GP51DeviceActivationResult {
   gp51Response?: any;
 }
 
+// Simplified metadata interface to prevent deep type inference
+interface SimplifiedGP51Metadata {
+  activation_status?: string;
+  last_sync_at?: string;
+  device_properties?: Record<string, unknown>;
+}
+
 export class GP51DeviceActivationService {
   
   /**
@@ -67,7 +74,7 @@ export class GP51DeviceActivationService {
 
     } catch (error) {
       console.error('❌ GP51 device activation exception:', error);
-      await this.updateDeviceActivationStatus(request.deviceId, 'error', { error: error.message });
+      await this.updateDeviceActivationStatus(request.deviceId, 'error', { error: error instanceof Error ? error.message : 'Unknown error' });
       
       return {
         success: false,
@@ -86,18 +93,26 @@ export class GP51DeviceActivationService {
     lastChecked?: string;
   }> {
     try {
-      // Check local tracking first
-      const { data: localStatus } = await supabase
+      // Check local tracking first - using correct column name
+      const { data: localStatus, error: localError } = await supabase
         .from('gp51_device_management')
         .select('activation_status, last_sync_at')
         .eq('gp51_device_id', deviceId)
-        .single();
+        .maybeSingle();
+
+      if (localError) {
+        console.error('Error checking local device status:', localError);
+        return {
+          isActivated: false,
+          status: 'error'
+        };
+      }
 
       if (localStatus) {
         return {
           isActivated: localStatus.activation_status === 'active',
           status: localStatus.activation_status as 'active' | 'inactive' | 'error' | 'unknown',
-          lastChecked: localStatus.last_sync_at
+          lastChecked: localStatus.last_sync_at || undefined
         };
       }
 
@@ -141,39 +156,59 @@ export class GP51DeviceActivationService {
     gp51Response?: any
   ): Promise<void> {
     try {
-      // Get vehicle ID from device ID
-      const { data: vehicle } = await supabase
+      // Get vehicle ID from device ID - using correct column name
+      const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
         .select('id')
-        .eq('device_id', deviceId)
-        .single();
+        .eq('gp51_device_id', deviceId)
+        .maybeSingle();
+
+      if (vehicleError) {
+        console.error('Error finding vehicle for device:', vehicleError);
+        return;
+      }
 
       if (!vehicle) {
         console.warn(`⚠️ No vehicle found for device ${deviceId}`);
         return;
       }
 
+      // Create simplified metadata to avoid deep type inference
+      const deviceProperties: SimplifiedGP51Metadata = {
+        activation_status: status,
+        last_sync_at: new Date().toISOString(),
+        device_properties: gp51Response || {}
+      };
+
       // Update or insert device management record
-      await supabase
+      const { error: upsertError } = await supabase
         .from('gp51_device_management')
         .upsert({
           vehicle_id: vehicle.id,
           gp51_device_id: deviceId,
           activation_status: status,
           last_sync_at: new Date().toISOString(),
-          device_properties: gp51Response || {}
+          device_properties: deviceProperties as any // Type assertion to break inference
         }, {
           onConflict: 'vehicle_id,gp51_device_id'
         });
 
-      // Update vehicle activation status
-      await supabase
+      if (upsertError) {
+        console.error('Error updating device management record:', upsertError);
+        return;
+      }
+
+      // Update vehicle activation status - using correct column name
+      const { error: updateError } = await supabase
         .from('vehicles')
         .update({
-          activation_status: status,
           updated_at: new Date().toISOString()
         })
         .eq('id', vehicle.id);
+
+      if (updateError) {
+        console.error('Error updating vehicle record:', updateError);
+      }
 
     } catch (error) {
       console.error('❌ Error updating device activation status:', error);
