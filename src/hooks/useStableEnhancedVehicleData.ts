@@ -47,7 +47,7 @@ export const useStableEnhancedVehicleData = () => {
       // Transform the data to match our VehicleData interface
       const dbRecords: (VehicleDbRecord & { envio_users: any })[] = data;
       const transformedData: VehicleData[] = dbRecords.map((dbVehicle) => {
-        const status: VehicleStatus = 'offline';
+        const status: VehicleStatus = 'offline' as const;
         
         return {
           id: dbVehicle.id,
@@ -122,17 +122,13 @@ export const useStableEnhancedVehicleData = () => {
         if (!matchesSearch) return false;
       }
 
-      // Status filter - handle the comparison properly
+      // Status filter - use consistent property access
       if (filters.status !== 'all') {
-        // Convert filter status to match vehicle status values
         if (filters.status === 'active') {
-          // Check if vehicle is active (not offline)
           if (!vehicle.is_active) return false;
         } else if (filters.status === 'online') {
-          // For 'online' filter, check the actual status or isOnline
           if (!vehicle.isOnline) return false;
         } else if (filters.status === 'offline') {
-          // For 'offline' filter, check if vehicle is offline
           if (vehicle.isOnline) return false;
         }
       }

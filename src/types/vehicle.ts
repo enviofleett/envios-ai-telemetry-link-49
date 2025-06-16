@@ -1,4 +1,3 @@
-
 export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
 export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading';

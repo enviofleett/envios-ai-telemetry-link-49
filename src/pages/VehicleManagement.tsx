@@ -13,30 +13,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { VehicleData } from '@/types/vehicle';
 
-// This is the type VehicleCard and VehicleProfileModal expect for their 'vehicle.last_position' prop
-// based on the TypeScript error messages.
-type ComponentExpectedLastPosition = {
-  lat: number;
-  lng: number;
-  speed: number;
-  timestamp: string;
-  // course is NOT in the error message for VehicleCard/VehicleProfileModal's last_position prop
-};
-
-// This is the type VehicleCard and VehicleProfileModal expect for their 'vehicle' prop.
-// It's VehicleData but with 'last_position' changed to ComponentExpectedLastPosition.
-type VehicleForComponent = Omit<VehicleData, 'last_position'> & {
-  last_position?: ComponentExpectedLastPosition;
-};
-
-
 const VehicleManagement: React.FC = () => {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
   const { 
-    filteredVehicles, // This is VehicleData[] (last_position has latitude/longitude)
+    filteredVehicles,
     isLoading, 
     refetch,
     setFilters 
@@ -51,29 +34,16 @@ const VehicleManagement: React.FC = () => {
 
   const { toast } = useToast();
 
-  // Find the selected vehicle (it's of type VehicleData)
-  const selectedVehicleData = selectedVehicleId 
-    ? filteredVehicles.find(v => v.id === selectedVehicleId) // This is VehicleData | undefined
+  // Find the selected vehicle
+  const selectedVehicle = selectedVehicleId 
+    ? filteredVehicles.find(v => v.id === selectedVehicleId)
     : null;
-
-  // Transform selectedVehicleData for VehicleProfileModal
-  const vehicleForModal: VehicleForComponent | null = selectedVehicleData ? {
-    ...selectedVehicleData, // Spread all properties from VehicleData
-    last_position: selectedVehicleData.last_position ? { // Transform last_position
-      lat: selectedVehicleData.last_position.latitude,
-      lng: selectedVehicleData.last_position.longitude,
-      speed: selectedVehicleData.last_position.speed,
-      timestamp: selectedVehicleData.last_position.timestamp,
-      // No course here, as it's not in ComponentExpectedLastPosition
-    } : undefined,
-  } : null;
-
 
   useEffect(() => {
     setFilters(prev => ({
       ...prev,
       search: searchTerm,
-      status: statusFilter as 'all' | 'online' | 'offline' | 'active', // Type assertion to fix the error
+      status: statusFilter as 'all' | 'online' | 'offline' | 'active',
     }));
   }, [searchTerm, statusFilter, setFilters]);
 
@@ -181,23 +151,22 @@ const VehicleManagement: React.FC = () => {
             <></> // Or a loading spinner for the grid
           ) : filteredVehicles.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredVehicles.map((vehicle) => { // vehicle is VehicleData
-                // Transform VehicleData for VehicleCard
-                const vehicleForCard: VehicleForComponent = {
-                  ...vehicle, // Spread all properties from VehicleData
-                  last_position: vehicle.last_position ? { // Transform last_position
+              {filteredVehicles.map((vehicle) => {
+                // Transform last_position for VehicleCard compatibility
+                const vehicleForCard = {
+                  ...vehicle,
+                  last_position: vehicle.last_position ? {
                     lat: vehicle.last_position.latitude,
                     lng: vehicle.last_position.longitude,
-                    speed: vehicle.last_position.speed,
-                    timestamp: vehicle.last_position.timestamp,
-                    // No course here
+                    speed: vehicle.last_position.speed || 0,
+                    timestamp: vehicle.last_position.timestamp || new Date().toISOString(),
                   } : undefined,
                 };
 
                 return (
                   <VehicleCard
                     key={vehicle.id}
-                    vehicle={vehicleForCard} // Pass the transformed vehicle
+                    vehicle={vehicleForCard}
                     liveData={liveData[vehicle.device_id]}
                     onViewDetails={handleViewDetails}
                     onActivateWorkshop={handleActivateWorkshop}
@@ -222,8 +191,8 @@ const VehicleManagement: React.FC = () => {
           <VehicleProfileModal
             isOpen={!!selectedVehicleId}
             onClose={() => setSelectedVehicleId(null)}
-            vehicle={vehicleForModal} // Pass the transformed selected vehicle for the modal
-            liveData={selectedVehicleData ? liveData[selectedVehicleData.device_id] : undefined}
+            vehicle={selectedVehicle}
+            liveData={selectedVehicle ? liveData[selectedVehicle.device_id] : undefined}
             onUpdateVehicle={handleUpdateVehicle}
           />
         </div>
