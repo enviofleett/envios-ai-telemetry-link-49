@@ -20,12 +20,15 @@ export class AutoLinkingService {
     }
 
     try {
-      // Find user by GP51 username - use aggressive type assertion
-      const userQuery = await supabase
+      // Find user by GP51 username - completely bypass Supabase type inference
+      const userQueryResult = await supabase
         .from('envio_users')
         .select('id, name')
         .eq('gp51_username', gp51Username)
         .single();
+
+      // Cast to any immediately to break type chain
+      const userQuery = userQueryResult as any;
 
       if (userQuery.error || !userQuery.data) {
         console.log(`No user found for GP51 username ${gp51Username}`);
@@ -67,13 +70,16 @@ export class AutoLinkingService {
     }
 
     try {
-      // Find unassigned vehicles - use aggressive type breaking
-      const vehiclesQuery = await supabase
+      // Find unassigned vehicles - completely bypass Supabase type inference
+      const vehiclesQueryResult = await supabase
         .from('vehicles')
         .select('id, gp51_device_id')
         .eq('gp51_username', gp51Username)
         .is('user_id', null)
         .eq('is_active', true);
+
+      // Cast to any immediately to break type chain
+      const vehiclesQuery = vehiclesQueryResult as any;
 
       if (vehiclesQuery.error) throw vehiclesQuery.error;
 

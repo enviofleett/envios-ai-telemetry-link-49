@@ -56,16 +56,19 @@ export class DeviceValidationService {
       errors.push('Invalid device type - must be between 1 and 10');
     }
 
-    // Check for existing device
-    const { data: existingVehicle, error: queryError } = await supabase
+    // Check for existing device - use aggressive type assertion to bypass TS2589
+    const existingVehicleQuery = await supabase
       .from('vehicles')
       .select('id, device_id')
       .eq('device_id', request.deviceId)
       .maybeSingle();
 
-    if (queryError) {
-      errors.push(`Database validation failed: ${queryError.message}`);
-    } else if (existingVehicle) {
+    // Cast to any to break complex type inference
+    const vehicleQueryResult = existingVehicleQuery as any;
+
+    if (vehicleQueryResult.error) {
+      errors.push(`Database validation failed: ${vehicleQueryResult.error.message}`);
+    } else if (vehicleQueryResult.data) {
       errors.push(`Device ID ${request.deviceId} is already registered`);
     }
 
