@@ -2,6 +2,18 @@
 import { supabase } from '@/integrations/supabase/client';
 import { DataValidator } from './dataValidator';
 
+// Explicit type for vehicle query result
+interface VehicleQueryResult {
+  id: string;
+  gp51_device_id: string;
+}
+
+// Explicit type for user query result  
+interface UserQueryResult {
+  id: string;
+  name: string;
+}
+
 export class AutoLinkingService {
   async autoLinkNewVehicle(deviceId: string, gp51Username?: string): Promise<boolean> {
     if (!DataValidator.validateGp51Username(gp51Username, `vehicle ${deviceId}`)) {
@@ -14,7 +26,7 @@ export class AutoLinkingService {
         .from('envio_users')
         .select('id, name')
         .eq('gp51_username', gp51Username)
-        .single();
+        .single() as { data: UserQueryResult | null; error: any };
 
       if (userError || !user) {
         console.log(`No user found for GP51 username ${gp51Username}`);
@@ -56,7 +68,7 @@ export class AutoLinkingService {
         .select('id, gp51_device_id')
         .eq('gp51_username', gp51Username)
         .is('user_id', null)
-        .eq('is_active', true);
+        .eq('is_active', true) as { data: VehicleQueryResult[] | null; error: any };
 
       if (vehiclesError) throw vehiclesError;
 
