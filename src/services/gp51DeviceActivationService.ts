@@ -1,5 +1,4 @@
 
-
 import { supabase } from '@/integrations/supabase/client';
 
 // Simplified interfaces to avoid deep type instantiation
@@ -16,7 +15,7 @@ export interface GP51DeviceActivationResult {
   deviceId?: string;
   activationStatus?: 'active' | 'inactive' | 'error';
   error?: string;
-  gp51Response?: Record<string, any>; // Simplified from any
+  gp51Response?: any; // Simplified to avoid deep type issues
 }
 
 export interface BulkActivationResult {
@@ -125,7 +124,7 @@ export class GP51DeviceActivationService {
         };
       }
 
-      const device = data.devices?.find((d: Record<string, any>) => d.deviceid === deviceId);
+      const device = data.devices?.find((d: any) => d.deviceid === deviceId);
       const isActivated = device && device.isfree === 0; // isfree=0 means activated/paid
 
       return {
@@ -148,10 +147,10 @@ export class GP51DeviceActivationService {
   private static async updateDeviceActivationStatus(
     deviceId: string, 
     status: 'active' | 'inactive' | 'error',
-    gp51Response?: Record<string, any>
+    gp51Response?: any
   ): Promise<void> {
     try {
-      // Get vehicle ID from device ID - use simple query
+      // Get vehicle ID from device ID
       const { data: vehicleData } = await supabase
         .from('vehicles')
         .select('id')
@@ -163,7 +162,7 @@ export class GP51DeviceActivationService {
         return;
       }
 
-      // Direct object construction for upsert - no complex types
+      // Update device management record
       const deviceManagementRecord = {
         vehicle_id: vehicleData.id,
         gp51_device_id: deviceId,
@@ -178,7 +177,7 @@ export class GP51DeviceActivationService {
           onConflict: 'vehicle_id,gp51_device_id'
         });
 
-      // Direct object construction for vehicle update
+      // Update vehicle record
       const vehicleUpdate = {
         activation_status: status,
         updated_at: new Date().toISOString()
@@ -244,4 +243,3 @@ export class GP51DeviceActivationService {
     return 'Unknown error occurred';
   }
 }
-

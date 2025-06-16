@@ -9,7 +9,7 @@ import { BrandingProvider } from '@/contexts/BrandingContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Toaster } from '@/components/ui/toaster';
 import { SecurityProvider } from '@/components/security/SecurityProvider';
-import Dashboard from '@/pages/Dashboard';
+import ProfessionalDashboard from '@/components/dashboard/ProfessionalDashboard';
 import Login from '@/pages/Login';
 import Settings from '@/pages/Settings';
 import Register from '@/pages/Register';
@@ -40,7 +40,7 @@ function App() {
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
                         <Route path="/settings" element={<Settings />} />
-                        <Route path="/" element={<Dashboard />} />
+                        <Route path="/" element={<ProfessionalDashboard />} />
                       </Routes>
                     </Suspense>
                     <Toaster />
