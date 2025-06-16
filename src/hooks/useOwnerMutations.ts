@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { EnvioUser } from '@/types/owner';
+import type { LightweightEnvioUser, DatabaseUpdateResult } from '@/types/database-operations';
 
 export const useOwnerMutations = () => {
   const queryClient = useQueryClient();
@@ -30,7 +31,8 @@ export const useOwnerMutations = () => {
         throw error;
       }
 
-      return data as EnvioUser;
+      // Use explicit type assertion to avoid TS2589
+      return (data as DatabaseUpdateResult) as EnvioUser;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] } as any);
@@ -66,7 +68,8 @@ export const useOwnerMutations = () => {
         throw error;
       }
 
-      return data;
+      // Use explicit type assertion to avoid TS2589
+      return data as DatabaseUpdateResult;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] } as any);
@@ -103,7 +106,8 @@ export const useOwnerMutations = () => {
         throw error;
       }
 
-      return data;
+      // Use explicit type assertion to avoid TS2589
+      return data as DatabaseUpdateResult;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] } as any);

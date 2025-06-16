@@ -1,6 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import type { LightweightVehicle } from '@/types/database-operations';
 
 export interface OwnerVehicleData {
   device_id: string;
@@ -12,10 +13,13 @@ export interface OwnerVehicleData {
 // Use a simple approach to avoid type inference issues
 const fetchOwnerVehicles = async (ownerId: string): Promise<OwnerVehicleData[]> => {
   try {
-    const { data, error } = await supabase
+    // Use explicit type assertion to avoid TS2589
+    const response = await supabase
       .from('vehicles')
       .select('device_id, device_name, status, created_at')
       .eq('owner_id', ownerId);
+
+    const { data, error } = response;
 
     if (error) {
       console.error('Failed to fetch owner vehicles:', error);
@@ -26,8 +30,8 @@ const fetchOwnerVehicles = async (ownerId: string): Promise<OwnerVehicleData[]> 
       return [];
     }
 
-    // Transform to our expected format
-    return data.map((item: any) => ({
+    // Transform to our expected format with explicit typing
+    return (data as LightweightVehicle[]).map((item: LightweightVehicle) => ({
       device_id: String(item.device_id || ''),
       device_name: String(item.device_name || ''),
       status: String(item.status || ''),
