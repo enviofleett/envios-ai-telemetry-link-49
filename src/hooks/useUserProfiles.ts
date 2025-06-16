@@ -171,7 +171,7 @@ export const useUserProfiles = () => {
 
   // Update user profile - only use fields that exist in user_profiles table
   const updateProfileMutation = useMutation({
-    mutationFn: async ({ userId, updates }: { userId: string; updates: Partial<Pick<UserProfile, 'first_name' | 'last_name' | 'phone_number' | 'role' | 'registration_status'>> }) => {
+    mutationFn: async ({ userId, updates }: { userId: string; updates: Partial<Pick<UserProfile, 'first_name' | 'last_name' | 'phone_number' | 'registration_status'>> & { role?: 'admin' | 'user' | 'agent' | 'merchant' | 'pending' | 'driver' | 'dispatcher' | 'fleet_manager' | 'manager' | 'compliance_officer' } }) => {
       const { error } = await supabase
         .from('user_profiles')
         .update(updates)
