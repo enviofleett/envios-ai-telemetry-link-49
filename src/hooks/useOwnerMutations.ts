@@ -9,7 +9,7 @@ export const useOwnerMutations = () => {
   const { toast } = useToast();
 
   const updateOwnerMutation = useMutation({
-    mutationFn: async (updatedOwner: EnvioUser) => {
+    mutationFn: async (updatedOwner: EnvioUser): Promise<EnvioUser | null> => {
       const { data, error } = (await supabase
         .from('envio_users')
         .update({
@@ -51,7 +51,7 @@ export const useOwnerMutations = () => {
   });
 
   const assignVehicleMutation = useMutation({
-    mutationFn: async (params: { deviceId: string; ownerId: string }) => {
+    mutationFn: async (params: { deviceId: string; ownerId: string }): Promise<any> => {
       const { data, error } = (await supabase
         .from('vehicles')
         .update({
@@ -88,7 +88,7 @@ export const useOwnerMutations = () => {
   });
 
   const unassignVehicleMutation = useMutation({
-    mutationFn: async (deviceId: string) => {
+    mutationFn: async (deviceId: string): Promise<any> => {
       const { data, error } = (await supabase
         .from('vehicles')
         .update({
