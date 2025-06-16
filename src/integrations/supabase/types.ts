@@ -7964,27 +7964,39 @@ export type Database = {
         Row: {
           created_at: string
           gp51_device_id: string
+          gp51_metadata: Json | null
           id: string
+          is_active: boolean | null
+          last_position: Json | null
           name: string
           sim_number: string | null
+          status: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           gp51_device_id: string
+          gp51_metadata?: Json | null
           id?: string
+          is_active?: boolean | null
+          last_position?: Json | null
           name: string
           sim_number?: string | null
+          status?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           gp51_device_id?: string
+          gp51_metadata?: Json | null
           id?: string
+          is_active?: boolean | null
+          last_position?: Json | null
           name?: string
           sim_number?: string | null
+          status?: string | null
           updated_at?: string
           user_id?: string
         }
