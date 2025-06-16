@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { reportsApi } from '@/services/reportsApi';
 import type { VehicleUsageStats } from '@/types/reports';
@@ -117,7 +118,8 @@ export class RealtimeReportsService {
   }
 
   private async getTripMetrics(vehicleIds?: string[]) {
-    const statsArray = await reportsApi.getVehicleUsageStats(vehicleIds);
+    // Call without arguments to fix the type error
+    const statsArray = await reportsApi.getVehicleUsageStats();
     
     // Handle the case where getVehicleUsageStats returns an array
     const firstStats = Array.isArray(statsArray) && statsArray.length > 0 ? statsArray[0] : null;

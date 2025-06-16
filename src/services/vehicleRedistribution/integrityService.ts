@@ -1,62 +1,91 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { DataIntegrityResult } from './types';
-import { DataValidator } from './dataValidator';
 
 export class IntegrityService {
-  async validateGp51DataIntegrity(): Promise<DataIntegrityResult> {
-    console.log('Validating GP51 data integrity...');
+  async analyzeDataIntegrity(): Promise<{ 
+    healthyAssignments: number;
+    orphanedVehicles: number;
+    invalidUserAssignments: number;
+    duplicateAssignments: number;
+    issues: any[];
+  }> {
+    console.log('Analyzing data integrity...');
 
-    const { data: vehicles, error } = await supabase
+    const issues: any[] = [];
+
+    // Check for vehicles without valid user assignments
+    const { data: orphanedVehicles, error: orphanedError } = await supabase
       .from('vehicles')
-      .select('device_id, gp51_username')
-      .eq('is_active', true);
+      .select('gp51_device_id, user_id')
+      .is('user_id', null);
 
-    if (error) throw error;
+    if (orphanedError) {
+      console.error('Error checking orphaned vehicles:', orphanedError);
+      issues.push({
+        type: 'query_error',
+        message: 'Failed to check orphaned vehicles',
+        error: orphanedError
+      });
+    }
 
-    const totalVehicles = vehicles?.length || 0;
-    let validUsernames = 0;
-    let emptyUsernames = 0;
-    let genericUsernames = 0;
+    // Check for vehicles assigned to non-existent users
+    const { data: vehiclesWithUsers, error: usersError } = await supabase
+      .from('vehicles')
+      .select(`
+        gp51_device_id,
+        user_id,
+        envio_users (
+          id,
+          name
+        )
+      `)
+      .not('user_id', 'is', null);
+
+    if (usersError) {
+      console.error('Error checking vehicle-user assignments:', usersError);
+      issues.push({
+        type: 'query_error',
+        message: 'Failed to check vehicle-user assignments',
+        error: usersError
+      });
+    }
+
+    const invalidUserAssignments = vehiclesWithUsers?.filter(v => !v.envio_users) || [];
     
-    const recommendations: string[] = [];
+    // Check for duplicate device assignments
+    const { data: allVehicles, error: duplicateError } = await supabase
+      .from('vehicles')
+      .select('gp51_device_id');
 
-    vehicles?.forEach(vehicle => {
-      const category = DataValidator.categorizeGp51Username(vehicle.gp51_username);
-      switch (category) {
-        case 'valid':
-          validUsernames++;
-          break;
-        case 'empty':
-          emptyUsernames++;
-          break;
-        case 'generic':
-          genericUsernames++;
-          break;
-      }
-    });
-
-    const invalidUsernames = emptyUsernames + genericUsernames;
-
-    if (genericUsernames > 0) {
-      recommendations.push(`${genericUsernames} vehicles have generic "User" username - re-import data with correct GP51 usernames`);
+    if (duplicateError) {
+      console.error('Error checking duplicates:', duplicateError);
+      issues.push({
+        type: 'query_error',
+        message: 'Failed to check duplicate assignments',
+        error: duplicateError
+      });
     }
 
-    if (emptyUsernames > 0) {
-      recommendations.push(`${emptyUsernames} vehicles have empty GP51 usernames - update with correct usernames`);
-    }
+    const deviceCounts = allVehicles?.reduce((acc, vehicle) => {
+      acc[vehicle.gp51_device_id] = (acc[vehicle.gp51_device_id] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>) || {};
 
-    if (validUsernames < totalVehicles * 0.8) {
-      recommendations.push('Less than 80% of vehicles have valid GP51 usernames - consider bulk data re-import');
-    }
+    const duplicateAssignments = Object.values(deviceCounts).filter(count => count > 1).length;
+
+    const totalVehicles = allVehicles?.length || 0;
+    const orphanedCount = orphanedVehicles?.length || 0;
+    const invalidCount = invalidUserAssignments.length;
+    const healthyAssignments = totalVehicles - orphanedCount - invalidCount - duplicateAssignments;
+
+    console.log(`Integrity analysis: ${healthyAssignments} healthy, ${orphanedCount} orphaned, ${invalidCount} invalid assignments`);
 
     return {
-      totalVehicles,
-      validUsernames,
-      invalidUsernames,
-      emptyUsernames,
-      genericUsernames,
-      recommendations
+      healthyAssignments,
+      orphanedVehicles: orphanedCount,
+      invalidUserAssignments: invalidCount,
+      duplicateAssignments,
+      issues
     };
   }
 }

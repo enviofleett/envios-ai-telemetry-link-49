@@ -1,6 +1,6 @@
 
-// Re-export the service types to maintain compatibility
-export {
+// Use export type for type-only re-exports to fix isolatedModules error
+export type {
   TestResult,
   ValidationSuite
 } from '@/services/gp51/gp51ValidationTypes';

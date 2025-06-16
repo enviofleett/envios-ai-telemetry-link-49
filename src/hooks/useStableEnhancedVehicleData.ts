@@ -111,13 +111,10 @@ export const useStableEnhancedVehicleData = () => {
         if (filters.status === 'active') {
           // Check if vehicle is active (not offline)
           if (!vehicle.is_active) return false;
-        } else if (filters.status === 'online') {
-          if (vehicle.status !== 'online') return false; // Fixed comparison
-        } else if (filters.status === 'offline') {
-          if (vehicle.status !== 'offline') return false; // Fixed comparison
         } else {
-          // Direct status comparison for other values
-          if (vehicle.status !== filters.status) return false;
+          // For 'online' and 'offline' filters, check the actual status
+          const targetStatus = filters.status as VehicleStatus;
+          if (vehicle.status !== targetStatus) return false;
         }
       }
 

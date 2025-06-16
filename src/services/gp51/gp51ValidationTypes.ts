@@ -15,6 +15,7 @@ export interface ValidationSuite {
   sessionManagement: TestResult[];
   vehicleDataSync: TestResult[];
   errorRecovery: TestResult[];
+  results: TestResult[]; // Added missing results property
   overall: {
     totalTests: number;
     passedTests: number;
