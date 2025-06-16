@@ -1,16 +1,10 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import type { VehicleReference } from '@/types/owner';
 
-export interface OwnerVehicleData {
-  device_id: string;
-  device_name: string;
-  status: string;
-  created_at: string;
-}
-
-// Use a simple approach to avoid type inference issues
-const fetchOwnerVehicles = async (ownerId: string): Promise<OwnerVehicleData[]> => {
+// Use the lightweight VehicleReference type to avoid circular dependencies
+const fetchOwnerVehicles = async (ownerId: string): Promise<VehicleReference[]> => {
   try {
     // Use any to avoid type inference problems with Supabase
     const response = await (supabase as any)
@@ -43,9 +37,12 @@ const fetchOwnerVehicles = async (ownerId: string): Promise<OwnerVehicleData[]> 
 };
 
 export const useOwnerVehicles = (ownerId: string) => {
-  return useQuery<OwnerVehicleData[], Error>({
+  return useQuery<VehicleReference[], Error>({
     queryKey: ['owner-vehicles', ownerId],
     queryFn: () => fetchOwnerVehicles(ownerId),
     enabled: !!ownerId,
   });
 };
+
+// Export the type for backwards compatibility
+export type { VehicleReference as OwnerVehicleData };

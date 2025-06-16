@@ -1,4 +1,12 @@
 
+// Lightweight reference type for vehicle relationships in owner context
+export interface VehicleReference {
+  device_id: string;
+  device_name: string;
+  status: string;
+  created_at: string;
+}
+
 export interface EnvioUser {
   id: string;
   name: string;
@@ -10,11 +18,4 @@ export interface EnvioUser {
   registration_status: string;
   created_at: string;
   updated_at: string;
-}
-
-export interface VehicleData {
-  device_id: string;
-  device_name: string;
-  status: string;
-  created_at: string;
 }
