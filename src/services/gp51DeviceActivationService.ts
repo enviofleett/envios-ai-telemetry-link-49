@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GP51DeviceActivationRequest {
@@ -14,6 +15,17 @@ export interface GP51DeviceActivationResult {
   activationStatus?: 'active' | 'inactive' | 'error';
   error?: string;
   gp51Response?: any;
+}
+
+export interface BulkActivationResult {
+  successful: string[];
+  failed: Array<{ deviceId: string; error: string }>;
+}
+
+export interface DeviceActivationStatus {
+  isActivated: boolean;
+  status: 'active' | 'inactive' | 'error' | 'unknown';
+  lastChecked?: string;
 }
 
 export class GP51DeviceActivationService {
@@ -66,11 +78,12 @@ export class GP51DeviceActivationService {
 
     } catch (error) {
       console.error('❌ GP51 device activation exception:', error);
-      await this.updateDeviceActivationStatus(request.deviceId, 'error', { error: error.message });
+      const errorMessage = this.getErrorMessage(error);
+      await this.updateDeviceActivationStatus(request.deviceId, 'error', { error: errorMessage });
       
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         activationStatus: 'error'
       };
     }
@@ -79,11 +92,7 @@ export class GP51DeviceActivationService {
   /**
    * Check if a device is activated on GP51
    */
-  static async checkDeviceActivationStatus(deviceId: string): Promise<{
-    isActivated: boolean;
-    status: 'active' | 'inactive' | 'error' | 'unknown';
-    lastChecked?: string;
-  }> {
+  static async checkDeviceActivationStatus(deviceId: string): Promise<DeviceActivationStatus> {
     try {
       // Check local tracking first
       const { data: localStatus } = await supabase
@@ -186,12 +195,9 @@ export class GP51DeviceActivationService {
     deviceIds: string[], 
     years: number = 1,
     adminUserId: string
-  ): Promise<{
-    successful: string[];
-    failed: { deviceId: string; error: string }[];
-  }> {
+  ): Promise<BulkActivationResult> {
     const successful: string[] = [];
-    const failed: { deviceId: string; error: string }[] = [];
+    const failed: Array<{ deviceId: string; error: string }> = [];
 
     for (const deviceId of deviceIds) {
       try {
@@ -211,11 +217,24 @@ export class GP51DeviceActivationService {
       } catch (error) {
         failed.push({ 
           deviceId, 
-          error: error instanceof Error ? error.message : 'Unknown error' 
+          error: this.getErrorMessage(error)
         });
       }
     }
 
     return { successful, failed };
+  }
+
+  /**
+   * Extract error message safely from unknown error type
+   */
+  private static getErrorMessage(error: unknown): string {
+    if (error instanceof Error) {
+      return error.message;
+    }
+    if (typeof error === 'string') {
+      return error;
+    }
+    return 'Unknown error occurred';
   }
 }
