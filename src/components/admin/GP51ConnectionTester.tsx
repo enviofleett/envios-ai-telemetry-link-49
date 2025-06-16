@@ -1,22 +1,21 @@
 
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Activity as ActivityIconLucide } from 'lucide-react'; // Renamed to avoid conflict
-import { useGP51Auth } from '@/hooks/useGP51Auth';
+import { Activity as ActivityIconLucide } from 'lucide-react';
+import { useGP51AuthConsolidated } from '@/hooks/useGP51AuthConsolidated';
 
 import GP51SessionStatusDisplay from './gp51-testing/components/GP51SessionStatusDisplay';
 import GP51ApiConnectionTest from './gp51-testing/components/GP51ApiConnectionTest';
 import GP51LiveDataFetchTest from './gp51-testing/components/GP51LiveDataFetchTest';
 import type { ConnectionTestResult } from './gp51-testing/types/connectionTesting';
 
-
 const GP51ConnectionTester: React.FC = () => {
   const { 
     isAuthenticated: isGp51Authenticated, 
     username: gp51Username, 
     tokenExpiresAt: gp51TokenExpiresAt,
-    isLoading: authLoading 
-  } = useGP51Auth();
+    isCheckingStatus: authLoading 
+  } = useGP51AuthConsolidated();
 
   const [apiTestResult, setApiTestResult] = useState<ConnectionTestResult | null>(null);
 
@@ -41,7 +40,7 @@ const GP51ConnectionTester: React.FC = () => {
           isLoading={authLoading}
           isAuthenticated={isGp51Authenticated}
           username={gp51Username}
-          tokenExpiresAt={gp51TokenExpiresAt}
+          tokenExpiresAt={gp51TokenExpiresAt?.toISOString()}
         />
 
         <GP51ApiConnectionTest
