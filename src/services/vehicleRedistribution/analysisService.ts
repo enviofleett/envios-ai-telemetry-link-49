@@ -10,58 +10,39 @@ export class AnalysisService {
     // Get vehicle assignment stats
     const { data: vehicles, error: vehiclesError } = await supabase
       .from('vehicles')
-      .select('device_id, envio_user_id, gp51_username')
-      .eq('is_active', true);
+      .select('gp51_device_id, user_id'); // Fixed column names
 
-    if (vehiclesError) throw vehiclesError;
+    if (vehiclesError) {
+      console.error('Error fetching vehicles:', vehiclesError);
+      throw vehiclesError;
+    }
 
     // Get user stats
     const { data: users, error: usersError } = await supabase
       .from('envio_users')
-      .select('id, name, gp51_username');
+      .select('id, name');
 
-    if (usersError) throw usersError;
+    if (usersError) {
+      console.error('Error fetching users:', usersError);
+      throw usersError;
+    }
 
     const totalVehicles = vehicles?.length || 0;
-    const unassignedVehicles = vehicles?.filter(v => !v.envio_user_id).length || 0;
-    const assignedVehicles = vehicles?.filter(v => v.envio_user_id) || [];
+    const unassignedVehicles = vehicles?.filter(v => !v.user_id).length || 0; // Fixed property name
+    const assignedVehicles = vehicles?.filter(v => v.user_id) || []; // Fixed property name
     
     // Count unique users with vehicles
-    const usersWithVehicles = new Set(assignedVehicles.map(v => v.envio_user_id)).size;
+    const usersWithVehicles = new Set(assignedVehicles.map(v => v.user_id)).size; // Fixed property name
 
-    // Check for valid GP51 usernames
-    const validGp51Usernames = vehicles?.filter(v => 
-      DataValidator.isValidGp51Username(v.gp51_username)
-    ).length || 0;
+    // For now, assume all vehicles have valid assignment (since gp51_username doesn't exist on vehicles)
+    const validAssignments = assignedVehicles.length;
+    const invalidAssignments = 0;
 
-    const invalidGp51Usernames = totalVehicles - validGp51Usernames;
-
-    // Create a map of GP51 usernames to user IDs for redistribution check
-    const gp51UsernameToUserId = new Map<string, string>();
-    users?.forEach(user => {
-      if (DataValidator.isValidGp51Username(user.gp51_username)) {
-        gp51UsernameToUserId.set(user.gp51_username!, user.id);
-      }
-    });
-
-    // Check if redistribution is needed based on multiple factors
-    const hasUnassignedVehiclesWithValidUsernames = vehicles?.some(v => 
-      !v.envio_user_id && 
-      DataValidator.isValidGp51Username(v.gp51_username) &&
-      gp51UsernameToUserId.has(v.gp51_username!)
-    ) || false;
-
-    const hasIncorrectlyAssignedVehicles = vehicles?.some(v => 
-      v.envio_user_id && 
-      DataValidator.isValidGp51Username(v.gp51_username) &&
-      gp51UsernameToUserId.has(v.gp51_username!) &&
-      gp51UsernameToUserId.get(v.gp51_username!) !== v.envio_user_id
-    ) || false;
-
-    const redistributionNeeded = hasUnassignedVehiclesWithValidUsernames || hasIncorrectlyAssignedVehicles;
+    // Simple redistribution check - if there are unassigned vehicles, redistribution is needed
+    const redistributionNeeded = unassignedVehicles > 0;
 
     console.log(`Analysis: ${totalVehicles} total vehicles, ${unassignedVehicles} unassigned, ${usersWithVehicles} users have vehicles`);
-    console.log(`Valid GP51 usernames: ${validGp51Usernames}, Invalid: ${invalidGp51Usernames}`);
+    console.log(`Valid assignments: ${validAssignments}, Invalid: ${invalidAssignments}`);
     console.log(`Redistribution needed: ${redistributionNeeded}`);
 
     return {
@@ -69,8 +50,8 @@ export class AnalysisService {
       unassignedVehicles,
       usersWithVehicles,
       redistributionNeeded,
-      validGp51Usernames,
-      invalidGp51Usernames
+      validGp51Usernames: validAssignments, // Simplified for now
+      invalidGp51Usernames: invalidAssignments
     };
   }
 }

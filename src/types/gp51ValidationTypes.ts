@@ -1,36 +1,9 @@
 
-export interface TestResult {
-  testName: string;
-  success: boolean;
-  message: string;
-  duration: number;
-  details?: any;
-  timestamp: Date;
-  error?: string;
-  suggestedFixes?: string[];
-}
-
-export interface ValidationSuite {
-  suiteName: string;
-  results: TestResult[];
-  overallSuccess: boolean;
-  totalDuration: number;
-  summary: {
-    passed: number;
-    failed: number;
-    total: number;
-  };
-  overall: {
-    passedTests: number;
-    totalTests: number;
-    failedTests: number;
-    successRate: number;
-  };
-  credentialSaving: TestResult[];
-  sessionManagement: TestResult[];
-  vehicleDataSync: TestResult[];
-  errorRecovery: TestResult[];
-}
+// Re-export the service types to maintain compatibility
+export {
+  TestResult,
+  ValidationSuite
+} from '@/services/gp51/gp51ValidationTypes';
 
 export interface HealthCheckResult {
   overall: {

@@ -28,15 +28,7 @@ class DataLoader {
         isOnline: true,
         isMoving: true,
         alerts: [],
-        lastUpdate: new Date(),
-        lastPosition: {
-          latitude: 40.7128,
-          longitude: -74.0060,
-          speed: 25,
-          course: 180,
-          timestamp: new Date().toISOString(),
-          statusText: 'Moving'
-        }
+        lastUpdate: new Date()
       }
     ];
 

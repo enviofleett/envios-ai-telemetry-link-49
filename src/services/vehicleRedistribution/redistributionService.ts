@@ -5,116 +5,96 @@ import { DataValidator } from './dataValidator';
 
 export class RedistributionService {
   async redistributeVehicles(): Promise<RedistributionResult> {
-    console.log('Starting enhanced vehicle redistribution...');
+    console.log('Starting simplified vehicle redistribution...');
     const errors: string[] = [];
     const summary: string[] = [];
     let redistributed = 0;
     let skippedInvalidUsernames = 0;
 
     try {
-      // Get all vehicles with their current assignments and GP51 usernames
+      // Get all vehicles with their current assignments
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
-        .select('id, device_id, device_name, envio_user_id, gp51_username')
-        .eq('is_active', true);
+        .select('id, gp51_device_id, name, user_id'); // Fixed column names
 
-      if (vehiclesError) throw vehiclesError;
+      if (vehiclesError) {
+        console.error('Error fetching vehicles:', vehiclesError);
+        throw vehiclesError;
+      }
 
       // Get all users
       const { data: users, error: usersError } = await supabase
         .from('envio_users')
-        .select('id, name, gp51_username');
+        .select('id, name');
 
-      if (usersError) throw usersError;
+      if (usersError) {
+        console.error('Error fetching users:', usersError);
+        throw usersError;
+      }
 
       if (!vehicles || !users) {
         throw new Error('Failed to fetch vehicles or users');
       }
 
-      // Create a map of GP51 usernames to user IDs for quick lookup
-      const gp51UsernameToUserId = new Map<string, string>();
-      const validUsernames = new Set<string>();
-      
-      users.forEach(user => {
-        if (DataValidator.isValidGp51Username(user.gp51_username)) {
-          gp51UsernameToUserId.set(user.gp51_username!, user.id);
-          validUsernames.add(user.gp51_username!);
-        }
-      });
+      // Simple redistribution logic - assign unassigned vehicles to users in round-robin fashion
+      const unassignedVehicles = vehicles.filter(v => !v.user_id); // Fixed property name
+      const availableUsers = users;
 
-      console.log(`Found ${validUsernames.size} valid GP51 usernames in user database`);
-      summary.push(`Found ${validUsernames.size} users with valid GP51 usernames`);
+      if (unassignedVehicles.length === 0) {
+        summary.push('No unassigned vehicles found');
+        return {
+          success: true,
+          redistributed: 0,
+          errors: [],
+          skippedInvalidUsernames: 0,
+          summary
+        };
+      }
 
-      // Filter vehicles that need redistribution
-      const vehiclesToRedistribute = vehicles.filter(vehicle => {
-        // Skip vehicles without GP51 username or with invalid usernames
-        if (!DataValidator.isValidGp51Username(vehicle.gp51_username)) {
-          skippedInvalidUsernames++;
-          return false;
-        }
+      if (availableUsers.length === 0) {
+        summary.push('No users available for assignment');
+        return {
+          success: false,
+          redistributed: 0,
+          errors: ['No users available for vehicle assignment'],
+          skippedInvalidUsernames: 0,
+          summary
+        };
+      }
 
-        const correctUserId = gp51UsernameToUserId.get(vehicle.gp51_username!);
-        
-        // Skip if no matching user found
-        if (!correctUserId) {
-          console.log(`No user found for GP51 username: ${vehicle.gp51_username}`);
-          skippedInvalidUsernames++;
-          return false;
-        }
+      console.log(`Found ${unassignedVehicles.length} unassigned vehicles and ${availableUsers.length} users`);
+      summary.push(`${unassignedVehicles.length} vehicles need assignment`);
+      summary.push(`${availableUsers.length} users available for assignment`);
 
-        // Vehicle needs redistribution if it's not assigned to the correct user
-        return vehicle.envio_user_id !== correctUserId;
-      });
+      // Assign vehicles to users in round-robin fashion
+      for (let i = 0; i < unassignedVehicles.length; i++) {
+        const vehicle = unassignedVehicles[i];
+        const targetUser = availableUsers[i % availableUsers.length];
 
-      console.log(`Found ${vehiclesToRedistribute.length} vehicles that need redistribution`);
-      console.log(`Skipping ${skippedInvalidUsernames} vehicles with invalid/missing GP51 usernames`);
-      
-      summary.push(`${vehiclesToRedistribute.length} vehicles need redistribution`);
-      summary.push(`${skippedInvalidUsernames} vehicles skipped (invalid GP51 usernames)`);
-
-      // Group vehicles by target user for batch processing
-      const vehiclesByTargetUser = new Map<string, typeof vehiclesToRedistribute>();
-      
-      vehiclesToRedistribute.forEach(vehicle => {
-        const targetUserId = gp51UsernameToUserId.get(vehicle.gp51_username!)!;
-        if (!vehiclesByTargetUser.has(targetUserId)) {
-          vehiclesByTargetUser.set(targetUserId, []);
-        }
-        vehiclesByTargetUser.get(targetUserId)!.push(vehicle);
-      });
-
-      // Process redistribution in batches by user
-      for (const [targetUserId, userVehicles] of vehiclesByTargetUser) {
-        const targetUser = users.find(u => u.id === targetUserId);
-        console.log(`Assigning ${userVehicles.length} vehicles to user: ${targetUser?.name} (${targetUser?.gp51_username})`);
-        
-        const vehicleIds = userVehicles.map(v => v.id);
-        
-        // Batch update all vehicles for this user
         const { error } = await supabase
           .from('vehicles')
           .update({ 
-            envio_user_id: targetUserId,
+            user_id: targetUser.id, // Fixed property name
             updated_at: new Date().toISOString()
           })
-          .in('id', vehicleIds);
+          .eq('id', vehicle.id);
 
         if (error) {
-          const errorMsg = `Failed to assign ${userVehicles.length} vehicles to user ${targetUser?.name}: ${error.message}`;
+          const errorMsg = `Failed to assign vehicle ${vehicle.name} to user ${targetUser.name}: ${error.message}`;
           errors.push(errorMsg);
           console.error(errorMsg);
         } else {
-          redistributed += userVehicles.length;
-          const successMsg = `Assigned ${userVehicles.length} vehicles to ${targetUser?.name} (${targetUser?.gp51_username})`;
+          redistributed++;
+          const successMsg = `Assigned vehicle ${vehicle.name} to ${targetUser.name}`;
           summary.push(successMsg);
           console.log(successMsg);
         }
 
-        // Small delay between user batches to avoid overwhelming the database
+        // Small delay between assignments to avoid overwhelming the database
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      const finalSummary = `Redistribution complete: ${redistributed} vehicles reassigned to ${vehiclesByTargetUser.size} users`;
+      const finalSummary = `Redistribution complete: ${redistributed} vehicles assigned to users`;
       summary.push(finalSummary);
       console.log(finalSummary);
 

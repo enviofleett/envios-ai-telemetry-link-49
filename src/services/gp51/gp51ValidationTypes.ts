@@ -3,10 +3,11 @@ export interface TestResult {
   testName: string;
   success: boolean;
   duration: number;
-  details: string;
+  details: string; // Made required to match usage
   error?: string;
   timestamp: Date;
   suggestedFixes?: string[];
+  message?: string; // Added for compatibility
 }
 
 export interface ValidationSuite {

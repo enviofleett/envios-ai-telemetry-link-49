@@ -153,15 +153,15 @@ class ParkingMonitorService {
     // Get user associated with vehicle to check feature access
     const { data: vehicleData, error: vehicleError } = await supabase
       .from('vehicles')
-      .select('envio_user_id')
-      .eq('device_id', deviceId)
+      .select('user_id') // Fixed column name
+      .eq('gp51_device_id', deviceId) // Fixed column name
       .single();
 
-    if (vehicleError || !vehicleData?.envio_user_id) {
+    if (vehicleError || !vehicleData?.user_id) {
       console.warn(`ParkingMonitor: Could not find user for vehicle ${deviceId} to check feature access.`, vehicleError);
       return;
     }
-    const userId = vehicleData.envio_user_id;
+    const userId = vehicleData.user_id; // Fixed property name
 
     // Check if the user has the 'ai_parking_monitor' feature using the new DB function
     const { data: hasFeature, error: featureCheckError } = await supabase.rpc('user_has_feature', {
