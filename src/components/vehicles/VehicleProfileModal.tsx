@@ -1,332 +1,301 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import {
-  Car,
   MapPin,
+  Navigation,
   Gauge,
+  Clock,
+  Activity,
+  AlertTriangle,
   User,
-  Calendar,
-  Camera,
-  Upload,
-  Wrench,
-  FileText
+  Car,
+  ExternalLink,
+  History,
+  Bell
 } from 'lucide-react';
-import { VehicleImageGallery } from './VehicleImageGallery';
-import { VehicleLiveMap } from './VehicleLiveMap';
-import { WorkshopActivationPanel } from './WorkshopActivationPanel';
+import type { VehicleData } from '@/types/vehicle';
 
 interface VehicleProfileModalProps {
+  vehicle: VehicleData | null;
   isOpen: boolean;
   onClose: () => void;
-  vehicle: {
-    id: string;
-    device_id: string;
-    device_name: string;
-    vin?: string;
-    license_plate?: string;
-    image_urls?: string[];
-    fuel_tank_capacity_liters?: number;
-    manufacturer_fuel_consumption_100km_l?: number;
-    last_position?: {
-      lat: number;
-      lng: number;
-      speed: number;
-      timestamp: string;
-    };
-    envio_users?: {
-      name?: string; // Made optional to match VehicleData
-      email?: string; // Made optional to match VehicleData
-    };
-  } | null;
-  liveData?: {
-    speed: number;
-    status: 'online' | 'offline' | 'moving';
-    lastUpdate: Date;
-  };
-  onUpdateVehicle: (vehicleId: string, updates: any) => Promise<void>;
+  liveData?: any;
+  onUpdateVehicle?: (vehicleId: string, updates: any) => void;
+  onViewHistory?: (vehicle: VehicleData) => void;
+  onSendAlert?: (vehicle: VehicleData) => void;
 }
 
-export const VehicleProfileModal: React.FC<VehicleProfileModalProps> = ({
+const VehicleProfileModal: React.FC<VehicleProfileModalProps> = ({
+  vehicle,
   isOpen,
   onClose,
-  vehicle,
   liveData,
-  onUpdateVehicle
+  onUpdateVehicle,
+  onViewHistory,
+  onSendAlert
 }) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    insurance_expiration_date: '',
-    license_expiration_date: '',
-    vin: '',
-    fuel_tank_capacity_liters: '',
-    manufacturer_fuel_consumption_100km_l: ''
-  });
+  if (!vehicle) return null;
 
-  React.useEffect(() => {
-    if (vehicle) {
-      setFormData({
-        insurance_expiration_date: vehicle.insurance_expiration_date || '',
-        license_expiration_date: vehicle.license_expiration_date || '',
-        vin: vehicle.vin || '',
-        fuel_tank_capacity_liters: vehicle.fuel_tank_capacity_liters?.toString() || '',
-        manufacturer_fuel_consumption_100km_l: vehicle.manufacturer_fuel_consumption_100km_l?.toString() || ''
-      });
-    }
-  }, [vehicle]);
-
-  const handleSave = async () => {
-    if (!vehicle) return;
-
-    const updates = {
-      ...formData,
-      fuel_tank_capacity_liters: formData.fuel_tank_capacity_liters ? parseFloat(formData.fuel_tank_capacity_liters) : null,
-      manufacturer_fuel_consumption_100km_l: formData.manufacturer_fuel_consumption_100km_l ? parseFloat(formData.manufacturer_fuel_consumption_100km_l) : null
-    };
-
-    await onUpdateVehicle(vehicle.id, updates);
-    setIsEditing(false);
+  const getVehicleStatus = () => {
+    if (!vehicle.last_position?.timestamp) return 'offline';
+    
+    const lastUpdate = new Date(vehicle.last_position.timestamp);
+    const now = new Date();
+    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
+    
+    if (minutesSinceUpdate <= 5) return 'online';
+    if (minutesSinceUpdate <= 30) return 'idle';
+    return 'offline';
   };
 
-  if (!vehicle) return null;
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-green-500';
+      case 'idle': return 'bg-yellow-500';
+      default: return 'bg-gray-400';
+    }
+  };
+
+  const formatLastUpdate = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffMinutes < 1) return 'Just now';
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+    return date.toLocaleDateString();
+  };
+
+  const status = getVehicleStatus();
+  const hasAlert = vehicle.status?.toLowerCase().includes('alert') || 
+                  vehicle.status?.toLowerCase().includes('alarm');
+
+  // Safe property access with fallbacks
+  const insuranceExpiration = vehicle.insurance_expiration_date || null;
+  const licenseExpiration = vehicle.license_expiration_date || null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Car className="h-5 w-5" />
             {vehicle.device_name}
-            {liveData && (
-              <Badge className={`ml-2 ${
-                liveData.status === 'online' ? 'bg-green-500' :
-                liveData.status === 'moving' ? 'bg-blue-500' : 'bg-gray-400'
-              }`}>
-                {liveData.status}
-              </Badge>
-            )}
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="overview" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="live-tracking">Live Tracking</TabsTrigger>
-            <TabsTrigger value="images">Images</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
-            <TabsTrigger value="workshops">Workshops</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Vehicle Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Vehicle Information</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Device ID</Label>
-                      <p className="text-sm font-mono">{vehicle.device_id}</p>
-                    </div>
-                    <div>
-                      <Label>License Plate</Label>
-                      <p className="text-sm">{vehicle.license_plate || 'Not set'}</p>
-                    </div>
-                  </div>
-
-                  {isEditing ? (
-                    <div className="space-y-3">
-                      <div>
-                        <Label htmlFor="vin">VIN</Label>
-                        <Input
-                          id="vin"
-                          value={formData.vin}
-                          onChange={(e) => setFormData({ ...formData, vin: e.target.value })}
-                          placeholder="Vehicle Identification Number"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label htmlFor="fuel_capacity">Fuel Tank (L)</Label>
-                          <Input
-                            id="fuel_capacity"
-                            type="number"
-                            value={formData.fuel_tank_capacity_liters}
-                            onChange={(e) => setFormData({ ...formData, fuel_tank_capacity_liters: e.target.value })}
-                            placeholder="Liters"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="fuel_consumption">Consumption (L/100km)</Label>
-                          <Input
-                            id="fuel_consumption"
-                            type="number"
-                            step="0.1"
-                            value={formData.manufacturer_fuel_consumption_100km_l}
-                            onChange={(e) => setFormData({ ...formData, manufacturer_fuel_consumption_100km_l: e.target.value })}
-                            placeholder="L/100km"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div>
-                        <Label>VIN</Label>
-                        <p className="text-sm font-mono">{vehicle.vin || 'Not set'}</p>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label>Fuel Tank</Label>
-                          <p className="text-sm">{vehicle.fuel_tank_capacity_liters ? `${vehicle.fuel_tank_capacity_liters}L` : 'Not set'}</p>
-                        </div>
-                        <div>
-                          <Label>Consumption</Label>
-                          <p className="text-sm">{vehicle.manufacturer_fuel_consumption_100km_l ? `${vehicle.manufacturer_fuel_consumption_100km_l}L/100km` : 'Not set'}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Live Status */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Current Status</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {liveData && (
-                    <>
-                      <div className="flex items-center gap-2">
-                        <Gauge className="h-4 w-4" />
-                        <span>Speed: {liveData.speed} km/h</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${
-                          liveData.status === 'online' ? 'bg-green-500' :
-                          liveData.status === 'moving' ? 'bg-blue-500' : 'bg-gray-400'
-                        }`} />
-                        <span>Status: {liveData.status}</span>
-                      </div>
-                    </>
-                  )}
-                  
-                  {vehicle.last_position && (
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      <span className="text-sm">
-                        {vehicle.last_position.lat.toFixed(6)}, {vehicle.last_position.lng.toFixed(6)}
-                      </span>
-                    </div>
-                  )}
-
-                  {vehicle.envio_users && (
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      <div>
-                        <p className="text-sm font-medium">{vehicle.envio_users.name}</p>
-                        <p className="text-xs text-gray-500">{vehicle.envio_users.email}</p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="flex gap-2">
-              {isEditing ? (
-                <>
-                  <Button onClick={handleSave}>Save Changes</Button>
-                  <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
-                </>
-              ) : (
-                <Button onClick={() => setIsEditing(true)}>Edit Vehicle</Button>
+        <div className="space-y-6">
+          {/* Status Overview */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Badge variant={status === 'online' ? 'default' : 'secondary'} className="flex items-center gap-1">
+                <div className={`w-2 h-2 rounded-full ${getStatusColor(status)}`}></div>
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </Badge>
+              {hasAlert && (
+                <Badge variant="destructive" className="flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Alert Active
+                </Badge>
               )}
             </div>
-          </TabsContent>
+            <div className="flex gap-2">
+              {onViewHistory && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onViewHistory(vehicle)}
+                >
+                  <History className="h-4 w-4 mr-2" />
+                  History
+                </Button>
+              )}
+              {onSendAlert && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onSendAlert(vehicle)}
+                >
+                  <Bell className="h-4 w-4 mr-2" />
+                  Alert
+                </Button>
+              )}
+            </div>
+          </div>
 
-          <TabsContent value="live-tracking">
-            <VehicleLiveMap vehicle={vehicle} liveData={liveData} />
-          </TabsContent>
+          <Separator />
 
-          <TabsContent value="images">
-            <VehicleImageGallery
-              vehicleId={vehicle.id}
-              imageUrls={vehicle.image_urls || []}
-              onImagesUpdated={(urls) => onUpdateVehicle(vehicle.id, { image_urls: urls })}
-            />
-          </TabsContent>
-
-          <TabsContent value="documents" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Document Management
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {isEditing ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="insurance_date">Insurance Expiration</Label>
-                      <Input
-                        id="insurance_date"
-                        type="date"
-                        value={formData.insurance_expiration_date}
-                        onChange={(e) => setFormData({ ...formData, insurance_expiration_date: e.target.value })}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="license_date">License Expiration</Label>
-                      <Input
-                        id="license_date"
-                        type="date"
-                        value={formData.license_expiration_date}
-                        onChange={(e) => setFormData({ ...formData, license_expiration_date: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label>Insurance Expiration</Label>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        <span>{vehicle.insurance_expiration_date || 'Not set'}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <Label>License Expiration</Label>
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4" />
-                        <span>{vehicle.license_expiration_date || 'Not set'}</span>
-                      </div>
-                    </div>
+          {/* Basic Information */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h4 className="font-semibold mb-3">Device Information</h4>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Device ID:</span>
+                  <span className="font-mono">{vehicle.device_id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Device Name:</span>
+                  <span>{vehicle.device_name}</span>
+                </div>
+                {vehicle.license_plate && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">License Plate:</span>
+                    <span>{vehicle.license_plate}</span>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                {vehicle.vin && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">VIN:</span>
+                    <span className="font-mono text-xs">{vehicle.vin}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Status:</span>
+                  <span>{vehicle.is_active ? 'Active' : 'Inactive'}</span>
+                </div>
+              </div>
+            </div>
 
-          <TabsContent value="workshops">
-            <WorkshopActivationPanel vehicleId={vehicle.id} />
-          </TabsContent>
-        </Tabs>
+            <div>
+              <h4 className="font-semibold mb-3">Current Status</h4>
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    <Activity className="h-3 w-3 text-gray-400" />
+                    <span className="text-gray-600">Connection:</span>
+                  </div>
+                  <span className={`font-medium ${status === 'online' ? 'text-green-600' : 'text-gray-600'}`}>
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </span>
+                </div>
+                {vehicle.status && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">System Status:</span>
+                    <span>{vehicle.status}</span>
+                  </div>
+                )}
+                {vehicle.envio_users && (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <User className="h-3 w-3 text-gray-400" />
+                      <span className="text-gray-600">Assigned User:</span>
+                    </div>
+                    <span>{vehicle.envio_users.name}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Position Data */}
+          {vehicle.last_position && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="font-semibold mb-3">Latest Position Data</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-600">Coordinates:</span>
+                      </div>
+                      <span className="font-mono text-sm">
+                        {vehicle.last_position.latitude.toFixed(6)}, {vehicle.last_position.longitude.toFixed(6)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <Gauge className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-600">Speed:</span>
+                      </div>
+                      <span className="font-medium">{vehicle.last_position.speed || 0} km/h</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <Navigation className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-600">Course:</span>
+                      </div>
+                      <span className="font-medium">{vehicle.last_position.course || 0}°</span>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4 text-gray-400" />
+                        <span className="text-gray-600">Last Update:</span>
+                      </div>
+                      <span className="text-sm">
+                        {formatLastUpdate(vehicle.last_position.timestamp)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Timestamp:</span>
+                      <span className="text-sm font-mono">
+                        {new Date(vehicle.last_position.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Document Information */}
+          {(insuranceExpiration || licenseExpiration) && (
+            <>
+              <Separator />
+              <div>
+                <h4 className="font-semibold mb-3">Document Expiration</h4>
+                <div className="space-y-3 text-sm">
+                  {insuranceExpiration && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Insurance Expiration:</span>
+                      <span>{new Date(insuranceExpiration).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  {licenseExpiration && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">License Expiration:</span>
+                      <span>{new Date(licenseExpiration).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Action Buttons */}
+          <Separator />
+          <div className="flex justify-between">
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm">
+                <ExternalLink className="h-4 w-4 mr-2" />
+                View on Map
+              </Button>
+              <Button size="sm">
+                Track Live
+              </Button>
+            </div>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
 };
+
+export default VehicleProfileModal;

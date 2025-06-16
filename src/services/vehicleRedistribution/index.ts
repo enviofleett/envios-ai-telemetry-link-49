@@ -28,7 +28,20 @@ export class VehicleRedistributionService {
   }
 
   async validateGp51DataIntegrity(): Promise<DataIntegrityResult> {
-    return this.integrityService.validateGp51DataIntegrity();
+    // Call the IntegrityService method and transform the result to match DataIntegrityResult
+    const result = await this.integrityService.validateGp51DataIntegrity();
+    const analysis = await this.integrityService.analyzeDataIntegrity();
+    
+    return {
+      isValid: result.isValid,
+      errors: result.errors,
+      recommendations: result.recommendations,
+      totalVehicles: analysis.healthyAssignments + analysis.orphanedVehicles + analysis.invalidUserAssignments + analysis.duplicateAssignments,
+      validUsernames: analysis.healthyAssignments,
+      invalidUsernames: analysis.invalidUserAssignments,
+      emptyUsernames: analysis.orphanedVehicles,
+      genericUsernames: analysis.duplicateAssignments
+    };
   }
 }
 

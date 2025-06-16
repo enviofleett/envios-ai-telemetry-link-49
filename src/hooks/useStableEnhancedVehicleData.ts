@@ -65,6 +65,23 @@ export const useStableEnhancedVehicleData = () => {
           isOnline: status === 'online',
           isMoving: false,
           alerts: [],
+          // Initialize additional properties from VehicleData interface
+          vin: undefined,
+          license_plate: undefined,
+          image_urls: undefined,
+          fuel_tank_capacity_liters: undefined,
+          manufacturer_fuel_consumption_100km_l: undefined,
+          speed: undefined,
+          course: undefined,
+          driver: undefined,
+          fuel: undefined,
+          mileage: undefined,
+          plateNumber: undefined,
+          model: undefined,
+          gp51_metadata: undefined,
+          insurance_expiration_date: undefined,
+          license_expiration_date: undefined,
+          location: undefined
         };
       });
 
@@ -116,7 +133,7 @@ export const useStableEnhancedVehicleData = () => {
           if (!vehicle.isOnline && vehicle.status !== 'online') return false;
         } else if (filters.status === 'offline') {
           // For 'offline' filter, check if vehicle is offline
-          if (vehicle.isOnline || vehicle.status !== 'offline') return false;
+          if (vehicle.isOnline || vehicle.status === 'online') return false;
         }
       }
 

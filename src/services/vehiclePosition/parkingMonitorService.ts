@@ -3,7 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { unifiedGeocodingService } from '@/services/geocoding/unifiedGeocodingService';
 import { UserEmailTriggers } from '@/services/emailTriggers/userEmailTriggers';
 import { haversineDistance } from '@/utils/geoUtils';
-import type { VehicleParkingPattern } from '@/types/vehicle';
 
 // This is an internal type for the service, not for export in types/vehicle.ts
 interface PositionUpdate {
@@ -22,6 +21,20 @@ interface VehicleState {
   status: 'moving' | 'parked';
   parkingEventId?: string;
   lastMovedAt: Date;
+}
+
+// Database record type for vehicle_parking_patterns table
+interface VehicleParkingPatternDbRecord {
+  id: string;
+  vehicle_device_id: string;
+  latitude: number;
+  longitude: number;
+  address: string;
+  parking_count: number;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
+  is_primary_night_location: boolean;
 }
 
 const PARKING_THRESHOLD_MINUTES = 5;
@@ -189,10 +202,13 @@ class ParkingMonitorService {
       return;
     }
 
-    let closestPattern: VehicleParkingPattern | null = null;
+    let closestPattern: VehicleParkingPatternDbRecord | null = null;
     let minDistance = Infinity;
 
-    for (const pattern of patterns) {
+    // Type the patterns as the database record type
+    const dbPatterns = patterns as VehicleParkingPatternDbRecord[];
+
+    for (const pattern of dbPatterns) {
       const distance = haversineDistance(
         position.latitude,
         position.longitude,
