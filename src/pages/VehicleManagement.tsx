@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
@@ -5,7 +6,7 @@ import { Car, Search, Filter, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { VehicleCard } from '@/components/vehicles/VehicleCard';
-import { VehicleProfileModal } from '@/components/vehicles/VehicleProfileModal';
+import VehicleProfileModal from '@/components/vehicles/VehicleProfileModal';
 import { useStableEnhancedVehicleData } from '@/hooks/useStableEnhancedVehicleData';
 import { useLiveVehicleData } from '@/hooks/useLiveVehicleData';
 import { supabase } from '@/integrations/supabase/client';

@@ -31,10 +31,12 @@ export interface RedistributionResult {
 }
 
 export interface DataIntegrityResult {
+  isValid: boolean;
+  errors: string[];
+  recommendations: string[];
   totalVehicles: number;
   validUsernames: number;
   invalidUsernames: number;
   emptyUsernames: number;
   genericUsernames: number;
-  recommendations: string[];
 }

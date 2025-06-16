@@ -130,10 +130,10 @@ export const useStableEnhancedVehicleData = () => {
           if (!vehicle.is_active) return false;
         } else if (filters.status === 'online') {
           // For 'online' filter, check the actual status or isOnline
-          if (!vehicle.isOnline && vehicle.status !== 'online') return false;
+          if (!vehicle.isOnline) return false;
         } else if (filters.status === 'offline') {
           // For 'offline' filter, check if vehicle is offline
-          if (vehicle.isOnline || vehicle.status === 'online') return false;
+          if (vehicle.isOnline) return false;
         }
       }
 
