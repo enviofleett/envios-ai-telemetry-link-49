@@ -70,7 +70,9 @@ export class PositionOnlyApiService {
 
     for (const position of positions) {
       try {
-        const { error } = await supabase
+        // ULTIMATE FIX: Cast the entire supabase.from().update().eq() chain to 'any' before destructuring
+        // This prevents TypeScript from attempting deep inference on the database update operation's return type
+        const { error } = (await supabase
           .from('vehicles')
           .update({
             latitude: position.lat,
@@ -80,7 +82,7 @@ export class PositionOnlyApiService {
             last_update: new Date().toISOString(),
             updated_at: new Date().toISOString()
           })
-          .eq('device_id', position.deviceid);
+          .eq('device_id', position.deviceid)) as any;
 
         if (error) {
           console.error(`❌ Failed to update vehicle ${position.deviceid}:`, error);
