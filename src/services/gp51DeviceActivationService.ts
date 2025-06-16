@@ -1,4 +1,5 @@
 
+
 import { supabase } from '@/integrations/supabase/client';
 
 // Simplified interfaces to avoid deep type instantiation
@@ -27,19 +28,6 @@ export interface DeviceActivationStatus {
   isActivated: boolean;
   status: 'active' | 'inactive' | 'error' | 'unknown';
   lastChecked?: string;
-}
-
-// Simple type for database operations to avoid circular references
-interface SimpleVehicleRecord {
-  id: string;
-}
-
-interface SimpleDeviceManagementRecord {
-  vehicle_id: string;
-  gp51_device_id: string;
-  activation_status: string;
-  last_sync_at: string;
-  device_properties: Record<string, any>;
 }
 
 export class GP51DeviceActivationService {
@@ -163,23 +151,21 @@ export class GP51DeviceActivationService {
     gp51Response?: Record<string, any>
   ): Promise<void> {
     try {
-      // Get vehicle ID from device ID with simple type
-      const { data: vehicle } = await supabase
+      // Get vehicle ID from device ID - use simple query
+      const { data: vehicleData } = await supabase
         .from('vehicles')
         .select('id')
         .eq('device_id', deviceId)
         .single();
 
-      if (!vehicle) {
+      if (!vehicleData) {
         console.warn(`⚠️ No vehicle found for device ${deviceId}`);
         return;
       }
 
-      const vehicleRecord = vehicle as SimpleVehicleRecord;
-
-      // Update or insert device management record with explicit typing
-      const deviceManagementData: Partial<SimpleDeviceManagementRecord> = {
-        vehicle_id: vehicleRecord.id,
+      // Direct object construction for upsert - no complex types
+      const deviceManagementRecord = {
+        vehicle_id: vehicleData.id,
         gp51_device_id: deviceId,
         activation_status: status,
         last_sync_at: new Date().toISOString(),
@@ -188,18 +174,20 @@ export class GP51DeviceActivationService {
 
       await supabase
         .from('gp51_device_management')
-        .upsert(deviceManagementData, {
+        .upsert(deviceManagementRecord, {
           onConflict: 'vehicle_id,gp51_device_id'
         });
 
-      // Update vehicle activation status with simple update
+      // Direct object construction for vehicle update
+      const vehicleUpdate = {
+        activation_status: status,
+        updated_at: new Date().toISOString()
+      };
+
       await supabase
         .from('vehicles')
-        .update({
-          activation_status: status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', vehicleRecord.id);
+        .update(vehicleUpdate)
+        .eq('id', vehicleData.id);
 
     } catch (error) {
       console.error('❌ Error updating device activation status:', error);
@@ -256,3 +244,4 @@ export class GP51DeviceActivationService {
     return 'Unknown error occurred';
   }
 }
+
