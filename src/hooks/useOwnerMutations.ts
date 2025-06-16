@@ -10,7 +10,7 @@ export const useOwnerMutations = () => {
 
   const updateOwnerMutation = useMutation({
     mutationFn: async (updatedOwner: EnvioUser) => {
-      const { data, error } = await supabase
+      const { data, error } = (await supabase
         .from('envio_users')
         .update({
           name: updatedOwner.name,
@@ -24,7 +24,7 @@ export const useOwnerMutations = () => {
         })
         .eq('id', updatedOwner.id)
         .select()
-        .single();
+        .single()) as any; // Aggressive fix to bypass TS2589
 
       if (error) {
         throw error;
@@ -52,7 +52,7 @@ export const useOwnerMutations = () => {
 
   const assignVehicleMutation = useMutation({
     mutationFn: async (params: { deviceId: string; ownerId: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = (await supabase
         .from('vehicles')
         .update({
           owner_id: params.ownerId,
@@ -60,7 +60,7 @@ export const useOwnerMutations = () => {
         })
         .eq('device_id', params.deviceId)
         .select()
-        .single();
+        .single()) as any; // Aggressive fix to bypass TS2589
 
       if (error) {
         throw error;
@@ -89,7 +89,7 @@ export const useOwnerMutations = () => {
 
   const unassignVehicleMutation = useMutation({
     mutationFn: async (deviceId: string) => {
-      const { data, error } = await supabase
+      const { data, error } = (await supabase
         .from('vehicles')
         .update({
           owner_id: null,
@@ -97,7 +97,7 @@ export const useOwnerMutations = () => {
         })
         .eq('device_id', deviceId)
         .select()
-        .single();
+        .single()) as any; // Aggressive fix to bypass TS2589
 
       if (error) {
         throw error;
