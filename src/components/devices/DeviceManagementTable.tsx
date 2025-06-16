@@ -1,216 +1,244 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search, Filter, Download, MoreVertical } from 'lucide-react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { 
+  Search, 
+  MoreHorizontal, 
+  Power, 
+  Settings, 
+  MapPin,
+  Clock,
+  Battery,
+  Smartphone
+} from 'lucide-react';
+import { 
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Badge } from '@/components/ui/badge';
-import DeviceStatusBadge from '@/components/devices/DeviceStatusBadge';
-import BatteryIndicator from '@/components/devices/BatteryIndicator';
-import SignalIndicator from '@/components/devices/SignalIndicator';
-import DeviceDetailsModal from '@/components/devices/DeviceDetailsModal';
-import { EnhancedVehicleCreationModal } from '@/components/vehicles/EnhancedVehicleCreationModal';
-import { useDeviceManagement } from '@/hooks/useDeviceManagement';
-import FeatureGate from "@/components/auth/FeatureGate";
-import { FeatureUpgradeCTA } from "@/components/common/FeatureUpgradeCTA";
-import { VehicleLimitEnforcement } from "@/components/common/VehicleLimitEnforcement";
-import type { VehicleData } from '@/types/vehicle';
 
-const DeviceManagementTable: React.FC = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedDevice, setSelectedDevice] = useState<string | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-  
-  const { devices, isLoading, refetch } = useDeviceManagement(searchQuery);
+// Define the Device type
+interface Device {
+  device_id: string;
+  device_name: string;
+  activation_status?: 'active' | 'inactive' | 'error' | 'unknown';
+  updated_at?: string;
+  gp51_metadata?: {
+    imei?: number | string;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
 
-  const handleVehicleCreated = (vehicleId: string) => {
-    console.log('Vehicle created with ID:', vehicleId);
-    // Refresh the device list to show the new vehicle
-    refetch();
+// Define the props for the DeviceManagementTable component
+interface DeviceManagementTableProps {
+  devices: Device[];
+  onDeviceSelect?: (device: Device) => void;
+  onBulkActivate?: (deviceIds: string[]) => void;
+  isLoading?: boolean;
+  selectedDevices?: string[];
+  onSelectionChange?: (deviceIds: string[]) => void;
+}
+
+const DeviceManagementTable: React.FC<DeviceManagementTableProps> = ({
+  devices = [],
+  onDeviceSelect,
+  onBulkActivate,
+  isLoading = false,
+  selectedDevices = [],
+  onSelectionChange
+}) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'error'>('all');
+
+  const handleDeviceSelection = (deviceId: string) => {
+    const isSelected = selectedDevices.includes(deviceId);
+    let newSelection: string[];
+
+    if (isSelected) {
+      newSelection = selectedDevices.filter(id => id !== deviceId);
+    } else {
+      newSelection = [...selectedDevices, deviceId];
+    }
+
+    onSelectionChange?.(newSelection);
   };
 
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Device Management</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="animate-pulse space-y-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-16 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const allDeviceIds = devices.map(device => device.device_id);
+      onSelectionChange?.(allDeviceIds);
+    } else {
+      onSelectionChange?.([]);
+    }
+  };
+
+  const handleBulkActivate = () => {
+    onBulkActivate?.(selectedDevices);
+  };
+
+  const getStatusVariant = (status: string) => {
+    switch (status) {
+      case 'active':
+        return 'success';
+      case 'inactive':
+        return 'secondary';
+      case 'error':
+        return 'destructive';
+      default:
+        return 'default';
+    }
+  };
+
+  const filteredDevices = useMemo(() => {
+    return devices.filter(device => {
+      const matchesSearch = searchTerm === '' || 
+        device.device_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        device.device_name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || device.activation_status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [devices, searchTerm, statusFilter]);
 
   return (
-    <>
-      <FeatureGate featureId="vehicle_management" fallback={
-        <div className="py-12 text-center">
-          <div className="text-xl font-semibold mb-3">Vehicle Management Restricted</div>
-          <FeatureUpgradeCTA feature="vehicle_management">Upgrade to Manage Vehicles</FeatureUpgradeCTA>
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Device Management
+          </CardTitle>
+          {selectedDevices.length > 0 && (
+            <Button 
+              onClick={handleBulkActivate}
+              disabled={isLoading}
+              className="flex items-center gap-2"
+            >
+              <Power className="h-4 w-4" />
+              Activate Selected ({selectedDevices.length})
+            </Button>
+          )}
         </div>
-      }>
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-              <CardTitle className="text-lg font-semibold text-gray-900">
-                Device Management
-              </CardTitle>
-              <VehicleLimitEnforcement currentCount={devices?.length || 0} feature="vehicle_limit">
-                <Button onClick={() => setShowAddModal(true)} className="flex items-center gap-2">
-                  <Plus className="h-4 w-4" />
-                  Create Vehicle
-                </Button>
-              </VehicleLimitEnforcement>
-            </div>
-            
-            {/* Search and Filter Section */}
-            <div className="flex flex-col md:flex-row gap-4 mt-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search devices, IMEI, vehicles..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  Filter
-                </Button>
-                <Button variant="outline" className="flex items-center gap-2">
-                  <Download className="h-4 w-4" />
-                  Export
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-gray-50">
-                    <TableHead className="w-28">Device ID</TableHead>
-                    <TableHead className="w-32">Vehicle</TableHead>
-                    <TableHead className="w-28">Type</TableHead>
-                    <TableHead className="w-40">IMEI</TableHead>
-                    <TableHead className="w-24">Status</TableHead>
-                    <TableHead className="w-20">Battery</TableHead>
-                    <TableHead className="w-20">Signal</TableHead>
-                    <TableHead className="w-28">Last Update</TableHead>
-                    <TableHead className="w-24">Firmware</TableHead>
-                    <TableHead className="w-16">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {devices?.map((device) => (
-                    <TableRow
-                      key={device.device_id}
-                      className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => setSelectedDevice(device.device_id)}
-                    >
-                      <TableCell className="font-medium text-blue-600">
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Search and Filter Controls */}
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search devices..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <select 
+            value={statusFilter} 
+            onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive' | 'error')}
+            className="px-3 py-2 border rounded-md"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="error">Error</option>
+          </select>
+        </div>
+
+        {/* Device Table */}
+        <div className="border rounded-lg">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedDevices.length === filteredDevices.length && filteredDevices.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
+                <TableHead>Device Info</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>IMEI</TableHead>
+                <TableHead>Last Update</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredDevices.map((device) => (
+                <TableRow key={device.device_id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedDevices.includes(device.device_id)}
+                      onCheckedChange={() => handleDeviceSelection(device.device_id)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-1">
+                      <div className="font-medium">{device.device_name}</div>
+                      <div className="text-sm text-gray-500 flex items-center gap-1">
+                        <Smartphone className="h-3 w-3" />
                         {device.device_id}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{device.device_name}</span>
-                          <span className="text-sm text-gray-500">
-                            {device.license_plate || 'N/A'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm">GPS Tracker</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-sm">
-                          {device.gp51_metadata?.imei || '860123456789012'}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <DeviceStatusBadge status={
-                          device.status === 'online' || device.status === 'moving' || device.status === 'idle'
-                            ? 'online'
-                            : 'offline'
-                        } />
-                      </TableCell>
-                      <TableCell>
-                        <BatteryIndicator level={85} />
-                      </TableCell>
-                      <TableCell>
-                        <SignalIndicator strength={4} />
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-gray-600">2 mins ago</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-sm text-gray-600">v2.1.3</span>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setSelectedDevice(device.device_id)}>
-                              View Details
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>Configure</DropdownMenuItem>
-                            <DropdownMenuItem>Update Firmware</DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600">
-                              Remove Device
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      </FeatureGate>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={getStatusVariant(device.activation_status || 'unknown')}>
+                      {device.activation_status || 'Unknown'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm">
+                      {device.gp51_metadata?.imei ? String(device.gp51_metadata.imei) : '860123456789012'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="text-sm text-gray-500 flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      {device.updated_at ? new Date(device.updated_at).toLocaleDateString() : 'Never'}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => onDeviceSelect?.(device)}>
+                          <Settings className="h-4 w-4 mr-2" />
+                          Configure
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <MapPin className="h-4 w-4 mr-2" />
+                          View Location
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <Battery className="h-4 w-4 mr-2" />
+                          Check Status
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
 
-      {/* Device Details Modal */}
-      {selectedDevice && (
-        <DeviceDetailsModal
-          deviceId={selectedDevice}
-          isOpen={!!selectedDevice}
-          onClose={() => setSelectedDevice(null)}
-        />
-      )}
-
-      {/* Enhanced Vehicle Creation Modal */}
-      <EnhancedVehicleCreationModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSuccess={handleVehicleCreated}
-      />
-    </>
+        {filteredDevices.length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            {searchTerm ? 'No devices match your search criteria.' : 'No devices available.'}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

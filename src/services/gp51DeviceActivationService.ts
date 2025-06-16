@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 // Simplified interfaces to avoid deep type instantiation
@@ -100,7 +99,7 @@ export class GP51DeviceActivationService {
    */
   static async checkDeviceActivationStatus(deviceId: string): Promise<DeviceActivationStatus> {
     try {
-      // Check local tracking first - using explicit typing to prevent TS2589
+      // Check local tracking first - using aggressive type assertion to avoid TS2589
       const { data: localStatus, error: localError } = await supabase
         .from('gp51_device_management')
         .select('activation_status, last_sync_at')
@@ -151,8 +150,7 @@ export class GP51DeviceActivationService {
   }
 
   /**
-   * Update local device activation tracking
-   * Using explicit typing to prevent TS2589 errors
+   * Update local device activation tracking with aggressive type assertion to avoid TS2589
    */
   private static async updateDeviceActivationStatus(
     deviceId: string, 
@@ -160,29 +158,18 @@ export class GP51DeviceActivationService {
     gp51Response?: any
   ): Promise<void> {
     try {
-      // Get vehicle ID from device ID - using explicit typing
-      const { data: vehicleData, error: vehicleError } = await supabase
-        .from('vehicles')
-        .select('id')
-        .eq('device_id', deviceId)
-        .maybeSingle();
+      // Get vehicle ID using direct RPC call to avoid complex type inference
+      const { data: vehicleId, error: vehicleError } = await supabase
+        .rpc('get_vehicle_id_by_device', { device_id_param: deviceId });
 
-      // Explicitly type the result to avoid deep inference
-      const typedVehicleData: VehicleIdResult | null = vehicleData;
-
-      if (vehicleError) {
-        console.error('Error fetching vehicle ID:', vehicleError);
-        return;
-      }
-
-      if (!typedVehicleData) {
-        console.warn(`⚠️ No vehicle found for device ${deviceId}`);
+      if (vehicleError || !vehicleId) {
+        console.warn(`⚠️ No vehicle found for device ${deviceId}:`, vehicleError?.message);
         return;
       }
 
       // Update device management record
       const deviceManagementRecord = {
-        vehicle_id: typedVehicleData.id,
+        vehicle_id: vehicleId,
         gp51_device_id: deviceId,
         activation_status: status,
         last_sync_at: new Date().toISOString(),
@@ -200,16 +187,12 @@ export class GP51DeviceActivationService {
         return;
       }
 
-      // Update vehicle record
-      const vehicleUpdate = {
-        activation_status: status,
-        updated_at: new Date().toISOString()
-      };
-
+      // Update vehicle record using RPC to avoid type issues
       const { error: updateError } = await supabase
-        .from('vehicles')
-        .update(vehicleUpdate)
-        .eq('id', typedVehicleData.id);
+        .rpc('update_vehicle_activation_status', {
+          vehicle_id_param: vehicleId,
+          status_param: status
+        });
 
       if (updateError) {
         console.error('Error updating vehicle status:', updateError);

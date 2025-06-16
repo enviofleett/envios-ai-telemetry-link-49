@@ -1,5 +1,5 @@
 
-import { createHash } from 'crypto';
+import { md5 } from './md5';
 
 export class SecurityService {
   static generateSessionToken(): string {
@@ -21,20 +21,7 @@ export class SecurityService {
   }
 
   private static hashMd5(input: string): string {
-    // Fallback MD5 implementation for browser compatibility
-    return this.simpleMd5(input);
-  }
-
-  private static simpleMd5(input: string): string {
-    // Simple hash function for development - replace with proper MD5 if needed
-    let hash = 0;
-    if (input.length === 0) return hash.toString(16);
-    for (let i = 0; i < input.length; i++) {
-      const char = input.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32bit integer
-    }
-    return Math.abs(hash).toString(16);
+    return md5(input);
   }
 
   static validateInput(input: string, type: 'deviceId' | 'imei' | 'username'): { isValid: boolean; error?: string } {
@@ -65,5 +52,5 @@ export class SecurityService {
 }
 
 export const calculateMd5 = (input: string): string => {
-  return SecurityService['hashMd5'](input);
+  return md5(input);
 };
