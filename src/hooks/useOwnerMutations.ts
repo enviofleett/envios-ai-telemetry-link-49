@@ -30,7 +30,7 @@ export const useOwnerMutations = () => {
         throw error;
       }
 
-      return data as EnvioUser;
+      return data as any; // Targeted fix to bypass TS2589
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
@@ -66,7 +66,7 @@ export const useOwnerMutations = () => {
         throw error;
       }
 
-      return data;
+      return data as any; // Targeted fix to bypass TS2589
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
@@ -103,7 +103,7 @@ export const useOwnerMutations = () => {
         throw error;
       }
 
-      return data;
+      return data as any; // Targeted fix to bypass TS2589
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
