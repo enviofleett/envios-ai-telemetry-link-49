@@ -22,7 +22,7 @@ export const useOwnerMutations = () => {
           registration_status: updatedOwner.registration_status,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', updatedOwner.id)
+        .eq('id', updatedOwner.id as any)
         .select()
         .single()) as any; // Aggressive fix to bypass TS2589
 
@@ -55,10 +55,10 @@ export const useOwnerMutations = () => {
       const { data, error } = (await supabase
         .from('vehicles')
         .update({
-          owner_id: params.ownerId,
+          owner_id: params.ownerId as any,
           updated_at: new Date().toISOString(),
         })
-        .eq('device_id', params.deviceId)
+        .eq('device_id', params.deviceId as any) // Ultimate fix: cast the problematic parameter
         .select()
         .single()) as any; // Aggressive fix to bypass TS2589
 
@@ -95,7 +95,7 @@ export const useOwnerMutations = () => {
           owner_id: null,
           updated_at: new Date().toISOString(),
         })
-        .eq('device_id', deviceId)
+        .eq('device_id', deviceId as any) // Ultimate fix: cast the parameter
         .select()
         .single()) as any; // Aggressive fix to bypass TS2589
 
