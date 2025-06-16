@@ -58,6 +58,7 @@ export interface VehicleData {
   // Other UI-related properties
   vin?: string;
   license_plate?: string;
+  plateNumber?: string; // for compatibility
   make?: string;
   model?: string;
   year?: number;
@@ -67,7 +68,6 @@ export interface VehicleData {
   // Legacy compatibility
   lastUpdate?: Date;
   vehicleName?: string;
-  plateNumber?: string | null;
   
   // Properties added to fix TS errors
   location?: VehicleLocation;
@@ -89,8 +89,8 @@ export interface VehicleData {
 export type EnhancedVehicle = VehicleData;
 export type RawVehicleData = VehicleDbRecord;
 
-// Define the comprehensive status enum, including 'active' and 'unknown'
-export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'unknown';
+// Define the comprehensive status enum, including 'active', 'maintenance' and 'unknown'
+export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
 // Consolidated Vehicle type definitions
 export interface VehiclePosition {

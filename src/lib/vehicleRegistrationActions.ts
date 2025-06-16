@@ -184,4 +184,29 @@ export class VehicleRegistrationActions {
       };
     }
   }
+
+  /**
+   * Get all vehicles
+   */
+  static async getVehicles(): Promise<VehicleDbRecord[]> {
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching vehicles:', error);
+        return [];
+      }
+
+      return data as VehicleDbRecord[] || [];
+    } catch (error) {
+      console.error('Unexpected error fetching vehicles:', error);
+      return [];
+    }
+  }
 }
+
+export const registerVehicle = VehicleRegistrationActions.registerVehicle;
+export const getVehicles = VehicleRegistrationActions.getVehicles;

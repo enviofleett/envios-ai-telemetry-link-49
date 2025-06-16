@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Database, Car, Users, ArrowRight } from 'lucide-react';
-import VehicleImportReviewDialog from './VehicleImportReviewDialog';
+import { VehicleImportReviewDialog } from './VehicleImportReviewDialog';
 
 const VehicleImportTab: React.FC = () => {
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -92,6 +92,8 @@ const VehicleImportTab: React.FC = () => {
       <VehicleImportReviewDialog
         open={showImportDialog}
         onOpenChange={setShowImportDialog}
+        importedVehicles={{ valid: [], invalid: [] }}
+        onMappingSuccess={() => {}}
       />
     </div>
   );

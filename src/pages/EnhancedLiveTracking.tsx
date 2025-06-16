@@ -1,510 +1,399 @@
-import React, { useState, useMemo } from 'react';
-import Layout from '@/components/Layout';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
-import { useToast } from '@/hooks/use-toast';
-import {
-  MapPin,
-  Search,
-  Download,
-  RefreshCw,
-  Car,
-  CheckCircle,
-  Clock,
+import { 
+  Search, 
+  Filter, 
+  RefreshCw, 
+  MapPin, 
+  Clock, 
+  Fuel, 
   AlertTriangle,
-  FileText,
-  Fuel,
-  Wrench,
-  ShoppingCart,
-  Activity,
-  TestTube,
-  TrendingUp
+  ChevronRight,
+  Eye,
+  MoreVertical,
+  Car
 } from 'lucide-react';
-import type { EnhancedVehicle, ReportType } from '@/types/vehicle';
-import { convertToEnhancedVehicle } from '@/utils/trackingDataGenerator';
-import { VehicleAnalyticsModal } from '@/components/tracking/VehicleAnalyticsModal';
-import { ReportGenerationModal } from '@/components/tracking/ReportGenerationModal';
-import SyncMonitoringDashboard from '@/components/monitoring/SyncMonitoringDashboard';
-import SystemHealthDashboard from '@/components/testing/SystemHealthDashboard';
-import PerformanceMetrics from '@/components/testing/PerformanceMetrics';
-import DataFreshnessIndicator from '@/components/tracking/DataFreshnessIndicator';
+import { VehicleData, VehicleStatus } from '@/types/vehicle';
 
-const reportTypes: ReportType[] = [
+// Mock data with proper VehicleData structure
+const mockVehicles: VehicleData[] = [
   {
-    id: "parking",
-    name: "Parking Report",
-    description: "Analyze vehicle parking patterns and locations",
-    icon: MapPin,
-    color: "bg-blue-100 text-blue-800",
+    id: '1',
+    device_id: 'TRK001',
+    device_name: 'Fleet Vehicle 001',
+    user_id: 'user1',
+    sim_number: '1234567890',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: new Date().toISOString(),
+    plateNumber: 'ABC-123',
+    model: 'Toyota Hilux',
+    driver: 'John Doe',
+    speed: 45,
+    fuel: 75,
+    lastUpdate: new Date(),
+    status: 'active' as VehicleStatus,
+    is_active: true,
+    isOnline: true,
+    isMoving: true,
+    alerts: [],
+    location: { latitude: -1.2921, longitude: 36.8219 },
+    mileage: 15420,
+    engineHours: 1240,
+    fuelType: 'Diesel',
+    engineSize: 2.5,
   },
   {
-    id: "favorite-places",
-    name: "Favorite Places Report",
-    description: "Identify most frequently visited locations",
-    icon: MapPin,
-    color: "bg-green-100 text-green-800",
+    id: '2',
+    device_id: 'TRK002',
+    device_name: 'Fleet Vehicle 002',
+    user_id: 'user2',
+    sim_number: '9876543210',
+    created_at: '2024-01-05T00:00:00Z',
+    updated_at: new Date().toISOString(),
+    plateNumber: 'XYZ-789',
+    model: 'Ford Ranger',
+    driver: { name: 'Jane Smith' },
+    speed: 0,
+    fuel: 25,
+    lastUpdate: new Date(),
+    status: 'idle' as VehicleStatus,
+    is_active: true,
+    isOnline: false,
+    isMoving: false,
+    alerts: ['Low Fuel'],
+    location: { latitude: -1.3036, longitude: 36.7833 },
+    mileage: 8950,
+    engineHours: 670,
+    fuelType: 'Gasoline',
+    engineSize: 3.5,
   },
   {
-    id: "engine-work-time",
-    name: "Engine Work Time Report",
-    description: "Track engine operating hours and efficiency",
-    icon: Clock,
-    color: "bg-orange-100 text-orange-800",
+    id: '3',
+    device_id: 'TRK003',
+    device_name: 'Fleet Vehicle 003',
+    user_id: 'user3',
+    sim_number: '5555555555',
+    created_at: '2024-01-10T00:00:00Z',
+    updated_at: new Date().toISOString(),
+    plateNumber: 'LMN-456',
+    model: 'Nissan Navara',
+    driver: null,
+    speed: 60,
+    fuel: 90,
+    lastUpdate: new Date(),
+    status: 'active' as VehicleStatus,
+    is_active: true,
+    isOnline: true,
+    isMoving: true,
+    alerts: [],
+    location: { latitude: -1.2864, longitude: 36.8172 },
+    mileage: 21300,
+    engineHours: 1580,
+    fuelType: 'Diesel',
+    engineSize: 2.3,
   },
   {
-    id: "vehicle-idling",
-    name: "Vehicle Idling Report",
-    description: "Monitor excessive idling and fuel waste",
-    icon: Clock,
-    color: "bg-yellow-100 text-yellow-800",
+    id: '4',
+    device_id: 'TRK004',
+    device_name: 'Fleet Vehicle 004',
+    user_id: 'user4',
+    sim_number: '1111111111',
+    created_at: '2024-01-15T00:00:00Z',
+    updated_at: new Date().toISOString(),
+    plateNumber: 'PQR-000',
+    model: 'Isuzu D-Max',
+    driver: 'Alice Johnson',
+    speed: 0,
+    fuel: 10,
+    lastUpdate: new Date(),
+    status: 'maintenance' as VehicleStatus,
+    is_active: false,
+    isOnline: false,
+    isMoving: false,
+    alerts: ['Engine Overheat', 'Low Fuel'],
+    location: { latitude: -1.2958, longitude: 36.7689 },
+    mileage: 12750,
+    engineHours: 950,
+    fuelType: 'Diesel',
+    engineSize: 3.0,
   },
   {
-    id: "alarm",
-    name: "Alarm Report",
-    description: "Security alerts and alarm history",
-    icon: AlertTriangle,
-    color: "bg-red-100 text-red-800",
-  },
-  {
-    id: "fuel-consumption",
-    name: "Fuel Consumption Report (VIN Analysis)",
-    description: "Detailed fuel analysis based on VIN data",
-    icon: Fuel,
-    color: "bg-purple-100 text-purple-800",
-  },
-  {
-    id: "vehicle-inspection",
-    name: "Vehicle Inspection Report",
-    description: "Maintenance and inspection status overview",
-    icon: Wrench,
-    color: "bg-teal-100 text-teal-800",
-  },
-  {
-    id: "marketplace",
-    name: "Marketplace Report",
-    description: "Service usage and marketplace analytics",
-    icon: ShoppingCart,
-    color: "bg-indigo-100 text-indigo-800",
-  },
+    id: '5',
+    device_id: 'TRK005',
+    device_name: 'Fleet Vehicle 005',
+    user_id: 'user5',
+    sim_number: '2222222222',
+    created_at: '2024-01-20T00:00:00Z',
+    updated_at: new Date().toISOString(),
+    plateNumber: 'STU-999',
+    model: 'Mitsubishi L200',
+    driver: 'Bob Williams',
+    speed: 25,
+    fuel: 50,
+    lastUpdate: new Date(),
+    status: 'offline' as VehicleStatus,
+    is_active: false,
+    isOnline: false,
+    isMoving: false,
+    alerts: [],
+    location: { latitude: -1.3145, longitude: 36.8322 },
+    mileage: 17640,
+    engineHours: 1320,
+    fuelType: 'Diesel',
+    engineSize: 2.4,
+  }
 ];
 
 const EnhancedLiveTracking: React.FC = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedVehicle, setSelectedVehicle] = useState<EnhancedVehicle | null>(null);
-  const [showAnalytics, setShowAnalytics] = useState(false);
-  const [showReportModal, setShowReportModal] = useState(false);
-  const [selectedReport, setSelectedReport] = useState<string | null>(null);
+  const [vehicles] = useState<VehicleData[]>(mockVehicles);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
 
-  const { toast } = useToast();
+  // Filter vehicles based on search and status
+  const filteredVehicles = useMemo(() => {
+    return vehicles.filter(vehicle => {
+      const matchesSearch = searchTerm === '' || 
+        vehicle.device_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        vehicle.device_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (typeof vehicle.driver === 'string' ? 
+          vehicle.driver.toLowerCase().includes(searchTerm.toLowerCase()) :
+          vehicle.driver?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
 
-  const { 
-    vehicles: rawVehicles, 
-    metrics, 
-    isLoading, 
-    isRefreshing, 
-    forceRefresh 
-  } = useUnifiedVehicleData();
-
-  // Convert VehicleData to enhanced vehicles with additional analytics data
-  const enhancedVehicles: EnhancedVehicle[] = useMemo(() => {
-    return rawVehicles.map(convertToEnhancedVehicle);
-  }, [rawVehicles]);
-
-  const filteredVehicles = enhancedVehicles.filter((vehicle) => {
-    const matchesSearch =
-      vehicle.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vehicle.plateNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vehicle.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      vehicle.driver.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus = statusFilter === "all" || vehicle.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>;
-      case "idle":
-        return <Badge className="bg-yellow-100 text-yellow-800">Idle</Badge>;
-      case "maintenance":
-        return <Badge variant="destructive">Maintenance</Badge>;
-      case "offline":
-        return <Badge variant="secondary">Offline</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "active":
-        return "#22c55e";
-      case "idle":
-        return "#eab308";
-      case "maintenance":
-        return "#ef4444";
-      case "offline":
-        return "#6b7280";
-      default:
-        return "#6b7280";
-    }
-  };
-
-  const handleVehicleClick = (vehicle: EnhancedVehicle) => {
-    setSelectedVehicle(vehicle);
-    setShowAnalytics(true);
-  };
-
-  const handleGenerateReport = (reportType: string) => {
-    setSelectedReport(reportType);
-    setShowReportModal(true);
-  };
-
-  const handleRefresh = async () => {
-    await forceRefresh();
-    toast({
-      title: "Data Refreshed",
-      description: "Vehicle data has been updated from GP51"
+      const matchesStatus = statusFilter === 'all' || vehicle.status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
     });
+  }, [vehicles, searchTerm, statusFilter]);
+
+  // Status counts
+  const statusCounts = useMemo(() => {
+    return vehicles.reduce((acc, vehicle) => {
+      acc[vehicle.status] = (acc[vehicle.status] || 0) + 1;
+      return acc;
+    }, {} as Record<VehicleStatus, number>);
+  }, [vehicles]);
+
+  const getStatusColor = (status: VehicleStatus) => {
+    switch (status) {
+      case 'active': return 'bg-green-500';
+      case 'idle': return 'bg-yellow-500';
+      case 'maintenance': return 'bg-red-500';
+      case 'offline': return 'bg-gray-500';
+      default: return 'bg-blue-500';
+    }
   };
 
-  if (isLoading) {
-    return (
-      <ProtectedRoute>
-        <Layout>
-          <div className="flex items-center justify-center p-8">
-            <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-            <span>Loading enhanced vehicle data...</span>
-          </div>
-        </Layout>
-      </ProtectedRoute>
-    );
-  }
+  const getStatusText = (status: VehicleStatus) => {
+    switch (status) {
+      case 'active': return 'Active';
+      case 'idle': return 'Idle';
+      case 'maintenance': return 'Maintenance';
+      case 'offline': return 'Offline';
+      default: return 'Unknown';
+    }
+  };
+
+  const renderDriver = (driver: VehicleData['driver']) => {
+    if (typeof driver === 'string') {
+      return driver;
+    }
+    if (driver && typeof driver === 'object' && 'name' in driver) {
+      return driver.name;
+    }
+    return 'Unassigned';
+  };
 
   return (
-    <ProtectedRoute>
-      <Layout>
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <h2 className="text-3xl font-bold tracking-tight">Enhanced Live Tracking</h2>
-            <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              <Button variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export
-              </Button>
-            </div>
+    <div className="h-screen flex bg-gray-50">
+      {/* Sidebar */}
+      <div className="w-96 bg-white border-r border-gray-200 flex flex-col">
+        {/* Header */}
+        <div className="p-4 border-b border-gray-200">
+          <h1 className="text-xl font-semibold text-gray-900 mb-4">Live Vehicle Tracking</h1>
+          
+          {/* Search */}
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              placeholder="Search vehicles..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
 
-          {/* Main Content Tabs */}
-          <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="overview">Fleet Overview</TabsTrigger>
-              <TabsTrigger value="monitoring">System Monitoring</TabsTrigger>
-              <TabsTrigger value="performance">Performance</TabsTrigger>
-              <TabsTrigger value="testing">System Health</TabsTrigger>
-              <TabsTrigger value="reports">Reports</TabsTrigger>
-            </TabsList>
+          {/* Status Filter */}
+          <div className="flex items-center gap-2 mb-4">
+            <Filter className="w-4 h-4 text-gray-500" />
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Vehicles ({vehicles.length})</SelectItem>
+                <SelectItem value="active">Active ({statusCounts.active || 0})</SelectItem>
+                <SelectItem value="idle">Idle ({statusCounts.idle || 0})</SelectItem>
+                <SelectItem value="offline">Offline ({statusCounts.offline || 0})</SelectItem>
+                {statusCounts.maintenance > 0 && (
+                  <SelectItem value="maintenance">Maintenance ({statusCounts.maintenance})</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
+          </div>
 
-            <TabsContent value="overview" className="space-y-6">
-              {/* Status Cards */}
-              <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
-                    <Car className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{enhancedVehicles.length}</div>
-                    <p className="text-xs text-muted-foreground">in fleet</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Active</CardTitle>
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-green-600">
-                      {enhancedVehicles.filter((v) => v.status === "active").length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">on the road</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Idle</CardTitle>
-                    <Clock className="h-4 w-4 text-yellow-500" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-yellow-600">
-                      {enhancedVehicles.filter((v) => v.status === "idle").length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">stationary</p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Maintenance</CardTitle>
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-red-600">
-                      {enhancedVehicles.filter((v) => v.status === "maintenance").length}
-                    </div>
-                    <p className="text-xs text-muted-foreground">in service</p>
-                  </CardContent>
-                </Card>
+          {/* Quick Stats */}
+          <div className="grid grid-cols-2 gap-2">
+            <Card className="p-2">
+              <div className="text-xs text-gray-500">Online</div>
+              <div className="text-lg font-semibold text-green-600">
+                {vehicles.filter(v => v.isOnline).length}
               </div>
-
-              {/* Fleet Overview */}
-              <div className="grid gap-6 lg:grid-cols-2">
-                {/* Live Map */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
-                      Live Vehicle Map
-                    </CardTitle>
-                    <CardDescription>Real-time vehicle locations and status</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="relative h-[400px] bg-muted rounded-lg overflow-hidden">
-                      {/* Map placeholder with vehicle markers */}
-                      <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
-                        <div className="text-center">
-                          <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                          <p className="text-sm text-muted-foreground">Interactive Map View</p>
-                        </div>
-                      </div>
-
-                      {/* Vehicle markers with freshness indicators */}
-                      {enhancedVehicles.slice(0, 8).map((vehicle, index) => (
-                        <button
-                          key={vehicle.id}
-                          onClick={() => handleVehicleClick(vehicle)}
-                          className="absolute transform -translate-x-1/2 -translate-y-1/2 hover:scale-110 transition-transform"
-                          style={{
-                            left: `${20 + index * 10}%`,
-                            top: `${30 + (index % 3) * 20}%`,
-                          }}
-                        >
-                          <div className="relative">
-                            <div
-                              className="w-4 h-4 rounded-full border-2 border-white shadow-lg cursor-pointer"
-                              style={{ backgroundColor: getStatusColor(vehicle.status) }}
-                            />
-                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 hover:opacity-100 transition-opacity whitespace-nowrap">
-                              {vehicle.plateNumber}
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Enhanced Vehicle List */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Vehicle List</CardTitle>
-                    <CardDescription>Click on any vehicle to view detailed analytics</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {/* Search and Filter */}
-                      <div className="flex gap-2">
-                        <div className="relative flex-1">
-                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                          <Input
-                            placeholder="Search vehicles..."
-                            className="pl-8"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                          />
-                        </div>
-                        <Select value={statusFilter} onValueChange={setStatusFilter}>
-                          <SelectTrigger className="w-[120px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Status</SelectItem>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="idle">Idle</SelectItem>
-                            <SelectItem value="maintenance">Maintenance</SelectItem>
-                            <SelectItem value="offline">Offline</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Enhanced Vehicle Cards with Data Freshness */}
-                      <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                        {filteredVehicles.map((vehicle) => (
-                          <div
-                            key={vehicle.id}
-                            onClick={() => handleVehicleClick(vehicle)}
-                            className="p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <div
-                                  className="w-3 h-3 rounded-full"
-                                  style={{ backgroundColor: getStatusColor(vehicle.status) }}
-                                />
-                                <div>
-                                  <div className="font-medium">{vehicle.plateNumber}</div>
-                                  <div className="text-sm text-muted-foreground">{vehicle.model}</div>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {getStatusBadge(vehicle.status)}
-                                <DataFreshnessIndicator 
-                                  lastUpdate={vehicle.lastUpdate} 
-                                  size="sm"
-                                  showText={false}
-                                />
-                              </div>
-                            </div>
-                            <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-                              <div>Speed: {vehicle.speed} km/h</div>
-                              <div>Fuel: {vehicle.fuel}%</div>
-                              <div>Driver: {vehicle.driver}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            </Card>
+            <Card className="p-2">
+              <div className="text-xs text-gray-500">Moving</div>
+              <div className="text-lg font-semibold text-blue-600">
+                {vehicles.filter(v => v.isMoving).length}
               </div>
-            </TabsContent>
-
-            <TabsContent value="monitoring" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5" />
-                    Real-time System Monitoring
-                  </CardTitle>
-                  <CardDescription>
-                    Live data flow monitoring and system health metrics
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <SyncMonitoringDashboard />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="performance" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Performance Analytics
-                  </CardTitle>
-                  <CardDescription>
-                    Detailed performance metrics and optimization insights
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <PerformanceMetrics />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="testing" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TestTube className="h-5 w-5" />
-                    System Health & Testing
-                  </CardTitle>
-                  <CardDescription>
-                    End-to-end pipeline testing and system health monitoring
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <SystemHealthDashboard />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="reports" className="space-y-6">
-              {/* Reports Section */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5" />
-                    Fleet Reports
-                  </CardTitle>
-                  <CardDescription>Generate comprehensive reports for fleet analysis and compliance</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                    {reportTypes.map((report) => {
-                      const IconComponent = report.icon;
-                      return (
-                        <Button
-                          key={report.id}
-                          variant="outline"
-                          className="h-auto p-4 flex flex-col items-start gap-2 hover:bg-muted/50"
-                          onClick={() => handleGenerateReport(report.id)}
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            <div className={`p-2 rounded-lg ${report.color}`}>
-                              <IconComponent className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1 text-left">
-                              <div className="font-medium text-sm">{report.name}</div>
-                              <div className="text-xs text-muted-foreground mt-1">{report.description}</div>
-                            </div>
-                          </div>
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-
-          {/* Vehicle Analytics Modal */}
-          <VehicleAnalyticsModal
-            vehicle={selectedVehicle}
-            isOpen={showAnalytics}
-            onClose={() => setShowAnalytics(false)}
-          />
-
-          {/* Report Generation Modal */}
-          <ReportGenerationModal
-            isOpen={showReportModal}
-            onClose={() => setShowReportModal(false)}
-            selectedReport={selectedReport}
-            reportTypes={reportTypes}
-            vehicles={enhancedVehicles}
-          />
+            </Card>
+          </div>
         </div>
-      </Layout>
-    </ProtectedRoute>
+
+        {/* Vehicle List */}
+        <div className="flex-1 overflow-y-auto">
+          {filteredVehicles.map((vehicle) => (
+            <div
+              key={vehicle.id}
+              className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
+                selectedVehicle?.id === vehicle.id ? 'bg-blue-50 border-blue-200' : ''
+              }`}
+              onClick={() => setSelectedVehicle(vehicle)}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(vehicle.status)}`} />
+                    <span className="font-medium text-sm">{vehicle.device_name}</span>
+                  </div>
+                  
+                  <div className="text-xs text-gray-500 mb-2">
+                    {vehicle.device_id} • {renderDriver(vehicle.driver)}
+                  </div>
+                  
+                  <div className="flex items-center gap-3 text-xs text-gray-600">
+                    <div className="flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />
+                      <span>{vehicle.speed || 0} km/h</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Fuel className="w-3 h-3" />
+                      <span>{vehicle.fuel || 0}%</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{vehicle.lastUpdate ? new Date(vehicle.lastUpdate).toLocaleTimeString() : 'N/A'}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  <Badge variant="outline" className="text-xs">
+                    {getStatusText(vehicle.status)}
+                  </Badge>
+                  <ChevronRight className="w-4 h-4 text-gray-400" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Map Area */}
+      <div className="flex-1 relative">
+        {/* Map placeholder */}
+        <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+          <div className="text-center">
+            <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-600 mb-2">Interactive Map</h3>
+            <p className="text-gray-500">Real-time vehicle positions will be displayed here</p>
+          </div>
+        </div>
+
+        {/* Vehicle Details Panel */}
+        {selectedVehicle && (
+          <div className="absolute top-4 right-4 w-80 bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold">{selectedVehicle.device_name}</h3>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm">
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className={`w-2 h-2 rounded-full ${getStatusColor(selectedVehicle.status)}`} />
+                <span>{getStatusText(selectedVehicle.status)}</span>
+                <span>•</span>
+                <span>{renderDriver(selectedVehicle.driver)}</span>
+              </div>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Location Info */}
+              <div>
+                <h4 className="font-medium text-sm mb-2">Location</h4>
+                <div className="text-sm text-gray-600">
+                  <div>Speed: {selectedVehicle.speed || 0} km/h</div>
+                  <div>Last Update: {selectedVehicle.lastUpdate ? selectedVehicle.lastUpdate.toLocaleString() : 'N/A'}</div>
+                </div>
+              </div>
+
+              {/* Vehicle Info */}
+              <div>
+                <h4 className="font-medium text-sm mb-2">Vehicle Info</h4>
+                <div className="text-sm text-gray-600 space-y-1">
+                  <div>Plate: {selectedVehicle.plateNumber || 'N/A'}</div>
+                  <div>Model: {selectedVehicle.model || 'N/A'}</div>
+                  <div>Fuel: {selectedVehicle.fuel || 0}%</div>
+                  <div>Mileage: {selectedVehicle.mileage || 0} km</div>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <Button size="sm" className="flex-1">
+                  <Car className="w-4 h-4 mr-2" />
+                  Track
+                </Button>
+                <Button variant="outline" size="sm" className="flex-1">
+                  Details
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Refresh Button */}
+        <Button
+          size="sm"
+          className="absolute top-4 left-4"
+          onClick={() => window.location.reload()}
+        >
+          <RefreshCw className="w-4 h-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+    </div>
   );
 };
 

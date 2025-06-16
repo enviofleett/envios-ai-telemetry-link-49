@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useSystemHealth } from '@/hooks/useSystemHealth';
 import { useGP51ValidationTesting } from '@/hooks/useGP51ValidationTesting';
@@ -35,7 +36,7 @@ const HealthMetricCard = ({ title, value, status, icon, children }: { title: str
 
 
 const SystemHealthDashboard: React.FC = () => {
-    const { data: health, isLoading: isLoadingHealth, error: healthError } = useSystemHealth();
+    const { healthMetrics, isLoading: isLoadingHealth, error: healthError } = useSystemHealth();
     const { runFullValidation, isRunning, results, clearResults } = useGP51ValidationTesting();
 
     if (isLoadingHealth) {
@@ -60,7 +61,7 @@ const SystemHealthDashboard: React.FC = () => {
             <CardDescription>Could not load system health status.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-destructive">{healthError.message}</p>
+            <p className="text-sm text-destructive">{healthError}</p>
           </CardContent>
         </Card>
       );
@@ -76,33 +77,33 @@ const SystemHealthDashboard: React.FC = () => {
           <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
              <HealthMetricCard 
                 title="Overall Health"
-                value={health?.overallHealth.toUpperCase() ?? 'UNKNOWN'}
-                status={health?.overallHealth}
+                value={healthMetrics?.overallHealth.toUpperCase() ?? 'UNKNOWN'}
+                status={healthMetrics?.overallHealth}
                 icon={<Activity className="h-4 w-4 text-muted-foreground" />}
              />
              <HealthMetricCard 
                 title="GP51 Connection"
-                value={health?.gp51Status.connected ? 'Connected' : 'Disconnected'}
-                status={health?.gp51Status.connected ? 'healthy' : 'critical'}
+                value={healthMetrics?.gp51Status.connected ? 'Connected' : 'Disconnected'}
+                status={healthMetrics?.gp51Status.connected ? 'healthy' : 'critical'}
                 icon={<Server className="h-4 w-4 text-muted-foreground" />}
              >
-                <p className="text-xs text-muted-foreground">{health?.gp51Status.username ? `as ${health.gp51Status.username}` : 'No active session'}</p>
+                <p className="text-xs text-muted-foreground">{healthMetrics?.gp51Status.username ? `as ${healthMetrics.gp51Status.username}` : 'No active session'}</p>
              </HealthMetricCard>
              <HealthMetricCard 
                 title="Database"
-                value={health?.databaseStatus.connected ? 'Connected' : 'Error'}
-                status={health?.databaseStatus.connected ? 'healthy' : 'critical'}
+                value={healthMetrics?.databaseStatus.connected ? 'Connected' : 'Error'}
+                status={healthMetrics?.databaseStatus.connected ? 'healthy' : 'critical'}
                 icon={<Database className="h-4 w-4 text-muted-foreground" />}
              >
-                <p className="text-xs text-muted-foreground">Response time: {health?.databaseStatus.responseTime}ms</p>
+                <p className="text-xs text-muted-foreground">Response time: {healthMetrics?.databaseStatus.responseTime}ms</p>
              </HealthMetricCard>
              <HealthMetricCard 
                 title="API Endpoints"
-                value={`${health?.apiEndpoints.available}/${health?.apiEndpoints.total} Available`}
-                status={health?.apiEndpoints.available === health?.apiEndpoints.total ? 'healthy' : 'warning'}
+                value={`${healthMetrics?.apiEndpoints.available}/${healthMetrics?.apiEndpoints.total} Available`}
+                status={healthMetrics?.apiEndpoints.available === healthMetrics?.apiEndpoints.total ? 'healthy' : 'warning'}
                 icon={<Thermometer className="h-4 w-4 text-muted-foreground" />}
              >
-                {health?.apiEndpoints.issues && health.apiEndpoints.issues.length > 0 && <p className="text-xs text-destructive">{health.apiEndpoints.issues.join(', ')}</p>}
+                {healthMetrics?.apiEndpoints.issues && healthMetrics.apiEndpoints.issues.length > 0 && <p className="text-xs text-destructive">{healthMetrics.apiEndpoints.issues.join(', ')}</p>}
              </HealthMetricCard>
           </CardContent>
         </Card>

@@ -1,10 +1,12 @@
+
 import React, { useState } from 'react';
 import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
   DialogTitle,
-  DialogDescription 
+  DialogDescription,
+  DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -132,10 +134,10 @@ const Table: React.FC<TableProps> = ({ vehicles, isInvalid }) => {
           {vehicles.map((vehicle, index) => (
             <tr key={index}>
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                {vehicle.deviceId}
+                {vehicle.device_id || vehicle.deviceId}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {vehicle.deviceName}
+                {vehicle.device_name || vehicle.deviceName}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {isInvalid ? (

@@ -8,10 +8,13 @@ export interface UserProfile {
   id: string;
   phone_number: string;
   registration_status: 'pending_email_verification' | 'pending_phone_verification' | 'pending_admin_approval' | 'active' | 'rejected';
-  role: 'admin' | 'user' | 'moderator' | 'agent' | 'merchant' | 'pending';
+  role: 'admin' | 'user' | 'moderator' | 'agent' | 'merchant' | 'pending' | 'driver' | 'dispatcher' | 'fleet_manager' | 'manager' | 'compliance_officer';
   first_name?: string;
   last_name?: string;
   full_name?: string;
+  email: string;
+  profile_picture_url?: string;
+  vehicle_count: number;
   created_at: string;
   updated_at: string;
   assigned_vehicles: { id: string; device_id: string; device_name?: string; }[];
@@ -38,7 +41,9 @@ export const useUserProfiles = () => {
           first_name,
           last_name,
           created_at,
-          updated_at
+          updated_at,
+          email,
+          profile_picture_url
         `)
         .order('created_at', { ascending: false });
 
@@ -66,11 +71,14 @@ export const useUserProfiles = () => {
         return {
           id: profile.id,
           phone_number: profile.phone_number || '',
-          registration_status: profile.registration_status || 'pending_email_verification',
-          role: profile.role || 'pending',
+          registration_status: profile.registration_status as UserProfile['registration_status'] || 'pending_email_verification',
+          role: profile.role as UserProfile['role'] || 'pending',
           first_name: profile.first_name || '',
           last_name: profile.last_name || '',
           full_name: fullName,
+          email: profile.email || '',
+          profile_picture_url: profile.profile_picture_url || '',
+          vehicle_count: 0, // Will be populated separately if needed
           created_at: profile.created_at,
           updated_at: profile.updated_at,
           assigned_vehicles: [], // Will be fetched separately if needed
@@ -153,7 +161,7 @@ export const useUserProfiles = () => {
 
   // Update user profile
   const updateProfileMutation = useMutation({
-    mutationFn: async ({ userId, updates }: { userId: string; updates: Partial<UserProfile> }) => {
+    mutationFn: async ({ userId, updates }: { userId: string; updates: Partial<Pick<UserProfile, 'first_name' | 'last_name' | 'phone_number' | 'email' | 'role' | 'registration_status'>> }) => {
       const { error } = await supabase
         .from('user_profiles')
         .update(updates)
@@ -189,4 +197,14 @@ export const useUserProfiles = () => {
     isUnassigning: unassignVehicleMutation.isPending,
     isUpdating: updateProfileMutation.isPending,
   };
+};
+
+export const useAssignVehicleToUser = () => {
+  const { assignVehicle, isAssigning } = useUserProfiles();
+  return { mutate: assignVehicle, isPending: isAssigning };
+};
+
+export const useUnassignVehicleFromUser = () => {
+  const { unassignVehicle, isUnassigning } = useUserProfiles();
+  return { mutate: unassignVehicle, isPending: isUnassigning };
 };

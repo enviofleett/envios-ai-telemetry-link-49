@@ -26,13 +26,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
   const [roleFilter, setRoleFilter] = useState('all');
   const [page, setPage] = useState(1);
 
-  const { data, isLoading, error } = useUserProfiles({
-    search,
-    status: statusFilter === 'all' ? '' : statusFilter,
-    role: roleFilter === 'all' ? '' : roleFilter,
-    page,
-    limit: 20
-  });
+  const { profiles, isLoading, error } = useUserProfiles();
 
   if (isLoading) {
     return (
@@ -56,7 +50,7 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
   if (error) {
     return (
       <div className="text-center py-8">
-        <p className="text-red-600">Error loading user profiles: {error.message}</p>
+        <p className="text-red-600">Error loading user profiles: {error}</p>
       </div>
     );
   }
@@ -75,20 +69,18 @@ const UserProfilesTable: React.FC<UserProfilesTableProps> = ({
       />
 
       <UserProfilesTableContent
-        profiles={data?.profiles || []}
+        profiles={profiles || []}
         onUserClick={onUserClick}
         onEditUser={onEditUser}
         onAssignVehicles={onAssignVehicles}
       />
 
-      {data && (
-        <UserProfilesPagination
-          page={page}
-          totalPages={data.totalPages}
-          totalCount={data.totalCount}
-          onPageChange={setPage}
-        />
-      )}
+      <UserProfilesPagination
+        page={page}
+        totalPages={Math.ceil((profiles?.length || 0) / 20)}
+        totalCount={profiles?.length || 0}
+        onPageChange={setPage}
+      />
     </div>
   );
 };

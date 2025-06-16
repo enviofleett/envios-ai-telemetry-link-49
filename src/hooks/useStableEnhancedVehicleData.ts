@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -104,11 +105,17 @@ export const useStableEnhancedVehicleData = () => {
         if (!matchesSearch) return false;
       }
 
-      // Status filter
+      // Status filter - handle the comparison properly
       if (filters.status !== 'all') {
         const vehicleStatus = vehicle.status || 'offline';
         if (filters.status === 'active' && !vehicle.is_active) return false;
         if (filters.status !== 'active' && vehicleStatus !== filters.status) return false;
+      }
+
+      // Online filter - separate from status filter
+      if (filters.online !== 'all') {
+        if (filters.online === 'online' && !vehicle.isOnline) return false;
+        if (filters.online === 'offline' && vehicle.isOnline) return false;
       }
 
       // User filter

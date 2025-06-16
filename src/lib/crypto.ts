@@ -46,3 +46,7 @@ export class SecurityService {
     return { isValid: true };
   }
 }
+
+export const calculateMd5 = (input: string): string => {
+  return md5(input);
+};
