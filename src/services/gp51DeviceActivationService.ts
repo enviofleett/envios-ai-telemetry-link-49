@@ -1,6 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 
+// Simplified interfaces to avoid deep type instantiation
 export interface GP51DeviceActivationRequest {
   deviceId: string;
   deviceName: string;
@@ -14,7 +15,7 @@ export interface GP51DeviceActivationResult {
   deviceId?: string;
   activationStatus?: 'active' | 'inactive' | 'error';
   error?: string;
-  gp51Response?: any;
+  gp51Response?: Record<string, any>; // Simplified from any
 }
 
 export interface BulkActivationResult {
@@ -26,6 +27,19 @@ export interface DeviceActivationStatus {
   isActivated: boolean;
   status: 'active' | 'inactive' | 'error' | 'unknown';
   lastChecked?: string;
+}
+
+// Simple type for database operations to avoid circular references
+interface SimpleVehicleRecord {
+  id: string;
+}
+
+interface SimpleDeviceManagementRecord {
+  vehicle_id: string;
+  gp51_device_id: string;
+  activation_status: string;
+  last_sync_at: string;
+  device_properties: Record<string, any>;
 }
 
 export class GP51DeviceActivationService {
@@ -123,7 +137,7 @@ export class GP51DeviceActivationService {
         };
       }
 
-      const device = data.devices?.find((d: any) => d.deviceid === deviceId);
+      const device = data.devices?.find((d: Record<string, any>) => d.deviceid === deviceId);
       const isActivated = device && device.isfree === 0; // isfree=0 means activated/paid
 
       return {
@@ -146,10 +160,10 @@ export class GP51DeviceActivationService {
   private static async updateDeviceActivationStatus(
     deviceId: string, 
     status: 'active' | 'inactive' | 'error',
-    gp51Response?: any
+    gp51Response?: Record<string, any>
   ): Promise<void> {
     try {
-      // Get vehicle ID from device ID
+      // Get vehicle ID from device ID with simple type
       const { data: vehicle } = await supabase
         .from('vehicles')
         .select('id')
@@ -161,27 +175,31 @@ export class GP51DeviceActivationService {
         return;
       }
 
-      // Update or insert device management record
+      const vehicleRecord = vehicle as SimpleVehicleRecord;
+
+      // Update or insert device management record with explicit typing
+      const deviceManagementData: Partial<SimpleDeviceManagementRecord> = {
+        vehicle_id: vehicleRecord.id,
+        gp51_device_id: deviceId,
+        activation_status: status,
+        last_sync_at: new Date().toISOString(),
+        device_properties: gp51Response || {}
+      };
+
       await supabase
         .from('gp51_device_management')
-        .upsert({
-          vehicle_id: vehicle.id,
-          gp51_device_id: deviceId,
-          activation_status: status,
-          last_sync_at: new Date().toISOString(),
-          device_properties: gp51Response || {}
-        }, {
+        .upsert(deviceManagementData, {
           onConflict: 'vehicle_id,gp51_device_id'
         });
 
-      // Update vehicle activation status
+      // Update vehicle activation status with simple update
       await supabase
         .from('vehicles')
         .update({
           activation_status: status,
           updated_at: new Date().toISOString()
         })
-        .eq('id', vehicle.id);
+        .eq('id', vehicleRecord.id);
 
     } catch (error) {
       console.error('❌ Error updating device activation status:', error);
