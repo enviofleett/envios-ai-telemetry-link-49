@@ -1,5 +1,4 @@
 
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface PositionUpdate {
@@ -31,12 +30,14 @@ export class PositionOnlyApiService {
         return [];
       }
       
-      const { data, error } = await supabase.functions.invoke('telemetry-positions', {
+      // ULTIMATE FIX: Cast the entire supabase.functions.invoke call to 'any' before destructuring
+      // This prevents TypeScript from attempting deep inference on the Edge Function's return type
+      const { data, error } = (await supabase.functions.invoke('telemetry-positions', {
         body: { 
           token: sessionInfo.token,
           deviceIds: deviceIds.map(String)
         }
-      });
+      })) as any;
 
       if (error) {
         console.error('❌ Position fetch error:', error);
@@ -98,17 +99,19 @@ export class PositionOnlyApiService {
 
   private static async getSessionInfo(): Promise<{ token?: string }> {
     try {
-      const { data: rawData, error } = await supabase.functions.invoke('settings-management', {
+      // ULTIMATE FIX: Cast the entire supabase.functions.invoke call to 'any' before destructuring
+      // This prevents TypeScript from attempting deep inference on the Edge Function's return type
+      const { data: rawData, error } = (await supabase.functions.invoke('settings-management', {
         body: { action: 'get-gp51-status' }
-      });
+      })) as any;
 
       if (error || !rawData) {
         console.error('❌ Failed to get session info:', error);
         return {};
       }
 
-      // ULTIMATE FIX: Cast to any to break deep type inference
-      const data = rawData as any;
+      // Since rawData is now 'any' from the cast above, no need for additional 'as any' cast
+      const data = rawData;
 
       // ULTIMATE FIX: Break down property access to eliminate inference
       // Instead of: const token = data.session?.token || data.token;
@@ -125,4 +128,3 @@ export class PositionOnlyApiService {
     }
   }
 }
-
