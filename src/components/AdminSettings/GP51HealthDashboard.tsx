@@ -1,266 +1,205 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  CheckCircle, 
-  XCircle, 
-  AlertTriangle, 
-  RefreshCw, 
-  Database,
-  Wifi,
-  Car,
-  Clock
-} from 'lucide-react';
-import { gp51HealthMonitor } from '@/services/gp51HealthMonitor';
-import { useToast } from '@/hooks/use-toast';
-
-interface HealthCheckResult {
-  overall: 'healthy' | 'warning' | 'critical';
-  timestamp: Date;
-  checks: {
-    gp51Connection: boolean;
-    vehicleSync: boolean;
-    databaseAccess: boolean;
-    sessionValidity: boolean;
-  };
-  metrics: {
-    totalVehicles: number;
-    activeVehicles: number;
-    lastSyncTime?: Date;
-    sessionExpiresAt?: Date;
-  };
-  errors: string[];
-}
+import { Activity, CheckCircle, XCircle, AlertTriangle, RefreshCw, Database, Loader2 } from 'lucide-react';
+import { gp51HealthMonitor, type HealthMetrics } from '@/services/gp51HealthMonitor';
+import type { HealthCheckResult } from '@/types/gp51ValidationTypes';
 
 const GP51HealthDashboard: React.FC = () => {
-  const [healthStatus, setHealthStatus] = useState<HealthCheckResult | null>(null);
-  const [isChecking, setIsChecking] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const { toast } = useToast();
+  const [healthData, setHealthData] = useState<HealthCheckResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   useEffect(() => {
-    // Subscribe to health monitor updates
-    const unsubscribe = gp51HealthMonitor.subscribe((result) => {
-      setHealthStatus(result);
+    // Subscribe to health metrics updates
+    const unsubscribe = gp51HealthMonitor.subscribe((metrics: HealthMetrics) => {
+      // Transform HealthMetrics to HealthCheckResult
+      const healthResult: HealthCheckResult = {
+        overall: {
+          status: metrics.systemStatus,
+          score: metrics.systemStatus === 'healthy' ? 100 : metrics.systemStatus === 'warning' ? 70 : 30
+        },
+        timestamp: new Date(),
+        checks: {
+          database: metrics.connectionStatus === 'connected',
+          gp51Connection: metrics.connectionStatus === 'connected',
+          dataSync: metrics.dataFreshness === 'fresh'
+        },
+        metrics: metrics
+      };
+      
+      setHealthData(healthResult);
+      setLastUpdate(new Date());
     });
 
-    // Perform initial health check
+    // Initial health check
     performHealthCheck();
 
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   const performHealthCheck = async () => {
-    setIsChecking(true);
+    setIsLoading(true);
     try {
-      await gp51HealthMonitor.performHealthCheck();
+      const metrics = await gp51HealthMonitor.getHealthMetrics();
+      // The subscriber will handle the update
     } catch (error) {
-      toast({
-        title: 'Health Check Failed',
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
-        variant: 'destructive'
-      });
+      console.error('Health check failed:', error);
     } finally {
-      setIsChecking(false);
+      setIsLoading(false);
     }
   };
 
-  const triggerVehicleSync = async () => {
-    setIsSyncing(true);
+  const triggerSync = async () => {
+    setIsLoading(true);
     try {
-      const result = await gp51HealthMonitor.triggerVehicleSync();
-      toast({
-        title: result.success ? 'Sync Successful' : 'Sync Failed',
-        description: result.message,
-        variant: result.success ? 'default' : 'destructive'
-      });
+      await gp51HealthMonitor.triggerVehicleSync();
+    } catch (error) {
+      console.error('Vehicle sync failed:', error);
     } finally {
-      setIsSyncing(false);
+      setIsLoading(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'healthy': return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'warning': return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+      case 'critical': return <XCircle className="h-5 w-5 text-red-500" />;
+      default: return <AlertTriangle className="h-5 w-5 text-gray-500" />;
+    }
+  };
+
+  const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case 'healthy': return 'default';
       case 'warning': return 'secondary';
       case 'critical': return 'destructive';
-      default: return 'secondary';
+      default: return 'outline';
     }
   };
 
-  const getStatusIcon = (isHealthy: boolean, isWarning: boolean = false) => {
-    if (isHealthy) return <CheckCircle className="h-4 w-4 text-green-500" />;
-    if (isWarning) return <AlertTriangle className="h-4 w-4 text-yellow-500" />;
-    return <XCircle className="h-4 w-4 text-red-500" />;
-  };
-
-  if (!healthStatus) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 animate-spin" />
-            Loading Health Status...
-          </CardTitle>
-        </CardHeader>
-      </Card>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              GP51 Platform Health Status
-              <Badge variant={getStatusColor(healthStatus.overall)}>
-                {healthStatus.overall.toUpperCase()}
-              </Badge>
-            </CardTitle>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={performHealthCheck}
-                disabled={isChecking}
-              >
-                <RefreshCw className={`h-4 w-4 ${isChecking ? 'animate-spin' : ''}`} />
-                Check Health
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={triggerVehicleSync}
-                disabled={isSyncing || !healthStatus.checks.sessionValidity}
-              >
-                <Car className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
-                Sync Vehicles
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* System Checks */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="flex items-center gap-2 p-3 border rounded-lg">
-              {getStatusIcon(healthStatus.checks.sessionValidity)}
-              <div>
-                <div className="font-medium text-sm">Session</div>
-                <div className="text-xs text-gray-500">
-                  {healthStatus.checks.sessionValidity ? 'Valid' : 'Invalid'}
-                </div>
-              </div>
-            </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">GP51 Health Dashboard</h2>
+          <p className="text-muted-foreground">
+            Monitor GP51 integration health and system status
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={performHealthCheck}
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Health Check
+          </Button>
+          <Button
+            onClick={triggerSync}
+            disabled={isLoading}
+          >
+            <Database className="h-4 w-4 mr-2" />
+            Sync Vehicles
+          </Button>
+        </div>
+      </div>
 
-            <div className="flex items-center gap-2 p-3 border rounded-lg">
-              {getStatusIcon(healthStatus.checks.gp51Connection)}
-              <div>
-                <div className="font-medium text-sm">GP51 API</div>
-                <div className="text-xs text-gray-500">
-                  {healthStatus.checks.gp51Connection ? 'Connected' : 'Disconnected'}
-                </div>
-              </div>
-            </div>
+      {lastUpdate && (
+        <div className="text-sm text-muted-foreground">
+          Last updated: {lastUpdate.toLocaleTimeString()}
+        </div>
+      )}
 
-            <div className="flex items-center gap-2 p-3 border rounded-lg">
-              {getStatusIcon(healthStatus.checks.databaseAccess)}
-              <div>
-                <div className="font-medium text-sm">Database</div>
-                <div className="text-xs text-gray-500">
-                  {healthStatus.checks.databaseAccess ? 'Accessible' : 'Error'}
+      {healthData && (
+        <>
+          {/* Overall Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                {getStatusIcon(healthData.overall.status)}
+                System Health Overview
+                <Badge variant={getStatusBadgeVariant(healthData.overall.status)}>
+                  {healthData.overall.status.toUpperCase()}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className={`h-4 w-4 ${healthData.checks.database ? 'text-green-500' : 'text-red-500'}`} />
+                  <span className="text-sm">Database: {healthData.checks.database ? 'Connected' : 'Disconnected'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className={`h-4 w-4 ${healthData.checks.gp51Connection ? 'text-green-500' : 'text-red-500'}`} />
+                  <span className="text-sm">GP51 API: {healthData.checks.gp51Connection ? 'Connected' : 'Disconnected'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <CheckCircle className={`h-4 w-4 ${healthData.checks.dataSync ? 'text-green-500' : 'text-red-500'}`} />
+                  <span className="text-sm">Data Sync: {healthData.checks.dataSync ? 'Active' : 'Inactive'}</span>
                 </div>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2 p-3 border rounded-lg">
-              {getStatusIcon(healthStatus.checks.vehicleSync, healthStatus.metrics.totalVehicles === 0)}
-              <div>
-                <div className="font-medium text-sm">Vehicles</div>
-                <div className="text-xs text-gray-500">
-                  {healthStatus.metrics.totalVehicles} total
-                </div>
-              </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid gap-4 md:grid-cols-4">
             <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Car className="h-5 w-5 text-blue-500" />
-                  <div>
-                    <div className="text-2xl font-bold">{healthStatus.metrics.activeVehicles}</div>
-                    <div className="text-sm text-gray-500">Active Vehicles</div>
-                  </div>
-                </div>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold">{healthData.metrics.totalVehicles}</div>
+                <p className="text-xs text-muted-foreground">Total Vehicles</p>
               </CardContent>
             </Card>
-
             <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Database className="h-5 w-5 text-green-500" />
-                  <div>
-                    <div className="text-2xl font-bold">{healthStatus.metrics.totalVehicles}</div>
-                    <div className="text-sm text-gray-500">Total Vehicles</div>
-                  </div>
-                </div>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-green-600">{healthData.metrics.onlineVehicles}</div>
+                <p className="text-xs text-muted-foreground">Online Vehicles</p>
               </CardContent>
             </Card>
-
             <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-purple-500" />
-                  <div>
-                    <div className="text-sm font-bold">
-                      {healthStatus.metrics.lastSyncTime 
-                        ? healthStatus.metrics.lastSyncTime.toLocaleString()
-                        : 'Never'
-                      }
-                    </div>
-                    <div className="text-sm text-gray-500">Last Sync</div>
-                  </div>
-                </div>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-blue-600">{healthData.metrics.activeVehicles}</div>
+                <p className="text-xs text-muted-foreground">Active Vehicles</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="text-2xl font-bold text-red-600">{healthData.metrics.errors.length}</div>
+                <p className="text-xs text-muted-foreground">System Errors</p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Session Expiry Warning */}
-          {healthStatus.metrics.sessionExpiresAt && (
-            <Alert>
-              <Clock className="h-4 w-4" />
-              <AlertDescription>
-                Session expires: {healthStatus.metrics.sessionExpiresAt.toLocaleString()}
-              </AlertDescription>
-            </Alert>
-          )}
-
           {/* Errors */}
-          {healthStatus.errors.length > 0 && (
+          {healthData.metrics.errors.length > 0 && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                <div className="font-medium mb-2">Issues detected:</div>
-                <ul className="list-disc list-inside space-y-1">
-                  {healthStatus.errors.map((error, index) => (
+                <strong>System Errors Detected:</strong>
+                <ul className="mt-2 list-disc list-inside">
+                  {healthData.metrics.errors.map((error, index) => (
                     <li key={index} className="text-sm">{error}</li>
                   ))}
                 </ul>
               </AlertDescription>
             </Alert>
           )}
+        </>
+      )}
 
-          <div className="text-xs text-gray-500">
-            Last checked: {healthStatus.timestamp.toLocaleString()}
-          </div>
-        </CardContent>
-      </Card>
+      {isLoading && !healthData && (
+        <div className="flex items-center justify-center p-8">
+          <Loader2 className="h-6 w-6 animate-spin mr-2" />
+          <span>Loading health data...</span>
+        </div>
+      )}
     </div>
   );
 };

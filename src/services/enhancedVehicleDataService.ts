@@ -1,3 +1,4 @@
+
 import { gp51DataService } from '@/services/gp51/GP51DataService';
 import type { GP51ProcessedPosition } from '@/types/gp51';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
@@ -7,6 +8,8 @@ class EnhancedVehicleDataService {
   private vehicles: VehicleData[] = [];
   private lastSyncTime: Date | null = null;
   private syncInProgress = false;
+  private subscribers: ((data: VehicleData[]) => void)[] = [];
+  private syncInterval: NodeJS.Timeout | null = null;
   private syncMetrics: VehicleDataMetrics = {
     total: 0,
     online: 0,
@@ -20,7 +23,7 @@ class EnhancedVehicleDataService {
     lastSyncTime: new Date(),
     positionsUpdated: 0,
     errors: 0,
-    syncStatus: 'loading', // Use valid status value instead of 'pending'
+    syncStatus: 'loading',
   };
 
   private constructor() {
@@ -34,25 +37,7 @@ class EnhancedVehicleDataService {
     return EnhancedVehicleDataService.instance;
   }
 
-  private getDefaultMetrics(): VehicleDataMetrics {
-    return {
-      total: 0,
-      online: 0,
-      offline: 0,
-      idle: 0,
-      alerts: 0,
-      totalVehicles: 0,
-      onlineVehicles: 0,
-      offlineVehicles: 0,
-      recentlyActiveVehicles: 0,
-      lastSyncTime: new Date(),
-      positionsUpdated: 0,
-      errors: 0,
-      syncStatus: 'pending'
-    };
-  }
-
-  subscribe(callback: () => void): () => void {
+  subscribe(callback: (data: VehicleData[]) => void): () => void {
     this.subscribers.push(callback);
     return () => {
       this.subscribers = this.subscribers.filter(sub => sub !== callback);
@@ -62,7 +47,7 @@ class EnhancedVehicleDataService {
   private notifySubscribers(): void {
     this.subscribers.forEach(callback => {
       try {
-        callback();
+        callback(this.vehicles);
       } catch (error) {
         console.error('Error notifying subscriber:', error);
       }
@@ -93,19 +78,21 @@ class EnhancedVehicleDataService {
     }
 
     this.syncInProgress = true;
-    this.syncMetrics.syncStatus = 'loading'; // Use valid status value instead of 'syncing'
+    this.syncMetrics.syncStatus = 'loading';
 
     try {
       console.log('🔄 EnhancedVehicleDataService: Starting GP51 sync...');
       
       // Fetch devices from GP51
-      const devices = await gp51DataService.getDeviceList();
+      const devicesResponse = await gp51DataService.getDeviceList();
       
-      if (!devices || devices.length === 0) {
+      if (!devicesResponse.success || !devicesResponse.data || devicesResponse.data.length === 0) {
         console.log('📭 No devices found from GP51');
         this.syncMetrics.syncStatus = 'success';
         return;
       }
+
+      const devices = devicesResponse.data;
 
       // Step 2: Fetch positions for all devices
       const vehiclePositions = await gp51DataService.getMultipleDevicesLastPositions(devices.map(d => d.deviceId));
@@ -123,13 +110,13 @@ class EnhancedVehicleDataService {
           id: device.deviceId,
           device_id: device.deviceId,
           device_name: device.deviceName,
-          user_id: null, // Not available from GP51 device list
-          sim_number: null, // Not available from GP51 device list
-          created_at: new Date().toISOString(), // Placeholder
-          updated_at: new Date().toISOString(), // Placeholder
+          user_id: null,
+          sim_number: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
           is_active: true,
           vehicleName: device.deviceName,
-          license_plate: device.deviceName, // Using deviceName as placeholder
+          license_plate: device.deviceName,
           make: 'Unknown',
           model: 'Unknown Model',
           status: position?.isOnline ? 'online' : 'offline',
@@ -201,7 +188,7 @@ class EnhancedVehicleDataService {
       online: onlineVehicles.length,
       offline: offlineVehicles.length,
       idle: onlineVehicles.length - recentlyActiveVehicles.length,
-      alerts: 0, // Placeholder
+      alerts: 0,
       totalVehicles: vehicles.length,
       onlineVehicles: onlineVehicles.length,
       offlineVehicles: offlineVehicles.length,
@@ -228,6 +215,15 @@ class EnhancedVehicleDataService {
 
   getVehicleById(deviceId: string): VehicleData | undefined {
     return this.vehicles.find(v => v.device_id === deviceId);
+  }
+
+  // Add the missing methods
+  async getEnhancedVehicles(): Promise<VehicleData[]> {
+    return this.getVehicles();
+  }
+
+  getLastSyncMetrics(): VehicleDataMetrics {
+    return this.getMetrics();
   }
 }
 

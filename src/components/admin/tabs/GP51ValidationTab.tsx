@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import { PlayCircle, CheckCircle, XCircle, AlertCircle, Loader2, Activity } from
 import { ValidationOverallCard } from './gp51/ValidationOverallCard';
 import { ValidationCategoryCard } from './gp51/ValidationCategoryCard';
 import { FailedTestsCard } from './gp51/FailedTestsCard';
-import type { ValidationSuite, TestResult } from '@/services/gp51/gp51ValidationTypes';
+import type { ValidationSuite, TestResult } from '@/types/gp51ValidationTypes';
 
 export default function GP51ValidationTab() {
   const [isRunning, setIsRunning] = useState(false);
@@ -24,12 +25,27 @@ export default function GP51ValidationTab() {
       console.log('🧪 Starting full GP51 validation suite...');
       
       const validationResults = await gp51IntegrationTester.runFullValidationSuite();
-      setResults(validationResults);
+      
+      // Transform to match ValidationSuite interface
+      const transformedResults: ValidationSuite = {
+        ...validationResults,
+        overall: {
+          passedTests: validationResults.summary.passed,
+          totalTests: validationResults.summary.total,
+          successRate: Math.round((validationResults.summary.passed / validationResults.summary.total) * 100)
+        },
+        credentialSaving: [],
+        sessionManagement: [],
+        vehicleDataSync: [],
+        errorRecovery: []
+      };
+      
+      setResults(transformedResults);
       
       toast({
         title: "Validation Complete",
-        description: `${validationResults.overall.passedTests}/${validationResults.overall.totalTests} tests passed (${validationResults.overall.successRate}%)`,
-        variant: validationResults.overall.successRate >= 80 ? "default" : "destructive"
+        description: `${transformedResults.overall.passedTests}/${transformedResults.overall.totalTests} tests passed (${transformedResults.overall.successRate}%)`,
+        variant: transformedResults.overall.successRate >= 80 ? "default" : "destructive"
       });
       
     } catch (error) {

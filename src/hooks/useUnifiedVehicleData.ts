@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { enhancedVehicleDataService } from '@/services/enhancedVehicleDataService';
@@ -85,7 +86,7 @@ const useUnifiedVehicleData = (): UseUnifiedVehicleDataResult => {
         lastSyncTime: syncData.lastSyncTime,
         positionsUpdated: syncData.positionsUpdated,
         errors: syncData.errors,
-        syncStatus: syncData.syncStatus === 'pending' ? 'loading' : syncData.syncStatus, // Fix status mapping
+        syncStatus: syncData.syncStatus === 'loading' ? 'loading' : syncData.syncStatus,
         errorMessage: syncData.errorMessage,
       };
     }
@@ -95,7 +96,7 @@ const useUnifiedVehicleData = (): UseUnifiedVehicleDataResult => {
       lastSyncTime: new Date(),
       positionsUpdated: 0,
       errors: 0,
-      syncStatus: isLoading || syncLoading ? 'loading' : 'success', // Use valid status values
+      syncStatus: isLoading || syncLoading ? 'loading' : 'success',
       errorMessage: error?.message || syncError?.message,
     };
   }, [vehicles, syncData, isLoading, syncLoading, error, syncError]);
@@ -104,7 +105,7 @@ const useUnifiedVehicleData = (): UseUnifiedVehicleDataResult => {
     setIsRefreshing(true);
     try {
       await enhancedVehicleDataService.forceSync();
-      setCurrentPage(1); // Reset to first page after refresh
+      setCurrentPage(1);
     } finally {
       setIsRefreshing(false);
     }
@@ -150,7 +151,7 @@ const useUnifiedVehicleData = (): UseUnifiedVehicleDataResult => {
     metrics,
     isLoading,
     isRefreshing,
-    error,
+    error: error ? (error instanceof Error ? error.message : String(error)) : null,
     forceRefresh,
     loadMore,
     hasMore,
@@ -165,3 +166,4 @@ const useUnifiedVehicleData = (): UseUnifiedVehicleDataResult => {
 };
 
 export default useUnifiedVehicleData;
+export { useUnifiedVehicleData };

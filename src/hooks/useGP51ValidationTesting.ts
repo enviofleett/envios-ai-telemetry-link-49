@@ -1,7 +1,8 @@
+
 import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { gp51IntegrationTester } from '@/services/gp51/integrationTester';
-import type { ValidationSuite } from '@/services/gp51/gp51ValidationTypes';
+import type { ValidationSuite } from '@/types/gp51ValidationTypes';
 
 export const useGP51ValidationTesting = () => {
   const [isRunning, setIsRunning] = useState(false);
@@ -17,16 +18,31 @@ export const useGP51ValidationTesting = () => {
       console.log('🧪 Starting comprehensive GP51 validation...');
       
       const validationResults = await gp51IntegrationTester.runFullValidationSuite();
-      setResults(validationResults);
       
-      const successRate = validationResults.overall.successRate;
+      // Transform to match ValidationSuite interface
+      const transformedResults: ValidationSuite = {
+        ...validationResults,
+        overall: {
+          passedTests: validationResults.summary.passed,
+          totalTests: validationResults.summary.total,
+          successRate: Math.round((validationResults.summary.passed / validationResults.summary.total) * 100)
+        },
+        credentialSaving: [],
+        sessionManagement: [],
+        vehicleDataSync: [],
+        errorRecovery: []
+      };
+      
+      setResults(transformedResults);
+      
+      const successRate = transformedResults.overall.successRate;
       toast({
         title: "Validation Complete",
-        description: `${validationResults.overall.passedTests}/${validationResults.overall.totalTests} tests passed (${successRate}%)`,
+        description: `${transformedResults.overall.passedTests}/${transformedResults.overall.totalTests} tests passed (${successRate}%)`,
         variant: successRate >= 80 ? "default" : "destructive"
       });
       
-      return validationResults;
+      return transformedResults;
       
     } catch (error) {
       console.error('❌ Validation failed:', error);
@@ -71,11 +87,7 @@ export const useGP51ValidationTesting = () => {
     try {
       console.log('🔐 Testing credential saving with real credentials...');
       
-      // This will test the actual credential saving process
       const testResult = await gp51IntegrationTester.runQuickHealthCheck();
-      
-      // Run targeted tests for credential functionality
-      // (Implementation would involve calling specific test methods)
       
       return testResult;
       
@@ -89,50 +101,47 @@ export const useGP51ValidationTesting = () => {
     try {
       console.log('🔄 Validating session management...');
       
-      // Test session creation, validation, and cleanup
-      const currentResults = gp51IntegrationTester.getResults();
+      const currentResults = results;
       
-      if (currentResults.sessionManagement.length === 0) {
-        // Run just session management tests
+      if (!currentResults || currentResults.sessionManagement.length === 0) {
         await runQuickHealthCheck();
       }
       
-      return currentResults.sessionManagement;
+      return currentResults?.sessionManagement || [];
       
     } catch (error) {
       console.error('❌ Session validation failed:', error);
       throw error;
     }
-  }, [runQuickHealthCheck]);
+  }, [runQuickHealthCheck, results]);
 
   const testVehicleDataSync = useCallback(async () => {
     try {
       console.log('🚗 Testing vehicle data synchronization...');
       
-      // Test vehicle data retrieval and sync processes
-      const currentResults = gp51IntegrationTester.getResults();
+      const currentResults = results;
       
-      return currentResults.vehicleDataSync;
+      return currentResults?.vehicleDataSync || [];
       
     } catch (error) {
       console.error('❌ Vehicle sync test failed:', error);
       throw error;
     }
-  }, []);
+  }, [results]);
 
   const testErrorRecovery = useCallback(async () => {
     try {
       console.log('🔧 Testing error recovery mechanisms...');
       
-      const currentResults = gp51IntegrationTester.getResults();
+      const currentResults = results;
       
-      return currentResults.errorRecovery;
+      return currentResults?.errorRecovery || [];
       
     } catch (error) {
       console.error('❌ Error recovery test failed:', error);
       throw error;
     }
-  }, []);
+  }, [results]);
 
   const clearResults = useCallback(() => {
     setResults(null);
