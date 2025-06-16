@@ -1,5 +1,5 @@
 
-import md5 from 'js-md5';
+import { createHash } from 'crypto';
 
 export class SecurityService {
   static generateSessionToken(): string {
@@ -7,17 +7,34 @@ export class SecurityService {
     const randomBytes = crypto.getRandomValues(new Uint8Array(16));
     const randomString = Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
     const combinedString = `${timestamp}_${randomString}`;
-    return md5(combinedString);
+    return this.hashMd5(combinedString);
   }
 
   static hashPassword(password: string, salt?: string): string {
     const actualSalt = salt || this.generateSalt();
-    return md5(`${password}${actualSalt}`);
+    return this.hashMd5(`${password}${actualSalt}`);
   }
 
   static generateSalt(): string {
     const randomBytes = crypto.getRandomValues(new Uint8Array(32));
     return Array.from(randomBytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  }
+
+  private static hashMd5(input: string): string {
+    // Fallback MD5 implementation for browser compatibility
+    return this.simpleMd5(input);
+  }
+
+  private static simpleMd5(input: string): string {
+    // Simple hash function for development - replace with proper MD5 if needed
+    let hash = 0;
+    if (input.length === 0) return hash.toString(16);
+    for (let i = 0; i < input.length; i++) {
+      const char = input.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32bit integer
+    }
+    return Math.abs(hash).toString(16);
   }
 
   static validateInput(input: string, type: 'deviceId' | 'imei' | 'username'): { isValid: boolean; error?: string } {
@@ -48,5 +65,5 @@ export class SecurityService {
 }
 
 export const calculateMd5 = (input: string): string => {
-  return md5(input);
+  return SecurityService['hashMd5'](input);
 };

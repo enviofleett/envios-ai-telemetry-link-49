@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SystemHealthIndicator from '@/components/admin/SystemHealthIndicator';
-import { EnhancedVehicleRegistration } from './EnhancedVehicleRegistration';
+import EnhancedVehicleRegistration from './EnhancedVehicleRegistration';
 import { useOptimizedVehicleData } from '@/hooks/useOptimizedVehicleData';
 import { Search, RefreshCw, AlertTriangle, Car, Settings } from 'lucide-react';
 

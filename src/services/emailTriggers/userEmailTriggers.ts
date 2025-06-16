@@ -1,124 +1,196 @@
-
-import { emailTriggerService } from './emailTriggerService';
 import { supabase } from '@/integrations/supabase/client';
 
 export class UserEmailTriggers {
-  // Trigger welcome email when user registers
-  static async onUserRegistration(userId: string, userEmail: string, userName: string): Promise<void> {
+  async sendWelcomeEmail(userId: string): Promise<void> {
     try {
-      // Get company name from company settings if available
-      const { data: companySettings } = await supabase
-        .from('company_settings')
-        .select('company_name')
-        .eq('user_id', userId)
+      console.log(`📧 Sending welcome email to user ${userId}`);
+
+      // Get user information
+      const { data: userData, error: userError } = await supabase
+        .from('envio_users')
+        .select('id, name, email')
+        .eq('id', userId)
         .single();
 
-      const companyName = companySettings?.company_name || 'FleetIQ';
+      if (userError) {
+        console.error('Error fetching user for welcome email:', userError);
+        return;
+      }
 
-      await emailTriggerService.sendUserRegistrationWelcome(
-        userEmail,
-        userName,
-        companyName
-      );
+      if (!userData) {
+        console.warn('User not found for welcome email');
+        return;
+      }
 
-      console.log(`✅ Welcome email triggered for user: ${userEmail}`);
-    } catch (error) {
-      console.error('❌ Failed to trigger welcome email:', error);
-    }
-  }
-
-  // Trigger password reset email
-  static async onPasswordResetRequest(userEmail: string, userName: string, resetToken: string): Promise<void> {
-    try {
-      const resetLink = `${window.location.origin}/reset-password?token=${resetToken}`;
-      
-      await emailTriggerService.sendPasswordReset(
-        userEmail,
-        userName,
-        resetLink
-      );
-
-      console.log(`✅ Password reset email triggered for user: ${userEmail}`);
-    } catch (error) {
-      console.error('❌ Failed to trigger password reset email:', error);
-    }
-  }
-
-  // Notify admins of new user registration
-  static async notifyAdminsOfNewUser(newUserEmail: string, newUserName: string): Promise<void> {
-    try {
-      // Get all admin users
-      const { data: adminUsers } = await supabase
-        .from('envio_users')
-        .select(`
-          email, 
-          name,
-          user_roles!inner(role)
-        `)
-        .eq('user_roles.role', 'admin');
-
-      if (adminUsers && adminUsers.length > 0) {
-        const adminEmails = adminUsers.map(user => user.email);
-        
-        await emailTriggerService.sendBulkTriggeredEmail(adminEmails, {
-          trigger_type: 'admin_notification',
-          template_variables: {
-            notification_type: 'new_user_registration',
-            new_user_name: newUserName,
-            new_user_email: newUserEmail,
-            registration_date: new Date().toLocaleDateString(),
-            admin_panel_link: `${window.location.origin}/admin/users`
-          },
-          fallback_subject: 'New User Registration',
-          fallback_message: `New user ${newUserName} (${newUserEmail}) has registered for FleetIQ.`
+      // Queue email notification
+      const { error: emailError } = await supabase
+        .from('email_notification_queue')
+        .insert({
+          user_id: userId,
+          recipient_email: userData.email,
+          subject: 'Welcome to Our Platform',
+          body_text: `Dear ${userData.name},\n\nWelcome to our platform! We're excited to have you on board.\n\nBest regards,\nThe Team`,
+          body_html: `<p>Dear ${userData.name},</p><p>Welcome to our platform! We're excited to have you on board.</p><p>Best regards,<br/>The Team</p>`,
+          status: 'pending'
         });
 
-        console.log(`✅ Admin notification sent to ${adminEmails.length} admins`);
+      if (emailError) {
+        console.error('Error queuing welcome email:', emailError);
+      } else {
+        console.log('✅ Welcome email queued successfully');
       }
+
     } catch (error) {
-      console.error('❌ Failed to notify admins of new user:', error);
+      console.error('Exception in welcome email trigger:', error);
     }
   }
 
-  // Notify user of unusual overnight parking
-  static async notifyOfUnusualParking(vehicleDeviceId: string, address: string): Promise<void> {
+  async sendPasswordResetEmail(userId: string, resetToken: string): Promise<void> {
     try {
-      // Find user associated with the vehicle
+      console.log(`📧 Sending password reset email to user ${userId}`);
+
+      // Get user information
+      const { data: userData, error: userError } = await supabase
+        .from('envio_users')
+        .select('id, name, email')
+        .eq('id', userId)
+        .single();
+
+      if (userError) {
+        console.error('Error fetching user for password reset email:', userError);
+        return;
+      }
+
+      if (!userData) {
+        console.warn('User not found for password reset email');
+        return;
+      }
+
+      const resetLink = `${process.env.NEXT_PUBLIC_BASE_URL}/reset-password?token=${resetToken}`;
+
+      // Queue email notification
+      const { error: emailError } = await supabase
+        .from('email_notification_queue')
+        .insert({
+          user_id: userId,
+          recipient_email: userData.email,
+          subject: 'Password Reset Request',
+          body_text: `Dear ${userData.name},\n\nYou have requested to reset your password. Please click the following link to reset your password:\n\n${resetLink}\n\nIf you did not request a password reset, please ignore this email.\n\nBest regards,\nThe Team`,
+          body_html: `<p>Dear ${userData.name},</p><p>You have requested to reset your password. Please click the following link to reset your password:</p><p><a href="${resetLink}">Reset Password</a></p><p>If you did not request a password reset, please ignore this email.</p><p>Best regards,<br/>The Team</p>`,
+          status: 'pending'
+        });
+
+      if (emailError) {
+        console.error('Error queuing password reset email:', emailError);
+      } else {
+        console.log('✅ Password reset email queued successfully');
+      }
+
+    } catch (error) {
+      console.error('Exception in password reset email trigger:', error);
+    }
+  }
+
+  async sendVehicleAssignmentNotification(vehicleId: string, userId: string): Promise<void> {
+    try {
+      console.log(`📧 Sending vehicle assignment notification for vehicle ${vehicleId} to user ${userId}`);
+
+      // Get vehicle and user information
       const { data: vehicleData, error: vehicleError } = await supabase
         .from('vehicles')
         .select(`
-          device_name,
+          id,
+          gp51_device_id,
+          name,
           envio_users (
-            email,
-            name
+            id,
+            name,
+            email
           )
         `)
-        .eq('device_id', vehicleDeviceId)
+        .eq('id', vehicleId)
+        .eq('user_id', userId)
         .single();
 
-      if (vehicleError || !vehicleData || !vehicleData.envio_users) {
-        console.error(`❌ Could not find user for vehicle ${vehicleDeviceId}`, vehicleError);
+      if (vehicleError) {
+        console.error('Error fetching vehicle for email notification:', vehicleError);
+        return;
+      }
+
+      if (!vehicleData || !vehicleData.envio_users) {
+        console.warn('Vehicle or user not found for email notification');
         return;
       }
 
       const user = vehicleData.envio_users;
-      const vehicleName = vehicleData.device_name || vehicleDeviceId;
+      const vehicleName = vehicleData.name;
 
-      await emailTriggerService.sendBulkTriggeredEmail([user.email], {
-        trigger_type: 'unusual_parking_alert',
-        template_variables: {
-          user_name: user.name,
-          vehicle_name: vehicleName,
-          parking_location: address,
-          timestamp: new Date().toLocaleString(),
-        },
-        fallback_subject: `Unusual Parking Alert for ${vehicleName}`,
-        fallback_message: `Hello ${user.name},\n\nYour vehicle ${vehicleName} has been parked at an unusual overnight location: ${address}.\n\nPlease verify this is expected.`
-      });
+      // Queue email notification
+      const { error: emailError } = await supabase
+        .from('email_notification_queue')
+        .insert({
+          user_id: userId,
+          recipient_email: user.email,
+          subject: 'Vehicle Assignment Notification',
+          body_text: `Dear ${user.name},\n\nA vehicle has been assigned to your account:\n\nVehicle: ${vehicleName}\nDevice ID: ${vehicleData.gp51_device_id}\n\nYou can now track this vehicle in your dashboard.\n\nBest regards,\nFleet Management Team`,
+          body_html: `<p>Dear ${user.name},</p><p>A vehicle has been assigned to your account:</p><ul><li><strong>Vehicle:</strong> ${vehicleName}</li><li><strong>Device ID:</strong> ${vehicleData.gp51_device_id}</li></ul><p>You can now track this vehicle in your dashboard.</p><p>Best regards,<br/>Fleet Management Team</p>`,
+          status: 'pending'
+        });
 
-      console.log(`✅ Unusual parking notification triggered for user: ${user.email}`);
+      if (emailError) {
+        console.error('Error queuing vehicle assignment email:', emailError);
+      } else {
+        console.log('✅ Vehicle assignment email notification queued successfully');
+      }
+
     } catch (error) {
-      console.error('❌ Failed to trigger unusual parking notification:', error);
+      console.error('Exception in vehicle assignment notification:', error);
+    }
+  }
+
+  async sendAccountStatusChangeNotification(userId: string, status: string): Promise<void> {
+    try {
+      console.log(`📧 Sending account status change notification to user ${userId}`);
+
+      // Get user information
+      const { data: userData, error: userError } = await supabase
+        .from('envio_users')
+        .select('id, name, email')
+        .eq('id', userId)
+        .single();
+
+      if (userError) {
+        console.error('Error fetching user for account status change email:', userError);
+        return;
+      }
+
+      if (!userData) {
+        console.warn('User not found for account status change email');
+        return;
+      }
+
+      // Queue email notification
+      const { error: emailError } = await supabase
+        .from('email_notification_queue')
+        .insert({
+          user_id: userId,
+          recipient_email: userData.email,
+          subject: 'Account Status Change Notification',
+          body_text: `Dear ${userData.name},\n\nYour account status has been changed to ${status}.\n\nBest regards,\nThe Team`,
+          body_html: `<p>Dear ${userData.name},</p><p>Your account status has been changed to ${status}.</p><p>Best regards,<br/>The Team</p>`,
+          status: 'pending'
+        });
+
+      if (emailError) {
+        console.error('Error queuing account status change email:', emailError);
+      } else {
+        console.log('✅ Account status change email queued successfully');
+      }
+
+    } catch (error) {
+      console.error('Exception in account status change notification:', error);
     }
   }
 }
+
+export const userEmailTriggers = new UserEmailTriggers();

@@ -107,9 +107,9 @@ export const useStableEnhancedVehicleData = () => {
 
       // Status filter - handle the comparison properly
       if (filters.status !== 'all') {
-        const vehicleStatus = vehicle.status || 'offline';
         if (filters.status === 'active' && !vehicle.is_active) return false;
-        if (filters.status !== 'active' && filters.status !== vehicleStatus) return false;
+        if (filters.status !== 'active' && filters.status !== 'offline' && filters.status !== 'online') return false;
+        if ((filters.status === 'online' || filters.status === 'offline') && filters.status !== vehicle.status) return false;
       }
 
       // Online filter - separate from status filter

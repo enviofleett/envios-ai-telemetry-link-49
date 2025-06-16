@@ -1,25 +1,4 @@
 import { supabase } from '@/integrations/supabase/client';
-import { gp51Validator } from './GP51ValidationSchemas';
-
-export interface ConsistencyCheck {
-  checkType: 'user_vehicle_link' | 'vehicle_position' | 'user_count' | 'data_integrity' | 'referential_integrity';
-  status: 'passed' | 'failed' | 'warning';
-  message: string;
-  details?: any;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  autoFixable: boolean;
-}
-
-export interface ConsistencyReport {
-  timestamp: string;
-  overallScore: number;
-  checksPerformed: number;
-  checksPassed: number;
-  checksFailed: number;
-  checks: ConsistencyCheck[];
-  recommendations: string[];
-  dataHealth: 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
-}
 
 export class DataConsistencyVerifier {
   private static instance: DataConsistencyVerifier;
@@ -400,6 +379,81 @@ export class DataConsistencyVerifier {
     }
 
     return checks;
+  }
+
+  private async verifyVehicleUserConsistency(): Promise<any> {
+    try {
+      console.log('🔍 Verifying vehicle-user consistency...');
+
+      // Check for vehicles with user assignments
+      const { data: vehiclesWithUsers, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select(`
+          id,
+          gp51_device_id,
+          name,
+          user_id,
+          envio_users (
+            id,
+            name,
+            gp51_username
+          )
+        `)
+        .not('user_id', 'is', null);
+
+      if (vehicleError) {
+        console.error('Error fetching vehicles with users:', vehicleError);
+        return {
+          success: false,
+          error: vehicleError.message,
+          consistencyIssues: []
+        };
+      }
+
+      const consistencyIssues: any[] = [];
+
+      if (vehiclesWithUsers) {
+        vehiclesWithUsers.forEach((vehicle: any) => {
+          // Check if user exists but has no GP51 username
+          if (vehicle.envio_users && !vehicle.envio_users.gp51_username) {
+            consistencyIssues.push({
+              type: 'missing_gp51_username',
+              vehicleId: vehicle.id,
+              deviceId: vehicle.gp51_device_id,
+              userId: vehicle.user_id,
+              userName: vehicle.envio_users.name,
+              message: 'User assigned to vehicle but missing GP51 username'
+            });
+          }
+
+          // Check if vehicle is assigned to non-existent user
+          if (!vehicle.envio_users) {
+            consistencyIssues.push({
+              type: 'orphaned_vehicle',
+              vehicleId: vehicle.id,
+              deviceId: vehicle.gp51_device_id,
+              userId: vehicle.user_id,
+              message: 'Vehicle assigned to non-existent user'
+            });
+          }
+        });
+      }
+
+      return {
+        success: true,
+        consistencyIssues,
+        totalVehiclesChecked: vehiclesWithUsers?.length || 0,
+        issuesFound: consistencyIssues.length
+      };
+
+    } catch (error) {
+      console.error('Exception in vehicle-user consistency verification:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        consistencyIssues: []
+      };
+    }
   }
 
   private generateConsistencyReport(checks: ConsistencyCheck[], duration: number): ConsistencyReport {

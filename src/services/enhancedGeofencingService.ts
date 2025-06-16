@@ -1,9 +1,8 @@
-
 import { geofencingService } from './geofencing';
 import { notificationPreferencesService } from './notificationPreferencesService';
 import { supabase } from '@/integrations/supabase/client';
 
-class EnhancedGeofencingService {
+export class EnhancedGeofencingService {
   private geofencingService = geofencingService;
 
   async checkVehicleInGeofencesWithNotifications(deviceId: string, lat: number, lng: number): Promise<void> {
@@ -108,6 +107,44 @@ class EnhancedGeofencingService {
       }
     } catch (error) {
       console.error('Error sending geofence alert email:', error);
+    }
+  }
+
+  async getVehiclesInGeofence(geofenceId: string): Promise<any[]> {
+    try {
+      console.log(`🗺️ Getting vehicles in geofence ${geofenceId}`);
+
+      // Get vehicles with their latest positions
+      const { data: vehicles, error } = await supabase
+        .from('vehicles')
+        .select('id, gp51_device_id, name');
+
+      if (error) {
+        console.error('Error fetching vehicles for geofence check:', error);
+        return [];
+      }
+
+      if (!vehicles) {
+        return [];
+      }
+
+      // For now, return empty array since we don't have position data
+      // In a real implementation, you would check each vehicle's current position
+      // against the geofence boundaries
+      const vehiclesInGeofence = vehicles.map(vehicle => ({
+        vehicleId: vehicle.id,
+        deviceId: vehicle.gp51_device_id,
+        deviceName: vehicle.name || vehicle.gp51_device_id,
+        isInGeofence: false, // Would be calculated based on position data
+        entryTime: null,
+        exitTime: null
+      }));
+
+      return vehiclesInGeofence;
+
+    } catch (error) {
+      console.error('Exception getting vehicles in geofence:', error);
+      return [];
     }
   }
 
