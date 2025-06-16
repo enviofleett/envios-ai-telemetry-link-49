@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -20,7 +21,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { VehicleData, VehicleUpdate } from '@/types/vehicle';
+import { VehicleData } from '@/types/vehicle';
 
 interface UserMappingDialogProps {
   open: boolean;
@@ -95,13 +96,9 @@ export const UserMappingDialog: React.FC<UserMappingDialogProps> = ({
         return;
       }
       
-      const updatePayload: VehicleUpdate = {
-        user_id: selectedGP51User.userId,
-      };
-
       const { error } = await supabase
         .from('vehicles')
-        .update(updatePayload)
+        .update({ user_id: selectedGP51User.userId })
         .eq('id', selectedVehicleId);
 
       if (error) {

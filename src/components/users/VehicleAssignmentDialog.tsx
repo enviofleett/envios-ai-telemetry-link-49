@@ -39,6 +39,10 @@ export const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = (
     updated_at: dbVehicle.updated_at,
     status: 'offline', // default
     is_active: false, // default
+    isOnline: false,
+    isMoving: false,
+    alerts: [],
+    lastUpdate: new Date(dbVehicle.updated_at),
   });
 
   const fetchUnassignedVehicles = async () => {

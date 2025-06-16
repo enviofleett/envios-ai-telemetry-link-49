@@ -6,9 +6,9 @@ export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading';
 export interface VehiclePosition {
   latitude: number;
   longitude: number;
-  speed: number;
-  course: number;
-  timestamp: string;
+  speed?: number;
+  course?: number;
+  timestamp?: string;
 }
 
 export interface VehicleData {
@@ -41,6 +41,16 @@ export interface VehicleData {
   plateNumber?: string;
   model?: string;
   gp51_metadata?: { [key: string]: any };
+  image_urls?: string[];
+  fuel_tank_capacity_liters?: number;
+  manufacturer_fuel_consumption_100km_l?: number;
+  insurance_expiration_date?: string;
+  license_expiration_date?: string;
+  location?: {
+    latitude: number;
+    longitude: number;
+    address?: string;
+  };
 }
 
 export interface VehicleDataMetrics {
@@ -92,10 +102,13 @@ export interface EnhancedVehicle extends VehicleData {
   enhanced?: boolean;
 }
 
-export type ReportType = 'trip' | 'maintenance' | 'alerts' | 'geofence' | 'usage';
+export interface ReportType {
+  id: string;
+  name: string;
+  description: string;
+}
 
 export interface VehicleUpdate {
-  id: string;
   device_name?: string;
   license_plate?: string;
   vin?: string;
@@ -103,3 +116,14 @@ export interface VehicleUpdate {
 }
 
 export type VehicleLocation = VehiclePosition;
+
+export interface VehicleParkingPattern {
+  vehicleId: string;
+  patternType: string;
+  frequency: number;
+  duration: number;
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+}

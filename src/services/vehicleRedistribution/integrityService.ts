@@ -88,4 +88,47 @@ export class IntegrityService {
       issues
     };
   }
+
+  async validateGp51DataIntegrity(): Promise<{
+    isValid: boolean;
+    errors: string[];
+    recommendations: string[];
+  }> {
+    console.log('Validating GP51 data integrity...');
+    
+    const errors: string[] = [];
+    const recommendations: string[] = [];
+    
+    try {
+      const analysis = await this.analyzeDataIntegrity();
+      
+      if (analysis.orphanedVehicles > 0) {
+        errors.push(`Found ${analysis.orphanedVehicles} vehicles without user assignments`);
+        recommendations.push('Assign orphaned vehicles to appropriate users');
+      }
+      
+      if (analysis.invalidUserAssignments > 0) {
+        errors.push(`Found ${analysis.invalidUserAssignments} vehicles assigned to non-existent users`);
+        recommendations.push('Clean up invalid user assignments');
+      }
+      
+      if (analysis.duplicateAssignments > 0) {
+        errors.push(`Found ${analysis.duplicateAssignments} duplicate device assignments`);
+        recommendations.push('Remove duplicate device entries');
+      }
+      
+      return {
+        isValid: errors.length === 0,
+        errors,
+        recommendations
+      };
+    } catch (error) {
+      console.error('Error validating GP51 data integrity:', error);
+      return {
+        isValid: false,
+        errors: ['Failed to validate data integrity'],
+        recommendations: ['Check database connectivity and permissions']
+      };
+    }
+  }
 }

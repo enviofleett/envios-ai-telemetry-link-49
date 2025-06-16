@@ -23,11 +23,38 @@ interface ReportGenerationModalProps {
   vehicles: EnhancedVehicle[];
 }
 
+const AVAILABLE_REPORT_TYPES: ReportType[] = [
+  {
+    id: 'trip',
+    name: 'Trip Report',
+    description: 'Detailed analysis of vehicle trips and routes'
+  },
+  {
+    id: 'maintenance',
+    name: 'Maintenance Report',
+    description: 'Vehicle maintenance status and upcoming services'
+  },
+  {
+    id: 'alerts',
+    name: 'Alerts Report',
+    description: 'Summary of vehicle alerts and incidents'
+  },
+  {
+    id: 'geofence',
+    name: 'Geofence Report',
+    description: 'Geofence entries and exits analysis'
+  },
+  {
+    id: 'usage',
+    name: 'Usage Report',
+    description: 'Vehicle utilization and performance metrics'
+  }
+];
+
 export const ReportGenerationModal: React.FC<ReportGenerationModalProps> = ({
   isOpen,
   onClose,
   selectedReport,
-  reportTypes,
   vehicles
 }) => {
   const [reportDateRange, setReportDateRange] = useState<{ from?: Date; to?: Date }>({
@@ -38,7 +65,7 @@ export const ReportGenerationModal: React.FC<ReportGenerationModalProps> = ({
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const { toast } = useToast();
 
-  const selectedReportType = reportTypes.find(r => r.id === selectedReport);
+  const selectedReportType = AVAILABLE_REPORT_TYPES.find(r => r.id === selectedReport);
 
   const generateReport = async () => {
     setIsGeneratingReport(true);
@@ -195,7 +222,7 @@ export const ReportGenerationModal: React.FC<ReportGenerationModalProps> = ({
                       className="rounded"
                     />
                     <label htmlFor={vehicle.id} className="text-sm">
-                      {vehicle.plateNumber} - {vehicle.model}
+                      {vehicle.plateNumber || vehicle.device_name} - {vehicle.model || 'Unknown Model'}
                     </label>
                   </div>
                 ))}

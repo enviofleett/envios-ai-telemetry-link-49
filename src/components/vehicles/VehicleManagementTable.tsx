@@ -29,6 +29,9 @@ const mapDbToDisplayVehicle = (dbVehicle: VehicleDbRecord): VehicleData => ({
   status: 'offline', // Default value
   is_active: true, // Default value
   lastUpdate: new Date(dbVehicle.updated_at),
+  isOnline: false,
+  isMoving: false,
+  alerts: [],
 });
 
 const fetchVehicles = async (searchQuery: string): Promise<VehicleData[]> => {

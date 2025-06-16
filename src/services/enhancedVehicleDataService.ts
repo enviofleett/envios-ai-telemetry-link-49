@@ -105,6 +105,10 @@ class EnhancedVehicleDataService {
     }
   }
 
+  getVehicles(): VehicleData[] {
+    return this.vehicles;
+  }
+
   async forceSync(): Promise<void> {
     this.metrics.syncStatus = 'syncing' as SyncStatus;
     this.notifySubscribers();
