@@ -32,8 +32,8 @@ interface VehicleCardProps {
     insurance_expiration_date?: string;
     license_expiration_date?: string;
     envio_users?: {
-      name: string;
-      email: string;
+      name?: string; // Made optional to match VehicleData
+      email?: string; // Made optional to match VehicleData
     };
   };
   liveData?: {

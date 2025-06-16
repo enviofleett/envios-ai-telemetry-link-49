@@ -1,6 +1,8 @@
 
 export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
+export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading';
+
 export interface VehiclePosition {
   latitude: number;
   longitude: number;
@@ -30,6 +32,15 @@ export interface VehicleData {
     name?: string;
     email?: string;
   };
+  // Additional properties that components are accessing
+  speed?: number;
+  course?: number;
+  driver?: string | { name: string } | null;
+  fuel?: number;
+  mileage?: number;
+  plateNumber?: string;
+  model?: string;
+  gp51_metadata?: { [key: string]: any };
 }
 
 export interface VehicleDataMetrics {
@@ -48,7 +59,7 @@ export interface VehicleDataMetrics {
   lastSyncTime: Date;
   positionsUpdated: number;
   errors: number;
-  syncStatus: 'success' | 'error' | 'syncing';
+  syncStatus: SyncStatus;
   errorMessage?: string;
 }
 
@@ -75,3 +86,20 @@ export interface VehicleDbRecord {
   created_at: string;
   updated_at: string;
 }
+
+// Missing type exports that are being imported
+export interface EnhancedVehicle extends VehicleData {
+  enhanced?: boolean;
+}
+
+export type ReportType = 'trip' | 'maintenance' | 'alerts' | 'geofence' | 'usage';
+
+export interface VehicleUpdate {
+  id: string;
+  device_name?: string;
+  license_plate?: string;
+  vin?: string;
+  user_id?: string;
+}
+
+export type VehicleLocation = VehiclePosition;

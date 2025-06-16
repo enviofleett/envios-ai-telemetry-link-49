@@ -72,7 +72,7 @@ const VehicleManagement: React.FC = () => {
     setFilters(prev => ({
       ...prev,
       search: searchTerm,
-      status: statusFilter
+      status: statusFilter as 'all' | 'online' | 'offline' | 'active', // Type assertion to fix the error
     }));
   }, [searchTerm, statusFilter, setFilters]);
 

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -39,10 +38,6 @@ interface VehicleProfileModalProps {
     image_urls?: string[];
     fuel_tank_capacity_liters?: number;
     manufacturer_fuel_consumption_100km_l?: number;
-    insurance_expiration_date?: string;
-    license_expiration_date?: string;
-    is_active: boolean;
-    envio_user_id?: string;
     last_position?: {
       lat: number;
       lng: number;
@@ -50,8 +45,8 @@ interface VehicleProfileModalProps {
       timestamp: string;
     };
     envio_users?: {
-      name: string;
-      email: string;
+      name?: string; // Made optional to match VehicleData
+      email?: string; // Made optional to match VehicleData
     };
   } | null;
   liveData?: {
