@@ -1,6 +1,4 @@
 
-
-
 import { supabase } from '@/integrations/supabase/client';
 
 // Simplified interfaces to avoid deep type instantiation
@@ -163,10 +161,12 @@ export class GP51DeviceActivationService {
         return;
       }
 
-      const vehicleId = (vehicleResponse.data[0] as any).id;
+      // Extract vehicle ID directly to avoid type inference issues
+      const vehicleRecord: any = vehicleResponse.data[0];
+      const vehicleId: string = vehicleRecord.id;
 
       // Direct object construction for upsert - no complex types
-      const deviceManagementRecord = {
+      const deviceManagementRecord: any = {
         vehicle_id: vehicleId,
         gp51_device_id: deviceId,
         activation_status: status,
@@ -181,7 +181,7 @@ export class GP51DeviceActivationService {
         });
 
       // Direct object construction for vehicle update
-      const vehicleUpdate = {
+      const vehicleUpdate: any = {
         activation_status: status,
         updated_at: new Date().toISOString()
       };
@@ -246,4 +246,3 @@ export class GP51DeviceActivationService {
     return 'Unknown error occurred';
   }
 }
-

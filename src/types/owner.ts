@@ -1,4 +1,11 @@
 
+// Lighter vehicle reference to break circular dependency
+export interface LightVehicleReference {
+  id: string;
+  device_id: string;
+  device_name?: string;
+}
+
 export interface EnvioUser {
   id: string;
   name: string;
@@ -10,6 +17,8 @@ export interface EnvioUser {
   registration_status: string;
   created_at: string;
   updated_at: string;
+  // Simplified vehicle references to avoid circular dependency
+  assigned_vehicles?: LightVehicleReference[];
 }
 
 export interface VehicleData {

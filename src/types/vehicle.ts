@@ -1,3 +1,4 @@
+
 export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
 export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading';
@@ -8,6 +9,13 @@ export interface VehiclePosition {
   speed?: number;
   course?: number;
   timestamp?: string;
+}
+
+// Lighter user reference to break circular dependency
+export interface LightUserReference {
+  id?: string;
+  name?: string;
+  email?: string;
 }
 
 export interface VehicleData {
@@ -27,10 +35,8 @@ export interface VehicleData {
   isMoving: boolean;
   alerts: any[];
   lastUpdate: Date;
-  envio_users?: {
-    name?: string;
-    email?: string;
-  };
+  // Simplified user reference to avoid circular dependency
+  envio_users?: LightUserReference;
   // Additional properties that components are accessing
   speed?: number;
   course?: number;
