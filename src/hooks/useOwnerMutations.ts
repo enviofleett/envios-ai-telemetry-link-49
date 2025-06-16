@@ -1,37 +1,94 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import type { EnvioUser } from '@/types/owner';
+
+// Simple interface to avoid circular type dependencies
+interface SimpleUser {
+  id: string;
+  name: string;
+  email: string;
+  phone_number: string | null;
+  city: string | null;
+  gp51_username: string | null;
+  gp51_user_type: number;
+  registration_status: string;
+  updated_at?: string;
+}
+
+// Explicitly typed mutation functions separated from useMutation calls
+const updateOwnerFunction = async (updatedOwner: any): Promise<any> => {
+  const supabaseClient = (await import('@/integrations/supabase/client')).supabase as any;
+  
+  const { data, error } = await supabaseClient
+    .from('envio_users')
+    .update({
+      name: updatedOwner.name,
+      email: updatedOwner.email,
+      phone_number: updatedOwner.phone_number,
+      city: updatedOwner.city,
+      gp51_username: updatedOwner.gp51_username,
+      gp51_user_type: updatedOwner.gp51_user_type,
+      registration_status: updatedOwner.registration_status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', updatedOwner.id)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+const assignVehicleFunction = async (params: any): Promise<any> => {
+  const supabaseClient = (await import('@/integrations/supabase/client')).supabase as any;
+  
+  const { data, error } = await supabaseClient
+    .from('vehicles')
+    .update({
+      owner_id: params.ownerId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('device_id', params.deviceId)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
+const unassignVehicleFunction = async (deviceId: any): Promise<any> => {
+  const supabaseClient = (await import('@/integrations/supabase/client')).supabase as any;
+  
+  const { data, error } = await supabaseClient
+    .from('vehicles')
+    .update({
+      owner_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('device_id', deviceId)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
 
 export const useOwnerMutations = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const updateOwnerMutation = useMutation({
-    mutationFn: async (updatedOwner: EnvioUser): Promise<EnvioUser | null> => {
-      const { data, error } = (await supabase
-        .from('envio_users')
-        .update({
-          name: updatedOwner.name,
-          email: updatedOwner.email,
-          phone_number: updatedOwner.phone_number,
-          city: updatedOwner.city,
-          gp51_username: updatedOwner.gp51_username,
-          gp51_user_type: updatedOwner.gp51_user_type,
-          registration_status: updatedOwner.registration_status,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', updatedOwner.id as any)
-        .select()
-        .single()) as any; // Aggressive fix to bypass TS2589
-
-      if (error) {
-        throw error;
-      }
-
-      return data as any; // Targeted fix to bypass TS2589
-    },
+  // Explicitly typed useMutation with complete generic specification
+  const updateOwnerMutation = useMutation<any, Error, any>({
+    mutationFn: updateOwnerFunction,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
       queryClient.invalidateQueries({ queryKey: ['enhanced-user-data'] });
@@ -50,24 +107,8 @@ export const useOwnerMutations = () => {
     },
   });
 
-  const assignVehicleMutation = useMutation({
-    mutationFn: async (params: { deviceId: string; ownerId: string }): Promise<any> => {
-      const { data, error } = (await supabase
-        .from('vehicles')
-        .update({
-          owner_id: params.ownerId as any,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('device_id', params.deviceId as any) // Ultimate fix: cast the problematic parameter
-        .select()
-        .single()) as any; // Aggressive fix to bypass TS2589
-
-      if (error) {
-        throw error;
-      }
-
-      return data as any; // Targeted fix to bypass TS2589
-    },
+  const assignVehicleMutation = useMutation<any, Error, any>({
+    mutationFn: assignVehicleFunction,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
       queryClient.invalidateQueries({ queryKey: ['owner-vehicles'] });
@@ -87,24 +128,8 @@ export const useOwnerMutations = () => {
     },
   });
 
-  const unassignVehicleMutation = useMutation({
-    mutationFn: async (deviceId: string): Promise<any> => {
-      const { data, error } = (await supabase
-        .from('vehicles')
-        .update({
-          owner_id: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('device_id', deviceId as any) // Ultimate fix: cast the parameter
-        .select()
-        .single()) as any; // Aggressive fix to bypass TS2589
-
-      if (error) {
-        throw error;
-      }
-
-      return data as any; // Targeted fix to bypass TS2589
-    },
+  const unassignVehicleMutation = useMutation<any, Error, any>({
+    mutationFn: unassignVehicleFunction,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-owners'] });
       queryClient.invalidateQueries({ queryKey: ['owner-vehicles'] });
