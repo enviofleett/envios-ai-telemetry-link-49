@@ -1,3 +1,4 @@
+
 export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
 export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading';
@@ -39,7 +40,8 @@ export interface VehicleData {
   mileage?: number;
   plateNumber?: string;
   model?: string;
-  gp51_metadata?: { [key: string]: any };
+  // Simplified JSONB metadata to prevent TS2589
+  gp51_metadata?: Record<string, unknown>;
   image_urls?: string[];
   fuel_tank_capacity_liters?: number;
   manufacturer_fuel_consumption_100km_l?: number;

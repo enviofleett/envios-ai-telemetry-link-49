@@ -29,6 +29,11 @@ export interface DeviceActivationStatus {
   lastChecked?: string;
 }
 
+// Simple type for vehicle ID query result
+interface VehicleIdResult {
+  id: string;
+}
+
 export class GP51DeviceActivationService {
   
   /**
@@ -39,7 +44,7 @@ export class GP51DeviceActivationService {
       console.log(`🔄 Activating GP51 device: ${request.deviceId}`);
       
       // Step 1: Charge/activate device on GP51
-      const { data, error } = await (supabase as any).functions.invoke('gp51-device-management', {
+      const { data, error } = await supabase.functions.invoke('gp51-device-management', {
         body: {
           action: 'chargedevices',
           deviceids: request.deviceId,
@@ -95,12 +100,16 @@ export class GP51DeviceActivationService {
    */
   static async checkDeviceActivationStatus(deviceId: string): Promise<DeviceActivationStatus> {
     try {
-      // Check local tracking first - BYPASS: Using type bypass to prevent TS2589
-      const { data: localStatus } = await (supabase as any)
+      // Check local tracking first - using explicit typing to prevent TS2589
+      const { data: localStatus, error: localError } = await supabase
         .from('gp51_device_management')
         .select('activation_status, last_sync_at')
         .eq('gp51_device_id', deviceId)
-        .single();
+        .maybeSingle();
+
+      if (localError) {
+        console.error('Error checking local device status:', localError);
+      }
 
       if (localStatus) {
         return {
@@ -111,7 +120,7 @@ export class GP51DeviceActivationService {
       }
 
       // If no local record, query GP51 directly
-      const { data, error } = await (supabase as any).functions.invoke('gp51-device-management', {
+      const { data, error } = await supabase.functions.invoke('gp51-device-management', {
         body: {
           action: 'queryalldevices'
         }
@@ -143,7 +152,7 @@ export class GP51DeviceActivationService {
 
   /**
    * Update local device activation tracking
-   * BYPASS: Using Supabase type bypass to prevent TS2589 on complex type inference
+   * Using explicit typing to prevent TS2589 errors
    */
   private static async updateDeviceActivationStatus(
     deviceId: string, 
@@ -151,43 +160,60 @@ export class GP51DeviceActivationService {
     gp51Response?: any
   ): Promise<void> {
     try {
-      // Get vehicle ID from device ID - BYPASS: Type bypass to prevent TS2589
-      const { data: vehicleData } = await (supabase as any)
+      // Get vehicle ID from device ID - using explicit typing
+      const { data: vehicleData, error: vehicleError } = await supabase
         .from('vehicles')
         .select('id')
         .eq('device_id', deviceId)
-        .single();
+        .maybeSingle();
 
-      if (!vehicleData) {
+      // Explicitly type the result to avoid deep inference
+      const typedVehicleData: VehicleIdResult | null = vehicleData;
+
+      if (vehicleError) {
+        console.error('Error fetching vehicle ID:', vehicleError);
+        return;
+      }
+
+      if (!typedVehicleData) {
         console.warn(`⚠️ No vehicle found for device ${deviceId}`);
         return;
       }
 
-      // Update device management record - BYPASS: Type bypass to prevent TS2589
+      // Update device management record
       const deviceManagementRecord = {
-        vehicle_id: vehicleData.id,
+        vehicle_id: typedVehicleData.id,
         gp51_device_id: deviceId,
         activation_status: status,
         last_sync_at: new Date().toISOString(),
         device_properties: gp51Response || {}
       };
 
-      await (supabase as any)
+      const { error: upsertError } = await supabase
         .from('gp51_device_management')
         .upsert(deviceManagementRecord, {
           onConflict: 'vehicle_id,gp51_device_id'
         });
 
-      // Update vehicle record - BYPASS: Type bypass to prevent TS2589
+      if (upsertError) {
+        console.error('Error upserting device management record:', upsertError);
+        return;
+      }
+
+      // Update vehicle record
       const vehicleUpdate = {
         activation_status: status,
         updated_at: new Date().toISOString()
       };
 
-      await (supabase as any)
+      const { error: updateError } = await supabase
         .from('vehicles')
         .update(vehicleUpdate)
-        .eq('id', vehicleData.id);
+        .eq('id', typedVehicleData.id);
+
+      if (updateError) {
+        console.error('Error updating vehicle status:', updateError);
+      }
 
     } catch (error) {
       console.error('❌ Error updating device activation status:', error);
