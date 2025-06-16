@@ -1,6 +1,5 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { unifiedGP51SessionManager } from '../unifiedGP51SessionManager';
 
 export interface PositionUpdate {
   deviceid: string;
@@ -98,8 +97,18 @@ export class PositionOnlyApiService {
 
   private static async getSessionInfo(): Promise<{ token?: string }> {
     try {
-      const session = await unifiedGP51SessionManager.validateAndEnsureSession();
-      return { token: session.token };
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'get-gp51-status' }
+      });
+
+      if (error || !data) {
+        console.error('❌ Failed to get session info:', error);
+        return {};
+      }
+
+      // Extract token from session data
+      const token = data.session?.token || data.token;
+      return { token };
     } catch (error) {
       console.error('❌ Failed to get session info:', error);
       return {};
