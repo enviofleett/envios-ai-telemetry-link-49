@@ -40,6 +40,7 @@ async function fetchFromGP51(
 
   try {
     const apiUrl = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com/webapi';
+    const startTime = Date.now();
     
     // Always include basic authentication parameters in URL
     const urlParams = new URLSearchParams({
@@ -54,13 +55,21 @@ async function fetchFromGP51(
     if (action === 'lastposition') {
       if (additionalParams.deviceids) {
         requestBody.deviceids = additionalParams.deviceids;
+        console.log(`📋 Device IDs for lastposition: ${Array.isArray(additionalParams.deviceids) ? additionalParams.deviceids.length : 'not array'} devices`);
+        if (Array.isArray(additionalParams.deviceids)) {
+          console.log(`📋 First few device IDs: ${additionalParams.deviceids.slice(0, 3).join(', ')}${additionalParams.deviceids.length > 3 ? '...' : ''}`);
+        }
       }
       if (additionalParams.lastquerypositiontime !== undefined) {
         requestBody.lastquerypositiontime = additionalParams.lastquerypositiontime;
       }
       console.log(`📡 Making GP51 API request: ${action}`);
       console.log(`🔗 URL: ${apiUrl}?${urlParams.toString()}`);
-      console.log(`📦 Request body:`, JSON.stringify(requestBody));
+      console.log(`📦 Request body structure:`, {
+        deviceids_count: Array.isArray(requestBody.deviceids) ? requestBody.deviceids.length : 'not array',
+        lastquerypositiontime: requestBody.lastquerypositiontime,
+        body_size_bytes: JSON.stringify(requestBody).length
+      });
     } else {
       // For other actions, add additional params to URL as before
       Object.entries(additionalParams).forEach(([key, value]) => {
@@ -76,52 +85,128 @@ async function fetchFromGP51(
       console.log(`🔗 URL: ${apiUrl}?${urlParams.toString()}`);
     }
 
+    const requestHeaders = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'User-Agent': 'EnvioFleet/1.0'
+    };
+
+    console.log(`📤 Request headers:`, requestHeaders);
+    console.log(`📤 Request method: POST`);
+    console.log(`📤 Request body preview: ${JSON.stringify(requestBody).substring(0, 200)}${JSON.stringify(requestBody).length > 200 ? '...' : ''}`);
+
     const response = await fetch(`${apiUrl}?${urlParams.toString()}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'EnvioFleet/1.0'
-      },
+      headers: requestHeaders,
       body: JSON.stringify(requestBody)
     });
 
+    const requestDuration = Date.now() - startTime;
+    console.log(`⏱️ Request completed in ${requestDuration}ms`);
+
+    // Enhanced response logging
+    console.log(`📊 Response status: ${response.status} ${response.statusText}`);
+    console.log(`📊 Response ok: ${response.ok}`);
+    
+    // Log response headers
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+    console.log(`📊 Response headers:`, responseHeaders);
+
+    // Read response as text first for debugging
+    const responseText = await response.text();
+    console.log(`📊 Response body length: ${responseText.length} characters`);
+    console.log(`📊 Response body preview (first 500 chars): ${responseText.substring(0, 500)}${responseText.length > 500 ? '...' : ''}`);
+
     if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+      console.error(`❌ HTTP error: ${response.status} ${response.statusText}`);
+      console.error(`❌ Error response body: ${responseText}`);
+      return { 
+        error: `HTTP error: ${response.status} ${response.statusText}`, 
+        status: response.status,
+        raw: responseText.substring(0, 1000)
+      };
     }
 
-    const responseText = await response.text();
-    console.log(`📊 GP51 API response received, length: ${responseText.length}`);
+    // Handle empty response
+    if (responseText.trim().length === 0) {
+      console.error(`❌ Empty response body from GP51 API`);
+      return { 
+        error: 'Empty response from GP51 API', 
+        status: 502,
+        raw: 'EMPTY_RESPONSE'
+      };
+    }
 
+    // Handle whitespace-only response
+    if (responseText.trim() === '') {
+      console.error(`❌ Whitespace-only response body from GP51 API`);
+      return { 
+        error: 'Whitespace-only response from GP51 API', 
+        status: 502,
+        raw: 'WHITESPACE_ONLY_RESPONSE'
+      };
+    }
+
+    // Attempt JSON parsing with enhanced error handling
     let data;
     try {
       data = JSON.parse(responseText);
+      console.log(`✅ JSON parsing successful`);
+      console.log(`📋 Parsed response structure:`, {
+        status: data.status,
+        cause: data.cause,
+        has_groups: !!data.groups,
+        groups_count: data.groups ? data.groups.length : 0,
+        has_positions: !!data.positions,
+        positions_count: data.positions ? data.positions.length : 0,
+        has_records: !!data.records,
+        records_count: data.records ? data.records.length : 0,
+        lastquerypositiontime: data.lastquerypositiontime
+      });
     } catch (parseError) {
+      console.error(`❌ JSON parse error: ${parseError.message}`);
+      console.error(`❌ Response content type: ${responseHeaders['content-type'] || 'not specified'}`);
+      console.error(`❌ Response body (first 1000 chars): ${responseText.substring(0, 1000)}`);
+      
       if (retryJsonParse) {
-        console.error('❌ Failed to parse JSON response after retry:', parseError);
+        console.error('❌ Failed to parse JSON response after retry');
         return { 
-          error: 'Invalid JSON response from GP51 API', 
+          error: 'Invalid JSON response from GP51 API (retry failed)', 
           status: 502,
           raw: responseText.substring(0, 1000)
         };
       }
       
-      console.warn('⚠️ JSON parse failed, retrying with cleaned response...');
-      const cleanedText = responseText.replace(/^\s*\{.*?\}\s*/, '').trim();
+      console.warn('⚠️ JSON parse failed, attempting to clean response...');
       
-      try {
-        data = JSON.parse(cleanedText);
-      } catch (secondParseError) {
-        console.error('❌ Failed to parse cleaned JSON:', secondParseError);
+      // Try to find JSON-like content in the response
+      const jsonMatch = responseText.match(/\{.*\}/s);
+      if (jsonMatch) {
+        try {
+          data = JSON.parse(jsonMatch[0]);
+          console.log(`✅ JSON parsing successful after cleaning`);
+        } catch (secondParseError) {
+          console.error('❌ Failed to parse cleaned JSON:', secondParseError.message);
+          return { 
+            error: 'Invalid JSON response from GP51 API (cleaning failed)', 
+            status: 502,
+            raw: responseText.substring(0, 1000)
+          };
+        }
+      } else {
+        console.error('❌ No JSON-like content found in response');
         return { 
-          error: 'Invalid JSON response from GP51 API', 
+          error: 'No valid JSON content found in GP51 API response', 
           status: 502,
           raw: responseText.substring(0, 1000)
         };
       }
     }
 
-    console.log(`✅ GP51 API call successful for action: ${action}`);
+    console.log(`✅ GP51 API call successful for action: ${action} (${requestDuration}ms)`);
     return { data, status: 200 };
     
   } catch (error) {
@@ -213,7 +298,7 @@ serve(async (req) => {
       }
 
       const groups = deviceListResponse.data.groups || [];
-      console.log(`📋 Found ${allDeviceIds?.length || 0} devices across ${groups.length} groups`);
+      console.log(`📋 Found ${groups.length} groups`);
       
       allDeviceIds = [];
       for (const group of groups) {
@@ -225,6 +310,7 @@ serve(async (req) => {
           }
         }
       }
+      console.log(`📋 Extracted ${allDeviceIds.length} device IDs from groups`);
     }
 
     if (!allDeviceIds?.length) {
@@ -240,13 +326,20 @@ serve(async (req) => {
       );
     }
 
-    console.log(`🎯 Fetching positions for all ${allDeviceIds.length} devices`);
+    // Test with smaller subset first for debugging if we have many devices
+    let testDeviceIds = allDeviceIds;
+    if (allDeviceIds.length > 10) {
+      testDeviceIds = allDeviceIds.slice(0, 5);
+      console.log(`🧪 Testing with first 5 devices out of ${allDeviceIds.length} total devices for debugging`);
+    }
+
+    console.log(`🎯 Fetching positions for ${testDeviceIds.length} devices`);
 
     const positionResponse = await fetchFromGP51({
       action: 'lastposition',
       session,
       additionalParams: {
-        deviceids: allDeviceIds,
+        deviceids: testDeviceIds,
         lastquerypositiontime: 0
       }
     });
@@ -256,7 +349,8 @@ serve(async (req) => {
         JSON.stringify({ 
           success: false, 
           error: positionResponse.error,
-          details: positionResponse.gp51_error 
+          details: positionResponse.gp51_error,
+          raw_response: positionResponse.raw 
         }),
         { 
           status: positionResponse.status || 500, 
@@ -268,9 +362,11 @@ serve(async (req) => {
     const responseData = {
       success: true,
       data: {
-        positions: positionResponse.data?.positions || [],
-        total_positions: positionResponse.data?.positions?.length || 0,
-        total_devices: allDeviceIds.length,
+        positions: positionResponse.data?.positions || positionResponse.data?.records || [],
+        total_positions: (positionResponse.data?.positions || positionResponse.data?.records || []).length,
+        total_devices: testDeviceIds.length,
+        tested_subset: allDeviceIds.length > 10,
+        all_devices_count: allDeviceIds.length,
         lastquerypositiontime: positionResponse.data?.lastquerypositiontime,
         fetched_at: new Date().toISOString()
       }
