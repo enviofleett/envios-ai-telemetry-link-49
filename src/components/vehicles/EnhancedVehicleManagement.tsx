@@ -1,249 +1,186 @@
+
 import React, { useState } from 'react';
+import { useDeviceManagement } from '@/hooks/useDeviceManagement';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import SystemHealthIndicator from '@/components/admin/SystemHealthIndicator';
-import EnhancedVehicleRegistration from './EnhancedVehicleRegistration';
-import { useOptimizedVehicleData } from '@/hooks/useOptimizedVehicleData';
-import { Search, RefreshCw, AlertTriangle, Car, Settings } from 'lucide-react';
+import { Car, Plus, Search, Filter } from 'lucide-react';
+import type { VehicleData } from '@/types/vehicle';
 
 const EnhancedVehicleManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [showOfflineOnly, setShowOfflineOnly] = useState(false);
+  const { devices: vehicles, isLoading, error, refetch } = useDeviceManagement(searchTerm);
 
-  const { 
-    data: vehiclesData, 
-    isLoading, 
-    error, 
-    refetch 
-  } = useOptimizedVehicleData({
-    enabled: true,
-    refreshInterval: 30000
-  });
-
-  const vehicles = vehiclesData?.vehicles || [];
-  
-  // Filter vehicles based on search term and offline filter
-  const filteredVehicles = vehicles.filter(vehicle => {
-    const matchesSearch = !searchTerm || 
-      vehicle.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vehicle.device_id?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesOfflineFilter = !showOfflineOnly || vehicle.status === 'offline';
-    
-    return matchesSearch && matchesOfflineFilter;
-  });
-
-  // Calculate stats
-  const totalVehicles = vehicles.length;
-  const onlineVehicles = vehicles.filter(v => v.status === 'online').length;
-  const offlineVehicles = vehicles.filter(v => v.status === 'offline').length;
-  const vehiclesWithRecentData = vehicles.filter(v => {
-    if (!v.last_position?.updatetime) return false;
-    const lastUpdate = new Date(v.last_position.updatetime);
-    const hoursSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60);
-    return hoursSinceUpdate < 1;
-  }).length;
-
-  const handleRefresh = () => {
-    refetch();
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'online': return 'bg-green-500';
+      case 'active': return 'bg-blue-500';
+      case 'offline': return 'bg-gray-400';
+      case 'inactive': return 'bg-red-500';
+      default: return 'bg-gray-400';
+    }
   };
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
+  const getStatusText = (status: string) => {
+    return status.charAt(0).toUpperCase() + status.slice(1);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading vehicle data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center py-8">
+          <Car className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">Error Loading Vehicles</h3>
+          <p className="text-gray-500 mb-4">
+            {error.message || 'Unable to load vehicle data'}
+          </p>
+          <Button onClick={() => refetch()} variant="outline">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* System Health Indicator */}
-      <SystemHealthIndicator />
+      {/* Header Controls */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-4 flex-1 max-w-2xl">
+          {/* Search */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search vehicles..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
+        
+        <Button className="flex items-center gap-2">
+          <Plus className="h-4 w-4" />
+          Add Vehicle
+        </Button>
+      </div>
 
-      {/* Enhanced Tabs for Different Views */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="registration">Vehicle Registration</TabsTrigger>
-          <TabsTrigger value="monitoring">Real-time Monitoring</TabsTrigger>
-        </TabsList>
+      {/* Vehicle Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+            <Car className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{vehicles?.length || 0}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Online</CardTitle>
+            <div className="h-4 w-4 rounded-full bg-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {vehicles?.filter(v => v.status === 'online').length || 0}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Offline</CardTitle>
+            <div className="h-4 w-4 rounded-full bg-gray-400" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {vehicles?.filter(v => v.status === 'offline').length || 0}
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active</CardTitle>
+            <div className="h-4 w-4 rounded-full bg-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {vehicles?.filter(v => v.is_active).length || 0}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        <TabsContent value="overview" className="space-y-6">
-          {/* Enhanced Header with Search and Controls */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Car className="h-6 w-6" />
-                  Vehicle Management Overview
-                  <Badge variant={error ? 'destructive' : 'secondary'}>
-                    {isLoading ? 'Loading...' : `${totalVehicles} vehicles`}
-                  </Badge>
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant={showOfflineOnly ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setShowOfflineOnly(!showOfflineOnly)}
-                  >
-                    <Settings className="h-4 w-4 mr-1" />
-                    {showOfflineOnly ? 'Show All' : 'Offline Only'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleRefresh}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                    Refresh
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4 mb-4">
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search vehicles by name or ID..."
-                    value={searchTerm}
-                    onChange={handleSearchChange}
-                    className="pl-10"
-                  />
-                </div>
-                <div className="text-sm text-gray-500">
-                  {filteredVehicles.length} of {totalVehicles} vehicles
-                </div>
-              </div>
-
-              {error && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>
-                    Failed to load vehicle data. This may be due to GP51 connectivity issues.
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleRefresh}
-                      className="ml-2"
-                    >
-                      Retry
-                    </Button>
-                  </AlertDescription>
-                </Alert>
-              )}
-
-              {/* Vehicle Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Total Vehicles</p>
-                      <p className="text-2xl font-bold">{totalVehicles}</p>
-                    </div>
-                    <Car className="h-8 w-8 text-blue-600" />
+      {/* Vehicle List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {vehicles && vehicles.length > 0 ? (
+          vehicles.map((vehicle) => (
+            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">{vehicle.device_name}</CardTitle>
+                    <p className="text-sm text-gray-600">{vehicle.device_id}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${getStatusColor(vehicle.status)}`} />
+                    <Badge variant="outline" className="text-xs">
+                      {getStatusText(vehicle.status)}
+                    </Badge>
                   </div>
                 </div>
+              </CardHeader>
 
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Online</p>
-                      <p className="text-2xl font-bold text-green-600">{onlineVehicles}</p>
-                    </div>
-                    <Settings className="h-8 w-8 text-green-600" />
+              <CardContent className="space-y-4">
+                {vehicle.envio_users && (
+                  <div className="text-sm text-gray-600">
+                    Assigned to: {vehicle.envio_users.name || vehicle.envio_users.email}
                   </div>
-                </div>
-
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Offline</p>
-                      <p className="text-2xl font-bold text-red-600">{offlineVehicles}</p>
-                    </div>
-                    <AlertTriangle className="h-8 w-8 text-red-600" />
+                )}
+                
+                {vehicle.sim_number && (
+                  <div className="text-sm text-gray-600">
+                    SIM: {vehicle.sim_number}
                   </div>
+                )}
+                
+                <div className="text-xs text-gray-500">
+                  Created: {new Date(vehicle.created_at).toLocaleDateString()}
                 </div>
-
-                <div className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm text-gray-600">Recent Data</p>
-                      <p className="text-2xl font-bold text-purple-600">{vehiclesWithRecentData}</p>
-                    </div>
-                    <RefreshCw className="h-8 w-8 text-purple-600" />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Enhanced Vehicle Data Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Vehicle Status & Tracking</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <div className="flex items-center justify-center p-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mr-4"></div>
-                  <span>Loading vehicles...</span>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredVehicles.length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      {searchTerm || showOfflineOnly ? 'No vehicles match your filters' : 'No vehicles found'}
-                    </div>
-                  ) : (
-                    <div className="grid gap-4">
-                      {filteredVehicles.map((vehicle) => (
-                        <div key={vehicle.id} className="border rounded-lg p-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <h3 className="font-medium">{vehicle.device_name}</h3>
-                              <p className="text-sm text-gray-500">ID: {vehicle.device_id}</p>
-                            </div>
-                            <Badge variant={vehicle.status === 'online' ? 'default' : 'secondary'}>
-                              {vehicle.status}
-                            </Badge>
-                          </div>
-                          {vehicle.last_position && (
-                            <div className="mt-2 text-xs text-gray-500">
-                              Last update: {new Date(vehicle.last_position.updatetime).toLocaleString()}
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="registration" className="space-y-6">
-          <EnhancedVehicleRegistration />
-        </TabsContent>
-
-        <TabsContent value="monitoring" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Real-time Vehicle Monitoring</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Real-time monitoring features will be implemented here.</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <div className="col-span-full text-center py-12">
+            <Car className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+            <h3 className="text-xl font-semibold text-gray-700 mb-2">No vehicles found</h3>
+            <p className="text-gray-500 mb-4">
+              {searchTerm 
+                ? 'Try adjusting your search criteria' 
+                : 'No vehicles are currently registered. Import vehicle data from GP51 or add vehicles manually to get started.'
+              }
+            </p>
+            <Button variant="outline">
+              Import from GP51
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

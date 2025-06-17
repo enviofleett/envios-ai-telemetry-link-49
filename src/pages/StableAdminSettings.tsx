@@ -1,7 +1,5 @@
 
 import React, { Suspense } from 'react';
-import Layout from '@/components/Layout';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminSettingsHub from '@/components/admin/AdminSettingsHub';
 import { StableErrorBoundary } from '@/components/StableErrorBoundary';
 
@@ -16,15 +14,11 @@ const StableAdminSettingsFallback = () => (
 
 const StableAdminSettings: React.FC = () => {
   return (
-    <ProtectedRoute>
-      <Layout>
-        <StableErrorBoundary>
-          <Suspense fallback={<StableAdminSettingsFallback />}>
-            <AdminSettingsHub />
-          </Suspense>
-        </StableErrorBoundary>
-      </Layout>
-    </ProtectedRoute>
+    <StableErrorBoundary>
+      <Suspense fallback={<StableAdminSettingsFallback />}>
+        <AdminSettingsHub />
+      </Suspense>
+    </StableErrorBoundary>
   );
 };
 
