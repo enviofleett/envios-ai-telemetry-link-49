@@ -27,7 +27,7 @@ export const useGP51AuthConsolidated = () => {
   const { toast } = useToast();
 
   const checkAuthStatus = useCallback(async () => {
-    console.log('🔍 Checking GP51 authentication status...');
+    console.log('🔍 [GP51Auth] Checking GP51 authentication status...');
     setAuthState(prev => ({ ...prev, isCheckingStatus: true }));
 
     try {
@@ -36,7 +36,7 @@ export const useGP51AuthConsolidated = () => {
       });
 
       if (error) {
-        console.error('❌ Status check error:', error);
+        console.error('❌ [GP51Auth] Status check error:', error);
         setAuthState(prev => ({
           ...prev,
           isAuthenticated: false,
@@ -47,7 +47,12 @@ export const useGP51AuthConsolidated = () => {
       }
 
       const isAuthenticated = data.connected && !data.isExpired;
-      console.log(`📊 GP51 Status: ${isAuthenticated ? 'Connected' : 'Disconnected'}`);
+      console.log(`📊 [GP51Auth] Status: ${isAuthenticated ? 'Connected' : 'Disconnected'}`, {
+        connected: data.connected,
+        isExpired: data.isExpired,
+        username: data.username,
+        expiresAt: data.expiresAt
+      });
 
       setAuthState(prev => ({
         ...prev,
@@ -59,7 +64,7 @@ export const useGP51AuthConsolidated = () => {
       }));
 
     } catch (error) {
-      console.error('❌ Status check failed:', error);
+      console.error('❌ [GP51Auth] Status check failed:', error);
       setAuthState(prev => ({
         ...prev,
         isAuthenticated: false,
@@ -74,7 +79,7 @@ export const useGP51AuthConsolidated = () => {
   }, [checkAuthStatus]);
 
   const login = useCallback(async (username: string, password: string): Promise<GP51AuthResult> => {
-    console.log(`🔐 Starting GP51 login for: ${username}`);
+    console.log(`🔐 [GP51Auth] Starting GP51 login for: ${username}`);
     setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
@@ -87,7 +92,7 @@ export const useGP51AuthConsolidated = () => {
       });
 
       if (error) {
-        console.error('❌ Login error:', error);
+        console.error('❌ [GP51Auth] Login error:', error);
         const errorMessage = error.message || 'Authentication failed';
         setAuthState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
         toast({
@@ -99,7 +104,7 @@ export const useGP51AuthConsolidated = () => {
       }
 
       if (!data.success) {
-        console.error('❌ GP51 authentication failed:', data.error);
+        console.error('❌ [GP51Auth] Authentication failed:', data.error);
         setAuthState(prev => ({ ...prev, isLoading: false, error: data.error }));
         toast({
           title: "GP51 Authentication Failed",
@@ -109,7 +114,14 @@ export const useGP51AuthConsolidated = () => {
         return { success: false, error: data.error };
       }
 
-      console.log('✅ GP51 authentication successful');
+      console.log('✅ [GP51Auth] Authentication successful:', {
+        sessionId: data.session?.id,
+        username: data.session?.username,
+        expiresAt: data.session?.expiresAt,
+        tokenLength: data.session?.tokenLength,
+        verified: data.verification
+      });
+
       const expiresAt = data.session?.expiresAt ? new Date(data.session.expiresAt) : undefined;
       
       setAuthState({
@@ -121,16 +133,29 @@ export const useGP51AuthConsolidated = () => {
         isCheckingStatus: false
       });
 
+      // Show detailed success notification
       toast({
-        title: "GP51 Connected",
-        description: `Successfully authenticated as ${username}`,
+        title: "GP51 Connected Successfully",
+        description: `Authenticated as ${username}. Session stored and verified.`,
       });
+
+      // Show additional details in console for debugging
+      if (data.verification) {
+        console.log('🔍 [GP51Auth] Session verification details:', data.verification);
+        if (data.verification.tokenTest?.success === false) {
+          toast({
+            title: "Warning: Token Test Failed",
+            description: "Authentication succeeded but token validation failed. Please check logs.",
+            variant: "destructive",
+          });
+        }
+      }
 
       return { success: true };
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
-      console.error('❌ Login exception:', error);
+      console.error('❌ [GP51Auth] Login exception:', error);
       setAuthState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
       toast({
         title: "GP51 Authentication Error",
@@ -142,7 +167,7 @@ export const useGP51AuthConsolidated = () => {
   }, [toast]);
 
   const logout = useCallback(async (): Promise<GP51AuthResult> => {
-    console.log('👋 Logging out from GP51...');
+    console.log('👋 [GP51Auth] Logging out from GP51...');
     setAuthState(prev => ({ ...prev, isLoading: true }));
 
     try {
@@ -151,7 +176,7 @@ export const useGP51AuthConsolidated = () => {
       });
 
       if (error) {
-        console.error('❌ Logout error:', error);
+        console.error('❌ [GP51Auth] Logout error:', error);
         toast({
           title: "Logout Error",
           description: "Failed to clear GP51 sessions",
@@ -177,13 +202,14 @@ export const useGP51AuthConsolidated = () => {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Logout failed';
-      console.error('❌ Logout exception:', error);
+      console.error('❌ [GP51Auth] Logout exception:', error);
       setAuthState(prev => ({ ...prev, isLoading: false, error: errorMessage }));
       return { success: false, error: errorMessage };
     }
   }, [toast]);
 
   const refreshStatus = useCallback(() => {
+    console.log('🔄 [GP51Auth] Refreshing status...');
     checkAuthStatus();
   }, [checkAuthStatus]);
 
