@@ -3,6 +3,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Toaster } from "@/components/ui/sonner";
+import { Toaster as RadixToaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { BrandingProvider } from "@/contexts/BrandingContext";
@@ -34,6 +35,7 @@ const AppProviders: React.FC<AppProvidersProps> = ({ children }) => {
                 <TooltipProvider>
                   {children}
                   <Toaster />
+                  <RadixToaster />
                   <ReactQueryDevtools initialIsOpen={false} />
                 </TooltipProvider>
               </CurrencyProvider>
