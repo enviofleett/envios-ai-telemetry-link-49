@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders, createResponse } from './cors.ts';
@@ -13,7 +12,13 @@ serve(async (req) => {
   }
 
   try {
-    const supabase = createClient(
+    // Create dual Supabase clients for proper authentication handling
+    const userSupabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    );
+
+    const adminSupabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
@@ -32,30 +37,32 @@ serve(async (req) => {
     const { action, username, password, apiUrl } = body;
     console.log(`🔧 Settings Management API: ${action}`);
 
-    // Get current user for database operations
+    // Extract and validate the Authorization header
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      console.error('❌ No authorization header provided');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ No authorization header or malformed header');
       return createResponse({
         success: false,
-        error: 'Authentication required'
+        error: 'Authorization header missing or malformed'
       }, 401);
     }
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser(
-      authHeader.replace('Bearer ', '')
-    );
+    // Validate user authentication using the user client with ANON_KEY
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await userSupabase.auth.getUser(token);
 
     if (userError || !user) {
-      console.error('❌ Invalid authentication token:', userError);
+      console.error('❌ Invalid authentication token:', userError?.message || 'No user found');
       return createResponse({
         success: false,
-        error: 'Invalid authentication token'
+        error: 'Invalid or expired user session'
       }, 401);
     }
 
-    // Get user from envio_users table
-    const { data: envioUser, error: envioUserError } = await supabase
+    console.log(`✅ User ${user.email || user.id} authenticated successfully`);
+
+    // Get user from envio_users table using admin client for database operations
+    const { data: envioUser, error: envioUserError } = await adminSupabase
       .from('envio_users')
       .select('id')
       .eq('email', user.email)
@@ -71,13 +78,13 @@ serve(async (req) => {
 
     switch (action) {
       case 'save-gp51-credentials':
-        return await handleGP51Authentication(supabase, envioUser.id, username, password, apiUrl, startTime);
+        return await handleGP51Authentication(adminSupabase, envioUser.id, username, password, apiUrl, startTime);
       
       case 'get-gp51-status':
-        return await handleGetGP51Status(supabase, envioUser.id);
+        return await handleGetGP51Status(adminSupabase, envioUser.id);
       
       case 'clear-gp51-sessions':
-        return await handleClearGP51Sessions(supabase, envioUser.id);
+        return await handleClearGP51Sessions(adminSupabase, envioUser.id);
       
       default:
         console.warn(`❌ Unknown action: ${action}`);
