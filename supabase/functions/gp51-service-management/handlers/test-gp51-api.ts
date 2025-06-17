@@ -1,19 +1,17 @@
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { jsonResponse, errorResponse as generalErrorResponse } from "../response-helpers.ts";
+import { jsonResponse } from "../response-helpers.ts";
 import { getLatestGp51Session } from "../supabase-helpers.ts";
-import { md5_sync } from "../../_shared/crypto_utils.ts";
-import { GP51_API_URL } from "../../_shared/constants.ts";
+import { gp51ApiClient } from "../../_shared/gp51_api_client_unified.ts";
 
 export async function handleTestGp51Api(supabase: SupabaseClient, startTime: number) {
-  console.log('Testing real GP51 API connectivity...');
+  console.log('🔧 Testing GP51 API connectivity using unified client...');
 
-  const { session, error: sessionFetchError, response: sessionFetchErrorResponse } = await getLatestGp51Session(supabase);
+  const { session, error: sessionFetchError } = await getLatestGp51Session(supabase);
 
   if (sessionFetchError) {
-     const enrichedResponseDetails = sessionFetchErrorResponse?.body ? JSON.parse(await sessionFetchErrorResponse.text()) : {};
+    console.error('❌ Database error fetching GP51 session:', sessionFetchError);
     return jsonResponse({
-      ...enrichedResponseDetails,
       status: 'critical',
       isValid: false,
       latency: Date.now() - startTime,
@@ -22,7 +20,7 @@ export async function handleTestGp51Api(supabase: SupabaseClient, startTime: num
   }
 
   if (!session) {
-    console.log('No GP51 sessions found - GP51 not configured (test_gp51_api)');
+    console.log('📝 No GP51 sessions found - GP51 not configured (test_gp51_api)');
     return jsonResponse({
       status: 'not_configured',
       isValid: false,
@@ -35,7 +33,7 @@ export async function handleTestGp51Api(supabase: SupabaseClient, startTime: num
   const now = new Date();
 
   if (expiresAt <= now) {
-    console.error('GP51 session expired (test_gp51_api):', { expiresAt, now });
+    console.error('❌ GP51 session expired (test_gp51_api):', { expiresAt, now });
     return jsonResponse({
       status: 'critical',
       isValid: false,
@@ -49,79 +47,30 @@ export async function handleTestGp51Api(supabase: SupabaseClient, startTime: num
   }
 
   try {
-    const hashedPassword = md5_sync(session.password_hash);
-    console.log(`Authenticating with GP51 username: ${session.username}`);
+    console.log(`🔧 Testing GP51 API with unified client for user: ${session.username}`);
 
-    const formData = new URLSearchParams({
-      action: 'querymonitorlist',
-      username: session.username,
-      password: hashedPassword,
-      from: 'WEB',
-      type: 'USER'
-    });
-
-    const apiUrlToUse = session.api_url || GP51_API_URL;
-    console.log(`📡 Making real GP51 API call to: ${apiUrlToUse} (action: querymonitorlist)`);
-
-    const testResponse = await fetch(apiUrlToUse, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-        'User-Agent': 'EnvioFleet/1.0 Deno/Test'
-      },
-      body: formData.toString()
-    });
+    // Use the unified client to test the API with the stored token
+    const testResponse = await gp51ApiClient.queryMonitorList(
+      session.gp51_token!, 
+      session.username
+    );
 
     const responseLatency = Date.now() - startTime;
-    console.log("GP51 API call result status:", testResponse.status);
-
-    if (!testResponse.ok) {
-      const errorText = await testResponse.text().catch(() => "Could not read error response body");
-      console.error('❌ GP51 API HTTP error:', testResponse.status, errorText);
-      return jsonResponse({
-        status: 'critical',
-        isValid: false,
-        username: session.username,
-        latency: responseLatency,
-        isAuthError: testResponse.status === 401 || testResponse.status === 403,
-        errorMessage: `GP51 API HTTP error: ${testResponse.status}. Response: ${errorText.substring(0, 100)}`
-      }, 200);
-    }
-
-    const responseText = await testResponse.text();
-    console.log('📊 Raw GP51 API response (test_gp51_api):', responseText.substring(0, 200) + '...');
-
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ GP51 API response JSON parse error:', parseError.message);
-      return jsonResponse({
-        status: 'critical',
-        isValid: false,
-        username: session.username,
-        latency: responseLatency,
-        errorMessage: `GP51 API response was not valid JSON: ${responseText.substring(0, 100)}`
-      }, 200);
-    }
-
-    if (responseData.status !== 0) {
-      console.error('❌ GP51 API returned error status:', responseData);
-      return jsonResponse({
-        status: 'critical',
-        isValid: false,
-        username: session.username,
-        latency: responseLatency,
-        isAuthError: true,
-        errorMessage: responseData.message || responseData.cause || `GP51 API logic error (status: ${responseData.status})`
-      }, 200);
-    }
+    console.log(`✅ GP51 API test successful using unified client (${responseLatency}ms)`);
 
     const timeUntilExpiry = expiresAt.getTime() - now.getTime();
     const needsRefresh = timeUntilExpiry < 10 * 60 * 1000; // 10 minutes
 
-    console.log('✅ GP51 API test successful (test_gp51_api)');
+    // Count devices from the response
+    let deviceCount = 0;
+    if (testResponse.groups) {
+      deviceCount = testResponse.groups.reduce((acc: number, group: any) => 
+        acc + (group.devices ? group.devices.length : 0), 0
+      );
+    } else if (testResponse.devices) {
+      deviceCount = testResponse.devices.length;
+    }
+
     return jsonResponse({
       status: needsRefresh ? 'degraded' : 'healthy',
       isValid: true,
@@ -130,18 +79,28 @@ export async function handleTestGp51Api(supabase: SupabaseClient, startTime: num
       latency: responseLatency,
       needsRefresh: needsRefresh,
       errorMessage: null,
-      deviceCount: responseData.groups ? responseData.groups.reduce((acc: number, group: any) => acc + (group.devices ? group.devices.length : 0), 0) : (responseData.devices ? responseData.devices.length : 0),
+      deviceCount: deviceCount,
       details: `Successfully connected to GP51 as ${session.username}. API responded in ${responseLatency}ms.`
     }, 200);
 
   } catch (apiError) {
-    console.error('❌ GP51 API connection processing failed (test_gp51_api):', apiError);
+    const responseLatency = Date.now() - startTime;
+    console.error('❌ GP51 API test failed using unified client:', apiError);
+    
+    // Determine if this is an authentication error
+    const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown API error';
+    const isAuthError = errorMessage.includes('login') || 
+                       errorMessage.includes('authentication') || 
+                       errorMessage.includes('unauthorized') ||
+                       errorMessage.includes('token');
+
     return jsonResponse({
       status: 'critical',
       isValid: false,
-      username: session?.username,
-      latency: Date.now() - startTime,
-      errorMessage: apiError instanceof Error ? apiError.message : 'General error during API test.'
+      username: session.username,
+      latency: responseLatency,
+      isAuthError: isAuthError,
+      errorMessage: errorMessage
     }, 200);
   }
 }
