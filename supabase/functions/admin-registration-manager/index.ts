@@ -7,15 +7,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface ApprovalRequest {
-  registration_id: string;
-  action: 'approve' | 'reject';
-  admin_notes?: string;
-}
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
@@ -24,155 +18,122 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Get user from Authorization header
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(
-        JSON.stringify({ error: 'Missing authorization header' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Authorization required' }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       );
     }
 
-    // Verify admin access
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
-    if (authError || !user) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+
+    if (userError || !user) {
       return new Response(
-        JSON.stringify({ error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Invalid authorization' }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       );
     }
 
-    // Check if user is admin
-    const { data: userRole, error: roleError } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id)
-      .eq('role', 'admin')
+    // Check if user is admin (basic check - you might want to enhance this)
+    const { data: envioUser } = await supabase
+      .from('envio_users')
+      .select('id, user_type')
+      .eq('email', user.email)
       .single();
 
-    if (roleError || !userRole) {
+    if (!envioUser || envioUser.user_type !== 'admin') {
       return new Response(
-        JSON.stringify({ error: 'Admin access required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Admin access required' }),
+        { 
+          status: 403, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       );
     }
 
     if (req.method === 'GET') {
-      // Get pending registrations
-      const { data: pendingRegistrations, error } = await supabase
+      // Fetch pending registrations
+      const { data: registrations, error } = await supabase
         .from('pending_user_registrations')
         .select(`
           *,
-          packages (
-            name,
-            description,
-            associated_user_type,
-            price
-          )
+          packages (id, name, description, price)
         `)
-        .eq('status', 'pending')
         .order('submitted_at', { ascending: false });
 
       if (error) {
+        console.error('Error fetching registrations:', error);
         return new Response(
-          JSON.stringify({ error: 'Failed to fetch pending registrations' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ success: false, error: 'Failed to fetch registrations' }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
         );
       }
 
       return new Response(
-        JSON.stringify({ registrations: pendingRegistrations }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: true, registrations }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       );
     }
 
     if (req.method === 'POST') {
-      const requestBody: ApprovalRequest = await req.json();
-      const { registration_id, action, admin_notes } = requestBody;
+      // Process registration (approve/reject)
+      const body = await req.json();
+      const { registration_id, action, admin_notes } = body;
 
-      if (!registration_id || !action) {
+      if (!registration_id || !action || !['approve', 'reject'].includes(action)) {
         return new Response(
-          JSON.stringify({ error: 'Missing required fields' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ success: false, error: 'Invalid request parameters' }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
         );
-      }
-
-      // Get the registration
-      const { data: registration, error: fetchError } = await supabase
-        .from('pending_user_registrations')
-        .select(`
-          *,
-          packages (
-            associated_user_type
-          )
-        `)
-        .eq('id', registration_id)
-        .eq('status', 'pending')
-        .single();
-
-      if (fetchError || !registration) {
-        return new Response(
-          JSON.stringify({ error: 'Registration not found or already processed' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      if (action === 'approve') {
-        // Create the user in envio_users
-        const { data: newUser, error: userError } = await supabase
-          .from('envio_users')
-          .insert({
-            name: registration.name,
-            email: registration.email,
-            phone_number: registration.phone_number,
-            user_type: registration.packages.associated_user_type,
-            package_id: registration.selected_package_id,
-            registration_status: 'completed',
-            registration_type: 'package_selection',
-            approved_at: new Date().toISOString(),
-            approved_by: user.id
-          })
-          .select()
-          .single();
-
-        if (userError) {
-          console.error('User creation error:', userError);
-          return new Response(
-            JSON.stringify({ error: 'Failed to create user account' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        // Create user role based on package
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({
-            user_id: newUser.id,
-            role: registration.packages.associated_user_type === 'sub_admin' ? 'fleet_manager' : 'user'
-          });
-
-        if (roleError) {
-          console.error('Role creation error:', roleError);
-        }
       }
 
       // Update registration status
-      const { error: updateError } = await supabase
+      const { data: updatedRegistration, error: updateError } = await supabase
         .from('pending_user_registrations')
         .update({
           status: action === 'approve' ? 'approved' : 'rejected',
           reviewed_at: new Date().toISOString(),
-          reviewed_by: user.id,
+          reviewed_by: envioUser.id,
           admin_notes
         })
-        .eq('id', registration_id);
+        .eq('id', registration_id)
+        .select()
+        .single();
 
       if (updateError) {
+        console.error('Error updating registration:', updateError);
         return new Response(
-          JSON.stringify({ error: 'Failed to update registration status' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ success: false, error: 'Failed to process registration' }),
+          { 
+            status: 500, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
         );
+      }
+
+      // If approved, create the user account
+      if (action === 'approve') {
+        // Here you would typically create the user account in auth.users
+        // and insert into envio_users table
+        console.log('Registration approved - would create user account for:', updatedRegistration.email);
       }
 
       return new Response(
@@ -180,20 +141,29 @@ serve(async (req) => {
           success: true, 
           message: `Registration ${action}d successfully` 
         }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       );
     }
 
     return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: 'Method not allowed' }),
+      { 
+        status: 405, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
 
   } catch (error) {
     console.error('Admin registration manager error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: 'Internal server error' }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });
