@@ -1,52 +1,9 @@
 
 import React from 'react';
-import Layout from '@/components/Layout';
-import MarketplaceAnalyticsTab from '@/components/admin/tabs/MarketplaceAnalyticsTab';
-import { BarChart3, Bot } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import ReferralAnalyticsTab from '@/components/admin/tabs/ReferralAnalyticsTab';
 import CustomerAnalyticsTab from '@/components/admin/tabs/CustomerAnalyticsTab';
-import AIAssistantTab from '@/components/admin/tabs/AIAssistantTab';
 
 const AdminAnalytics: React.FC = () => {
-  return (
-    <Layout>
-      <div className="container mx-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
-            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-                <BarChart3 className="h-8 w-8" />
-                System Analytics
-            </h1>
-        </div>
-        <p className="text-muted-foreground">
-          Detailed insights into marketplace performance, referral programs, and customer behavior.
-        </p>
-        <Tabs defaultValue="marketplace" className="w-full">
-          <TabsList>
-            <TabsTrigger value="marketplace">Marketplace</TabsTrigger>
-            <TabsTrigger value="customers">Customers</TabsTrigger>
-            <TabsTrigger value="referrals">Referrals</TabsTrigger>
-            <TabsTrigger value="ai-assistant">
-              <Bot className="h-4 w-4 mr-2" />
-              AI Assistant
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="marketplace">
-            <MarketplaceAnalyticsTab />
-          </TabsContent>
-          <TabsContent value="customers">
-            <CustomerAnalyticsTab />
-          </TabsContent>
-          <TabsContent value="referrals">
-            <ReferralAnalyticsTab />
-          </TabsContent>
-          <TabsContent value="ai-assistant">
-            <AIAssistantTab />
-          </TabsContent>
-        </Tabs>
-      </div>
-    </Layout>
-  );
+  return <CustomerAnalyticsTab />;
 };
 
 export default AdminAnalytics;

@@ -1,16 +1,9 @@
+
 import React from 'react';
-import Layout from '@/components/Layout';
-import { EnhancedMarketplace } from '@/components/marketplace/EnhancedMarketplace';
-import MarketplaceAuthGuard from '@/components/marketplace/security/MarketplaceAuthGuard';
+import EnhancedMarketplace from '@/components/marketplace/EnhancedMarketplace';
 
 const Marketplace: React.FC = () => {
-  return (
-    <MarketplaceAuthGuard>
-      <Layout>
-        <EnhancedMarketplace />
-      </Layout>
-    </MarketplaceAuthGuard>
-  );
+  return <EnhancedMarketplace />;
 };
 
 export default Marketplace;
