@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useRef } from 'react';
 import {
   Card,
@@ -24,13 +25,18 @@ import L from 'leaflet';
 import { useEnhancedVehicleData } from '@/hooks/useEnhancedVehicleData';
 import { VehicleData } from '@/types/vehicle';
 
+// Import Leaflet marker images using ES modules
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
 // Leaflet marker configuration (required to show the markers)
 // @ts-ignore
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
-  iconUrl: require('leaflet/dist/images/marker-icon.png'),
-  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
 });
 
 interface Vehicle {
