@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 // Configuration for GP51 API endpoint
@@ -19,7 +20,8 @@ interface ProcessingResult {
   avgProcessingTime: number;
 }
 
-interface VehicleUpdate {
+// Renamed to avoid type collision with VehicleUpdate from src/types/vehicle.ts
+interface VehiclePositionUpdate {
   device_id: string;
   last_position: {
     lat: number;
@@ -195,7 +197,7 @@ export class VehiclePositionProcessor {
     let errors = 0;
 
     // Bulk update approach for better performance
-    const updates: VehicleUpdate[] = positions.map(position => ({
+    const updates: VehiclePositionUpdate[] = positions.map(position => ({
       device_id: position.deviceid,
       last_position: {
         lat: position.callat,
@@ -209,7 +211,8 @@ export class VehiclePositionProcessor {
     }));
 
     // Process updates in smaller chunks for better database performance
-    const updateChunks = this.createBatches(updates, 100);
+    // FIX: Explicitly type the generic parameter to avoid TS2589 error
+    const updateChunks = this.createBatches<VehiclePositionUpdate>(updates, 100);
     
     for (const chunk of updateChunks) {
       try {
