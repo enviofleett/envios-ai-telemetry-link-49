@@ -107,74 +107,145 @@ export class UnifiedGP51ApiClient {
   }
 
   /**
-   * Query Monitor List using the hybrid method with token
+   * Query Monitor List - Testing multiple request formats to resolve token issue
    */
   async queryMonitorList(token: string, username?: string): Promise<GP51ApiResponse> {
     console.log(`📡 [GP51Client] Querying monitor list with token`);
     console.log(`🔑 [GP51Client] Token (first 8 chars): ${token ? token.substring(0, 8) + '...' : 'MISSING'}`);
+    console.log(`🔑 [GP51Client] Token length: ${token?.length || 0}`);
+    console.log(`🔑 [GP51Client] Full token for debugging: ${token}`); // Temporary full token log for debugging
     
-    // Use hybrid method: action in URL, token/data in JSON body
-    const queryUrl = `${this.baseUrl}?action=querymonitorlist`;
-    const requestBody: any = {
-      token: token
-    };
-
-    if (username) {
-      requestBody.username = username;
-    }
-
-    console.log(`📤 [GP51Client] Sending query request to: ${queryUrl}`);
-    console.log(`📤 [GP51Client] With body:`, requestBody);
-
-    const response = await fetch(queryUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'EnvioFleet/1.0'
+    // Try multiple request formats to identify the correct one
+    const requestFormats = [
+      {
+        name: 'Format 1: Action in URL, Token in JSON body',
+        url: `${this.baseUrl}?action=querymonitorlist`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'EnvioFleet/1.0'
+        },
+        body: JSON.stringify({
+          token: token,
+          ...(username && { username })
+        })
       },
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(10000)
-    });
+      {
+        name: 'Format 2: Token as URL parameter',
+        url: `${this.baseUrl}?action=querymonitorlist&token=${encodeURIComponent(token)}${username ? `&username=${encodeURIComponent(username)}` : ''}`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'EnvioFleet/1.0'
+        },
+        body: JSON.stringify({})
+      },
+      {
+        name: 'Format 3: GET request with token in URL',
+        url: `${this.baseUrl}?action=querymonitorlist&token=${encodeURIComponent(token)}${username ? `&username=${encodeURIComponent(username)}` : ''}`,
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'EnvioFleet/1.0'
+        },
+        body: null
+      },
+      {
+        name: 'Format 4: Form-encoded body',
+        url: `${this.baseUrl}?action=querymonitorlist`,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Accept': 'application/json',
+          'User-Agent': 'EnvioFleet/1.0'
+        },
+        body: new URLSearchParams({
+          token: token,
+          ...(username && { username })
+        }).toString()
+      }
+    ];
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [GP51Client] Query monitor list HTTP error: ${response.status}`);
-      console.error(`❌ [GP51Client] Error response:`, errorText);
-      throw new Error(`GP51 Query monitor list HTTP error: ${response.status} - ${errorText}`);
+    for (const format of requestFormats) {
+      try {
+        console.log(`🧪 [GP51Client] Trying ${format.name}`);
+        console.log(`📤 [GP51Client] URL: ${format.url}`);
+        console.log(`📤 [GP51Client] Method: ${format.method}`);
+        console.log(`📤 [GP51Client] Headers:`, format.headers);
+        if (format.body) {
+          console.log(`📤 [GP51Client] Body: ${format.body}`);
+        }
+
+        const fetchOptions: RequestInit = {
+          method: format.method,
+          headers: format.headers,
+          signal: AbortSignal.timeout(10000)
+        };
+
+        if (format.body) {
+          fetchOptions.body = format.body;
+        }
+
+        const response = await fetch(format.url, fetchOptions);
+
+        console.log(`📊 [GP51Client] Response status: ${response.status}`);
+        console.log(`📊 [GP51Client] Response headers:`, Object.fromEntries(response.headers.entries()));
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`❌ [GP51Client] ${format.name} HTTP error: ${response.status}`);
+          console.error(`❌ [GP51Client] Error response:`, errorText);
+          continue; // Try next format
+        }
+
+        const responseText = await response.text();
+        console.log(`📊 [GP51Client] ${format.name} response received, length: ${responseText.length}`);
+        console.log(`📊 [GP51Client] Raw response: ${responseText}`);
+
+        let result: GP51ApiResponse;
+        try {
+          result = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error(`❌ [GP51Client] Failed to parse response as JSON for ${format.name}:`, parseError);
+          console.log(`Raw response:`, responseText.substring(0, 500));
+          continue; // Try next format
+        }
+
+        console.log(`📋 [GP51Client] Parsed response for ${format.name}:`, result);
+
+        if (result.status === 0) {
+          console.log(`✅ [GP51Client] ${format.name} successful!`);
+          return result;
+        } else {
+          console.error(`❌ [GP51Client] ${format.name} failed with status ${result.status}: ${result.cause || result.message}`);
+          // Continue to try other formats unless this is the last one
+          if (format === requestFormats[requestFormats.length - 1]) {
+            throw new Error(result.cause || result.message || `Query failed (status: ${result.status})`);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [GP51Client] ${format.name} threw error:`, error);
+        // Continue to try other formats unless this is the last one
+        if (format === requestFormats[requestFormats.length - 1]) {
+          throw error;
+        }
+      }
     }
 
-    const responseText = await response.text();
-    console.log(`📊 [GP51Client] Query response received, length: ${responseText.length}`);
-
-    let result: GP51ApiResponse;
-    try {
-      result = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error(`❌ [GP51Client] Failed to parse query response as JSON:`, parseError);
-      console.log(`Raw response:`, responseText.substring(0, 500));
-      throw new Error('Invalid JSON response from GP51 query endpoint');
-    }
-
-    console.log(`📋 [GP51Client] Parsed query response:`, result);
-
-    if (result.status !== 0) {
-      const errorMessage = result.cause || result.message || `Query failed (status: ${result.status})`;
-      console.error(`❌ [GP51Client] Query monitor list failed:`, errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    console.log(`✅ [GP51Client] Query monitor list successful`);
-    return result;
+    // If we get here, all formats failed
+    throw new Error('All request formats failed for queryMonitorList');
   }
 
   /**
-   * Get Last Position using the hybrid method with token
+   * Get Last Position using multiple request formats
    */
   async getLastPosition(token: string, deviceIds: string[], lastQueryTime?: string): Promise<GP51ApiResponse> {
     console.log(`📡 [GP51Client] Getting last position for ${deviceIds.length} devices`);
     console.log(`🔑 [GP51Client] Token (first 8 chars): ${token ? token.substring(0, 8) + '...' : 'MISSING'}`);
     
+    // Use the same hybrid method that works for login - action in URL, data in JSON body
     const queryUrl = `${this.baseUrl}?action=lastposition`;
     const requestBody: any = {
       token: token,
