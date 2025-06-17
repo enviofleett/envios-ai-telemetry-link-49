@@ -1,44 +1,88 @@
 
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { initSupabaseClient } from "./supabase-helpers.ts";
-import { optionsResponse, errorResponse } from "./response-helpers.ts";
-import { handleTestConnection } from "./handlers/test-connection.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { handleTestGp51Api } from "./handlers/test-gp51-api.ts";
 
-serve(async (req) => {
-  console.log(`GP51 Service Management API call: ${req.method} ${req.url}`);
-  const startTime = Date.now();
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
+serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return optionsResponse();
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabase = initSupabaseClient();
-    const body = await req.json();
-    const action = body?.action;
-    console.log(`GP51 Service Management API call: Action: ${action}`);
+    const startTime = Date.now();
+    
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    if (!action) {
-      return errorResponse("Action not specified in request body", 400);
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid JSON request body',
+          timestamp: new Date().toISOString()
+        }),
+        { 
+          status: 400, 
+          headers: { 
+            ...corsHeaders, 
+            'Content-Type': 'application/json' 
+          } 
+        }
+      );
     }
+
+    const { action } = requestBody;
+    console.log(`🔧 GP51 Service Management: Processing action "${action}"`);
 
     switch (action) {
-      case 'test_connection':
-        return await handleTestConnection(supabase, startTime);
       case 'test_gp51_api':
         return await handleTestGp51Api(supabase, startTime);
+      
       default:
-        console.warn(`Unknown action received: ${action}`);
-        return errorResponse(`Unknown action: ${action}`, 400);
+        console.warn(`⚠️ Unknown action: ${action}`);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Unknown action: ${action}`,
+            availableActions: ['test_gp51_api'],
+            timestamp: new Date().toISOString()
+          }),
+          { 
+            status: 400, 
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json' 
+            } 
+          }
+        );
     }
+
   } catch (error) {
-    console.error('GP51 Service Management unhandled error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown server error';
-    // Check if it's a JSON parsing error from req.json()
-    if (error instanceof SyntaxError && error.message.includes("JSON")) {
-        return errorResponse("Invalid JSON in request body", 400, { latency: Date.now() - startTime });
-    }
-    return errorResponse(errorMessage, 500, { latency: Date.now() - startTime });
+    console.error('❌ GP51 Service Management error:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      }),
+      { 
+        status: 500, 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json' 
+        } 
+      }
+    );
   }
 });

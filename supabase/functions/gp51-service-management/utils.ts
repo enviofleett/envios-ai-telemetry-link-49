@@ -1,13 +1,29 @@
 
-import { md5 } from "npm:js-md5";
+import { md5_sync } from "../_shared/crypto_utils.ts";
+import { GP51_API_URL } from "../_shared/constants.ts";
 
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Re-export commonly used utilities
+export { md5_sync, GP51_API_URL };
 
-export const GP51_API_URL = "https://www.gps51.com/webapi";
+// Additional utility functions for GP51 service management
+export function calculateLatency(startTime: number): number {
+  return Date.now() - startTime;
+}
 
-export function calculateMd5(input: string): string {
-  return md5(input);
+export function formatApiError(error: any, context?: string): string {
+  const baseMessage = error instanceof Error ? error.message : 'Unknown error';
+  return context ? `${context}: ${baseMessage}` : baseMessage;
+}
+
+export function isSessionExpired(expiresAt: string): boolean {
+  return new Date(expiresAt) <= new Date();
+}
+
+export function getTimeUntilExpiry(expiresAt: string): number {
+  return new Date(expiresAt).getTime() - new Date().getTime();
+}
+
+export function needsSessionRefresh(expiresAt: string, bufferMinutes: number = 10): boolean {
+  const timeUntilExpiry = getTimeUntilExpiry(expiresAt);
+  return timeUntilExpiry < bufferMinutes * 60 * 1000;
 }

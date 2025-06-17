@@ -1,29 +1,64 @@
 
-import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { errorResponse } from "./response-helpers.ts";
+import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
-export function initSupabaseClient(): SupabaseClient {
-  return createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
+export interface GP51Session {
+  id: string;
+  username: string;
+  password_hash: string;
+  gp51_token?: string;
+  token_expires_at: string;
+  api_url?: string;
+  created_at: string;
+  last_validated_at?: string;
 }
 
-export async function getLatestGp51Session(supabase: SupabaseClient) {
-  const { data: session, error: sessionError } = await supabase
-    .from('gp51_sessions')
-    .select('username, password_hash, token_expires_at, api_url')
-    .order('token_expires_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+export async function getLatestGp51Session(supabase: SupabaseClient): Promise<{
+  session: GP51Session | null;
+  error: any;
+  response: Response | null;
+}> {
+  try {
+    console.log('🔍 Fetching latest GP51 session from database...');
+    
+    const { data: sessions, error } = await supabase
+      .from('gp51_sessions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-  if (sessionError) {
-    console.error('Database error during session check:', sessionError);
-    // This specific error needs to be handled by the caller to include latency if needed
-    // Or, pass startTime to this function if latency calculation is always needed here.
-    // For now, returning null and the error for the caller to decide.
-    return { session: null, error: sessionError, response: errorResponse('Database connection failed', 200) };
+    if (error) {
+      console.error('❌ Database error fetching GP51 session:', error);
+      return {
+        session: null,
+        error: error,
+        response: null
+      };
+    }
+
+    if (!sessions || sessions.length === 0) {
+      console.log('📝 No GP51 sessions found in database');
+      return {
+        session: null,
+        error: null,
+        response: null
+      };
+    }
+
+    const session = sessions[0] as GP51Session;
+    console.log(`✅ Found GP51 session for user: ${session.username}`);
+    
+    return {
+      session,
+      error: null,
+      response: null
+    };
+
+  } catch (exception) {
+    console.error('💥 Exception while fetching GP51 session:', exception);
+    return {
+      session: null,
+      error: exception,
+      response: null
+    };
   }
-
-  return { session, error: null, response: null };
 }
