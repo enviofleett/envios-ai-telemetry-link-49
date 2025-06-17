@@ -2,10 +2,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders, createResponse } from './cors.ts';
-import { handleSaveCredentials, handleGetStatus } from './handlers.ts';
 import { authenticateWithGP51 } from './gp51-auth.ts';
 
 serve(async (req) => {
+  const startTime = Date.now();
+  console.log(`🔧 Settings Management API: ${req.method} ${req.url}`);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -16,14 +18,24 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const body = await req.json();
-    const { action, username, password, apiUrl } = body;
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error('❌ Failed to parse request body:', parseError);
+      return createResponse({
+        success: false,
+        error: 'Invalid JSON in request body'
+      }, 400);
+    }
 
+    const { action, username, password, apiUrl } = body;
     console.log(`🔧 Settings Management API: ${action}`);
 
     // Get current user for database operations
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('❌ No authorization header provided');
       return createResponse({
         success: false,
         error: 'Authentication required'
@@ -35,6 +47,7 @@ serve(async (req) => {
     );
 
     if (userError || !user) {
+      console.error('❌ Invalid authentication token:', userError);
       return createResponse({
         success: false,
         error: 'Invalid authentication token'
@@ -49,6 +62,7 @@ serve(async (req) => {
       .single();
 
     if (envioUserError || !envioUser) {
+      console.error('❌ User profile not found:', envioUserError);
       return createResponse({
         success: false,
         error: 'User profile not found'
@@ -57,7 +71,7 @@ serve(async (req) => {
 
     switch (action) {
       case 'save-gp51-credentials':
-        return await handleGP51Authentication(supabase, envioUser.id, username, password, apiUrl);
+        return await handleGP51Authentication(supabase, envioUser.id, username, password, apiUrl, startTime);
       
       case 'get-gp51-status':
         return await handleGetGP51Status(supabase, envioUser.id);
@@ -66,24 +80,20 @@ serve(async (req) => {
         return await handleClearGP51Sessions(supabase, envioUser.id);
       
       default:
-        // Legacy support for old actions
-        if (action === 'save-credentials') {
-          return await handleSaveCredentials({ username, password, apiUrl });
-        } else if (action === 'get-status') {
-          return await handleGetStatus();
-        }
-        
+        console.warn(`❌ Unknown action: ${action}`);
         return createResponse({
           success: false,
           error: `Unknown action: ${action}`
         }, 400);
     }
   } catch (error) {
+    const latency = Date.now() - startTime;
     console.error('❌ Settings Management error:', error);
     return createResponse({
       success: false,
       error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
+      latency
     }, 500);
   }
 });
@@ -93,9 +103,11 @@ async function handleGP51Authentication(
   userId: string,
   username: string,
   password: string,
-  apiUrl?: string
+  apiUrl?: string,
+  startTime?: number
 ) {
   console.log('🔐 GP51 Authentication for user:', userId);
+  const latency = startTime ? Date.now() - startTime : 0;
   
   try {
     // Clear any existing sessions for this user
@@ -103,6 +115,8 @@ async function handleGP51Authentication(
       .from('gp51_sessions')
       .delete()
       .eq('envio_user_id', userId);
+
+    console.log('🧹 Cleared existing GP51 sessions');
 
     // Authenticate with GP51
     const authResult = await authenticateWithGP51({
@@ -112,9 +126,11 @@ async function handleGP51Authentication(
     });
 
     if (!authResult.success) {
+      console.error('❌ GP51 authentication failed:', authResult.error);
       return createResponse({
         success: false,
-        error: authResult.error || 'GP51 authentication failed'
+        error: authResult.error || 'GP51 authentication failed',
+        latency
       }, 401);
     }
 
@@ -128,7 +144,7 @@ async function handleGP51Authentication(
         gp51_token: authResult.token,
         token_expires_at: expiresAt.toISOString(),
         api_url: authResult.apiUrl,
-        auth_method: authResult.method || 'POST',
+        auth_method: authResult.method || 'GET',
         created_at: new Date().toISOString(),
         last_validated_at: new Date().toISOString()
       })
@@ -139,7 +155,8 @@ async function handleGP51Authentication(
       console.error('❌ Failed to store GP51 session:', sessionError);
       return createResponse({
         success: false,
-        error: 'Failed to store session'
+        error: 'Failed to store session',
+        latency
       }, 500);
     }
 
@@ -151,7 +168,8 @@ async function handleGP51Authentication(
         username: authResult.username,
         expiresAt: expiresAt.toISOString(),
         method: authResult.method
-      }
+      },
+      latency
     });
 
   } catch (error) {
@@ -159,7 +177,8 @@ async function handleGP51Authentication(
     return createResponse({
       success: false,
       error: 'Authentication process failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
+      latency
     }, 500);
   }
 }
