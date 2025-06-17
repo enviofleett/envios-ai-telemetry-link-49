@@ -22,49 +22,65 @@ export async function authenticateWithGP51({
     const targetApiUrl = apiUrl || GP51_API_URL;
     console.log('🌐 Using GP51 API URL:', targetApiUrl);
     
-    // Try GET method first (most reliable for GP51)
-    console.log('🔄 Attempting GET authentication method...');
-    const getUrl = `${targetApiUrl}?action=login&username=${encodeURIComponent(trimmedUsername)}&password=${encodeURIComponent(hashedPassword)}`;
+    // Use POST method with JSON body as required by GP51 API documentation
+    console.log('🔄 Attempting POST authentication method with JSON body...');
     
-    const getResponse = await fetch(getUrl, {
-      method: 'GET',
+    const requestBody = {
+      action: 'login',
+      username: trimmedUsername,
+      password: hashedPassword,
+      from: 'WEB',
+      type: 'USER'
+    };
+    
+    console.log('📤 Sending POST request with body:', { ...requestBody, password: '[REDACTED]' });
+    
+    const postResponse = await fetch(targetApiUrl, {
+      method: 'POST',
       headers: { 
+        'Content-Type': 'application/json',
         'Accept': 'application/json',
         'User-Agent': 'FleetIQ/1.0'
       },
+      body: JSON.stringify(requestBody),
       signal: AbortSignal.timeout(10000) // 10 second timeout
     });
 
-    if (getResponse.ok) {
-      const responseText = await getResponse.text();
-      console.log('📊 GET response received, length:', responseText.length);
+    if (postResponse.ok) {
+      const responseText = await postResponse.text();
+      console.log('📊 POST response received, length:', responseText.length);
       
       let result;
       try {
         result = JSON.parse(responseText);
       } catch (parseError) {
-        console.error('❌ Failed to parse GET response as JSON:', parseError);
+        console.error('❌ Failed to parse POST response as JSON:', parseError);
+        console.log('Raw response:', responseText);
         throw new Error('Invalid response format from GP51 server');
       }
 
+      console.log('📋 Parsed GP51 response:', result);
+
       if (result.status === 0 && result.token) {
-        console.log(`✅ GET authentication successful for ${trimmedUsername}`);
+        console.log(`✅ POST authentication successful for ${trimmedUsername}`);
         return {
           success: true,
           token: result.token,
           username: trimmedUsername,
           password: password,
           apiUrl: targetApiUrl,
-          method: 'GET'
+          method: 'POST'
         };
       } else {
         const errorMessage = result.cause || result.message || `Authentication failed (status: ${result.status})`;
-        console.log(`❌ GET authentication failed: ${errorMessage}`);
+        console.log(`❌ POST authentication failed: ${errorMessage}`);
         throw new Error(errorMessage);
       }
     } else {
-      console.log(`❌ GET request failed with status: ${getResponse.status}`);
-      throw new Error(`HTTP ${getResponse.status}: ${getResponse.statusText}`);
+      const errorText = await postResponse.text();
+      console.log(`❌ POST request failed with status: ${postResponse.status}`);
+      console.log('Error response:', errorText);
+      throw new Error(`HTTP ${postResponse.status}: ${postResponse.statusText}`);
     }
 
   } catch (error) {
