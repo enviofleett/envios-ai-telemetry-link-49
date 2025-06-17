@@ -30,7 +30,8 @@ export class BatchProcessor {
       updated_at: new Date().toISOString()
     }));
 
-    const updateChunks = this.createBatches(updates, this.BATCH_SIZE);
+    // Cast updates to any[] to bypass TS2589 deep inference error
+    const updateChunks = this.createBatches(updates as any[], this.BATCH_SIZE);
     
     for (const chunk of updateChunks) {
       try {
