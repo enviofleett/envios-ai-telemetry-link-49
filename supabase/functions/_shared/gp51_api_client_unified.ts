@@ -111,6 +111,7 @@ export class UnifiedGP51ApiClient {
    */
   async queryMonitorList(token: string, username?: string): Promise<GP51ApiResponse> {
     console.log(`📡 [GP51Client] Querying monitor list with token`);
+    console.log(`🔑 [GP51Client] Token (first 8 chars): ${token ? token.substring(0, 8) + '...' : 'MISSING'}`);
     
     // Use hybrid method: action in URL, token/data in JSON body
     const queryUrl = `${this.baseUrl}?action=querymonitorlist`;
@@ -172,6 +173,7 @@ export class UnifiedGP51ApiClient {
    */
   async getLastPosition(token: string, deviceIds: string[], lastQueryTime?: string): Promise<GP51ApiResponse> {
     console.log(`📡 [GP51Client] Getting last position for ${deviceIds.length} devices`);
+    console.log(`🔑 [GP51Client] Token (first 8 chars): ${token ? token.substring(0, 8) + '...' : 'MISSING'}`);
     
     const queryUrl = `${this.baseUrl}?action=lastposition`;
     const requestBody: any = {

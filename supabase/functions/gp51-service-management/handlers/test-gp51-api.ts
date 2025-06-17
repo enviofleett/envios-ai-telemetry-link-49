@@ -46,8 +46,18 @@ export async function handleTestGp51Api(supabase: SupabaseClient, startTime: num
     }, 200);
   }
 
+  // Add comprehensive logging for token validation
+  console.log(`🔑 [TestGP51] Session found for user: ${session.username}`);
+  console.log(`🔑 [TestGP51] Token exists: ${!!session.gp51_token}`);
+  console.log(`🔑 [TestGP51] Token length: ${session.gp51_token?.length || 0}`);
+  console.log(`🔑 [TestGP51] Token (first 8 chars): ${session.gp51_token ? session.gp51_token.substring(0, 8) + '...' : 'MISSING'}`);
+  console.log(`🔑 [TestGP51] Token expires at: ${expiresAt.toISOString()}`);
+  console.log(`🔑 [TestGP51] Current time: ${now.toISOString()}`);
+  console.log(`🔑 [TestGP51] Time until expiry: ${Math.round((expiresAt.getTime() - now.getTime()) / 1000)} seconds`);
+
   try {
     console.log(`🔧 Testing GP51 API with unified client for user: ${session.username}`);
+    console.log(`🔧 Using token for API test: ${session.gp51_token ? 'YES' : 'NO'}`);
 
     // Use the unified client to test the API with the stored token
     const testResponse = await gp51ApiClient.queryMonitorList(
@@ -87,12 +97,23 @@ export async function handleTestGp51Api(supabase: SupabaseClient, startTime: num
     const responseLatency = Date.now() - startTime;
     console.error('❌ GP51 API test failed using unified client:', apiError);
     
+    // Enhanced error logging for debugging
+    console.error('❌ [TestGP51] Full error details:', {
+      message: apiError instanceof Error ? apiError.message : 'Unknown error',
+      name: apiError instanceof Error ? apiError.name : 'Unknown',
+      stack: apiError instanceof Error ? apiError.stack : undefined,
+      sessionUsername: session.username,
+      tokenExists: !!session.gp51_token,
+      tokenLength: session.gp51_token?.length || 0
+    });
+    
     // Determine if this is an authentication error
     const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown API error';
     const isAuthError = errorMessage.includes('login') || 
                        errorMessage.includes('authentication') || 
                        errorMessage.includes('unauthorized') ||
-                       errorMessage.includes('token');
+                       errorMessage.includes('token') ||
+                       errorMessage.includes('global_error_not_find_token');
 
     return jsonResponse({
       status: 'critical',
@@ -100,7 +121,13 @@ export async function handleTestGp51Api(supabase: SupabaseClient, startTime: num
       username: session.username,
       latency: responseLatency,
       isAuthError: isAuthError,
-      errorMessage: errorMessage
+      errorMessage: errorMessage,
+      debugInfo: {
+        tokenExists: !!session.gp51_token,
+        tokenLength: session.gp51_token?.length || 0,
+        expiresAt: expiresAt.toISOString(),
+        timeUntilExpiry: Math.round((expiresAt.getTime() - now.getTime()) / 1000)
+      }
     }, 200);
   }
 }
