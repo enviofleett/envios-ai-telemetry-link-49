@@ -1,6 +1,5 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { unifiedGP51SessionManager } from '../unifiedGP51SessionManager';
 
 export interface GP51Vehicle {
   deviceid: string;
@@ -27,6 +26,21 @@ export interface PositionUpdate {
   course: number;
   updatetime: string;
   statusText: string;
+}
+
+// Explicit interface for database updates to prevent deep type inference
+interface VehicleUpdateData {
+  latitude: number;
+  longitude: number;
+  speed: number;
+  heading: number;
+  last_update: string;
+  updated_at: string;
+}
+
+// Type for bulk upsert operations
+interface VehicleUpsertData extends VehicleUpdateData {
+  device_id: string;
 }
 
 export class GP51ApiService {
@@ -95,7 +109,6 @@ export class GP51ApiService {
 
   /**
    * Fetch only position data for active vehicles (lightweight)
-   * Consolidated from positionOnlyApiService
    */
   static async fetchPositionsOnly(deviceIds: number[]): Promise<PositionUpdate[]> {
     if (deviceIds.length === 0) {
@@ -112,7 +125,6 @@ export class GP51ApiService {
         return [];
       }
       
-      // Simplified approach: invoke telemetry-positions function directly
       const response = await supabase.functions.invoke('telemetry-positions', {
         body: { 
           token: sessionInfo.token,
@@ -141,57 +153,57 @@ export class GP51ApiService {
   }
 
   /**
-   * Update vehicle positions in database (simplified bulk operation)
-   * Consolidated from positionOnlyApiService with simplified database operations
+   * Update vehicle positions using bulk upsert (CRITICAL FIX for TS2589)
    */
   static async updateVehiclePositionsInDatabase(positions: PositionUpdate[]): Promise<{
     updated: number;
     errors: number;
   }> {
-    let updated = 0;
-    let errors = 0;
-
-    // Process positions in smaller batches to avoid complex operations
-    const batchSize = 10;
-    for (let i = 0; i < positions.length; i += batchSize) {
-      const batch = positions.slice(i, i + batchSize);
-      
-      for (const position of batch) {
-        try {
-          // Simplified approach: use individual operations instead of complex chaining
-          const updateData = {
-            latitude: position.lat,
-            longitude: position.lon,
-            speed: position.speed,
-            heading: position.course,
-            last_update: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          };
-
-          // Simple operation to avoid TS2589 error
-          const result = await supabase
-            .from('vehicles')
-            .update(updateData)
-            .eq('device_id', position.deviceid);
-
-          if (result.error) {
-            console.error(`❌ Failed to update vehicle ${position.deviceid}:`, result.error);
-            errors++;
-          } else {
-            updated++;
-          }
-        } catch (error) {
-          console.error(`❌ Exception updating vehicle ${position.deviceid}:`, error);
-          errors++;
-        }
-      }
+    if (positions.length === 0) {
+      return { updated: 0, errors: 0 };
     }
 
-    return { updated, errors };
+    try {
+      console.log(`🔄 Updating ${positions.length} vehicle positions using bulk upsert...`);
+      
+      // Transform positions to upsert data with explicit typing
+      const upsertData: VehicleUpsertData[] = positions.map((position): VehicleUpsertData => ({
+        device_id: position.deviceid,
+        latitude: position.lat,
+        longitude: position.lon,
+        speed: position.speed,
+        heading: position.course,
+        last_update: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+
+      // Use aggressive type casting to prevent deep type inference
+      const supabaseClient = supabase as any;
+      
+      // Bulk upsert operation with explicit type boundaries
+      const result = await supabaseClient
+        .from('vehicles')
+        .upsert(upsertData, { 
+          onConflict: 'device_id',
+          ignoreDuplicates: false 
+        });
+
+      if (result.error) {
+        console.error('❌ Bulk upsert failed:', result.error);
+        return { updated: 0, errors: positions.length };
+      }
+
+      console.log(`✅ Successfully updated ${positions.length} vehicle positions`);
+      return { updated: positions.length, errors: 0 };
+
+    } catch (error) {
+      console.error('❌ Bulk update exception:', error);
+      return { updated: 0, errors: positions.length };
+    }
   }
 
   /**
-   * Get session information (consolidated method)
+   * Get session information
    */
   private static async getSessionInfo(): Promise<{ token?: string }> {
     try {
