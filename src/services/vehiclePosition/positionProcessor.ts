@@ -1,4 +1,5 @@
 
+
 import { supabase } from '@/integrations/supabase/client';
 
 // Configuration for GP51 API endpoint
@@ -217,12 +218,10 @@ export class VehiclePositionProcessor {
     for (const chunk of updateChunks) {
       try {
         for (const update of chunk) {
+          // FINAL TS2589 FIX: Cast the update object to any to bypass deep type inference
           const { error: updateError } = await supabase
             .from('vehicles')
-            .update({
-              last_position: update.last_position,
-              updated_at: update.updated_at
-            })
+            .update(update as any)
             .eq('device_id', update.device_id);
 
           if (updateError) {
@@ -247,3 +246,4 @@ export class VehiclePositionProcessor {
 }
 
 export const vehiclePositionProcessor = new VehiclePositionProcessor();
+
