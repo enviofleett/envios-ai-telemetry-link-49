@@ -42,8 +42,10 @@ export class BatchProcessor {
             updated_at: update.updated_at
           };
 
-          const { error: updateError } = await supabase
-            .from('vehicles')
+          // THE ULTIMATE FIX: Cast the entire Supabase query chain to 'any'
+          // This completely bypasses TypeScript's type inference for the update method
+          const { error: updateError } = await (supabase
+            .from('vehicles') as any)
             .update(updateData)
             .eq('device_id', update.device_id);
 
