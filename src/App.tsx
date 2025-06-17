@@ -32,6 +32,9 @@ import ActiveServices from "@/pages/ActiveServices";
 import PublicRegistration from "@/pages/PublicRegistration";
 import VerifyOTP from "@/pages/VerifyOTP";
 import SetPassword from "@/pages/SetPassword";
+import MerchantApplication from "@/pages/MerchantApplication";
+import AdminAnalytics from "@/pages/AdminAnalytics";
+import ReferralAgents from "@/pages/ReferralAgents";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -187,6 +190,36 @@ function App() {
                           <ProtectedRoute>
                             <Layout>
                               <ActiveServices />
+                            </Layout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/merchant-application"
+                        element={
+                          <ProtectedRoute>
+                            <Layout>
+                              <MerchantApplication />
+                            </Layout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/analytics"
+                        element={
+                          <ProtectedRoute>
+                            <Layout>
+                              <AdminAnalytics />
+                            </Layout>
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/referral-agents"
+                        element={
+                          <ProtectedRoute>
+                            <Layout>
+                              <ReferralAgents />
                             </Layout>
                           </ProtectedRoute>
                         }
