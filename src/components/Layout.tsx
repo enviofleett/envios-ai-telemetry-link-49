@@ -83,12 +83,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
           </header>
           
-          {/* Main content area with proper dimensions */}
+          {/* Main content area with full width and consistent padding */}
           <main className="flex-1 bg-background min-h-[calc(100vh-4rem)]">
-            <div className="max-w-[1400px] mx-auto p-6">
-              <div className="w-full">
-                {children}
-              </div>
+            <div className="w-full h-full p-6">
+              {children}
             </div>
           </main>
         </SidebarInset>
