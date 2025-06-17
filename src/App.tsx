@@ -47,9 +47,9 @@ function App() {
     <StableErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <BrandingProvider>
-            <CurrencyProvider>
-              <AuthProvider>
+          <AuthProvider>
+            <BrandingProvider>
+              <CurrencyProvider>
                 <TooltipProvider>
                   <Router>
                     <Routes>
@@ -199,9 +199,9 @@ function App() {
                   <Toaster />
                   <ReactQueryDevtools initialIsOpen={false} />
                 </TooltipProvider>
-              </AuthProvider>
-            </CurrencyProvider>
-          </BrandingProvider>
+              </CurrencyProvider>
+            </BrandingProvider>
+          </AuthProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </StableErrorBoundary>
