@@ -2967,6 +2967,81 @@ export type Database = {
         }
         Relationships: []
       }
+      gp51_secure_credentials: {
+        Row: {
+          api_url: string | null
+          created_at: string | null
+          credential_vault_id: string
+          id: string
+          is_active: boolean | null
+          last_validated_at: string | null
+          updated_at: string | null
+          user_id: string | null
+          username: string
+          validation_status: string | null
+        }
+        Insert: {
+          api_url?: string | null
+          created_at?: string | null
+          credential_vault_id: string
+          id?: string
+          is_active?: boolean | null
+          last_validated_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          username: string
+          validation_status?: string | null
+        }
+        Update: {
+          api_url?: string | null
+          created_at?: string | null
+          credential_vault_id?: string
+          id?: string
+          is_active?: boolean | null
+          last_validated_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          username?: string
+          validation_status?: string | null
+        }
+        Relationships: []
+      }
+      gp51_security_audit: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          ip_address: unknown | null
+          operation_details: Json | null
+          operation_type: string
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          ip_address?: unknown | null
+          operation_details?: Json | null
+          operation_type: string
+          success: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          ip_address?: unknown | null
+          operation_details?: Json | null
+          operation_type?: string
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       gp51_sessions: {
         Row: {
           api_url: string
@@ -9437,6 +9512,15 @@ export type Database = {
         Args: { p_user_id: string }
         Returns: Json
       }
+      get_gp51_credentials: {
+        Args: { p_user_id?: string }
+        Returns: {
+          username: string
+          password: string
+          api_url: string
+          is_active: boolean
+        }[]
+      }
       get_import_job_progress: {
         Args: { job_id: string }
         Returns: Json
@@ -9513,6 +9597,10 @@ export type Database = {
       restore_table_from_backup: {
         Args: { backup_table: string; target_table: string }
         Returns: undefined
+      }
+      store_gp51_credentials: {
+        Args: { p_username: string; p_password: string; p_api_url?: string }
+        Returns: string
       }
       update_agent_performance_snapshots: {
         Args: Record<PropertyKey, never>
