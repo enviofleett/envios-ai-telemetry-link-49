@@ -141,13 +141,14 @@ async function handleGP51Authentication(
       }, 401);
     }
 
-    // Store the session in database
+    // Store the session in database with password hash
     const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8 hours
     const { data: sessionData, error: sessionError } = await supabase
       .from('gp51_sessions')
       .insert({
         envio_user_id: userId,
         username: authResult.username,
+        password_hash: authResult.hashedPassword, // Include the hashed password
         gp51_token: authResult.token,
         token_expires_at: expiresAt.toISOString(),
         api_url: authResult.apiUrl,

@@ -1,5 +1,4 @@
 
-
 import { md5_sync } from '../_shared/crypto_utils.ts';
 
 const GP51_API_URL = "https://www.gps51.com/webapi";
@@ -70,6 +69,7 @@ export async function authenticateWithGP51({
           token: result.token,
           username: trimmedUsername,
           password: password,
+          hashedPassword: hashedPassword, // Include hashed password for database storage
           apiUrl: targetApiUrl,
           method: 'POST_HYBRID'
         };
@@ -123,6 +123,7 @@ export async function authenticateWithGP51({
           token: result.token,
           username: trimmedUsername,
           password: password,
+          hashedPassword: hashedPassword, // Include hashed password for database storage
           apiUrl: targetApiUrl,
           method: 'GET'
         };
@@ -157,4 +158,3 @@ export async function authenticateWithGP51({
     };
   }
 }
-
