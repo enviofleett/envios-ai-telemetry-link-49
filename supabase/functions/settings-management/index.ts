@@ -148,7 +148,7 @@ async function handleGP51Authentication(
       .insert({
         envio_user_id: userId,
         username: authResult.username,
-        password_hash: authResult.hashedPassword, // Include the hashed password
+        password_hash: authResult.hashedPassword,
         gp51_token: authResult.token,
         token_expires_at: expiresAt.toISOString(),
         api_url: authResult.apiUrl,
@@ -169,16 +169,39 @@ async function handleGP51Authentication(
     }
 
     console.log('✅ GP51 authentication successful, session stored');
-    return createResponse({
-      success: true,
-      message: 'GP51 authentication successful',
-      session: {
-        username: authResult.username,
-        expiresAt: expiresAt.toISOString(),
-        method: authResult.method
-      },
-      latency
-    });
+
+    // Trigger immediate GP51 vehicle data import
+    console.log('🚀 Triggering GP51 vehicle data import...');
+    try {
+      const importResult = await triggerGP51Import(supabase, userId, authResult);
+      
+      return createResponse({
+        success: true,
+        message: 'GP51 authentication successful',
+        session: {
+          username: authResult.username,
+          expiresAt: expiresAt.toISOString(),
+          method: authResult.method
+        },
+        importResult: importResult,
+        latency
+      });
+    } catch (importError) {
+      console.warn('⚠️ GP51 authentication succeeded but import failed:', importError);
+      
+      // Return success for authentication but note import failure
+      return createResponse({
+        success: true,
+        message: 'GP51 authentication successful, but vehicle import failed',
+        session: {
+          username: authResult.username,
+          expiresAt: expiresAt.toISOString(),
+          method: authResult.method
+        },
+        importError: importError instanceof Error ? importError.message : 'Import failed',
+        latency
+      });
+    }
 
   } catch (error) {
     console.error('❌ GP51 authentication failed:', error);
@@ -188,6 +211,39 @@ async function handleGP51Authentication(
       details: error instanceof Error ? error.message : 'Unknown error',
       latency
     }, 500);
+  }
+}
+
+async function triggerGP51Import(supabase: any, userId: string, authResult: any) {
+  console.log('📡 Starting GP51 vehicle data import for user:', userId);
+  
+  try {
+    // Call the gp51-live-import function
+    const { data: importData, error: importError } = await supabase.functions.invoke('gp51-live-import', {
+      body: {
+        action: 'import-vehicles',
+        userId: userId,
+        gp51Token: authResult.token,
+        gp51Username: authResult.username,
+        apiUrl: authResult.apiUrl
+      }
+    });
+
+    if (importError) {
+      console.error('❌ GP51 import function error:', importError);
+      throw new Error(`Import function failed: ${importError.message}`);
+    }
+
+    console.log('✅ GP51 import completed:', importData);
+    
+    return {
+      success: true,
+      importedVehicles: importData?.vehiclesProcessed || 0,
+      message: 'Vehicle data import completed successfully'
+    };
+  } catch (error) {
+    console.error('❌ Failed to trigger GP51 import:', error);
+    throw error;
   }
 }
 
