@@ -1,296 +1,153 @@
 
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Helper function to detect HTML responses
-function isHtmlResponse(text: string): boolean {
-  const trimmedText = text.trim().toLowerCase();
-  return trimmedText.startsWith('<!doctype') || 
-         trimmedText.startsWith('<html') || 
-         trimmedText.includes('<html>');
+interface GP51Session {
+  id: string;
+  username: string;
+  gp51_token: string;
+  token_expires_at: string;
+  api_url: string;
 }
 
-// Helper function to extract error from HTML
-function extractHtmlError(htmlText: string): string {
-  try {
-    // Try to extract title or error message from HTML
-    const titleMatch = htmlText.match(/<title[^>]*>([^<]+)<\/title>/i);
-    if (titleMatch) {
-      return `HTML Error Page: ${titleMatch[1]}`;
-    }
-    
-    // Look for common error patterns
-    const errorPatterns = [
-      /<h1[^>]*>([^<]+)<\/h1>/i,
-      /<div[^>]*class[^>]*error[^>]*>([^<]+)<\/div>/i,
-      /<p[^>]*>([^<]*error[^<]*)<\/p>/i
-    ];
-    
-    for (const pattern of errorPatterns) {
-      const match = htmlText.match(pattern);
-      if (match) {
-        return `HTML Error: ${match[1].trim()}`;
-      }
-    }
-    
-    return `HTML Error Page received (${htmlText.length} characters)`;
-  } catch (error) {
-    return `HTML Error Page received (parsing failed)`;
-  }
+interface GP51Device {
+  deviceid: string;
+  devicename: string;
+  devicetype: number;
+  simnum?: string;
+  createtime: number;
+  creater: string;
+  lastactivetime?: number;
+  isfree?: number;
 }
 
-// Enhanced GP51 API call with multiple format support
-async function makeGP51ApiCall(apiUrl: string, token: string, action: string, params: Record<string, any> = {}): Promise<any> {
-  const formats = [
-    {
-      name: "Format 1: Action in URL, Token in JSON body",
-      url: `${apiUrl}?action=${action}`,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "User-Agent": "EnvioFleet/1.0"
-      },
-      body: JSON.stringify({ token, username: "octopus", ...params })
-    },
-    {
-      name: "Format 2: Token as URL parameter",
-      url: `${apiUrl}?action=${action}&token=${token}&username=octopus&${new URLSearchParams(params)}`,
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "User-Agent": "EnvioFleet/1.0"
-      },
-      body: JSON.stringify({})
-    }
-  ];
-
-  let lastError = null;
-
-  for (const format of formats) {
-    try {
-      console.log(`🧪 [GP51Client] Trying ${format.name}`);
-      console.log(`📤 [GP51Client] URL: ${format.url}`);
-      console.log(`📤 [GP51Client] Method: ${format.method}`);
-      console.log(`📤 [GP51Client] Headers:`, JSON.stringify(format.headers, null, 2));
-      console.log(`📤 [GP51Client] Body: ${format.body}`);
-
-      const response = await fetch(format.url, {
-        method: format.method,
-        headers: format.headers,
-        body: format.body,
-        signal: AbortSignal.timeout(30000) // 30 second timeout
-      });
-
-      console.log(`📊 [GP51Client] Response status: ${response.status}`);
-      console.log(`📊 [GP51Client] Response headers:`, JSON.stringify(Object.fromEntries(response.headers.entries()), null, 2));
-
-      const responseText = await response.text();
-      console.log(`📊 [GP51Client] ${format.name} response received, length: ${responseText.length}`);
-      
-      // Check for HTML response
-      if (isHtmlResponse(responseText)) {
-        const errorMsg = extractHtmlError(responseText);
-        console.error(`❌ [GP51Client] ${format.name} returned HTML instead of JSON: ${errorMsg}`);
-        console.error(`📄 [GP51Client] HTML Response preview: ${responseText.substring(0, 500)}...`);
-        lastError = new Error(`${format.name} returned HTML: ${errorMsg}`);
-        continue;
-      }
-
-      // Check content type
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json') && !contentType.includes('text/json')) {
-        console.warn(`⚠️ [GP51Client] Unexpected content-type: ${contentType}`);
-      }
-
-      console.log(`📊 [GP51Client] Raw response: ${responseText}`);
-
-      let parsedResponse;
-      try {
-        parsedResponse = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error(`❌ [GP51Client] JSON parsing failed for ${format.name}:`, parseError);
-        console.error(`📄 [GP51Client] Response text that failed to parse: ${responseText.substring(0, 1000)}...`);
-        lastError = new Error(`${format.name} JSON parsing failed: ${parseError.message}`);
-        continue;
-      }
-
-      console.log(`📋 [GP51Client] Parsed response for ${format.name}:`, JSON.stringify(parsedResponse, null, 2));
-
-      // Check for API-level errors
-      if (parsedResponse.status !== 0 && parsedResponse.status !== undefined) {
-        console.error(`❌ [GP51Client] ${format.name} failed with status ${parsedResponse.status}: ${parsedResponse.cause || 'Unknown error'}`);
-        lastError = new Error(`${format.name} API error: ${parsedResponse.status} - ${parsedResponse.cause || 'Unknown error'}`);
-        continue;
-      }
-
-      console.log(`✅ [GP51Client] ${format.name} successful!`);
-      return parsedResponse;
-
-    } catch (error) {
-      console.error(`❌ [GP51Client] ${format.name} failed with exception:`, error);
-      lastError = error;
-      continue;
-    }
-  }
-
-  throw lastError || new Error('All GP51 API call formats failed');
+interface GP51Position {
+  deviceid: string;
+  callat: number;
+  callon: number;
+  speed: number;
+  course: number;
+  updatetime: number;
+  strstatusen?: string;
 }
 
 serve(async (req) => {
+  console.log(`🚀 [fetchLiveGp51Data] Request received: ${req.method} ${req.url}`);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('🚀 Starting Enhanced GP51 Live Data Import with improved debugging...');
-    
     const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { forceFullSync = false, deviceids = '' } = await req.json().catch(() => ({}));
+    console.log('🔍 Fetching latest GP51 session from database...');
 
-    // Get GP51 credentials from gp51_sessions table
-    const { data: sessionData, error: sessionError } = await supabase
+    // Get the most recent valid GP51 session
+    const { data: session, error: sessionError } = await supabase
       .from('gp51_sessions')
-      .select('username, gp51_token, api_url, token_expires_at')
-      .eq('username', 'octopus')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single();
 
-    if (sessionError || !sessionData) {
-      console.error('❌ No GP51 credentials found:', sessionError);
+    if (sessionError || !session) {
+      console.error('❌ No valid GP51 session found:', sessionError);
       return new Response(JSON.stringify({
         success: false,
-        error: 'GP51 credentials not found for octopus user'
+        error: 'No valid GP51 session found'
       }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    console.log('✅ Found GP51 session for user:', sessionData.username);
-
-    const apiUrl = sessionData.api_url || 'https://www.gps51.com/webapi';
-    const token = sessionData.gp51_token;
-
-    // Enhanced token validation
-    if (!token || token === 'pending_authentication') {
+    // Validate token expiry
+    const expiresAt = new Date(session.token_expires_at);
+    const now = new Date();
+    if (expiresAt <= now) {
+      console.error('❌ GP51 session token has expired');
       return new Response(JSON.stringify({
         success: false,
-        error: 'GP51 token not available or pending authentication'
+        error: 'GP51 session token has expired'
       }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // Check token expiry
-    if (sessionData.token_expires_at) {
-      const expiresAt = new Date(sessionData.token_expires_at);
-      const now = new Date();
-      if (expiresAt <= now) {
-        console.error('❌ GP51 token has expired:', expiresAt);
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'GP51 token has expired'
-        }), {
-          status: 401,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      const timeUntilExpiry = Math.floor((expiresAt.getTime() - now.getTime()) / 1000);
-      console.log(`🔑 Token expires in ${timeUntilExpiry} seconds`);
+    const apiUrl = session.api_url || 'https://www.gps51.com';
+    console.log(`✅ Using GP51 session for user: ${session.username}`);
+    console.log(`🔑 Token expires at: ${session.token_expires_at}`);
+
+    // Make API call to get device list
+    console.log('📱 Fetching device list from GP51...');
+    const deviceListResponse = await makeGP51ApiCall(apiUrl, 'querymonitorlist', session.gp51_token, session.username);
+    
+    if (!deviceListResponse.success) {
+      throw new Error(`Failed to fetch device list: ${deviceListResponse.error}`);
     }
 
-    console.log(`🔑 Using token: ${token.substring(0, 8)}... (length: ${token.length})`);
-
-    let devices = [];
-    let positions = [];
-    let syncType = forceFullSync ? 'fullSync' : 'batchedUpdate';
-
-    if (forceFullSync || !deviceids) {
-      // Get device list using the correct action (querymonitorlist instead of devicelist)
-      console.log('📱 Fetching device list using querymonitorlist action...');
-      
-      const deviceResult = await makeGP51ApiCall(apiUrl, token, 'querymonitorlist');
-
-      if (deviceResult.status === 0 && deviceResult.groups) {
-        // Parse devices from groups structure (as shown in working logs)
-        devices = [];
-        for (const group of deviceResult.groups) {
-          if (group.devices && Array.isArray(group.devices)) {
-            for (const device of group.devices) {
-              devices.push({
-                gp51_device_id: String(device.deviceid),
-                name: device.devicename || `Device ${device.deviceid}`,
-                sim_number: device.simnum || null,
-                last_position: null
-              });
-            }
+    const deviceData = deviceListResponse.data;
+    if (!deviceData.groups || !Array.isArray(deviceData.groups) || deviceData.groups.length === 0) {
+      console.warn('⚠️ No device groups found in GP51 response');
+      return new Response(JSON.stringify({
+        success: true,
+        data: {
+          type: 'fullSync',
+          devices: [],
+          positions: [],
+          statistics: {
+            totalDevices: 0,
+            totalPositions: 0,
+            responseTime: Date.now()
+          },
+          metadata: {
+            fetchedAt: new Date().toISOString(),
+            source: 'GP51',
+            syncType: 'fullSync'
           }
         }
-        console.log(`✅ Retrieved ${devices.length} devices from ${deviceResult.groups.length} groups`);
-      } else {
-        console.error('❌ Failed to retrieve devices:', deviceResult);
-        throw new Error(`Device list fetch failed: ${deviceResult.cause || 'Unknown error'}`);
-      }
-
-      // Get positions for all devices
-      if (devices.length > 0) {
-        console.log('📍 Fetching positions...');
-        const deviceIds = devices.map(d => d.gp51_device_id).join(',');
-        
-        try {
-          const positionResult = await makeGP51ApiCall(apiUrl, token, 'lastposition', { deviceids: deviceIds });
-
-          if (positionResult.status === 0 && positionResult.records) {
-            positions = positionResult.records;
-            console.log(`✅ Retrieved ${positions.length} positions`);
-          } else {
-            console.warn('⚠️ Position fetch failed, continuing without positions:', positionResult.cause);
-            positions = [];
-          }
-        } catch (positionError) {
-          console.warn('⚠️ Position fetch failed, continuing without positions:', positionError);
-          positions = [];
-        }
-      }
-    } else {
-      // Batched update - get specific device positions
-      console.log('📍 Fetching specific device positions...');
-      
-      try {
-        const positionResult = await makeGP51ApiCall(apiUrl, token, 'lastposition', { deviceids });
-
-        if (positionResult.status === 0 && positionResult.records) {
-          positions = positionResult.records;
-          console.log(`✅ Retrieved ${positions.length} positions for batched update`);
-          syncType = 'batchedUpdate';
-        } else {
-          console.error('❌ Position fetch failed:', positionResult.cause);
-          throw new Error(`Position fetch failed: ${positionResult.cause || 'Unknown error'}`);
-        }
-      } catch (positionError) {
-        console.error('❌ Position fetch failed:', positionError);
-        throw positionError;
-      }
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    // Return structured data for processing
-    const responseData = {
+    // Extract devices from the first group
+    const devices: GP51Device[] = deviceData.groups[0].devices || [];
+    console.log(`📱 Found ${devices.length} devices in GP51`);
+
+    // Get device IDs for position fetching
+    const deviceIds = devices.map(device => device.deviceid);
+    
+    // Fetch positions using specialized batching function
+    console.log('📍 Fetching positions with batching...');
+    const positions = await fetchPositionsWithBatching(apiUrl, session.gp51_token, session.username, deviceIds);
+    
+    console.log(`📍 Successfully fetched ${positions.length} position records`);
+
+    // Transform devices for our system
+    const transformedDevices = devices.map(device => ({
+      gp51_device_id: device.deviceid,
+      name: device.devicename || device.deviceid,
+      sim_number: device.simnum || null,
+      last_position: null // Will be populated from positions
+    }));
+
+    return new Response(JSON.stringify({
       success: true,
       data: {
-        type: syncType,
-        devices: devices,
+        type: 'fullSync',
+        devices: transformedDevices,
         positions: positions,
         statistics: {
           totalDevices: devices.length,
@@ -300,32 +157,192 @@ serve(async (req) => {
         metadata: {
           fetchedAt: new Date().toISOString(),
           source: 'GP51',
-          syncType: syncType,
-          tokenExpiresAt: sessionData.token_expires_at
+          syncType: 'fullSync'
         }
       }
-    };
-
-    console.log(`✅ Data fetch complete: ${syncType} with ${devices.length} devices and ${positions.length} positions`);
-
-    return new Response(JSON.stringify(responseData), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
-  } catch (error) {
-    console.error('❌ GP51 data fetch failed:', error);
-    console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    
+  } catch (error: any) {
+    console.error('❌ [fetchLiveGp51Data] Error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
-      details: {
-        errorType: error.constructor.name,
-        timestamp: new Date().toISOString()
-      }
+      error: error.message || 'Internal server error'
     }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
+
+/**
+ * Makes a generic GP51 API call (for device list, etc.)
+ */
+async function makeGP51ApiCall(apiUrl: string, action: string, token: string, username: string): Promise<{ success: boolean; data?: any; error?: string }> {
+  console.log(`📡 [GP51Client] Making API call for action: ${action}`);
+  
+  // Try Format 2: Token as URL parameter (this worked for querymonitorlist)
+  const urlWithToken = `${apiUrl}/webapi?action=${action}&token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}`;
+  
+  try {
+    console.log(`📤 [GP51Client] URL: ${urlWithToken}`);
+    
+    const response = await fetch(urlWithToken, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'EnvioFleet/1.0'
+      },
+      body: JSON.stringify({})
+    });
+
+    console.log(`📊 [GP51Client] Response status: ${response.status}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+
+    const responseText = await response.text();
+    console.log(`📊 [GP51Client] Response length: ${responseText.length}`);
+
+    // Check if response is HTML (error page)
+    if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<html')) {
+      console.error('❌ [GP51Client] Received HTML instead of JSON');
+      return { success: false, error: 'Received HTML error page from GP51' };
+    }
+
+    // Parse JSON response
+    const jsonResponse = JSON.parse(responseText);
+    
+    if (jsonResponse.status === 0) {
+      console.log('✅ [GP51Client] API call successful');
+      return { success: true, data: jsonResponse };
+    } else {
+      console.error(`❌ [GP51Client] API error: ${jsonResponse.cause}`);
+      return { success: false, error: jsonResponse.cause || 'Unknown GP51 API error' };
+    }
+
+  } catch (error: any) {
+    console.error(`❌ [GP51Client] Exception during API call: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Specialized function for fetching positions with batching to avoid 414 errors
+ */
+async function fetchPositionsWithBatching(apiUrl: string, token: string, username: string, deviceIds: string[]): Promise<GP51Position[]> {
+  const BATCH_SIZE = 200; // Reduced batch size to avoid URL length issues
+  const MAX_CONCURRENT_BATCHES = 3;
+  const allPositions: GP51Position[] = [];
+  
+  console.log(`📍 Starting position fetch for ${deviceIds.length} devices in batches of ${BATCH_SIZE}`);
+  
+  // Split device IDs into batches
+  const batches: string[][] = [];
+  for (let i = 0; i < deviceIds.length; i += BATCH_SIZE) {
+    batches.push(deviceIds.slice(i, i + BATCH_SIZE));
+  }
+  
+  console.log(`📍 Created ${batches.length} batches for position fetching`);
+  
+  // Process batches with controlled concurrency
+  for (let i = 0; i < batches.length; i += MAX_CONCURRENT_BATCHES) {
+    const batchGroup = batches.slice(i, i + MAX_CONCURRENT_BATCHES);
+    const batchPromises = batchGroup.map((batch, index) => 
+      makeGP51PositionCall(apiUrl, token, username, batch, i + index + 1)
+    );
+    
+    try {
+      const batchResults = await Promise.allSettled(batchPromises);
+      
+      for (const result of batchResults) {
+        if (result.status === 'fulfilled' && result.value.success) {
+          allPositions.push(...result.value.positions);
+        } else if (result.status === 'rejected') {
+          console.error('❌ Batch failed:', result.reason);
+        } else {
+          console.error('❌ Batch returned error:', result.value.error);
+        }
+      }
+      
+      // Add delay between batch groups to avoid overwhelming the API
+      if (i + MAX_CONCURRENT_BATCHES < batches.length) {
+        console.log('⏱️ Waiting 2 seconds before next batch group...');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+    } catch (error) {
+      console.error(`❌ Batch group ${Math.floor(i / MAX_CONCURRENT_BATCHES) + 1} failed:`, error);
+    }
+  }
+  
+  console.log(`✅ Position fetching completed. Retrieved ${allPositions.length} positions`);
+  return allPositions;
+}
+
+/**
+ * Makes a specialized GP51 position API call using POST with deviceids in body
+ */
+async function makeGP51PositionCall(apiUrl: string, token: string, username: string, deviceIds: string[], batchNumber: number): Promise<{ success: boolean; positions: GP51Position[]; error?: string }> {
+  console.log(`📍 [GP51Client] Making position call for batch ${batchNumber} with ${deviceIds.length} devices`);
+  
+  const positionUrl = `${apiUrl}/webapi?action=lastposition`;
+  
+  // Construct request body with deviceids array - this avoids 414 URL length errors
+  const requestBody = {
+    deviceids: deviceIds,
+    token: token,
+    username: username,
+    lastquerypositiontime: ""
+  };
+  
+  try {
+    console.log(`📤 [GP51Client] POST to: ${positionUrl}`);
+    console.log(`📤 [GP51Client] Body preview: deviceids array with ${deviceIds.length} devices`);
+    
+    const response = await fetch(positionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'EnvioFleet/1.0'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    console.log(`📊 [GP51Client] Batch ${batchNumber} response status: ${response.status}`);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+
+    const responseText = await response.text();
+    console.log(`📊 [GP51Client] Batch ${batchNumber} response length: ${responseText.length}`);
+
+    // Check if response is HTML (error page)
+    if (responseText.trim().startsWith('<!doctype') || responseText.trim().startsWith('<html')) {
+      console.error(`❌ [GP51Client] Batch ${batchNumber} received HTML instead of JSON`);
+      return { success: false, positions: [], error: 'Received HTML error page from GP51' };
+    }
+
+    // Parse JSON response
+    const jsonResponse = JSON.parse(responseText);
+    
+    if (jsonResponse.status === 0) {
+      const positions = jsonResponse.records || [];
+      console.log(`✅ [GP51Client] Batch ${batchNumber} successful: ${positions.length} positions`);
+      return { success: true, positions };
+    } else {
+      console.error(`❌ [GP51Client] Batch ${batchNumber} API error: ${jsonResponse.cause}`);
+      return { success: false, positions: [], error: jsonResponse.cause || 'Unknown GP51 API error' };
+    }
+
+  } catch (error: any) {
+    console.error(`❌ [GP51Client] Batch ${batchNumber} exception: ${error.message}`);
+    return { success: false, positions: [], error: error.message };
+  }
+}
