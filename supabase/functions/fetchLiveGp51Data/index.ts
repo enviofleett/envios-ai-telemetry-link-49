@@ -57,7 +57,7 @@ serve(async (req) => {
 
     const { gp51_token: token, username, api_url: apiUrl } = session;
 
-    // Fixed URL construction - remove redundant /webapi
+    // Fixed URL construction - use apiUrl directly
     async function makeGP51ApiCall(action: string, additionalParams: Record<string, string> = {}) {
       const params = new URLSearchParams({
         action,
@@ -66,7 +66,7 @@ serve(async (req) => {
         ...additionalParams
       });
       
-      // Fix: Use apiUrl directly without adding /webapi
+      // Use apiUrl directly without adding /webapi
       const url = `${apiUrl}?${params.toString()}`;
       
       console.log(`📤 [GP51Client] Making API call for action: ${action}`);
@@ -98,7 +98,18 @@ serve(async (req) => {
       }
 
       try {
-        return JSON.parse(responseText);
+        const jsonResponse = JSON.parse(responseText);
+        
+        // Enhanced logging for debugging response structure
+        console.log(`📊 [GP51Client] JSON Response structure for ${action}:`, JSON.stringify({
+          hasGroups: Array.isArray(jsonResponse.groups),
+          hasDatas: Array.isArray(jsonResponse.datas),
+          topLevelKeys: Object.keys(jsonResponse),
+          groupsCount: Array.isArray(jsonResponse.groups) ? jsonResponse.groups.length : 'N/A',
+          datasCount: Array.isArray(jsonResponse.datas) ? jsonResponse.datas.length : 'N/A'
+        }));
+        
+        return jsonResponse;
       } catch (parseError) {
         console.error(`❌ [GP51Client] Failed to parse JSON response: ${parseError}`);
         console.error(`❌ [GP51Client] Response text: ${responseText.substring(0, 500)}...`);
@@ -108,7 +119,7 @@ serve(async (req) => {
 
     // Fixed position call function with proper POST body
     async function makeGP51PositionCall(deviceIds: string[]) {
-      // Fix: Use apiUrl directly without adding /webapi
+      // Use apiUrl directly without adding /webapi
       const url = `${apiUrl}?action=lastposition`;
       
       const requestBody = {
@@ -159,13 +170,22 @@ serve(async (req) => {
     console.log('📱 Fetching device list from GP51...');
     const deviceListResponse = await makeGP51ApiCall('querymonitorlist');
     
-    if (!deviceListResponse || !Array.isArray(deviceListResponse.datas)) {
-      console.error('❌ Invalid device list response structure');
-      throw new Error('Invalid device list response from GP51');
+    // Updated validation logic to handle the actual GP51 response structure
+    let devices: any[] = [];
+    
+    if (deviceListResponse && Array.isArray(deviceListResponse.groups)) {
+      // Extract devices from groups structure
+      devices = deviceListResponse.groups.flatMap((group: any) => group.devices || []);
+      console.log(`✅ Retrieved ${devices.length} devices from ${deviceListResponse.groups.length} groups`);
+    } else if (deviceListResponse && Array.isArray(deviceListResponse.datas)) {
+      // Fallback: Handle legacy datas structure if it exists
+      devices = deviceListResponse.datas;
+      console.log(`✅ Retrieved ${devices.length} devices from legacy datas structure`);
+    } else {
+      console.error('❌ Invalid device list response structure - no groups or datas array found');
+      console.error('❌ Response structure:', JSON.stringify(deviceListResponse, null, 2).substring(0, 1000));
+      throw new Error('Invalid device list response from GP51 - expected groups or datas array');
     }
-
-    const devices = deviceListResponse.datas;
-    console.log(`✅ Retrieved ${devices.length} devices from GP51`);
 
     if (devices.length === 0) {
       return new Response(JSON.stringify({
