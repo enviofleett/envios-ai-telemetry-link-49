@@ -5,11 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Car, Plus, Search, Filter } from 'lucide-react';
+import { Car, Plus, Search, Download } from 'lucide-react';
+import GP51VehicleImportModal from './GP51VehicleImportModal';
 import type { VehicleData } from '@/types/vehicle';
 
 const EnhancedVehicleManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [showImportModal, setShowImportModal] = useState(false);
   const { devices: vehicles, isLoading, error, refetch } = useDeviceManagement(searchTerm);
 
   const getStatusColor = (status: string) => {
@@ -24,6 +26,11 @@ const EnhancedVehicleManagement: React.FC = () => {
 
   const getStatusText = (status: string) => {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const handleImportComplete = () => {
+    setShowImportModal(false);
+    refetch(); // Refresh the vehicle list
   };
 
   if (isLoading) {
@@ -71,10 +78,20 @@ const EnhancedVehicleManagement: React.FC = () => {
           </div>
         </div>
         
-        <Button className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Add Vehicle
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            Import from GP51
+          </Button>
+          <Button className="flex items-center gap-2">
+            <Plus className="h-4 w-4" />
+            Add Vehicle
+          </Button>
+        </div>
       </div>
 
       {/* Vehicle Stats */}
@@ -175,12 +192,24 @@ const EnhancedVehicleManagement: React.FC = () => {
                 : 'No vehicles are currently registered. Import vehicle data from GP51 or add vehicles manually to get started.'
               }
             </p>
-            <Button variant="outline">
+            <Button 
+              variant="outline"
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
               Import from GP51
             </Button>
           </div>
         )}
       </div>
+
+      {/* GP51 Vehicle Import Modal */}
+      <GP51VehicleImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportComplete={handleImportComplete}
+      />
     </div>
   );
 };
