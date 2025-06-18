@@ -71,10 +71,63 @@ serve(async (req) => {
 
     console.log(`📈 Device summary: ${devices.length} devices found, ${deviceIds.length} device IDs extracted`);
 
-    // Step 2: Fetch position data for all devices
+    // Step 2: Validate and refresh token before position data retrieval
     let allPositions: any[] = [];
     
     if (deviceIds.length > 0) {
+      console.log(`🔍 Validating GP51 token before position data retrieval...`);
+      
+      // Check token expiration
+      const now = new Date();
+      const tokenExpiresAt = new Date(session.token_expires_at || 0);
+      const timeUntilExpiry = tokenExpiresAt.getTime() - now.getTime();
+      const minutesUntilExpiry = Math.round(timeUntilExpiry / (1000 * 60));
+      
+      console.log(`🔑 Token status: expires in ${minutesUntilExpiry} minutes (${tokenExpiresAt.toISOString()})`);
+      console.log(`🔑 Current time: ${now.toISOString()}`);
+      
+      // If token expires in less than 5 minutes, try to refresh it
+      if (timeUntilExpiry <= 5 * 60 * 1000) {
+        console.log(`⚠️ Token expires soon (${minutesUntilExpiry} minutes), attempting refresh...`);
+        
+        try {
+          // Import the Enhanced GP51 Session Manager
+          const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.50.0");
+          const supabase = createClient(
+            Deno.env.get('SUPABASE_URL') ?? '',
+            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+          );
+          
+          // Try to refresh the session via the gp51-service-management function
+          const { data: refreshData, error: refreshError } = await supabase.functions.invoke('gp51-service-management', {
+            body: { action: 'refresh_session' }
+          });
+          
+          if (refreshError || !refreshData?.success) {
+            console.error(`❌ Token refresh failed: ${refreshError?.message || refreshData?.error || 'Unknown error'}`);
+            return errorResponse(
+              `GP51 token expired and refresh failed: ${refreshError?.message || refreshData?.error || 'Unknown error'}`,
+              401
+            );
+          }
+          
+          // Update the session with the new token
+          session.gp51_token = refreshData.token;
+          session.token_expires_at = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+          
+          console.log(`✅ Token refreshed successfully, new expiry: ${session.token_expires_at}`);
+          
+        } catch (refreshException) {
+          console.error(`❌ Exception during token refresh: ${refreshException}`);
+          return errorResponse(
+            `GP51 token expired and refresh failed: ${refreshException instanceof Error ? refreshException.message : 'Unknown error'}`,
+            401
+          );
+        }
+      } else {
+        console.log(`✅ Token is valid for ${minutesUntilExpiry} minutes, proceeding with position retrieval`);
+      }
+      
       console.log(`🎯 Starting position data retrieval for ${deviceIds.length} devices...`);
       
       // Split device IDs into batches to avoid overwhelming the API
@@ -90,6 +143,7 @@ serve(async (req) => {
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
         console.log(`🔄 Processing batch ${batchIndex + 1}/${batches.length} with ${batch.length} devices...`);
+        console.log(`🔑 Using token: ${session.gp51_token.substring(0, 8)}... (expires: ${session.token_expires_at})`);
         
         try {
           const positionsResult = await fetchFromGP51({
@@ -157,7 +211,8 @@ serve(async (req) => {
         syncType: syncType,
         sessionUsername: session.username,
         batchesProcessed: Math.ceil(deviceIds.length / 50),
-        deviceBatches: deviceIds.length > 0 ? Math.ceil(deviceIds.length / 50) : 0
+        deviceBatches: deviceIds.length > 0 ? Math.ceil(deviceIds.length / 50) : 0,
+        tokenRefreshed: timeUntilExpiry <= 5 * 60 * 1000
       }
     };
 
