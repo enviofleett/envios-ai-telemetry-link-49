@@ -105,7 +105,7 @@ export class GP51VehicleImportService {
 
     console.log('🔍 Analyzing GP51 response structure for vehicle extraction...');
     
-    // Log the response structure for debugging
+    // Enhanced logging of the response structure
     const hasRecords = gp51ResponseData && Array.isArray(gp51ResponseData.records);
     const recordsLength = hasRecords ? gp51ResponseData.records.length : 0;
     
@@ -145,7 +145,7 @@ export class GP51VehicleImportService {
       deviceNameValue: firstRecord.devicename
     });
 
-    // Extract unique devices from records
+    // Extract unique devices from position records
     gp51ResponseData.records.forEach((record: any, index: number) => {
       try {
         // Try different possible device identifier fields
@@ -234,11 +234,11 @@ export class GP51VehicleImportService {
 
     for (const vehicle of vehicles) {
       try {
-        // Check if vehicle already exists
+        // Check if vehicle already exists using gp51_device_id
         const { data: existingVehicle, error: checkError } = await supabase
           .from('vehicles')
-          .select('id, device_id')
-          .eq('device_id', vehicle.gp51_device_id)
+          .select('id, gp51_device_id')
+          .eq('gp51_device_id', vehicle.gp51_device_id)
           .single();
 
         if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
@@ -253,17 +253,16 @@ export class GP51VehicleImportService {
           continue;
         }
 
-        // Insert new vehicle
+        // Insert new vehicle with correct column names
         const { error: insertError } = await supabase
           .from('vehicles')
           .insert({
-            device_id: vehicle.gp51_device_id,
-            device_name: vehicle.device_name,
+            gp51_device_id: vehicle.gp51_device_id,
+            name: vehicle.device_name,
             sim_number: vehicle.sim_number,
             status: vehicle.status,
             is_active: vehicle.is_active,
             gp51_metadata: vehicle.gp51_metadata,
-            import_source: 'gp51_records',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           });
