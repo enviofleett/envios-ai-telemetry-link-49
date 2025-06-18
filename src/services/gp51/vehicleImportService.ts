@@ -51,8 +51,20 @@ export class GP51VehicleImportService {
       console.log('✅ GP51 data fetched successfully');
       healthMonitoringService.recordHealthCheck(true, responseTime);
 
+      // Get the admin user ID to associate vehicles with
+      const adminUserId = await this.getAdminUserId();
+      if (!adminUserId) {
+        return {
+          success: false,
+          imported: 0,
+          skipped: 0,
+          errors: ['Could not find admin user to associate vehicles with'],
+          vehicles: []
+        };
+      }
+
       // Extract vehicles from the records array
-      const extractionResult = this.extractVehiclesFromRecords(gp51Data.data);
+      const extractionResult = this.extractVehiclesFromRecords(gp51Data.data, adminUserId);
       
       if (extractionResult.vehicles.length === 0) {
         console.log('⚠️ No vehicles found in GP51 records');
@@ -93,7 +105,49 @@ export class GP51VehicleImportService {
     }
   }
 
-  private static extractVehiclesFromRecords(gp51ResponseData: any): {
+  private static async getAdminUserId(): Promise<string | null> {
+    try {
+      console.log('🔍 Looking up admin user for vehicle association...');
+      
+      // Look for admin user by email
+      const { data: adminUser, error } = await supabase
+        .from('envio_users')
+        .select('id')
+        .eq('email', 'chudesyl@gmail.com')
+        .single();
+
+      if (error) {
+        console.error('❌ Error finding admin user:', error);
+        return null;
+      }
+
+      if (adminUser) {
+        console.log('✅ Found admin user for vehicle association');
+        return adminUser.id;
+      }
+
+      // Fallback: get the first user if admin not found
+      const { data: firstUser, error: firstUserError } = await supabase
+        .from('envio_users')
+        .select('id')
+        .limit(1)
+        .single();
+
+      if (firstUserError) {
+        console.error('❌ Error finding any user:', firstUserError);
+        return null;
+      }
+
+      console.log('⚠️ Admin user not found, using first available user for vehicle association');
+      return firstUser?.id || null;
+
+    } catch (error) {
+      console.error('❌ Exception in getAdminUserId:', error);
+      return null;
+    }
+  }
+
+  private static extractVehiclesFromRecords(gp51ResponseData: any, userId: string): {
     vehicles: any[];
     totalRecords: number;
     errors: string[];
@@ -167,11 +221,11 @@ export class GP51VehicleImportService {
           // Extract available device information from the record
           const vehicle = {
             gp51_device_id: deviceIdStr,
-            device_name: record.devicename || record.device_name || deviceIdStr,
-            // Try to extract additional metadata if available
+            name: record.devicename || record.device_name || deviceIdStr,
             sim_number: record.simnum || record.sim_number || null,
             status: this.determineDeviceStatus(record),
             is_active: true, // Device has recent position data, so it's active
+            user_id: userId, // Associate with the admin user
             gp51_metadata: {
               last_position_time: record.loctime || record.timestamp || null,
               latitude: record.lat || record.latitude || null,
@@ -253,15 +307,16 @@ export class GP51VehicleImportService {
           continue;
         }
 
-        // Insert new vehicle with correct column names
+        // Insert new vehicle with all required fields
         const { error: insertError } = await supabase
           .from('vehicles')
           .insert({
             gp51_device_id: vehicle.gp51_device_id,
-            name: vehicle.device_name,
+            name: vehicle.name,
             sim_number: vehicle.sim_number,
             status: vehicle.status,
             is_active: vehicle.is_active,
+            user_id: vehicle.user_id, // Now included as required
             gp51_metadata: vehicle.gp51_metadata,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -271,7 +326,7 @@ export class GP51VehicleImportService {
           console.error('❌ Error inserting vehicle:', insertError);
           errors.push(`Error inserting vehicle ${vehicle.gp51_device_id}: ${insertError.message}`);
         } else {
-          console.log(`✅ Imported vehicle: ${vehicle.device_name} (${vehicle.gp51_device_id})`);
+          console.log(`✅ Imported vehicle: ${vehicle.name} (${vehicle.gp51_device_id})`);
           imported++;
         }
 
