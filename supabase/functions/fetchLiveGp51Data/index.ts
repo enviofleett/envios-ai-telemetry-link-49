@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
@@ -172,6 +171,14 @@ async function secureGP51ApiCall(action: string, params: Record<string, any> = {
 
       const responseText = await response.text();
       
+      // 🎯 ENHANCED LOGGING: Log raw response details
+      console.log('📊 GP51 Raw Response Details:', {
+        contentLength: responseText.length,
+        contentType: response.headers.get('content-type'),
+        statusCode: response.status,
+        responsePreview: responseText.substring(0, 200) + (responseText.length > 200 ? '...' : '')
+      });
+      
       if (!responseText || responseText.trim().length === 0) {
         throw new Error('Empty response from GP51 API');
       }
@@ -179,7 +186,63 @@ async function secureGP51ApiCall(action: string, params: Record<string, any> = {
       let parsedResponse;
       try {
         parsedResponse = JSON.parse(responseText);
+        
+        // 🎯 CRITICAL ENHANCED LOGGING: Log the complete parsed response structure
+        console.log('🔍 GP51 Complete Parsed Response Structure:');
+        console.log(JSON.stringify(parsedResponse, null, 2));
+        
+        // 🎯 ENHANCED LOGGING: Analyze response structure for debugging
+        console.log('📋 GP51 Response Analysis:', {
+          hasStatus: 'status' in parsedResponse,
+          status: parsedResponse.status,
+          hasCause: 'cause' in parsedResponse,
+          cause: parsedResponse.cause,
+          hasGroups: 'groups' in parsedResponse,
+          groupsType: Array.isArray(parsedResponse.groups) ? 'array' : typeof parsedResponse.groups,
+          groupsLength: parsedResponse.groups?.length || 0,
+          hasRecords: 'records' in parsedResponse,
+          recordsType: Array.isArray(parsedResponse.records) ? 'array' : typeof parsedResponse.records,
+          recordsLength: parsedResponse.records?.length || 0,
+          topLevelKeys: Object.keys(parsedResponse || {})
+        });
+        
+        // 🎯 ENHANCED LOGGING: Detailed groups analysis if present
+        if (parsedResponse.groups && Array.isArray(parsedResponse.groups)) {
+          console.log('🏷️ GP51 Groups Detailed Analysis:');
+          parsedResponse.groups.forEach((group: any, index: number) => {
+            console.log(`Group ${index}:`, {
+              groupKeys: Object.keys(group || {}),
+              hasDevices: 'devices' in group,
+              devicesType: Array.isArray(group.devices) ? 'array' : typeof group.devices,
+              devicesCount: group.devices?.length || 0,
+              groupName: group.groupname || group.name || 'unnamed',
+              groupId: group.groupid || group.id || 'no-id'
+            });
+            
+            // Log first few devices if they exist
+            if (group.devices && Array.isArray(group.devices) && group.devices.length > 0) {
+              console.log(`🚗 Sample devices from group ${index} (showing first 3):`, 
+                group.devices.slice(0, 3).map((device: any) => ({
+                  deviceKeys: Object.keys(device || {}),
+                  deviceid: device.deviceid,
+                  devicename: device.devicename,
+                  creater: device.creater,
+                  devicetype: device.devicetype,
+                  isfree: device.isfree
+                }))
+              );
+            }
+          });
+        }
+        
       } catch (parseError) {
+        console.error('❌ JSON Parse Error Details:', {
+          errorMessage: parseError.message,
+          responseLength: responseText.length,
+          responseStart: responseText.substring(0, 100),
+          responseEnd: responseText.substring(Math.max(0, responseText.length - 100))
+        });
+        
         // Only throw JSON parse error if response doesn't look like truncated JSON
         if (!responseText.includes('"status":0') && !responseText.includes('"cause":"OK"')) {
           throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`);
@@ -239,7 +302,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    console.log('🚀 Enhanced GP51 Live Data Import starting...');
+    console.log('🚀 Enhanced GP51 Live Data Import starting with diagnostic logging...');
 
     // Use the secure API call with proper action
     const result = await secureGP51ApiCall('lastposition', {
@@ -250,9 +313,17 @@ serve(async (req) => {
     const responseTime = Date.now() - startTime;
     console.log(`✅ GP51 Live Data Import completed successfully in ${responseTime}ms`);
 
-    // Extract and process data
+    // Extract and process data with enhanced logging
     const devices = result.groups ? result.groups.flatMap((group: any) => group.devices || []) : [];
     const positions = result.records || [];
+
+    // 🎯 ENHANCED LOGGING: Log processing results
+    console.log('📊 GP51 Data Processing Results:', {
+      rawGroupsCount: result.groups?.length || 0,
+      extractedDevicesCount: devices.length,
+      positionsCount: positions.length,
+      deviceSample: devices.slice(0, 2) // Show first 2 devices for debugging
+    });
 
     const processedData = {
       success: true,
@@ -267,6 +338,15 @@ serve(async (req) => {
         groups: result.groups || []
       }
     };
+
+    // 🎯 ENHANCED LOGGING: Log final processed data structure
+    console.log('🎯 Final Processed Data Summary:', {
+      success: processedData.success,
+      total_devices: processedData.total_devices,
+      total_positions: processedData.total_positions,
+      has_groups: !!processedData.data.groups.length,
+      response_time: processedData.response_time_ms
+    });
 
     return new Response(JSON.stringify(processedData), {
       status: 200,

@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData } from '@/types/vehicle';
 
@@ -29,7 +28,7 @@ interface GP51ImportResult {
 export class GP51VehicleImportService {
   static async importVehiclesFromGP51(): Promise<GP51ImportResult> {
     try {
-      console.log('🚀 Starting GP51 vehicle import...');
+      console.log('🚀 Starting Enhanced GP51 vehicle import with diagnostic logging...');
       
       // Fetch live data from GP51
       const { data: gp51Data, error: fetchError } = await supabase.functions.invoke('fetchLiveGp51Data');
@@ -44,26 +43,115 @@ export class GP51VehicleImportService {
         throw new Error(`GP51 API error: ${gp51Data.details || gp51Data.error}`);
       }
 
-      console.log('📊 GP51 response structure:', {
+      // 🎯 ENHANCED LOGGING: Log the complete received data structure
+      console.log('📊 Complete GP51 Data Structure Received:');
+      console.log(JSON.stringify(gp51Data, null, 2));
+
+      // 🎯 ENHANCED LOGGING: Analyze the data structure
+      console.log('🔍 GP51 Import Service Analysis:', {
         hasData: !!gp51Data.data,
+        dataKeys: gp51Data.data ? Object.keys(gp51Data.data) : [],
         hasGroups: !!gp51Data.data?.groups,
-        groupCount: gp51Data.data?.groups?.length || 0
+        groupsType: Array.isArray(gp51Data.data?.groups) ? 'array' : typeof gp51Data.data?.groups,
+        groupCount: gp51Data.data?.groups?.length || 0,
+        hasDevices: !!gp51Data.data?.devices,
+        devicesType: Array.isArray(gp51Data.data?.devices) ? 'array' : typeof gp51Data.data?.devices,
+        directDeviceCount: gp51Data.data?.devices?.length || 0,
+        totalDevicesReported: gp51Data.total_devices || 0,
+        totalPositionsReported: gp51Data.total_positions || 0
       });
 
       const groups = gp51Data.data?.groups || [];
+      
+      // 🎯 ENHANCED LOGGING: Detailed group analysis
+      if (groups.length > 0) {
+        console.log('🏷️ Groups Processing Details:');
+        groups.forEach((group: GP51Group, index: number) => {
+          console.log(`Group ${index + 1}:`, {
+            groupName: group.groupname || 'unnamed',
+            hasDevices: !!group.devices,
+            deviceCount: group.devices?.length || 0,
+            deviceSample: group.devices?.slice(0, 2) || []
+          });
+        });
+      } else {
+        console.log('⚠️ No groups found in GP51 data');
+        
+        // 🎯 ENHANCED LOGGING: Check for alternative data structures
+        console.log('🔍 Checking for alternative device data structures:');
+        
+        if (gp51Data.data?.devices) {
+          console.log('📱 Found direct devices array:', {
+            deviceCount: gp51Data.data.devices.length,
+            deviceSample: gp51Data.data.devices.slice(0, 2)
+          });
+        }
+        
+        if (gp51Data.data?.records) {
+          console.log('📋 Found records array:', {
+            recordCount: gp51Data.data.records.length,
+            recordSample: gp51Data.data.records.slice(0, 2)
+          });
+        }
+        
+        // Check all top-level data properties
+        const dataKeys = gp51Data.data ? Object.keys(gp51Data.data) : [];
+        console.log('🗝️ All available data keys:', dataKeys);
+        
+        dataKeys.forEach(key => {
+          const value = gp51Data.data[key];
+          if (Array.isArray(value)) {
+            console.log(`📊 Array property "${key}":`, {
+              length: value.length,
+              sample: value.slice(0, 2)
+            });
+          }
+        });
+      }
+      
       const devices = groups.flatMap((group: GP51Group) => group.devices || []);
       
-      console.log(`📡 Found ${devices.length} devices from GP51`);
-      console.log('🔍 Sample device structure:', devices.length > 0 ? devices[0] : 'No devices');
+      console.log(`📡 Device Extraction Results:`, {
+        groupsProcessed: groups.length,
+        devicesExtracted: devices.length,
+        deviceDetails: devices.map(d => ({
+          id: d.deviceid,
+          name: d.devicename,
+          creater: d.creater,
+          type: d.devicetype,
+          isfree: d.isfree
+        }))
+      });
 
       if (devices.length === 0) {
-        return {
-          success: true,
-          imported: 0,
-          skipped: 0,
-          errors: [],
-          vehicles: []
-        };
+        console.log('⚠️ No devices found after processing groups');
+        
+        // 🎯 ENHANCED DIAGNOSTIC: Try alternative extraction methods
+        let alternativeDevices = [];
+        
+        // Try direct devices array
+        if (gp51Data.data?.devices && Array.isArray(gp51Data.data.devices)) {
+          alternativeDevices = gp51Data.data.devices;
+          console.log('🔄 Attempting alternative extraction from direct devices array:', {
+            count: alternativeDevices.length,
+            sample: alternativeDevices.slice(0, 2)
+          });
+        }
+        
+        // If still no devices, return empty result with diagnostic info
+        if (alternativeDevices.length === 0) {
+          return {
+            success: true,
+            imported: 0,
+            skipped: 0,
+            errors: [`No devices found in GP51 response. Groups: ${groups.length}, Direct devices: ${gp51Data.data?.devices?.length || 0}`],
+            vehicles: []
+          };
+        }
+        
+        // Use alternative devices if found
+        devices.push(...alternativeDevices);
+        console.log('✅ Successfully extracted devices using alternative method:', devices.length);
       }
 
       // Transform GP51 devices to vehicle records
