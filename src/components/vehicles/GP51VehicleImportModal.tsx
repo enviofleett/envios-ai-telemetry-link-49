@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -19,7 +18,7 @@ import {
   Car,
   Users
 } from 'lucide-react';
-import { GP51VehicleImportService } from '@/services/gp51/vehicleImportService';
+import { vehicleImportService } from '@/services/gp51/vehicleImportService';
 import { useToast } from '@/hooks/use-toast';
 
 interface GP51VehicleImportModalProps {
@@ -49,7 +48,7 @@ const GP51VehicleImportModal: React.FC<GP51VehicleImportModalProps> = ({
         setImportProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
-      const result = await GP51VehicleImportService.importVehiclesFromGP51();
+      const result = await vehicleImportService.importVehiclesFromGP51();
       
       clearInterval(progressInterval);
       setImportProgress(100);
