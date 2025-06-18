@@ -50,7 +50,7 @@ const LogoutButton: React.FC = () => {
       } else if (user) {
         // Regular user logout
         await signOut();
-        navigate('/auth');
+        navigate('/login');
         toast({
           title: "Logged Out", 
           description: "You have been successfully logged out."
@@ -79,39 +79,37 @@ const LogoutButton: React.FC = () => {
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50">
-      <AlertDialog>
-        <AlertDialogTrigger asChild>
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="bg-white/90 backdrop-blur-sm border-gray-200 hover:bg-white shadow-sm"
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button 
+          variant="outline" 
+          size="sm"
+          className="bg-white/90 backdrop-blur-sm border-gray-200 hover:bg-white shadow-sm"
+          disabled={isLoggingOut}
+        >
+          <LogOut className="h-4 w-4 mr-2" />
+          {isLoggingOut ? 'Logging out...' : 'Logout'}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to logout, {getUserDisplayName()}? You will be redirected to the login page.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction 
+            onClick={handleLogout}
             disabled={isLoggingOut}
+            className="bg-red-600 hover:bg-red-700"
           >
-            <LogOut className="h-4 w-4 mr-2" />
-            {isLoggingOut ? 'Logging out...' : 'Logout'}
-          </Button>
-        </AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Logout</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to logout, {getUserDisplayName()}? You will be redirected to the login page.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              className="bg-red-600 hover:bg-red-700"
-            >
-              {isLoggingOut ? 'Logging out...' : 'Yes, Logout'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+            {isLoggingOut ? 'Logging out...' : 'Yes, Logout'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 };
 

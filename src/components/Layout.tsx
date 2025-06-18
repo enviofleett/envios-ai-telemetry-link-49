@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { AppSidebar } from '@/components/AppSidebar';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { useLocation } from 'react-router-dom';
+import LogoutButton from '@/components/LogoutButton';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -48,7 +49,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
         <SidebarInset className="flex-1">
-          {/* Header with breadcrumb */}
+          {/* Header with breadcrumb and logout button */}
           <header className="h-16 flex items-center justify-between gap-4 bg-background border-b border-border px-6 shadow-sm">
             <div className="flex items-center gap-4 flex-1">
               <SidebarTrigger className="w-10 h-10 p-2 rounded hover:bg-accent text-foreground" />
@@ -81,6 +82,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 </BreadcrumbList>
               </Breadcrumb>
             </div>
+            
+            {/* Logout button in header */}
+            <LogoutButton />
           </header>
           
           {/* Main content area with full width and consistent padding */}
