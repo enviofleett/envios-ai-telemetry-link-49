@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -48,7 +49,7 @@ const GP51VehicleImportModal: React.FC<GP51VehicleImportModalProps> = ({
         setImportProgress(prev => Math.min(prev + 10, 90));
       }, 200);
 
-      const result = await vehicleImportService.importVehiclesFromGP51();
+      const result = await vehicleImportService.importFromGP51();
       
       clearInterval(progressInterval);
       setImportProgress(100);
@@ -57,7 +58,7 @@ const GP51VehicleImportModal: React.FC<GP51VehicleImportModalProps> = ({
       if (result.success) {
         toast({
           title: "Import Successful",
-          description: `Successfully imported ${result.imported} vehicles from GP51`,
+          description: `Successfully imported ${result.statistics.newDevicesAdded} vehicles from GP51`,
         });
         
         // Delay before calling onImportComplete to show results
@@ -67,7 +68,7 @@ const GP51VehicleImportModal: React.FC<GP51VehicleImportModalProps> = ({
       } else {
         toast({
           title: "Import Failed",
-          description: `Import failed with ${result.errors.length} errors`,
+          description: `Import failed with ${result.statistics.errors} errors`,
           variant: "destructive"
         });
       }
@@ -76,10 +77,15 @@ const GP51VehicleImportModal: React.FC<GP51VehicleImportModalProps> = ({
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setImportResult({
         success: false,
-        imported: 0,
-        skipped: 0,
-        errors: [errorMessage],
-        vehicles: []
+        statistics: {
+          newDevicesAdded: 0,
+          devicesUpdated: 0,
+          totalDevicesProcessed: 0,
+          positionsUpdated: 0,
+          errors: 1
+        },
+        message: errorMessage,
+        syncType: 'fullSync'
       });
       
       toast({
@@ -169,15 +175,15 @@ const GP51VehicleImportModal: React.FC<GP51VehicleImportModalProps> = ({
                     <Car className="h-4 w-4 text-green-600" />
                     <span className="text-sm font-medium text-green-800">Imported</span>
                   </div>
-                  <div className="text-2xl font-bold text-green-600">{importResult.imported}</div>
+                  <div className="text-2xl font-bold text-green-600">{importResult.statistics.newDevicesAdded}</div>
                 </div>
                 
                 <div className="text-center p-3 bg-yellow-50 rounded-lg">
                   <div className="flex items-center justify-center gap-1 mb-1">
                     <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                    <span className="text-sm font-medium text-yellow-800">Skipped</span>
+                    <span className="text-sm font-medium text-yellow-800">Updated</span>
                   </div>
-                  <div className="text-2xl font-bold text-yellow-600">{importResult.skipped}</div>
+                  <div className="text-2xl font-bold text-yellow-600">{importResult.statistics.devicesUpdated}</div>
                 </div>
                 
                 <div className="text-center p-3 bg-red-50 rounded-lg">
@@ -185,19 +191,17 @@ const GP51VehicleImportModal: React.FC<GP51VehicleImportModalProps> = ({
                     <XCircle className="h-4 w-4 text-red-600" />
                     <span className="text-sm font-medium text-red-800">Errors</span>
                   </div>
-                  <div className="text-2xl font-bold text-red-600">{importResult.errors.length}</div>
+                  <div className="text-2xl font-bold text-red-600">{importResult.statistics.errors}</div>
                 </div>
               </div>
 
-              {importResult.errors.length > 0 && (
+              {importResult.statistics.errors > 0 && (
                 <div className="space-y-2">
-                  <h4 className="font-medium text-red-800">Errors:</h4>
+                  <h4 className="font-medium text-red-800">Error Details:</h4>
                   <div className="max-h-32 overflow-y-auto space-y-1">
-                    {importResult.errors.map((error: string, index: number) => (
-                      <div key={index} className="text-xs text-red-700 bg-red-50 p-2 rounded">
-                        {error}
-                      </div>
-                    ))}
+                    <div className="text-xs text-red-700 bg-red-50 p-2 rounded">
+                      {importResult.message || 'Unknown error occurred'}
+                    </div>
                   </div>
                 </div>
               )}
