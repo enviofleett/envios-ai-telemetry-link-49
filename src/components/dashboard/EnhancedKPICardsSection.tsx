@@ -16,16 +16,20 @@ import {
 } from 'lucide-react';
 import { useEnhancedVehicleData } from '@/hooks/useEnhancedVehicleData';
 import { useGP51ConnectionHealth } from '@/hooks/useGP51ConnectionHealth';
+import { vehicleImportService } from '@/services/gp51/vehicleImportService';
+import { useToast } from '@/hooks/use-toast';
 
 const EnhancedKPICardsSection: React.FC = () => {
   const { metrics, isLoading, forceSync } = useEnhancedVehicleData();
   const { status: connectionStatus, isLoading: connectionLoading, performHealthCheck } = useGP51ConnectionHealth();
+  const { toast } = useToast();
+  const [isSyncing, setIsSyncing] = React.useState(false);
 
   const getSyncStatusColor = (status: string) => {
     switch (status) {
       case 'success': return 'default';
       case 'error': return 'destructive';
-      case 'loading': return 'secondary'; // Fixed: changed from 'pending' to 'loading'
+      case 'loading': return 'secondary';
       default: return 'secondary';
     }
   };
@@ -36,7 +40,7 @@ const EnhancedKPICardsSection: React.FC = () => {
         return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'error':
         return <XCircle className="h-4 w-4 text-red-500" />;
-      case 'loading': // Fixed: changed from 'pending' to 'loading'
+      case 'loading':
         return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
       default:
         return <Clock className="h-4 w-4 text-gray-500" />;
@@ -50,6 +54,31 @@ const EnhancedKPICardsSection: React.FC = () => {
       case 'disconnected': return 'destructive';
       case 'auth_error': return 'destructive';
       default: return 'secondary';
+    }
+  };
+
+  const handleEnhancedSync = async () => {
+    setIsSyncing(true);
+    try {
+      console.log('🔄 Starting Enhanced Quick Sync from dashboard...');
+      const result = await vehicleImportService.importFromGP51(false);
+      
+      toast({
+        title: "Enhanced Sync Completed",
+        description: `${result.message}. Updated ${result.statistics.devicesUpdated} vehicles with batched strategy.`,
+      });
+      
+      // Refresh the dashboard data
+      await forceSync();
+    } catch (error) {
+      console.error('❌ Enhanced sync failed:', error);
+      toast({
+        title: "Enhanced Sync Failed",
+        description: error instanceof Error ? error.message : "Unknown error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -123,7 +152,7 @@ const EnhancedKPICardsSection: React.FC = () => {
       <Card className="col-span-1 md:col-span-2 lg:col-span-4">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">System Status</CardTitle>
+            <CardTitle className="text-lg">Enhanced System Status</CardTitle>
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -137,11 +166,11 @@ const EnhancedKPICardsSection: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={forceSync}
-                disabled={isLoading}
+                onClick={handleEnhancedSync}
+                disabled={isLoading || isSyncing}
               >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-                Sync Data
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing...' : 'Quick Sync'}
               </Button>
             </div>
           </div>
@@ -159,13 +188,13 @@ const EnhancedKPICardsSection: React.FC = () => {
               </Badge>
             </div>
 
-            {/* Data Sync Status */}
+            {/* Enhanced Data Sync Status */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Data Sync:</span>
+              <span className="text-sm text-muted-foreground">Enhanced Sync:</span>
               <Badge variant={getSyncStatusColor(metrics.syncStatus)} className="flex items-center gap-1">
                 {getSyncStatusIcon(metrics.syncStatus)}
                 {metrics.syncStatus === 'loading' ? 'Syncing...' : 
-                 metrics.syncStatus === 'error' ? 'Failed' : 'Success'}
+                 metrics.syncStatus === 'error' ? 'Failed' : 'Ready'}
               </Badge>
             </div>
 
@@ -176,6 +205,17 @@ const EnhancedKPICardsSection: React.FC = () => {
                 {metrics.lastSyncTime.toLocaleTimeString()}
               </span>
             </div>
+          </div>
+
+          {/* Enhanced Status Information */}
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-blue-500" />
+              <span className="text-sm font-medium text-blue-800">Enhanced Sync Strategy Active</span>
+            </div>
+            <p className="text-sm text-blue-700 mt-1">
+              Using intelligent batching for fast, reliable updates. Quick Sync processes existing vehicles efficiently while Full Sync discovers new devices.
+            </p>
           </div>
 
           {/* Error Message */}
@@ -202,23 +242,23 @@ const EnhancedKPICardsSection: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Data Quality */}
+      {/* Enhanced Data Quality */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Data Quality</CardTitle>
+          <CardTitle className="text-sm font-medium">Sync Performance</CardTitle>
           <Database className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent>
           <div className="text-2xl font-bold">
-            {metrics.syncStatus === 'loading' ? (
+            {metrics.syncStatus === 'loading' || isSyncing ? (
               <Loader2 className="h-6 w-6 animate-spin" />
             ) : (
               `${Math.round((metrics.total - metrics.errors) / Math.max(metrics.total, 1) * 100)}%`
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            {metrics.syncStatus === 'loading' ? 'Syncing...' : 
-             metrics.syncStatus === 'error' ? 'Sync Error' : 'Data Integrity'}
+            {metrics.syncStatus === 'loading' || isSyncing ? 'Processing...' : 
+             metrics.syncStatus === 'error' ? 'Check Connection' : 'Reliability Score'}
           </p>
         </CardContent>
       </Card>
