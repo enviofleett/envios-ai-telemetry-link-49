@@ -1,8 +1,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import type { VehicleData, VehicleDataMetrics, SyncStatus } from '@/types/vehicle';
+import type { VehicleData } from '@/types/vehicle';
 
-interface ServiceMetrics {
+interface VehicleServiceMetrics {
   total: number;
   online: number;
   offline: number;
@@ -13,13 +13,14 @@ interface ServiceMetrics {
   offlineVehicles: number;
   recentlyActiveVehicles: number;
   lastSyncTime: Date;
-  syncStatus: SyncStatus;
+  syncStatus: 'success' | 'error' | 'syncing';
   errorMessage?: string;
 }
 
 class EnhancedVehicleDataService {
+  private static instance: EnhancedVehicleDataService;
   private vehicles: VehicleData[] = [];
-  private metrics: ServiceMetrics = {
+  private metrics: VehicleServiceMetrics = {
     total: 0,
     online: 0,
     offline: 0,
@@ -30,110 +31,115 @@ class EnhancedVehicleDataService {
     offlineVehicles: 0,
     recentlyActiveVehicles: 0,
     lastSyncTime: new Date(),
-    syncStatus: 'loading' as SyncStatus,
+    syncStatus: 'success'
   };
-  private subscribers: (() => void)[] = [];
+  private subscribers: Set<() => void> = new Set();
+  private syncInterval: NodeJS.Timeout | null = null;
+  private realtimeChannel: any = null;
 
-  async getEnhancedVehicles(): Promise<VehicleData[]> {
+  static getInstance(): EnhancedVehicleDataService {
+    if (!EnhancedVehicleDataService.instance) {
+      EnhancedVehicleDataService.instance = new EnhancedVehicleDataService();
+    }
+    return EnhancedVehicleDataService.instance;
+  }
+
+  private constructor() {
+    this.initializeRealtimeSubscription();
+    this.startPeriodicSync();
+  }
+
+  private initializeRealtimeSubscription() {
+    // Clean up existing subscription first
+    if (this.realtimeChannel) {
+      supabase.removeChannel(this.realtimeChannel);
+      this.realtimeChannel = null;
+    }
+
     try {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select(`
-          id,
-          gp51_device_id,
-          name,
-          sim_number,
-          user_id,
-          created_at,
-          updated_at,
-          envio_users (
-            name,
-            email
-          )
-        `)
-        .order('updated_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching vehicles:', error);
-        this.metrics.syncStatus = 'error' as SyncStatus;
-        this.metrics.errorMessage = error.message;
-        throw error;
-      }
-
-      if (!data) {
-        return [];
-      }
-
-      const transformedVehicles: VehicleData[] = data.map((vehicle) => ({
-        id: vehicle.id,
-        device_id: vehicle.gp51_device_id,
-        device_name: vehicle.name,
-        sim_number: vehicle.sim_number,
-        user_id: vehicle.user_id,
-        created_at: vehicle.created_at,
-        updated_at: vehicle.updated_at,
-        envio_users: vehicle.envio_users,
-        status: 'offline',
-        is_active: true,
-        last_position: undefined,
-        lastUpdate: new Date(vehicle.updated_at),
-        isOnline: false,
-        isMoving: false,
-        alerts: [],
-        // Initialize additional properties
-        speed: undefined,
-        course: undefined,
-        driver: null,
-        fuel: undefined,
-        mileage: undefined,
-        plateNumber: undefined,
-        model: undefined,
-        gp51_metadata: {},
-      }));
-
-      this.vehicles = transformedVehicles;
-      this.updateMetrics();
-      this.metrics.syncStatus = 'success' as SyncStatus;
-      this.notifySubscribers();
-
-      return transformedVehicles;
+      this.realtimeChannel = supabase
+        .channel('enhanced-vehicle-data')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'vehicles'
+          },
+          () => {
+            console.log('Vehicle data changed, refreshing...');
+            this.syncVehicleData();
+          }
+        )
+        .subscribe((status) => {
+          console.log('Enhanced vehicle data subscription status:', status);
+        });
     } catch (error) {
-      this.metrics.syncStatus = 'error' as SyncStatus;
-      this.metrics.errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      this.notifySubscribers();
-      throw error;
+      console.error('Failed to setup realtime subscription:', error);
     }
   }
 
-  getVehicles(): VehicleData[] {
-    return this.vehicles;
+  private async syncVehicleData() {
+    try {
+      this.updateMetrics({ syncStatus: 'syncing' });
+      
+      const { data: vehicles, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Error syncing vehicle data:', error);
+        this.updateMetrics({ 
+          syncStatus: 'error', 
+          errorMessage: error.message 
+        });
+        return;
+      }
+
+      // Transform the data to match VehicleData interface
+      this.vehicles = (vehicles || []).map(vehicle => ({
+        id: vehicle.id,
+        device_id: vehicle.gp51_device_id || '',
+        device_name: vehicle.name || 'Unknown Device',
+        status: 'offline' as const,
+        isOnline: false,
+        isMoving: false,
+        lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
+        last_position: undefined,
+        sim_number: undefined
+      }));
+
+      this.calculateMetrics();
+      this.updateMetrics({ 
+        syncStatus: 'success', 
+        lastSyncTime: new Date(),
+        errorMessage: undefined 
+      });
+      this.notifySubscribers();
+
+    } catch (error) {
+      console.error('Sync error:', error);
+      this.updateMetrics({ 
+        syncStatus: 'error', 
+        errorMessage: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
   }
 
-  async forceSync(): Promise<void> {
-    this.metrics.syncStatus = 'syncing' as SyncStatus;
-    this.notifySubscribers();
-    await this.getEnhancedVehicles();
-  }
-
-  getLastSyncMetrics() {
-    return {
-      lastSyncTime: this.metrics.lastSyncTime,
-      positionsUpdated: this.metrics.totalVehicles,
-      errors: this.metrics.syncStatus === 'error' ? 1 : 0,
-      syncStatus: this.metrics.syncStatus,
-      errorMessage: this.metrics.errorMessage,
-    };
-  }
-
-  private updateMetrics(): void {
+  private calculateMetrics() {
     const total = this.vehicles.length;
     const online = this.vehicles.filter(v => v.isOnline).length;
     const offline = total - online;
-    const idle = this.vehicles.filter(v => v.status === 'idle').length;
-    const alerts = this.vehicles.filter(v => v.alerts && v.alerts.length > 0).length;
+    const idle = this.vehicles.filter(v => v.isOnline && !v.isMoving).length;
+    const alerts = 0; // Calculate based on your alert logic
+    
+    const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+    const recentlyActive = this.vehicles.filter(v => 
+      v.lastUpdate.getTime() > thirtyMinutesAgo
+    ).length;
 
-    this.metrics = {
-      ...this.metrics,
+    this.updateMetrics({
       total,
       online,
       offline,
@@ -142,29 +148,79 @@ class EnhancedVehicleDataService {
       totalVehicles: total,
       onlineVehicles: online,
       offlineVehicles: offline,
-      recentlyActiveVehicles: this.vehicles.filter(v => v.is_active).length,
-      lastSyncTime: new Date(),
-    };
+      recentlyActiveVehicles: recentlyActive
+    });
   }
 
-  getMetrics(): ServiceMetrics {
-    return this.metrics;
+  private updateMetrics(updates: Partial<VehicleServiceMetrics>) {
+    this.metrics = { ...this.metrics, ...updates };
+  }
+
+  private notifySubscribers() {
+    this.subscribers.forEach(callback => {
+      try {
+        callback();
+      } catch (error) {
+        console.error('Error in subscriber callback:', error);
+      }
+    });
+  }
+
+  private startPeriodicSync() {
+    // Initial sync
+    this.syncVehicleData();
+    
+    // Set up periodic sync every 30 seconds
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+    }
+    
+    this.syncInterval = setInterval(() => {
+      this.syncVehicleData();
+    }, 30000);
   }
 
   subscribe(callback: () => void): () => void {
-    this.subscribers.push(callback);
+    this.subscribers.add(callback);
+    
+    // Return unsubscribe function
     return () => {
-      this.subscribers = this.subscribers.filter(sub => sub !== callback);
+      this.subscribers.delete(callback);
     };
   }
 
-  private notifySubscribers(): void {
-    this.subscribers.forEach(callback => callback());
+  getVehicles(): VehicleData[] {
+    return [...this.vehicles];
+  }
+
+  getMetrics(): VehicleServiceMetrics {
+    return { ...this.metrics };
   }
 
   getVehicleById(deviceId: string): VehicleData | undefined {
     return this.vehicles.find(v => v.device_id === deviceId);
   }
+
+  async forceSync(): Promise<void> {
+    await this.syncVehicleData();
+  }
+
+  destroy() {
+    // Clean up interval
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
+    }
+
+    // Clean up realtime subscription
+    if (this.realtimeChannel) {
+      supabase.removeChannel(this.realtimeChannel);
+      this.realtimeChannel = null;
+    }
+
+    // Clear subscribers
+    this.subscribers.clear();
+  }
 }
 
-export const enhancedVehicleDataService = new EnhancedVehicleDataService();
+export const enhancedVehicleDataService = EnhancedVehicleDataService.getInstance();

@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { enhancedVehicleDataService } from '@/services/enhancedVehicleDataService';
 import type { VehicleData, VehicleDataMetrics } from '@/types/vehicle';
 import { useToast } from '@/hooks/use-toast';
@@ -7,18 +7,15 @@ import { useToast } from '@/hooks/use-toast';
 export const useEnhancedVehicleData = () => {
   const [vehicles, setVehicles] = useState<VehicleData[]>([]);
   const [metrics, setMetrics] = useState<VehicleDataMetrics>({
-    // Dashboard-compatible properties
     total: 0,
     online: 0,
     offline: 0,
     idle: 0,
     alerts: 0,
-    // Legacy properties
     totalVehicles: 0,
     onlineVehicles: 0,
     offlineVehicles: 0,
     recentlyActiveVehicles: 0,
-    // Sync properties
     lastSyncTime: new Date(),
     positionsUpdated: 0,
     errors: 0,
@@ -26,8 +23,15 @@ export const useEnhancedVehicleData = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    // Clean up any existing subscription
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
     // Subscribe to vehicle data updates
     const unsubscribe = enhancedVehicleDataService.subscribe(() => {
       const newVehicles = enhancedVehicleDataService.getVehicles();
@@ -37,18 +41,15 @@ export const useEnhancedVehicleData = () => {
       
       // Convert service metrics to the full VehicleDataMetrics interface
       const expandedMetrics: VehicleDataMetrics = {
-        // Dashboard-compatible properties
         total: serviceMetrics.total,
         online: serviceMetrics.online,
         offline: serviceMetrics.offline,
         idle: serviceMetrics.idle,
         alerts: serviceMetrics.alerts,
-        // Legacy properties
         totalVehicles: serviceMetrics.totalVehicles,
         onlineVehicles: serviceMetrics.onlineVehicles,
         offlineVehicles: serviceMetrics.offlineVehicles,
         recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
-        // Sync properties
         lastSyncTime: serviceMetrics.lastSyncTime,
         positionsUpdated: newVehicles.length,
         errors: serviceMetrics.syncStatus === 'error' ? 1 : 0,
@@ -68,6 +69,8 @@ export const useEnhancedVehicleData = () => {
         });
       }
     });
+
+    unsubscribeRef.current = unsubscribe;
 
     // Initial data load
     setVehicles(enhancedVehicleDataService.getVehicles());
@@ -89,7 +92,13 @@ export const useEnhancedVehicleData = () => {
     });
     setIsLoading(false);
 
-    return unsubscribe;
+    // Cleanup function
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
   }, [toast]);
 
   const forceSync = async () => {
@@ -98,7 +107,7 @@ export const useEnhancedVehicleData = () => {
       await enhancedVehicleDataService.forceSync();
       toast({
         title: "Data Sync Completed",
-        description: "Vehicle data has been refreshed from GP51"
+        description: "Vehicle data has been refreshed"
       });
     } catch (error) {
       toast({
