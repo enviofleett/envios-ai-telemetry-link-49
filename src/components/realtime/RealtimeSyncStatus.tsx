@@ -40,7 +40,7 @@ const RealtimeSyncStatus: React.FC = () => {
       case 'syncing':
         return 'default';
       case 'completed':
-        return 'success';
+        return 'default'; // Changed from 'success' to 'default' with green styling
       case 'error':
         return 'destructive';
       case 'idle':
@@ -100,7 +100,10 @@ const RealtimeSyncStatus: React.FC = () => {
             {getSyncStatusIcon()}
             <span className="text-sm font-medium">{getSyncStatusText()}</span>
           </div>
-          <Badge variant={getSyncStatusColor()}>
+          <Badge 
+            variant={getSyncStatusColor()}
+            className={syncStatus === 'completed' ? 'bg-green-100 text-green-800 border-green-200' : ''}
+          >
             {syncStatus}
           </Badge>
         </div>
