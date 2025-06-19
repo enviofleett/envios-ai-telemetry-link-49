@@ -28,7 +28,7 @@ import {
   BookOpen,
   Link,
   UserCheck,
-  Sync,
+  RefreshCw,
   UserPlus
 } from 'lucide-react';
 
@@ -97,7 +97,7 @@ const sidebarItems = [
     items: [
       { id: 'gp51', label: 'GP51 Integration', icon: MapPin },
       { id: 'gp51-validation', label: 'GP51 Validation', icon: CheckCircle },
-      { id: 'gp51-data-sync', label: 'GP51 Data Sync', icon: Sync },
+      { id: 'gp51-data-sync', label: 'GP51 Data Sync', icon: RefreshCw },
       { id: 'vehicle-assignment', label: 'Vehicle Assignment', icon: UserPlus },
       { id: 'geofencing', label: 'Geofencing', icon: MapPin },
     ]
