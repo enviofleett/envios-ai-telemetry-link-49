@@ -1,17 +1,23 @@
-
 import React, { useState } from 'react';
 import { useDeviceManagement } from '@/hooks/useDeviceManagement';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Car, Plus, Search, Download } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Car, Plus, Search, Download, Edit2, MoreVertical } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import GP51VehicleImportModal from './GP51VehicleImportModal';
+import VehicleEditModal from './VehicleEditModal';
+import VehicleBulkOperations from './VehicleBulkOperations';
 import type { VehicleData } from '@/types/vehicle';
 
 const EnhancedVehicleManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<VehicleData | null>(null);
+  const [selectedVehicles, setSelectedVehicles] = useState<VehicleData[]>([]);
   const { devices: vehicles, isLoading, error, refetch } = useDeviceManagement(searchTerm);
 
   const getStatusColor = (status: string) => {
@@ -30,8 +36,42 @@ const EnhancedVehicleManagement: React.FC = () => {
 
   const handleImportComplete = () => {
     setShowImportModal(false);
-    refetch(); // Refresh the vehicle list
+    refetch();
   };
+
+  const handleEditVehicle = (vehicle: VehicleData) => {
+    setEditingVehicle(vehicle);
+    setShowEditModal(true);
+  };
+
+  const handleVehicleUpdated = () => {
+    refetch();
+  };
+
+  const handleSelectVehicle = (vehicle: VehicleData, checked: boolean) => {
+    setSelectedVehicles(prev => {
+      if (checked) {
+        return [...prev, vehicle];
+      } else {
+        return prev.filter(v => v.id !== vehicle.id);
+      }
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked && vehicles) {
+      setSelectedVehicles(vehicles);
+    } else {
+      setSelectedVehicles([]);
+    }
+  };
+
+  const isVehicleSelected = (vehicleId: string) => {
+    return selectedVehicles.some(v => v.id === vehicleId);
+  };
+
+  const isAllSelected = vehicles && vehicles.length > 0 && selectedVehicles.length === vehicles.length;
+  const isIndeterminate = selectedVehicles.length > 0 && selectedVehicles.length < (vehicles?.length || 0);
 
   if (isLoading) {
     return (
@@ -76,6 +116,21 @@ const EnhancedVehicleManagement: React.FC = () => {
               className="pl-10"
             />
           </div>
+          
+          {/* Select All Checkbox */}
+          {vehicles && vehicles.length > 0 && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                checked={isAllSelected}
+                // @ts-ignore - indeterminate is a valid prop but not in types
+                ref={(el) => {
+                  if (el) el.indeterminate = isIndeterminate;
+                }}
+                onCheckedChange={handleSelectAll}
+              />
+              <label className="text-sm">Select All</label>
+            </div>
+          )}
         </div>
         
         <div className="flex gap-2">
@@ -93,6 +148,13 @@ const EnhancedVehicleManagement: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Bulk Operations */}
+      <VehicleBulkOperations
+        selectedVehicles={selectedVehicles}
+        onClearSelection={() => setSelectedVehicles([])}
+        onOperationComplete={handleVehicleUpdated}
+      />
 
       {/* Vehicle Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -147,18 +209,37 @@ const EnhancedVehicleManagement: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {vehicles && vehicles.length > 0 ? (
           vehicles.map((vehicle) => (
-            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">{vehicle.device_name}</CardTitle>
-                    <p className="text-sm text-gray-600">{vehicle.device_id}</p>
+                  <div className="flex items-center gap-3">
+                    <Checkbox
+                      checked={isVehicleSelected(vehicle.id)}
+                      onCheckedChange={(checked) => handleSelectVehicle(vehicle, checked as boolean)}
+                    />
+                    <div>
+                      <CardTitle className="text-lg">{vehicle.device_name}</CardTitle>
+                      <p className="text-sm text-gray-600">{vehicle.device_id}</p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${getStatusColor(vehicle.status)}`} />
                     <Badge variant="outline" className="text-xs">
                       {getStatusText(vehicle.status)}
                     </Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEditVehicle(vehicle)}>
+                          <Edit2 className="h-4 w-4 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               </CardHeader>
@@ -204,11 +285,21 @@ const EnhancedVehicleManagement: React.FC = () => {
         )}
       </div>
 
-      {/* GP51 Vehicle Import Modal */}
+      {/* Modals */}
       <GP51VehicleImportModal
         isOpen={showImportModal}
         onClose={() => setShowImportModal(false)}
         onImportComplete={handleImportComplete}
+      />
+
+      <VehicleEditModal
+        vehicle={editingVehicle}
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditingVehicle(null);
+        }}
+        onVehicleUpdated={handleVehicleUpdated}
       />
     </div>
   );
