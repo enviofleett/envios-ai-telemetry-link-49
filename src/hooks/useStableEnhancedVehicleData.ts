@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -102,7 +101,8 @@ export const useStableEnhancedVehicleData = () => {
       .filter(v => v.user_id)
       .map(v => ({
         id: v.user_id!,
-        name: v.envio_users?.name || v.device_name // Prefer joined user name
+        name: v.envio_users?.name || v.device_name,
+        email: v.envio_users?.email || ''
       }));
     
     const uniqueUsers = users.filter((user, index, self) => 
