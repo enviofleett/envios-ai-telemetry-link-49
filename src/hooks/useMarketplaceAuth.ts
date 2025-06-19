@@ -1,17 +1,19 @@
 
-import React, { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useSecurityContext } from '@/components/security/SecurityProvider';
 
-interface MarketplaceAuthProps {
+interface UseMarketplaceAuthProps {
   onSuccess?: () => void;
   onError?: (error: string) => void;
 }
 
-export const MarketplaceAuth: React.FC<MarketplaceAuthProps> = ({ onSuccess, onError }) => {
+export const useMarketplaceAuth = ({ onSuccess, onError }: UseMarketplaceAuthProps = {}) => {
   const { logSecurityEvent } = useSecurityContext();
   const [attemptCount, setAttemptCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleAuthAttempt = async (email: string, password: string) => {
+  const handleAuthAttempt = useCallback(async (email: string, password: string) => {
+    setIsLoading(true);
     const now = Date.now();
     const newAttemptCount = attemptCount + 1;
     setAttemptCount(newAttemptCount);
@@ -33,6 +35,7 @@ export const MarketplaceAuth: React.FC<MarketplaceAuthProps> = ({ onSuccess, onE
       });
       
       onError?.(`Too many attempts. Try again in ${timeUntilReset} minutes.`);
+      setIsLoading(false);
       return;
     }
 
@@ -57,6 +60,7 @@ export const MarketplaceAuth: React.FC<MarketplaceAuthProps> = ({ onSuccess, onE
       });
 
       onSuccess?.();
+      setAttemptCount(0); // Reset on success
     } catch (error) {
       logSecurityEvent({
         type: 'authentication',
@@ -69,10 +73,12 @@ export const MarketplaceAuth: React.FC<MarketplaceAuthProps> = ({ onSuccess, onE
       });
 
       onError?.('Authentication failed');
+    } finally {
+      setIsLoading(false);
     }
-  };
+  }, [attemptCount, logSecurityEvent, onSuccess, onError]);
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     logSecurityEvent({
       type: 'authentication',
       severity: 'low',
@@ -81,11 +87,13 @@ export const MarketplaceAuth: React.FC<MarketplaceAuthProps> = ({ onSuccess, onE
         timestamp: Date.now()
       }
     });
-  };
+    setAttemptCount(0);
+  }, [logSecurityEvent]);
 
   return {
     handleAuthAttempt,
     handleLogout,
-    attemptCount
+    attemptCount,
+    isLoading
   };
 };
