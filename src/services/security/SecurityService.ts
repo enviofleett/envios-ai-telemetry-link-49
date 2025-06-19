@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 
 export interface SecurityEvent {
@@ -7,7 +6,7 @@ export interface SecurityEvent {
   userId?: string;
   userAgent?: string;
   ipAddress?: string;
-  details: Record<string, any>;
+  details?: Record<string, any>; // Made optional
   timestamp: number;
   severity: 'low' | 'medium' | 'high' | 'critical';
   description?: string;
