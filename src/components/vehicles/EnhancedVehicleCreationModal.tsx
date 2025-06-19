@@ -23,6 +23,8 @@ interface EnhancedVehicleCreationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: (vehicleId: string) => void;
+  onVehicleCreated?: () => void;
+  availableUsers?: Array<{ id: string; name: string; email: string }>;
 }
 
 export interface VehicleFormData {
@@ -55,7 +57,9 @@ const STEPS = [
 export const EnhancedVehicleCreationModal: React.FC<EnhancedVehicleCreationModalProps> = ({
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  onVehicleCreated,
+  availableUsers = []
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<VehicleFormData>({
@@ -107,6 +111,7 @@ export const EnhancedVehicleCreationModal: React.FC<EnhancedVehicleCreationModal
       
       if (result.success && result.vehicleId) {
         onSuccess?.(result.vehicleId);
+        onVehicleCreated?.();
         onClose();
         resetForm();
       }
@@ -241,3 +246,5 @@ export const EnhancedVehicleCreationModal: React.FC<EnhancedVehicleCreationModal
     </Dialog>
   );
 };
+
+export default EnhancedVehicleCreationModal;

@@ -1,7 +1,5 @@
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
 import {
   Table,
   TableBody,
@@ -16,61 +14,33 @@ import { Button } from '@/components/ui/button';
 import { Search, Plus } from 'lucide-react';
 import { EnhancedVehicleCreationModal } from '@/components/vehicles/EnhancedVehicleCreationModal';
 import { UserMappingDialog } from '@/components/users/UserMappingDialog';
-import type { VehicleData, VehicleDbRecord } from '@/types/vehicle';
+import type { VehicleData } from '@/types/vehicle';
 
-const mapDbToDisplayVehicle = (dbVehicle: VehicleDbRecord): VehicleData => ({
-  id: dbVehicle.id,
-  device_id: dbVehicle.gp51_device_id,
-  device_name: dbVehicle.name,
-  user_id: dbVehicle.user_id,
-  sim_number: dbVehicle.sim_number,
-  created_at: dbVehicle.created_at,
-  updated_at: dbVehicle.updated_at,
-  status: 'offline', // Default value
-  is_active: true, // Default value
-  lastUpdate: new Date(dbVehicle.updated_at),
-  isOnline: false,
-  isMoving: false,
-  alerts: [],
-});
+interface VehicleManagementTableProps {
+  vehicles: VehicleData[];
+  selectedVehicles: VehicleData[];
+  onSelectVehicle: (vehicle: VehicleData, checked: boolean) => void;
+  onEditVehicle: (vehicle: VehicleData) => void;
+  availableUsers: Array<{ id: string; name: string; email: string }>;
+}
 
-const fetchVehicles = async (searchQuery: string): Promise<VehicleData[]> => {
-  let query = supabase
-    .from('vehicles')
-    .select('id, gp51_device_id, name, user_id, sim_number, created_at, updated_at')
-    .order('created_at', { ascending: false });
-
-  if (searchQuery) {
-    query = query.or(`name.ilike.%${searchQuery}%,gp51_device_id.ilike.%${searchQuery}%`);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error("Error fetching vehicles:", error);
-    // Throwing an error will be caught by react-query and set the 'error' state
-    throw new Error(error.message);
-  }
-
-  if (!data) {
-    return [];
-  }
-  const dbRecords: VehicleDbRecord[] = data;
-  return dbRecords.map(mapDbToDisplayVehicle);
-};
-
-export const VehicleManagementTable: React.FC = () => {
+export const VehicleManagementTable: React.FC<VehicleManagementTableProps> = ({
+  vehicles,
+  selectedVehicles,
+  onSelectVehicle,
+  onEditVehicle,
+  availableUsers
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMapUserModal, setShowMapUserModal] = useState(false);
 
-  const { data: vehicles = [], isLoading, error, refetch } = useQuery({
-    queryKey: ['vehicles', searchQuery],
-    queryFn: () => fetchVehicles(searchQuery)
-  });
+  const filteredVehicles = vehicles.filter(vehicle => 
+    vehicle.device_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    vehicle.device_id.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const handleSuccess = () => {
-    refetch();
     setShowAddModal(false);
     setShowMapUserModal(false);
   };
@@ -102,38 +72,33 @@ export const VehicleManagementTable: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <p>Loading vehicles...</p>
-          ) : error ? (
-            <p className="text-red-500">Failed to load vehicles. Please try again later.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Device Name</TableHead>
-                  <TableHead>Device ID</TableHead>
-                  <TableHead>User ID</TableHead>
-                  <TableHead>Created At</TableHead>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Device Name</TableHead>
+                <TableHead>Device ID</TableHead>
+                <TableHead>User ID</TableHead>
+                <TableHead>Created At</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredVehicles.map((vehicle) => (
+                <TableRow key={vehicle.id}>
+                  <TableCell>{vehicle.device_name}</TableCell>
+                  <TableCell>{vehicle.device_id}</TableCell>
+                  <TableCell>{vehicle.user_id || 'Unassigned'}</TableCell>
+                  <TableCell>{new Date(vehicle.created_at).toLocaleDateString()}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {vehicles.map((vehicle) => (
-                  <TableRow key={vehicle.id}>
-                    <TableCell>{vehicle.device_name}</TableCell>
-                    <TableCell>{vehicle.device_id}</TableCell>
-                    <TableCell>{vehicle.user_id || 'Unassigned'}</TableCell>
-                    <TableCell>{new Date(vehicle.created_at).toLocaleDateString()}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
       <EnhancedVehicleCreationModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSuccess={handleSuccess}
+        availableUsers={availableUsers}
       />
       <UserMappingDialog
         open={showMapUserModal}
