@@ -32,6 +32,10 @@ const queryClient = new QueryClient();
 const App = () => {
   const isMobile = useIsMobile();
 
+  const handleLoginSuccess = (vehicles: any[]) => {
+    console.log('Login successful with vehicles:', vehicles);
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -42,11 +46,15 @@ const App = () => {
             <SidebarProvider>
               <Routes>
                 {/* Public Routes */}
-                <Route path="/login" element={<LoginForm />} />
-                <Route path="/auth" element={<LoginForm />} />
-                <Route path="/setup-password" element={<PasswordSetupPage />} />
-                <Route path="/verify-otp" element={<OTPVerificationPage />} />
-                <Route path="/password-setup-check" element={<PasswordSetupCheck />} />
+                <Route path="/login" element={<LoginForm onLoginSuccess={handleLoginSuccess} />} />
+                <Route path="/auth" element={<LoginForm onLoginSuccess={handleLoginSuccess} />} />
+                <Route path="/setup-password" element={<PasswordSetupPage username="" />} />
+                <Route path="/verify-otp" element={<OTPVerificationPage email="" otpId="" />} />
+                <Route path="/password-setup-check" element={
+                  <PasswordSetupCheck>
+                    <div>Password setup required</div>
+                  </PasswordSetupCheck>
+                } />
                 
                 {/* Protected Routes */}
                 <Route path="/" element={

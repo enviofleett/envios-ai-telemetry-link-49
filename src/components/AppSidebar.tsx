@@ -81,14 +81,14 @@ const analyticsItems = [
 ]
 
 export function AppSidebar() {
-  const { user, logout } = useAuth()
+  const { user, signOut } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const isMobile = useIsMobile()
 
   const handleLogout = async () => {
     try {
-      await logout()
+      await signOut()
       navigate("/login")
     } catch (error) {
       console.error("Logout error:", error)
