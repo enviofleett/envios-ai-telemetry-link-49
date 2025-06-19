@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface TrailPoint {
@@ -38,6 +37,40 @@ class VehicleTrailService {
       VehicleTrailService.instance = new VehicleTrailService();
     }
     return VehicleTrailService.instance;
+  }
+
+  // Helper function to safely parse JSON data to TrailPoint array
+  private parseTrailPoints(jsonData: unknown): TrailPoint[] {
+    if (!Array.isArray(jsonData)) {
+      console.warn('Trail points data is not an array:', jsonData);
+      return [];
+    }
+
+    return jsonData
+      .map((item: unknown) => {
+        if (typeof item === 'object' && item !== null) {
+          const obj = item as Record<string, unknown>;
+          
+          // Validate required properties
+          if (
+            typeof obj.latitude === 'number' &&
+            typeof obj.longitude === 'number' &&
+            (typeof obj.timestamp === 'string' || typeof obj.timestamp === 'number')
+          ) {
+            return {
+              latitude: obj.latitude,
+              longitude: obj.longitude,
+              speed: typeof obj.speed === 'number' ? obj.speed : undefined,
+              heading: typeof obj.heading === 'number' ? obj.heading : undefined,
+              timestamp: String(obj.timestamp)
+            } as TrailPoint;
+          }
+        }
+        
+        console.warn('Invalid trail point data:', item);
+        return null;
+      })
+      .filter((point): point is TrailPoint => point !== null);
   }
 
   async getVehiclePositions(options: TrailOptions): Promise<TrailPoint[]> {
@@ -123,7 +156,7 @@ class VehicleTrailService {
         .insert({
           vehicle_id: vehicle.id,
           device_id: deviceId,
-          trail_points: positions as any, // Cast to satisfy JSON type
+          trail_points: positions,
           start_time: startTime,
           end_time: endTime,
           total_distance: totalDistance,
@@ -163,7 +196,7 @@ class VehicleTrailService {
 
       return (data || []).map(trail => ({
         ...trail,
-        trail_points: trail.trail_points as TrailPoint[] // Type assertion for JSON field
+        trail_points: this.parseTrailPoints(trail.trail_points)
       }));
     } catch (error) {
       console.error('Error in getStoredTrails:', error);

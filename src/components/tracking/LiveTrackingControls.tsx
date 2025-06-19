@@ -4,28 +4,27 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, RefreshCw, Filter } from 'lucide-react';
-import LiveTrackingFilters from './LiveTrackingFilters';
+import { LiveTrackingFilters } from './LiveTrackingFilters';
+import type { FilterState } from '@/types/vehicle';
 
 interface LiveTrackingControlsProps {
-  searchTerm: string;
-  onSearchChange: (value: string) => void;
-  statusFilter: 'all' | 'online' | 'offline' | 'alerts';
-  onStatusFilterChange: (status: 'all' | 'online' | 'offline' | 'alerts') => void;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
   showFilters: boolean;
   onToggleFilters: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
+  userOptions: { id: string; name: string; email: string; }[];
 }
 
 const LiveTrackingControls: React.FC<LiveTrackingControlsProps> = ({
-  searchTerm,
-  onSearchChange,
-  statusFilter,
-  onStatusFilterChange,
+  filters,
+  onFiltersChange,
   showFilters,
   onToggleFilters,
   onRefresh,
-  isRefreshing
+  isRefreshing,
+  userOptions
 }) => {
   return (
     <Card>
@@ -58,16 +57,17 @@ const LiveTrackingControls: React.FC<LiveTrackingControlsProps> = ({
           <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Search by vehicle name or ID..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
+            value={filters.search}
+            onChange={(e) => onFiltersChange({ ...filters, search: e.target.value })}
             className="pl-10"
           />
         </div>
         
         {showFilters && (
           <LiveTrackingFilters
-            statusFilter={statusFilter}
-            onStatusFilterChange={onStatusFilterChange}
+            filters={filters}
+            setFilters={onFiltersChange}
+            userOptions={userOptions}
           />
         )}
       </CardContent>
