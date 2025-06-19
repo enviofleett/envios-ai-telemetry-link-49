@@ -2,10 +2,10 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { LiveTrackingControls } from './LiveTrackingControls';
-import { LiveTrackingStats } from './LiveTrackingStats';
-import { VehicleListPanel } from './VehicleListPanel';
-import { LiveTrackingMap } from './LiveTrackingMap';
+import LiveTrackingControls from './LiveTrackingControls';
+import LiveTrackingStats from './LiveTrackingStats';
+import VehicleListPanel from './VehicleListPanel';
+import LiveTrackingMap from './LiveTrackingMap';
 import { useVehicleData } from '@/hooks/useVehicleData';
 import { useEnhancedRealtimeVehicleData } from '@/hooks/useEnhancedRealtimeVehicleData';
 import type { VehicleData, FilterState } from '@/types/vehicle';
