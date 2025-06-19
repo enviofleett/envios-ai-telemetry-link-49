@@ -6887,6 +6887,102 @@ export type Database = {
           },
         ]
       }
+      sync_configuration: {
+        Row: {
+          backoff_multiplier: number | null
+          created_at: string | null
+          id: string
+          is_enabled: boolean | null
+          last_sync_at: string | null
+          max_retries: number | null
+          next_sync_at: string | null
+          retry_count: number | null
+          sync_interval_minutes: number | null
+          sync_priority: number | null
+          sync_settings: Json | null
+          sync_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          backoff_multiplier?: number | null
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          last_sync_at?: string | null
+          max_retries?: number | null
+          next_sync_at?: string | null
+          retry_count?: number | null
+          sync_interval_minutes?: number | null
+          sync_priority?: number | null
+          sync_settings?: Json | null
+          sync_type?: string
+          updated_at?: string | null
+        }
+        Update: {
+          backoff_multiplier?: number | null
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          last_sync_at?: string | null
+          max_retries?: number | null
+          next_sync_at?: string | null
+          retry_count?: number | null
+          sync_interval_minutes?: number | null
+          sync_priority?: number | null
+          sync_settings?: Json | null
+          sync_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      sync_status: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          error_count: number | null
+          failed_records: number | null
+          id: string
+          last_error: string | null
+          performance_metrics: Json | null
+          processed_records: number | null
+          started_at: string | null
+          status: string
+          successful_records: number | null
+          sync_type: string
+          total_records: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_count?: number | null
+          failed_records?: number | null
+          id?: string
+          last_error?: string | null
+          performance_metrics?: Json | null
+          processed_records?: number | null
+          started_at?: string | null
+          status?: string
+          successful_records?: number | null
+          sync_type: string
+          total_records?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          error_count?: number | null
+          failed_records?: number | null
+          id?: string
+          last_error?: string | null
+          performance_metrics?: Json | null
+          processed_records?: number | null
+          started_at?: string | null
+          status?: string
+          successful_records?: number | null
+          sync_type?: string
+          total_records?: number | null
+        }
+        Relationships: []
+      }
       theme_settings: {
         Row: {
           created_at: string
@@ -7701,6 +7797,59 @@ export type Database = {
           },
         ]
       }
+      vehicle_events: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          created_at: string | null
+          device_id: string
+          event_data: Json | null
+          event_message: string
+          event_severity: string | null
+          event_type: string
+          id: string
+          is_acknowledged: boolean | null
+          occurred_at: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          created_at?: string | null
+          device_id: string
+          event_data?: Json | null
+          event_message: string
+          event_severity?: string | null
+          event_type: string
+          id?: string
+          is_acknowledged?: boolean | null
+          occurred_at: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          created_at?: string | null
+          device_id?: string
+          event_data?: Json | null
+          event_message?: string
+          event_severity?: string | null
+          event_type?: string
+          id?: string
+          is_acknowledged?: boolean | null
+          occurred_at?: string
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_events_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicle_inspections: {
         Row: {
           actual_duration_minutes: number | null
@@ -7881,6 +8030,65 @@ export type Database = {
           status?: string
         }
         Relationships: []
+      }
+      vehicle_position_history: {
+        Row: {
+          altitude: number | null
+          created_at: string | null
+          device_id: string
+          heading: number | null
+          id: string
+          latitude: number
+          longitude: number
+          raw_data: Json | null
+          recorded_at: string
+          satellites: number | null
+          signal_strength: number | null
+          speed: number | null
+          sync_source: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          altitude?: number | null
+          created_at?: string | null
+          device_id: string
+          heading?: number | null
+          id?: string
+          latitude: number
+          longitude: number
+          raw_data?: Json | null
+          recorded_at: string
+          satellites?: number | null
+          signal_strength?: number | null
+          speed?: number | null
+          sync_source?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          altitude?: number | null
+          created_at?: string | null
+          device_id?: string
+          heading?: number | null
+          id?: string
+          latitude?: number
+          longitude?: number
+          raw_data?: Json | null
+          recorded_at?: string
+          satellites?: number | null
+          signal_strength?: number | null
+          speed?: number | null
+          sync_source?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_position_history_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vehicle_routes: {
         Row: {

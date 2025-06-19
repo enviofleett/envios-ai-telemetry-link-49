@@ -8,6 +8,8 @@ import VehicleManagementPanel from './VehicleManagementPanel';
 import ActivityStreamPanel from './ActivityStreamPanel';
 import QuickActionsPanel from './QuickActionsPanel';
 import UserVehicleOverview from './UserVehicleOverview';
+import VehicleEventNotifications from '@/components/realtime/VehicleEventNotifications';
+import RealtimeSyncStatus from '@/components/realtime/RealtimeSyncStatus';
 
 const ProfessionalDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -22,6 +24,12 @@ const ProfessionalDashboard: React.FC = () => {
       
       {/* GPS51 Status Overview */}
       <GPS51StatusPanel />
+      
+      {/* Real-time Status and Events */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <RealtimeSyncStatus />
+        <VehicleEventNotifications maxEvents={5} />
+      </div>
       
       {/* Main Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
