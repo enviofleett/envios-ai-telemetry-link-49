@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -15,19 +14,9 @@ import SetPassword from '@/pages/SetPassword';
 import ProfessionalDashboard from '@/components/dashboard/ProfessionalDashboard';
 import EnhancedLiveTracking from '@/pages/EnhancedLiveTracking';
 import EnhancedVehicleManagement from '@/pages/EnhancedVehicleManagement';
+import UserVehicles from '@/pages/UserVehicles';
 import EnhancedUserManagement from '@/pages/EnhancedUserManagement';
 import StableAdminSettings from '@/pages/StableAdminSettings';
-import SystemImport from '@/pages/SystemImport';
-import DeviceConfiguration from '@/pages/DeviceConfiguration';
-import Maintenance from '@/pages/Maintenance';
-import WorkshopManagement from '@/pages/WorkshopManagement';
-import Marketplace from '@/pages/Marketplace';
-import Reports from '@/pages/Reports';
-import PackageManagement from '@/pages/PackageManagement';
-import ActiveServices from '@/pages/ActiveServices';
-import MerchantApplication from '@/pages/MerchantApplication';
-import AdminAnalytics from '@/pages/AdminAnalytics';
-import ReferralAgents from '@/pages/ReferralAgents';
 
 const AppRouter: React.FC = () => {
   return (
@@ -70,6 +59,16 @@ const AppRouter: React.FC = () => {
             <ProtectedRoute>
               <Layout>
                 <EnhancedVehicleManagement />
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-vehicles"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <UserVehicles />
               </Layout>
             </ProtectedRoute>
           }

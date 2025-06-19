@@ -1,334 +1,413 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useToast } from '@/hooks/use-toast';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Car, User, Search, Users, MapPin } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Search, UserPlus, Users, Car, Check, X } from 'lucide-react';
 
 interface Vehicle {
   id: string;
   gp51_device_id: string;
   name: string;
-  user_id: string | null;
-  last_position: any;
+  sim_number?: string;
+  user_id?: string;
   created_at: string;
   updated_at: string;
+  envio_users?: {
+    id: string;
+    name: string;
+    email: string;
+  };
 }
 
 interface EnvioUser {
   id: string;
   name: string;
   email: string;
+  phone_number?: string;
+  city?: string;
 }
 
 const VehicleAssignmentTab: React.FC = () => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [users, setUsers] = useState<EnvioUser[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUser, setSelectedUser] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedUser, setSelectedUser] = useState('');
+  const [selectedVehicles, setSelectedVehicles] = useState<Set<string>>(new Set());
+  const [bulkAssignmentMode, setBulkAssignmentMode] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    setIsLoading(true);
-    try {
-      // Load vehicles
-      const { data: vehiclesData, error: vehiclesError } = await supabase
+  // Fetch vehicles
+  const { data: vehicles = [], isLoading: vehiclesLoading } = useQuery({
+    queryKey: ['admin-vehicles', searchQuery],
+    queryFn: async (): Promise<Vehicle[]> => {
+      let query = supabase
         .from('vehicles')
-        .select('*')
-        .order('name');
+        .select(`
+          id,
+          gp51_device_id,
+          name,
+          sim_number,
+          user_id,
+          created_at,
+          updated_at,
+          envio_users (
+            id,
+            name,
+            email
+          )
+        `)
+        .order('name', { ascending: true });
 
-      if (vehiclesError) {
-        console.error('Error loading vehicles:', vehiclesError);
-        toast({
-          title: "Error",
-          description: "Failed to load vehicles",
-          variant: "destructive"
-        });
-        return;
+      if (searchQuery) {
+        query = query.or(`gp51_device_id.ilike.%${searchQuery}%,name.ilike.%${searchQuery}%`);
       }
 
-      // Load users
-      const { data: usersData, error: usersError } = await supabase
-        .from('envio_users')
-        .select('id, name, email')
-        .order('name');
-
-      if (usersError) {
-        console.error('Error loading users:', usersError);
-        toast({
-          title: "Error", 
-          description: "Failed to load users",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      setVehicles(vehiclesData || []);
-      setUsers(usersData || []);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load data",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAssignVehicle = async (vehicleId: string, userId: string | null) => {
-    try {
-      const { error } = await supabase
-        .from('vehicles')
-        .update({ user_id: userId, updated_at: new Date().toISOString() })
-        .eq('id', vehicleId);
-
-      if (error) {
-        console.error('Error assigning vehicle:', error);
-        toast({
-          title: "Error",
-          description: "Failed to assign vehicle",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Update local state
-      setVehicles(prev => prev.map(vehicle => 
-        vehicle.id === vehicleId 
-          ? { ...vehicle, user_id: userId, updated_at: new Date().toISOString() }
-          : vehicle
-      ));
-
-      const user = users.find(u => u.id === userId);
-      toast({
-        title: "Success",
-        description: userId 
-          ? `Vehicle assigned to ${user?.name || 'user'}` 
-          : "Vehicle unassigned"
-      });
-    } catch (error) {
-      console.error('Error assigning vehicle:', error);
-      toast({
-        title: "Error",
-        description: "Failed to assign vehicle",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const filteredVehicles = vehicles.filter(vehicle => {
-    const matchesSearch = !searchTerm || 
-      vehicle.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vehicle.gp51_device_id.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesUser = !selectedUser || vehicle.user_id === selectedUser;
-    
-    return matchesSearch && matchesUser;
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    refetchInterval: 30000,
   });
 
-  const getAssignedUser = (userId: string | null) => {
-    if (!userId) return null;
-    return users.find(user => user.id === userId);
+  // Fetch users
+  const { data: users = [], isLoading: usersLoading } = useQuery({
+    queryKey: ['envio-users'],
+    queryFn: async (): Promise<EnvioUser[]> => {
+      const { data, error } = await supabase
+        .from('envio_users')
+        .select('id, name, email, phone_number, city')
+        .order('name', { ascending: true });
+      
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Single vehicle assignment mutation
+  const assignVehicleMutation = useMutation({
+    mutationFn: async ({ vehicleId, userId }: { vehicleId: string; userId: string | null }) => {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({ user_id: userId })
+        .eq('id', vehicleId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-vehicles'] });
+      toast({
+        title: "Assignment Updated",
+        description: "Vehicle assignment has been updated successfully.",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Assignment Failed",
+        description: `Failed to update vehicle assignment: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Bulk assignment mutation
+  const bulkAssignMutation = useMutation({
+    mutationFn: async ({ vehicleIds, userId }: { vehicleIds: string[]; userId: string | null }) => {
+      const { error } = await supabase
+        .from('vehicles')
+        .update({ user_id: userId })
+        .in('id', vehicleIds);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-vehicles'] });
+      setSelectedVehicles(new Set());
+      setBulkAssignmentMode(false);
+      toast({
+        title: "Bulk Assignment Complete",
+        description: `Successfully updated assignments for ${selectedVehicles.size} vehicles.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Bulk Assignment Failed",
+        description: `Failed to update vehicle assignments: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSingleAssignment = (vehicleId: string, userId: string) => {
+    assignVehicleMutation.mutate({ vehicleId, userId: userId || null });
   };
 
-  const getVehicleStatusBadge = (vehicle: Vehicle) => {
-    if (!vehicle.last_position) {
-      return <Badge variant="secondary">No Position</Badge>;
+  const handleBulkAssignment = () => {
+    if (selectedVehicles.size === 0) {
+      toast({
+        title: "No Vehicles Selected",
+        description: "Please select at least one vehicle for bulk assignment.",
+        variant: "destructive",
+      });
+      return;
     }
-    
-    const lastUpdate = new Date(vehicle.last_position.timestamp || vehicle.updated_at);
-    const now = new Date();
-    const hoursSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60);
-    
-    if (hoursSinceUpdate < 1) {
-      return <Badge variant="default">Online</Badge>;
-    } else if (hoursSinceUpdate < 24) {
-      return <Badge variant="outline">Recent</Badge>;
+
+    if (!selectedUser) {
+      toast({
+        title: "No User Selected",
+        description: "Please select a user for bulk assignment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    bulkAssignMutation.mutate({
+      vehicleIds: Array.from(selectedVehicles),
+      userId: selectedUser,
+    });
+  };
+
+  const handleUnassignVehicle = (vehicleId: string) => {
+    assignVehicleMutation.mutate({ vehicleId, userId: null });
+  };
+
+  const handleVehicleSelection = (vehicleId: string, checked: boolean) => {
+    const newSelection = new Set(selectedVehicles);
+    if (checked) {
+      newSelection.add(vehicleId);
     } else {
-      return <Badge variant="secondary">Offline</Badge>;
+      newSelection.delete(vehicleId);
     }
+    setSelectedVehicles(newSelection);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading vehicles and users...</p>
-        </div>
-      </div>
-    );
-  }
+  const filteredVehicles = vehicles.filter(vehicle =>
+    vehicle.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    vehicle.gp51_device_id.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const unassignedVehicles = filteredVehicles.filter(v => !v.user_id);
+  const assignedVehicles = filteredVehicles.filter(v => v.user_id);
 
   return (
     <div className="space-y-6">
-      {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
-            <Car className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{vehicles.length}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Assigned</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {vehicles.filter(v => v.user_id).length}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unassigned</CardTitle>
-            <User className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {vehicles.filter(v => !v.user_id).length}
-            </div>
-          </CardContent>
-        </Card>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Vehicle Assignment</h2>
+          <p className="text-muted-foreground">
+            Assign vehicles to users and manage bulk assignments
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant={bulkAssignmentMode ? "default" : "outline"}
+            onClick={() => setBulkAssignmentMode(!bulkAssignmentMode)}
+          >
+            <Users className="h-4 w-4 mr-2" />
+            {bulkAssignmentMode ? 'Exit Bulk Mode' : 'Bulk Assignment'}
+          </Button>
+        </div>
       </div>
 
-      {/* Filters */}
+      {/* Search and Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Vehicle Assignment Management</CardTitle>
-          <CardDescription>
-            Assign vehicles to users and manage vehicle-user relationships
-          </CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="h-5 w-5" />
+            Search & Filter
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
+        <CardContent className="space-y-4">
+          <div className="flex gap-4">
             <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search vehicles by name or device ID..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
+              <Label htmlFor="search">Search Vehicles</Label>
+              <Input
+                id="search"
+                placeholder="Search by device ID or name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Bulk Assignment Controls */}
+          {bulkAssignmentMode && (
+            <div className="border-t pt-4">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <Label htmlFor="bulk-user">Assign Selected Vehicles To</Label>
+                  <Select value={selectedUser} onValueChange={setSelectedUser}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a user..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Unassign</SelectItem>
+                      {users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name} ({user.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2 items-end">
+                  <Button
+                    onClick={handleBulkAssignment}
+                    disabled={selectedVehicles.size === 0 || bulkAssignMutation.isPending}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Assign {selectedVehicles.size} Vehicle{selectedVehicles.size !== 1 ? 's' : ''}
+                  </Button>
+                </div>
               </div>
             </div>
-            
-            <Select value={selectedUser} onValueChange={setSelectedUser}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Filter by user" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">All Users</SelectItem>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
-                {users.map(user => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          )}
         </CardContent>
       </Card>
 
+      {/* Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Total Vehicles</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{filteredVehicles.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Assigned</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{assignedVehicles.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Unassigned</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{unassignedVehicles.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Vehicle List */}
-      <div className="grid gap-4">
-        {filteredVehicles.length === 0 ? (
-          <Card>
-            <CardContent className="flex items-center justify-center py-8">
-              <div className="text-center">
-                <Car className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium mb-2">No vehicles found</h3>
-                <p className="text-muted-foreground">
-                  {vehicles.length === 0 
-                    ? "No vehicles have been synced from GP51 yet. Run a data sync first."
-                    : "No vehicles match your current filters."
-                  }
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        ) : (
-          filteredVehicles.map(vehicle => {
-            const assignedUser = getAssignedUser(vehicle.user_id);
-            
-            return (
-              <Card key={vehicle.id}>
-                <CardContent className="p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Car className="h-5 w-5 text-muted-foreground" />
-                        <h3 className="font-semibold">{vehicle.name}</h3>
-                        {getVehicleStatusBadge(vehicle)}
-                      </div>
-                      
-                      <div className="text-sm text-muted-foreground space-y-1">
-                        <p>Device ID: {vehicle.gp51_device_id}</p>
-                        {vehicle.last_position && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            <span>
-                              {vehicle.last_position.latitude?.toFixed(6)}, {vehicle.last_position.longitude?.toFixed(6)}
-                            </span>
-                          </div>
-                        )}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Car className="h-5 w-5" />
+            Vehicles
+            {bulkAssignmentMode && selectedVehicles.size > 0 && (
+              <Badge variant="secondary">
+                {selectedVehicles.size} selected
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            {bulkAssignmentMode ? 'Select vehicles for bulk assignment' : 'Manage individual vehicle assignments'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {vehiclesLoading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading vehicles...</p>
+            </div>
+          ) : filteredVehicles.length === 0 ? (
+            <div className="text-center py-8">
+              <Car className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No vehicles found</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredVehicles.map((vehicle) => (
+                <div
+                  key={vehicle.id}
+                  className={`border rounded-lg p-4 ${
+                    selectedVehicles.has(vehicle.id) ? 'border-primary bg-primary/5' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {bulkAssignmentMode && (
+                        <Checkbox
+                          checked={selectedVehicles.has(vehicle.id)}
+                          onCheckedChange={(checked) =>
+                            handleVehicleSelection(vehicle.id, checked as boolean)
+                          }
+                        />
+                      )}
+                      <div>
+                        <h4 className="font-semibold">{vehicle.name}</h4>
+                        <p className="text-sm text-muted-foreground">
+                          {vehicle.gp51_device_id}
+                          {vehicle.sim_number && ` • SIM: ${vehicle.sim_number}`}
+                        </p>
                       </div>
                     </div>
-                    
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-                      {assignedUser ? (
+
+                    <div className="flex items-center gap-3">
+                      {vehicle.envio_users ? (
                         <div className="text-right">
-                          <p className="font-medium">{assignedUser.name}</p>
-                          <p className="text-sm text-muted-foreground">{assignedUser.email}</p>
+                          <Badge variant="default">Assigned</Badge>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            {vehicle.envio_users.name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {vehicle.envio_users.email}
+                          </p>
                         </div>
                       ) : (
-                        <Badge variant="outline">Unassigned</Badge>
+                        <Badge variant="secondary">Unassigned</Badge>
                       )}
-                      
-                      <Select
-                        value={vehicle.user_id || ""}
-                        onValueChange={(value) => handleAssignVehicle(vehicle.id, value || null)}
-                      >
-                        <SelectTrigger className="w-full sm:w-48">
-                          <SelectValue placeholder="Assign to user" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">Unassign</SelectItem>
-                          {users.map(user => (
-                            <SelectItem key={user.id} value={user.id}>
-                              {user.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+
+                      {!bulkAssignmentMode && (
+                        <div className="flex gap-2">
+                          {vehicle.envio_users ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleUnassignVehicle(vehicle.id)}
+                              disabled={assignVehicleMutation.isPending}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          ) : (
+                            <Select
+                              value=""
+                              onValueChange={(userId) => handleSingleAssignment(vehicle.id, userId)}
+                            >
+                              <SelectTrigger className="w-40">
+                                <SelectValue placeholder="Assign to..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {users.map((user) => (
+                                  <SelectItem key={user.id} value={user.id}>
+                                    {user.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

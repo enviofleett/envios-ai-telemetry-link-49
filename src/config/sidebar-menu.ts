@@ -1,167 +1,158 @@
 
 import {
-  BarChart3,
-  Calendar,
-  Car,
-  Home,
-  Settings,
-  Wrench,
-  Map,
+  LayoutDashboard,
   Users,
-  Bell,
+  Car,
+  MapPin,
+  BarChart3,
+  Settings,
+  FileText,
+  Package,
+  Wrench,
   ShoppingCart,
-  Building2,
+  Activity,
+  UserPlus,
+  Navigation,
   CreditCard,
-  LucideIcon,
-  Store,
-  User,
-  Hash,
-  DollarSign,
+  UserCheck,
+  TrendingUp
 } from "lucide-react"
 
 export interface MenuItem {
-  title: string;
-  url: string;
-  icon: LucideIcon;
-  featureId?: string;
-}
-
-export interface QuickAction {
-  title: string;
-  icon: LucideIcon;
-  url?: string;
-  action?: () => void;
+  title: string
+  url: string
+  icon: any
+  featureId?: string
 }
 
 export const menuItems: MenuItem[] = [
   {
     title: "Dashboard",
     url: "/",
-    icon: Home,
+    icon: LayoutDashboard,
   },
   {
-    title: "Vehicles",
+    title: "Live Tracking",
+    url: "/tracking",
+    icon: MapPin,
+    featureId: "live_tracking"
+  },
+  {
+    title: "Fleet Management",
     url: "/vehicles",
     icon: Car,
-    featureId: "vehicle_management",
+    featureId: "vehicle_management"
   },
   {
-    title: "Active Services",
-    url: "/services",
-    icon: CreditCard,
-    featureId: "active_services",
+    title: "My Vehicles",
+    url: "/my-vehicles",
+    icon: Navigation,
+    featureId: "vehicle_access"
+  },
+  {
+    title: "User Management",
+    url: "/users",
+    icon: Users,
+    featureId: "user_management"
+  },
+  {
+    title: "Reports",
+    url: "/reports",
+    icon: FileText,
+    featureId: "reporting"
   },
   {
     title: "Maintenance",
     url: "/maintenance",
     icon: Wrench,
-    featureId: "maintenance",
+    featureId: "maintenance"
   },
   {
     title: "Workshop Management",
     url: "/workshop-management",
-    icon: Building2,
-    featureId: "workshop_management",
-  },
-  {
-    title: "Reports",
-    url: "/reports",
-    icon: BarChart3,
-    featureId: "fleet_reports",
-  },
-  {
-    title: "Tracking",
-    url: "/tracking",
-    icon: Map,
-    featureId: "tracking",
+    icon: Wrench,
+    featureId: "workshop_management"
   },
   {
     title: "Marketplace",
     url: "/marketplace",
     icon: ShoppingCart,
-    featureId: "marketplace",
+    featureId: "marketplace"
   },
   {
-    title: "Become a Merchant",
-    url: "/merchant-application",
-    icon: Store,
+    title: "Package Management",
+    url: "/packages",
+    icon: Package,
+    featureId: "package_management"
   },
   {
-    title: "Users",
-    url: "/users",
+    title: "Active Services",
+    url: "/services",
+    icon: Activity,
+    featureId: "service_management"
+  },
+  {
+    title: "System Import",
+    url: "/system-import",
     icon: Users,
+    featureId: "system_import"
   },
   {
-    title: "Referral Agents",
-    url: "/referral-agents",
-    icon: Users,
-    featureId: "referral_management",
+    title: "Device Configuration",
+    url: "/device-configuration",
+    icon: Settings,
+    featureId: "device_config"
   },
   {
-    title: "Market Analytics",
+    title: "Analytics",
     url: "/admin/analytics",
     icon: BarChart3,
-    featureId: "admin_analytics",
+    featureId: "analytics"
   },
   {
     title: "Settings",
     url: "/settings",
     icon: Settings,
-  },
+  }
 ]
 
 export const agentMenuItems: MenuItem[] = [
   {
     title: "Dashboard",
-    url: "/agent/dashboard",
-    icon: Home,
+    url: "/",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Referral Management",
+    url: "/referral-agents",
+    icon: UserPlus,
   },
   {
     title: "Analytics",
-    url: "/agent/analytics",
-    icon: BarChart3,
+    url: "/admin/analytics",
+    icon: TrendingUp,
   },
   {
-    title: "Referral Codes",
-    url: "/agent/referral-codes",
-    icon: Hash,
-  },
-  {
-    title: "Referred Users",
-    url: "/agent/referred-users",
-    icon: Users,
-  },
-  {
-    title: "Commissions",
-    url: "/agent/commissions",
+    title: "Merchant Application",
+    url: "/merchant-application",
     icon: CreditCard,
-  },
-  {
-    title: "Payouts",
-    url: "/agent/payouts",
-    icon: DollarSign,
-  },
-  {
-    title: "Profile",
-    url: "/agent/profile",
-    icon: User,
-  },
-];
+  }
+]
 
-export const quickActions: QuickAction[] = [
+export const quickActions = [
   {
-    title: "Schedule Maintenance",
-    icon: Calendar,
-    url: "/maintenance"
+    title: "Add User",
+    url: "/users?action=add",
+    icon: UserPlus,
   },
   {
-    title: "Add Vehicle",
-    icon: Car,
-    url: "/vehicles"
+    title: "View Reports",
+    url: "/reports",
+    icon: FileText,
   },
   {
-    title: "View Alerts",
-    icon: Bell,
-    action: () => console.log('View alerts')
-  },
+    title: "System Health",
+    url: "/settings?tab=health",
+    icon: Activity,
+  }
 ]

@@ -7,12 +7,12 @@ import GPS51StatusPanel from './GPS51StatusPanel';
 import VehicleManagementPanel from './VehicleManagementPanel';
 import ActivityStreamPanel from './ActivityStreamPanel';
 import QuickActionsPanel from './QuickActionsPanel';
+import UserVehicleOverview from './UserVehicleOverview';
 
 const ProfessionalDashboard: React.FC = () => {
   const { user } = useAuth();
 
   if (!user) {
-    // FIX: Changed from /auth to /login to match our routing
     return <Navigate to="/login" replace />;
   }
 
@@ -26,8 +26,9 @@ const ProfessionalDashboard: React.FC = () => {
       {/* Main Dashboard Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Vehicle Management - Takes up 2 columns on large screens */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <VehicleManagementPanel />
+          <UserVehicleOverview />
         </div>
         
         {/* Quick Actions & Activity - Takes up 1 column */}
