@@ -2,27 +2,12 @@
 import React from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useIsMobile } from "@/hooks/use-mobile"
-import {
-  BarChart3,
-  Car,
-  Home,
-  LayoutDashboard,
-  LogOut,
-  Map,
-  FileText,
-  TrendingUp,
-  Users,
-  Settings,
-  Activity
-} from "lucide-react"
+import { Activity, LogOut } from "lucide-react"
 
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -31,63 +16,12 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { useLocation, useNavigate } from "react-router-dom"
-
-const menuItems = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: Home,
-    description: "Overview and metrics"
-  },
-  {
-    title: "Professional Dashboard",
-    url: "/dashboard",
-    icon: LayoutDashboard,
-    description: "Advanced dashboard"
-  },
-  {
-    title: "Vehicle Management",
-    url: "/vehicles",
-    icon: Car,
-    description: "Manage your fleet"
-  },
-  {
-    title: "Live Tracking",
-    url: "/tracking",
-    icon: Map,
-    description: "Real-time vehicle tracking"
-  },
-  {
-    title: "Reports",
-    url: "/reports",
-    icon: FileText,
-    description: "Generate reports"
-  },
-  {
-    title: "Settings",
-    url: "/settings",
-    icon: Settings,
-    description: "Application settings"
-  }
-]
-
-const analyticsItems = [
-  {
-    title: "My Analytics",
-    url: "/analytics",
-    icon: TrendingUp,
-    description: "Personal vehicle analytics"
-  },
-  {
-    title: "Fleet Analytics",
-    url: "/fleet-analytics",
-    icon: BarChart3,
-    description: "Fleet performance metrics"
-  }
-]
+import { AppSidebarNavigation } from "./sidebar/AppSidebarNavigation"
+import { AppSidebarQuickActions } from "./sidebar/AppSidebarQuickActions"
+import { menuItems, agentMenuItems } from "@/config/sidebar-menu"
 
 export function AppSidebar() {
-  const { user, signOut } = useAuth()
+  const { user, isAdmin, isAgent, signOut, loading, isCheckingRole } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const isMobile = useIsMobile()
@@ -106,6 +40,48 @@ export function AppSidebar() {
     return null;
   }
 
+  // Show loading state while checking roles
+  if (loading || isCheckingRole) {
+    return (
+      <Sidebar>
+        <SidebarHeader className="border-b border-sidebar-border">
+          <div className="flex items-center gap-2 px-4 py-2">
+            <Activity className="h-6 w-6 text-primary" />
+            <div className="grid flex-1 text-left text-sm leading-tight">
+              <span className="truncate font-semibold">Envio Fleet</span>
+              <span className="truncate text-xs text-sidebar-foreground/70">
+                GPS51 Management
+              </span>
+            </div>
+          </div>
+        </SidebarHeader>
+        <SidebarContent>
+          <div className="flex items-center justify-center p-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+          </div>
+        </SidebarContent>
+      </Sidebar>
+    );
+  }
+
+  // Determine which menu items to show based on user role
+  const getMenuItems = () => {
+    if (isAdmin) {
+      return menuItems; // Full admin menu
+    } else if (isAgent) {
+      return agentMenuItems; // Agent-specific menu
+    } else {
+      // Regular user menu (filtered by features)
+      return menuItems.filter(item => !item.featureId || [
+        'live_tracking',
+        'vehicle_access',
+        'reporting'
+      ].includes(item.featureId));
+    }
+  };
+
+  const currentMenuItems = getMenuItems();
+
   return (
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border">
@@ -121,49 +97,10 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Main Navigation</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname === item.url}
-                    tooltip={item.description}
-                  >
-                    <a href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Analytics</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {analyticsItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname === item.url}
-                    tooltip={item.description}
-                  >
-                    <a href={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </a>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <AppSidebarNavigation menuItems={currentMenuItems} />
+        
+        {/* Show quick actions for admin users */}
+        {isAdmin && <AppSidebarQuickActions />}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
@@ -175,7 +112,9 @@ export function AppSidebar() {
               </div>
               <div className="grid flex-1 text-left text-xs leading-tight">
                 <span className="truncate font-medium">{user?.email}</span>
-                <span className="truncate text-sidebar-foreground/70">User</span>
+                <span className="truncate text-sidebar-foreground/70">
+                  {isAdmin ? 'Admin' : isAgent ? 'Agent' : 'User'}
+                </span>
               </div>
             </div>
           </SidebarMenuItem>
