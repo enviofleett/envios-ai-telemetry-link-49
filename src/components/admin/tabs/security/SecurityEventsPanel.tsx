@@ -7,12 +7,12 @@ interface SecurityEventsPanelProps {
   refreshToken?: number;
 }
 
-const formatDate = (timestamp: string) => {
+const formatDate = (timestamp: number | string) => {
   try {
     const d = new Date(timestamp);
     return d.toLocaleString();
   } catch {
-    return timestamp;
+    return String(timestamp);
   }
 };
 
@@ -24,7 +24,7 @@ const SecurityEventsPanel: React.FC<SecurityEventsPanelProps> = ({
 
   const sortedEvents = useMemo(() =>
     [...securityEvents].sort(
-      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      (a, b) => Number(b.timestamp) - Number(a.timestamp)
     ),
     [securityEvents, refreshToken]
   );
@@ -50,9 +50,9 @@ const SecurityEventsPanel: React.FC<SecurityEventsPanelProps> = ({
             </thead>
             <tbody>
               {sortedEvents.map((ev, ix) => (
-                <tr key={ix} className="border-b hover:bg-accent/30">
+                <tr key={String(ev.id)} className="border-b hover:bg-accent/30">
                   <td className="p-2">{formatDate(ev.timestamp)}</td>
-                  <td className="p-2 capitalize">{ev.type.replace("_", " ")}</td>
+                  <td className="p-2 capitalize">{ev.type.replace(/_/g, " ")}</td>
                   <td className="p-2">
                     <span
                       className={
@@ -68,7 +68,7 @@ const SecurityEventsPanel: React.FC<SecurityEventsPanelProps> = ({
                       {ev.severity}
                     </span>
                   </td>
-                  <td className="p-2">{ev.description}</td>
+                  <td className="p-2">{ev.description || 'Security event'}</td>
                   <td className="p-2 text-right">
                     {onViewDetails && (
                       <button

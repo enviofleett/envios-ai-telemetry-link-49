@@ -1,14 +1,17 @@
+
 import { z } from 'zod';
 
 export interface SecurityEvent {
   id: string;
-  type: 'login_attempt' | 'rate_limit_exceeded' | 'invalid_input' | 'authentication_success' | 'authentication_failure' | 'permission_denied' | 'suspicious_activity';
+  type: 'login_attempt' | 'rate_limit_exceeded' | 'invalid_input' | 'authentication_success' | 'authentication_failure' | 'permission_denied' | 'suspicious_activity' | 'rate_limit' | 'authentication' | 'input_validation' | 'authorization';
   userId?: string;
   userAgent?: string;
   ipAddress?: string;
   details: Record<string, any>;
   timestamp: number;
   severity: 'low' | 'medium' | 'high' | 'critical';
+  description?: string;
+  additionalData?: Record<string, any>;
 }
 
 export interface ValidationResult {
@@ -117,7 +120,7 @@ export class SecurityService {
   }
 
   // Rate limiting implementation
-  static checkRateLimit(identifier: string): RateLimitResult {
+  static checkRateLimit(identifier: string, context?: string): RateLimitResult {
     const now = Date.now();
     const tracking = this.attemptTracking.get(identifier);
 
