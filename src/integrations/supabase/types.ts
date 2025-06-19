@@ -5957,6 +5957,33 @@ export type Database = {
         }
         Relationships: []
       }
+      realtime_connections: {
+        Row: {
+          connection_id: string
+          created_at: string | null
+          id: string
+          last_ping: string | null
+          user_id: string | null
+          vehicle_filters: Json | null
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string | null
+          id?: string
+          last_ping?: string | null
+          user_id?: string | null
+          vehicle_filters?: Json | null
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string | null
+          id?: string
+          last_ping?: string | null
+          user_id?: string | null
+          vehicle_filters?: Json | null
+        }
+        Relationships: []
+      }
       referral_agent_subscriptions: {
         Row: {
           agent_id: string
@@ -8090,6 +8117,59 @@ export type Database = {
           },
         ]
       }
+      vehicle_positions: {
+        Row: {
+          accuracy: number | null
+          altitude: number | null
+          created_at: string | null
+          device_id: string
+          heading: number | null
+          id: string
+          latitude: number
+          longitude: number
+          raw_data: Json | null
+          speed: number | null
+          timestamp: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          accuracy?: number | null
+          altitude?: number | null
+          created_at?: string | null
+          device_id: string
+          heading?: number | null
+          id?: string
+          latitude: number
+          longitude: number
+          raw_data?: Json | null
+          speed?: number | null
+          timestamp: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          accuracy?: number | null
+          altitude?: number | null
+          created_at?: string | null
+          device_id?: string
+          heading?: number | null
+          id?: string
+          latitude?: number
+          longitude?: number
+          raw_data?: Json | null
+          speed?: number | null
+          timestamp?: string
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_positions_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vehicle_routes: {
         Row: {
           avg_speed: number | null
@@ -8242,6 +8322,50 @@ export type Database = {
           vehicle_id?: string | null
         }
         Relationships: []
+      }
+      vehicle_trails: {
+        Row: {
+          created_at: string | null
+          device_id: string
+          end_time: string
+          id: string
+          start_time: string
+          total_distance: number | null
+          total_duration_minutes: number | null
+          trail_points: Json
+          vehicle_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_id: string
+          end_time: string
+          id?: string
+          start_time: string
+          total_distance?: number | null
+          total_duration_minutes?: number | null
+          trail_points: Json
+          vehicle_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          device_id?: string
+          end_time?: string
+          id?: string
+          start_time?: string
+          total_distance?: number | null
+          total_duration_minutes?: number | null
+          trail_points?: Json
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicle_trails_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       vehicles: {
         Row: {
@@ -9668,6 +9792,10 @@ export type Database = {
       cleanup_expired_sessions: {
         Args: Record<PropertyKey, never>
         Returns: number
+      }
+      cleanup_old_vehicle_positions: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       create_incremental_backup: {
         Args: {
