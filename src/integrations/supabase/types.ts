@@ -2543,6 +2543,51 @@ export type Database = {
           },
         ]
       }
+      geofence_notification_preferences: {
+        Row: {
+          created_at: string | null
+          geofence_id: string | null
+          id: string
+          is_enabled: boolean | null
+          notification_type: string
+          recipient_contact: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          geofence_id?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          notification_type: string
+          recipient_contact: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          geofence_id?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          notification_type?: string
+          recipient_contact?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "geofence_notification_preferences_geofence_id_fkey"
+            columns: ["geofence_id"]
+            isOneToOne: false
+            referencedRelation: "geofences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "geofence_notification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       geofences: {
         Row: {
           alert_on_enter: boolean | null
