@@ -6,7 +6,7 @@ import NetworkErrorBoundary from '@/components/error/NetworkErrorBoundary';
 
 interface SecurityContextType {
   securityEvents: SecurityEvent[];
-  logSecurityEvent: (event: Omit<SecurityEvent, 'timestamp'>) => void;
+  logSecurityEvent: (event: Omit<SecurityEvent, 'id' | 'timestamp'>) => void;
   validateInput: typeof SecurityService.validateInput;
   checkRateLimit: typeof SecurityService.checkRateLimit;
   hasPermission: typeof SecurityService.hasPermission;
@@ -44,7 +44,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
     };
   }, []);
 
-  const logSecurityEvent = (event: Omit<SecurityEvent, 'timestamp'>) => {
+  const logSecurityEvent = (event: Omit<SecurityEvent, 'id' | 'timestamp'>) => {
     SecurityService.logSecurityEvent(event);
     
     // Update local state
