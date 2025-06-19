@@ -25,6 +25,13 @@ export interface MenuItem {
   featureId?: string
 }
 
+export interface QuickAction {
+  title: string
+  url?: string
+  icon: any
+  action?: () => void
+}
+
 export const menuItems: MenuItem[] = [
   {
     title: "Dashboard",
@@ -139,7 +146,7 @@ export const agentMenuItems: MenuItem[] = [
   }
 ]
 
-export const quickActions = [
+export const quickActions: QuickAction[] = [
   {
     title: "Add User",
     url: "/users?action=add",

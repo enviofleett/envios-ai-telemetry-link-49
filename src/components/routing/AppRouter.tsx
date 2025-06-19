@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -17,6 +18,19 @@ import EnhancedVehicleManagement from '@/pages/EnhancedVehicleManagement';
 import UserVehicles from '@/pages/UserVehicles';
 import EnhancedUserManagement from '@/pages/EnhancedUserManagement';
 import StableAdminSettings from '@/pages/StableAdminSettings';
+
+// Additional pages
+import SystemImport from '@/pages/SystemImport';
+import DeviceConfiguration from '@/pages/DeviceConfiguration';
+import Maintenance from '@/pages/Maintenance';
+import WorkshopManagement from '@/pages/WorkshopManagement';
+import Marketplace from '@/pages/Marketplace';
+import Reports from '@/pages/Reports';
+import AdminAnalytics from '@/pages/AdminAnalytics';
+import PackageManagement from '@/pages/PackageManagement';
+import ActiveServices from '@/pages/ActiveServices';
+import MerchantApplication from '@/pages/MerchantApplication';
+import ReferralAgents from '@/pages/ReferralAgents';
 
 const AppRouter: React.FC = () => {
   return (
