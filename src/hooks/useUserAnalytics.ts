@@ -9,6 +9,7 @@ export const useUserAnalytics = (userId: string) => {
     queryFn: () => userAnalyticsService.getUserVehicleAnalytics(userId),
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
     retry: 2,
+    enabled: !!userId, // Only run query if userId is provided
   });
 };
 

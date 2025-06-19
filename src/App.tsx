@@ -19,6 +19,7 @@ import EnhancedLiveTracking from "@/pages/EnhancedLiveTracking";
 import Reports from "@/pages/Reports";
 import UserAnalytics from "@/pages/UserAnalytics";
 import FleetAnalytics from "@/pages/FleetAnalytics";
+import Settings from "@/pages/Settings";
 import MobileDashboard from "@/components/mobile/MobileDashboard";
 
 // Auth Pages
@@ -117,6 +118,14 @@ const App = () => {
                   <ProtectedRoute>
                     <Layout>
                       <FleetAnalytics />
+                    </Layout>
+                  </ProtectedRoute>
+                } />
+                
+                <Route path="/settings" element={
+                  <ProtectedRoute>
+                    <Layout>
+                      <Settings />
                     </Layout>
                   </ProtectedRoute>
                 } />

@@ -53,6 +53,7 @@ class UserAnalyticsService {
   private static instance: UserAnalyticsService;
   private cache: Map<string, { data: any; timestamp: number }> = new Map();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private activeSubscriptions: Map<string, any> = new Map();
 
   static getInstance(): UserAnalyticsService {
     if (!UserAnalyticsService.instance) {
@@ -226,8 +227,24 @@ class UserAnalyticsService {
     }));
   }
 
+  // Clean up subscriptions method
+  cleanupSubscriptions(): void {
+    this.activeSubscriptions.forEach((subscription, key) => {
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
+    });
+    this.activeSubscriptions.clear();
+  }
+
   clearCache(): void {
     this.cache.clear();
+  }
+
+  // Cleanup method for the singleton
+  destroy(): void {
+    this.cleanupSubscriptions();
+    this.clearCache();
   }
 }
 

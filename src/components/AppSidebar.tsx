@@ -62,6 +62,12 @@ const menuItems = [
     url: "/reports",
     icon: FileText,
     description: "Generate reports"
+  },
+  {
+    title: "Settings",
+    url: "/settings",
+    icon: Settings,
+    description: "Application settings"
   }
 ]
 
