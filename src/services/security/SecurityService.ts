@@ -1,203 +1,231 @@
-import { createHash } from 'crypto';
 
-export interface ValidationResult {
-  isValid: boolean;
-  error?: string;
-  sanitizedValue?: string;
-}
+import { z } from 'zod';
 
-export interface SecurityConfig {
-  maxRequestsPerMinute: number;
-  maxRequestsPerHour: number;
-  enableAuditLogging: boolean;
-  enableThreatDetection: boolean;
-  credentialRotationInterval: number;
-}
-
-export interface SecurityEvent {
-  type: 'authentication' | 'authorization' | 'input_validation' | 'rate_limit' | 'suspicious_activity';
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  description: string;
-  userId?: string;
-  ipAddress?: string;
-  userAgent?: string;
-  additionalData?: Record<string, any>;
-  timestamp: string;
-}
-
+// Enhanced security service with comprehensive validation and protection
 export class SecurityService {
   private static readonly MAX_ATTEMPTS = 5;
   private static readonly ATTEMPT_WINDOW = 15 * 60 * 1000; // 15 minutes
-  private static attemptTracking = new Map<string, { count: number; firstAttempt: number }>();
-  private static securityEvents: SecurityEvent[] = [];
-  private static config: SecurityConfig = {
-    maxRequestsPerMinute: 60,
-    maxRequestsPerHour: 1000,
-    enableAuditLogging: true,
-    enableThreatDetection: true,
-    credentialRotationInterval: 24 * 60 * 60 * 1000 // 24 hours
-  };
+  private static readonly SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours
+  private static attemptTracking = new Map<string, { count: number; firstAttempt: number; blocked: boolean }>();
 
-  // Enhanced input validation with context-aware rules
-  static validateInput(
-    input: string, 
-    type: 'username' | 'email' | 'deviceId' | 'imei' | 'text' | 'gp51_token' | 'api_endpoint' | 'json_payload',
-    context?: { operation?: string; userRole?: string }
-  ): ValidationResult {
+  // Secure password hashing using Web Crypto API
+  static async secureHash(password: string): Promise<string> {
+    try {
+      // Generate random salt
+      const salt = crypto.getRandomValues(new Uint8Array(32));
+      const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      // Hash password with salt using PBKDF2
+      const encoder = new TextEncoder();
+      const passwordData = encoder.encode(password + saltHex);
+      
+      const key = await crypto.subtle.importKey(
+        'raw',
+        passwordData,
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits']
+      );
+      
+      const derivedBits = await crypto.subtle.deriveBits(
+        {
+          name: 'PBKDF2',
+          salt: salt,
+          iterations: 100000,
+          hash: 'SHA-256'
+        },
+        key,
+        256
+      );
+      
+      const hashArray = Array.from(new Uint8Array(derivedBits));
+      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      return `pbkdf2:100000:${saltHex}:${hashHex}`;
+    } catch (error) {
+      console.error('Secure hashing failed:', error);
+      throw new Error('Password hashing failed');
+    }
+  }
+
+  static async verifyHash(password: string, storedHash: string): Promise<boolean> {
+    try {
+      const parts = storedHash.split(':');
+      if (parts.length !== 4 || parts[0] !== 'pbkdf2') {
+        return false;
+      }
+      
+      const [, iterations, saltHex, hashHex] = parts;
+      const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map(byte => parseInt(byte, 16)));
+      
+      const encoder = new TextEncoder();
+      const passwordData = encoder.encode(password + saltHex);
+      
+      const key = await crypto.subtle.importKey(
+        'raw',
+        passwordData,
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits']
+      );
+      
+      const derivedBits = await crypto.subtle.deriveBits(
+        {
+          name: 'PBKDF2',
+          salt: salt,
+          iterations: parseInt(iterations),
+          hash: 'SHA-256'
+        },
+        key,
+        256
+      );
+      
+      const hashArray = Array.from(new Uint8Array(derivedBits));
+      const computedHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      return computedHash === hashHex;
+    } catch (error) {
+      console.error('Hash verification failed:', error);
+      return false;
+    }
+  }
+
+  // Enhanced input validation with comprehensive security checks
+  static validateInput(input: string, type: 'username' | 'email' | 'deviceId' | 'imei' | 'text' | 'password'): { isValid: boolean; error?: string; sanitized?: string } {
     if (!input || typeof input !== 'string') {
       return { isValid: false, error: 'Input is required and must be a string' };
     }
 
-    // Enhanced SQL injection patterns
+    // Remove potentially dangerous characters
+    const sanitized = input
+      .trim()
+      .replace(/[<>]/g, '') // Remove HTML tags
+      .replace(/javascript:/gi, '') // Remove javascript: protocol
+      .replace(/on\w+=/gi, '') // Remove event handlers
+      .replace(/data:/gi, '') // Remove data: protocol
+      .slice(0, 1000); // Limit length
+
+    // Advanced SQL injection patterns
     const sqlInjectionPatterns = [
       /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|EXECUTE|UNION|JOIN)\b)/i,
       /(--|\#|\/\*|\*\/|;)/,
       /(\bOR\b.*=.*\bOR\b)/i,
       /(\bAND\b.*=.*\bAND\b)/i,
-      /(\'|\";?|\b(UNION|JOIN)\b)/i,
-      /(\bxp_cmdshell\b|\bsp_executesql\b)/i,
-      /(\bhex\(|\bunhex\(|\bchar\()/i
+      /(\'|\";?)/,
+      /(\bxp_|sp_|fn_)/i, // SQL Server system procedures
+      /(\binformation_schema|mysql|pg_|sys\.)/i, // Database system tables
     ];
 
-    // XSS patterns
-    const xssPatterns = [
-      /<script[^>]*>.*?<\/script>/gi,
-      /<iframe[^>]*>.*?<\/iframe>/gi,
-      /javascript:/gi,
-      /on\w+\s*=/gi,
-      /<img[^>]*src\s*=\s*["']javascript:/gi
-    ];
-
-    // Check for malicious patterns
-    for (const pattern of [...sqlInjectionPatterns, ...xssPatterns]) {
-      if (pattern.test(input)) {
-        this.logSecurityEvent({
-          type: 'input_validation',
-          severity: 'high',
-          description: `Malicious pattern detected in ${type} input`,
-          additionalData: { inputType: type, pattern: pattern.source, context }
-        });
+    for (const pattern of sqlInjectionPatterns) {
+      if (pattern.test(sanitized)) {
         return { isValid: false, error: 'Invalid characters detected' };
       }
     }
 
-    // Type-specific validation with enhanced rules
-    const sanitizedValue = this.sanitizeInput(input, type);
-    
-    switch (type) {
-      case 'username':
-        if (input.length < 3 || input.length > 50) {
-          return { isValid: false, error: 'Username must be 3-50 characters' };
-        }
-        if (!/^[a-zA-Z0-9_.-]+$/.test(input)) {
-          return { isValid: false, error: 'Username contains invalid characters' };
-        }
-        break;
-      
-      case 'email':
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(input) || input.length > 254) {
-          return { isValid: false, error: 'Invalid email format' };
-        }
-        break;
-      
-      case 'deviceId':
-        if (input.length < 5 || input.length > 20) {
-          return { isValid: false, error: 'Device ID must be 5-20 characters' };
-        }
-        if (!/^[a-zA-Z0-9_-]+$/.test(input)) {
-          return { isValid: false, error: 'Device ID contains invalid characters' };
-        }
-        break;
-      
-      case 'imei':
-        if (!/^\d{15}$/.test(input)) {
-          return { isValid: false, error: 'IMEI must be exactly 15 digits' };
-        }
-        if (!this.validateLuhnAlgorithm(input)) {
-          return { isValid: false, error: 'Invalid IMEI checksum' };
-        }
-        break;
+    // XSS prevention patterns
+    const xssPatterns = [
+      /<script[^>]*>.*?<\/script>/gi,
+      /<iframe[^>]*>.*?<\/iframe>/gi,
+      /<object[^>]*>.*?<\/object>/gi,
+      /<embed[^>]*>/gi,
+      /javascript:/gi,
+      /vbscript:/gi,
+      /onload=/gi,
+      /onerror=/gi,
+    ];
 
-      case 'gp51_token':
-        if (input.length < 10 || input.length > 500) {
-          return { isValid: false, error: 'Invalid GP51 token format' };
-        }
-        if (!/^[a-zA-Z0-9+/=_-]+$/.test(input)) {
-          return { isValid: false, error: 'GP51 token contains invalid characters' };
-        }
-        break;
-
-      case 'api_endpoint':
-        try {
-          const url = new URL(input);
-          if (!['http:', 'https:'].includes(url.protocol)) {
-            return { isValid: false, error: 'Invalid protocol' };
-          }
-        } catch {
-          return { isValid: false, error: 'Invalid URL format' };
-        }
-        break;
-
-      case 'json_payload':
-        try {
-          JSON.parse(input);
-        } catch {
-          return { isValid: false, error: 'Invalid JSON format' };
-        }
-        break;
-      
-      case 'text':
-        if (input.length > 2000) {
-          return { isValid: false, error: 'Text input too long (max 2000 characters)' };
-        }
-        break;
+    for (const pattern of xssPatterns) {
+      if (pattern.test(sanitized)) {
+        return { isValid: false, error: 'Potentially unsafe content detected' };
+      }
     }
 
-    return { isValid: true, sanitizedValue };
+    // Type-specific validation with Zod schemas
+    try {
+      switch (type) {
+        case 'username':
+          z.string().min(3).max(50).regex(/^[a-zA-Z0-9_-]+$/).parse(sanitized);
+          break;
+        
+        case 'email':
+          z.string().email().max(254).parse(sanitized);
+          break;
+        
+        case 'deviceId':
+          z.string().min(5).max(20).regex(/^[a-zA-Z0-9]+$/).parse(sanitized);
+          break;
+        
+        case 'imei':
+          z.string().regex(/^\d{15}$/).parse(sanitized);
+          // Validate IMEI checksum
+          if (!this.validateLuhnAlgorithm(sanitized)) {
+            return { isValid: false, error: 'Invalid IMEI checksum' };
+          }
+          break;
+        
+        case 'password':
+          z.string().min(8).max(128).parse(sanitized);
+          // Additional password strength validation
+          if (!/(?=.*[a-z])/.test(sanitized)) {
+            return { isValid: false, error: 'Password must contain lowercase letters' };
+          }
+          if (!/(?=.*[A-Z])/.test(sanitized)) {
+            return { isValid: false, error: 'Password must contain uppercase letters' };
+          }
+          if (!/(?=.*\d)/.test(sanitized)) {
+            return { isValid: false, error: 'Password must contain numbers' };
+          }
+          if (!/(?=.*[!@#$%^&*])/.test(sanitized)) {
+            return { isValid: false, error: 'Password must contain special characters' };
+          }
+          break;
+        
+        case 'text':
+          z.string().max(1000).parse(sanitized);
+          break;
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return { isValid: false, error: error.errors[0].message };
+      }
+      return { isValid: false, error: 'Validation failed' };
+    }
+
+    return { isValid: true, sanitized };
   }
 
-  // Enhanced rate limiting with distributed support
-  static checkRateLimit(
-    identifier: string, 
-    tier: 'ip' | 'user' | 'endpoint' = 'ip'
-  ): { allowed: boolean; remainingAttempts?: number; resetTime?: Date } {
+  // Enhanced rate limiting with progressive delays
+  static checkRateLimit(identifier: string): { allowed: boolean; remainingAttempts?: number; resetTime?: number } {
     const now = Date.now();
-    const key = `${tier}:${identifier}`;
-    const tracking = this.attemptTracking.get(key);
+    const tracking = this.attemptTracking.get(identifier);
 
     if (!tracking) {
-      this.attemptTracking.set(key, { count: 1, firstAttempt: now });
-      return { 
-        allowed: true, 
-        remainingAttempts: this.MAX_ATTEMPTS - 1,
-        resetTime: new Date(now + this.ATTEMPT_WINDOW)
-      };
+      this.attemptTracking.set(identifier, { count: 1, firstAttempt: now, blocked: false });
+      return { allowed: true, remainingAttempts: this.MAX_ATTEMPTS - 1 };
     }
 
-    // Reset if window has passed
-    if (now - tracking.firstAttempt > this.ATTEMPT_WINDOW) {
-      this.attemptTracking.set(key, { count: 1, firstAttempt: now });
+    // Reset if window has passed and not blocked
+    if (now - tracking.firstAttempt > this.ATTEMPT_WINDOW && !tracking.blocked) {
+      this.attemptTracking.set(identifier, { count: 1, firstAttempt: now, blocked: false });
+      return { allowed: true, remainingAttempts: this.MAX_ATTEMPTS - 1 };
+    }
+
+    // Check if blocked
+    if (tracking.blocked && now - tracking.firstAttempt < this.ATTEMPT_WINDOW) {
       return { 
-        allowed: true, 
-        remainingAttempts: this.MAX_ATTEMPTS - 1,
-        resetTime: new Date(now + this.ATTEMPT_WINDOW)
+        allowed: false, 
+        remainingAttempts: 0,
+        resetTime: tracking.firstAttempt + this.ATTEMPT_WINDOW
       };
     }
 
     // Check if exceeded limit
     if (tracking.count >= this.MAX_ATTEMPTS) {
-      this.logSecurityEvent({
-        type: 'rate_limit',
-        severity: 'medium',
-        description: `Rate limit exceeded for ${tier}`,
-        additionalData: { identifier, tier, attempts: tracking.count }
-      });
-      
+      tracking.blocked = true;
       return { 
         allowed: false, 
         remainingAttempts: 0,
-        resetTime: new Date(tracking.firstAttempt + this.ATTEMPT_WINDOW)
+        resetTime: tracking.firstAttempt + this.ATTEMPT_WINDOW
       };
     }
 
@@ -205,121 +233,54 @@ export class SecurityService {
     tracking.count++;
     return { 
       allowed: true, 
-      remainingAttempts: this.MAX_ATTEMPTS - tracking.count,
-      resetTime: new Date(tracking.firstAttempt + this.ATTEMPT_WINDOW)
+      remainingAttempts: this.MAX_ATTEMPTS - tracking.count 
     };
   }
 
-  // Secure credential management
-  static async secureHash(password: string, salt?: string): Promise<string> {
-    const saltBytes = salt ? 
-      new TextEncoder().encode(salt) : 
-      crypto.getRandomValues(new Uint8Array(32));
-    
-    const saltHex = Array.from(saltBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+  // Session security validation
+  static validateSession(sessionData: any): { isValid: boolean; issues: string[] } {
+    const issues: string[] = [];
+
+    if (!sessionData.timestamp) {
+      issues.push('Missing session timestamp');
+    } else {
+      const sessionAge = Date.now() - sessionData.timestamp;
+      if (sessionAge > this.SESSION_TIMEOUT) {
+        issues.push('Session expired');
+      }
+    }
+
+    if (!sessionData.fingerprint) {
+      issues.push('Missing session fingerprint');
+    }
+
+    if (!sessionData.userAgent) {
+      issues.push('Missing user agent');
+    }
+
+    return {
+      isValid: issues.length === 0,
+      issues
+    };
+  }
+
+  // Generate secure session fingerprint
+  static async generateSessionFingerprint(): Promise<string> {
+    const fingerprint = {
+      userAgent: navigator.userAgent,
+      timestamp: Date.now(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      language: navigator.language,
+      screen: `${screen.width}x${screen.height}`,
+      colorDepth: screen.colorDepth,
+      platform: navigator.platform
+    };
     
     const encoder = new TextEncoder();
-    const data = encoder.encode(password + saltHex);
+    const data = encoder.encode(JSON.stringify(fingerprint));
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    return `${saltHex}:${hashHex}`;
-  }
-
-  static async verifyHash(password: string, storedHash: string): Promise<boolean> {
-    try {
-      const [salt, hash] = storedHash.split(':');
-      if (!salt || !hash) return false;
-      
-      const computedHash = await this.secureHash(password, salt);
-      const [, computedHashPart] = computedHash.split(':');
-      
-      return computedHashPart === hash;
-    } catch {
-      return false;
-    }
-  }
-
-  // Security event logging
-  static logSecurityEvent(event: Omit<SecurityEvent, 'timestamp'>): void {
-    const securityEvent: SecurityEvent = {
-      ...event,
-      timestamp: new Date().toISOString()
-    };
-
-    this.securityEvents.push(securityEvent);
-
-    // Keep only last 1000 events to prevent memory issues
-    if (this.securityEvents.length > 1000) {
-      this.securityEvents = this.securityEvents.slice(-1000);
-    }
-
-    // Log to console for immediate visibility
-    console.log(`[SECURITY] ${event.type} - ${event.severity}: ${event.description}`, event.additionalData);
-
-    // Trigger alerts for critical events
-    if (event.severity === 'critical') {
-      this.triggerSecurityAlert(securityEvent);
-    }
-  }
-
-  // Get recent security events
-  static getSecurityEvents(filters?: {
-    type?: SecurityEvent['type'];
-    severity?: SecurityEvent['severity'];
-    hours?: number;
-    limit?: number;
-  }): SecurityEvent[] {
-    let events = [...this.securityEvents];
-
-    if (filters?.type) {
-      events = events.filter(e => e.type === filters.type);
-    }
-
-    if (filters?.severity) {
-      events = events.filter(e => e.severity === filters.severity);
-    }
-
-    if (filters?.hours) {
-      const cutoff = new Date();
-      cutoff.setHours(cutoff.getHours() - filters.hours);
-      events = events.filter(e => new Date(e.timestamp) >= cutoff);
-    }
-
-    // Sort by timestamp (newest first)
-    events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-    if (filters?.limit) {
-      events = events.slice(0, filters.limit);
-    }
-
-    return events;
-  }
-
-  // Input sanitization
-  private static sanitizeInput(input: string, type: string): string {
-    // Basic HTML entity encoding
-    let sanitized = input
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#x27;')
-      .replace(/\//g, '&#x2F;');
-
-    // Type-specific sanitization
-    switch (type) {
-      case 'username':
-      case 'deviceId':
-        sanitized = sanitized.replace(/[^a-zA-Z0-9_.-]/g, '');
-        break;
-      case 'text':
-        sanitized = sanitized.replace(/[<>]/g, '');
-        break;
-    }
-
-    return sanitized.trim();
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   // IMEI Luhn algorithm validation
@@ -344,61 +305,18 @@ export class SecurityService {
     return (sum % 10) === 0;
   }
 
-  // Security alert system
-  private static triggerSecurityAlert(event: SecurityEvent): void {
-    // In production, this would integrate with alerting systems
-    console.error(`[CRITICAL SECURITY ALERT] ${event.description}`, event);
-    
-    // Example: Send to monitoring service, email, Slack, etc.
-    // await notificationService.sendCriticalAlert(event);
-  }
-
-  // Authorization check with enhanced role-based permissions
-  static hasPermission(
-    userRole: string, 
-    requiredPermission: string,
-    context?: { resourceId?: string; operation?: string }
-  ): boolean {
-    const rolePermissions = {
-      'admin': [
-        'create_user', 'delete_user', 'manage_vehicles', 'view_all', 
-        'manage_system', 'access_audit_logs', 'manage_security_config'
-      ],
-      'manager': [
-        'create_user', 'manage_vehicles', 'view_all', 'view_audit_logs'
-      ],
-      'user': [
-        'view_own', 'manage_own_vehicles', 'update_own_profile'
-      ],
-      'viewer': ['view_own']
-    };
-
-    const permissions = rolePermissions[userRole as keyof typeof rolePermissions] || [];
-    
-    // Log authorization attempts
-    SecurityService.logSecurityEvent({
-      type: 'authorization',
-      severity: 'low',
-      description: `Authorization check: ${userRole} requesting ${requiredPermission}`,
-      additionalData: { userRole, requiredPermission, context, granted: permissions.includes(requiredPermission) }
-    });
-
-    return permissions.includes(requiredPermission);
-  }
-
-  // Security configuration management
-  static updateSecurityConfig(newConfig: Partial<SecurityConfig>): void {
-    this.config = { ...this.config, ...newConfig };
-    
-    this.logSecurityEvent({
-      type: 'authentication',
-      severity: 'medium',
-      description: 'Security configuration updated',
-      additionalData: { changes: newConfig }
-    });
-  }
-
-  static getSecurityConfig(): SecurityConfig {
-    return { ...this.config };
+  // CSP (Content Security Policy) header generation
+  static generateCSPHeader(): string {
+    return [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https://bjkqxmvjuewshomihjqm.supabase.co wss://bjkqxmvjuewshomihjqm.supabase.co",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'"
+    ].join('; ');
   }
 }

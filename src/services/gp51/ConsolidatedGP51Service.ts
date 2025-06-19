@@ -1,33 +1,27 @@
 
-import { secureGP51AuthService } from './SecureGP51AuthService';
 import { supabase } from '@/integrations/supabase/client';
-import { AuditLogger } from '@/services/auditLogging/AuditLogger';
+import { SecureCache } from '@/hooks/useSecureCache';
+import { PerformanceMonitor } from '@/services/performance/PerformanceMonitor';
+import { SecurityService } from '@/services/security/SecurityService';
 
-export interface GP51Vehicle {
-  deviceid: string;
-  devicename: string;
-  groupname?: string;
-  status?: string;
+interface GP51AuthResult {
+  success: boolean;
+  token?: string;
+  error?: string;
+  sessionId?: string;
+  vehicles?: any[];
 }
 
-export interface GP51Position {
-  deviceid: string;
-  lat: number;
-  lon: number;
-  speed: number;
-  course: number;
-  updatetime: string;
-  statusText: string;
+interface GP51ConnectionTest {
+  success: boolean;
+  error?: string;
+  latency?: number;
 }
 
-/**
- * Consolidated GP51 Service - Single entry point for all GP51 operations
- * Replaces multiple scattered services with unified, secure approach
- */
 export class ConsolidatedGP51Service {
   private static instance: ConsolidatedGP51Service;
-
-  private constructor() {}
+  private cache = SecureCache.getInstance();
+  private monitor = PerformanceMonitor.getInstance();
 
   static getInstance(): ConsolidatedGP51Service {
     if (!ConsolidatedGP51Service.instance) {
@@ -36,207 +30,150 @@ export class ConsolidatedGP51Service {
     return ConsolidatedGP51Service.instance;
   }
 
-  /**
-   * Authenticate with GP51 using secure vault storage
-   */
-  async authenticate(username: string, password: string, apiUrl?: string) {
-    return await secureGP51AuthService.authenticate(username, password, apiUrl);
-  }
+  async testConnection(): Promise<GP51ConnectionTest> {
+    const cacheKey = 'gp51_connection_test';
+    const cached = this.cache.get<GP51ConnectionTest>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
 
-  /**
-   * Get current authentication status
-   */
-  async getAuthStatus() {
-    return await secureGP51AuthService.getAuthStatus();
-  }
+    return this.monitor.measureApiCall('gp51_connection_test', async () => {
+      try {
+        const startTime = performance.now();
+        
+        const { data, error } = await supabase.functions.invoke('telemetry-auth', {
+          body: { testConnection: true }
+        });
 
-  /**
-   * Fetch vehicle list from GP51
-   */
-  async fetchVehicles(): Promise<GP51Vehicle[]> {
-    try {
-      console.log('🚗 Fetching vehicles from GP51...');
+        const latency = performance.now() - startTime;
 
-      const authStatus = await secureGP51AuthService.getAuthStatus();
-      if (!authStatus.isAuthenticated) {
-        throw new Error('Not authenticated with GP51');
+        if (error) {
+          const result = { success: false, error: error.message, latency };
+          this.cache.set(cacheKey, result, 30000); // Cache for 30 seconds
+          return result;
+        }
+
+        const result = { 
+          success: data.success, 
+          error: data.error,
+          latency 
+        };
+        
+        this.cache.set(cacheKey, result, 60000); // Cache for 1 minute
+        return result;
+      } catch (error) {
+        const result = {
+          success: false,
+          error: error instanceof Error ? error.message : 'Connection test failed'
+        };
+        
+        this.cache.set(cacheKey, result, 10000); // Cache error for 10 seconds
+        return result;
       }
+    });
+  }
 
-      const { data, error } = await supabase.functions.invoke('gp51-consolidated-api', {
-        body: { action: 'fetch_vehicles' }
-      });
+  async authenticate(username: string, password: string, apiUrl?: string): Promise<GP51AuthResult> {
+    return this.monitor.measureApiCall('gp51_authenticate', async () => {
+      try {
+        // Validate inputs
+        const usernameValidation = SecurityService.validateInput(username, 'username');
+        if (!usernameValidation.isValid) {
+          return { success: false, error: usernameValidation.error };
+        }
 
-      if (error) {
-        await this.logOperation('FETCH_VEHICLES', false, error.message);
+        const passwordValidation = SecurityService.validateInput(password, 'password');
+        if (!passwordValidation.isValid) {
+          return { success: false, error: passwordValidation.error };
+        }
+
+        // Check rate limiting
+        const rateLimitResult = SecurityService.checkRateLimit(`gp51_auth_${username}`);
+        if (!rateLimitResult.allowed) {
+          return { 
+            success: false, 
+            error: `Too many attempts. Try again in ${Math.ceil((rateLimitResult.resetTime! - Date.now()) / 1000 / 60)} minutes.`
+          };
+        }
+
+        const { data, error } = await supabase.functions.invoke('telemetry-auth', {
+          body: { 
+            username: usernameValidation.sanitized, 
+            password,
+            apiUrl 
+          }
+        });
+
+        if (error) {
+          return { success: false, error: error.message };
+        }
+
+        // Cache successful authentication result (without sensitive data)
+        if (data.success && data.token) {
+          const cacheKey = `gp51_session_${username}`;
+          this.cache.set(cacheKey, {
+            authenticated: true,
+            timestamp: Date.now(),
+            vehicleCount: data.vehicles?.length || 0
+          }, 300000); // 5 minutes
+        }
+
+        return data;
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Authentication failed'
+        };
+      }
+    });
+  }
+
+  async getVehicleData(deviceId: string): Promise<any> {
+    const cacheKey = `vehicle_data_${deviceId}`;
+    const cached = this.cache.get(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    return this.monitor.measureApiCall('gp51_vehicle_data', async () => {
+      try {
+        // Validate device ID
+        const validation = SecurityService.validateInput(deviceId, 'deviceId');
+        if (!validation.isValid) {
+          throw new Error(validation.error);
+        }
+
+        const { data, error } = await supabase.functions.invoke('telemetry-positions', {
+          body: { deviceId: validation.sanitized }
+        });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        // Cache vehicle data for 30 seconds
+        this.cache.set(cacheKey, data, 30000);
+        return data;
+      } catch (error) {
         throw error;
       }
-
-      if (!data.success) {
-        await this.logOperation('FETCH_VEHICLES', false, data.error);
-        throw new Error(data.error || 'Failed to fetch vehicles');
-      }
-
-      const vehicles = data.vehicles || [];
-      console.log(`✅ Fetched ${vehicles.length} vehicles from GP51`);
-      
-      await this.logOperation('FETCH_VEHICLES', true, undefined, { count: vehicles.length });
-      return vehicles;
-
-    } catch (error) {
-      console.error('❌ Vehicle fetch failed:', error);
-      await this.logOperation('FETCH_VEHICLES', false, error instanceof Error ? error.message : 'Unknown error');
-      throw error;
-    }
+    });
   }
 
-  /**
-   * Fetch vehicle positions from GP51
-   */
-  async fetchPositions(deviceIds?: string[]): Promise<GP51Position[]> {
-    try {
-      console.log(`📍 Fetching positions for ${deviceIds?.length || 'all'} vehicles...`);
-
-      const authStatus = await secureGP51AuthService.getAuthStatus();
-      if (!authStatus.isAuthenticated) {
-        throw new Error('Not authenticated with GP51');
-      }
-
-      const { data, error } = await supabase.functions.invoke('gp51-consolidated-api', {
-        body: { 
-          action: 'fetch_positions',
-          deviceIds: deviceIds || []
-        }
-      });
-
-      if (error) {
-        await this.logOperation('FETCH_POSITIONS', false, error.message);
-        throw error;
-      }
-
-      if (!data.success) {
-        await this.logOperation('FETCH_POSITIONS', false, data.error);
-        throw new Error(data.error || 'Failed to fetch positions');
-      }
-
-      const positions = data.positions || [];
-      console.log(`✅ Fetched ${positions.length} positions from GP51`);
-      
-      await this.logOperation('FETCH_POSITIONS', true, undefined, { count: positions.length });
-      return positions;
-
-    } catch (error) {
-      console.error('❌ Position fetch failed:', error);
-      await this.logOperation('FETCH_POSITIONS', false, error instanceof Error ? error.message : 'Unknown error');
-      throw error;
-    }
+  clearCache(): void {
+    this.cache.clear();
   }
 
-  /**
-   * Update vehicle positions in database
-   */
-  async updateVehiclePositions(positions: GP51Position[]): Promise<{ updated: number; errors: number }> {
-    if (positions.length === 0) {
-      return { updated: 0, errors: 0 };
-    }
-
-    try {
-      console.log(`🔄 Updating ${positions.length} vehicle positions...`);
-
-      const { data, error } = await supabase.functions.invoke('gp51-consolidated-api', {
-        body: { 
-          action: 'update_positions',
-          positions
-        }
-      });
-
-      if (error) {
-        await this.logOperation('UPDATE_POSITIONS', false, error.message);
-        return { updated: 0, errors: positions.length };
-      }
-
-      if (!data.success) {
-        await this.logOperation('UPDATE_POSITIONS', false, data.error);
-        return { updated: 0, errors: positions.length };
-      }
-
-      const result = { updated: data.updated || 0, errors: data.errors || 0 };
-      console.log(`✅ Position update complete: ${result.updated} updated, ${result.errors} errors`);
-      
-      await this.logOperation('UPDATE_POSITIONS', true, undefined, result);
-      return result;
-
-    } catch (error) {
-      console.error('❌ Position update failed:', error);
-      await this.logOperation('UPDATE_POSITIONS', false, error instanceof Error ? error.message : 'Unknown error');
-      return { updated: 0, errors: positions.length };
-    }
+  getPerformanceReport() {
+    return this.monitor.getReport();
   }
 
-  /**
-   * Logout from GP51
-   */
-  async logout() {
-    return await secureGP51AuthService.logout();
-  }
-
-  /**
-   * Test GP51 connection
-   */
-  async testConnection(): Promise<{ success: boolean; error?: string }> {
-    try {
-      const credentials = await secureGP51AuthService.getSecureCredentials();
-      if (!credentials) {
-        return { success: false, error: 'No credentials found' };
-      }
-
-      const { data, error } = await supabase.functions.invoke('gp51-secure-auth', {
-        body: {
-          action: 'test_connection',
-          username: credentials.username,
-          password: credentials.password,
-          apiUrl: credentials.apiUrl
-        }
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      return data;
-
-    } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Connection test failed' 
-      };
-    }
-  }
-
-  /**
-   * Log GP51 operations for audit trail
-   */
-  private async logOperation(
-    operationType: string, 
-    success: boolean, 
-    errorMessage?: string, 
-    details?: any
-  ): Promise<void> {
-    try {
-      await AuditLogger.logSecurityEvent({
-        actionType: 'api_access',
-        resourceType: 'gp51',
-        success,
-        errorMessage,
-        requestDetails: {
-          operation: operationType,
-          details,
-          timestamp: new Date().toISOString()
-        },
-        riskLevel: success ? 'low' : 'medium'
-      });
-    } catch (error) {
-      console.error('❌ Failed to log operation:', error);
-    }
+  // Invalidate authentication cache
+  invalidateAuthCache(username: string): void {
+    this.cache.invalidate(`gp51_session_${username}`);
+    this.cache.invalidate('gp51_connection_test');
   }
 }
 
