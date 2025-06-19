@@ -113,7 +113,7 @@ serve(async (req) => {
     if (sessionError) {
       console.error('Failed to store telemetry session:', sessionError.message);
       return new Response(
-        JSON.stringify({ success: false, error: 'Failed to store session information after successful GP51 login.' , details: sessionError.message}),
+        JSON.stringify({ success: false, error: 'Failed to store session information after successful GP51 login.', details: sessionError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -160,64 +160,34 @@ serve(async (req) => {
     console.log('Vehicle list response received for telemetry.');
 
     if (vehicleResult.status !== 0) {
-      const errorMessage = vehicleResult.cause || vehicleResult.message || 'Failed to fetch vehicles from GP51.';
-      console.error(`Failed to fetch vehicles for telemetry: ${errorMessage} (GP51 Status: ${vehicleResult.status})`);
+      const errorMessage = vehicleResult.cause || vehicleResult.message || 'Failed to fetch vehicle list from telemetry system.';
+      console.error(`GP51 vehicle list fetch failed for telemetry: ${errorMessage} (GP51 Status: ${vehicleResult.status})`);
       return new Response(
         JSON.stringify({ success: false, error: errorMessage, gp51_status: vehicleResult.status }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    let vehicles: any[] = [];
-    if (Array.isArray(vehicleResult.records)) {
-        vehicles = vehicleResult.records;
-    } else if (Array.isArray(vehicleResult.devices)) {
-        vehicles = vehicleResult.devices;
-    } else if (Array.isArray(vehicleResult.groups)) {
-        vehicles = vehicleResult.groups.flatMap((group: any) => group.devices || []);
-    }
-
-    console.log(`Storing ${vehicles.length} vehicles in database for telemetry session ${sessionData.id}`);
-
-    for (const vehicle of vehicles) {
-      const { error: vehicleUpsertError } = await supabase
-        .from('vehicles')
-        .upsert({
-          device_id: vehicle.deviceid,
-          device_name: vehicle.devicename,
-          status: vehicle.status || vehicle.strstatus || 'unknown',
-          gp51_username: username.trim()
-        }, { onConflict: 'device_id' });
-
-      if (vehicleUpsertError) {
-        console.warn(`⚠️ Failed to upsert vehicle ${vehicle.deviceid} for telemetry:`, vehicleUpsertError.message);
-      }
-    }
-
-    console.log('Telemetry authentication and vehicle fetch completed successfully.');
+    const vehicles = vehicleResult.devicelist || [];
+    console.log(`Telemetry authentication successful. Found ${vehicles.length} vehicles.`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        sessionId: sessionData.id,
-        gp51_token_preview: token.substring(0,5) + "...",
-        vehicles: vehicles.map(v => ({
-          deviceid: v.deviceid,
-          devicename: v.devicename,
-          status: v.status || v.strstatus || 'unknown'
-        })),
-        vehicle_count: vehicles.length
+        sessionId: token,
+        vehicles: vehicles
       }),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('💥 Telemetry Auth function error:', error.message, error.stack);
+    console.error('Telemetry auth error:', error);
     return new Response(
-      JSON.stringify({ success: false, error: 'Internal server error in telemetry auth function.', details: error.message }),
+      JSON.stringify({
+        success: false,
+        error: 'Internal server error during telemetry authentication',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
