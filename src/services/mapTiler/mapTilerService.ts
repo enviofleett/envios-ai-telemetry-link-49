@@ -30,15 +30,17 @@ class MapTilerService {
     this.configured = configured;
   }
 
-  async testConnection(): Promise<void> {
+  async testConnection(): Promise<boolean> {
     try {
       const response = await fetch(`${this.baseUrl}/maps/streets/style.json?key=${this.getApiKey()}`);
       if (!response.ok) {
-        throw new Error(`Connection test failed: ${response.status}`);
+        console.error(`MapTiler connection test failed: ${response.status}`);
+        return false;
       }
+      return true;
     } catch (error) {
       console.error('MapTiler connection test failed:', error);
-      throw error;
+      return false;
     }
   }
 
