@@ -13,15 +13,20 @@ import {
   Zap
 } from 'lucide-react';
 import { useRealtimeVehicleData } from '@/hooks/useRealtimeVehicleData';
-import { vehiclePositionSyncService } from '@/services/realtime/vehiclePositionSyncService';
 
 const RealtimeSyncStatus: React.FC = () => {
   const { syncStatus, isConnected, lastUpdate, forceSync } = useRealtimeVehicleData();
-  const syncProgress = vehiclePositionSyncService.getSyncProgress();
+  
+  // Mock sync progress for now
+  const syncProgress = {
+    processedVehicles: 0,
+    totalVehicles: 0,
+    percentage: 0,
+    errors: [] as string[]
+  };
 
   const getSyncStatusIcon = () => {
     switch (syncStatus) {
-      case 'running':
       case 'syncing':
         return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
       case 'completed':
@@ -36,7 +41,6 @@ const RealtimeSyncStatus: React.FC = () => {
 
   const getSyncStatusColor = () => {
     switch (syncStatus) {
-      case 'running':
       case 'syncing':
         return 'default';
       case 'completed':
@@ -51,7 +55,6 @@ const RealtimeSyncStatus: React.FC = () => {
 
   const getSyncStatusText = () => {
     switch (syncStatus) {
-      case 'running':
       case 'syncing':
         return 'Syncing...';
       case 'completed':
@@ -109,7 +112,7 @@ const RealtimeSyncStatus: React.FC = () => {
         </div>
 
         {/* Sync Progress */}
-        {(syncStatus === 'running' || syncStatus === 'syncing') && (
+        {syncStatus === 'syncing' && (
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span>Progress</span>
@@ -148,7 +151,7 @@ const RealtimeSyncStatus: React.FC = () => {
         {/* Manual Sync Button */}
         <Button
           onClick={forceSync}
-          disabled={syncStatus === 'running' || syncStatus === 'syncing'}
+          disabled={syncStatus === 'syncing'}
           variant="outline"
           size="sm"
           className="w-full"

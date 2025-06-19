@@ -20,14 +20,49 @@ export const useVehicleMetrics = () => {
     syncStatus: 'success'
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsubscribe = enhancedVehicleDataService.subscribe(() => {
+      try {
+        const vehicles = enhancedVehicleDataService.getEnhancedVehicles();
+        const serviceMetrics = enhancedVehicleDataService.getMetrics();
+        const syncMetrics = enhancedVehicleDataService.getLastSyncMetrics();
+        
+        const expandedMetrics: VehicleDataMetrics = {
+          total: serviceMetrics.total,
+          online: serviceMetrics.online,
+          offline: serviceMetrics.offline,
+          idle: serviceMetrics.idle,
+          alerts: serviceMetrics.alerts,
+          totalVehicles: serviceMetrics.totalVehicles,
+          onlineVehicles: serviceMetrics.onlineVehicles,
+          offlineVehicles: serviceMetrics.offlineVehicles,
+          recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
+          lastSyncTime: serviceMetrics.lastSyncTime,
+          positionsUpdated: syncMetrics.positionsUpdated,
+          errors: syncMetrics.errors,
+          syncStatus: syncMetrics.syncStatus,
+          errorMessage: syncMetrics.errorMessage
+        };
+        
+        setMetrics(expandedMetrics);
+        setError(null);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error updating vehicle metrics:', err);
+        setError(err instanceof Error ? err.message : 'Unknown error occurred');
+        setIsLoading(false);
+      }
+    });
+
+    // Initial load
+    try {
       const vehicles = enhancedVehicleDataService.getEnhancedVehicles();
       const serviceMetrics = enhancedVehicleDataService.getMetrics();
       const syncMetrics = enhancedVehicleDataService.getLastSyncMetrics();
       
-      const expandedMetrics: VehicleDataMetrics = {
+      setMetrics({
         total: serviceMetrics.total,
         online: serviceMetrics.online,
         offline: serviceMetrics.offline,
@@ -42,40 +77,48 @@ export const useVehicleMetrics = () => {
         errors: syncMetrics.errors,
         syncStatus: syncMetrics.syncStatus,
         errorMessage: syncMetrics.errorMessage
-      };
-      
-      setMetrics(expandedMetrics);
+      });
       setIsLoading(false);
-    });
-
-    // Initial load
-    const vehicles = enhancedVehicleDataService.getEnhancedVehicles();
-    const serviceMetrics = enhancedVehicleDataService.getMetrics();
-    const syncMetrics = enhancedVehicleDataService.getLastSyncMetrics();
-    
-    setMetrics({
-      total: serviceMetrics.total,
-      online: serviceMetrics.online,
-      offline: serviceMetrics.offline,
-      idle: serviceMetrics.idle,
-      alerts: serviceMetrics.alerts,
-      totalVehicles: serviceMetrics.totalVehicles,
-      onlineVehicles: serviceMetrics.onlineVehicles,
-      offlineVehicles: serviceMetrics.offlineVehicles,
-      recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
-      lastSyncTime: serviceMetrics.lastSyncTime,
-      positionsUpdated: syncMetrics.positionsUpdated,
-      errors: syncMetrics.errors,
-      syncStatus: syncMetrics.syncStatus,
-      errorMessage: syncMetrics.errorMessage
-    });
-    setIsLoading(false);
+    } catch (err) {
+      console.error('Error loading initial vehicle metrics:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load initial data');
+      setIsLoading(false);
+    }
 
     return unsubscribe;
   }, []);
 
+  const refreshMetrics = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await enhancedVehicleDataService.forceSync();
+    } catch (err) {
+      console.error('Error refreshing metrics:', err);
+      setError(err instanceof Error ? err.message : 'Failed to refresh metrics');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const forceSync = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      await enhancedVehicleDataService.forceSync();
+    } catch (err) {
+      console.error('Error forcing sync:', err);
+      setError(err instanceof Error ? err.message : 'Failed to force sync');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return {
     metrics,
-    isLoading
+    isLoading,
+    error,
+    refreshMetrics,
+    forceSync
   };
 };

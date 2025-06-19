@@ -18,7 +18,7 @@ export const useRealtimeVehicleData = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'completed' | 'error'>('idle');
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'completed' | 'error' | 'running'>('idle');
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [events, setEvents] = useState<VehicleEvent[]>([]);
   const channelRef = useRef<any>(null);
@@ -52,8 +52,8 @@ export const useRealtimeVehicleData = () => {
           sim_number: vehicle.sim_number,
           created_at: vehicle.created_at,
           updated_at: vehicle.updated_at,
-          vin: vehicle.vin,
-          license_plate: vehicle.license_plate,
+          vin: (vehicle as any).vin || null,
+          license_plate: (vehicle as any).license_plate || null,
           is_active: true, // Default value
           last_position: undefined,
           status: 'offline' as const,
@@ -154,8 +154,8 @@ export const useRealtimeVehicleData = () => {
         sim_number: vehicle.sim_number,
         created_at: vehicle.created_at,
         updated_at: vehicle.updated_at,
-        vin: vehicle.vin,
-        license_plate: vehicle.license_plate,
+        vin: (vehicle as any).vin || null,
+        license_plate: (vehicle as any).license_plate || null,
         is_active: true,
         last_position: undefined,
         status: 'offline' as const,

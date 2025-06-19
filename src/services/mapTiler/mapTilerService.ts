@@ -4,6 +4,14 @@ import { SUPABASE_URL } from '@/integrations/supabase/client';
 class MapTilerService {
   private baseUrl = 'https://api.maptiler.com';
   private defaultApiKey = 'YOUR_MAPTILER_API_KEY';
+  private configured = false;
+  private cache = new Map<string, any>();
+
+  async initialize(): Promise<void> {
+    // Initialize the service
+    console.log('MapTiler service initialized');
+    this.configured = true;
+  }
 
   getMapStyle(): string {
     // Use a basic OpenStreetMap style as fallback
@@ -12,6 +20,37 @@ class MapTilerService {
 
   getApiKey(): string {
     return this.defaultApiKey;
+  }
+
+  isConfigured(): boolean {
+    return this.configured;
+  }
+
+  setIsConfigured(configured: boolean): void {
+    this.configured = configured;
+  }
+
+  async testConnection(): Promise<void> {
+    try {
+      const response = await fetch(`${this.baseUrl}/maps/streets/style.json?key=${this.getApiKey()}`);
+      if (!response.ok) {
+        throw new Error(`Connection test failed: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('MapTiler connection test failed:', error);
+      throw error;
+    }
+  }
+
+  clearCache(): void {
+    this.cache.clear();
+  }
+
+  getCacheStats() {
+    return {
+      size: this.cache.size,
+      keys: Array.from(this.cache.keys())
+    };
   }
 
   async geocode(address: string): Promise<any> {

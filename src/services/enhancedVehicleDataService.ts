@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData } from '@/types/vehicle';
 
@@ -125,8 +124,8 @@ class EnhancedVehicleDataService {
         sim_number: vehicle.sim_number,
         created_at: vehicle.created_at,
         updated_at: vehicle.updated_at,
-        vin: vehicle.vin,
-        license_plate: vehicle.license_plate,
+        vin: (vehicle as any).vin || null,
+        license_plate: (vehicle as any).license_plate || null,
         is_active: true, // Default value
         last_position: undefined,
         status: 'offline' as const,
