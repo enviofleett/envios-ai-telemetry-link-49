@@ -1,3 +1,4 @@
+
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -95,7 +96,7 @@ export const useStableEnhancedVehicleData = () => {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Get unique users for filter options
+  // Get unique users for filter options - FIXED: Added email property
   const userOptions = useMemo(() => {
     const users = vehicles
       .filter(v => v.user_id)
