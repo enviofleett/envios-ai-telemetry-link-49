@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Zap } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, Zap, AlertCircle, CheckCircle, WifiOff } from 'lucide-react';
 import { telemetryApi } from '@/services/telemetryApi';
 
 interface LoginFormProps {
@@ -16,7 +17,35 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [error, setError] = useState('');
+  const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'connected' | 'failed'>('unknown');
+
+  const testConnection = async () => {
+    setIsTestingConnection(true);
+    setError('');
+    
+    try {
+      console.log('Testing GP51 connection...');
+      
+      const result = await telemetryApi.testConnection();
+      
+      if (result.success) {
+        setConnectionStatus('connected');
+        console.log('GP51 connection test successful');
+      } else {
+        setConnectionStatus('failed');
+        setError(result.error || 'Connection test failed');
+        console.error('GP51 connection test failed:', result.error);
+      }
+    } catch (err) {
+      setConnectionStatus('failed');
+      setError('Network error during connection test. Please check your internet connection.');
+      console.error('Connection test error:', err);
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,16 +59,56 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
       
       if (result.success && result.vehicles) {
         console.log('Authentication successful, received vehicles:', result.vehicles);
+        setConnectionStatus('connected');
         onLoginSuccess(result.vehicles);
       } else {
-        setError(result.error || 'Authentication failed. Please check your credentials.');
+        setConnectionStatus('failed');
+        
+        // Enhanced error messages based on the error type
+        if (result.error?.includes('service unavailable')) {
+          setError('GP51 service is currently unavailable. Please try again later or contact support.');
+        } else if (result.error?.includes('connection')) {
+          setError('Unable to connect to GP51 servers. Please check your internet connection and try again.');
+        } else if (result.error?.includes('credentials')) {
+          setError('Invalid username or password. Please check your credentials and try again.');
+        } else {
+          setError(result.error || 'Authentication failed. Please check your credentials and try again.');
+        }
+        
         console.error('Authentication failed:', result.error);
       }
     } catch (err) {
+      setConnectionStatus('failed');
       setError('Network error. Please check your connection and try again.');
       console.error('Login error:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const getConnectionStatusBadge = () => {
+    switch (connectionStatus) {
+      case 'connected':
+        return (
+          <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Connected
+          </Badge>
+        );
+      case 'failed':
+        return (
+          <Badge variant="destructive">
+            <WifiOff className="h-3 w-3 mr-1" />
+            Connection Failed
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="secondary">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            Unknown
+          </Badge>
+        );
     }
   };
 
@@ -58,8 +127,33 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
               Connect to GP51 Telemetry System
             </CardDescription>
           </div>
+          
+          {/* Connection Status */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-600">GP51 Status:</span>
+            {getConnectionStatusBadge()}
+          </div>
         </CardHeader>
-        <CardContent>
+        
+        <CardContent className="space-y-4">
+          {/* Connection Test Button */}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={testConnection}
+            disabled={isTestingConnection || isLoading}
+            className="w-full"
+          >
+            {isTestingConnection ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Testing Connection...
+              </>
+            ) : (
+              'Test GP51 Connection'
+            )}
+          </Button>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username" className="text-sm font-medium text-gray-700">
@@ -73,7 +167,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
-                disabled={isLoading}
+                disabled={isLoading || isTestingConnection}
               />
             </div>
             <div className="space-y-2">
@@ -88,12 +182,13 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
-                disabled={isLoading}
+                disabled={isLoading || isTestingConnection}
               />
             </div>
             
             {error && (
               <Alert className="border-red-200 bg-red-50">
+                <AlertCircle className="h-4 w-4 text-red-600" />
                 <AlertDescription className="text-red-800">
                   {error}
                 </AlertDescription>
@@ -103,7 +198,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
             <Button
               type="submit"
               className="w-full bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-700 hover:to-teal-700 text-white font-medium py-2.5 transition-all duration-200 shadow-lg hover:shadow-xl"
-              disabled={isLoading}
+              disabled={isLoading || isTestingConnection}
             >
               {isLoading ? (
                 <>

@@ -10,6 +10,7 @@ interface AuthResponse {
     status: string;
   }>;
   error?: string;
+  details?: any;
 }
 
 interface PositionResponse {
@@ -39,8 +40,39 @@ interface StatusResponse {
   error?: string;
 }
 
+interface ConnectionTestResponse {
+  success: boolean;
+  apiUrl?: string;
+  error?: string;
+  timestamp?: string;
+}
+
 export class TelemetryApi {
   private sessionId: string | null = null;
+
+  async testConnection(): Promise<ConnectionTestResponse> {
+    try {
+      console.log('Testing GP51 connection via edge function...');
+      
+      const { data, error } = await supabase.functions.invoke('telemetry-auth', {
+        body: { testConnection: true }
+      });
+
+      if (error) {
+        console.error('Connection test edge function error:', error);
+        throw new Error(error.message);
+      }
+
+      console.log('Connection test result:', data);
+      return data;
+    } catch (error) {
+      console.error('Connection test request failed:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Connection test failed' 
+      };
+    }
+  }
 
   async authenticate(username: string, password: string): Promise<AuthResponse> {
     try {
@@ -57,16 +89,20 @@ export class TelemetryApi {
 
       if (data.error) {
         console.error('Authentication error:', data.error);
-        return { success: false, error: data.error };
+        return { 
+          success: false, 
+          error: data.error,
+          details: data.details 
+        };
       }
 
-      this.sessionId = data.sessionId;
+      this.sessionId = data.sessionId || data.token;
       console.log('Authentication successful, session ID:', this.sessionId);
 
       return {
         success: true,
-        sessionId: data.sessionId,
-        vehicles: data.vehicles
+        sessionId: data.sessionId || data.token,
+        vehicles: data.vehicles || []
       };
     } catch (error) {
       console.error('Authentication request failed:', error);
@@ -180,6 +216,26 @@ export class TelemetryApi {
 
   clearSession(): void {
     this.sessionId = null;
+  }
+
+  // Helper method to check if the service is available
+  async isServiceAvailable(): Promise<boolean> {
+    const testResult = await this.testConnection();
+    return testResult.success;
+  }
+
+  // Method to get service diagnostics
+  async getDiagnostics(): Promise<{ 
+    connectionTest: ConnectionTestResponse; 
+    authTest?: AuthResponse;
+    timestamp: string;
+  }> {
+    const connectionTest = await this.testConnection();
+    
+    return {
+      connectionTest,
+      timestamp: new Date().toISOString()
+    };
   }
 }
 
