@@ -73,6 +73,7 @@ serve(async (req) => {
 
     // Step 2: Validate and refresh token before position data retrieval
     let allPositions: any[] = [];
+    let tokenWasRefreshed = false;
     
     if (deviceIds.length > 0) {
       console.log(`🔍 Validating GP51 token before position data retrieval...`);
@@ -89,6 +90,7 @@ serve(async (req) => {
       // If token expires in less than 5 minutes, try to refresh it
       if (timeUntilExpiry <= 5 * 60 * 1000) {
         console.log(`⚠️ Token expires soon (${minutesUntilExpiry} minutes), attempting refresh...`);
+        tokenWasRefreshed = true;
         
         try {
           // Import the Enhanced GP51 Session Manager
@@ -212,7 +214,7 @@ serve(async (req) => {
         sessionUsername: session.username,
         batchesProcessed: Math.ceil(deviceIds.length / 50),
         deviceBatches: deviceIds.length > 0 ? Math.ceil(deviceIds.length / 50) : 0,
-        tokenRefreshed: timeUntilExpiry <= 5 * 60 * 1000
+        tokenRefreshed: tokenWasRefreshed
       }
     };
 

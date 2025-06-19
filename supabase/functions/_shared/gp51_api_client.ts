@@ -1,12 +1,12 @@
 
-// Updated to use the new unified client for consistency
+// Updated to use the new unified client with proper token handling
 import { gp51ApiClient } from "./gp51_api_client_unified.ts";
 import type { GP51Session } from "./gp51_session_utils.ts";
 
 export interface FetchGP51Options {
   action: string;
   session: GP51Session;
-  additionalParams?: Record<string, string>;
+  additionalParams?: Record<string, any>;
 }
 
 export interface FetchGP51Response {
@@ -31,13 +31,6 @@ export async function fetchFromGP51(
   try {
     console.log(`📡 Using unified client for action: ${action}`);
     
-    // Prepare parameters for the unified client
-    const parameters: Record<string, any> = {
-      token: session.gp51_token,
-      username: session.username,
-      ...additionalParams
-    };
-
     let result;
     
     // Use specific methods for known actions, fallback to generic for others
@@ -57,6 +50,12 @@ export async function fetchFromGP51(
         );
         break;
       default:
+        // For other actions, prepare parameters with token
+        const parameters: Record<string, any> = {
+          token: session.gp51_token,
+          username: session.username,
+          ...additionalParams
+        };
         result = await gp51ApiClient.callAction(action, parameters);
         break;
     }
