@@ -29,6 +29,40 @@ export interface GeofenceAlert {
   created_at: string;
 }
 
+// Helper function to safely parse location data
+function parseLocation(jsonLocation: any): { lat: number; lng: number } | null {
+  if (!jsonLocation) return null;
+  
+  // Case 1: Already an object with lat/lng
+  if (typeof jsonLocation === 'object' && jsonLocation !== null &&
+      'lat' in jsonLocation && typeof jsonLocation.lat === 'number' &&
+      'lng' in jsonLocation && typeof jsonLocation.lng === 'number') {
+    return { lat: jsonLocation.lat, lng: jsonLocation.lng };
+  }
+  
+  // Case 2: An array [lat, lng]
+  if (Array.isArray(jsonLocation) && jsonLocation.length === 2 &&
+      typeof jsonLocation[0] === 'number' && typeof jsonLocation[1] === 'number') {
+    return { lat: jsonLocation[0], lng: jsonLocation[1] };
+  }
+  
+  // Case 3: A string that needs parsing
+  if (typeof jsonLocation === 'string') {
+    try {
+      const parsed = JSON.parse(jsonLocation);
+      return parseLocation(parsed); // Recursive call for parsed object
+    } catch {
+      const parts = jsonLocation.split(',');
+      if (parts.length === 2 && !isNaN(parseFloat(parts[0])) && !isNaN(parseFloat(parts[1]))) {
+        return { lat: parseFloat(parts[0]), lng: parseFloat(parts[1]) };
+      }
+    }
+  }
+
+  console.warn("Could not parse location data:", jsonLocation);
+  return null;
+}
+
 class GeofencingService {
   async createGeofence(geofence: Omit<Geofence, 'id' | 'created_at' | 'updated_at'>) {
     try {
@@ -119,7 +153,32 @@ class GeofencingService {
       const { data, error } = await query;
 
       if (error) throw error;
-      return (data || []) as GeofenceAlert[];
+      
+      // Parse the raw data and handle location conversion
+      const parsedAlerts: GeofenceAlert[] = (data || []).map((item: any) => {
+        const parsedLocation = parseLocation(item.location);
+        
+        if (!parsedLocation) {
+          console.error("Skipping geofence alert due to invalid location:", item);
+          return null;
+        }
+
+        return {
+          id: item.id,
+          geofence_id: item.geofence_id,
+          vehicle_id: item.vehicle_id,
+          device_id: item.device_id,
+          alert_type: item.alert_type,
+          triggered_at: item.triggered_at,
+          location: parsedLocation,
+          is_acknowledged: item.is_acknowledged,
+          acknowledged_by: item.acknowledged_by,
+          acknowledged_at: item.acknowledged_at,
+          created_at: item.created_at,
+        };
+      }).filter(Boolean) as GeofenceAlert[];
+
+      return parsedAlerts;
     } catch (error) {
       console.error('Failed to fetch geofence alerts:', error);
       return [];
@@ -203,7 +262,13 @@ class GeofencingService {
             .single();
 
           if (!error && data) {
-            alerts.push(data as GeofenceAlert);
+            const parsedLocation = parseLocation(data.location);
+            if (parsedLocation) {
+              alerts.push({
+                ...data,
+                location: parsedLocation
+              } as GeofenceAlert);
+            }
           }
         } catch (error) {
           console.error('Failed to create geofence alert:', error);
