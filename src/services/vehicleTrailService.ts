@@ -123,7 +123,7 @@ class VehicleTrailService {
         .insert({
           vehicle_id: vehicle.id,
           device_id: deviceId,
-          trail_points: positions,
+          trail_points: positions as any, // Cast to satisfy JSON type
           start_time: startTime,
           end_time: endTime,
           total_distance: totalDistance,
@@ -161,7 +161,10 @@ class VehicleTrailService {
         throw error;
       }
 
-      return data || [];
+      return (data || []).map(trail => ({
+        ...trail,
+        trail_points: trail.trail_points as TrailPoint[] // Type assertion for JSON field
+      }));
     } catch (error) {
       console.error('Error in getStoredTrails:', error);
       throw error;

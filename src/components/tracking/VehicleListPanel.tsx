@@ -1,133 +1,105 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Search, Filter, Car, RefreshCw } from 'lucide-react';
-import { useStableVehicleData } from '@/hooks/useStableVehicleData';
-import CompactVehicleCard from './CompactVehicleCard';
-import { useVehicleDetails } from '@/hooks/useVehicleDetails';
-import type { VehicleData } from '@/services/unifiedVehicleData';
+import { Button } from '@/components/ui/button';
+import { VehicleData } from '@/types/vehicle';
+import { MapPin, Navigation, Clock } from 'lucide-react';
 
-interface VehicleListPanelProps {
-  selectedVehicle?: VehicleData | null;
-  onVehicleSelect?: (vehicle: VehicleData) => void;
-  className?: string;
-  vehicleAddresses: Map<string, string>;
-  onTripHistory?: (vehicle: VehicleData) => void;
-  onSendAlert?: (vehicle: VehicleData) => void;
-  onRefreshAddresses: () => void;
+export interface VehicleListPanelProps {
+  vehicles: VehicleData[];
+  selectedVehicle: VehicleData | null;
+  onVehicleSelect: (vehicle: VehicleData) => void;
+  showTrails: boolean;
+  getVehicleTrail: (deviceId: string) => any[];
 }
 
-const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
+export const VehicleListPanel: React.FC<VehicleListPanelProps> = ({
+  vehicles,
   selectedVehicle,
   onVehicleSelect,
-  className,
-  vehicleAddresses,
-  onTripHistory,
-  onSendAlert,
-  onRefreshAddresses
+  showTrails,
+  getVehicleTrail
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | 'offline'>('all');
-  const { openDetailsModal, openTripHistoryModal, openAlertModal } = useVehicleDetails();
-
-  // Mock function to simulate sending an alert
-  const handleSendAlert = (vehicle: VehicleData) => {
-    alert(`Simulating sending an alert to vehicle: ${vehicle.device_name}`);
+  const getStatusColor = (vehicle: VehicleData) => {
+    if (vehicle.isOnline && vehicle.isMoving) return 'bg-green-500';
+    if (vehicle.isOnline) return 'bg-yellow-500';
+    return 'bg-gray-400';
   };
 
-  const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.last_position?.timestamp) return 'offline';
-    
-    const lastUpdate = new Date(vehicle.last_position.timestamp);
-    const now = new Date();
-    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-    
-    if (minutesSinceUpdate <= 5) return 'online';
-    return 'offline';
-  };
-
-  const filteredVehicles = (vehicles: VehicleData[]) => {
-    return vehicles.filter(vehicle => {
-      const matchesSearch = vehicle.device_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            vehicle.device_id.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      if (statusFilter === 'all') return matchesSearch;
-      
-      const vehicleStatus = getVehicleStatus(vehicle);
-      return matchesSearch && vehicleStatus === statusFilter;
-    });
+  const getStatusText = (vehicle: VehicleData) => {
+    if (vehicle.isOnline && vehicle.isMoving) return 'Moving';
+    if (vehicle.isOnline) return 'Online';
+    return 'Offline';
   };
 
   return (
-    <Card className={`bg-white border border-gray-lighter shadow-sm ${className}`}>
-      <CardHeader className="p-4 border-b border-gray-lighter">
-        <CardTitle className="text-lg font-semibold text-primary-dark">
-          Vehicle List
+    <Card className="h-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Navigation className="h-5 w-5" />
+          Vehicle List ({vehicles.length})
         </CardTitle>
       </CardHeader>
-      
-      <CardContent className="p-0">
-        {/* Search and Filter Controls */}
-        <div className="p-4">
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-mid" />
-            <Input
-              placeholder="Search vehicles..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 h-10 border-gray-lighter"
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <Select value={statusFilter} onValueChange={(value: 'all' | 'online' | 'offline') => setStatusFilter(value)}>
-              <SelectTrigger className="h-10 border-gray-lighter w-40">
-                <SelectValue placeholder="All Status" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border border-gray-lighter">
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="online">Online</SelectItem>
-                <SelectItem value="offline">Offline</SelectItem>
-              </SelectContent>
-            </Select>
+      <CardContent>
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {vehicles.map((vehicle) => {
+            const trail = showTrails ? getVehicleTrail(vehicle.device_id) : [];
+            const isSelected = selectedVehicle?.id === vehicle.id;
             
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={onRefreshAddresses}
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
+            return (
+              <Button
+                key={vehicle.id}
+                variant={isSelected ? "default" : "outline"}
+                className="w-full p-4 h-auto flex flex-col items-start gap-2"
+                onClick={() => onVehicleSelect(vehicle)}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-medium">{vehicle.device_name}</span>
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(vehicle)}`} />
+                    <Badge variant="outline" className="text-xs">
+                      {getStatusText(vehicle)}
+                    </Badge>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-4 text-xs text-muted-foreground w-full">
+                  <div className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    <span>{vehicle.device_id}</span>
+                  </div>
+                  
+                  {vehicle.speed && (
+                    <div className="flex items-center gap-1">
+                      <Navigation className="h-3 w-3" />
+                      <span>{vehicle.speed} km/h</span>
+                    </div>
+                  )}
+                  
+                  {showTrails && trail.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      <span>{trail.length} points</span>
+                    </div>
+                  )}
+                </div>
+                
+                {vehicle.last_position && (
+                  <div className="text-xs text-muted-foreground w-full">
+                    Last update: {new Date(vehicle.last_position.timestamp || '').toLocaleTimeString()}
+                  </div>
+                )}
+              </Button>
+            );
+          })}
+          
+          {vehicles.length === 0 && (
+            <div className="text-center text-muted-foreground py-8">
+              No vehicles found matching current filters
+            </div>
+          )}
         </div>
-
-        {/* Vehicle List */}
-        <ScrollArea className="h-[450px]">
-          <div className="p-4">
-            {filteredVehicles([]).length === 0 ? (
-              <div className="text-center py-8 text-gray-mid">
-                <Car className="h-10 w-10 mx-auto mb-2 text-gray-400" />
-                <p>No vehicles found</p>
-              </div>
-            ) : (
-              filteredVehicles([]).map((vehicle) => (
-                <CompactVehicleCard
-                  key={vehicle.device_id}
-                  vehicle={vehicle}
-                  onClick={() => onVehicleSelect?.(vehicle)}
-                  onTripClick={() => openTripHistoryModal(vehicle)}
-                  onAlertClick={() => openAlertModal(vehicle)}
-                />
-              ))
-            )}
-          </div>
-        </ScrollArea>
       </CardContent>
     </Card>
   );

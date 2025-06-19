@@ -1,51 +1,43 @@
 
-import React, { useState, useCallback, useMemo } from 'react';
-import Layout from '@/components/Layout';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { 
-  Navigation, 
-  RefreshCw, 
-  Wifi, 
-  WifiOff, 
-  Activity,
-  MapPin,
-  Route,
-  Settings
-} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
 import { useStableEnhancedVehicleData } from '@/hooks/useStableEnhancedVehicleData';
 import { useEnhancedRealtimeVehicleData } from '@/hooks/useEnhancedRealtimeVehicleData';
+import { LiveTrackingStats } from './LiveTrackingStats';
+import { LiveTrackingFilters } from './LiveTrackingFilters';
+import { VehicleListPanel } from './VehicleListPanel';
 import MapTilerMap from '@/components/map/MapTilerMap';
-import LiveTrackingFilters from './LiveTrackingFilters';
-import LiveTrackingStats from './LiveTrackingStats';
-import VehicleListPanel from './VehicleListPanel';
-import type { VehicleData } from '@/types/vehicle';
+import { VehicleData, FilterState } from '@/types/vehicle';
+import { RefreshCw, Map, List, Settings, Activity } from 'lucide-react';
 
 const EnhancedLiveTrackingPage: React.FC = () => {
-  // UI state
+  const { toast } = useToast();
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
-  const [showTrails, setShowTrails] = useState(true);
-  const [enableWebSocket, setEnableWebSocket] = useState(true);
-  const [trailHours, setTrailHours] = useState(6);
+  const [filters, setFilters] = useState<FilterState>({
+    search: '',
+    status: 'all',
+    user: 'all',
+    online: 'all'
+  });
+  const [showTrails, setShowTrails] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [viewMode, setViewMode] = useState<'map' | 'list' | 'split'>('split');
 
   // Get base vehicle data
   const {
     vehicles: baseVehicles,
     filteredVehicles,
-    statistics,
-    isLoading: isLoadingVehicles,
-    error: vehicleError,
-    refetch: refetchVehicles,
-    setFilters,
-    userOptions
+    isLoading: isBaseLoading,
+    userOptions,
+    setFilters: setBaseFilters
   } = useStableEnhancedVehicleData();
 
-  // Enhanced real-time data
+  // Enhanced with real-time data
   const {
     vehicles: enhancedVehicles,
     vehicleTrails,
@@ -57,274 +49,264 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     refreshPositions,
     getVehicleTrail,
     forceRefreshTrails
-  } = useEnhancedRealtimeVehicleData(filteredVehicles, {
-    enableWebSocket,
+  } = useEnhancedRealtimeVehicleData(baseVehicles, {
+    enableWebSocket: true,
     enableTrails: showTrails,
-    trailHours,
-    fallbackPollingInterval: autoRefresh ? 30000 : 0
+    trailHours: 6,
+    fallbackPollingInterval: 30000,
+    maxPositionAge: 10
   });
 
-  // Memoized connection status
-  const connectionStatus = useMemo(() => {
-    switch (connectionState) {
-      case 'connected':
-        return { 
-          icon: Wifi, 
-          text: 'Connected', 
-          color: 'text-green-600',
-          bgColor: 'bg-green-100'
-        };
-      case 'connecting':
-        return { 
-          icon: RefreshCw, 
-          text: 'Connecting...', 
-          color: 'text-yellow-600',
-          bgColor: 'bg-yellow-100'
-        };
-      case 'error':
-        return { 
-          icon: WifiOff, 
-          text: 'Connection Error', 
-          color: 'text-red-600',
-          bgColor: 'bg-red-100'
-        };
-      default:
-        return { 
-          icon: WifiOff, 
-          text: 'Disconnected', 
-          color: 'text-gray-600',
-          bgColor: 'bg-gray-100'
-        };
+  // Apply filters to enhanced vehicles
+  const displayVehicles = enhancedVehicles.filter(vehicle => {
+    // Search filter
+    if (filters.search) {
+      const searchTerm = filters.search.toLowerCase();
+      const matchesSearch = 
+        vehicle.device_name.toLowerCase().includes(searchTerm) ||
+        vehicle.device_id.toLowerCase().includes(searchTerm);
+      
+      if (!matchesSearch) return false;
     }
-  }, [connectionState]);
 
-  // Vehicle selection handler
-  const handleVehicleSelect = useCallback((vehicle: VehicleData) => {
-    setSelectedVehicle(vehicle.id === selectedVehicle?.id ? null : vehicle);
-  }, [selectedVehicle]);
+    // Status filter
+    if (filters.status !== 'all') {
+      if (filters.status === 'online' && !vehicle.isOnline) return false;
+      if (filters.status === 'offline' && vehicle.isOnline) return false;
+      if (filters.status === 'active' && !vehicle.is_active) return false;
+    }
 
-  // Manual refresh handler
-  const handleRefresh = useCallback(() => {
+    // User filter
+    if (filters.user !== 'all') {
+      if (filters.user === 'unassigned' && vehicle.user_id) return false;
+      if (filters.user !== 'unassigned' && vehicle.user_id !== filters.user) return false;
+    }
+
+    return true;
+  });
+
+  // Handle real-time errors
+  useEffect(() => {
+    if (realtimeError) {
+      const errorMessage = typeof realtimeError === 'string' 
+        ? realtimeError 
+        : realtimeError instanceof Error 
+          ? realtimeError.message 
+          : 'Unknown real-time error';
+          
+      toast({
+        title: "Real-time Connection Issue",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    }
+  }, [realtimeError, toast]);
+
+  // Auto-select first vehicle
+  useEffect(() => {
+    if (displayVehicles.length > 0 && !selectedVehicle) {
+      setSelectedVehicle(displayVehicles[0]);
+    }
+  }, [displayVehicles, selectedVehicle]);
+
+  // Auto-refresh logic
+  useEffect(() => {
+    if (!autoRefresh) return;
+
+    const interval = setInterval(() => {
+      if (isWebSocketConnected) {
+        refreshPositions();
+      }
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, isWebSocketConnected, refreshPositions]);
+
+  const handleRefreshAll = () => {
     refreshPositions();
-    refetchVehicles();
     if (showTrails) {
       forceRefreshTrails();
     }
-  }, [refreshPositions, refetchVehicles, showTrails, forceRefreshTrails]);
+    toast({
+      title: "Refreshing Data",
+      description: "Updating vehicle positions and trails..."
+    });
+  };
 
-  // Get trail for selected vehicle
-  const selectedVehicleTrail = useMemo(() => {
-    if (!selectedVehicle || !showTrails) return [];
-    return getVehicleTrail(selectedVehicle.device_id);
-  }, [selectedVehicle, showTrails, getVehicleTrail]);
+  const handleTrailToggle = (enabled: boolean) => {
+    setShowTrails(enabled);
+    if (enabled) {
+      toast({
+        title: "Loading Vehicle Trails",
+        description: "Fetching historical position data..."
+      });
+    }
+  };
 
-  const StatusIcon = connectionStatus.icon;
-
-  if (isLoadingVehicles) {
+  if (isBaseLoading) {
     return (
-      <ProtectedRoute>
-        <Layout>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
-              <p>Loading live tracking data...</p>
-            </div>
-          </div>
-        </Layout>
-      </ProtectedRoute>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center space-x-4">
+          <RefreshCw className="h-6 w-6 animate-spin" />
+          <span>Loading live tracking data...</span>
+        </div>
+      </div>
     );
   }
 
-  const error = vehicleError || realtimeError;
-
   return (
-    <ProtectedRoute>
-      <Layout>
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Navigation className="h-8 w-8 text-primary" />
-              <div>
-                <h1 className="text-3xl font-bold">Live Vehicle Tracking</h1>
-                <p className="text-sm text-muted-foreground">
-                  Real-time vehicle monitoring with WebSocket connectivity
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              {/* Connection Status */}
-              <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${connectionStatus.bgColor}`}>
-                <StatusIcon className={`h-4 w-4 ${connectionStatus.color} ${connectionState === 'connecting' ? 'animate-spin' : ''}`} />
-                <span className={`text-xs font-medium ${connectionStatus.color}`}>
-                  {connectionStatus.text}
-                </span>
-              </div>
+    <div className="container mx-auto px-4 py-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Live Vehicle Tracking</h1>
+          <p className="text-muted-foreground">
+            Real-time monitoring of {displayVehicles.length} vehicles
+          </p>
+        </div>
 
-              {/* Real-time Stats */}
-              {realtimeStats.totalUpdates > 0 && (
-                <div className="text-xs text-muted-foreground">
-                  <div>Updates: {realtimeStats.totalUpdates}</div>
-                  {realtimeStats.lastUpdateTime && (
-                    <div>Last: {realtimeStats.lastUpdateTime.toLocaleTimeString()}</div>
-                  )}
-                </div>
-              )}
+        <div className="flex items-center space-x-4">
+          <Badge variant={isWebSocketConnected ? "default" : "destructive"}>
+            <Activity className="w-3 h-3 mr-1" />
+            {isWebSocketConnected ? 'Live' : 'Offline'}
+          </Badge>
 
-              <Button onClick={handleRefresh} variant="outline" size="sm">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-            </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setViewMode('map')}
+              className={viewMode === 'map' ? 'bg-accent' : ''}
+            >
+              <Map className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className={viewMode === 'list' ? 'bg-accent' : ''}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setViewMode('split')}
+              className={viewMode === 'split' ? 'bg-accent' : ''}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
           </div>
 
-          {/* Error Display */}
-          {error && (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-2 text-red-700">
-                  <WifiOff className="h-4 w-4" />
-                  <span className="text-sm font-medium">Connection Issue: {error.message}</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <Button onClick={handleRefreshAll} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+      </div>
 
-          {/* Settings Panel */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Real-time Settings
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="websocket"
-                    checked={enableWebSocket}
-                    onCheckedChange={setEnableWebSocket}
-                  />
-                  <Label htmlFor="websocket" className="text-sm">
-                    WebSocket Connection
-                  </Label>
-                </div>
+      {/* Real-time Stats */}
+      <LiveTrackingStats 
+        realtimeStats={realtimeStats}
+        connectionState={connectionState}
+      />
 
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="trails"
-                    checked={showTrails}
-                    onCheckedChange={setShowTrails}
-                  />
-                  <Label htmlFor="trails" className="text-sm">
-                    Vehicle Trails
-                  </Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="autorefresh"
-                    checked={autoRefresh}
-                    onCheckedChange={setAutoRefresh}
-                  />
-                  <Label htmlFor="autorefresh" className="text-sm">
-                    Auto Refresh
-                  </Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="trail-hours" className="text-sm">
-                    Trail Hours:
-                  </Label>
-                  <select
-                    id="trail-hours"
-                    value={trailHours}
-                    onChange={(e) => setTrailHours(Number(e.target.value))}
-                    className="text-sm border rounded px-2 py-1"
-                  >
-                    <option value={1}>1 hour</option>
-                    <option value={6}>6 hours</option>
-                    <option value={12}>12 hours</option>
-                    <option value={24}>24 hours</option>
-                  </select>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Filters and Stats */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <LiveTrackingFilters
-                onFiltersChange={setFilters}
-                userOptions={userOptions}
+      {/* Controls */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Controls</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="auto-refresh"
+                checked={autoRefresh}
+                onCheckedChange={setAutoRefresh}
               />
+              <Label htmlFor="auto-refresh">Auto Refresh</Label>
             </div>
-            <div>
-              <LiveTrackingStats 
-                statistics={statistics}
-                realtimeStats={realtimeStats}
-                isWebSocketConnected={isWebSocketConnected}
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="show-trails"
+                checked={showTrails}
+                onCheckedChange={handleTrailToggle}
+                disabled={isLoadingTrails}
               />
+              <Label htmlFor="show-trails">
+                Show Trails {isLoadingTrails && '(Loading...)'}
+              </Label>
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Map */}
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
-                      Live Map View
-                      {showTrails && (
-                        <Badge variant="outline" className="ml-2">
-                          <Route className="h-3 w-3 mr-1" />
-                          Trails {isLoadingTrails ? '(Loading...)' : ''}
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">
-                        <Activity className="h-3 w-3 mr-1" />
-                        {enhancedVehicles.filter(v => v.isOnline).length} Online
-                      </Badge>
-                      <Badge variant="outline">
-                        {enhancedVehicles.length} Total
-                      </Badge>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <MapTilerMap
-                    vehicles={enhancedVehicles}
-                    height="600px"
-                    onVehicleSelect={handleVehicleSelect}
-                    selectedVehicle={selectedVehicle}
-                    showControls={true}
-                  />
-                </CardContent>
-              </Card>
-            </div>
+      {/* Main Content */}
+      <div className="grid gap-6" style={{
+        gridTemplateColumns: viewMode === 'map' ? '1fr' : 
+                           viewMode === 'list' ? '1fr' : 
+                           '300px 1fr'
+      }}>
+        {/* Filters and Vehicle List */}
+        {(viewMode === 'list' || viewMode === 'split') && (
+          <div className="space-y-4">
+            <LiveTrackingFilters
+              filters={filters}
+              setFilters={setFilters}
+              userOptions={userOptions}
+            />
 
-            {/* Vehicle List */}
-            <div>
+            {viewMode === 'split' && (
               <VehicleListPanel
-                vehicles={enhancedVehicles}
+                vehicles={displayVehicles}
                 selectedVehicle={selectedVehicle}
-                onVehicleSelect={handleVehicleSelect}
+                onVehicleSelect={setSelectedVehicle}
                 showTrails={showTrails}
                 getVehicleTrail={getVehicleTrail}
               />
-            </div>
+            )}
           </div>
-        </div>
-      </Layout>
-    </ProtectedRoute>
+        )}
+
+        {/* Map or Vehicle Details */}
+        {(viewMode === 'map' || viewMode === 'split') && (
+          <Card className="h-[600px]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Map className="h-5 w-5" />
+                Live Map View
+                {selectedVehicle && (
+                  <Badge variant="outline">
+                    {selectedVehicle.device_name}
+                  </Badge>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="h-full p-0">
+              <MapTilerMap
+                vehicles={displayVehicles}
+                selectedVehicle={selectedVehicle}
+                onVehicleSelect={setSelectedVehicle}
+                height="500px"
+                showControls={true}
+              />
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Full Vehicle List (List View Only) */}
+        {viewMode === 'list' && (
+          <VehicleListPanel
+            vehicles={displayVehicles}
+            selectedVehicle={selectedVehicle}
+            onVehicleSelect={setSelectedVehicle}
+            showTrails={showTrails}
+            getVehicleTrail={getVehicleTrail}
+          />
+        )}
+      </div>
+    </div>
   );
 };
 
