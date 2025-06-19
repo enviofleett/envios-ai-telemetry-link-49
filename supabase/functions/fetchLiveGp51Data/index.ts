@@ -192,7 +192,91 @@ serve(async (req) => {
       console.log("⚠️ No device IDs found, skipping position retrieval");
     }
 
+    // Step 3: Persist data to Supabase
+    console.log(`💾 Starting data persistence to Supabase...`);
+    
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.50.0");
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    let persistedVehicles = 0;
+    let persistedPositions = 0;
+    let persistenceErrors = 0;
+
+    // Process devices for persistence
+    if (devices.length > 0) {
+      console.log(`🔧 Processing ${devices.length} devices for persistence...`);
+      
+      const vehicleData = devices.map((device: any) => ({
+        gp51_device_id: device.deviceid || device.id,
+        name: device.name || device.devicename || `Device ${device.deviceid}`,
+        user_id: null, // Will be assigned later by admin
+        sim_number: device.sim || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })).filter(vehicle => vehicle.gp51_device_id); // Only include devices with valid IDs
+
+      if (vehicleData.length > 0) {
+        console.log(`📝 Upserting ${vehicleData.length} vehicles to database...`);
+        
+        const { data: upsertedVehicles, error: vehicleError } = await supabase
+          .from('vehicles')
+          .upsert(vehicleData, { 
+            onConflict: 'gp51_device_id',
+            ignoreDuplicates: false 
+          });
+
+        if (vehicleError) {
+          console.error('❌ Error upserting vehicles:', vehicleError);
+          persistenceErrors++;
+        } else {
+          persistedVehicles = vehicleData.length;
+          console.log(`✅ Successfully upserted ${persistedVehicles} vehicles`);
+        }
+      }
+    }
+
+    // Process positions for persistence
+    if (allPositions.length > 0) {
+      console.log(`🔧 Processing ${allPositions.length} positions for persistence...`);
+      
+      // Update vehicles with latest position data
+      for (const position of allPositions) {
+        const deviceId = position.deviceid;
+        if (!deviceId) continue;
+
+        const positionData = {
+          last_position: {
+            latitude: position.callat || position.lat,
+            longitude: position.callon || position.lng,
+            speed: position.speed || 0,
+            course: position.course || 0,
+            timestamp: position.updatetime ? new Date(position.updatetime).toISOString() : new Date().toISOString(),
+            status: position.strstatusen || position.strstatus || 'Unknown'
+          },
+          updated_at: new Date().toISOString()
+        };
+
+        const { error: positionError } = await supabase
+          .from('vehicles')
+          .update(positionData)
+          .eq('gp51_device_id', deviceId);
+
+        if (positionError) {
+          console.error(`❌ Error updating position for device ${deviceId}:`, positionError);
+          persistenceErrors++;
+        } else {
+          persistedPositions++;
+        }
+      }
+      
+      console.log(`✅ Successfully updated ${persistedPositions} vehicle positions`);
+    }
+
     console.log(`📈 Final data summary: ${devices.length} devices, ${allPositions.length} positions`);
+    console.log(`💾 Persistence summary: ${persistedVehicles} vehicles, ${persistedPositions} positions, ${persistenceErrors} errors`);
 
     // Determine sync type based on data volume and force flag
     const syncType = forceFullSync || devices.length > 100 ? 'fullSync' : 'batchedUpdate';
@@ -205,6 +289,9 @@ serve(async (req) => {
       statistics: {
         totalDevices: devices.length,
         totalPositions: allPositions.length,
+        persistedVehicles,
+        persistedPositions,
+        persistenceErrors,
         responseTime: Date.now()
       },
       metadata: {
@@ -218,7 +305,7 @@ serve(async (req) => {
       }
     };
 
-    console.log(`✅ Successfully processed ${syncType} - returning ${allPositions.length} positions`);
+    console.log(`✅ Successfully processed ${syncType} - returning ${allPositions.length} positions and persisted ${persistedVehicles} vehicles`);
 
     return jsonResponse({
       success: true,
