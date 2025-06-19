@@ -6,15 +6,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 interface EnhancedMerchantLoginProps {
   onSuccess?: () => void;
   onCancel?: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
+  onLogin?: (creds: any) => void;
 }
 
 export const EnhancedMerchantLogin: React.FC<EnhancedMerchantLoginProps> = ({ 
   onSuccess, 
-  onCancel 
+  onCancel,
+  isOpen,
+  onClose,
+  onLogin
 }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,6 +31,9 @@ export const EnhancedMerchantLogin: React.FC<EnhancedMerchantLoginProps> = ({
   const { handleAuthAttempt, attemptCount, isLoading } = useMarketplaceAuth({
     onSuccess: () => {
       setError('');
+      if (onLogin) {
+        onLogin({ email, password });
+      }
       onSuccess?.();
     },
     onError: (errorMsg) => {
@@ -48,7 +58,14 @@ export const EnhancedMerchantLogin: React.FC<EnhancedMerchantLoginProps> = ({
     await handleAuthAttempt(email, password);
   };
 
-  return (
+  const handleCancelClick = () => {
+    if (onClose) {
+      onClose();
+    }
+    onCancel?.();
+  };
+
+  const loginForm = (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <CardTitle>Merchant Login</CardTitle>
@@ -96,11 +113,11 @@ export const EnhancedMerchantLogin: React.FC<EnhancedMerchantLoginProps> = ({
             >
               {isLoading ? 'Logging in...' : 'Login'}
             </Button>
-            {onCancel && (
+            {(onCancel || onClose) && (
               <Button 
                 type="button" 
                 variant="outline" 
-                onClick={onCancel}
+                onClick={handleCancelClick}
                 disabled={isLoading}
               >
                 Cancel
@@ -111,6 +128,76 @@ export const EnhancedMerchantLogin: React.FC<EnhancedMerchantLoginProps> = ({
       </CardContent>
     </Card>
   );
+
+  // If isOpen is provided, render as a modal
+  if (isOpen !== undefined) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Merchant Login</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
+                required
+              />
+            </div>
+            <div>
+              <Input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                required
+              />
+            </div>
+            
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+            
+            {attemptCount > 0 && (
+              <div className="text-sm text-muted-foreground">
+                Login attempts: {attemptCount}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button 
+                type="submit" 
+                disabled={isLoading || !email || !password}
+                className="flex-1"
+              >
+                {isLoading ? 'Logging in...' : 'Login'}
+              </Button>
+              {onClose && (
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={onClose}
+                  disabled={isLoading}
+                >
+                  Cancel
+                </Button>
+              )}
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Default standalone rendering
+  return loginForm;
 };
 
 export default EnhancedMerchantLogin;
