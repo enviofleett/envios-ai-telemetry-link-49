@@ -17,6 +17,14 @@ interface VehicleServiceMetrics {
   errorMessage?: string;
 }
 
+interface SyncMetrics {
+  lastSyncTime: Date;
+  positionsUpdated: number;
+  errors: number;
+  syncStatus: 'success' | 'error' | 'loading';
+  errorMessage?: string;
+}
+
 class EnhancedVehicleDataService {
   private static instance: EnhancedVehicleDataService;
   private vehicles: VehicleData[] = [];
@@ -31,6 +39,12 @@ class EnhancedVehicleDataService {
     offlineVehicles: 0,
     recentlyActiveVehicles: 0,
     lastSyncTime: new Date(),
+    syncStatus: 'success'
+  };
+  private lastSyncMetrics: SyncMetrics = {
+    lastSyncTime: new Date(),
+    positionsUpdated: 0,
+    errors: 0,
     syncStatus: 'success'
   };
   private subscribers: Set<() => void> = new Set();
@@ -82,6 +96,7 @@ class EnhancedVehicleDataService {
   private async syncVehicleData() {
     try {
       this.updateMetrics({ syncStatus: 'syncing' });
+      this.updateSyncMetrics({ syncStatus: 'loading' });
       
       const { data: vehicles, error } = await supabase
         .from('vehicles')
@@ -94,20 +109,31 @@ class EnhancedVehicleDataService {
           syncStatus: 'error', 
           errorMessage: error.message 
         });
+        this.updateSyncMetrics({ 
+          syncStatus: 'error', 
+          errorMessage: error.message 
+        });
         return;
       }
 
-      // Transform the data to match VehicleData interface
+      // Transform the data to match VehicleData interface with all required properties
       this.vehicles = (vehicles || []).map(vehicle => ({
         id: vehicle.id,
         device_id: vehicle.gp51_device_id || '',
         device_name: vehicle.name || 'Unknown Device',
+        user_id: vehicle.user_id,
+        sim_number: vehicle.sim_number,
+        created_at: vehicle.created_at,
+        updated_at: vehicle.updated_at,
+        vin: vehicle.vin,
+        license_plate: vehicle.license_plate,
+        is_active: true, // Default value
+        last_position: undefined,
         status: 'offline' as const,
         isOnline: false,
         isMoving: false,
+        alerts: [], // Default empty array
         lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
-        last_position: undefined,
-        sim_number: undefined
       }));
 
       this.calculateMetrics();
@@ -116,11 +142,22 @@ class EnhancedVehicleDataService {
         lastSyncTime: new Date(),
         errorMessage: undefined 
       });
+      this.updateSyncMetrics({ 
+        syncStatus: 'success', 
+        lastSyncTime: new Date(),
+        positionsUpdated: this.vehicles.length,
+        errors: 0,
+        errorMessage: undefined 
+      });
       this.notifySubscribers();
 
     } catch (error) {
       console.error('Sync error:', error);
       this.updateMetrics({ 
+        syncStatus: 'error', 
+        errorMessage: error instanceof Error ? error.message : 'Unknown error' 
+      });
+      this.updateSyncMetrics({ 
         syncStatus: 'error', 
         errorMessage: error instanceof Error ? error.message : 'Unknown error' 
       });
@@ -132,7 +169,7 @@ class EnhancedVehicleDataService {
     const online = this.vehicles.filter(v => v.isOnline).length;
     const offline = total - online;
     const idle = this.vehicles.filter(v => v.isOnline && !v.isMoving).length;
-    const alerts = 0; // Calculate based on your alert logic
+    const alerts = this.vehicles.filter(v => v.alerts && v.alerts.length > 0).length;
     
     const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
     const recentlyActive = this.vehicles.filter(v => 
@@ -154,6 +191,10 @@ class EnhancedVehicleDataService {
 
   private updateMetrics(updates: Partial<VehicleServiceMetrics>) {
     this.metrics = { ...this.metrics, ...updates };
+  }
+
+  private updateSyncMetrics(updates: Partial<SyncMetrics>) {
+    this.lastSyncMetrics = { ...this.lastSyncMetrics, ...updates };
   }
 
   private notifySubscribers() {
@@ -193,8 +234,16 @@ class EnhancedVehicleDataService {
     return [...this.vehicles];
   }
 
+  getEnhancedVehicles(): VehicleData[] {
+    return [...this.vehicles];
+  }
+
   getMetrics(): VehicleServiceMetrics {
     return { ...this.metrics };
+  }
+
+  getLastSyncMetrics(): SyncMetrics {
+    return { ...this.lastSyncMetrics };
   }
 
   getVehicleById(deviceId: string): VehicleData | undefined {
