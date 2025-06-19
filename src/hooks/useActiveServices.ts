@@ -22,7 +22,7 @@ export const useActiveServices = () => {
   } = useBillingManagement();
 
   const vehicleDataQuery = useOptimizedVehicleData();
-  const vehicles = vehicleDataQuery.data?.vehicles || [];
+  const vehicles = vehicleDataQuery.vehicles || [];
 
   // Transform device subscriptions to active services
   const activeServices = useMemo((): ActiveService[] => {
