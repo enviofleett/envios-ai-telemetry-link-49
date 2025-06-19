@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button"
 import { useLocation, useNavigate } from "react-router-dom"
 import { AppSidebarNavigation } from "./sidebar/AppSidebarNavigation"
 import { AppSidebarQuickActions } from "./sidebar/AppSidebarQuickActions"
-import { menuItems, agentMenuItems } from "@/config/sidebar-menu"
+import { menuItems, agentMenuItems, quickActions } from "@/config/sidebar-menu"
 
 export function AppSidebar() {
   const { user, isAdmin, isAgent, signOut, loading, isCheckingRole } = useAuth()
@@ -100,7 +100,7 @@ export function AppSidebar() {
         <AppSidebarNavigation menuItems={currentMenuItems} />
         
         {/* Show quick actions for admin users */}
-        {isAdmin && <AppSidebarQuickActions />}
+        {isAdmin && <AppSidebarQuickActions quickActions={quickActions} />}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
