@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -8,6 +7,8 @@ import VehicleListPanel from './VehicleListPanel';
 import LiveTrackingMap from './LiveTrackingMap';
 import { useVehicleData } from '@/hooks/useVehicleData';
 import { useEnhancedRealtimeVehicleData } from '@/hooks/useEnhancedRealtimeVehicleData';
+import { useGeofencingIntegration } from '@/hooks/useGeofencingIntegration';
+import OptimizedMapTilerMap from '@/components/map/OptimizedMapTilerMap';
 import type { VehicleData, FilterState } from '@/types/vehicle';
 
 const EnhancedLiveTrackingPage: React.FC = () => {
@@ -40,6 +41,17 @@ const EnhancedLiveTrackingPage: React.FC = () => {
   } = useEnhancedRealtimeVehicleData(vehicles, {
     enableWebSocket: true,
     enableTrails: showTrails
+  });
+
+  // Add geofencing integration
+  const {
+    getVehicleGeofenceStatus,
+    getGeofencingStats,
+    isMonitoring: isGeofenceMonitoring
+  } = useGeofencingIntegration(enhancedVehicles, {
+    enableRealtimeChecking: true,
+    checkInterval: 30000,
+    enableNotifications: true
   });
 
   // Filter vehicles based on current filters
@@ -111,6 +123,19 @@ const EnhancedLiveTrackingPage: React.FC = () => {
     setShowFilters(prev => !prev);
   }, []);
 
+  // Enhanced stats with geofencing data
+  const enhancedRealtimeStats = useMemo(() => {
+    const geofenceStats = getGeofencingStats();
+    return {
+      ...realtimeStats,
+      geofencing: {
+        isActive: isGeofenceMonitoring,
+        totalZones: geofenceStats.totalGeofences,
+        violations: geofenceStats.vehiclesInExclusionZones
+      }
+    };
+  }, [realtimeStats, getGeofencingStats, isGeofenceMonitoring]);
+
   if (error) {
     return (
       <div className="p-6">
@@ -128,9 +153,9 @@ const EnhancedLiveTrackingPage: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Stats Row */}
+      {/* Stats Row with enhanced data */}
       <LiveTrackingStats 
-        realtimeStats={realtimeStats}
+        realtimeStats={enhancedRealtimeStats}
         connectionState={connectionState}
       />
 
@@ -158,17 +183,20 @@ const EnhancedLiveTrackingPage: React.FC = () => {
           />
         </div>
 
-        {/* Map */}
+        {/* Optimized Map */}
         <div className="lg:col-span-2">
           <Card className="h-[600px]">
             <CardContent className="p-0 h-full">
-              <LiveTrackingMap
+              <OptimizedMapTilerMap
                 vehicles={filteredVehicles}
                 selectedVehicle={selectedVehicle}
                 onVehicleSelect={handleVehicleSelect}
                 showTrails={showTrails}
                 vehicleTrails={vehicleTrails}
-                getVehicleTrail={getVehicleTrail}
+                enableClustering={filteredVehicles.length > 50}
+                maxVehiclesPerView={200}
+                height="600px"
+                showControls={true}
               />
             </CardContent>
           </Card>
