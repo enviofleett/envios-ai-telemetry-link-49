@@ -1,162 +1,129 @@
+
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
 export interface TrailPoint {
-  latitude: number;
-  longitude: number;
+  lat: number;
+  lng: number;
+  timestamp: string;
   speed?: number;
   heading?: number;
-  timestamp: string;
+  accuracy?: number;
 }
 
 export interface VehicleTrail {
   id: string;
-  vehicle_id: string;
   device_id: string;
   trail_points: TrailPoint[];
   start_time: string;
   end_time: string;
-  total_distance: number;
-  total_duration_minutes: number;
+  total_distance?: number;
+  total_duration_minutes?: number;
   created_at: string;
 }
 
-export interface TrailOptions {
-  deviceId?: string;
-  vehicleId?: string;
-  startTime?: Date;
-  endTime?: Date;
-  maxPoints?: number;
-  simplifyTolerance?: number;
-}
+// Helper function to convert TrailPoint[] to Json
+const convertTrailPointsToJson = (points: TrailPoint[]): Json => {
+  return points.map(point => ({
+    lat: point.lat,
+    lng: point.lng,
+    timestamp: point.timestamp,
+    speed: point.speed || null,
+    heading: point.heading || null,
+    accuracy: point.accuracy || null
+  })) as Json;
+};
+
+// Helper function to safely parse trail points from Json
+const parseTrailPointsFromJson = (jsonData: Json): TrailPoint[] => {
+  try {
+    if (Array.isArray(jsonData)) {
+      return jsonData.map(item => {
+        if (typeof item === 'object' && item !== null) {
+          const point = item as { [key: string]: any };
+          return {
+            lat: typeof point.lat === 'number' ? point.lat : 0,
+            lng: typeof point.lng === 'number' ? point.lng : 0,
+            timestamp: typeof point.timestamp === 'string' ? point.timestamp : new Date().toISOString(),
+            speed: typeof point.speed === 'number' ? point.speed : undefined,
+            heading: typeof point.heading === 'number' ? point.heading : undefined,
+            accuracy: typeof point.accuracy === 'number' ? point.accuracy : undefined
+          };
+        }
+        return {
+          lat: 0,
+          lng: 0,
+          timestamp: new Date().toISOString()
+        };
+      });
+    }
+    return [];
+  } catch (error) {
+    console.error('Error parsing trail points from JSON:', error);
+    return [];
+  }
+};
 
 class VehicleTrailService {
-  private static instance: VehicleTrailService;
-
-  static getInstance(): VehicleTrailService {
-    if (!VehicleTrailService.instance) {
-      VehicleTrailService.instance = new VehicleTrailService();
-    }
-    return VehicleTrailService.instance;
-  }
-
-  // Helper function to safely parse JSON data to TrailPoint array
-  private parseTrailPoints(jsonData: unknown): TrailPoint[] {
-    if (!Array.isArray(jsonData)) {
-      console.warn('Trail points data is not an array:', jsonData);
-      return [];
-    }
-
-    return jsonData
-      .map((item: unknown) => {
-        if (typeof item === 'object' && item !== null) {
-          const obj = item as Record<string, unknown>;
-          
-          // Validate required properties
-          if (
-            typeof obj.latitude === 'number' &&
-            typeof obj.longitude === 'number' &&
-            (typeof obj.timestamp === 'string' || typeof obj.timestamp === 'number')
-          ) {
-            return {
-              latitude: obj.latitude,
-              longitude: obj.longitude,
-              speed: typeof obj.speed === 'number' ? obj.speed : undefined,
-              heading: typeof obj.heading === 'number' ? obj.heading : undefined,
-              timestamp: String(obj.timestamp)
-            } as TrailPoint;
-          }
-        }
-        
-        console.warn('Invalid trail point data:', item);
-        return null;
-      })
-      .filter((point): point is TrailPoint => point !== null);
-  }
-
-  async getVehiclePositions(options: TrailOptions): Promise<TrailPoint[]> {
+  async getVehicleTrail(deviceId: string, hoursBack: number = 24): Promise<TrailPoint[]> {
     try {
-      let query = supabase
-        .from('vehicle_positions')
-        .select('device_id, latitude, longitude, speed, heading, timestamp')
-        .order('timestamp', { ascending: true });
+      const startTime = new Date();
+      startTime.setHours(startTime.getHours() - hoursBack);
 
-      if (options.deviceId) {
-        query = query.eq('device_id', options.deviceId);
-      }
-
-      if (options.vehicleId) {
-        query = query.eq('vehicle_id', options.vehicleId);
-      }
-
-      if (options.startTime) {
-        query = query.gte('timestamp', options.startTime.toISOString());
-      }
-
-      if (options.endTime) {
-        query = query.lte('timestamp', options.endTime.toISOString());
-      }
-
-      if (options.maxPoints) {
-        query = query.limit(options.maxPoints);
-      }
-
-      const { data, error } = await query;
+      const { data, error } = await supabase
+        .from('vehicle_trails')
+        .select('trail_points, start_time, end_time')
+        .eq('device_id', deviceId)
+        .gte('start_time', startTime.toISOString())
+        .order('start_time', { ascending: true });
 
       if (error) {
-        console.error('Error fetching vehicle positions:', error);
-        throw error;
+        console.error('Error fetching vehicle trail:', error);
+        return [];
       }
 
-      return data || [];
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Combine all trail points from different trail segments
+      const allPoints: TrailPoint[] = [];
+      for (const trail of data) {
+        const points = parseTrailPointsFromJson(trail.trail_points);
+        allPoints.push(...points);
+      }
+
+      // Sort by timestamp
+      return allPoints.sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
     } catch (error) {
-      console.error('Error in getVehiclePositions:', error);
-      throw error;
+      console.error('Error in getVehicleTrail:', error);
+      return [];
     }
   }
 
-  async getVehicleTrail(deviceId: string, hours: number = 6): Promise<TrailPoint[]> {
-    const endTime = new Date();
-    const startTime = new Date(endTime.getTime() - hours * 60 * 60 * 1000);
-
-    return this.getVehiclePositions({
-      deviceId,
-      startTime,
-      endTime,
-      maxPoints: 1000
-    });
-  }
-
-  async createTrailFromPositions(deviceId: string, positions: TrailPoint[]): Promise<string | null> {
-    if (positions.length < 2) {
-      return null;
-    }
-
+  async saveVehicleTrail(
+    deviceId: string, 
+    points: TrailPoint[], 
+    vehicleId?: string
+  ): Promise<string | null> {
     try {
-      // Get vehicle ID from device ID
-      const { data: vehicle } = await supabase
-        .from('vehicles')
-        .select('id')
-        .eq('gp51_device_id', deviceId)
-        .single();
-
-      if (!vehicle) {
-        console.warn(`No vehicle found for device ID: ${deviceId}`);
+      if (points.length === 0) {
         return null;
       }
 
-      const startTime = positions[0].timestamp;
-      const endTime = positions[positions.length - 1].timestamp;
-      const totalDistance = this.calculateTotalDistance(positions);
-      const totalDuration = Math.floor(
-        (new Date(endTime).getTime() - new Date(startTime).getTime()) / (1000 * 60)
-      );
+      const startTime = points[0].timestamp;
+      const endTime = points[points.length - 1].timestamp;
+      const totalDistance = this.calculateTotalDistance(points);
+      const totalDuration = this.calculateDuration(startTime, endTime);
 
       const { data, error } = await supabase
         .from('vehicle_trails')
         .insert({
-          vehicle_id: vehicle.id,
           device_id: deviceId,
-          trail_points: positions,
+          trail_points: convertTrailPointsToJson(points),
           start_time: startTime,
           end_time: endTime,
           total_distance: totalDistance,
@@ -166,148 +133,196 @@ class VehicleTrailService {
         .single();
 
       if (error) {
-        console.error('Error creating trail:', error);
-        throw error;
+        console.error('Error saving vehicle trail:', error);
+        return null;
       }
 
       return data?.id || null;
     } catch (error) {
-      console.error('Error in createTrailFromPositions:', error);
-      throw error;
+      console.error('Error in saveVehicleTrail:', error);
+      return null;
     }
   }
 
-  async getStoredTrails(deviceId: string, days: number = 7): Promise<VehicleTrail[]> {
+  async getTrailsForTimeRange(
+    deviceId: string, 
+    startTime: Date, 
+    endTime: Date
+  ): Promise<VehicleTrail[]> {
     try {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - days);
-
       const { data, error } = await supabase
         .from('vehicle_trails')
         .select('*')
         .eq('device_id', deviceId)
-        .gte('start_time', cutoffDate.toISOString())
-        .order('start_time', { ascending: false });
+        .gte('start_time', startTime.toISOString())
+        .lte('end_time', endTime.toISOString())
+        .order('start_time', { ascending: true });
 
       if (error) {
-        console.error('Error fetching stored trails:', error);
-        throw error;
+        console.error('Error fetching trails for time range:', error);
+        return [];
       }
 
       return (data || []).map(trail => ({
-        ...trail,
-        trail_points: this.parseTrailPoints(trail.trail_points)
+        id: trail.id,
+        device_id: trail.device_id,
+        trail_points: parseTrailPointsFromJson(trail.trail_points),
+        start_time: trail.start_time,
+        end_time: trail.end_time,
+        total_distance: trail.total_distance,
+        total_duration_minutes: trail.total_duration_minutes,
+        created_at: trail.created_at
       }));
+
     } catch (error) {
-      console.error('Error in getStoredTrails:', error);
-      throw error;
+      console.error('Error in getTrailsForTimeRange:', error);
+      return [];
     }
   }
 
   simplifyTrail(points: TrailPoint[], tolerance: number = 0.0001): TrailPoint[] {
     if (points.length <= 2) return points;
 
-    // Simple Douglas-Peucker algorithm implementation
-    return this.douglasPeucker(points, tolerance);
-  }
+    // Douglas-Peucker algorithm for line simplification
+    const douglasPeucker = (points: TrailPoint[], tolerance: number): TrailPoint[] => {
+      if (points.length <= 2) return points;
 
-  private douglasPeucker(points: TrailPoint[], tolerance: number): TrailPoint[] {
-    if (points.length <= 2) return points;
+      let maxDistance = 0;
+      let maxIndex = 0;
+      const end = points.length - 1;
 
-    let maxDistance = 0;
-    let maxIndex = 0;
-    const firstPoint = points[0];
-    const lastPoint = points[points.length - 1];
-
-    // Find the point with maximum distance from the line between first and last
-    for (let i = 1; i < points.length - 1; i++) {
-      const distance = this.pointToLineDistance(
-        points[i],
-        firstPoint,
-        lastPoint
-      );
-      
-      if (distance > maxDistance) {
-        maxDistance = distance;
-        maxIndex = i;
+      for (let i = 1; i < end; i++) {
+        const distance = this.perpendicularDistance(
+          points[i],
+          points[0],
+          points[end]
+        );
+        if (distance > maxDistance) {
+          maxDistance = distance;
+          maxIndex = i;
+        }
       }
-    }
 
-    // If the maximum distance is greater than tolerance, recursively simplify
-    if (maxDistance > tolerance) {
-      const leftPart = this.douglasPeucker(points.slice(0, maxIndex + 1), tolerance);
-      const rightPart = this.douglasPeucker(points.slice(maxIndex), tolerance);
-      
-      // Combine results, removing duplicate point at the join
-      return leftPart.slice(0, -1).concat(rightPart);
-    } else {
-      // If no point exceeds tolerance, return just the endpoints
-      return [firstPoint, lastPoint];
-    }
+      if (maxDistance > tolerance) {
+        const left = douglasPeucker(points.slice(0, maxIndex + 1), tolerance);
+        const right = douglasPeucker(points.slice(maxIndex), tolerance);
+        return [...left.slice(0, -1), ...right];
+      } else {
+        return [points[0], points[end]];
+      }
+    };
+
+    return douglasPeucker(points, tolerance);
   }
 
-  private pointToLineDistance(point: TrailPoint, lineStart: TrailPoint, lineEnd: TrailPoint): number {
-    const A = lineEnd.latitude - lineStart.latitude;
-    const B = lineStart.longitude - lineEnd.longitude;
-    const C = lineEnd.longitude * lineStart.latitude - lineStart.longitude * lineEnd.latitude;
+  private perpendicularDistance(
+    point: TrailPoint,
+    lineStart: TrailPoint,
+    lineEnd: TrailPoint
+  ): number {
+    const A = point.lat - lineStart.lat;
+    const B = point.lng - lineStart.lng;
+    const C = lineEnd.lat - lineStart.lat;
+    const D = lineEnd.lng - lineStart.lng;
+
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
     
-    return Math.abs(A * point.longitude + B * point.latitude + C) / Math.sqrt(A * A + B * B);
+    if (lenSq === 0) return Math.sqrt(A * A + B * B);
+
+    const param = dot / lenSq;
+    let xx: number, yy: number;
+
+    if (param < 0) {
+      xx = lineStart.lat;
+      yy = lineStart.lng;
+    } else if (param > 1) {
+      xx = lineEnd.lat;
+      yy = lineEnd.lng;
+    } else {
+      xx = lineStart.lat + param * C;
+      yy = lineStart.lng + param * D;
+    }
+
+    const dx = point.lat - xx;
+    const dy = point.lng - yy;
+    return Math.sqrt(dx * dx + dy * dy);
   }
 
   private calculateTotalDistance(points: TrailPoint[]): number {
+    if (points.length < 2) return 0;
+
     let totalDistance = 0;
-    
     for (let i = 1; i < points.length; i++) {
-      const distance = this.calculateDistance(
-        points[i - 1].latitude,
-        points[i - 1].longitude,
-        points[i].latitude,
-        points[i].longitude
+      totalDistance += this.haversineDistance(
+        points[i - 1].lat,
+        points[i - 1].lng,
+        points[i].lat,
+        points[i].lng
       );
-      totalDistance += distance;
     }
-    
+
     return Math.round(totalDistance * 100) / 100; // Round to 2 decimal places
   }
 
-  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  private calculateDuration(startTime: string, endTime: string): number {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    return Math.round((end.getTime() - start.getTime()) / (1000 * 60)); // Minutes
+  }
+
+  private haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
     const R = 6371; // Earth's radius in kilometers
-    const dLat = this.toRadians(lat2 - lat1);
-    const dLon = this.toRadians(lon2 - lon1);
-    
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    
+    const dLat = this.deg2rad(lat2 - lat1);
+    const dLon = this.deg2rad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+    return R * c; // Distance in kilometers
   }
 
-  private toRadians(degrees: number): number {
-    return degrees * (Math.PI / 180);
+  private deg2rad(deg: number): number {
+    return deg * (Math.PI / 180);
   }
 
-  async cleanupOldPositions(daysToKeep: number = 7): Promise<void> {
+  async getActiveTrails(deviceIds: string[]): Promise<Map<string, TrailPoint[]>> {
+    const trails = new Map<string, TrailPoint[]>();
+    
+    const promises = deviceIds.map(async (deviceId) => {
+      const points = await this.getVehicleTrail(deviceId, 6); // Last 6 hours
+      if (points.length > 0) {
+        trails.set(deviceId, points);
+      }
+    });
+
+    await Promise.allSettled(promises);
+    return trails;
+  }
+
+  async deleteOldTrails(daysToKeep: number = 30): Promise<number> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-      const { error } = await supabase
-        .from('vehicle_positions')
+      const { data, error } = await supabase
+        .from('vehicle_trails')
         .delete()
-        .lt('created_at', cutoffDate.toISOString());
+        .lt('created_at', cutoffDate.toISOString())
+        .select('id');
 
       if (error) {
-        console.error('Error cleaning up old positions:', error);
-        throw error;
+        console.error('Error deleting old trails:', error);
+        return 0;
       }
 
-      console.log(`✅ Cleaned up vehicle positions older than ${daysToKeep} days`);
+      return data?.length || 0;
     } catch (error) {
-      console.error('Error in cleanupOldPositions:', error);
-      throw error;
+      console.error('Error in deleteOldTrails:', error);
+      return 0;
     }
   }
 }
 
-export const vehicleTrailService = VehicleTrailService.getInstance();
+export const vehicleTrailService = new VehicleTrailService();
