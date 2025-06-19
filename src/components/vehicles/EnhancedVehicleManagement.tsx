@@ -1,305 +1,260 @@
-import React, { useState } from 'react';
-import { useDeviceManagement } from '@/hooks/useDeviceManagement';
+
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Car, Plus, Search, Download, Edit2, MoreVertical } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import GP51VehicleImportModal from './GP51VehicleImportModal';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useToast } from '@/hooks/use-toast';
+import { useStableEnhancedVehicleData } from '@/hooks/useStableEnhancedVehicleData';
+import { useUserProfiles } from '@/hooks/useUserProfiles';
+import { Search, Plus, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
 import VehicleEditModal from './VehicleEditModal';
 import VehicleBulkOperations from './VehicleBulkOperations';
 import type { VehicleData } from '@/types/vehicle';
 
-const EnhancedVehicleManagement: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingVehicle, setEditingVehicle] = useState<VehicleData | null>(null);
-  const [selectedVehicles, setSelectedVehicles] = useState<VehicleData[]>([]);
-  const { devices: vehicles, isLoading, error, refetch } = useDeviceManagement(searchTerm);
+interface User {
+  id: string;
+  name: string;
+  email: string;
+}
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'bg-green-500';
-      case 'active': return 'bg-blue-500';
-      case 'offline': return 'bg-gray-400';
-      case 'inactive': return 'bg-red-500';
-      default: return 'bg-gray-400';
+const EnhancedVehicleManagement: React.FC = () => {
+  const { toast } = useToast();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedVehicles, setSelectedVehicles] = useState<VehicleData[]>([]);
+  const [editingVehicle, setEditingVehicle] = useState<VehicleData | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  const {
+    vehicles,
+    isLoading,
+    error,
+    refetch
+  } = useStableEnhancedVehicleData();
+
+  const {
+    users,
+    isLoading: usersLoading
+  } = useUserProfiles();
+
+  const availableUsers: User[] = users?.map(user => ({
+    id: user.id,
+    name: user.name || user.email || 'Unknown',
+    email: user.email || ''
+  })) || [];
+
+  const filteredVehicles = vehicles?.filter(vehicle =>
+    vehicle.device_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    vehicle.device_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    vehicle.envio_users?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    vehicle.envio_users?.email?.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
+
+  // Selection state management
+  const isAllSelected = filteredVehicles.length > 0 && selectedVehicles.length === filteredVehicles.length;
+  const isIndeterminate = selectedVehicles.length > 0 && selectedVehicles.length < filteredVehicles.length;
+
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedVehicles([]);
+    } else {
+      setSelectedVehicles([...filteredVehicles]);
     }
   };
 
-  const getStatusText = (status: string) => {
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  };
-
-  const handleImportComplete = () => {
-    setShowImportModal(false);
-    refetch();
-  };
-
-  const handleEditVehicle = (vehicle: VehicleData) => {
-    setEditingVehicle(vehicle);
-    setShowEditModal(true);
-  };
-
-  const handleVehicleUpdated = () => {
-    refetch();
-  };
-
-  const handleSelectVehicle = (vehicle: VehicleData, checked: boolean) => {
+  const handleSelectVehicle = (vehicle: VehicleData) => {
     setSelectedVehicles(prev => {
-      if (checked) {
-        return [...prev, vehicle];
-      } else {
+      const isSelected = prev.some(v => v.id === vehicle.id);
+      if (isSelected) {
         return prev.filter(v => v.id !== vehicle.id);
+      } else {
+        return [...prev, vehicle];
       }
     });
   };
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked && vehicles) {
-      setSelectedVehicles(vehicles);
-    } else {
-      setSelectedVehicles([]);
-    }
+  const handleEdit = (vehicle: VehicleData) => {
+    setEditingVehicle(vehicle);
+    setIsEditModalOpen(true);
   };
 
-  const isVehicleSelected = (vehicleId: string) => {
-    return selectedVehicles.some(v => v.id === vehicleId);
+  const handleCloseEditModal = () => {
+    setEditingVehicle(null);
+    setIsEditModalOpen(false);
   };
 
-  const isAllSelected = vehicles && vehicles.length > 0 && selectedVehicles.length === vehicles.length;
-  const isIndeterminate = selectedVehicles.length > 0 && selectedVehicles.length < (vehicles?.length || 0);
+  const handleVehicleUpdated = () => {
+    refetch();
+    toast({
+      title: "Success",
+      description: "Vehicle updated successfully",
+    });
+  };
+
+  const handleBulkOperationComplete = () => {
+    refetch();
+    setSelectedVehicles([]);
+  };
+
+  const getCheckboxState = () => {
+    if (isAllSelected) return true;
+    if (isIndeterminate) return "indeterminate";
+    return false;
+  };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading vehicle data...</p>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg">Loading vehicles...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center py-8">
-          <Car className="h-16 w-16 mx-auto text-gray-300 mb-4" />
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">Error Loading Vehicles</h3>
-          <p className="text-gray-500 mb-4">
-            {error.message || 'Unable to load vehicle data'}
-          </p>
-          <Button onClick={() => refetch()} variant="outline">
-            Try Again
-          </Button>
-        </div>
+      <div className="flex items-center justify-center h-64">
+        <div className="text-lg text-red-600">Error loading vehicles: {error.message}</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header Controls */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex flex-col sm:flex-row gap-4 flex-1 max-w-2xl">
-          {/* Search */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Search vehicles..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          
-          {/* Select All Checkbox */}
-          {vehicles && vehicles.length > 0 && (
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                checked={isAllSelected}
-                // @ts-ignore - indeterminate is a valid prop but not in types
-                ref={(el) => {
-                  if (el) el.indeterminate = isIndeterminate;
-                }}
-                onCheckedChange={handleSelectAll}
+      <Card>
+        <CardHeader>
+          <CardTitle>Vehicle Management</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Search and Actions */}
+          <div className="flex justify-between items-center mb-6">
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search vehicles..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
               />
-              <label className="text-sm">Select All</label>
             </div>
-          )}
-        </div>
-        
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Import from GP51
-          </Button>
-          <Button className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Add Vehicle
-          </Button>
-        </div>
-      </div>
-
-      {/* Bulk Operations */}
-      <VehicleBulkOperations
-        selectedVehicles={selectedVehicles}
-        onClearSelection={() => setSelectedVehicles([])}
-        onOperationComplete={handleVehicleUpdated}
-      />
-
-      {/* Vehicle Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
-            <Car className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{vehicles?.length || 0}</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Online</CardTitle>
-            <div className="h-4 w-4 rounded-full bg-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {vehicles?.filter(v => v.status === 'online').length || 0}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Offline</CardTitle>
-            <div className="h-4 w-4 rounded-full bg-gray-400" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {vehicles?.filter(v => v.status === 'offline').length || 0}
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active</CardTitle>
-            <div className="h-4 w-4 rounded-full bg-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {vehicles?.filter(v => v.is_active).length || 0}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Vehicle List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {vehicles && vehicles.length > 0 ? (
-          vehicles.map((vehicle) => (
-            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      checked={isVehicleSelected(vehicle.id)}
-                      onCheckedChange={(checked) => handleSelectVehicle(vehicle, checked as boolean)}
-                    />
-                    <div>
-                      <CardTitle className="text-lg">{vehicle.device_name}</CardTitle>
-                      <p className="text-sm text-gray-600">{vehicle.device_id}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${getStatusColor(vehicle.status)}`} />
-                    <Badge variant="outline" className="text-xs">
-                      {getStatusText(vehicle.status)}
-                    </Badge>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEditVehicle(vehicle)}>
-                          <Edit2 className="h-4 w-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-              </CardHeader>
-
-              <CardContent className="space-y-4">
-                {vehicle.envio_users && (
-                  <div className="text-sm text-gray-600">
-                    Assigned to: {vehicle.envio_users.name || vehicle.envio_users.email}
-                  </div>
-                )}
-                
-                {vehicle.sim_number && (
-                  <div className="text-sm text-gray-600">
-                    SIM: {vehicle.sim_number}
-                  </div>
-                )}
-                
-                <div className="text-xs text-gray-500">
-                  Created: {new Date(vehicle.created_at).toLocaleDateString()}
-                </div>
-              </CardContent>
-            </Card>
-          ))
-        ) : (
-          <div className="col-span-full text-center py-12">
-            <Car className="h-16 w-16 mx-auto text-gray-300 mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No vehicles found</h3>
-            <p className="text-gray-500 mb-4">
-              {searchTerm 
-                ? 'Try adjusting your search criteria' 
-                : 'No vehicles are currently registered. Import vehicle data from GP51 or add vehicles manually to get started.'
-              }
-            </p>
-            <Button 
-              variant="outline"
-              onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Import from GP51
+            <Button className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Add Vehicle
             </Button>
           </div>
-        )}
-      </div>
 
-      {/* Modals */}
-      <GP51VehicleImportModal
-        isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        onImportComplete={handleImportComplete}
-      />
+          {/* Bulk Operations */}
+          <VehicleBulkOperations
+            selectedVehicles={selectedVehicles}
+            onClearSelection={() => setSelectedVehicles([])}
+            onOperationComplete={handleBulkOperationComplete}
+            availableUsers={availableUsers}
+          />
 
+          {/* Vehicles Table */}
+          <div className="border rounded-lg">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={getCheckboxState()}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  </TableHead>
+                  <TableHead>Device ID</TableHead>
+                  <TableHead>Vehicle Name</TableHead>
+                  <TableHead>Assigned User</TableHead>
+                  <TableHead>SIM Number</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Update</TableHead>
+                  <TableHead className="w-12">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredVehicles.map((vehicle) => (
+                  <TableRow key={vehicle.id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedVehicles.some(v => v.id === vehicle.id)}
+                        onCheckedChange={() => handleSelectVehicle(vehicle)}
+                      />
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {vehicle.device_id || 'N/A'}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {vehicle.device_name || 'Unnamed Vehicle'}
+                    </TableCell>
+                    <TableCell>
+                      {vehicle.envio_users ? (
+                        <div>
+                          <div className="font-medium">{vehicle.envio_users.name}</div>
+                          <div className="text-sm text-gray-500">{vehicle.envio_users.email}</div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">Unassigned</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {vehicle.sim_number ? (
+                        <span className="font-mono text-sm">{vehicle.sim_number}</span>
+                      ) : (
+                        <span className="text-gray-500">N/A</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={vehicle.status === 'active' ? 'default' : 'secondary'}
+                      >
+                        {vehicle.status || 'unknown'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-500">
+                      {vehicle.updated_at ? new Date(vehicle.updated_at).toLocaleDateString() : 'N/A'}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(vehicle)}>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-600">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {filteredVehicles.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              {searchTerm ? 'No vehicles found matching your search.' : 'No vehicles found.'}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit Modal */}
       <VehicleEditModal
         vehicle={editingVehicle}
-        isOpen={showEditModal}
-        onClose={() => {
-          setShowEditModal(false);
-          setEditingVehicle(null);
-        }}
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
         onVehicleUpdated={handleVehicleUpdated}
+        availableUsers={availableUsers}
       />
     </div>
   );
