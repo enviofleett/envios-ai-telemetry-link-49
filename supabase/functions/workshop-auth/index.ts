@@ -1,6 +1,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { getSupabaseClient } from '../_shared/supabase_client.ts'
+import { secureHash, verifySecureHash, checkRateLimit } from '../_shared/crypto_utils.ts'
+import { validateRequest, workshopLoginSchema } from '../_shared/validation_schemas.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,10 +15,37 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+  
+  // Rate limiting
+  if (!checkRateLimit(clientIP, 5, 15 * 60 * 1000)) {
+    return new Response(
+      JSON.stringify({ error: 'Too many requests. Please try again later.' }),
+      { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     const supabaseClient = getSupabaseClient()
 
-    const { action, email, password, workshop_id } = await req.json()
+    const body = await req.json().catch(() => null);
+    if (!body) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate input
+    const validation = validateRequest(workshopLoginSchema, body);
+    if (!validation.success) {
+      return new Response(
+        JSON.stringify({ error: validation.error }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { action, email, password, workshop_id } = validation.data;
 
     if (action === 'login') {
       // Find workshop user
@@ -38,8 +67,19 @@ serve(async (req) => {
         )
       }
 
-      // For production, you would verify the password here using bcrypt
-      // For now, we'll create a session directly
+      // Verify password using secure hash (assuming user.password_hash exists)
+      if (user.password_hash) {
+        const isValidPassword = await verifySecureHash(password, user.password_hash);
+        if (!isValidPassword) {
+          return new Response(
+            JSON.stringify({ error: 'Invalid credentials' }),
+            { 
+              status: 401, 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            }
+          )
+        }
+      }
 
       // Create session
       const expiresAt = new Date()
