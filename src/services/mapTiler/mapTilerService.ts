@@ -1,6 +1,4 @@
 
-import { SUPABASE_URL } from '@/integrations/supabase/client';
-
 class MapTilerService {
   private baseUrl = 'https://api.maptiler.com';
   private defaultApiKey = 'YOUR_MAPTILER_API_KEY';

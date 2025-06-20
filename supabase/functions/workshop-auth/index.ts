@@ -1,6 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getSupabaseClient } from '../_shared/supabase_client.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -14,10 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseClient = getSupabaseClient()
 
     const { action, email, password, workshop_id } = await req.json()
 
@@ -41,7 +38,7 @@ serve(async (req) => {
         )
       }
 
-      // For production, you would verify the password here
+      // For production, you would verify the password here using bcrypt
       // For now, we'll create a session directly
 
       // Create session
@@ -87,8 +84,9 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    console.error('Workshop auth error:', error)
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: 'Internal server error' }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

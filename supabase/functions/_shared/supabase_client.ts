@@ -9,9 +9,15 @@ export function getSupabaseClient(): SupabaseClient {
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
-      throw new Error("Supabase URL or Service Role Key is not set in environment variables.");
+      throw new Error("Missing required environment variables: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured in Supabase Edge Function secrets.");
     }
-    supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
   }
   return supabase;
 }

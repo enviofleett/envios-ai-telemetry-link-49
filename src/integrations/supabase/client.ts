@@ -3,10 +3,33 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-export const SUPABASE_URL = "https://bjkqxmvjuewshomihjqm.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqa3F4bXZqdWV3c2hvbWloanFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwMzk4MzEsImV4cCI6MjA2NDYxNTgzMX0.VbyYBsPAp_a699yZ3xHtGGzljIQPm24EnwXLaGcsJb0";
+// Get environment variables with validation
+const getSupabaseUrl = (): string => {
+  const url = import.meta.env.VITE_SUPABASE_URL;
+  if (!url) {
+    throw new Error('VITE_SUPABASE_URL environment variable is required');
+  }
+  return url;
+};
+
+const getSupabaseAnonKey = (): string => {
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!key) {
+    throw new Error('VITE_SUPABASE_ANON_KEY environment variable is required');
+  }
+  return key;
+};
+
+export const SUPABASE_URL = getSupabaseUrl();
+const SUPABASE_PUBLISHABLE_KEY = getSupabaseAnonKey();
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    storage: window.localStorage,
+    persistSession: true,
+    autoRefreshToken: true,
+  }
+});
