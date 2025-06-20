@@ -29,7 +29,12 @@ class ReportTemplatesService {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(item => ({
+      ...item,
+      template_config: typeof item.template_config === 'string' 
+        ? JSON.parse(item.template_config) 
+        : item.template_config
+    })) as ReportTemplate[];
   }
 
   async getTemplate(id: string): Promise<ReportTemplate | null> {
@@ -43,7 +48,13 @@ class ReportTemplatesService {
       if (error.code === 'PGRST116') return null;
       throw error;
     }
-    return data;
+    
+    return {
+      ...data,
+      template_config: typeof data.template_config === 'string' 
+        ? JSON.parse(data.template_config) 
+        : data.template_config
+    } as ReportTemplate;
   }
 
   async createTemplate(template: Omit<ReportTemplate, 'id' | 'created_at' | 'updated_at' | 'created_by'>): Promise<ReportTemplate> {
@@ -57,7 +68,12 @@ class ReportTemplatesService {
       .single();
 
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      template_config: typeof data.template_config === 'string' 
+        ? JSON.parse(data.template_config) 
+        : data.template_config
+    } as ReportTemplate;
   }
 
   async updateTemplate(id: string, updates: Partial<ReportTemplate>): Promise<ReportTemplate> {
@@ -69,7 +85,12 @@ class ReportTemplatesService {
       .single();
 
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      template_config: typeof data.template_config === 'string' 
+        ? JSON.parse(data.template_config) 
+        : data.template_config
+    } as ReportTemplate;
   }
 
   async deleteTemplate(id: string): Promise<void> {
@@ -89,7 +110,12 @@ class ReportTemplatesService {
       .order('name');
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(item => ({
+      ...item,
+      template_config: typeof item.template_config === 'string' 
+        ? JSON.parse(item.template_config) 
+        : item.template_config
+    })) as ReportTemplate[];
   }
 
   async createSystemTemplates(): Promise<void> {

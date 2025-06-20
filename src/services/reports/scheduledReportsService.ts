@@ -36,7 +36,15 @@ class ScheduledReportsService {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data || [];
+    return (data || []).map(item => ({
+      ...item,
+      schedule_config: typeof item.schedule_config === 'string' 
+        ? JSON.parse(item.schedule_config) 
+        : item.schedule_config,
+      recipients: typeof item.recipients === 'string' 
+        ? JSON.parse(item.recipients) 
+        : item.recipients
+    })) as ScheduledReport[];
   }
 
   async createScheduledReport(report: Omit<ScheduledReport, 'id' | 'created_at' | 'updated_at' | 'created_by'>): Promise<ScheduledReport> {
@@ -53,7 +61,15 @@ class ScheduledReportsService {
       .single();
 
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      schedule_config: typeof data.schedule_config === 'string' 
+        ? JSON.parse(data.schedule_config) 
+        : data.schedule_config,
+      recipients: typeof data.recipients === 'string' 
+        ? JSON.parse(data.recipients) 
+        : data.recipients
+    } as ScheduledReport;
   }
 
   async updateScheduledReport(id: string, updates: Partial<ScheduledReport>): Promise<ScheduledReport> {
@@ -69,7 +85,15 @@ class ScheduledReportsService {
       .single();
 
     if (error) throw error;
-    return data;
+    return {
+      ...data,
+      schedule_config: typeof data.schedule_config === 'string' 
+        ? JSON.parse(data.schedule_config) 
+        : data.schedule_config,
+      recipients: typeof data.recipients === 'string' 
+        ? JSON.parse(data.recipients) 
+        : data.recipients
+    } as ScheduledReport;
   }
 
   async deleteScheduledReport(id: string): Promise<void> {
@@ -137,7 +161,9 @@ class ScheduledReportsService {
         .eq('id', execution?.id);
 
       // Update scheduled report
-      const nextRunAt = this.calculateNextRun(report.schedule_config);
+      const nextRunAt = this.calculateNextRun(typeof report.schedule_config === 'string' 
+        ? JSON.parse(report.schedule_config) 
+        : report.schedule_config);
       await supabase
         .from('scheduled_reports')
         .update({

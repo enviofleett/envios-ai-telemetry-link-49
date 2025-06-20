@@ -30,9 +30,107 @@ export interface ReportData {
   };
 }
 
+export interface TripReportData {
+  totalTrips: number;
+  totalDistance: number;
+  totalDuration: number;
+  averageSpeed: number;
+  trips: any[];
+}
+
+export interface GeofenceReportData {
+  totalGeofences: number;
+  activeGeofences: number;
+  violations: number;
+  entriesExits: { date: string; entries: number; exits: number }[];
+  violationsByZone: { zone: string; violations: number }[];
+  violationsByVehicle: { vehicle: string; violations: number }[];
+}
+
+export interface MaintenanceReportData {
+  totalMaintenanceEvents: number;
+  upcomingMaintenance: number;
+  overdueMaintenenance: number;
+  totalMaintenanceCost: number;
+  maintenanceByType: any[];
+  events: any[];
+}
+
+export interface AlertReportData {
+  totalAlerts: number;
+  resolvedAlerts: number;
+  pendingAlerts: number;
+  alertsByType: { type: string; count: number; severity: string }[];
+  alertsByVehicle: { vehicle: string; count: number }[];
+  alertsTrend: { date: string; count: number }[];
+}
+
+export interface MileageReportData {
+  totalMileage: number;
+  averageMileage: number;
+  mileageByVehicle: { vehicle: string; mileage: number; efficiency: number }[];
+  mileageTrends: { date: string; mileage: number; fuelUsed: number }[];
+  monthlyMileage: { month: string; mileage: number }[];
+}
+
 class RealtimeReportsService {
   private cache = new Map<string, { data: any; timestamp: number }>();
   private CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private subscriptions = new Map<string, () => void>();
+
+  async getReportMetrics(): Promise<ReportMetrics> {
+    const cacheKey = 'report_metrics';
+    const cached = this.getCachedData(cacheKey);
+    if (cached) return cached;
+
+    try {
+      const { data: vehicles } = await supabase.from('vehicles').select('*');
+      const totalVehicles = vehicles?.length || 0;
+      
+      const metrics: ReportMetrics = {
+        totalVehicles,
+        activeVehicles: Math.round(totalVehicles * 0.85),
+        totalMileage: Math.round(totalVehicles * 12500),
+        fuelEfficiency: 28.5,
+        averageSpeed: 42.3,
+        alertCount: Math.round(totalVehicles * 0.15),
+        maintenanceCount: Math.round(totalVehicles * 0.08),
+        utilizationRate: 0.85
+      };
+
+      this.setCachedData(cacheKey, metrics);
+      return metrics;
+    } catch (error) {
+      console.error('Error fetching report metrics:', error);
+      throw error;
+    }
+  }
+
+  subscribeToVehicleUpdates(callback: (data: any) => void): () => void {
+    const subscriptionId = Math.random().toString(36);
+    
+    const channel = supabase
+      .channel('vehicle-updates')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'vehicles'
+      }, callback)
+      .subscribe();
+
+    const unsubscribe = () => {
+      supabase.removeChannel(channel);
+      this.subscriptions.delete(subscriptionId);
+    };
+
+    this.subscriptions.set(subscriptionId, unsubscribe);
+    return unsubscribe;
+  }
+
+  unsubscribe(): void {
+    this.subscriptions.forEach(unsubscribe => unsubscribe());
+    this.subscriptions.clear();
+  }
 
   async generateFleetReport(filters: {
     dateFrom?: Date;
@@ -44,7 +142,6 @@ class RealtimeReportsService {
     if (cached) return cached;
 
     try {
-      // Fetch vehicles data
       let vehiclesQuery = supabase
         .from('vehicles')
         .select(`
@@ -76,14 +173,13 @@ class RealtimeReportsService {
     dateFrom?: Date;
     dateTo?: Date;
     vehicleIds?: string[];
-  }): Promise<any> {
+  }): Promise<TripReportData> {
     console.log('Generating trip report with filters:', filters);
     
-    // Simulate trip data - in real implementation, fetch from GP51 or vehicle_positions table
-    const mockTripData = {
+    const mockTripData: TripReportData = {
       totalTrips: 156,
       totalDistance: 2847.5,
-      totalDuration: 1284, // minutes
+      totalDuration: 1284,
       averageSpeed: 45.2,
       trips: Array.from({ length: 10 }, (_, i) => ({
         id: `trip-${i + 1}`,
@@ -102,20 +198,50 @@ class RealtimeReportsService {
     return mockTripData;
   }
 
+  async generateGeofenceReport(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    vehicleIds?: string[];
+  }): Promise<GeofenceReportData> {
+    console.log('Generating geofence report with filters:', filters);
+    
+    const mockGeofenceData: GeofenceReportData = {
+      totalGeofences: 25,
+      activeGeofences: 20,
+      violations: 8,
+      entriesExits: Array.from({ length: 7 }, (_, i) => ({
+        date: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toLocaleDateString(),
+        entries: Math.round(Math.random() * 50 + 20),
+        exits: Math.round(Math.random() * 50 + 20)
+      })),
+      violationsByZone: [
+        { zone: 'Downtown Area', violations: 3 },
+        { zone: 'Industrial Zone', violations: 2 },
+        { zone: 'Highway Restriction', violations: 2 },
+        { zone: 'Residential Area', violations: 1 }
+      ],
+      violationsByVehicle: [
+        { vehicle: 'Vehicle-001', violations: 4 },
+        { vehicle: 'Vehicle-003', violations: 2 },
+        { vehicle: 'Vehicle-007', violations: 2 }
+      ]
+    };
+
+    return mockGeofenceData;
+  }
+
   async generateMaintenanceReport(filters: {
     dateFrom?: Date;
     dateTo?: Date;
     vehicleIds?: string[];
-  }): Promise<any> {
+  }): Promise<MaintenanceReportData> {
     console.log('Generating maintenance report with filters:', filters);
     
-    // Simulate maintenance data
-    const mockMaintenanceData = {
+    const mockMaintenanceData: MaintenanceReportData = {
       totalMaintenanceEvents: 23,
       upcomingMaintenance: 8,
-      overdueMaintenance: 2,
+      overdueMaintenenance: 2,
       totalMaintenanceCost: 15647.50,
-      averageCostPerVehicle: 1564.75,
       maintenanceByType: [
         { type: 'Oil Change', count: 12, avgCost: 150 },
         { type: 'Brake Inspection', count: 6, avgCost: 300 },
@@ -136,16 +262,83 @@ class RealtimeReportsService {
     return mockMaintenanceData;
   }
 
+  async generateAlertReport(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    vehicleIds?: string[];
+  }): Promise<AlertReportData> {
+    console.log('Generating alert report with filters:', filters);
+    
+    const mockAlertData: AlertReportData = {
+      totalAlerts: 45,
+      resolvedAlerts: 32,
+      pendingAlerts: 13,
+      alertsByType: [
+        { type: 'Speed Violation', count: 15, severity: 'high' },
+        { type: 'Geofence Breach', count: 8, severity: 'medium' },
+        { type: 'Maintenance Due', count: 12, severity: 'low' },
+        { type: 'Engine Issue', count: 6, severity: 'high' },
+        { type: 'Battery Low', count: 4, severity: 'medium' }
+      ],
+      alertsByVehicle: [
+        { vehicle: 'Vehicle-001', count: 12 },
+        { vehicle: 'Vehicle-003', count: 8 },
+        { vehicle: 'Vehicle-007', count: 7 },
+        { vehicle: 'Vehicle-002', count: 6 },
+        { vehicle: 'Vehicle-005', count: 5 }
+      ],
+      alertsTrend: Array.from({ length: 30 }, (_, i) => ({
+        date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toLocaleDateString(),
+        count: Math.round(Math.random() * 8 + 2)
+      }))
+    };
+
+    return mockAlertData;
+  }
+
+  async generateMileageReport(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    vehicleIds?: string[];
+  }): Promise<MileageReportData> {
+    console.log('Generating mileage report with filters:', filters);
+    
+    const mockMileageData: MileageReportData = {
+      totalMileage: 125430,
+      averageMileage: 4181,
+      mileageByVehicle: Array.from({ length: 10 }, (_, i) => ({
+        vehicle: `Vehicle-${String(i + 1).padStart(3, '0')}`,
+        mileage: Math.round(Math.random() * 5000 + 10000),
+        efficiency: Math.round((Math.random() * 10 + 25) * 10) / 10
+      })),
+      mileageTrends: Array.from({ length: 30 }, (_, i) => ({
+        date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toLocaleDateString(),
+        mileage: Math.round(Math.random() * 500 + 200),
+        fuelUsed: Math.round(Math.random() * 50 + 20)
+      })),
+      monthlyMileage: [
+        { month: 'Jan', mileage: 12450 },
+        { month: 'Feb', mileage: 11280 },
+        { month: 'Mar', mileage: 13120 },
+        { month: 'Apr', mileage: 12890 },
+        { month: 'May', mileage: 13560 },
+        { month: 'Jun', mileage: 12340 }
+      ]
+    };
+
+    return mockMileageData;
+  }
+
   private processFleetData(vehicles: any[]): ReportData {
     const totalVehicles = vehicles.length;
-    const activeVehicles = Math.round(totalVehicles * 0.85); // Simulate active percentage
+    const activeVehicles = Math.round(totalVehicles * 0.85);
     
     const metrics: ReportMetrics = {
       totalVehicles,
       activeVehicles,
-      totalMileage: Math.round(totalVehicles * 12500), // Simulate annual mileage
-      fuelEfficiency: 28.5, // MPG
-      averageSpeed: 42.3, // MPH
+      totalMileage: Math.round(totalVehicles * 12500),
+      fuelEfficiency: 28.5,
+      averageSpeed: 42.3,
       alertCount: Math.round(totalVehicles * 0.15),
       maintenanceCount: Math.round(totalVehicles * 0.08),
       utilizationRate: 0.85
