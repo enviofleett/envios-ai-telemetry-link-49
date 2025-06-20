@@ -1,7 +1,7 @@
 
 import React from "react";
 import FeatureGate from "@/components/auth/FeatureGate";
-import { useAuth } from "@/contexts/AuthContext";
+import { useUnifiedAuth } from "@/contexts/UnifiedAuthContext";
 
 /**
  * Wrap any navigation link with this component to restrict its visibility or enablement
@@ -16,10 +16,13 @@ export function FeatureRestrictedLink({
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }) {
-  const { isAdmin } = useAuth();
+  const { user } = useUnifiedAuth();
 
-  // Admins always see all navigation links.
-  if (isAdmin) return <>{children}</>;
+  // For now, show all links since we don't have role checking in UnifiedAuth yet
+  // TODO: Add role checking when UnifiedAuth supports it
+  if (user) {
+    return <>{children}</>;
+  }
 
   return (
     <FeatureGate featureId={featureId} fallback={fallback}>
