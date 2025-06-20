@@ -67,20 +67,6 @@ export interface FleetReportData {
   }>;
 }
 
-export interface ReportMetrics {
-  totalReports: number;
-  lastGenerated: string;
-  averageGenerationTime: number;
-  popularReportTypes: string[];
-  totalVehicles: number;
-  activeVehicles: number;
-  alertCount: number;
-  averageSpeed: number;
-  totalMileage: number;
-  fuelEfficiency: number;
-  utilizationRate: number;
-}
-
 class RealtimeReportsService {
   private subscriptions = new Map<string, any>();
 
