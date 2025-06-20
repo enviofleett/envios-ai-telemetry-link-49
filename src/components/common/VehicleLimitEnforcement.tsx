@@ -1,6 +1,6 @@
 
 import React from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useUnifiedAuth } from "@/contexts/UnifiedAuthContext";
 import { useUserPackage } from "@/hooks/useUserPackage";
 import { usePackageLimits } from "@/hooks/usePackageLimits";
 import { Button } from "@/components/ui/button";
@@ -18,13 +18,13 @@ export const VehicleLimitEnforcement: React.FC<{
   children: React.ReactNode;
   feature?: string;
 }> = ({ currentCount, children, feature = "vehicle_limit" }) => {
-  const { user, isAdmin } = useAuth();
+  const { user } = useUnifiedAuth();
   const { data: pkg } = useUserPackage(user?.id);
   const { data: limits, isLoading } = usePackageLimits(pkg?.id);
   const [showUpgrade, setShowUpgrade] = React.useState(false);
 
-  // Admins are never limited
-  if (isAdmin) return <>{children}</>;
+  // For now, no admin bypass since UnifiedAuth doesn't have role checking yet
+  // TODO: Add admin bypass when UnifiedAuth supports role checking
 
   if (isLoading) return null;
   if (!limits || !limits.vehicleLimit) return <>{children}</>;

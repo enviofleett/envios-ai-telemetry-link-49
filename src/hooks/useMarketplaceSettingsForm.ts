@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
+import { useUnifiedAuth } from "@/contexts/UnifiedAuthContext";
 import { 
   fetchMarketplaceSettings, 
   updateMarketplaceSettings, 
@@ -24,7 +24,7 @@ interface UseMarketplaceSettingsFormResult {
 export function useMarketplaceSettingsForm(): UseMarketplaceSettingsFormResult {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user } = useUnifiedAuth();
 
   const { data: settings, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["marketplace_settings"],
@@ -103,7 +103,7 @@ export function useMarketplaceSettingsForm(): UseMarketplaceSettingsFormResult {
     if (!user?.id) {
       toast({
         title: "Auth error",
-        description: "Admin user not found.",
+        description: "User not found.",
         variant: "destructive",
       });
       return;

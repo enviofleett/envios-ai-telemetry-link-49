@@ -2,35 +2,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { SubscriberPackage } from "@/types/subscriber-packages";
-import { useAuth } from "@/contexts/AuthContext";
+import { useUnifiedAuth } from "@/contexts/UnifiedAuthContext";
 
 /**
  * Retrieves the current user's active subscription package (if any).
  * Returns { package: SubscriberPackage | null, isLoading, error }
  */
 export function useUserPackage(userId?: string) {
-  const { isAdmin } = useAuth();
-  // Fast path: Admins always have an unlimited "admin" package,
-  // skip querying DB for them
-  if (isAdmin) {
-    return {
-      data: {
-        id: "admin-unlimited",
-        package_name: "Admin Unlimited",
-        description: "Admin account: All features enabled, unlimited limits.",
-        user_type: "both",
-        subscription_fee_monthly: 0,
-        subscription_fee_annually: 0,
-        referral_discount_percentage: 0,
-        is_active: true,
-        created_at: "",
-        updated_at: "",
-        vehicle_limit: null,
-      } as SubscriberPackage,
-      isLoading: false,
-      error: null,
-    };
-  }
+  const { user } = useUnifiedAuth();
+  
+  // For now, no admin fast path since UnifiedAuth doesn't have role checking yet
+  // TODO: Add admin bypass when UnifiedAuth supports role checking
 
   return useQuery({
     queryKey: ["current-user-package", userId],

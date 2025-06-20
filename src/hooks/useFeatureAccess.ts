@@ -1,23 +1,16 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
+import { useUnifiedAuth } from "@/contexts/UnifiedAuthContext";
 
 /**
  * Returns { hasFeature(featureId: string): boolean, features: string[], isLoading, error }
  */
 export function useFeatureAccess(packageId?: string) {
-  const { isAdmin } = useAuth();
+  const { user } = useUnifiedAuth();
 
-  // Fast path: Admins always have all features
-  if (isAdmin) {
-    return {
-      hasFeature: (_featureId: string) => true,
-      features: [],
-      isLoading: false,
-      error: null,
-    };
-  }
+  // For now, no admin fast path since UnifiedAuth doesn't have role checking yet
+  // TODO: Add admin bypass when UnifiedAuth supports role checking
 
   const { data: features, isLoading, error } = useQuery({
     queryKey: ["package-features", packageId],

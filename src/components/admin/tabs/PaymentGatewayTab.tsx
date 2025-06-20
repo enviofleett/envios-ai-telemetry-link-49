@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,12 +9,12 @@ import { usePaystackSettings } from "@/hooks/usePaystackSettings";
 import { toast } from "@/hooks/use-toast";
 import { Switch } from "@/components/ui/switch";
 import PaystackSecretKeyModal from "./PaystackSecretKeyModal";
-import { useAuth } from "@/contexts/AuthContext";
+import { useUnifiedAuth } from "@/contexts/UnifiedAuthContext";
 
 const WEBHOOK_BASE = "https://YOUR_PROJECT.lovable.app/api/paystack/webhook";
 
 const PaymentGatewayTab: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useUnifiedAuth();
   const userId = user?.id;
   const [showSecretKeyModal, setShowSecretKeyModal] = useState(false);
   const [testing, setTesting] = useState(false);

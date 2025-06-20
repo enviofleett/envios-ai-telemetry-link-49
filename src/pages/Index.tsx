@@ -1,11 +1,11 @@
 
-import { useAuth } from "@/contexts/AuthContext";
+import { useUnifiedAuth } from "@/contexts/UnifiedAuthContext";
 import { Navigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import DashboardContent from "@/components/dashboard/DashboardContent";
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  const { user, loading } = useUnifiedAuth();
 
   // Show loading spinner while checking authentication
   if (loading) {
@@ -18,7 +18,7 @@ const Index = () => {
 
   // Redirect to auth if not logged in
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return (
