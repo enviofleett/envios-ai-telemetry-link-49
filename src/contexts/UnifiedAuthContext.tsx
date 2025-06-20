@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useState, ReactNode } from
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { backgroundAuthService } from '@/services/auth/BackgroundAuthService';
 
 interface AuthContextType {
   user: User | null;
@@ -45,44 +46,17 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
   const [isCheckingRole, setIsCheckingRole] = useState(false);
   const { toast } = useToast();
 
-  const checkUserRole = async (userId: string) => {
-    setIsCheckingRole(true);
-    try {
-      const { data: roleData, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error checking user role:', error);
-        setUserRole('user');
-        setIsAdmin(false);
-        setIsAgent(false);
-      } else {
-        const role = roleData?.role || 'user';
-        setUserRole(role);
-        setIsAdmin(role === 'admin');
-        setIsAgent(role === 'agent');
-      }
-    } catch (error) {
-      console.error('Failed to check user role:', error);
-      setUserRole('user');
-      setIsAdmin(false);
-      setIsAgent(false);
-    } finally {
-      setIsCheckingRole(false);
-    }
-  };
-
-  const retryRoleCheck = async () => {
-    if (user?.id) {
-      await checkUserRole(user.id);
-    }
-  };
-
   useEffect(() => {
-    // Set up auth state listener FIRST
+    // Subscribe to background auth service for optimized role checking
+    const unsubscribe = backgroundAuthService.subscribe((authState) => {
+      setUser(authState.user);
+      setIsAdmin(authState.isAdmin);
+      setIsAgent(authState.isAgent);
+      setUserRole(authState.userRole);
+      setIsCheckingRole(false);
+    });
+
+    // Set up auth state listener for session changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email);
@@ -90,13 +64,9 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
         setUser(session?.user ?? null);
         setLoading(false);
 
-        // Check user role when user signs in
-        if (session?.user) {
-          await checkUserRole(session.user.id);
-        } else {
-          setUserRole(null);
-          setIsAdmin(false);
-          setIsAgent(false);
+        // Trigger background refresh when user signs in/out
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+          backgroundAuthService.refreshInBackground();
         }
 
         // Handle auth events
@@ -106,6 +76,7 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
             description: `Signed in as ${session.user.email}`,
           });
         } else if (event === 'SIGNED_OUT') {
+          backgroundAuthService.clearCache();
           toast({
             title: "Signed out",
             description: "You have been successfully signed out",
@@ -114,7 +85,7 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
       }
     );
 
-    // THEN check for existing session
+    // Initialize auth state
     const initializeAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -123,9 +94,6 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
         } else {
           setSession(session);
           setUser(session?.user ?? null);
-          if (session?.user) {
-            await checkUserRole(session.user.id);
-          }
         }
       } catch (error) {
         console.error('Failed to initialize auth:', error);
@@ -136,8 +104,16 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
 
     initializeAuth();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      unsubscribe();
+    };
   }, [toast]);
+
+  const retryRoleCheck = async () => {
+    setIsCheckingRole(true);
+    await backgroundAuthService.refreshInBackground();
+  };
 
   const signIn = async (email: string, password: string) => {
     try {
@@ -233,6 +209,9 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
       const { data, error } = await supabase.auth.refreshSession();
       if (error) {
         console.error('Session refresh error:', error);
+      } else {
+        // Trigger background auth refresh
+        backgroundAuthService.refreshInBackground();
       }
     } catch (error) {
       console.error('Failed to refresh session:', error);
