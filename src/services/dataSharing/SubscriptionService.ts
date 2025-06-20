@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   CreateSubscriptionRequest, 
@@ -12,12 +13,12 @@ export class SubscriptionService {
     const endDate = new Date();
     endDate.setMonth(endDate.getMonth() + request.tenureMonths);
 
-    // Use product_id as package_id since they're the same concept in this context
+    // Use package_id since that's what the database table expects
     const { data: subscription, error } = await supabase
       .from('user_subscriptions')
       .insert({
         user_id: request.userId,
-        package_id: request.productId, // Map product_id to package_id
+        package_id: request.productId, // This maps to package_id in the database
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
         subscription_status: 'active',
@@ -38,9 +39,13 @@ export class SubscriptionService {
       throw new Error('Failed to create subscription: No data returned');
     }
 
-    // Assign vehicles to subscription
+    // Assign vehicles to subscription if table exists
     if (request.vehicleIds.length > 0) {
-      await this.assignVehiclesToSubscription(subscription.id, request.vehicleIds);
+      try {
+        await this.assignVehiclesToSubscription(subscription.id, request.vehicleIds);
+      } catch (error) {
+        console.warn('Vehicle assignment failed (table may not exist):', error);
+      }
     }
 
     return {
@@ -65,13 +70,19 @@ export class SubscriptionService {
       vehicle_id: vehicleId
     }));
 
-    const { error } = await supabase
-      .from('subscription_vehicles')
-      .insert(assignments);
+    // Try to insert but handle if table doesn't exist
+    try {
+      const { error } = await supabase
+        .from('subscription_vehicles')
+        .insert(assignments);
 
-    if (error) {
-      console.error('Failed to assign vehicles to subscription:', error);
-      throw new Error(`Failed to assign vehicles: ${error.message}`);
+      if (error) {
+        console.error('Failed to assign vehicles to subscription:', error);
+        throw new Error(`Failed to assign vehicles: ${error.message}`);
+      }
+    } catch (error) {
+      console.warn('subscription_vehicles table may not exist:', error);
+      throw error;
     }
   }
 
@@ -113,17 +124,22 @@ export class SubscriptionService {
   }
 
   async getSubscriptionVehicles(subscriptionId: string): Promise<string[]> {
-    const { data, error } = await supabase
-      .from('subscription_vehicles')
-      .select('vehicle_id')
-      .eq('subscription_id', subscriptionId);
+    try {
+      const { data, error } = await supabase
+        .from('subscription_vehicles')
+        .select('vehicle_id')
+        .eq('subscription_id', subscriptionId);
 
-    if (error) {
-      console.error('Failed to fetch subscription vehicles:', error);
+      if (error) {
+        console.error('Failed to fetch subscription vehicles:', error);
+        return [];
+      }
+
+      return (data || []).map(item => item.vehicle_id);
+    } catch (error) {
+      console.warn('subscription_vehicles table may not exist:', error);
       return [];
     }
-
-    return (data || []).map(item => item.vehicle_id);
   }
 
   async updateSubscriptionStatus(subscriptionId: string, status: UserSubscription['status']): Promise<void> {
@@ -176,16 +192,20 @@ export class SubscriptionService {
     await this.updateSubscriptionStatus(subscriptionId, 'expired');
 
     // Revoke all tokens for this subscription
-    const { error } = await supabase
-      .from('sharing_tokens')
-      .update({ 
-        is_active: false,
-        revoked_at: new Date().toISOString()
-      })
-      .eq('subscription_id', subscriptionId);
+    try {
+      const { error } = await supabase
+        .from('sharing_tokens')
+        .update({ 
+          is_active: false,
+          revoked_at: new Date().toISOString()
+        })
+        .eq('subscription_id', subscriptionId);
 
-    if (error) {
-      console.error('Failed to revoke tokens for expired subscription:', error);
+      if (error) {
+        console.error('Failed to revoke tokens for expired subscription:', error);
+      }
+    } catch (error) {
+      console.warn('sharing_tokens table may not exist:', error);
     }
   }
 

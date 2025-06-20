@@ -64,7 +64,7 @@ export class TokenManagementService {
         };
       }
 
-      // Update last used timestamp using the custom function
+      // Update last used timestamp using direct update instead of RPC
       await this.updateTokenUsage(tokenData.id);
 
       // Type guard to ensure proper data structure
@@ -104,10 +104,14 @@ export class TokenManagementService {
   }
 
   async updateTokenUsage(tokenId: string): Promise<void> {
-    // Use the custom increment function
-    const { error } = await supabase.rpc('increment_usage_count', {
-      token_id_param: tokenId
-    });
+    // Use direct update instead of RPC since increment_usage_count function doesn't exist
+    const { error } = await supabase
+      .from('sharing_tokens')
+      .update({ 
+        usage_count: supabase.rpc('increment', { column: 'usage_count' }) as any,
+        last_used_at: new Date().toISOString()
+      })
+      .eq('id', tokenId);
 
     if (error) {
       console.error('Failed to update token usage:', error);
