@@ -13,17 +13,16 @@ export class SubscriptionService {
     const endDate = new Date();
     endDate.setMonth(endDate.getMonth() + request.tenureMonths);
 
-    // Use the existing user_subscriptions table with package_id instead of product_id
     const { data: subscription, error } = await supabase
       .from('user_subscriptions')
       .insert({
         user_id: request.userId,
-        package_id: request.productId, // Use package_id as per existing schema
+        product_id: request.productId,
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
-        subscription_status: 'active', // Use subscription_status as per existing schema
-        // Note: paystack_reference_id, total_amount_paid_usd, tenure_months, auto_renew
-        // may not exist in the current schema, so we'll skip them for now
+        subscription_status: 'active',
+        tenure_months: request.tenureMonths,
+        auto_renew: false
       })
       .select()
       .single();
@@ -37,31 +36,41 @@ export class SubscriptionService {
       throw new Error('Failed to create subscription: No data returned');
     }
 
-    // Transform the database result to match our interface
-    const userSubscription: UserSubscription = {
+    // Assign vehicles to subscription
+    if (request.vehicleIds.length > 0) {
+      await this.assignVehiclesToSubscription(subscription.id, request.vehicleIds);
+    }
+
+    return {
       id: subscription.id,
       user_id: subscription.user_id,
-      product_id: subscription.package_id, // Map package_id back to product_id for our interface
+      product_id: subscription.product_id,
       start_date: subscription.start_date,
       end_date: subscription.end_date,
       status: subscription.subscription_status as UserSubscription['status'],
       paystack_reference_id: request.paystackReferenceId,
       total_amount_paid_usd: request.totalAmount,
-      tenure_months: request.tenureMonths,
-      auto_renew: false,
+      tenure_months: subscription.tenure_months || request.tenureMonths,
+      auto_renew: subscription.auto_renew || false,
       created_at: subscription.created_at,
       updated_at: subscription.updated_at
     };
-
-    // For now, skip vehicle assignment since subscription_vehicles table doesn't exist
-    // This would be implemented once the proper schema is in place
-
-    return userSubscription;
   }
 
   async assignVehiclesToSubscription(subscriptionId: string, vehicleIds: string[]): Promise<void> {
-    // Skip for now since subscription_vehicles table doesn't exist yet
-    console.log('Vehicle assignment skipped - table not available yet');
+    const assignments = vehicleIds.map(vehicleId => ({
+      subscription_id: subscriptionId,
+      vehicle_id: vehicleId
+    }));
+
+    const { error } = await supabase
+      .from('subscription_vehicles')
+      .insert(assignments);
+
+    if (error) {
+      console.error('Failed to assign vehicles to subscription:', error);
+      throw new Error(`Failed to assign vehicles: ${error.message}`);
+    }
   }
 
   async getUserSubscriptions(userId: string): Promise<UserSubscription[]> {
@@ -69,7 +78,7 @@ export class SubscriptionService {
       .from('user_subscriptions')
       .select(`
         *,
-        packages (
+        data_sharing_products (
           name,
           description,
           features
@@ -85,26 +94,34 @@ export class SubscriptionService {
 
     if (!data) return [];
 
-    // Transform the database results to match our interface
     return data.map(sub => ({
       id: sub.id,
       user_id: sub.user_id,
-      product_id: sub.package_id,
+      product_id: sub.product_id,
       start_date: sub.start_date,
       end_date: sub.end_date,
       status: sub.subscription_status as UserSubscription['status'],
       paystack_reference_id: undefined,
       total_amount_paid_usd: 0,
-      tenure_months: 1,
-      auto_renew: false,
+      tenure_months: sub.tenure_months || 1,
+      auto_renew: sub.auto_renew || false,
       created_at: sub.created_at,
       updated_at: sub.updated_at
     })) as UserSubscription[];
   }
 
   async getSubscriptionVehicles(subscriptionId: string): Promise<string[]> {
-    // Skip for now since subscription_vehicles table doesn't exist yet
-    return [];
+    const { data, error } = await supabase
+      .from('subscription_vehicles')
+      .select('vehicle_id')
+      .eq('subscription_id', subscriptionId);
+
+    if (error) {
+      console.error('Failed to fetch subscription vehicles:', error);
+      return [];
+    }
+
+    return (data || []).map(item => item.vehicle_id);
   }
 
   async updateSubscriptionStatus(subscriptionId: string, status: UserSubscription['status']): Promise<void> {
@@ -139,14 +156,14 @@ export class SubscriptionService {
     return data.map(sub => ({
       id: sub.id,
       user_id: sub.user_id,
-      product_id: sub.package_id,
+      product_id: sub.product_id,
       start_date: sub.start_date,
       end_date: sub.end_date,
       status: sub.subscription_status as UserSubscription['status'],
       paystack_reference_id: undefined,
       total_amount_paid_usd: 0,
-      tenure_months: 1,
-      auto_renew: false,
+      tenure_months: sub.tenure_months || 1,
+      auto_renew: sub.auto_renew || false,
       created_at: sub.created_at,
       updated_at: sub.updated_at
     })) as UserSubscription[];
@@ -156,8 +173,18 @@ export class SubscriptionService {
     // Update subscription status
     await this.updateSubscriptionStatus(subscriptionId, 'expired');
 
-    // Skip token revocation since sharing_tokens table doesn't exist yet
-    console.log('Token revocation skipped - table not available yet');
+    // Revoke all tokens for this subscription
+    const { error } = await supabase
+      .from('sharing_tokens')
+      .update({ 
+        is_active: false,
+        revoked_at: new Date().toISOString()
+      })
+      .eq('subscription_id', subscriptionId);
+
+    if (error) {
+      console.error('Failed to revoke tokens for expired subscription:', error);
+    }
   }
 
   // Method to check and expire subscriptions (should be called periodically)

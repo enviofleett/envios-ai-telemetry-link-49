@@ -18,32 +18,61 @@ export class TokenManagementService {
     // Generate secure token
     const token = this.generateSecureToken();
 
-    // For now, create a mock token since sharing_tokens table doesn't exist yet
-    const mockToken: SharingToken = {
-      id: crypto.randomUUID(),
-      token,
-      subscription_id: subscriptionId,
-      user_id: subscription.user_id,
-      vehicle_ids: vehicleIds,
-      expires_at: subscription.end_date,
-      is_active: true,
-      usage_count: 0,
-      created_at: new Date().toISOString()
-    };
+    const { data: sharingToken, error } = await supabase
+      .from('sharing_tokens')
+      .insert({
+        token,
+        subscription_id: subscriptionId,
+        user_id: subscription.user_id,
+        vehicle_ids: vehicleIds,
+        expires_at: subscription.end_date,
+        is_active: true,
+        usage_count: 0
+      })
+      .select()
+      .single();
 
-    console.log('Token generation skipped - table not available yet. Mock token created:', mockToken);
-    return mockToken;
+    if (error) {
+      console.error('Failed to create sharing token:', error);
+      throw new Error(`Failed to create token: ${error.message}`);
+    }
+
+    return sharingToken as SharingToken;
   }
 
   async validateToken(tokenString: string): Promise<TokenValidationResult> {
     try {
-      // Skip actual validation since sharing_tokens table doesn't exist yet
-      // Return a mock successful validation for development
-      console.log('Token validation skipped - table not available yet');
-      
+      const { data: tokenData, error } = await supabase
+        .from('sharing_tokens')
+        .select(`
+          *,
+          user_subscriptions!inner (
+            *,
+            data_sharing_products (*)
+          )
+        `)
+        .eq('token', tokenString)
+        .eq('is_active', true)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+
+      if (error || !tokenData) {
+        return {
+          isValid: false,
+          authorizedVehicleIds: [],
+          error: 'Invalid or expired token'
+        };
+      }
+
+      // Update last used timestamp
+      await this.updateTokenUsage(tokenData.id);
+
       return {
         isValid: true,
-        authorizedVehicleIds: []
+        token: tokenData as SharingToken,
+        subscription: tokenData.user_subscriptions as UserSubscription,
+        product: tokenData.user_subscriptions?.data_sharing_products as DataSharingProduct,
+        authorizedVehicleIds: tokenData.vehicle_ids || []
       };
     } catch (error) {
       console.error('Token validation error:', error);
@@ -56,16 +85,47 @@ export class TokenManagementService {
   }
 
   async revokeToken(tokenId: string): Promise<void> {
-    console.log('Token revocation skipped - table not available yet');
+    const { error } = await supabase
+      .from('sharing_tokens')
+      .update({ 
+        is_active: false,
+        revoked_at: new Date().toISOString()
+      })
+      .eq('id', tokenId);
+
+    if (error) {
+      console.error('Failed to revoke token:', error);
+      throw new Error(`Failed to revoke token: ${error.message}`);
+    }
   }
 
   async updateTokenUsage(tokenId: string): Promise<void> {
-    console.log('Token usage update skipped - table not available yet');
+    const { error } = await supabase
+      .from('sharing_tokens')
+      .update({ 
+        last_used_at: new Date().toISOString(),
+        usage_count: supabase.rpc('increment', { x: 1 })
+      })
+      .eq('id', tokenId);
+
+    if (error) {
+      console.error('Failed to update token usage:', error);
+    }
   }
 
   async getUserTokens(userId: string): Promise<SharingToken[]> {
-    console.log('User tokens fetch skipped - table not available yet');
-    return [];
+    const { data, error } = await supabase
+      .from('sharing_tokens')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Failed to fetch user tokens:', error);
+      return [];
+    }
+
+    return (data || []) as SharingToken[];
   }
 
   private generateSecureToken(): string {
@@ -79,21 +139,22 @@ export class TokenManagementService {
   }
 
   async regenerateToken(oldTokenId: string): Promise<SharingToken> {
-    // For now, create a mock token since sharing_tokens table doesn't exist yet
-    const mockToken: SharingToken = {
-      id: crypto.randomUUID(),
-      token: this.generateSecureToken(),
-      subscription_id: 'mock-subscription-id',
-      user_id: 'mock-user-id',
-      vehicle_ids: [],
-      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
-      is_active: true,
-      usage_count: 0,
-      created_at: new Date().toISOString()
-    };
+    // Get old token details
+    const { data: oldToken, error: fetchError } = await supabase
+      .from('sharing_tokens')
+      .select('*')
+      .eq('id', oldTokenId)
+      .single();
 
-    console.log('Token regeneration skipped - table not available yet. Mock token created:', mockToken);
-    return mockToken;
+    if (fetchError || !oldToken) {
+      throw new Error('Token not found');
+    }
+
+    // Revoke old token
+    await this.revokeToken(oldTokenId);
+
+    // Generate new token with same settings
+    return this.generateSharingToken(oldToken.subscription_id, oldToken.vehicle_ids);
   }
 }
 

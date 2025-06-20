@@ -4,38 +4,23 @@ import type { DataSharingProduct, VehicleTelemetryData } from '@/types/data-shar
 
 export class DataSharingService {
   async getAvailableProducts(): Promise<DataSharingProduct[]> {
-    // Use marketplace_products since data_sharing_products doesn't exist yet
     const { data, error } = await supabase
-      .from('marketplace_products')
+      .from('data_sharing_products')
       .select('*')
       .eq('is_active', true)
-      .order('price_usd', { ascending: true });
+      .order('base_cost_usd_per_month', { ascending: true });
 
     if (error) {
-      console.error('Failed to fetch marketplace products:', error);
+      console.error('Failed to fetch data sharing products:', error);
       throw new Error(`Failed to fetch products: ${error.message}`);
     }
 
-    // Transform marketplace products to data sharing format
-    return (data || []).map(product => ({
-      id: product.id,
-      category: product.category || 'data-sharing',
-      name: product.name,
-      description: product.description,
-      base_cost_usd_per_month: product.price_usd || 0,
-      cost_per_vehicle_usd_per_month: 5, // Default cost per vehicle
-      data_points_included: ['location', 'speed', 'mileage'],
-      features: product.features || {},
-      max_vehicles_allowed: null,
-      is_active: product.is_active,
-      created_at: product.created_at,
-      updated_at: product.updated_at
-    })) as DataSharingProduct[];
+    return (data || []) as DataSharingProduct[];
   }
 
   async getProduct(productId: string): Promise<DataSharingProduct | null> {
     const { data, error } = await supabase
-      .from('marketplace_products')
+      .from('data_sharing_products')
       .select('*')
       .eq('id', productId)
       .eq('is_active', true)
@@ -47,23 +32,7 @@ export class DataSharingService {
       throw new Error(`Failed to fetch product: ${error.message}`);
     }
 
-    if (!data) return null;
-
-    // Transform to data sharing format
-    return {
-      id: data.id,
-      category: data.category || 'data-sharing',
-      name: data.name,
-      description: data.description,
-      base_cost_usd_per_month: data.price_usd || 0,
-      cost_per_vehicle_usd_per_month: 5,
-      data_points_included: ['location', 'speed', 'mileage'],
-      features: data.features || {},
-      max_vehicles_allowed: null,
-      is_active: data.is_active,
-      created_at: data.created_at,
-      updated_at: data.updated_at
-    } as DataSharingProduct;
+    return data as DataSharingProduct;
   }
 
   async getVehicleTelemetryData(vehicleIds: string[], dataPoints: string[]): Promise<VehicleTelemetryData[]> {
@@ -184,9 +153,20 @@ export class DataSharingService {
     const oneHourAgo = new Date();
     oneHourAgo.setHours(oneHourAgo.getHours() - 1);
 
-    // For now, always return true since api_usage_logs table doesn't exist yet
-    // This would be implemented once the proper schema is in place
-    return true;
+    const { data, error } = await supabase
+      .from('api_usage_logs')
+      .select('id')
+      .eq('token_id', tokenId)
+      .eq('endpoint', endpoint)
+      .gte('created_at', oneHourAgo.toISOString());
+
+    if (error) {
+      console.error('Rate limit check failed:', error);
+      return true; // Allow request if we can't check
+    }
+
+    const requestCount = data?.length || 0;
+    return requestCount < rateLimitPerHour;
   }
 }
 
