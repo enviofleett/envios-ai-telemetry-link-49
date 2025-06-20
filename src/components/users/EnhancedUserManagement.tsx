@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useUnifiedAuth } from '@/contexts/UnifiedAuthContext';
 import { Navigate } from 'react-router-dom';
 import UserProfilesTable from './UserProfilesTable';
 import UserProfileModal from './UserProfileModal';
@@ -9,7 +9,7 @@ import CreateUserDialog from './CreateUserDialog';
 import { UserProfile } from '@/hooks/useUserProfiles';
 
 const EnhancedUserManagement: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useUnifiedAuth();
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
@@ -17,7 +17,7 @@ const EnhancedUserManagement: React.FC = () => {
   const [editUser, setEditUser] = useState<UserProfile | null>(null);
 
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   const handleUserClick = (user: UserProfile) => {

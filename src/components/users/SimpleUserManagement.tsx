@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useUnifiedAuth } from '@/contexts/UnifiedAuthContext';
 import { Navigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -34,7 +34,7 @@ interface RoleDistribution {
 }
 
 const SimpleUserManagement: React.FC = () => {
-  const { user } = useAuth();
+  const { user } = useUnifiedAuth();
   const [selectedUser, setSelectedUser] = useState<LocalUser | null>(null);
   const [showUserDetails, setShowUserDetails] = useState(false);
   const [showCreateUser, setShowCreateUser] = useState(false);
@@ -82,7 +82,7 @@ const SimpleUserManagement: React.FC = () => {
   }
   
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   const users: LocalUser[] = usersData?.users || [];
