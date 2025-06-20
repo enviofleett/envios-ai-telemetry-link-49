@@ -3704,7 +3704,7 @@ export type Database = {
           gp51_username: string
           id: string
           is_verified: boolean | null
-          mapping_type: string
+          mapping_type: Database["public"]["Enums"]["mapping_type_enum"]
           updated_at: string
         }
         Insert: {
@@ -3714,7 +3714,7 @@ export type Database = {
           gp51_username: string
           id?: string
           is_verified?: boolean | null
-          mapping_type?: string
+          mapping_type?: Database["public"]["Enums"]["mapping_type_enum"]
           updated_at?: string
         }
         Update: {
@@ -3724,7 +3724,7 @@ export type Database = {
           gp51_username?: string
           id?: string
           is_verified?: boolean | null
-          mapping_type?: string
+          mapping_type?: Database["public"]["Enums"]["mapping_type_enum"]
           updated_at?: string
         }
         Relationships: [
@@ -10533,6 +10533,7 @@ export type Database = {
         | "paid"
         | "cancelled"
         | "processing_payout"
+      mapping_type_enum: "manual" | "auto" | "migrated"
       merchant_application_status:
         | "draft"
         | "submitted"
@@ -10694,6 +10695,7 @@ export const Constants = {
         "cancelled",
         "processing_payout",
       ],
+      mapping_type_enum: ["manual", "auto", "migrated"],
       merchant_application_status: [
         "draft",
         "submitted",

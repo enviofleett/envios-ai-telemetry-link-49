@@ -25,7 +25,8 @@ export class GP51UserMappingService {
       throw error;
     }
 
-    return data || [];
+    // Cast the data to ensure proper typing since the database now returns the correct ENUM
+    return (data || []) as GP51UserMapping[];
   }
 
   static async createMapping(
@@ -51,7 +52,7 @@ export class GP51UserMappingService {
       throw error;
     }
 
-    return data;
+    return data as GP51UserMapping;
   }
 
   static async verifyMapping(mappingId: string): Promise<GP51UserMapping> {
@@ -67,7 +68,7 @@ export class GP51UserMappingService {
       throw error;
     }
 
-    return data;
+    return data as GP51UserMapping;
   }
 
   static async deleteMapping(mappingId: string): Promise<void> {
@@ -95,7 +96,7 @@ export class GP51UserMappingService {
       throw error;
     }
 
-    return data;
+    return data as GP51UserMapping | null;
   }
 
   static async migrateExistingUsers(): Promise<void> {
