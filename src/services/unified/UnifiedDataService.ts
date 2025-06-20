@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { enhancedCachingService } from '@/services/performance/EnhancedCachingService';
 
@@ -21,6 +20,17 @@ export interface DataServiceResult<T> {
   data?: T;
   error?: string;
   loading?: boolean;
+}
+
+// Type for the last_position JSON field
+interface VehiclePosition {
+  lat?: number;
+  lng?: number;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  timestamp?: string;
+  speed?: number;
 }
 
 class UnifiedDataService {
@@ -60,19 +70,35 @@ class UnifiedDataService {
       }
 
       // Transform data to unified format
-      const unifiedVehicles: UnifiedVehicleData[] = (vehicles || []).map(vehicle => ({
-        id: vehicle.id,
-        name: vehicle.name || vehicle.device_id || 'Unknown Vehicle',
-        status: this.determineVehicleStatus(vehicle),
-        lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
-        location: vehicle.last_known_location ? {
-          latitude: vehicle.last_known_location.lat || 0,
-          longitude: vehicle.last_known_location.lng || 0,
-          address: vehicle.last_known_location.address
-        } : undefined,
-        user_id: vehicle.user_id,
-        gp51_device_id: vehicle.gp51_device_id
-      }));
+      const unifiedVehicles: UnifiedVehicleData[] = (vehicles || []).map(vehicle => {
+        // Parse location data from last_position JSON field
+        let location: UnifiedVehicleData['location'] = undefined;
+        
+        try {
+          if (vehicle.last_position) {
+            const position = vehicle.last_position as VehiclePosition;
+            if (position && (position.lat || position.latitude) && (position.lng || position.longitude)) {
+              location = {
+                latitude: position.latitude || position.lat || 0,
+                longitude: position.longitude || position.lng || 0,
+                address: position.address
+              };
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to parse vehicle location:', err);
+        }
+
+        return {
+          id: vehicle.id,
+          name: vehicle.name || vehicle.gp51_device_id || 'Unknown Vehicle',
+          status: this.determineVehicleStatus(vehicle),
+          lastUpdate: new Date(vehicle.updated_at || vehicle.created_at),
+          location,
+          user_id: vehicle.user_id,
+          gp51_device_id: vehicle.gp51_device_id
+        };
+      });
 
       // Cache the results
       await enhancedCachingService.set(cacheKey, unifiedVehicles, 5 * 60 * 1000); // 5 minutes
