@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,7 +37,7 @@ const OptimizedMapTilerMap: React.FC<OptimizedMapTilerMapProps> = ({
   selectedVehicle,
   onVehicleSelect,
   showTrails = true,
-  vehicleTrails = new Map(),
+  vehicleTrails = new Map<string, any[]>(),
   enableClustering = true,
   maxVehiclesPerView = 200,
   height = '400px',
@@ -49,7 +48,7 @@ const OptimizedMapTilerMap: React.FC<OptimizedMapTilerMapProps> = ({
     totalVehicles: 0,
     visibleVehicles: 0,
     clusters: 0,
-    renderLevel: 'individual' as RenderLevel,
+    renderLevel: 'individual',
     loadTime: 0
   });
 
@@ -112,9 +111,9 @@ const OptimizedMapTilerMap: React.FC<OptimizedMapTilerMapProps> = ({
 
   // Optimize trails for visible vehicles
   const optimizedTrails = useMemo(() => {
-    if (!showTrails || !vehicleTrails.size) return new Map();
-
-    const optimized = new Map();
+    if (!showTrails || !vehicleTrails.size) return new Map<string, any>();
+    
+    const optimized = new Map<string, any>();
     
     virtualizedData.visibleVehicles.forEach(vehicle => {
       const trail = vehicleTrails.get(vehicle.device_id);
