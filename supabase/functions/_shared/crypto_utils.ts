@@ -1,5 +1,6 @@
 
-import { createHash } from 'https://deno.land/std@0.168.0/crypto/mod.ts';
+// Fix the crypto import to use the correct module path and version
+import { createHash } from 'https://deno.land/std@0.177.0/hash/mod.ts';
 
 // Rate limiting storage
 const rateLimits = new Map<string, { count: number; resetTime: number }>();
