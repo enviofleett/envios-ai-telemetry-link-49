@@ -1,162 +1,202 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { reportsApi } from '@/services/reportsApi';
-import type { VehicleUsageStats } from '@/types/reports';
+import type { VehicleData } from '@/types/vehicle';
 
-export class RealtimeReportsService {
-  private reportSubscriptions = new Map<string, any>();
+export interface ReportMetrics {
+  totalVehicles: number;
+  activeVehicles: number;
+  totalMileage: number;
+  fuelEfficiency: number;
+  averageSpeed: number;
+  alertCount: number;
+  maintenanceCount: number;
+  utilizationRate: number;
+}
 
-  async subscribeToVehicleUpdates(vehicleIds: string[], onUpdate: (data: any) => void) {
-    const subscriptionKey = `vehicles_${vehicleIds.join('_')}`;
-    
-    // Cleanup existing subscription
-    if (this.reportSubscriptions.has(subscriptionKey)) {
-      await this.unsubscribe(subscriptionKey);
-    }
+export interface TimeSeriesData {
+  timestamp: string;
+  value: number;
+  label: string;
+}
 
-    const subscription = supabase
-      .channel(`reports_${subscriptionKey}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'vehicles',
-          filter: vehicleIds.length > 0 ? `device_id=in.(${vehicleIds.join(',')})` : undefined
-        },
-        (payload) => {
-          console.log('Vehicle data updated:', payload);
-          onUpdate(payload);
-        }
-      )
-      .subscribe();
+export interface ReportData {
+  metrics: ReportMetrics;
+  timeSeries: TimeSeriesData[];
+  charts: {
+    vehicleStatus: { name: string; value: number; color: string }[];
+    speedDistribution: { range: string; count: number }[];
+    alertsByType: { type: string; count: number; severity: string }[];
+    mileageByVehicle: { vehicle: string; mileage: number }[];
+  };
+}
 
-    this.reportSubscriptions.set(subscriptionKey, subscription);
-    return subscriptionKey;
-  }
+class RealtimeReportsService {
+  private cache = new Map<string, { data: any; timestamp: number }>();
+  private CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-  async subscribeToGeofenceAlerts(onUpdate: (alert: any) => void) {
-    const subscription = supabase
-      .channel('geofence_alerts')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'geofence_alerts'
-        },
-        (payload) => {
-          console.log('New geofence alert:', payload);
-          onUpdate(payload.new);
-        }
-      )
-      .subscribe();
+  async generateFleetReport(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    vehicleIds?: string[];
+  }): Promise<ReportData> {
+    const cacheKey = `fleet_report_${JSON.stringify(filters)}`;
+    const cached = this.getCachedData(cacheKey);
+    if (cached) return cached;
 
-    this.reportSubscriptions.set('geofence_alerts', subscription);
-    return 'geofence_alerts';
-  }
-
-  async unsubscribe(subscriptionKey: string) {
-    const subscription = this.reportSubscriptions.get(subscriptionKey);
-    if (subscription) {
-      await supabase.removeChannel(subscription);
-      this.reportSubscriptions.delete(subscriptionKey);
-    }
-  }
-
-  async unsubscribeAll() {
-    for (const [key, subscription] of this.reportSubscriptions) {
-      await supabase.removeChannel(subscription);
-    }
-    this.reportSubscriptions.clear();
-  }
-
-  async getCachedReportData(reportType: string, filters: any): Promise<any[]> {
-    // Check if we have cached data for this report
-    const cacheKey = `${reportType}_${JSON.stringify(filters)}`;
-    const cached = localStorage.getItem(cacheKey);
-    
-    if (cached) {
-      const { data, timestamp } = JSON.parse(cached);
-      const isExpired = Date.now() - timestamp > 5 * 60 * 1000; // 5 minutes cache
-      
-      if (!isExpired) {
-        return data;
-      }
-    }
-    
-    return [];
-  }
-
-  async setCachedReportData(reportType: string, filters: any, data: any[]) {
-    const cacheKey = `${reportType}_${JSON.stringify(filters)}`;
-    const cacheData = {
-      data,
-      timestamp: Date.now()
-    };
-    
     try {
-      localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+      // Fetch vehicles data
+      let vehiclesQuery = supabase
+        .from('vehicles')
+        .select(`
+          id,
+          gp51_device_id,
+          name,
+          user_id,
+          created_at,
+          updated_at
+        `);
+
+      if (filters.vehicleIds?.length) {
+        vehiclesQuery = vehiclesQuery.in('gp51_device_id', filters.vehicleIds);
+      }
+
+      const { data: vehicles, error } = await vehiclesQuery;
+      if (error) throw error;
+
+      const reportData = this.processFleetData(vehicles || []);
+      this.setCachedData(cacheKey, reportData);
+      return reportData;
     } catch (error) {
-      console.warn('Failed to cache report data:', error);
+      console.error('Error generating fleet report:', error);
+      throw error;
     }
   }
 
-  async getReportMetrics(reportType: string, vehicleIds?: string[]) {
-    switch (reportType) {
-      case 'trip':
-        return this.getTripMetrics(vehicleIds);
-      case 'alerts':
-        return this.getAlertMetrics(vehicleIds);
-      case 'maintenance':
-        return this.getMaintenanceMetrics(vehicleIds);
-      case 'geofence':
-        return this.getGeofenceMetrics(vehicleIds);
-      default:
-        return {};
+  async generateTripReport(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    vehicleIds?: string[];
+  }): Promise<any> {
+    console.log('Generating trip report with filters:', filters);
+    
+    // Simulate trip data - in real implementation, fetch from GP51 or vehicle_positions table
+    const mockTripData = {
+      totalTrips: 156,
+      totalDistance: 2847.5,
+      totalDuration: 1284, // minutes
+      averageSpeed: 45.2,
+      trips: Array.from({ length: 10 }, (_, i) => ({
+        id: `trip-${i + 1}`,
+        vehicleId: `vehicle-${i % 3 + 1}`,
+        startTime: new Date(Date.now() - (i * 24 * 60 * 60 * 1000)).toISOString(),
+        endTime: new Date(Date.now() - (i * 24 * 60 * 60 * 1000) + (2 * 60 * 60 * 1000)).toISOString(),
+        distance: Math.round(Math.random() * 200 + 50),
+        duration: Math.round(Math.random() * 120 + 30),
+        averageSpeed: Math.round(Math.random() * 30 + 35),
+        maxSpeed: Math.round(Math.random() * 20 + 80),
+        startLocation: `Location ${i + 1}`,
+        endLocation: `Destination ${i + 1}`
+      }))
+    };
+
+    return mockTripData;
+  }
+
+  async generateMaintenanceReport(filters: {
+    dateFrom?: Date;
+    dateTo?: Date;
+    vehicleIds?: string[];
+  }): Promise<any> {
+    console.log('Generating maintenance report with filters:', filters);
+    
+    // Simulate maintenance data
+    const mockMaintenanceData = {
+      totalMaintenanceEvents: 23,
+      upcomingMaintenance: 8,
+      overdueMaintenance: 2,
+      totalMaintenanceCost: 15647.50,
+      averageCostPerVehicle: 1564.75,
+      maintenanceByType: [
+        { type: 'Oil Change', count: 12, avgCost: 150 },
+        { type: 'Brake Inspection', count: 6, avgCost: 300 },
+        { type: 'Tire Rotation', count: 8, avgCost: 100 },
+        { type: 'Engine Service', count: 4, avgCost: 800 }
+      ],
+      events: Array.from({ length: 15 }, (_, i) => ({
+        id: `maintenance-${i + 1}`,
+        vehicleId: `vehicle-${i % 3 + 1}`,
+        type: ['Oil Change', 'Brake Inspection', 'Tire Rotation', 'Engine Service'][i % 4],
+        date: new Date(Date.now() - (i * 7 * 24 * 60 * 60 * 1000)).toISOString(),
+        cost: Math.round(Math.random() * 500 + 100),
+        status: ['completed', 'scheduled', 'overdue'][i % 3],
+        mileage: Math.round(Math.random() * 10000 + 50000)
+      }))
+    };
+
+    return mockMaintenanceData;
+  }
+
+  private processFleetData(vehicles: any[]): ReportData {
+    const totalVehicles = vehicles.length;
+    const activeVehicles = Math.round(totalVehicles * 0.85); // Simulate active percentage
+    
+    const metrics: ReportMetrics = {
+      totalVehicles,
+      activeVehicles,
+      totalMileage: Math.round(totalVehicles * 12500), // Simulate annual mileage
+      fuelEfficiency: 28.5, // MPG
+      averageSpeed: 42.3, // MPH
+      alertCount: Math.round(totalVehicles * 0.15),
+      maintenanceCount: Math.round(totalVehicles * 0.08),
+      utilizationRate: 0.85
+    };
+
+    const timeSeries: TimeSeriesData[] = Array.from({ length: 30 }, (_, i) => ({
+      timestamp: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString(),
+      value: Math.round(Math.random() * 20 + 80),
+      label: `Day ${i + 1}`
+    }));
+
+    const charts = {
+      vehicleStatus: [
+        { name: 'Active', value: activeVehicles, color: '#10b981' },
+        { name: 'Idle', value: Math.round(totalVehicles * 0.1), color: '#f59e0b' },
+        { name: 'Offline', value: totalVehicles - activeVehicles - Math.round(totalVehicles * 0.1), color: '#ef4444' }
+      ],
+      speedDistribution: [
+        { range: '0-20 mph', count: Math.round(totalVehicles * 0.1) },
+        { range: '21-40 mph', count: Math.round(totalVehicles * 0.3) },
+        { range: '41-60 mph', count: Math.round(totalVehicles * 0.4) },
+        { range: '61+ mph', count: Math.round(totalVehicles * 0.2) }
+      ],
+      alertsByType: [
+        { type: 'Speed', count: Math.round(totalVehicles * 0.05), severity: 'high' },
+        { type: 'Geofence', count: Math.round(totalVehicles * 0.03), severity: 'medium' },
+        { type: 'Maintenance', count: Math.round(totalVehicles * 0.07), severity: 'low' }
+      ],
+      mileageByVehicle: vehicles.slice(0, 10).map((vehicle, i) => ({
+        vehicle: vehicle.name || `Vehicle ${i + 1}`,
+        mileage: Math.round(Math.random() * 5000 + 10000)
+      }))
+    };
+
+    return { metrics, timeSeries, charts };
+  }
+
+  private getCachedData(key: string): any | null {
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.data;
     }
+    return null;
   }
 
-  private async getTripMetrics(vehicleIds?: string[]) {
-    // Call without arguments to fix the type error
-    const statsArray = await reportsApi.getVehicleUsageStats();
-    
-    // Handle the case where getVehicleUsageStats returns an array
-    const firstStats = Array.isArray(statsArray) && statsArray.length > 0 ? statsArray[0] : null;
-    
-    return {
-      totalTrips: Math.floor(Math.random() * 500 + 100),
-      totalDistance: firstStats?.totalMileage ? `${firstStats.totalMileage} km` : '0 km',
-      averageTripDuration: `${Math.floor(Math.random() * 120 + 30)} min`,
-      fuelEfficiency: firstStats?.fuelEfficiency ? `${firstStats.fuelEfficiency} km/L` : '0 km/L'
-    };
+  private setCachedData(key: string, data: any): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
   }
 
-  private async getAlertMetrics(vehicleIds?: string[]) {
-    return {
-      totalAlerts: Math.floor(Math.random() * 50 + 10),
-      criticalAlerts: Math.floor(Math.random() * 5 + 1),
-      resolvedAlerts: Math.floor(Math.random() * 40 + 20),
-      averageResolutionTime: `${Math.floor(Math.random() * 60 + 15)} min`
-    };
-  }
-
-  private async getMaintenanceMetrics(vehicleIds?: string[]) {
-    return {
-      scheduledMaintenance: Math.floor(Math.random() * 20 + 5),
-      overdueMaintenance: Math.floor(Math.random() * 3 + 1),
-      completedMaintenance: Math.floor(Math.random() * 15 + 10),
-      averageCost: `$${Math.floor(Math.random() * 300 + 200)}`
-    };
-  }
-
-  private async getGeofenceMetrics(vehicleIds?: string[]) {
-    return {
-      totalEvents: Math.floor(Math.random() * 200 + 50),
-      violations: Math.floor(Math.random() * 10 + 2),
-      averageTimeInZone: `${Math.floor(Math.random() * 120 + 30)} min`,
-      mostVisitedZone: 'Warehouse A'
-    };
+  clearCache(): void {
+    this.cache.clear();
   }
 }
 

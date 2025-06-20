@@ -1,168 +1,116 @@
 
 import React from 'react';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
-import ReportChartContainer from './ReportChartContainer';
-import type { GeofenceReportData } from '@/hooks/useAdvancedReports';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 
 interface GeofenceReportChartsProps {
-  data: GeofenceReportData[];
-  isLoading: boolean;
+  data: {
+    totalGeofences: number;
+    activeGeofences: number;
+    violations: number;
+    entriesExits: { date: string; entries: number; exits: number }[];
+    violationsByZone: { zone: string; violations: number }[];
+    violationsByVehicle: { vehicle: string; violations: number }[];
+  };
 }
 
-const GeofenceReportCharts: React.FC<GeofenceReportChartsProps> = ({ data, isLoading }) => {
-  // Event type distribution
-  const eventTypeData = data.reduce((acc: any[], event) => {
-    const existing = acc.find(item => item.type === event.eventType);
-    if (existing) {
-      existing.count += 1;
-    } else {
-      acc.push({
-        type: event.eventType,
-        count: 1,
-        fill: event.eventType === 'enter' ? '#22c55e' : '#ef4444'
-      });
-    }
-    return acc;
-  }, []);
+const GeofenceReportCharts: React.FC<GeofenceReportChartsProps> = ({ data }) => {
+  // Zone type distribution
+  const zoneTypeDistribution = [
+    { name: 'Inclusion Zones', value: Math.round(data.totalGeofences * 0.7), color: '#10b981' },
+    { name: 'Exclusion Zones', value: Math.round(data.totalGeofences * 0.3), color: '#ef4444' }
+  ];
 
-  // Geofence activity by location
-  const geofenceActivity = data.reduce((acc: any[], event) => {
-    const existing = acc.find(item => item.geofence === event.geofenceName);
-    if (existing) {
-      existing.events += 1;
-      if (event.status === 'Violation') existing.violations += 1;
-    } else {
-      acc.push({
-        geofence: event.geofenceName.length > 15 ? event.geofenceName.substring(0, 15) + '...' : event.geofenceName,
-        events: 1,
-        violations: event.status === 'Violation' ? 1 : 0
-      });
-    }
-    return acc;
-  }, []).slice(0, 8);
-
-  const chartConfig = {
-    enter: {
-      label: "Enter Events",
-      color: "#22c55e",
-    },
-    exit: {
-      label: "Exit Events", 
-      color: "#ef4444",
-    },
-    events: {
-      label: "Total Events",
-      color: "#3b82f6",
-    },
-    violations: {
-      label: "Violations",
-      color: "#f59e0b",
-    },
-  };
-
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ReportChartContainer
-          data={[]}
-          reportType="geofence"
-          isLoading={true}
-          title="Event Distribution"
-        />
-        <ReportChartContainer
-          data={[]}
-          reportType="geofence"
-          isLoading={true}
-          title="Geofence Activity"
-        />
-      </div>
-    );
-  }
+  // Compliance rate
+  const complianceData = [
+    { name: 'Compliant', value: data.totalGeofences - data.violations, color: '#10b981' },
+    { name: 'Violations', value: data.violations, color: '#ef4444' }
+  ];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-      {/* Event Type Distribution */}
-      <ReportChartContainer
-        data={data}
-        reportType="geofence"
-        isLoading={false}
-        title="Entry vs Exit Events"
-      >
-        <ChartContainer config={chartConfig} className="h-64">
-          <PieChart>
-            <Pie
-              data={eventTypeData}
-              cx="50%"
-              cy="50%"
-              outerRadius={80}
-              dataKey="count"
-              label={({ type, count }) => `${type}: ${count}`}
-            >
-              {eventTypeData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.fill} />
-              ))}
-            </Pie>
-            <ChartTooltip
-              content={
-                <ChartTooltipContent 
-                  hideLabel
-                  className="w-[150px]"
-                  formatter={(value, name) => [
-                    `${value} events`,
-                    `${name} events`,
-                  ]}
-                />
-              }
-            />
-          </PieChart>
-        </ChartContainer>
-      </ReportChartContainer>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Entries and Exits Over Time */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Geofence Entries & Exits</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={data.entriesExits}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="entries" stroke="#10b981" strokeWidth={2} name="Entries" />
+              <Line type="monotone" dataKey="exits" stroke="#ef4444" strokeWidth={2} name="Exits" />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
-      {/* Geofence Activity */}
-      <ReportChartContainer
-        data={data}
-        reportType="geofence"
-        isLoading={false}
-        title="Activity by Geofence"
-      >
-        <ChartContainer config={chartConfig} className="h-64">
-          <BarChart data={geofenceActivity}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="geofence" 
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-              angle={-45}
-              textAnchor="end"
-              height={60}
-            />
-            <YAxis fontSize={12} tickLine={false} axisLine={false} />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent 
-                  className="w-[180px]"
-                  formatter={(value, name) => [
-                    `${value}`,
-                    chartConfig[name as keyof typeof chartConfig]?.label || name,
-                  ]}
-                />
-              }
-            />
-            <Bar 
-              dataKey="events" 
-              fill="var(--color-events)" 
-              radius={4}
-            />
-            <Bar 
-              dataKey="violations" 
-              fill="var(--color-violations)" 
-              radius={4}
-            />
-          </BarChart>
-        </ChartContainer>
-      </ReportChartContainer>
+      {/* Violations by Zone */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Violations by Zone</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={data.violationsByZone.slice(0, 8)}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="zone" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="violations" fill="#ef4444" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Violations by Vehicle */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Top Violating Vehicles</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={data.violationsByVehicle.slice(0, 8)}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="vehicle" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="violations" fill="#f59e0b" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Zone Type Distribution */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Geofence Zone Types</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={zoneTypeDistribution}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {zoneTypeDistribution.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </div>
   );
 };

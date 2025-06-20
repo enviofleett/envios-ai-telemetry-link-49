@@ -1,166 +1,128 @@
 
 import React from 'react';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, ResponsiveContainer } from 'recharts';
-import ReportChartContainer from './ReportChartContainer';
-import type { TripReportData } from '@/hooks/useAdvancedReports';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 
 interface TripReportChartsProps {
-  data: TripReportData[];
-  isLoading: boolean;
+  data: {
+    totalTrips: number;
+    totalDistance: number;
+    totalDuration: number;
+    averageSpeed: number;
+    trips: any[];
+  };
 }
 
-const TripReportCharts: React.FC<TripReportChartsProps> = ({ data, isLoading }) => {
-  // Transform data for distance chart
-  const distanceChartData = data.slice(0, 10).map((trip, index) => ({
-    vehicle: trip.vehicleName.length > 10 ? trip.vehicleName.substring(0, 10) + '...' : trip.vehicleName,
-    distance: parseFloat(trip.distance.replace(' km', '')),
-    avgSpeed: parseFloat(trip.averageSpeed.replace(' km/h', '')),
-    index
-  }));
-
-  // Transform data for trend analysis (group by date)
-  const trendData = data.reduce((acc: any[], trip) => {
+const TripReportCharts: React.FC<TripReportChartsProps> = ({ data }) => {
+  // Process data for charts
+  const dailyTripsData = data.trips.reduce((acc: any[], trip) => {
     const date = new Date(trip.startTime).toLocaleDateString();
     const existing = acc.find(item => item.date === date);
-    
     if (existing) {
       existing.trips += 1;
-      existing.totalDistance += parseFloat(trip.distance.replace(' km', ''));
+      existing.distance += trip.distance;
     } else {
-      acc.push({
-        date,
-        trips: 1,
-        totalDistance: parseFloat(trip.distance.replace(' km', ''))
-      });
+      acc.push({ date, trips: 1, distance: trip.distance });
     }
-    
     return acc;
   }, []).slice(0, 7);
 
-  const chartConfig = {
-    distance: {
-      label: "Distance (km)",
-      color: "#22c55e",
-    },
-    avgSpeed: {
-      label: "Avg Speed (km/h)",
-      color: "#3b82f6",
-    },
-    trips: {
-      label: "Number of Trips",
-      color: "#f59e0b",
-    },
-    totalDistance: {
-      label: "Total Distance (km)",
-      color: "#ef4444",
-    },
-  };
+  const speedDistribution = [
+    { range: '0-30 mph', count: data.trips.filter(t => t.averageSpeed <= 30).length },
+    { range: '31-50 mph', count: data.trips.filter(t => t.averageSpeed > 30 && t.averageSpeed <= 50).length },
+    { range: '51-70 mph', count: data.trips.filter(t => t.averageSpeed > 50 && t.averageSpeed <= 70).length },
+    { range: '70+ mph', count: data.trips.filter(t => t.averageSpeed > 70).length }
+  ];
 
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ReportChartContainer
-          data={[]}
-          reportType="trip"
-          isLoading={true}
-          title="Distance Analysis"
-        />
-        <ReportChartContainer
-          data={[]}
-          reportType="trip"
-          isLoading={true}
-          title="Trip Trends"
-        />
-      </div>
-    );
-  }
+  const durationBreakdown = [
+    { name: 'Short (< 1hr)', value: data.trips.filter(t => t.duration < 60).length, color: '#10b981' },
+    { name: 'Medium (1-3hr)', value: data.trips.filter(t => t.duration >= 60 && t.duration <= 180).length, color: '#f59e0b' },
+    { name: 'Long (> 3hr)', value: data.trips.filter(t => t.duration > 180).length, color: '#ef4444' }
+  ];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-      {/* Distance and Speed Chart */}
-      <ReportChartContainer
-        data={data}
-        reportType="trip"
-        isLoading={false}
-        title="Distance & Speed Analysis"
-      >
-        <ChartContainer config={chartConfig} className="h-64">
-          <BarChart data={distanceChartData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="vehicle" 
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis fontSize={12} tickLine={false} axisLine={false} />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent 
-                  hideLabel 
-                  className="w-[180px]"
-                  formatter={(value, name) => [
-                    `${value}${name === 'distance' ? ' km' : ' km/h'}`,
-                    chartConfig[name as keyof typeof chartConfig]?.label || name,
-                  ]}
-                />
-              }
-            />
-            <Bar 
-              dataKey="distance" 
-              fill="var(--color-distance)" 
-              radius={4}
-            />
-          </BarChart>
-        </ChartContainer>
-      </ReportChartContainer>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Daily Trips Trend */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily Trips Trend</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={dailyTripsData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="trips" stroke="#3b82f6" strokeWidth={2} />
+            </LineChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
 
-      {/* Trip Trends Chart */}
-      <ReportChartContainer
-        data={data}
-        reportType="trip"
-        isLoading={false}
-        title="Daily Trip Trends"
-      >
-        <ChartContainer config={chartConfig} className="h-64">
-          <LineChart data={trendData}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis 
-              dataKey="date" 
-              fontSize={12}
-              tickLine={false}
-              axisLine={false}
-            />
-            <YAxis fontSize={12} tickLine={false} axisLine={false} />
-            <ChartTooltip
-              content={
-                <ChartTooltipContent 
-                  className="w-[180px]"
-                  formatter={(value, name) => [
-                    `${value}${name === 'totalDistance' ? ' km' : ''}`,
-                    chartConfig[name as keyof typeof chartConfig]?.label || name,
-                  ]}
-                />
-              }
-            />
-            <Line 
-              type="monotone" 
-              dataKey="trips" 
-              stroke="var(--color-trips)" 
-              strokeWidth={2}
-              dot={{ r: 4 }}
-            />
-            <Line 
-              type="monotone" 
-              dataKey="totalDistance" 
-              stroke="var(--color-totalDistance)" 
-              strokeWidth={2}
-              dot={{ r: 4 }}
-            />
-          </LineChart>
-        </ChartContainer>
-      </ReportChartContainer>
+      {/* Daily Distance */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Daily Distance Covered</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={dailyTripsData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip formatter={(value) => [`${value} km`, 'Distance']} />
+              <Bar dataKey="distance" fill="#10b981" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Speed Distribution */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Speed Distribution</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={speedDistribution}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="range" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="#6366f1" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Trip Duration Breakdown */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Trip Duration Breakdown</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={durationBreakdown}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {durationBreakdown.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
     </div>
   );
 };

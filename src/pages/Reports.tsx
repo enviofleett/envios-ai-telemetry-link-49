@@ -1,12 +1,9 @@
 
 import React from 'react';
-import EnhancedReportsHub from '@/components/tracking/EnhancedReportsHub';
-import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
+import RealtimeReportsDashboard from '@/components/tracking/RealtimeReportsDashboard';
 
 const Reports: React.FC = () => {
-  const { vehicles } = useUnifiedVehicleData();
-  
-  return <EnhancedReportsHub vehicles={vehicles} />;
+  return <RealtimeReportsDashboard />;
 };
 
 export default Reports;

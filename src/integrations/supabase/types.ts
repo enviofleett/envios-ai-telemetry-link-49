@@ -6344,6 +6344,101 @@ export type Database = {
           },
         ]
       }
+      report_executions: {
+        Row: {
+          completed_at: string | null
+          error_message: string | null
+          execution_metrics: Json | null
+          execution_status: string
+          file_url: string | null
+          generated_at: string
+          id: string
+          report_data: Json | null
+          scheduled_report_id: string | null
+          template_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          error_message?: string | null
+          execution_metrics?: Json | null
+          execution_status?: string
+          file_url?: string | null
+          generated_at?: string
+          id?: string
+          report_data?: Json | null
+          scheduled_report_id?: string | null
+          template_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          error_message?: string | null
+          execution_metrics?: Json | null
+          execution_status?: string
+          file_url?: string | null
+          generated_at?: string
+          id?: string
+          report_data?: Json | null
+          scheduled_report_id?: string | null
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_executions_scheduled_report_id_fkey"
+            columns: ["scheduled_report_id"]
+            isOneToOne: false
+            referencedRelation: "scheduled_reports"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_executions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "report_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_system_template: boolean
+          name: string
+          report_type: string
+          template_config: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_system_template?: boolean
+          name: string
+          report_type: string
+          template_config?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_system_template?: boolean
+          name?: string
+          report_type?: string
+          template_config?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       role_permissions: {
         Row: {
           created_at: string | null
@@ -6367,6 +6462,60 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
         }
         Relationships: []
+      }
+      scheduled_reports: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          last_run_at: string | null
+          next_run_at: string | null
+          recipients: Json
+          schedule_config: Json
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          next_run_at?: string | null
+          recipients?: Json
+          schedule_config?: Json
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          next_run_at?: string | null
+          recipients?: Json
+          schedule_config?: Json
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_reports_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "report_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       secure_sessions: {
         Row: {
