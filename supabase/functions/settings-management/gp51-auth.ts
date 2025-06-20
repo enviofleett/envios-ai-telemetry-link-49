@@ -1,6 +1,36 @@
 
 import { md5_for_gp51_only, sanitizeInput, isValidUsername } from '../_shared/crypto_utils.ts';
 
+function constructGP51ApiUrl(baseUrl: string, endpoint: string = '/webapi'): string {
+  console.log(`🔧 [URL] Starting URL construction with base: "${baseUrl}", endpoint: "${endpoint}"`);
+  
+  let cleanBaseUrl = baseUrl;
+  
+  // Ensure protocol is present
+  if (!cleanBaseUrl.startsWith('http://') && !cleanBaseUrl.startsWith('https://')) {
+    cleanBaseUrl = 'https://' + cleanBaseUrl;
+    console.log(`🔧 [URL] Added protocol: "${cleanBaseUrl}"`);
+  }
+  
+  // Remove trailing slash from base URL
+  if (cleanBaseUrl.endsWith('/')) {
+    cleanBaseUrl = cleanBaseUrl.slice(0, -1);
+    console.log(`🔧 [URL] Removed trailing slash: "${cleanBaseUrl}"`);
+  }
+  
+  // Check if base URL already contains the endpoint path
+  if (cleanBaseUrl.includes('/webapi')) {
+    console.log(`🔧 [URL] Base URL already contains /webapi, using as-is: "${cleanBaseUrl}"`);
+    return cleanBaseUrl;
+  }
+  
+  // Construct final URL
+  const finalUrl = cleanBaseUrl + endpoint;
+  console.log(`🔧 [URL] Final constructed URL: "${finalUrl}"`);
+  
+  return finalUrl;
+}
+
 export async function authenticateWithGP51({ 
   username, 
   password, 
@@ -23,15 +53,15 @@ export async function authenticateWithGP51({
   }
   
   try {
-    // Get environment variables with fallback support
-    const gp51BaseUrl = apiUrl || 
-                        Deno.env.get('GP51_API_BASE_URL') || 
-                        Deno.env.get('GP51_BASE_URL') || 
-                        'https://www.gps51.com';
+    // Get environment variables with enhanced fallback support
+    const rawBaseUrl = apiUrl || 
+                      Deno.env.get('GP51_API_BASE_URL') || 
+                      Deno.env.get('GP51_BASE_URL') || 
+                      'https://www.gps51.com';
     const globalApiToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
     
     console.log('🌐 [GP51-AUTH] Environment check:');
-    console.log(`  - Base URL: ${gp51BaseUrl}`);
+    console.log(`  - Raw Base URL: ${rawBaseUrl}`);
     console.log(`  - Global token: ${globalApiToken ? 'SET' : 'NOT SET'}`);
     
     if (!globalApiToken) {
@@ -47,8 +77,10 @@ export async function authenticateWithGP51({
     const gp51Hash = await md5_for_gp51_only(password);
     console.log(`🔐 [GP51-AUTH] Password hashed successfully (${gp51Hash.substring(0, 8)}...)`);
     
-    // Construct GP51 API URL with correct query parameters
-    const loginUrl = new URL(`${gp51BaseUrl}/webapi`);
+    // Construct GP51 API URL with enhanced logic
+    const baseApiUrl = constructGP51ApiUrl(rawBaseUrl);
+    
+    const loginUrl = new URL(baseApiUrl);
     loginUrl.searchParams.set('action', 'login');
     loginUrl.searchParams.set('token', globalApiToken);
     loginUrl.searchParams.set('username', trimmedUsername);
@@ -71,11 +103,14 @@ export async function authenticateWithGP51({
     console.log(`📊 [GP51-AUTH] Response status: ${loginResponse.status} ${loginResponse.statusText}`);
 
     if (!loginResponse.ok) {
+      const errorText = await loginResponse.text();
       console.error(`❌ [GP51-AUTH] GP51 API returned HTTP ${loginResponse.status}: ${loginResponse.statusText}`);
+      console.error(`❌ [GP51-AUTH] Error response: ${errorText.substring(0, 200)}`);
       return {
         success: false,
         error: `GP51 API error: ${loginResponse.status} ${loginResponse.statusText}`,
-        username: trimmedUsername
+        username: trimmedUsername,
+        details: errorText.substring(0, 200)
       };
     }
 
@@ -111,8 +146,8 @@ export async function authenticateWithGP51({
       username: trimmedUsername,
       password: password,
       hashedPassword: gp51Hash,
-      apiUrl: gp51BaseUrl,
-      method: 'IMPROVED_GP51_API'
+      apiUrl: baseApiUrl,
+      method: 'ENHANCED_GP51_API'
     };
 
   } catch (error) {
