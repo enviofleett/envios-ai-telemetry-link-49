@@ -9,10 +9,16 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   isAuthenticated: boolean;
+  // Add role-based properties
+  isAdmin: boolean;
+  isAgent: boolean;
+  userRole: string | null;
+  isCheckingRole: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  retryRoleCheck: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,7 +39,47 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAgent, setIsAgent] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isCheckingRole, setIsCheckingRole] = useState(false);
   const { toast } = useToast();
+
+  const checkUserRole = async (userId: string) => {
+    setIsCheckingRole(true);
+    try {
+      const { data: roleData, error } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error checking user role:', error);
+        setUserRole('user');
+        setIsAdmin(false);
+        setIsAgent(false);
+      } else {
+        const role = roleData?.role || 'user';
+        setUserRole(role);
+        setIsAdmin(role === 'admin');
+        setIsAgent(role === 'agent');
+      }
+    } catch (error) {
+      console.error('Failed to check user role:', error);
+      setUserRole('user');
+      setIsAdmin(false);
+      setIsAgent(false);
+    } finally {
+      setIsCheckingRole(false);
+    }
+  };
+
+  const retryRoleCheck = async () => {
+    if (user?.id) {
+      await checkUserRole(user.id);
+    }
+  };
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -43,6 +89,15 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+
+        // Check user role when user signs in
+        if (session?.user) {
+          await checkUserRole(session.user.id);
+        } else {
+          setUserRole(null);
+          setIsAdmin(false);
+          setIsAgent(false);
+        }
 
         // Handle auth events
         if (event === 'SIGNED_IN' && session?.user) {
@@ -68,6 +123,9 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
         } else {
           setSession(session);
           setUser(session?.user ?? null);
+          if (session?.user) {
+            await checkUserRole(session.user.id);
+          }
         }
       } catch (error) {
         console.error('Failed to initialize auth:', error);
@@ -186,10 +244,15 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
     session,
     loading,
     isAuthenticated: !!user,
+    isAdmin,
+    isAgent,
+    userRole,
+    isCheckingRole,
     signIn,
     signUp,
     signOut,
     refreshSession,
+    retryRoleCheck,
   };
 
   return (

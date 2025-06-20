@@ -8,21 +8,23 @@ export const useStableAuth = () => {
   // Memoize auth state to prevent unnecessary re-renders
   return useMemo(() => ({
     user: auth.user,
-    // For now, provide default values since UnifiedAuth doesn't have role checking yet
-    isAdmin: false, // TODO: Add role checking when UnifiedAuth supports it
-    isAgent: false, // TODO: Add role checking when UnifiedAuth supports it
-    userRole: 'user', // TODO: Add role checking when UnifiedAuth supports it
-    isCheckingRole: false,
+    isAdmin: auth.isAdmin,
+    isAgent: auth.isAgent,
+    userRole: auth.userRole,
+    isCheckingRole: auth.isCheckingRole,
     loading: auth.loading,
     session: auth.session,
-    // Map the UnifiedAuth methods
     signOut: auth.signOut,
-    // Note: retryRoleCheck not available in UnifiedAuth yet
-    retryRoleCheck: () => Promise.resolve(), // TODO: Implement when UnifiedAuth supports roles
+    retryRoleCheck: auth.retryRoleCheck,
   }), [
     auth.user,
+    auth.isAdmin,
+    auth.isAgent,
+    auth.userRole,
+    auth.isCheckingRole,
     auth.loading,
     auth.session,
-    auth.signOut
+    auth.signOut,
+    auth.retryRoleCheck
   ]);
 };

@@ -7,7 +7,6 @@ import ConnectionStatusBadge from './ConnectionStatusBadge';
 import TestResultAlert from './TestResultAlert';
 import TestButton from './TestButton';
 import type { ConnectionTestResult, GP51ApiConnectionTestProps } from '../types/connectionTesting';
-// Removed useGP51Auth import as gp51Username is now part of the response from the edge function if needed.
 
 const GP51ApiConnectionTest: React.FC<GP51ApiConnectionTestProps> = ({
   isGp51Authenticated,
@@ -17,7 +16,6 @@ const GP51ApiConnectionTest: React.FC<GP51ApiConnectionTestProps> = ({
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [lastTestResult, setLastTestResult] = useState<ConnectionTestResult | null>(null);
   const { toast } = useToast();
-  // const { healthCheck: gp51HealthCheck } = useGP51Auth(); // Health check is part of the new test_gp51_api call implicitly
 
   const testConnection = async () => {
     setIsTestingConnection(true);
@@ -36,7 +34,7 @@ const GP51ApiConnectionTest: React.FC<GP51ApiConnectionTestProps> = ({
     try {
       console.log('🔧 Testing GP51 API connection using "test_gp51_api" action...');
       const { data: apiResponse, error: functionError } = await supabase.functions.invoke('gp51-service-management', {
-        body: { action: 'test_gp51_api' } // Changed action
+        body: { action: 'test_gp51_api' }
       });
 
       let result: ConnectionTestResult;
@@ -45,28 +43,26 @@ const GP51ApiConnectionTest: React.FC<GP51ApiConnectionTestProps> = ({
         console.error('Supabase function invocation error:', functionError);
         result = { success: false, error: `Function error: ${functionError.message}`, timestamp: new Date() };
         toast({ title: "Connection Test Failed", description: result.error, variant: "destructive" });
-      } else if (apiResponse.isValid) { // Check apiResponse.isValid
+      } else if (apiResponse?.isValid) {
         const details = apiResponse.details || `Connected as ${apiResponse.username || 'user'}. Latency: ${apiResponse.latency}ms. Devices: ${apiResponse.deviceCount || 0}.`;
         result = { 
           success: true, 
           details: details,
-          // Optionally pass more data if needed by TestResultAlert for API_CONNECTION
           data: { 
             total_devices: apiResponse.deviceCount || 0,
-            total_positions: 0, // Not applicable for API connection test
-            fetched_at: new Date().toISOString() // Timestamp of the test
+            total_positions: 0,
+            fetched_at: new Date().toISOString()
           },
           timestamp: new Date()
         };
         toast({ title: "Connection Test Successful", description: `GP51 API is responding correctly. (${apiResponse.status})` });
       } else {
-        // Handle various failure cases from the edge function
-        const errorMsg = apiResponse.errorMessage || 'Connection test failed: Unknown reason from API.';
+        const errorMsg = apiResponse?.errorMessage || 'Connection test failed: Unknown reason from API.';
         console.error('GP51 API Test Failed:', apiResponse);
         result = { 
           success: false, 
           error: errorMsg,
-          details: `Status: ${apiResponse.status}. ${apiResponse.needsRefresh ? 'Session needs refresh.' : ''}`,
+          details: `Status: ${apiResponse?.status}. ${apiResponse?.needsRefresh ? 'Session needs refresh.' : ''}`,
           timestamp: new Date()
         };
         toast({ title: "Connection Test Failed", description: errorMsg, variant: "destructive" });
@@ -99,10 +95,10 @@ const GP51ApiConnectionTest: React.FC<GP51ApiConnectionTestProps> = ({
         </div>
         <TestButton
           onClick={testConnection}
-          disabled={!isGp51Authenticated || authLoading} // Simplified disabled logic
+          disabled={!isGp51Authenticated || authLoading}
           isLoading={isTestingConnection}
           authLoading={authLoading}
-          idleText="Test API Connection" // Updated text
+          idleText="Test API Connection"
           IconComponent={Zap}
         />
       </div>
@@ -112,4 +108,3 @@ const GP51ApiConnectionTest: React.FC<GP51ApiConnectionTestProps> = ({
 };
 
 export default GP51ApiConnectionTest;
-
