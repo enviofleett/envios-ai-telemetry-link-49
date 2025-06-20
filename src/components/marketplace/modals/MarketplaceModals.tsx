@@ -2,7 +2,7 @@
 import React from 'react';
 import { ProductDetailsModal } from '../ProductDetailsModal';
 import { VehicleSelectionModal } from '../VehicleSelectionModal';
-import { PaymentModal } from '../PaymentModal';
+import PaymentModal from '../PaymentModal';
 import { MerchantOnboardingModal } from '../MerchantOnboardingModal';
 import { EnhancedMerchantLogin } from '../EnhancedMerchantLogin';
 
