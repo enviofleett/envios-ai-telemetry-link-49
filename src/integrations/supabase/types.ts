@@ -4962,6 +4962,132 @@ export type Database = {
           },
         ]
       }
+      marketplace_refunds: {
+        Row: {
+          created_at: string
+          evidence: string[] | null
+          id: string
+          order_id: string
+          original_amount: number
+          payment_processor_reference: string | null
+          processed_at: string | null
+          processed_by: string | null
+          reason: string
+          refund_amount: number
+          refund_type: string
+          rejection_reason: string | null
+          requester_id: string
+          requester_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          evidence?: string[] | null
+          id?: string
+          order_id: string
+          original_amount?: number
+          payment_processor_reference?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          reason: string
+          refund_amount?: number
+          refund_type: string
+          rejection_reason?: string | null
+          requester_id: string
+          requester_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          evidence?: string[] | null
+          id?: string
+          order_id?: string
+          original_amount?: number
+          payment_processor_reference?: string | null
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string
+          refund_amount?: number
+          refund_type?: string
+          rejection_reason?: string | null
+          requester_id?: string
+          requester_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      marketplace_security_alerts: {
+        Row: {
+          alert_data: Json | null
+          created_at: string
+          description: string
+          event_type: string
+          id: string
+          severity: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          alert_data?: Json | null
+          created_at?: string
+          description: string
+          event_type: string
+          id?: string
+          severity: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          alert_data?: Json | null
+          created_at?: string
+          description?: string
+          event_type?: string
+          id?: string
+          severity?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      marketplace_security_logs: {
+        Row: {
+          additional_data: Json | null
+          created_at: string
+          description: string
+          event_type: string
+          id: string
+          ip_address: unknown | null
+          severity: string
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          additional_data?: Json | null
+          created_at?: string
+          description: string
+          event_type: string
+          id?: string
+          ip_address?: unknown | null
+          severity: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          additional_data?: Json | null
+          created_at?: string
+          description?: string
+          event_type?: string
+          id?: string
+          ip_address?: unknown | null
+          severity?: string
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       marketplace_settings: {
         Row: {
           additional_category_fee: number
@@ -10251,6 +10377,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
         }
         Returns: boolean
+      }
+      increment_token_usage: {
+        Args: { token_id_param: string }
+        Returns: number
       }
       is_platform_admin: {
         Args: { _user_id: string }

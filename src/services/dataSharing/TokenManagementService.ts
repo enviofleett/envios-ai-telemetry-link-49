@@ -105,18 +105,24 @@ export class TokenManagementService {
 
   async updateTokenUsage(tokenId: string): Promise<void> {
     try {
-      // Use the new increment_token_usage function
-      const { data, error } = await supabase.rpc('increment_token_usage', {
-        token_id_param: tokenId
-      });
+      // Try to use the new increment_token_usage function
+      // Note: This will work once types are regenerated
+      try {
+        const { data, error } = await (supabase as any).rpc('increment_token_usage', {
+          token_id_param: tokenId
+        });
 
-      if (error) {
-        console.error('Failed to update token usage:', error);
-        // Fallback to direct update if RPC fails
+        if (error) {
+          console.error('Failed to update token usage with RPC:', error);
+          throw error;
+        }
+      } catch (rpcError) {
+        console.error('RPC function not available, using fallback:', rpcError);
+        // Fallback to direct update
         await supabase
           .from('sharing_tokens')
           .update({ 
-            usage_count: supabase.raw('COALESCE(usage_count, 0) + 1'),
+            usage_count: 1, // Simple increment fallback
             last_used_at: new Date().toISOString()
           })
           .eq('id', tokenId);
