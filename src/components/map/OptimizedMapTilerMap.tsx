@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { markerClusteringService } from '@/services/map/markerClusteringService'
 import { trailOptimizationService } from '@/services/map/trailOptimizationService';
 import { MapPerformanceMonitor } from './MapPerformanceMonitor';
 import type { VehicleData } from '@/types/vehicle';
-import { Map, ZoomIn, ZoomOut, Layers, Settings } from 'lucide-react';
+import { Map as MapIcon, ZoomIn, ZoomOut, Layers, Settings } from 'lucide-react';
 
 // Define the render level type
 type RenderLevel = 'individual' | 'clustered' | 'heatmap';
@@ -207,7 +208,7 @@ const OptimizedMapTilerMap: React.FC<OptimizedMapTilerMapProps> = ({
               </div>
             ) : (
               <div className="text-center">
-                <Map className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                <MapIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
                 <p className="text-sm text-gray-600">
                   Map placeholder - {virtualizedData.visibleVehicles.length} vehicles visible
                 </p>
