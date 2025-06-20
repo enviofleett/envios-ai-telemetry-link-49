@@ -1,4 +1,5 @@
 
+
 // Fix the crypto import to use the correct module path and version
 import { createHash } from 'https://deno.land/std@0.177.0/hash/mod.ts';
 
@@ -6,14 +7,18 @@ import { createHash } from 'https://deno.land/std@0.177.0/hash/mod.ts';
 const rateLimits = new Map<string, { count: number; resetTime: number }>();
 
 export function md5_for_gp51_only(input: string): string {
-  return createHash('md5').update(input).toString('hex');
+  const hash = createHash('md5');
+  hash.update(input);
+  return hash.toString('hex');
 }
 
 // Add the missing md5_sync export that gp51_api_client_unified.ts is expecting
 export const md5_sync = md5_for_gp51_only;
 
 export function secureHash(input: string): string {
-  return createHash('sha256').update(input).toString('hex');
+  const hash = createHash('sha256');
+  hash.update(input);
+  return hash.toString('hex');
 }
 
 export function verifySecureHash(input: string, hash: string): boolean {
@@ -45,3 +50,4 @@ export function checkRateLimit(identifier: string, maxRequests: number, windowMs
   current.count++;
   return true;
 }
+
