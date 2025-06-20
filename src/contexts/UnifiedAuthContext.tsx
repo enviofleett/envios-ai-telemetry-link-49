@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, Session, AuthError } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -16,6 +15,7 @@ interface AuthContextType {
   userRole: string | null;
   isCheckingRole: boolean;
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
+  signInWithGP51: (username: string, password: string) => Promise<{ error: AuthError | null }>; // NEW
   signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -145,6 +145,80 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
     }
   };
 
+  const signInWithGP51 = async (username: string, password: string) => {
+    try {
+      setLoading(true);
+      console.log('🔐 UnifiedAuth: Starting GP51 login for:', username);
+
+      const { data, error } = await supabase.functions.invoke('gp51-hybrid-auth', {
+        body: { username: username.trim(), password }
+      });
+
+      if (error) {
+        console.error('❌ GP51 hybrid auth error:', error);
+        toast({
+          title: "GP51 Sign In Failed",
+          description: error.message || 'Failed to authenticate with GP51',
+          variant: "destructive",
+        });
+        return { error: error as AuthError };
+      }
+
+      if (!data.success) {
+        console.error('❌ GP51 authentication failed:', data.error);
+        toast({
+          title: "GP51 Sign In Failed",
+          description: data.error || 'Invalid GP51 credentials',
+          variant: "destructive",
+        });
+        return { error: new Error(data.error) as AuthError };
+      }
+
+      // Set session using the tokens from the response
+      if (data.session?.access_token && data.session?.refresh_token) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token
+        });
+
+        if (sessionError) {
+          console.error('❌ Failed to set session:', sessionError);
+          toast({
+            title: "Session Error",
+            description: "Failed to establish session after GP51 login",
+            variant: "destructive",
+          });
+          return { error: sessionError };
+        }
+      }
+
+      console.log('✅ GP51 login successful:', {
+        username,
+        isNewUser: data.isNewUser,
+        userEmail: data.session?.user?.email
+      });
+
+      toast({
+        title: data.isNewUser ? "Welcome to FleetIQ!" : "Welcome back!",
+        description: data.message || `Signed in as ${username}`,
+      });
+
+      return { error: null };
+
+    } catch (error) {
+      console.error('❌ GP51 login exception:', error);
+      const authError = error as AuthError;
+      toast({
+        title: "GP51 Sign In Error",
+        description: "An unexpected error occurred during GP51 sign in",
+        variant: "destructive",
+      });
+      return { error: authError };
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const signUp = async (email: string, password: string) => {
     try {
       setLoading(true);
@@ -228,6 +302,7 @@ export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) =
     userRole,
     isCheckingRole,
     signIn,
+    signInWithGP51,
     signUp,
     signOut,
     refreshSession,
