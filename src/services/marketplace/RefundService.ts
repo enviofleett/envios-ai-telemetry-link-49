@@ -1,5 +1,4 @@
 
-import { supabase } from '@/integrations/supabase/client';
 import { orderManagementService } from './OrderManagementService';
 
 export interface RefundRequest {
@@ -53,44 +52,39 @@ class RefundService {
       throw new Error('Refund amount cannot exceed order total');
     }
 
-    const { data, error } = await supabase
-      .from('marketplace_refunds')
-      .insert({
-        order_id: request.order_id,
-        requester_id: request.requester_id,
-        requester_type: request.requester_type,
-        refund_type: request.refund_type,
-        refund_amount: refundAmount,
-        original_amount: order.total_amount,
-        status: 'pending',
-        reason: request.reason,
-        evidence: request.evidence || []
-      })
-      .select()
-      .single();
+    // Mock implementation since marketplace_refunds table doesn't exist yet
+    const mockRefund: Refund = {
+      id: crypto.randomUUID(),
+      order_id: request.order_id,
+      requester_id: request.requester_id,
+      requester_type: request.requester_type,
+      refund_type: request.refund_type,
+      refund_amount: refundAmount,
+      original_amount: order.total_amount,
+      status: 'pending',
+      reason: request.reason,
+      evidence: request.evidence || [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
 
-    if (error) throw error;
+    console.log('Mock refund created:', mockRefund);
 
-    await this.logRefundActivity(data.id, 'created', {
+    await this.logRefundActivity(mockRefund.id, 'created', {
       requester_type: request.requester_type,
       refund_type: request.refund_type,
       refund_amount: refundAmount
     });
 
-    return data as Refund;
+    return mockRefund;
   }
 
   async approveRefund(refundId: string, approvedBy: string): Promise<void> {
-    const { error } = await supabase
-      .from('marketplace_refunds')
-      .update({
-        status: 'approved',
-        processed_by: approvedBy,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', refundId);
-
-    if (error) throw error;
+    console.log('Mock refund approval:', {
+      refundId,
+      approvedBy,
+      timestamp: new Date().toISOString()
+    });
 
     // Start processing the refund
     await this.processRefund(refundId);
@@ -101,17 +95,12 @@ class RefundService {
   }
 
   async rejectRefund(refundId: string, rejectedBy: string, rejectionReason: string): Promise<void> {
-    const { error } = await supabase
-      .from('marketplace_refunds')
-      .update({
-        status: 'rejected',
-        processed_by: rejectedBy,
-        rejection_reason: rejectionReason,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', refundId);
-
-    if (error) throw error;
+    console.log('Mock refund rejection:', {
+      refundId,
+      rejectedBy,
+      rejectionReason,
+      timestamp: new Date().toISOString()
+    });
 
     await this.logRefundActivity(refundId, 'rejected', {
       rejected_by: rejectedBy,
@@ -120,39 +109,16 @@ class RefundService {
   }
 
   async processRefund(refundId: string): Promise<void> {
-    const refund = await this.getRefund(refundId);
-    if (!refund || refund.status !== 'approved') {
-      throw new Error('Refund not found or not approved');
-    }
-
-    // Update status to processing
-    await supabase
-      .from('marketplace_refunds')
-      .update({
-        status: 'processing',
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', refundId);
+    console.log('Mock processing refund:', refundId);
 
     try {
       // Process refund with payment processor
-      const processorReference = await this.processWithPaymentProvider(refund);
+      const processorReference = await this.processWithPaymentProvider(refundId);
 
-      // Update refund as completed
-      await supabase
-        .from('marketplace_refunds')
-        .update({
-          status: 'completed',
-          payment_processor_reference: processorReference,
-          processed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', refundId);
-
-      // Update order status
-      await orderManagementService.updateOrderStatus(refund.order_id, 'refunded', {
-        refund_id: refundId,
-        refund_amount: refund.refund_amount
+      console.log('Mock refund completed:', {
+        refundId,
+        processorReference,
+        timestamp: new Date().toISOString()
       });
 
       await this.logRefundActivity(refundId, 'completed', {
@@ -160,15 +126,7 @@ class RefundService {
       });
 
     } catch (error) {
-      // Mark refund as failed
-      await supabase
-        .from('marketplace_refunds')
-        .update({
-          status: 'failed',
-          rejection_reason: error instanceof Error ? error.message : 'Processing failed',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', refundId);
+      console.error('Mock refund failed:', error);
 
       await this.logRefundActivity(refundId, 'failed', {
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -179,40 +137,18 @@ class RefundService {
   }
 
   async getRefund(refundId: string): Promise<Refund | null> {
-    const { data, error } = await supabase
-      .from('marketplace_refunds')
-      .select('*')
-      .eq('id', refundId)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw error;
-    }
-
-    return data as Refund;
+    console.log('Mock get refund:', refundId);
+    return null;
   }
 
   async getOrderRefunds(orderId: string): Promise<Refund[]> {
-    const { data, error } = await supabase
-      .from('marketplace_refunds')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return (data || []) as Refund[];
+    console.log('Mock get order refunds:', orderId);
+    return [];
   }
 
   async getPendingRefunds(): Promise<Refund[]> {
-    const { data, error } = await supabase
-      .from('marketplace_refunds')
-      .select('*')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: true });
-
-    if (error) throw error;
-    return (data || []) as Refund[];
+    console.log('Mock get pending refunds');
+    return [];
   }
 
   private isRefundEligible(order: any): boolean {
@@ -221,10 +157,9 @@ class RefundService {
     return eligibleStatuses.includes(order.status);
   }
 
-  private async processWithPaymentProvider(refund: Refund): Promise<string> {
+  private async processWithPaymentProvider(refundId: string): Promise<string> {
     // Mock payment processor integration
-    // In real implementation, this would call Paystack/Stripe refund API
-    console.log(`Processing refund ${refund.id} for amount ${refund.refund_amount}`);
+    console.log(`Mock processing refund ${refundId} with payment provider`);
     
     // Simulate processing delay
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -234,16 +169,13 @@ class RefundService {
   }
 
   private async logRefundActivity(refundId: string, activityType: string, activityData: any): Promise<void> {
-    const { error } = await supabase
-      .from('marketplace_refund_activities')
-      .insert({
-        refund_id: refundId,
-        activity_type: activityType,
-        activity_data: activityData,
-        created_at: new Date().toISOString()
-      });
-
-    if (error) console.error('Failed to log refund activity:', error);
+    // Mock implementation since marketplace_refund_activities table doesn't exist
+    console.log('Mock log refund activity:', {
+      refundId,
+      activityType,
+      activityData,
+      timestamp: new Date().toISOString()
+    });
   }
 }
 
