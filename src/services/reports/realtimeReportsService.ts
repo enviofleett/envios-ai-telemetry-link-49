@@ -1,5 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import type { ReportMetrics } from '@/types/reports';
 
 export interface TripReportData {
   id: string;
@@ -72,23 +72,37 @@ export interface ReportMetrics {
   lastGenerated: string;
   averageGenerationTime: number;
   popularReportTypes: string[];
+  totalVehicles: number;
+  activeVehicles: number;
+  alertCount: number;
+  averageSpeed: number;
+  totalMileage: number;
+  fuelEfficiency: number;
+  utilizationRate: number;
 }
 
 class RealtimeReportsService {
   private subscriptions = new Map<string, any>();
 
-  async getReportMetrics(filters: any, options: any): Promise<ReportMetrics> {
+  async getReportMetrics(filters?: any, options?: any): Promise<ReportMetrics> {
     console.log('Getting report metrics with filters:', filters, 'and options:', options);
     
     return {
       totalReports: 150,
       lastGenerated: new Date().toISOString(),
       averageGenerationTime: 2.5,
-      popularReportTypes: ['fleet_summary', 'trip_analysis', 'maintenance']
+      popularReportTypes: ['fleet_summary', 'trip_analysis', 'maintenance'],
+      totalVehicles: 25,
+      activeVehicles: 20,
+      alertCount: 12,
+      averageSpeed: 45.5,
+      totalMileage: 25000,
+      fuelEfficiency: 12.5,
+      utilizationRate: 0.78
     };
   }
 
-  subscribeToVehicleUpdates(callback: (data: any) => void, filters: any): string {
+  subscribeToVehicleUpdates(callback: (data: any) => void, filters?: any): string {
     console.log('Subscribing to vehicle updates with filters:', filters);
     
     const subscriptionKey = `vehicle_updates_${Date.now()}`;
@@ -130,7 +144,7 @@ class RealtimeReportsService {
       fuelEfficiency: 12.5,
       utilizationRate: 0.78,
       vehicleBreakdown: vehicles?.map(v => ({
-        vehicle: v.device_name || v.device_id,
+        vehicle: v.name || v.gp51_device_id,
         status: v.is_active ? 'active' : 'inactive',
         mileage: Math.random() * 1000,
         trips: Math.floor(Math.random() * 50)

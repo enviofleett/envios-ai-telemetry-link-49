@@ -3,76 +3,47 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Calendar, 
-  Download, 
-  RefreshCw, 
-  BarChart3, 
-  TrendingUp,
-  AlertTriangle,
-  MapPin,
-  Gauge
-} from 'lucide-react';
-import { realtimeReportsService, type ReportMetrics } from '@/services/reports/realtimeReportsService';
+import { Activity, TrendingUp, AlertCircle, Car } from 'lucide-react';
+import { realtimeReportsService } from '@/services/reports/realtimeReportsService';
 import { exportService } from '@/services/reports/exportService';
-import TripReportCharts from './charts/TripReportCharts';
-import MaintenanceReportCharts from './charts/MaintenanceReportCharts';
-import AlertReportCharts from './charts/AlertReportCharts';
-import GeofenceReportCharts from './charts/GeofenceReportCharts';
-import MileageReportCharts from './charts/MileageReportCharts';
 import AdvancedReportFilters from './AdvancedReportFilters';
-
-interface VehicleItem {
-  id: string;
-  name: string;
-  device_id: string;
-}
+import MileageReportCharts from './charts/MileageReportCharts';
+import type { ReportMetrics, ReportFilters, VehicleItem } from '@/types/reports';
 
 const RealtimeReportsDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('fleet');
-  const [isLoading, setIsLoading] = useState(false);
   const [metrics, setMetrics] = useState<ReportMetrics | null>(null);
-  const [filters, setFilters] = useState({
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeReport, setActiveReport] = useState<string>('fleet_summary');
+  const [reportData, setReportData] = useState<any>(null);
+  const [vehicles] = useState<VehicleItem[]>([]);
+  const [filters, setFilters] = useState<ReportFilters>({
     dateFrom: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     dateTo: new Date(),
-    vehicleIds: [] as string[],
+    vehicleIds: [],
     reportType: 'fleet_summary'
-  });
-
-  // Mock vehicle data with proper structure
-  const vehicles: VehicleItem[] = [
-    { id: '1', name: 'Vehicle 001', device_id: 'DEV001' },
-    { id: '2', name: 'Vehicle 002', device_id: 'DEV002' },
-    { id: '3', name: 'Vehicle 003', device_id: 'DEV003' }
-  ];
-
-  const [reportData, setReportData] = useState({
-    trip: null,
-    geofence: null,
-    maintenance: null,
-    alert: null,
-    mileage: null
   });
 
   useEffect(() => {
     loadMetrics();
     
     // Subscribe to real-time updates
-    const unsubscribe = realtimeReportsService.subscribeToVehicleUpdates((data) => {
-      console.log('Real-time update received:', data);
-      loadMetrics(); // Refresh metrics on updates
-    });
+    const subscriptionKey = realtimeReportsService.subscribeToVehicleUpdates(
+      (data) => {
+        console.log('Real-time update received:', data);
+        loadMetrics();
+      },
+      filters
+    );
 
     return () => {
-      unsubscribe();
+      realtimeReportsService.unsubscribe(subscriptionKey);
     };
   }, []);
 
   const loadMetrics = async () => {
     try {
       setIsLoading(true);
-      const metricsData = await realtimeReportsService.getReportMetrics();
+      const metricsData = await realtimeReportsService.getReportMetrics(filters, {});
       setMetrics(metricsData);
     } catch (error) {
       console.error('Error loading metrics:', error);
@@ -81,34 +52,34 @@ const RealtimeReportsDashboard: React.FC = () => {
     }
   };
 
-  const generateReport = async (reportType: string) => {
+  const generateReport = async () => {
+    if (!metrics) return;
+    
     try {
       setIsLoading(true);
+      let data;
       
-      switch (reportType) {
-        case 'trip':
-          const tripData = await realtimeReportsService.generateTripReport(filters);
-          setReportData(prev => ({ ...prev, trip: tripData }));
+      switch (activeReport) {
+        case 'fleet_summary':
+          data = await realtimeReportsService.generateFleetReport(filters);
           break;
-        case 'geofence':
-          const geofenceData = await realtimeReportsService.generateGeofenceReport(filters);
-          setReportData(prev => ({ ...prev, geofence: geofenceData }));
+        case 'trip_analysis':
+          data = await realtimeReportsService.generateTripReport(filters);
           break;
         case 'maintenance':
-          const maintenanceData = await realtimeReportsService.generateMaintenanceReport(filters);
-          setReportData(prev => ({ ...prev, maintenance: maintenanceData }));
+          data = await realtimeReportsService.generateMaintenanceReport(filters);
           break;
-        case 'alert':
-          const alertData = await realtimeReportsService.generateAlertReport(filters);
-          setReportData(prev => ({ ...prev, alert: alertData }));
+        case 'alerts':
+          data = await realtimeReportsService.generateAlertReport(filters);
           break;
         case 'mileage':
-          const mileageData = await realtimeReportsService.generateMileageReport(filters);
-          setReportData(prev => ({ ...prev, mileage: mileageData }));
+          data = await realtimeReportsService.generateMileageReport(filters);
           break;
         default:
-          await loadMetrics();
+          data = await realtimeReportsService.generateFleetReport(filters);
       }
+      
+      setReportData(data);
     } catch (error) {
       console.error('Error generating report:', error);
     } finally {
@@ -116,246 +87,143 @@ const RealtimeReportsDashboard: React.FC = () => {
     }
   };
 
-  const exportReport = async (format: 'pdf' | 'excel' | 'csv') => {
+  const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
+    if (!reportData) return;
+    
     try {
-      setIsLoading(true);
-      
-      // Export current tab data
-      const currentData = reportData[activeTab as keyof typeof reportData];
-      if (!currentData) {
-        console.warn('No data to export for current tab');
-        return;
-      }
-
-      await exportService.exportReport({
-        title: `${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Report`,
-        data: Array.isArray(currentData) ? currentData : [currentData],
-        metadata: {
-          generatedAt: new Date().toLocaleString(),
-          filters
-        }
-      }, { format });
+      await exportService.exportReport(
+        {
+          title: `${activeReport.replace('_', ' ').toUpperCase()} Report`,
+          data: Array.isArray(reportData) ? reportData : [reportData],
+          metadata: {
+            generatedAt: new Date().toISOString(),
+            filters
+          }
+        },
+        { format }
+      );
     } catch (error) {
       console.error('Error exporting report:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const MetricCard = ({ 
-    title, 
-    value, 
-    icon: Icon, 
-    trend, 
-    color = 'text-blue-600' 
-  }: {
-    title: string;
-    value: string | number;
-    icon: React.ElementType;
-    trend?: number;
-    color?: string;
-  }) => (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-2xl font-bold">{value}</p>
-            {trend !== undefined && (
-              <p className={`text-xs ${trend >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {trend >= 0 ? '+' : ''}{trend}% from last period
-              </p>
-            )}
+  if (!metrics) {
+    return (
+      <div className="p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
           </div>
-          <Icon className={`h-8 w-8 ${color}`} />
-        </div>
-      </CardContent>
-    </Card>
-  );
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Realtime Reports Dashboard</h1>
-          <p className="text-gray-600 mt-1">
-            Generate and analyze comprehensive fleet reports in real-time
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={loadMetrics}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => exportReport('csv')}
-            disabled={isLoading}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Export CSV
-          </Button>
         </div>
       </div>
+    );
+  }
 
-      {/* Metrics Overview */}
-      {metrics && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            title="Total Vehicles"
-            value={metrics.totalVehicles}
-            icon={BarChart3}
-            trend={5}
-          />
-          <MetricCard
-            title="Active Vehicles"
-            value={metrics.activeVehicles}
-            icon={TrendingUp}
-            trend={2}
-            color="text-green-600"
-          />
-          <MetricCard
-            title="Total Alerts"
-            value={metrics.alertCount}
-            icon={AlertTriangle}
-            trend={-12}
-            color="text-red-600"
-          />
-          <MetricCard
-            title="Avg Speed"
-            value={`${metrics.averageSpeed} mph`}
-            icon={Gauge}
-            trend={3}
-            color="text-blue-600"
-          />
-        </div>
-      )}
+  return (
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900">Real-time Reports Dashboard</h1>
+        <Badge variant="outline" className="text-sm">
+          Last updated: {new Date(metrics.lastGenerated).toLocaleTimeString()}
+        </Badge>
+      </div>
 
       {/* Filters */}
       <AdvancedReportFilters
         vehicles={vehicles}
         filters={filters}
         onFiltersChange={setFilters}
-        onGenerate={() => generateReport(activeTab)}
+        onGenerate={generateReport}
         isLoading={isLoading}
       />
 
-      {/* Reports Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="fleet">Fleet</TabsTrigger>
-          <TabsTrigger value="trip">Trips</TabsTrigger>
-          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
-          <TabsTrigger value="alert">Alerts</TabsTrigger>
-          <TabsTrigger value="mileage">Mileage</TabsTrigger>
-        </TabsList>
+      {/* Metrics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+            <Car className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.totalVehicles}</div>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="fleet" className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Fleet Performance Overview
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {metrics ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Key Metrics</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span>Total Mileage:</span>
-                        <Badge variant="outline">{metrics.totalMileage.toLocaleString()} km</Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Fuel Efficiency:</span>
-                        <Badge variant="outline">{metrics.fuelEfficiency} MPG</Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Utilization Rate:</span>
-                        <Badge variant="outline">{(metrics.utilizationRate * 100).toFixed(1)}%</Badge>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-center py-8">
-                    <Button onClick={() => generateReport('fleet')}>
-                      Generate Detailed Fleet Report
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">Loading fleet data...</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Vehicles</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.activeVehicles}</div>
+          </CardContent>
+        </Card>
 
-        <TabsContent value="trip" className="mt-6">
-          {reportData.trip ? (
-            <TripReportCharts data={reportData.trip} />
-          ) : (
-            <Card>
-              <CardContent className="text-center py-8">
-                <Button onClick={() => generateReport('trip')} disabled={isLoading}>
-                  {isLoading ? 'Generating...' : 'Generate Trip Report'}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Alerts</CardTitle>
+            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.alertCount}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Average Speed</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.averageSpeed} km/h</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Report Content */}
+      {reportData && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              {activeReport.replace('_', ' ').toUpperCase()} Report
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => handleExport('csv')}>
+                  Export CSV
                 </Button>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="maintenance" className="mt-6">
-          {reportData.maintenance ? (
-            <MaintenanceReportCharts data={reportData.maintenance} />
-          ) : (
-            <Card>
-              <CardContent className="text-center py-8">
-                <Button onClick={() => generateReport('maintenance')} disabled={isLoading}>
-                  {isLoading ? 'Generating...' : 'Generate Maintenance Report'}
+                <Button size="sm" variant="outline" onClick={() => handleExport('excel')}>
+                  Export Excel
                 </Button>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="alert" className="mt-6">
-          {reportData.alert ? (
-            <AlertReportCharts data={reportData.alert} />
-          ) : (
-            <Card>
-              <CardContent className="text-center py-8">
-                <Button onClick={() => generateReport('alert')} disabled={isLoading}>
-                  {isLoading ? 'Generating...' : 'Generate Alert Report'}
+                <Button size="sm" variant="outline" onClick={() => handleExport('pdf')}>
+                  Export PDF
                 </Button>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{metrics.totalMileage}</div>
+                <div className="text-sm text-gray-500">Total Mileage (km)</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{metrics.fuelEfficiency}</div>
+                <div className="text-sm text-gray-500">Fuel Efficiency (L/100km)</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">{(metrics.utilizationRate * 100).toFixed(1)}%</div>
+                <div className="text-sm text-gray-500">Utilization Rate</div>
+              </div>
+            </div>
 
-        <TabsContent value="mileage" className="mt-6">
-          {reportData.mileage ? (
-            <MileageReportCharts data={reportData.mileage} />
-          ) : (
-            <Card>
-              <CardContent className="text-center py-8">
-                <Button onClick={() => generateReport('mileage')} disabled={isLoading}>
-                  {isLoading ? 'Generating...' : 'Generate Mileage Report'}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-      </Tabs>
+            {activeReport === 'mileage' && (
+              <MileageReportCharts data={reportData} />
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

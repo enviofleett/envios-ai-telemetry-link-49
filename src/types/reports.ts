@@ -33,3 +33,17 @@ export interface VehicleItem {
   name: string;
   device_id: string;
 }
+
+export interface ReportMetrics {
+  totalReports: number;
+  lastGenerated: string;
+  averageGenerationTime: number;
+  popularReportTypes: string[];
+  totalVehicles: number;
+  activeVehicles: number;
+  alertCount: number;
+  averageSpeed: number;
+  totalMileage: number;
+  fuelEfficiency: number;
+  utilizationRate: number;
+}
