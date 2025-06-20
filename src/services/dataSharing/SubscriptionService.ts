@@ -22,7 +22,9 @@ export class SubscriptionService {
         end_date: endDate.toISOString(),
         subscription_status: 'active',
         tenure_months: request.tenureMonths,
-        auto_renew: false
+        auto_renew: false,
+        paystack_reference_id: request.paystackReferenceId,
+        total_amount_paid_usd: request.totalAmount
       })
       .select()
       .single();
@@ -48,8 +50,8 @@ export class SubscriptionService {
       start_date: subscription.start_date,
       end_date: subscription.end_date,
       status: subscription.subscription_status as UserSubscription['status'],
-      paystack_reference_id: request.paystackReferenceId,
-      total_amount_paid_usd: request.totalAmount,
+      paystack_reference_id: subscription.paystack_reference_id,
+      total_amount_paid_usd: subscription.total_amount_paid_usd || 0,
       tenure_months: subscription.tenure_months || request.tenureMonths,
       auto_renew: subscription.auto_renew || false,
       created_at: subscription.created_at,
@@ -101,8 +103,8 @@ export class SubscriptionService {
       start_date: sub.start_date,
       end_date: sub.end_date,
       status: sub.subscription_status as UserSubscription['status'],
-      paystack_reference_id: undefined,
-      total_amount_paid_usd: 0,
+      paystack_reference_id: sub.paystack_reference_id,
+      total_amount_paid_usd: sub.total_amount_paid_usd || 0,
       tenure_months: sub.tenure_months || 1,
       auto_renew: sub.auto_renew || false,
       created_at: sub.created_at,
@@ -160,8 +162,8 @@ export class SubscriptionService {
       start_date: sub.start_date,
       end_date: sub.end_date,
       status: sub.subscription_status as UserSubscription['status'],
-      paystack_reference_id: undefined,
-      total_amount_paid_usd: 0,
+      paystack_reference_id: sub.paystack_reference_id,
+      total_amount_paid_usd: sub.total_amount_paid_usd || 0,
       tenure_months: sub.tenure_months || 1,
       auto_renew: sub.auto_renew || false,
       created_at: sub.created_at,

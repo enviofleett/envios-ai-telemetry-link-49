@@ -51,7 +51,14 @@ export const useWorkshopAuth = () => {
             // Strict typing: cast to WorkshopRole only if valid, else fallback
             const validRole = isWorkshopRole(userRecord.role) ? userRecord.role : 'technician';
             setWorkshopSession(sessionRecord);
-            setWorkshopUser({ ...userRecord, role: validRole });
+            setWorkshopUser({
+              ...userRecord,
+              role: validRole,
+              permissions: userRecord.permissions || [],
+              is_active: userRecord.is_active ?? true,
+              created_at: userRecord.created_at || new Date().toISOString(),
+              updated_at: userRecord.updated_at || new Date().toISOString()
+            });
           } else {
             localStorage.removeItem('workshop_session');
           }
@@ -74,16 +81,17 @@ export const useWorkshopAuth = () => {
       const result = await WorkshopAuthService.authenticateWorkshopUser(
         loginData.email,
         loginData.password,
-        loginData.workshop_id as string // make sure this exists
+        loginData.workshop_id as string
       );
       if (!result.success) throw new Error(result.error || 'Invalid credentials');
+      
       // Create session in DB
       const { data: session, error: sessionError } = await supabase
         .from('workshop_sessions')
         .insert({
-          workshop_user_id: result.user.id,
-          workshop_id: result.user.workshop_id,
-          expires_at: result.session.expires_at,
+          workshop_user_id: result.user!.id,
+          workshop_id: result.user!.workshop_id,
+          expires_at: result.session!.expires_at,
           is_active: true
         })
         .select()
@@ -91,9 +99,16 @@ export const useWorkshopAuth = () => {
       if (sessionError || !session) throw new Error('Failed to create session');
 
       // Strict typing: cast to WorkshopRole only if valid, else fallback
-      const validRole = isWorkshopRole(result.user.role) ? result.user.role : 'technician';
+      const validRole = isWorkshopRole(result.user!.role) ? result.user!.role : 'technician';
       return {
-        user: { ...result.user, role: validRole },
+        user: {
+          ...result.user!,
+          role: validRole,
+          permissions: [],
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        },
         session
       };
     },
@@ -144,7 +159,7 @@ export const useWorkshopAuth = () => {
 
       const { data, error } = await supabase
         .from('workshop_users')
-        .select('*, envio_user_id')
+        .select('*')
         .eq('workshop_id', workshopUser.workshop_id)
         .order('created_at', { ascending: false });
 
@@ -152,7 +167,11 @@ export const useWorkshopAuth = () => {
       // Enforce strict roles in all user objects
       return (data as WorkshopUser[]).map(user => ({
         ...user,
-        role: isWorkshopRole(user.role) ? user.role : 'technician'
+        role: isWorkshopRole(user.role) ? user.role : 'technician',
+        permissions: user.permissions || [],
+        is_active: user.is_active ?? true,
+        created_at: user.created_at || new Date().toISOString(),
+        updated_at: user.updated_at || new Date().toISOString()
       }));
     },
     enabled: !!workshopUser?.workshop_id

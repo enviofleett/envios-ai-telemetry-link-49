@@ -286,6 +286,51 @@ export type Database = {
         }
         Relationships: []
       }
+      api_usage_logs: {
+        Row: {
+          created_at: string
+          endpoint: string
+          id: string
+          ip_address: unknown | null
+          request_data: Json | null
+          request_method: string
+          response_status: number
+          response_time_ms: number | null
+          token_id: string
+          user_agent: string | null
+          user_id: string
+          vehicle_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          id?: string
+          ip_address?: unknown | null
+          request_data?: Json | null
+          request_method: string
+          response_status: number
+          response_time_ms?: number | null
+          token_id: string
+          user_agent?: string | null
+          user_id: string
+          vehicle_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          id?: string
+          ip_address?: unknown | null
+          request_data?: Json | null
+          request_method?: string
+          response_status?: number
+          response_time_ms?: number | null
+          token_id?: string
+          user_agent?: string | null
+          user_id?: string
+          vehicle_id?: string | null
+        }
+        Relationships: []
+      }
       application_errors: {
         Row: {
           component_name: string | null
@@ -1366,6 +1411,51 @@ export type Database = {
           started_at?: string | null
           status?: string
           total_items?: number
+        }
+        Relationships: []
+      }
+      data_sharing_products: {
+        Row: {
+          base_cost_usd_per_month: number
+          category: string
+          cost_per_vehicle_usd_per_month: number
+          created_at: string
+          data_points_included: string[]
+          description: string | null
+          features: Json
+          id: string
+          is_active: boolean
+          max_vehicles_allowed: number | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          base_cost_usd_per_month?: number
+          category: string
+          cost_per_vehicle_usd_per_month?: number
+          created_at?: string
+          data_points_included?: string[]
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          max_vehicles_allowed?: number | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          base_cost_usd_per_month?: number
+          category?: string
+          cost_per_vehicle_usd_per_month?: number
+          created_at?: string
+          data_points_included?: string[]
+          description?: string | null
+          features?: Json
+          id?: string
+          is_active?: boolean
+          max_vehicles_allowed?: number | null
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -6703,6 +6793,48 @@ export type Database = {
         }
         Relationships: []
       }
+      sharing_tokens: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          is_active: boolean
+          last_used_at: string | null
+          revoked_at: string | null
+          subscription_id: string
+          token: string
+          usage_count: number
+          user_id: string
+          vehicle_ids: string[]
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          revoked_at?: string | null
+          subscription_id: string
+          token: string
+          usage_count?: number
+          user_id: string
+          vehicle_ids?: string[]
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          is_active?: boolean
+          last_used_at?: string | null
+          revoked_at?: string | null
+          subscription_id?: string
+          token?: string
+          usage_count?: number
+          user_id?: string
+          vehicle_ids?: string[]
+        }
+        Relationships: []
+      }
       sms_configurations: {
         Row: {
           created_at: string
@@ -7107,6 +7239,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subscription_vehicles: {
+        Row: {
+          assigned_at: string
+          subscription_id: string
+          vehicle_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          subscription_id: string
+          vehicle_id: string
+        }
+        Update: {
+          assigned_at?: string
+          subscription_id?: string
+          vehicle_id?: string
+        }
+        Relationships: []
       }
       sync_configuration: {
         Row: {
@@ -7848,41 +7998,56 @@ export type Database = {
       }
       user_subscriptions: {
         Row: {
+          auto_renew: boolean | null
           billing_cycle: string
           created_at: string
           discount_applied: number | null
           end_date: string | null
           id: string
           package_id: string
+          paystack_reference_id: string | null
+          product_id: string | null
           referral_code_used: string | null
           start_date: string
           subscription_status: string
+          tenure_months: number | null
+          total_amount_paid_usd: number | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          auto_renew?: boolean | null
           billing_cycle?: string
           created_at?: string
           discount_applied?: number | null
           end_date?: string | null
           id?: string
           package_id: string
+          paystack_reference_id?: string | null
+          product_id?: string | null
           referral_code_used?: string | null
           start_date?: string
           subscription_status?: string
+          tenure_months?: number | null
+          total_amount_paid_usd?: number | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          auto_renew?: boolean | null
           billing_cycle?: string
           created_at?: string
           discount_applied?: number | null
           end_date?: string | null
           id?: string
           package_id?: string
+          paystack_reference_id?: string | null
+          product_id?: string | null
           referral_code_used?: string | null
           start_date?: string
           subscription_status?: string
+          tenure_months?: number | null
+          total_amount_paid_usd?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -8564,6 +8729,7 @@ export type Database = {
       vehicles: {
         Row: {
           created_at: string
+          fuel_level: number | null
           gp51_device_id: string
           gp51_metadata: Json | null
           id: string
@@ -8572,11 +8738,14 @@ export type Database = {
           name: string
           sim_number: string | null
           status: string | null
+          total_mileage: number | null
           updated_at: string
           user_id: string
+          voltage: number | null
         }
         Insert: {
           created_at?: string
+          fuel_level?: number | null
           gp51_device_id: string
           gp51_metadata?: Json | null
           id?: string
@@ -8585,11 +8754,14 @@ export type Database = {
           name: string
           sim_number?: string | null
           status?: string | null
+          total_mileage?: number | null
           updated_at?: string
           user_id: string
+          voltage?: number | null
         }
         Update: {
           created_at?: string
+          fuel_level?: number | null
           gp51_device_id?: string
           gp51_metadata?: Json | null
           id?: string
@@ -8598,8 +8770,10 @@ export type Database = {
           name?: string
           sim_number?: string | null
           status?: string | null
+          total_mileage?: number | null
           updated_at?: string
           user_id?: string
+          voltage?: number | null
         }
         Relationships: [
           {
