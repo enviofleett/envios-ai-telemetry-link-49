@@ -20,3 +20,16 @@ export interface VehicleUsageStats {
   idleTime: number;
   totalFuelConsumed: number;
 }
+
+export interface ReportFilters {
+  dateFrom: Date;
+  dateTo: Date;
+  vehicleIds: string[];
+  reportType: string;
+}
+
+export interface VehicleItem {
+  id: string;
+  name: string;
+  device_id: string;
+}

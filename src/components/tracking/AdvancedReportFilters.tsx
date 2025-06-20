@@ -5,19 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar, Filter, Play } from 'lucide-react';
-
-interface VehicleItem {
-  id: string;
-  name: string;
-  device_id: string;
-}
-
-interface ReportFilters {
-  dateFrom: Date;
-  dateTo: Date;
-  vehicleIds: string[];
-  reportType: string;
-}
+import type { ReportFilters, VehicleItem } from '@/types/reports';
 
 interface AdvancedReportFiltersProps {
   vehicles: VehicleItem[];
