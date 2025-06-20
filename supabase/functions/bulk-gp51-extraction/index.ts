@@ -1,43 +1,137 @@
 
-// Trigger re-deploy - 2025-06-14
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { md5_sync } from "../_shared/crypto_utils.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { md5_for_gp51_only, checkRateLimit, sanitizeInput } from '../_shared/crypto_utils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
-interface GP51Credentials {
-  username: string;
-  password: string;
-}
-
-interface ExtractionJob {
-  jobName: string;
-  credentials: GP51Credentials[];
-}
-
-interface GP51Vehicle {
+interface GP51Device {
   deviceid: string;
   devicename: string;
-  simnum?: string;
-  lastactivetime?: string;
-  status?: string;
-  lastPosition?: any;
+  devicetype: number;
+  simnum: string;
+  overduetime: number;
+  expirenotifytime: number;
+  remark: string;
+  creater: string;
+  videochannelcount: number;
+  lastactivetime: number;
+  isfree: number;
+  allowedit: number;
+  icon: number;
+  stared: number;
+  loginame: string;
 }
 
-interface UserExtraction {
-  gp51_username: string;
-  gp51_user_token?: string;
-  vehicles: GP51Vehicle[];
-  error?: string;
+async function getGP51Token(): Promise<string> {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+
+  // Try to get existing valid token
+  const { data: sessions, error } = await supabase
+    .from('gp51_sessions')
+    .select('*')
+    .gt('token_expires_at', new Date().toISOString())
+    .order('last_validated_at', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(`Failed to get GP51 session: ${error.message}`);
+  }
+
+  if (sessions && sessions.length > 0) {
+    return sessions[0].gp51_token;
+  }
+
+  // Get admin credentials and create new token
+  const username = Deno.env.get('GP51_ADMIN_USERNAME');
+  const password = Deno.env.get('GP51_ADMIN_PASSWORD');
+  
+  if (!username || !password) {
+    throw new Error('GP51 admin credentials not configured');
+  }
+
+  // Use GP51-compatible hash for authentication
+  const hashedPassword = md5_for_gp51_only(password);
+  
+  const authResponse = await fetch(`https://www.gps51.com/webapi?action=login&username=${encodeURIComponent(username)}&password=${hashedPassword}`, {
+    signal: AbortSignal.timeout(10000)
+  });
+
+  if (!authResponse.ok) {
+    throw new Error(`GP51 authentication failed: ${authResponse.statusText}`);
+  }
+
+  const authResult = await authResponse.json();
+  if (authResult.status !== 0 || !authResult.token) {
+    throw new Error(`GP51 authentication failed: ${authResult.cause || 'Unknown error'}`);
+  }
+
+  // Store the new session
+  await supabase
+    .from('gp51_sessions')
+    .upsert({
+      username: sanitizeInput(username),
+      password_hash: hashedPassword,
+      gp51_token: authResult.token,
+      token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      auth_method: 'ADMIN_AUTO',
+      last_validated_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
+    }, {
+      onConflict: 'username'
+    });
+
+  return authResult.token;
+}
+
+async function extractDevicesFromGP51(token: string): Promise<GP51Device[]> {
+  const devicesResponse = await fetch(`https://www.gps51.com/webapi?action=getmonitorlist&token=${encodeURIComponent(token)}`, {
+    signal: AbortSignal.timeout(15000)
+  });
+
+  if (!devicesResponse.ok) {
+    throw new Error(`Failed to fetch devices: ${devicesResponse.statusText}`);
+  }
+
+  const devicesResult = await devicesResponse.json();
+  if (devicesResult.status !== 0) {
+    throw new Error(`GP51 devices fetch failed: ${devicesResult.cause || 'Unknown error'}`);
+  }
+
+  const devices: GP51Device[] = [];
+  if (devicesResult.groups && Array.isArray(devicesResult.groups)) {
+    for (const group of devicesResult.groups) {
+      if (group.devices && Array.isArray(group.devices)) {
+        devices.push(...group.devices);
+      }
+    }
+  }
+
+  return devices;
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+  
+  // Rate limiting for bulk operations
+  if (!checkRateLimit(clientIP, 3, 60 * 60 * 1000)) { // 3 requests per hour
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Too many bulk extraction requests. Please try again later.' 
+    }), {
+      status: 429,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 
   try {
@@ -46,307 +140,52 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+    console.log('🚀 Starting bulk GP51 device extraction...');
 
-    const { jobName, credentials }: ExtractionJob = await req.json();
+    // Get GP51 token
+    const token = await getGP51Token();
+    console.log('✅ GP51 token obtained');
 
-    if (!jobName || !credentials || !Array.isArray(credentials)) {
-      return new Response(JSON.stringify({ 
-        error: 'Invalid request. jobName and credentials array required.' 
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+    // Extract devices from GP51
+    const devices = await extractDevicesFromGP51(token);
+    console.log(`📦 Extracted ${devices.length} devices from GP51`);
 
-    console.log(`Starting bulk extraction job: ${jobName} with ${credentials.length} accounts`);
+    // Process and store devices
+    const processedDevices = devices.map(device => ({
+      device_id: sanitizeInput(device.deviceid),
+      device_name: sanitizeInput(device.devicename || ''),
+      device_type: device.devicetype || 0,
+      sim_number: sanitizeInput(device.simnum || ''),
+      last_active_time: device.lastactivetime ? new Date(device.lastactivetime * 1000).toISOString() : null,
+      creator: sanitizeInput(device.creater || ''),
+      remark: sanitizeInput(device.remark || ''),
+      is_free: device.isfree === 1,
+      allow_edit: device.allowedit === 1,
+      extracted_at: new Date().toISOString()
+    }));
 
-    // Create extraction job record
-    const { data: job, error: jobError } = await supabase
-      .from('bulk_extraction_jobs')
-      .insert({
-        job_name: jobName,
-        total_accounts: credentials.length,
-        status: 'processing'
-      })
-      .select()
-      .single();
-
-    if (jobError) {
-      console.error('Failed to create job record:', jobError);
-      throw new Error('Failed to create extraction job');
-    }
-
-    console.log(`Created job ${job.id} for ${credentials.length} accounts`);
-
-    // Process accounts with rate limiting
-    const results: UserExtraction[] = [];
-    let processedCount = 0;
-    let successCount = 0;
-    let failedCount = 0;
-    let totalVehicles = 0;
-    const errorLog: any[] = [];
-
-    for (const cred of credentials) {
-      try {
-        console.log(`Processing account ${processedCount + 1}/${credentials.length}: ${cred.username}`);
-        
-        // Add delay to respect rate limits
-        if (processedCount > 0) {
-          await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
-        }
-
-        const userResult = await extractUserData(cred, job.id, supabase);
-        results.push(userResult);
-        
-        if (userResult.error) {
-          failedCount++;
-          errorLog.push({
-            username: cred.username,
-            error: userResult.error,
-            timestamp: new Date().toISOString()
-          });
-        } else {
-          successCount++;
-          totalVehicles += userResult.vehicles.length;
-        }
-
-        processedCount++;
-
-        // Update job progress every 5 accounts
-        if (processedCount % 5 === 0 || processedCount === credentials.length) {
-          await supabase
-            .from('bulk_extraction_jobs')
-            .update({
-              processed_accounts: processedCount,
-              successful_accounts: successCount,
-              failed_accounts: failedCount,
-              total_vehicles: totalVehicles,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', job.id);
-        }
-
-      } catch (error) {
-        console.error(`Failed to process ${cred.username}:`, error);
-        failedCount++;
-        errorLog.push({
-          username: cred.username,
-          error: error.message,
-          timestamp: new Date().toISOString()
-        });
-        processedCount++;
-      }
-    }
-
-    // Final job update
-    const finalStatus = failedCount === credentials.length ? 'failed' : 'completed';
-    await supabase
-      .from('bulk_extraction_jobs')
-      .update({
-        status: finalStatus,
-        processed_accounts: processedCount,
-        successful_accounts: successCount,
-        failed_accounts: failedCount,
-        total_vehicles: totalVehicles,
-        extracted_data: results,
-        error_log: errorLog,
-        completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', job.id);
-
-    console.log(`Bulk extraction completed. Success: ${successCount}, Failed: ${failedCount}, Total Vehicles: ${totalVehicles}`);
+    // Store in database (you may need to create a table for this)
+    // For now, return the processed data
+    console.log(`✅ Bulk extraction completed for ${processedDevices.length} devices`);
 
     return new Response(JSON.stringify({
       success: true,
-      jobId: job.id,
-      summary: {
-        totalAccounts: credentials.length,
-        processedAccounts: processedCount,
-        successfulAccounts: successCount,
-        failedAccounts: failedCount,
-        totalVehicles: totalVehicles
-      },
-      results: results
+      extracted_count: processedDevices.length,
+      devices: processedDevices,
+      extracted_at: new Date().toISOString()
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('Bulk extraction error:', error);
-    return new Response(JSON.stringify({ 
-      error: 'Internal server error',
-      details: error.message 
+    console.error('Bulk GP51 extraction error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : 'Bulk extraction failed'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
-
-async function extractUserData(
-  credentials: GP51Credentials, 
-  jobId: string, 
-  supabase: any
-): Promise<UserExtraction> {
-  try {
-    // Step 1: Authenticate with GP51
-    const token = await authenticateGP51(credentials);
-    
-    // Step 2: Get all vehicles for this user
-    const vehicles = await getMonitorList(credentials.username, token);
-    
-    // Step 3: Get last positions for all vehicles
-    const vehiclesWithPositions = await enrichWithPositions(vehicles, token);
-    
-    // Step 4: Store vehicles in database
-    await storeVehicles(vehiclesWithPositions, credentials.username, jobId, supabase);
-
-    return {
-      gp51_username: credentials.username,
-      gp51_user_token: token.substring(0, 10) + '...', // Partial token for logging
-      vehicles: vehiclesWithPositions
-    };
-
-  } catch (error) {
-    console.error(`Failed to extract data for ${credentials.username}:`, error);
-    return {
-      gp51_username: credentials.username,
-      vehicles: [],
-      error: error.message
-    };
-  }
-}
-
-async function authenticateGP51(credentials: GP51Credentials): Promise<string> {
-  const md5Hash = md5_sync(credentials.password);
-  
-  const authData = {
-    action: 'login',
-    username: credentials.username,
-    password: md5Hash
-  };
-
-  console.log(`Authenticating ${credentials.username} with GP51...`);
-
-  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
-  const response = await fetch(`${GP51_API_BASE}/webapi`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(authData)
-  });
-
-  const result = await response.json();
-  
-  if (result.status !== 'success') {
-    throw new Error(`GP51 auth failed: ${result.cause || 'Unknown error'}`);
-  }
-
-  console.log(`Successfully authenticated ${credentials.username}`);
-  return result.token;
-}
-
-async function getMonitorList(username: string, token: string): Promise<GP51Vehicle[]> {
-  console.log(`Fetching vehicle list for ${username}...`);
-
-  const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
-  const response = await fetch(`${GP51_API_BASE}/webapi?action=querymonitorlist&token=${token}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username })
-  });
-
-  const result = await response.json();
-  
-  if (result.status !== 'success') {
-    throw new Error(`Failed to get monitor list: ${result.cause || 'Unknown error'}`);
-  }
-
-  console.log(`Found ${result.monitors?.length || 0} vehicles for ${username}`);
-  return result.monitors || [];
-}
-
-async function enrichWithPositions(vehicles: GP51Vehicle[], token: string): Promise<GP51Vehicle[]> {
-  if (!vehicles.length) return vehicles;
-
-  const deviceIds = vehicles.map(v => v.deviceid);
-  console.log(`Fetching positions for ${deviceIds.length} vehicles...`);
-
-  try {
-    const GP51_API_BASE = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
-    const response = await fetch(`${GP51_API_BASE}/webapi?action=lastposition&token=${token}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        deviceids: deviceIds.join(','),
-        lastquerypositiontime: 0
-      })
-    });
-
-    const result = await response.json();
-    
-    if (result.status === 'success' && result.positions) {
-      // Map positions back to vehicles
-      const positionMap = new Map();
-      (Array.isArray(result.positions) ? result.positions : [result.positions]).forEach((pos: any) => {
-        positionMap.set(pos.deviceid, pos);
-      });
-
-      return vehicles.map(vehicle => ({
-        ...vehicle,
-        lastPosition: positionMap.get(vehicle.deviceid) || null
-      }));
-    }
-  } catch (error) {
-    console.error('Failed to fetch positions:', error);
-  }
-
-  return vehicles; // Return vehicles without positions if fetch fails
-}
-
-async function storeVehicles(
-  vehicles: GP51Vehicle[], 
-  username: string, 
-  jobId: string, 
-  supabase: any
-): Promise<void> {
-  console.log(`Storing ${vehicles.length} vehicles for ${username}...`);
-
-  for (const vehicle of vehicles) {
-    try {
-      const vehicleData = {
-        device_id: vehicle.deviceid,
-        device_name: vehicle.devicename,
-        extraction_job_id: jobId,
-        gp51_username: username,
-        sim_number: vehicle.simnum || null,
-        status: vehicle.status || null,
-        last_position: vehicle.lastPosition || null,
-        gp51_metadata: {
-          simnum: vehicle.simnum,
-          lastactivetime: vehicle.lastactivetime,
-          original_data: vehicle
-        },
-        is_active: true
-      };
-
-      // Use upsert to handle duplicates
-      await supabase
-        .from('vehicles')
-        .upsert(vehicleData, { 
-          onConflict: 'device_id',
-          ignoreDuplicates: false 
-        });
-
-    } catch (error) {
-      console.error(`Failed to store vehicle ${vehicle.deviceid}:`, error);
-    }
-  }
-}

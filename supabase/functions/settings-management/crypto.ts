@@ -1,21 +1,16 @@
 
-// Trigger re-deploy - 2025-06-14
-import { md5_sync } from "../_shared/crypto_utils.ts"; // Corrected path
+import { md5_for_gp51_only } from "../_shared/crypto_utils.ts";
 
 export function createHash(text: string): string {
-  console.log(`Hashing input of length: ${text.length} using shared md5_sync.`);
+  console.log(`Hashing input of length: ${text.length} using GP51 compatible hash.`);
   
   try {
-    const hash = md5_sync(text);
-    console.log('Hash generated successfully via md5_sync.');
+    // Use GP51-only hash for legacy compatibility
+    const hash = md5_for_gp51_only(text);
+    console.log('Hash generated successfully via md5_for_gp51_only.');
     return hash;
   } catch (error) {
-    console.error('Hashing failed via md5_sync:', error);
-    // This path should ideally not be reached if md5_sync is robust.
-    // If md5_sync can throw, this error handling is relevant.
-    // Otherwise, if md5_sync is guaranteed not to throw for valid string inputs,
-    // this try-catch might be simplified or removed.
-    // For now, keeping it for safety.
+    console.error('Hashing failed via md5_for_gp51_only:', error);
     throw new Error('Input hashing failed using shared utility.');
   }
 }

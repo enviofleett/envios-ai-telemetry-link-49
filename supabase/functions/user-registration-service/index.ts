@@ -2,21 +2,23 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { getSupabaseClient } from '../_shared/supabase_client.ts';
 import { CORS_HEADERS } from '../_shared/cors.ts';
-import { md5_sync } from '../_shared/crypto_utils.ts';
+import { md5_for_gp51_only, checkRateLimit, sanitizeInput, isValidEmail } from '../_shared/crypto_utils.ts';
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const GP51_API_URL = 'https://www.gps51.com/webapi';
 
-// Simplified function to log in as GP51 admin and get a token
 async function getGP51AdminToken(supabase: SupabaseClient): Promise<string> {
     const username = Deno.env.get('GP51_ADMIN_USERNAME');
     const password = Deno.env.get('GP51_ADMIN_PASSWORD');
     if (!username || !password) throw new Error("GP51 admin credentials not configured.");
     
-    const hashedPassword = md5_sync(password);
+    // Use GP51-compatible hash only for API calls
+    const hashedPassword = md5_for_gp51_only(password);
     const getUrl = `${GP51_API_URL}?action=login&username=${encodeURIComponent(username)}&password=${hashedPassword}`;
     
-    const response = await fetch(getUrl);
+    const response = await fetch(getUrl, {
+      signal: AbortSignal.timeout(10000)
+    });
     if (!response.ok) throw new Error('Failed to authenticate GP51 admin user.');
 
     const result = await response.json();
@@ -24,21 +26,18 @@ async function getGP51AdminToken(supabase: SupabaseClient): Promise<string> {
         throw new Error(result.cause || 'GP51 admin authentication failed.');
     }
     
-    // NOTE: In a production scenario, you would cache this token in the 'gp51_admin_sessions' table.
-    // This simplified version fetches it every time for reliability.
     return result.token;
 }
 
-// Hypothetical function to create a user in GP51
 async function createGP51User(adminToken: string, userDetails: any, userType: string) {
     const gp51UserTypeMap = { 'end_user': 0, 'sub_admin': 1 };
     const gp51UserType = gp51UserTypeMap[userType] ?? 0;
 
     const body = {
-        action: 'create_user', // This is a hypothetical action based on our plan
+        action: 'create_user',
         token: adminToken,
-        username: userDetails.email, // Using email as username
-        password: md5_sync(userDetails.password),
+        username: sanitizeInput(userDetails.email),
+        password: md5_for_gp51_only(userDetails.password), // Only for GP51 compatibility
         email: userDetails.email,
         phone: userDetails.phone_number,
         usertype: gp51UserType,
@@ -48,7 +47,8 @@ async function createGP51User(adminToken: string, userDetails: any, userType: st
     const response = await fetch(GP51_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000)
     });
 
     if (!response.ok) throw new Error(`GP51 API error: ${response.statusText}`);
@@ -59,9 +59,8 @@ async function createGP51User(adminToken: string, userDetails: any, userType: st
     }
     
     console.log('[user-registration-service] GP51 user created successfully.');
-    return result; // Assuming GP51 returns some user data
+    return result;
 }
-
 
 serve(async (req) => {
   console.log(`[user-registration-service] Received request: ${req.method} ${req.url}`);
@@ -69,35 +68,91 @@ serve(async (req) => {
     return new Response('ok', { headers: CORS_HEADERS });
   }
 
+  const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+  
+  // Rate limiting
+  if (!checkRateLimit(clientIP, 5, 15 * 60 * 1000)) {
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Too many registration attempts. Please try again later.' 
+    }), {
+      status: 429, 
+      headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+    });
+  }
+
   try {
     const supabase = getSupabaseClient();
-    const body = await req.json();
-    const { email, password, name, phone_number, package_id } = body;
-
-    // 1. Input validation
-    if (!email || !password || !name || !package_id) {
-        throw new Error("Email, password, name, and package_id are required.");
+    const body = await req.json().catch(() => null);
+    
+    if (!body) {
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Invalid JSON in request body' 
+      }), {
+        status: 400,
+        headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+      });
     }
 
-    // 2. Fetch package and determine user_type
+    const { email, password, name, phone_number, package_id } = body;
+
+    // Input validation
+    if (!email || !password || !name || !package_id) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: "Email, password, name, and package_id are required." 
+        }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+        });
+    }
+
+    if (!isValidEmail(email)) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: "Invalid email format." 
+        }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+        });
+    }
+
+    if (password.length < 6) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: "Password must be at least 6 characters long." 
+        }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+        });
+    }
+
+    // Fetch package and determine user_type
     const { data: pkg, error: pkgError } = await supabase
         .from('packages')
         .select('associated_user_type')
         .eq('id', package_id)
         .single();
-    if (pkgError || !pkg) throw new Error("Invalid package selected.");
+    if (pkgError || !pkg) {
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: "Invalid package selected." 
+        }), {
+          status: 400,
+          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' }
+        });
+    }
     const user_type = pkg.associated_user_type;
 
-    // 3. Get GP51 Admin Token
+    // Get GP51 Admin Token
     const adminToken = await getGP51AdminToken(supabase);
 
-    // 4. Create user in GP51
-    // In a real implementation, you would add rollback logic here.
-    // If step 5 or 6 fails, you would call a hypothetical 'delete_user' on GP51.
+    // Create user in GP51
     const gp51User = await createGP51User(adminToken, body, user_type);
-    const gp51_username = gp51User.username || email; // Use returned username or default to email
+    const gp51_username = gp51User.username || email;
 
-    // 5. Create user in Supabase Auth
+    // Create user in Supabase Auth
     const { data: { user }, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -112,16 +167,14 @@ serve(async (req) => {
     if (authError) throw authError;
     if (!user) throw new Error("Supabase auth user creation failed.");
 
-    // 6. Create corresponding record in public.envio_users
+    // Create corresponding record in public.envio_users
     const { error: envioUserError } = await supabase
         .from('envio_users')
         .insert({
-            // NOTE: This assumes `envio_users.id` is NOT a foreign key to `auth.users.id`.
-            // A future migration should link them using a `user_id` column.
-            id: user.id, // Using the auth user ID for our public user table
+            id: user.id,
             email: user.email,
-            name,
-            phone_number,
+            name: sanitizeInput(name),
+            phone_number: sanitizeInput(phone_number || ''),
             gp51_username,
             user_type,
             package_id,

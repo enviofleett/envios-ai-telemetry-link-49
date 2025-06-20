@@ -1,5 +1,6 @@
 
 import { gp51ApiClient } from '../_shared/gp51_api_client_unified.ts';
+import { md5_for_gp51_only, sanitizeInput, isValidUsername } from '../_shared/crypto_utils.ts';
 
 export async function authenticateWithGP51({ 
   username, 
@@ -10,8 +11,16 @@ export async function authenticateWithGP51({
   password: string; 
   apiUrl?: string;
 }) {
-  const trimmedUsername = username.trim();
+  const trimmedUsername = sanitizeInput(username);
   console.log('🔐 Starting GP51 credential validation using unified client for user:', trimmedUsername);
+  
+  if (!isValidUsername(trimmedUsername)) {
+    return {
+      success: false,
+      error: 'Invalid username format',
+      username: trimmedUsername
+    };
+  }
   
   try {
     // Create client instance with custom API URL if provided
@@ -36,7 +45,7 @@ export async function authenticateWithGP51({
       token: loginResult.token!,
       username: trimmedUsername,
       password: password,
-      hashedPassword: (await import('../_shared/crypto_utils.ts')).md5_sync(password),
+      hashedPassword: md5_for_gp51_only(password), // Only for GP51 compatibility
       apiUrl: apiUrl || (await import('../_shared/constants.ts')).GP51_API_URL,
       method: 'UNIFIED_CLIENT'
     };

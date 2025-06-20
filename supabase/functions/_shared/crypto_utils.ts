@@ -24,6 +24,7 @@ export async function verifySecureHash(password: string, hash: string): Promise<
 /**
  * MD5 hash - ONLY for GP51 API compatibility (DEPRECATED for passwords)
  * WARNING: Only use this for GP51 API calls, never for password storage
+ * This function is isolated and should only be used for legacy API compatibility
  */
 export function md5_for_gp51_only(data: string): string {
   const encoder = new TextEncoder();
@@ -72,4 +73,30 @@ export function checkRateLimit(identifier: string, maxAttempts: number = 5, wind
 
   current.count++;
   return true;
+}
+
+/**
+ * Secure input sanitization
+ */
+export function sanitizeInput(input: string): string {
+  return input
+    .trim()
+    .replace(/[<>\"']/g, '') // Remove potential XSS characters
+    .substring(0, 1000); // Limit length
+}
+
+/**
+ * Validate email format
+ */
+export function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email) && email.length <= 254;
+}
+
+/**
+ * Validate username format
+ */
+export function isValidUsername(username: string): boolean {
+  const usernameRegex = /^[a-zA-Z0-9_.-@]{3,50}$/;
+  return usernameRegex.test(username);
 }
