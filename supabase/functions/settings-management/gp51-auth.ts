@@ -1,5 +1,4 @@
 
-import { gp51ApiClient } from '../_shared/gp51_api_client_unified.ts';
 import { md5_for_gp51_only, sanitizeInput, isValidUsername } from '../_shared/crypto_utils.ts';
 
 export async function authenticateWithGP51({ 
@@ -12,7 +11,7 @@ export async function authenticateWithGP51({
   apiUrl?: string;
 }) {
   const trimmedUsername = sanitizeInput(username);
-  console.log('🔐 Starting GP51 credential validation using unified client for user:', trimmedUsername);
+  console.log('🔐 Starting GP51 credential validation for user:', trimmedUsername);
   
   if (!isValidUsername(trimmedUsername)) {
     return {
@@ -23,35 +22,82 @@ export async function authenticateWithGP51({
   }
   
   try {
-    // Create client instance with custom API URL if provided
-    const client = apiUrl ? 
-      new (await import('../_shared/gp51_api_client_unified.ts')).UnifiedGP51ApiClient(apiUrl) : 
-      gp51ApiClient;
+    // Get environment variables
+    const gp51BaseUrl = apiUrl || Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    const globalApiToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
     
-    console.log('🌐 Using GP51 API URL:', apiUrl || 'default');
-    console.log('🔄 Attempting login with unified client...');
+    if (!globalApiToken) {
+      console.error('❌ GP51_GLOBAL_API_TOKEN not configured');
+      return {
+        success: false,
+        error: 'GP51 API configuration missing',
+        username: trimmedUsername
+      };
+    }
     
-    const loginResult = await client.login(
-      trimmedUsername,
-      password, // Pass plain password, client will hash it
-      'WEB',
-      'USER'
-    );
+    console.log('🌐 Using GP51 API URL:', gp51BaseUrl);
+    console.log('🔄 Attempting login with improved GP51 integration...');
+    
+    // Hash password using async MD5 for GP51 compatibility
+    const gp51Hash = await md5_for_gp51_only(password);
+    
+    // Construct GP51 API URL with correct query parameters
+    const loginUrl = new URL(`${gp51BaseUrl}/webapi`);
+    loginUrl.searchParams.set('action', 'login');
+    loginUrl.searchParams.set('token', globalApiToken);
+    loginUrl.searchParams.set('username', trimmedUsername);
+    loginUrl.searchParams.set('password', gp51Hash);
+    loginUrl.searchParams.set('from', 'web');
+    loginUrl.searchParams.set('type', 'user');
+    
+    console.log('🌐 Making request to GP51 API...');
+    
+    const loginResponse = await fetch(loginUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'Accept': 'text/plain',
+        'User-Agent': 'FleetIQ/1.0'
+      },
+      signal: AbortSignal.timeout(15000)
+    });
 
-    console.log(`✅ Unified client authentication successful for ${trimmedUsername}`);
+    if (!loginResponse.ok) {
+      console.error(`❌ GP51 API returned HTTP ${loginResponse.status}: ${loginResponse.statusText}`);
+      return {
+        success: false,
+        error: `GP51 API error: ${loginResponse.status} ${loginResponse.statusText}`,
+        username: trimmedUsername
+      };
+    }
+
+    const loginResult = await loginResponse.text();
+    console.log('📊 GP51 Response received, length:', loginResult.length);
+
+    // Check for authentication failure indicators
+    if (loginResult.includes('error') || loginResult.includes('fail') || loginResult.includes('invalid') || loginResult.length < 10) {
+      console.error('❌ GP51 authentication failed:', loginResult.substring(0, 100));
+      return {
+        success: false,
+        error: 'Invalid GP51 credentials',
+        username: trimmedUsername
+      };
+    }
+
+    const sessionToken = loginResult.trim();
+    console.log(`✅ GP51 authentication successful for ${trimmedUsername}`);
     
     return {
       success: true,
-      token: loginResult.token!,
+      token: sessionToken,
       username: trimmedUsername,
       password: password,
-      hashedPassword: await md5_for_gp51_only(password), // Async MD5 for GP51 compatibility
-      apiUrl: apiUrl || (await import('../_shared/constants.ts')).GP51_API_URL,
-      method: 'UNIFIED_CLIENT'
+      hashedPassword: gp51Hash,
+      apiUrl: gp51BaseUrl,
+      method: 'IMPROVED_GP51_API'
     };
 
   } catch (error) {
-    console.error('❌ GP51 authentication failed with unified client:', error);
+    console.error('❌ GP51 authentication failed:', error);
     
     // Return structured error response
     if (error.name === 'AbortError') {

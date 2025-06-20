@@ -86,33 +86,65 @@ async function authenticateWithGP51(username: string, password: string, supabase
   try {
     console.log('🔄 Attempting GP51 login for user:', trimmedUsername);
     
+    // Get environment variables
+    const gp51BaseUrl = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
+    const globalApiToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+    
+    if (!globalApiToken) {
+      console.error('❌ GP51_GLOBAL_API_TOKEN not configured');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'GP51 API configuration missing'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
     // Use async MD5 for GP51 API compatibility
     const gp51Hash = await md5_for_gp51_only(password);
+    console.log('🔐 Password hashed for GP51 API');
     
-    // Try GP51 authentication with form data approach
-    const authResponse = await fetch('https://www.gps51.com/webapi/Login', {
-      method: 'POST',
+    // Construct GP51 API URL with correct query parameters
+    const apiUrl = new URL(`${gp51BaseUrl}/webapi`);
+    apiUrl.searchParams.set('action', 'login');
+    apiUrl.searchParams.set('token', globalApiToken);
+    apiUrl.searchParams.set('username', trimmedUsername);
+    apiUrl.searchParams.set('password', gp51Hash);
+    apiUrl.searchParams.set('from', 'web');
+    apiUrl.searchParams.set('type', 'user');
+    
+    console.log('🌐 GP51 API URL constructed:', apiUrl.toString().replace(globalApiToken, '[REDACTED]'));
+    
+    // Make GET request to GP51 API
+    const authResponse = await fetch(apiUrl.toString(), {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
         'Accept': 'text/plain',
         'User-Agent': 'FleetIQ/1.0'
       },
-      body: new URLSearchParams({
-        username: trimmedUsername,
-        password: gp51Hash,
-        t: Date.now().toString()
-      }),
       signal: AbortSignal.timeout(15000)
     });
 
+    console.log('📊 GP51 Response Status:', authResponse.status, authResponse.statusText);
+
     if (!authResponse.ok) {
-      throw new Error(`HTTP ${authResponse.status}: ${authResponse.statusText}`);
+      console.error(`❌ GP51 API returned HTTP ${authResponse.status}: ${authResponse.statusText}`);
+      return new Response(JSON.stringify({
+        success: false,
+        error: `GP51 API error: ${authResponse.status} ${authResponse.statusText}`
+      }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     const authResult = await authResponse.text();
-    console.log('📊 GP51 Response:', authResult.substring(0, 100));
+    console.log('📊 GP51 Response Body:', authResult.substring(0, 200) + (authResult.length > 200 ? '...' : ''));
     
-    if (authResult.includes('error') || authResult.includes('fail') || authResult.length < 10) {
+    // Check for authentication failure indicators
+    if (authResult.includes('error') || authResult.includes('fail') || authResult.includes('invalid') || authResult.length < 10) {
+      console.error('❌ GP51 authentication failed:', authResult);
       return new Response(JSON.stringify({
         success: false,
         error: 'Invalid GP51 credentials'
@@ -122,8 +154,9 @@ async function authenticateWithGP51(username: string, password: string, supabase
       });
     }
 
-    const token = authResult.trim();
-    console.log('✅ GP51 authentication successful');
+    // Extract session token from response
+    const sessionToken = authResult.trim();
+    console.log('✅ GP51 authentication successful, session token received');
 
     // Create or update user in our system
     const { data: user, error: userError } = await supabase
@@ -141,7 +174,7 @@ async function authenticateWithGP51(username: string, password: string, supabase
       .single();
 
     if (userError) {
-      console.warn('Failed to create/update user:', userError);
+      console.warn('⚠️ Failed to create/update user:', userError);
     }
 
     // Store GP51 session
@@ -150,7 +183,7 @@ async function authenticateWithGP51(username: string, password: string, supabase
       .from('gp51_sessions')
       .upsert({
         username: trimmedUsername,
-        gp51_token: token,
+        gp51_token: sessionToken,
         token_expires_at: expiresAt.toISOString(),
         last_validated_at: new Date().toISOString(),
         created_at: new Date().toISOString()
@@ -159,16 +192,22 @@ async function authenticateWithGP51(username: string, password: string, supabase
       });
 
     if (sessionError) {
-      console.warn('Failed to store GP51 session:', sessionError);
+      console.warn('⚠️ Failed to store GP51 session:', sessionError);
     }
+
+    console.log('✅ GP51 authentication and session storage completed successfully');
 
     return new Response(JSON.stringify({
       success: true,
-      token,
+      token: sessionToken,
       username: trimmedUsername,
       expiresAt: expiresAt.toISOString(),
       user,
-      session: { token, expiresAt }
+      session: { 
+        token: sessionToken, 
+        expiresAt: expiresAt.toISOString(),
+        username: trimmedUsername 
+      }
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
