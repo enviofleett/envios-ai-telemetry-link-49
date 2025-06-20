@@ -49,16 +49,7 @@ AdminLoadingState.displayName = 'AdminLoadingState';
 
 const AdminSettingsHub: React.FC = memo(() => {
   const [activeTab, setActiveTab] = useState('company');
-  const { user, loading } = useUnifiedAuth();
-
-  // TODO: Add proper role checking when UnifiedAuth supports it
-  const isAdmin = true; // Temporarily allow all authenticated users
-  const userRole = 'admin'; // TODO: Get from UnifiedAuth when role checking is implemented
-  const isCheckingRole = loading;
-  const retryRoleCheck = async () => {
-    // TODO: Implement when UnifiedAuth supports role checking
-    console.log('Role check retry not yet implemented in UnifiedAuth');
-  };
+  const { user, loading, isAdmin, userRole, isCheckingRole, retryRoleCheck } = useUnifiedAuth();
 
   // Memoize tab change handler to prevent unnecessary re-renders
   const handleTabChange = useCallback((tab: string) => {
@@ -66,12 +57,12 @@ const AdminSettingsHub: React.FC = memo(() => {
   }, []);
 
   // Show loading state if still checking role
-  if (isCheckingRole) {
+  if (loading || isCheckingRole) {
     return <AdminLoadingState />;
   }
 
-  // Show permission denied if not admin (currently disabled until role system is implemented)
-  if (!isAdmin && false) { // Temporarily disabled
+  // Show permission denied if not admin
+  if (!isAdmin) {
     return <AdminPermissionDenied userRole={userRole} retryRoleCheck={retryRoleCheck} />;
   }
 

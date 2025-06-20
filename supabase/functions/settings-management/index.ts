@@ -4,6 +4,7 @@ import { corsHeaders } from './cors.ts';
 import { authenticateRequest } from './auth.ts';
 import { handleGP51Authentication } from './gp51-operations.ts';
 import { handleGetGP51Status, handleClearGP51Sessions } from './session-management.ts';
+import { handleGP51UserMappingOperations } from './gp51-user-mapping.ts';
 import { createErrorResponse, calculateLatency } from './response-utils.ts';
 import type { SettingsRequest } from './types.ts';
 
@@ -61,6 +62,14 @@ serve(async (req) => {
       
       case 'clear-gp51-sessions':
         return await handleClearGP51Sessions(adminSupabase, envioUser.id);
+      
+      // GP51 User Mapping operations
+      case 'get-user-mappings':
+      case 'create-mapping':
+      case 'verify-mapping':
+      case 'delete-mapping':
+      case 'migrate-existing-users':
+        return await handleGP51UserMappingOperations(adminSupabase, action, body, envioUser.id);
       
       default:
         console.warn(`❌ Unknown action: ${action}`);

@@ -3696,6 +3696,47 @@ export type Database = {
           },
         ]
       }
+      gp51_user_mappings: {
+        Row: {
+          created_at: string
+          envio_user_id: string
+          gp51_user_type: number | null
+          gp51_username: string
+          id: string
+          is_verified: boolean | null
+          mapping_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          envio_user_id: string
+          gp51_user_type?: number | null
+          gp51_username: string
+          id?: string
+          is_verified?: boolean | null
+          mapping_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          envio_user_id?: string
+          gp51_user_type?: number | null
+          gp51_username?: string
+          id?: string
+          is_verified?: boolean | null
+          mapping_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_user_mappings_envio_user_id_fkey"
+            columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_notifications: {
         Row: {
           created_at: string | null

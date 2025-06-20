@@ -9,7 +9,7 @@ import CreateUserDialog from './CreateUserDialog';
 import { UserProfile } from '@/hooks/useUserProfiles';
 
 const EnhancedUserManagement: React.FC = () => {
-  const { user } = useUnifiedAuth();
+  const { user, isAdmin } = useUnifiedAuth();
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
@@ -18,6 +18,10 @@ const EnhancedUserManagement: React.FC = () => {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (!isAdmin) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   const handleUserClick = (user: UserProfile) => {

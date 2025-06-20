@@ -15,7 +15,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireAdmin = false,
   requireAgent = false
 }) => {
-  const { user, loading } = useUnifiedAuth();
+  const { user, loading, isAdmin, isAgent } = useUnifiedAuth();
   const location = useLocation();
 
   // Show loading spinner while checking authentication
@@ -32,11 +32,14 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // For now, allow all authenticated users since UnifiedAuth doesn't have role checking yet
-  // TODO: Add proper role checking when UnifiedAuth supports it
-  if (requireAdmin || requireAgent) {
-    // Temporarily allow all authenticated users
-    console.log('Role checking not yet implemented in UnifiedAuth');
+  // Check admin requirement
+  if (requireAdmin && !isAdmin) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Check agent requirement
+  if (requireAgent && !isAgent) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   // User is authenticated and has required permissions
