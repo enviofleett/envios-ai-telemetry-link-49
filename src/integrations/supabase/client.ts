@@ -5,19 +5,40 @@ import type { Database } from './types';
 
 // Get environment variables with validation
 const getSupabaseUrl = (): string => {
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  if (!url) {
-    throw new Error('VITE_SUPABASE_URL environment variable is required');
+  // Try environment variable first
+  const envUrl = import.meta.env.VITE_SUPABASE_URL;
+  
+  // Debug logging
+  console.log('🔍 Environment variable VITE_SUPABASE_URL:', envUrl);
+  console.log('🔍 All environment variables:', import.meta.env);
+  
+  if (envUrl) {
+    console.log('✅ Using environment variable for Supabase URL');
+    return envUrl;
   }
-  return url;
+  
+  // Fallback to hardcoded value for this project
+  const fallbackUrl = 'https://bjkqxmvjuewshomihjqm.supabase.co';
+  console.log('⚠️ Using fallback Supabase URL:', fallbackUrl);
+  return fallbackUrl;
 };
 
 const getSupabaseAnonKey = (): string => {
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
-  if (!key) {
-    throw new Error('VITE_SUPABASE_ANON_KEY environment variable is required');
+  // Try environment variable first
+  const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  
+  // Debug logging
+  console.log('🔍 Environment variable VITE_SUPABASE_ANON_KEY:', envKey ? 'Found' : 'Missing');
+  
+  if (envKey) {
+    console.log('✅ Using environment variable for Supabase anon key');
+    return envKey;
   }
-  return key;
+  
+  // Fallback to hardcoded value for this project
+  const fallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqa3F4bXZqdWV3c2hvbWloanFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwMzk4MzEsImV4cCI6MjA2NDYxNTgzMX0.VbyYBsPAp_a699yZ3xHtGGzljIQPm24EnwXLaGcsJb0';
+  console.log('⚠️ Using fallback Supabase anon key');
+  return fallbackKey;
 };
 
 export const SUPABASE_URL = getSupabaseUrl();
@@ -33,3 +54,5 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+console.log('🚀 Supabase client initialized successfully with URL:', SUPABASE_URL);
