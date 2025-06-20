@@ -46,7 +46,7 @@ export class TokenManagementService {
         .from('sharing_tokens')
         .select(`
           *,
-          user_subscriptions!inner (
+          user_subscriptions (
             *,
             data_sharing_products (*)
           )
@@ -64,14 +64,18 @@ export class TokenManagementService {
         };
       }
 
-      // Update last used timestamp
+      // Update last used timestamp using the custom function
       await this.updateTokenUsage(tokenData.id);
+
+      // Type guard to ensure proper data structure
+      const subscriptionData = tokenData.user_subscriptions as any;
+      const productData = subscriptionData?.data_sharing_products as any;
 
       return {
         isValid: true,
         token: tokenData as SharingToken,
-        subscription: tokenData.user_subscriptions as UserSubscription,
-        product: tokenData.user_subscriptions?.data_sharing_products as DataSharingProduct,
+        subscription: subscriptionData as UserSubscription,
+        product: productData as DataSharingProduct,
         authorizedVehicleIds: tokenData.vehicle_ids || []
       };
     } catch (error) {
@@ -100,13 +104,10 @@ export class TokenManagementService {
   }
 
   async updateTokenUsage(tokenId: string): Promise<void> {
-    const { error } = await supabase
-      .from('sharing_tokens')
-      .update({ 
-        last_used_at: new Date().toISOString(),
-        usage_count: supabase.rpc('increment', { x: 1 })
-      })
-      .eq('id', tokenId);
+    // Use the custom increment function
+    const { error } = await supabase.rpc('increment_usage_count', {
+      token_id_param: tokenId
+    });
 
     if (error) {
       console.error('Failed to update token usage:', error);

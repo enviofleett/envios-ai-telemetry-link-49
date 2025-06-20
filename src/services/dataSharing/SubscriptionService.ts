@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   CreateSubscriptionRequest, 
@@ -13,11 +12,12 @@ export class SubscriptionService {
     const endDate = new Date();
     endDate.setMonth(endDate.getMonth() + request.tenureMonths);
 
+    // Use product_id as package_id since they're the same concept in this context
     const { data: subscription, error } = await supabase
       .from('user_subscriptions')
       .insert({
         user_id: request.userId,
-        product_id: request.productId,
+        package_id: request.productId, // Map product_id to package_id
         start_date: startDate.toISOString(),
         end_date: endDate.toISOString(),
         subscription_status: 'active',
@@ -46,7 +46,7 @@ export class SubscriptionService {
     return {
       id: subscription.id,
       user_id: subscription.user_id,
-      product_id: subscription.product_id,
+      product_id: subscription.package_id, // Map back for consistency
       start_date: subscription.start_date,
       end_date: subscription.end_date,
       status: subscription.subscription_status as UserSubscription['status'],
@@ -99,7 +99,7 @@ export class SubscriptionService {
     return data.map(sub => ({
       id: sub.id,
       user_id: sub.user_id,
-      product_id: sub.product_id,
+      product_id: sub.package_id,
       start_date: sub.start_date,
       end_date: sub.end_date,
       status: sub.subscription_status as UserSubscription['status'],
@@ -158,7 +158,7 @@ export class SubscriptionService {
     return data.map(sub => ({
       id: sub.id,
       user_id: sub.user_id,
-      product_id: sub.product_id,
+      product_id: sub.package_id,
       start_date: sub.start_date,
       end_date: sub.end_date,
       status: sub.subscription_status as UserSubscription['status'],

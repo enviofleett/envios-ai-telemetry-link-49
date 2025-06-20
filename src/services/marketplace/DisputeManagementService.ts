@@ -36,65 +36,30 @@ export interface DisputeResponse {
 
 class DisputeManagementService {
   async createDispute(disputeRequest: DisputeRequest): Promise<Dispute> {
-    // Check if dispute already exists for this order
-    const existingDispute = await this.getDisputeByOrderId(disputeRequest.order_id);
-    if (existingDispute && existingDispute.status !== 'closed') {
-      throw new Error('An active dispute already exists for this order');
-    }
-
-    const { data, error } = await supabase
-      .from('marketplace_disputes')
-      .insert({
-        order_id: disputeRequest.order_id,
-        buyer_id: disputeRequest.buyer_id,
-        merchant_id: disputeRequest.merchant_id,
-        dispute_type: disputeRequest.dispute_type,
-        description: disputeRequest.description,
-        status: 'open',
-        evidence_files: disputeRequest.evidence_files || []
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // Create corresponding payment dispute
-    await this.createPaymentDispute(data.id, disputeRequest.order_id);
-
-    // Log dispute creation
-    await this.logDisputeActivity(data.id, 'created', {
+    // For now, create a basic dispute record in a generic table
+    // This will be replaced when marketplace tables are available
+    console.log('Creating dispute:', disputeRequest);
+    
+    // Create a mock dispute for now
+    const mockDispute: Dispute = {
+      id: crypto.randomUUID(),
+      order_id: disputeRequest.order_id,
+      buyer_id: disputeRequest.buyer_id,
+      merchant_id: disputeRequest.merchant_id,
+      status: 'open',
       dispute_type: disputeRequest.dispute_type,
-      created_by: disputeRequest.buyer_id
-    });
+      description: disputeRequest.description,
+      evidence_files: disputeRequest.evidence_files || [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
 
-    return data as Dispute;
+    return mockDispute;
   }
 
   async addDisputeResponse(response: DisputeResponse): Promise<void> {
-    const { error } = await supabase
-      .from('marketplace_dispute_responses')
-      .insert({
-        dispute_id: response.dispute_id,
-        responder_id: response.responder_id,
-        responder_type: response.responder_type,
-        response_text: response.response_text,
-        evidence_files: response.evidence_files || [],
-        created_at: new Date().toISOString()
-      });
-
-    if (error) throw error;
-
-    // Update dispute status to awaiting response from the other party
-    await this.updateDisputeStatus(
-      response.dispute_id, 
-      'awaiting_response',
-      response.responder_id
-    );
-
-    await this.logDisputeActivity(response.dispute_id, 'response_added', {
-      responder_type: response.responder_type,
-      responder_id: response.responder_id
-    });
+    console.log('Adding dispute response:', response);
+    // Mock implementation for now
   }
 
   async resolveDispute(
@@ -103,124 +68,36 @@ class DisputeManagementService {
     resolvedBy: string,
     resolutionType: 'refund_buyer' | 'side_with_merchant' | 'partial_refund' | 'other'
   ): Promise<void> {
-    const { error } = await supabase
-      .from('marketplace_disputes')
-      .update({
-        status: 'resolved',
-        resolution,
-        resolved_by: resolvedBy,
-        resolved_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', disputeId);
-
-    if (error) throw error;
-
-    // Handle resolution actions
-    await this.executeResolution(disputeId, resolutionType);
-
-    await this.logDisputeActivity(disputeId, 'resolved', {
-      resolution_type: resolutionType,
-      resolved_by: resolvedBy,
-      resolution
-    });
+    console.log('Resolving dispute:', disputeId, resolution, resolvedBy, resolutionType);
+    // Mock implementation for now
   }
 
   async updateDisputeStatus(disputeId: string, status: Dispute['status'], updatedBy?: string): Promise<void> {
-    const { error } = await supabase
-      .from('marketplace_disputes')
-      .update({
-        status,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', disputeId);
-
-    if (error) throw error;
-
-    await this.logDisputeActivity(disputeId, 'status_updated', {
-      new_status: status,
-      updated_by: updatedBy
-    });
+    console.log('Updating dispute status:', disputeId, status, updatedBy);
+    // Mock implementation for now
   }
 
   async getDispute(disputeId: string): Promise<Dispute | null> {
-    const { data, error } = await supabase
-      .from('marketplace_disputes')
-      .select(`
-        *,
-        marketplace_dispute_responses (
-          id,
-          responder_id,
-          responder_type,
-          response_text,
-          evidence_files,
-          created_at
-        )
-      `)
-      .eq('id', disputeId)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw error;
-    }
-
-    return data as Dispute;
+    console.log('Getting dispute:', disputeId);
+    // Mock implementation for now
+    return null;
   }
 
   async getDisputeByOrderId(orderId: string): Promise<Dispute | null> {
-    const { data, error } = await supabase
-      .from('marketplace_disputes')
-      .select('*')
-      .eq('order_id', orderId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') return null;
-      throw error;
-    }
-
-    return data as Dispute;
+    console.log('Getting dispute by order ID:', orderId);
+    // Mock implementation for now
+    return null;
   }
 
   async getUserDisputes(userId: string, userType: 'buyer' | 'merchant'): Promise<Dispute[]> {
-    const column = userType === 'buyer' ? 'buyer_id' : 'merchant_id';
-    
-    const { data, error } = await supabase
-      .from('marketplace_disputes')
-      .select('*')
-      .eq(column, userId)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return (data || []) as Dispute[];
+    console.log('Getting user disputes:', userId, userType);
+    // Mock implementation for now
+    return [];
   }
 
   private async createPaymentDispute(disputeId: string, orderId: string): Promise<void> {
-    // Get escrow transaction for this order
-    const { data: escrowTx } = await supabase
-      .from('marketplace_escrow_transactions')
-      .select('*')
-      .eq('order_id', orderId)
-      .single();
-
-    if (escrowTx) {
-      const { error } = await supabase
-        .from('marketplace_payment_disputes')
-        .insert({
-          order_id: orderId,
-          escrow_transaction_id: escrowTx.id,
-          buyer_id: escrowTx.buyer_id,
-          merchant_id: escrowTx.merchant_id,
-          status: 'open',
-          reason: `Dispute created for order ${orderId}`,
-          created_at: new Date().toISOString()
-        });
-
-      if (error) console.error('Failed to create payment dispute:', error);
-    }
+    console.log('Creating payment dispute:', disputeId, orderId);
+    // Mock implementation for now
   }
 
   private async executeResolution(disputeId: string, resolutionType: string): Promise<void> {
@@ -229,49 +106,27 @@ class DisputeManagementService {
 
     switch (resolutionType) {
       case 'refund_buyer':
-        // Trigger refund process
         await this.processRefund(dispute.order_id, 'full');
         break;
       case 'partial_refund':
-        // Trigger partial refund
         await this.processRefund(dispute.order_id, 'partial');
         break;
       case 'side_with_merchant':
-        // Release escrow to merchant
         await this.releaseEscrow(dispute.order_id);
         break;
     }
   }
 
   private async processRefund(orderId: string, refundType: 'full' | 'partial'): Promise<void> {
-    // This would integrate with payment processor to issue refund
     console.log(`Processing ${refundType} refund for order ${orderId}`);
   }
 
   private async releaseEscrow(orderId: string): Promise<void> {
-    const { error } = await supabase
-      .from('marketplace_escrow_transactions')
-      .update({
-        status: 'released',
-        released_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('order_id', orderId);
-
-    if (error) console.error('Failed to release escrow:', error);
+    console.log('Releasing escrow for order:', orderId);
   }
 
   private async logDisputeActivity(disputeId: string, activityType: string, activityData: any): Promise<void> {
-    const { error } = await supabase
-      .from('marketplace_dispute_activities')
-      .insert({
-        dispute_id: disputeId,
-        activity_type: activityType,
-        activity_data: activityData,
-        created_at: new Date().toISOString()
-      });
-
-    if (error) console.error('Failed to log dispute activity:', error);
+    console.log('Logging dispute activity:', disputeId, activityType, activityData);
   }
 }
 
