@@ -45,7 +45,7 @@ export async function authenticateWithGP51({
       token: loginResult.token!,
       username: trimmedUsername,
       password: password,
-      hashedPassword: md5_for_gp51_only(password), // Only for GP51 compatibility
+      hashedPassword: await md5_for_gp51_only(password), // Async MD5 for GP51 compatibility
       apiUrl: apiUrl || (await import('../_shared/constants.ts')).GP51_API_URL,
       method: 'UNIFIED_CLIENT'
     };

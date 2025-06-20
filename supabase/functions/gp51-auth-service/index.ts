@@ -23,8 +23,8 @@ async function testGP51Authentication(username: string, password: string): Promi
   }
   
   try {
-    // Use MD5 ONLY for GP51 API compatibility (legacy requirement)
-    const gp51Hash = md5_for_gp51_only(password);
+    // Use async MD5 for GP51 API compatibility
+    const gp51Hash = await md5_for_gp51_only(password);
     console.log(`✅ Password hashed for GP51 compatibility`);
     
     // Test Method 1: GET request
@@ -202,11 +202,12 @@ serve(async (req) => {
       
       if (result.success) {
         // Store successful session with secure hash
+        const gp51Hash = await md5_for_gp51_only(password);
         const { error: sessionError } = await supabase
           .from('gp51_sessions')
           .upsert({
             username: sanitizeInput(username),
-            password_hash: md5_for_gp51_only(password), // Only for GP51 compatibility
+            password_hash: gp51Hash, // Only for GP51 compatibility
             gp51_token: result.response?.token,
             auth_method: result.method,
             token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),

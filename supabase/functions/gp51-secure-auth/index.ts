@@ -76,8 +76,8 @@ async function testGP51Connection(username: string, password: string, apiUrl: st
   try {
     console.log(`🧪 Testing GP51 connection for ${username}...`);
 
-    // Use MD5 only for GP51 API call (legacy compatibility)
-    const gp51Hash = md5_for_gp51_only(password);
+    // Use async MD5 for GP51 API call (legacy compatibility)
+    const gp51Hash = await md5_for_gp51_only(password);
 
     const authResponse = await fetch(`${apiUrl}/Login`, {
       method: 'POST',
@@ -157,8 +157,8 @@ async function authenticateWithGP51(username: string, password: string, apiUrl: 
   try {
     console.log(`🔑 Authenticating with GP51 for ${username}...`);
 
-    // Use MD5 only for GP51 API call (legacy compatibility)
-    const gp51Hash = md5_for_gp51_only(password);
+    // Use async MD5 for GP51 API call (legacy compatibility)
+    const gp51Hash = await md5_for_gp51_only(password);
 
     const authResponse = await fetch(`${apiUrl}/Login`, {
       method: 'POST',
