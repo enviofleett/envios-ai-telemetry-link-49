@@ -1,17 +1,176 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
-import { authenticateWithGP51 } from '../settings-management/gp51-auth.ts'
-import { corsHeaders } from '../settings-management/cors.ts'
+import { createHash } from 'https://deno.land/std@0.168.0/crypto/mod.ts'
 
-const corsHeadersLocal = {
+// Local CORS headers - no external import needed
+const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Rate limiting storage
+const rateLimits = new Map<string, { count: number; resetTime: number }>();
+
+// Utility functions inlined
+function md5Hash(input: string): string {
+  return createHash('md5').update(input).toString('hex');
+}
+
+function sanitizeInput(input: string): string {
+  return input.trim().toLowerCase();
+}
+
+function isValidUsername(username: string): boolean {
+  return /^[a-zA-Z0-9._@-]+$/.test(username) && username.length >= 3 && username.length <= 50;
+}
+
+function checkRateLimit(identifier: string, maxRequests: number = 5, windowMs: number = 300000): boolean {
+  const now = Date.now();
+  const current = rateLimits.get(identifier);
+  
+  if (!current || now > current.resetTime) {
+    rateLimits.set(identifier, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+  
+  if (current.count >= maxRequests) {
+    return false;
+  }
+  
+  current.count++;
+  return true;
+}
+
+// Unified GP51 API Client (inlined core functionality)
+class GP51ApiClient {
+  private baseUrl: string;
+  private timeout: number;
+
+  constructor(baseUrl: string = 'https://www.gps51.com', timeout: number = 30000) {
+    this.baseUrl = baseUrl.replace(/\/webapi\/?$/, '');
+    this.timeout = timeout;
+  }
+
+  private async makeRequest(action: string, additionalParams?: Record<string, any>): Promise<any> {
+    const url = new URL(`${this.baseUrl}/webapi`);
+    url.searchParams.append('action', action);
+
+    console.log(`📤 [GP51Client] Making POST request to: ${url.toString()}`);
+    
+    const headers: HeadersInit = {
+      'User-Agent': 'Envio-Fleet-Management/1.0',
+      'Content-Type': 'application/json',
+    };
+
+    const body = additionalParams ? JSON.stringify(additionalParams) : undefined;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers,
+        body,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+
+      const responseText = await response.text();
+      console.log(`📊 [GP51Client] Response received, length: ${responseText.length}`);
+
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error(`❌ [GP51Client] JSON parse error:`, parseError);
+        throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}`);
+      }
+
+      return result;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error(`❌ [GP51Client] Request failed:`, error);
+      throw error;
+    }
+  }
+
+  async login(username: string, password: string): Promise<any> {
+    console.log(`🔐 [GP51Client] Attempting login for user: ${username}`);
+    
+    const hashedPassword = md5Hash(password);
+    
+    const loginParams = {
+      username: username.trim(),
+      password: hashedPassword,
+      logintype: 'WEB',
+      usertype: 'USER'
+    };
+
+    const result = await this.makeRequest('login', loginParams);
+    
+    if (result.status === 0 && result.token) {
+      console.log(`✅ [GP51Client] Login successful for ${username}`);
+      return result;
+    } else {
+      const errorMsg = result.cause || `Login failed with status ${result.status}`;
+      console.error(`❌ [GP51Client] Login failed: ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+  }
+}
+
+// Inlined GP51 authentication function
+async function authenticateWithGP51(username: string, password: string): Promise<{ success: boolean; token?: string; error?: string }> {
+  const trimmedUsername = sanitizeInput(username);
+  console.log('🔐 Starting GP51 credential validation for user:', trimmedUsername);
+  
+  if (!isValidUsername(trimmedUsername)) {
+    return {
+      success: false,
+      error: 'Invalid username format'
+    };
+  }
+  
+  try {
+    const client = new GP51ApiClient();
+    console.log('🔄 Attempting login with GP51 API...');
+    
+    const loginResult = await client.login(trimmedUsername, password);
+
+    console.log(`✅ GP51 authentication successful for ${trimmedUsername}`);
+    
+    return {
+      success: true,
+      token: loginResult.token
+    };
+
+  } catch (error) {
+    console.error('❌ GP51 authentication failed:', error);
+    
+    if (error.name === 'AbortError') {
+      return {
+        success: false,
+        error: 'GP51 connection timed out. Please try again.'
+      };
+    }
+    
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Authentication failed'
+    };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeadersLocal })
+    return new Response(null, { headers: corsHeaders })
   }
 
   try {
@@ -23,7 +182,18 @@ serve(async (req) => {
     if (!username || !password) {
       return new Response(
         JSON.stringify({ error: 'Username and password are required' }),
-        { status: 400, headers: { ...corsHeadersLocal, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    const clientIp = req.headers.get('x-forwarded-for') || 'unknown';
+    
+    // Rate limiting check
+    if (!checkRateLimit(clientIp)) {
+      console.log('❌ Rate limit exceeded for IP:', clientIp);
+      return new Response(
+        JSON.stringify({ error: 'Too many requests. Please try again later.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -44,10 +214,7 @@ serve(async (req) => {
 
     // Step 1: Authenticate with GP51
     console.log('📡 Authenticating with GP51...')
-    const gp51AuthResult = await authenticateWithGP51({
-      username: trimmedUsername,
-      password
-    })
+    const gp51AuthResult = await authenticateWithGP51(trimmedUsername, password)
 
     if (!gp51AuthResult.success) {
       console.log('❌ GP51 authentication failed:', gp51AuthResult.error)
@@ -55,7 +222,7 @@ serve(async (req) => {
         JSON.stringify({ 
           error: gp51AuthResult.error || 'GP51 authentication failed'
         }),
-        { status: 401, headers: { ...corsHeadersLocal, 'Content-Type': 'application/json' } }
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -84,7 +251,9 @@ serve(async (req) => {
       // Step 3: Create new Envio user with auto-generated email
       console.log('👤 Creating new Envio user for GP51 username...')
       
-      const autoEmail = `${trimmedUsername.replace(/[^a-zA-Z0-9]/g, '_')}@gp51.local`
+      // Generate a safe email from username
+      const safeUsername = trimmedUsername.replace(/[^a-zA-Z0-9]/g, '_');
+      const autoEmail = `${safeUsername}@gp51.local`
       const tempPassword = `gp51_${crypto.randomUUID()}`
 
       // Create auth user
@@ -102,7 +271,7 @@ serve(async (req) => {
         console.error('❌ Failed to create auth user:', authError)
         return new Response(
           JSON.stringify({ error: 'Failed to create user account' }),
-          { status: 500, headers: { ...corsHeadersLocal, 'Content-Type': 'application/json' } }
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
@@ -124,7 +293,7 @@ serve(async (req) => {
         await adminClient.auth.admin.deleteUser(authData.user.id)
         return new Response(
           JSON.stringify({ error: 'Failed to create user profile' }),
-          { status: 500, headers: { ...corsHeadersLocal, 'Content-Type': 'application/json' } }
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
@@ -178,7 +347,7 @@ serve(async (req) => {
       console.error('❌ Failed to create session:', sessionError)
       return new Response(
         JSON.stringify({ error: 'Failed to create session' }),
-        { status: 500, headers: { ...corsHeadersLocal, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -219,7 +388,7 @@ serve(async (req) => {
       }),
       { 
         status: 200, 
-        headers: { ...corsHeadersLocal, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
 
@@ -231,7 +400,7 @@ serve(async (req) => {
       }),
       { 
         status: 500, 
-        headers: { ...corsHeadersLocal, 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )
   }
