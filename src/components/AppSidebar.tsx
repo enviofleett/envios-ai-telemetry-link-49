@@ -1,6 +1,6 @@
 
 import React from "react"
-import { useAuth } from "@/contexts/AuthContext"
+import { useUnifiedAuth } from "@/contexts/UnifiedAuthContext"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Activity, LogOut } from "lucide-react"
 
@@ -21,7 +21,7 @@ import { AppSidebarQuickActions } from "./sidebar/AppSidebarQuickActions"
 import { menuItems, agentMenuItems, quickActions } from "@/config/sidebar-menu"
 
 export function AppSidebar() {
-  const { user, isAdmin, isAgent, signOut, loading, isCheckingRole } = useAuth()
+  const { user, signOut, loading } = useUnifiedAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const isMobile = useIsMobile()
@@ -40,8 +40,8 @@ export function AppSidebar() {
     return null;
   }
 
-  // Show loading state while checking roles
-  if (loading || isCheckingRole) {
+  // Show loading state while checking auth
+  if (loading) {
     return (
       <Sidebar>
         <SidebarHeader className="border-b border-sidebar-border">
@@ -64,23 +64,8 @@ export function AppSidebar() {
     );
   }
 
-  // Determine which menu items to show based on user role
-  const getMenuItems = () => {
-    if (isAdmin) {
-      return menuItems; // Full admin menu
-    } else if (isAgent) {
-      return agentMenuItems; // Agent-specific menu
-    } else {
-      // Regular user menu (filtered by features)
-      return menuItems.filter(item => !item.featureId || [
-        'live_tracking',
-        'vehicle_access',
-        'reporting'
-      ].includes(item.featureId));
-    }
-  };
-
-  const currentMenuItems = getMenuItems();
+  // For now, use the full menu items since we don't have role checking in UnifiedAuth yet
+  const currentMenuItems = menuItems;
 
   return (
     <Sidebar>
@@ -99,8 +84,8 @@ export function AppSidebar() {
       <SidebarContent>
         <AppSidebarNavigation menuItems={currentMenuItems} />
         
-        {/* Show quick actions for admin users */}
-        {isAdmin && <AppSidebarQuickActions quickActions={quickActions} />}
+        {/* Show quick actions for authenticated users */}
+        {user && <AppSidebarQuickActions quickActions={quickActions} />}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border">
@@ -113,7 +98,7 @@ export function AppSidebar() {
               <div className="grid flex-1 text-left text-xs leading-tight">
                 <span className="truncate font-medium">{user?.email}</span>
                 <span className="truncate text-sidebar-foreground/70">
-                  {isAdmin ? 'Admin' : isAgent ? 'Agent' : 'User'}
+                  User
                 </span>
               </div>
             </div>
