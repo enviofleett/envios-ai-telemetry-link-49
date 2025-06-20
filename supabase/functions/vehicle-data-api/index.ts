@@ -1,11 +1,10 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-api-key',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 interface TokenValidationResult {
@@ -17,42 +16,29 @@ interface TokenValidationResult {
   error?: string;
 }
 
-interface VehicleTelemetryData {
-  vehicle_id: string;
-  location?: {
-    latitude: number;
-    longitude: number;
-    timestamp: string;
-  };
-  speed?: number;
-  mileage?: {
-    daily: number;
-    total: number;
-  };
-  fuel_consumption?: number;
-  engine_data?: Record<string, any>;
-  voltage?: number;
-  last_updated: string;
-}
-
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseClient = createClient(
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    );
 
     const url = new URL(req.url);
-    const pathname = url.pathname;
-    const apiKey = req.headers.get('x-api-key');
+    const path = url.pathname;
+    const method = req.method;
 
-    if (!apiKey) {
+    console.log(`Vehicle Data API: ${method} ${path}`);
+
+    // Extract token from Authorization header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return new Response(
-        JSON.stringify({ error: 'API key required. Please provide x-api-key header.' }),
+        JSON.stringify({ error: 'Missing or invalid authorization header' }),
         { 
           status: 401, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -60,69 +46,53 @@ serve(async (req) => {
       );
     }
 
-    // Validate token and get authorization details
-    const tokenValidation = await validateToken(supabaseClient, apiKey);
-    
-    if (!tokenValidation.isValid) {
+    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    console.log('Extracted token:', token.substring(0, 20) + '...');
+
+    // Validate token
+    const validation = await validateToken(supabase, token);
+    if (!validation.isValid) {
       return new Response(
-        JSON.stringify({ error: tokenValidation.error || 'Invalid API key' }),
+        JSON.stringify({ error: validation.error || 'Invalid token' }),
         { 
-          status: 403, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
-    }
-
-    const startTime = Date.now();
-    let response: Response;
-    let vehicleId: string | undefined;
-
-    // Route requests
-    if (pathname === '/vehicle-data-api/v1/user') {
-      response = await handleUserProfileRequest(supabaseClient, tokenValidation);
-    } else if (pathname === '/vehicle-data-api/v1/vehicles') {
-      response = await handleVehicleListRequest(supabaseClient, tokenValidation);
-    } else if (pathname.startsWith('/vehicle-data-api/v1/vehicles/')) {
-      vehicleId = pathname.split('/').pop();
-      response = await handleVehicleTelemetryRequest(supabaseClient, tokenValidation, vehicleId);
-    } else if (pathname === '/vehicle-data-api/v1/telemetry') {
-      response = await handleBulkTelemetryRequest(supabaseClient, tokenValidation, url);
-    } else {
-      response = new Response(
-        JSON.stringify({ 
-          error: 'Endpoint not found',
-          available_endpoints: [
-            '/vehicle-data-api/v1/user',
-            '/vehicle-data-api/v1/vehicles',
-            '/vehicle-data-api/v1/vehicles/{id}',
-            '/vehicle-data-api/v1/telemetry'
-          ]
-        }),
-        { 
-          status: 404, 
+          status: 401, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
 
     // Log API usage
-    const responseTime = Date.now() - startTime;
-    await logApiUsage(supabaseClient, {
-      tokenId: tokenValidation.token.id,
-      userId: tokenValidation.token.user_id,
-      endpoint: pathname,
-      vehicleId,
-      requestMethod: req.method,
-      responseStatus: response.status,
-      responseTimeMs: responseTime,
-      ipAddress: req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for'),
-      userAgent: req.headers.get('user-agent')
+    await logApiUsage(supabase, {
+      tokenId: validation.token.id,
+      userId: validation.token.user_id,
+      endpoint: path,
+      requestMethod: method,
+      responseStatus: 200,
+      ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
+      userAgent: req.headers.get('user-agent') || 'unknown'
     });
 
-    return response;
+    // Route requests
+    if (path === '/telemetry' && method === 'GET') {
+      return await handleTelemetryRequest(supabase, validation, url);
+    } else if (path === '/vehicles' && method === 'GET') {
+      return await handleVehicleListRequest(supabase, validation);
+    } else if (path === '/subscription' && method === 'GET') {
+      return await handleSubscriptionInfoRequest(validation);
+    } else if (path === '/usage' && method === 'GET') {
+      return await handleUsageStatsRequest(supabase, validation);
+    }
+
+    return new Response(
+      JSON.stringify({ error: 'Endpoint not found' }),
+      { 
+        status: 404, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
 
   } catch (error) {
-    console.error('API Gateway Error:', error);
+    console.error('Vehicle Data API Error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { 
@@ -131,7 +101,7 @@ serve(async (req) => {
       }
     );
   }
-})
+});
 
 async function validateToken(supabase: any, tokenString: string): Promise<TokenValidationResult> {
   try {
@@ -149,6 +119,7 @@ async function validateToken(supabase: any, tokenString: string): Promise<TokenV
       .single();
 
     if (error || !tokenData) {
+      console.log('Token validation error:', error);
       return {
         isValid: false,
         authorizedVehicleIds: [],
@@ -186,7 +157,7 @@ async function validateToken(supabase: any, tokenString: string): Promise<TokenV
       };
     }
 
-    // Update last used timestamp
+    // Update last used timestamp and usage count
     await supabase
       .from('sharing_tokens')
       .update({ 
@@ -212,34 +183,72 @@ async function validateToken(supabase: any, tokenString: string): Promise<TokenV
   }
 }
 
-async function handleUserProfileRequest(supabase: any, tokenValidation: TokenValidationResult): Promise<Response> {
-  const { data: user, error } = await supabase
-    .from('envio_users')
-    .select('id, name, email, phone_number')
-    .eq('id', tokenValidation.token.user_id)
-    .single();
+async function handleTelemetryRequest(supabase: any, validation: TokenValidationResult, url: URL) {
+  const vehicleIds = url.searchParams.get('vehicle_ids');
+  const dataPoints = url.searchParams.get('data_points');
 
-  if (error) {
+  // Parse vehicle IDs
+  let requestedVehicleIds: string[] = [];
+  if (vehicleIds) {
+    requestedVehicleIds = vehicleIds.split(',').map(id => id.trim());
+  } else {
+    requestedVehicleIds = validation.authorizedVehicleIds;
+  }
+
+  // Ensure requested vehicles are authorized
+  const authorizedVehicleIds = requestedVehicleIds.filter(id => 
+    validation.authorizedVehicleIds.includes(id)
+  );
+
+  if (authorizedVehicleIds.length === 0) {
     return new Response(
-      JSON.stringify({ error: 'User not found' }),
+      JSON.stringify({ error: 'No authorized vehicles found' }),
       { 
-        status: 404, 
+        status: 403, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
 
+  // Parse data points
+  let requestedDataPoints: string[] = [];
+  if (dataPoints) {
+    requestedDataPoints = dataPoints.split(',').map(point => point.trim());
+  } else {
+    requestedDataPoints = validation.product?.data_points_included || [];
+  }
+
+  // Ensure requested data points are included in the product
+  const allowedDataPoints = requestedDataPoints.filter(point =>
+    validation.product?.data_points_included?.includes(point)
+  );
+
+  // Check rate limits
+  const rateLimitPassed = await checkRateLimit(
+    supabase, 
+    validation.token.id, 
+    '/telemetry', 
+    validation.product?.features?.rate_limit_per_hour || 100
+  );
+
+  if (!rateLimitPassed) {
+    return new Response(
+      JSON.stringify({ error: 'Rate limit exceeded' }),
+      { 
+        status: 429, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+
+  // Fetch vehicle telemetry data
+  const telemetryData = await getVehicleTelemetryData(supabase, authorizedVehicleIds, allowedDataPoints);
+
   return new Response(
     JSON.stringify({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone_number,
-      subscription: {
-        product: tokenValidation.product.name,
-        expires_at: tokenValidation.subscription.end_date,
-        status: tokenValidation.subscription.status
-      }
+      vehicles: telemetryData,
+      data_points: allowedDataPoints,
+      timestamp: new Date().toISOString()
     }),
     { 
       status: 200, 
@@ -248,13 +257,15 @@ async function handleUserProfileRequest(supabase: any, tokenValidation: TokenVal
   );
 }
 
-async function handleVehicleListRequest(supabase: any, tokenValidation: TokenValidationResult): Promise<Response> {
+async function handleVehicleListRequest(supabase: any, validation: TokenValidationResult) {
+  // Get basic vehicle information for authorized vehicles
   const { data: vehicles, error } = await supabase
     .from('vehicles')
-    .select('id, vehicle_name, make, model, year, device_id, last_updated')
-    .in('id', tokenValidation.authorizedVehicleIds);
+    .select('id, make, model, year, license_plate, created_at')
+    .in('id', validation.authorizedVehicleIds);
 
   if (error) {
+    console.error('Error fetching vehicles:', error);
     return new Response(
       JSON.stringify({ error: 'Failed to fetch vehicles' }),
       { 
@@ -267,8 +278,7 @@ async function handleVehicleListRequest(supabase: any, tokenValidation: TokenVal
   return new Response(
     JSON.stringify({
       vehicles: vehicles || [],
-      total_count: (vehicles || []).length,
-      authorized_vehicle_ids: tokenValidation.authorizedVehicleIds
+      count: vehicles?.length || 0
     }),
     { 
       status: 200, 
@@ -277,59 +287,27 @@ async function handleVehicleListRequest(supabase: any, tokenValidation: TokenVal
   );
 }
 
-async function handleVehicleTelemetryRequest(
-  supabase: any, 
-  tokenValidation: TokenValidationResult, 
-  vehicleId?: string
-): Promise<Response> {
-  if (!vehicleId) {
-    return new Response(
-      JSON.stringify({ error: 'Vehicle ID required' }),
-      { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-  }
-
-  if (!tokenValidation.authorizedVehicleIds.includes(vehicleId)) {
-    return new Response(
-      JSON.stringify({ error: 'Access denied for this vehicle' }),
-      { 
-        status: 403, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-  }
-
-  const { data: vehicle, error } = await supabase
-    .from('vehicles')
-    .select(`
-      id,
-      vehicle_name,
-      last_position,
-      total_mileage,
-      last_updated,
-      voltage,
-      fuel_level
-    `)
-    .eq('id', vehicleId)
-    .single();
-
-  if (error) {
-    return new Response(
-      JSON.stringify({ error: 'Vehicle not found' }),
-      { 
-        status: 404, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-  }
-
-  const telemetryData = buildTelemetryData(vehicle, tokenValidation.product.data_points_included);
-
+async function handleSubscriptionInfoRequest(validation: TokenValidationResult) {
   return new Response(
-    JSON.stringify(telemetryData),
+    JSON.stringify({
+      subscription: {
+        id: validation.subscription?.id,
+        status: validation.subscription?.status,
+        start_date: validation.subscription?.start_date,
+        end_date: validation.subscription?.end_date,
+        product: {
+          name: validation.product?.name,
+          category: validation.product?.category,
+          data_points_included: validation.product?.data_points_included,
+          features: validation.product?.features
+        }
+      },
+      token: {
+        expires_at: validation.token?.expires_at,
+        usage_count: validation.token?.usage_count,
+        authorized_vehicles: validation.authorizedVehicleIds
+      }
+    }),
     { 
       status: 200, 
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -337,32 +315,74 @@ async function handleVehicleTelemetryRequest(
   );
 }
 
-async function handleBulkTelemetryRequest(
-  supabase: any, 
-  tokenValidation: TokenValidationResult, 
-  url: URL
-): Promise<Response> {
-  const vehicleIds = url.searchParams.get('vehicle_ids')?.split(',') || tokenValidation.authorizedVehicleIds;
-  const unauthorizedVehicles = vehicleIds.filter(id => !tokenValidation.authorizedVehicleIds.includes(id));
-  
-  if (unauthorizedVehicles.length > 0) {
+async function handleUsageStatsRequest(supabase: any, validation: TokenValidationResult) {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - 30); // Last 30 days
+
+  const { data: usageLogs, error } = await supabase
+    .from('api_usage_logs')
+    .select('endpoint, response_status, response_time_ms, created_at')
+    .eq('token_id', validation.token.id)
+    .gte('created_at', startDate.toISOString());
+
+  if (error) {
+    console.error('Error fetching usage stats:', error);
     return new Response(
-      JSON.stringify({ 
-        error: 'Access denied for vehicles', 
-        unauthorized_vehicles: unauthorizedVehicles 
-      }),
+      JSON.stringify({ error: 'Failed to fetch usage stats' }),
       { 
-        status: 403, 
+        status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
 
+  const logs = usageLogs || [];
+  const totalRequests = logs.length;
+  const successfulRequests = logs.filter(log => log.response_status >= 200 && log.response_status < 300).length;
+  const failedRequests = totalRequests - successfulRequests;
+  
+  const responseTimes = logs
+    .filter(log => log.response_time_ms !== null)
+    .map(log => log.response_time_ms);
+  
+  const averageResponseTime = responseTimes.length > 0 
+    ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length 
+    : 0;
+
+  // Calculate top endpoints
+  const endpointCounts = logs.reduce((acc, log) => {
+    acc[log.endpoint] = (acc[log.endpoint] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const topEndpoints = Object.entries(endpointCounts)
+    .map(([endpoint, count]) => ({ endpoint, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  return new Response(
+    JSON.stringify({
+      period: '30_days',
+      stats: {
+        total_requests: totalRequests,
+        successful_requests: successfulRequests,
+        failed_requests: failedRequests,
+        average_response_time: Math.round(averageResponseTime),
+        top_endpoints: topEndpoints
+      }
+    }),
+    { 
+      status: 200, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    }
+  );
+}
+
+async function getVehicleTelemetryData(supabase: any, vehicleIds: string[], dataPoints: string[]) {
   const { data: vehicles, error } = await supabase
     .from('vehicles')
     .select(`
       id,
-      vehicle_name,
       last_position,
       total_mileage,
       last_updated,
@@ -372,76 +392,75 @@ async function handleBulkTelemetryRequest(
     .in('id', vehicleIds);
 
   if (error) {
-    return new Response(
-      JSON.stringify({ error: 'Failed to fetch vehicle data' }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    console.error('Failed to fetch vehicle telemetry:', error);
+    throw new Error(`Failed to fetch telemetry: ${error.message}`);
   }
 
-  const telemetryData = (vehicles || []).map(vehicle => 
-    buildTelemetryData(vehicle, tokenValidation.product.data_points_included)
-  );
+  return (vehicles || []).map((vehicle: any) => {
+    const telemetry: any = {
+      vehicle_id: vehicle.id,
+      last_updated: vehicle.last_updated || new Date().toISOString()
+    };
 
-  return new Response(
-    JSON.stringify({
-      vehicles: telemetryData,
-      total_count: telemetryData.length,
-      requested_vehicle_ids: vehicleIds
-    }),
-    { 
-      status: 200, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    // Add requested data points
+    if (dataPoints.includes('location') && vehicle.last_position) {
+      const position = typeof vehicle.last_position === 'string' 
+        ? JSON.parse(vehicle.last_position) 
+        : vehicle.last_position;
+      
+      if (position.latitude && position.longitude) {
+        telemetry.location = {
+          latitude: position.latitude,
+          longitude: position.longitude,
+          timestamp: position.timestamp || vehicle.last_updated
+        };
+      }
     }
-  );
-}
 
-function buildTelemetryData(vehicle: any, dataPoints: string[]): VehicleTelemetryData {
-  const telemetry: VehicleTelemetryData = {
-    vehicle_id: vehicle.id,
-    last_updated: vehicle.last_updated || new Date().toISOString()
-  };
+    if (dataPoints.includes('speed') && vehicle.last_position) {
+      const position = typeof vehicle.last_position === 'string' 
+        ? JSON.parse(vehicle.last_position) 
+        : vehicle.last_position;
+      telemetry.speed = position.speed || 0;
+    }
 
-  // Add requested data points
-  if (dataPoints.includes('location') && vehicle.last_position) {
-    const position = typeof vehicle.last_position === 'string' 
-      ? JSON.parse(vehicle.last_position) 
-      : vehicle.last_position;
-    
-    if (position.latitude && position.longitude)>
-      telemetry.location = {
-        latitude: position.latitude,
-        longitude: position.longitude,
-        timestamp: position.timestamp || vehicle.last_updated
+    if (dataPoints.includes('mileage')) {
+      telemetry.mileage = {
+        daily: 0, // Would need implementation based on position history
+        total: vehicle.total_mileage || 0
       };
     }
+
+    if (dataPoints.includes('fuel_consumption')) {
+      telemetry.fuel_consumption = vehicle.fuel_level || 0;
+    }
+
+    if (dataPoints.includes('voltage')) {
+      telemetry.voltage = vehicle.voltage || 0;
+    }
+
+    return telemetry;
+  });
+}
+
+async function checkRateLimit(supabase: any, tokenId: string, endpoint: string, rateLimitPerHour: number): Promise<boolean> {
+  const oneHourAgo = new Date();
+  oneHourAgo.setHours(oneHourAgo.getHours() - 1);
+
+  const { data, error } = await supabase
+    .from('api_usage_logs')
+    .select('id')
+    .eq('token_id', tokenId)
+    .eq('endpoint', endpoint)
+    .gte('created_at', oneHourAgo.toISOString());
+
+  if (error) {
+    console.error('Failed to check rate limit:', error);
+    return false; // Allow request if we can't check
   }
 
-  if (dataPoints.includes('speed') && vehicle.last_position) {
-    const position = typeof vehicle.last_position === 'string' 
-      ? JSON.parse(vehicle.last_position) 
-      : vehicle.last_position;
-    telemetry.speed = position.speed || 0;
-  }
-
-  if (dataPoints.includes('mileage')) {
-    telemetry.mileage = {
-      daily: 0, // Would need to calculate from position history
-      total: vehicle.total_mileage || 0
-    };
-  }
-
-  if (dataPoints.includes('fuel_consumption')) {
-    telemetry.fuel_consumption = vehicle.fuel_level || 0;
-  }
-
-  if (dataPoints.includes('voltage')) {
-    telemetry.voltage = vehicle.voltage || 0;
-  }
-
-  return telemetry;
+  const currentUsage = data?.length || 0;
+  return currentUsage < rateLimitPerHour;
 }
 
 async function logApiUsage(supabase: any, params: {
@@ -452,11 +471,12 @@ async function logApiUsage(supabase: any, params: {
   requestMethod: string;
   responseStatus: number;
   responseTimeMs?: number;
+  requestData?: any;
   ipAddress?: string;
   userAgent?: string;
 }): Promise<void> {
   try {
-    await supabase
+    const { error } = await supabase
       .from('api_usage_logs')
       .insert({
         token_id: params.tokenId,
@@ -466,10 +486,15 @@ async function logApiUsage(supabase: any, params: {
         request_method: params.requestMethod,
         response_status: params.responseStatus,
         response_time_ms: params.responseTimeMs,
+        request_data: params.requestData,
         ip_address: params.ipAddress,
         user_agent: params.userAgent
       });
+
+    if (error) {
+      console.error('Failed to log API usage:', error);
+    }
   } catch (error) {
-    console.error('Failed to log API usage:', error);
+    console.error('Error logging API usage:', error);
   }
 }
