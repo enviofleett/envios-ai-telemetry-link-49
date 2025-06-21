@@ -1,399 +1,241 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { md5_for_gp51_only, checkRateLimit } from '../_shared/crypto_utils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface AuthRequest {
-  action: string;
-  username: string;
-  password: string;
-  apiUrl?: string;
-}
-
-// Inline MD5 implementation for GP51 compatibility
-async function createMD5Hash(input: string): Promise<string> {
-  console.log(`🔐 Creating MD5 hash for input of length: ${input.length}`);
-  
-  try {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(input);
-    
-    // Initialize MD5 constants
-    const h = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476];
-    
-    // Pre-processing: adding padding bits
-    const msgLength = data.length;
-    const paddedLength = Math.ceil((msgLength + 9) / 64) * 64;
-    const padded = new Uint8Array(paddedLength);
-    padded.set(data);
-    padded[msgLength] = 0x80;
-    
-    // Append original length in bits as 64-bit little-endian
-    const lengthInBits = msgLength * 8;
-    const view = new DataView(padded.buffer);
-    view.setUint32(paddedLength - 8, lengthInBits, true);
-    view.setUint32(paddedLength - 4, Math.floor(lengthInBits / 0x100000000), true);
-    
-    // Process the message in 512-bit chunks
-    for (let offset = 0; offset < paddedLength; offset += 64) {
-      const chunk = new Uint32Array(padded.buffer, offset, 16);
-      
-      // Convert to little-endian
-      for (let i = 0; i < 16; i++) {
-        chunk[i] = ((chunk[i] & 0xFF) << 24) | 
-                   (((chunk[i] >>> 8) & 0xFF) << 16) | 
-                   (((chunk[i] >>> 16) & 0xFF) << 8) | 
-                   ((chunk[i] >>> 24) & 0xFF);
-      }
-      
-      // Initialize hash value for this chunk
-      let [a, b, c, d] = h;
-      
-      // Main loop
-      for (let i = 0; i < 64; i++) {
-        let f, g;
-        
-        if (i < 16) {
-          f = (b & c) | (~b & d);
-          g = i;
-        } else if (i < 32) {
-          f = (d & b) | (~d & c);
-          g = (5 * i + 1) % 16;
-        } else if (i < 48) {
-          f = b ^ c ^ d;
-          g = (3 * i + 5) % 16;
-        } else {
-          f = c ^ (b | ~d);
-          g = (7 * i) % 16;
-        }
-        
-        const temp = d;
-        d = c;
-        c = b;
-        
-        const s = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21][Math.floor(i / 4) % 16];
-        const k = [
-          0xD76AA478, 0xE8C7B756, 0x242070DB, 0xC1BDCEEE, 0xF57C0FAF, 0x4787C62A, 0xA8304613, 0xFD469501,
-          0x698098D8, 0x8B44F7AF, 0xFFFF5BB1, 0x895CD7BE, 0x6B901122, 0xFD987193, 0xA679438E, 0x49B40821,
-          0xF61E2562, 0xC040B340, 0x265E5A51, 0xE9B6C7AA, 0xD62F105D, 0x02441453, 0xD8A1E681, 0xE7D3FBC8,
-          0x21E1CDE6, 0xC33707D6, 0xF4D50D87, 0x455A14ED, 0xA9E3E905, 0xFCEFA3F8, 0x676F02D9, 0x8D2A4C8A,
-          0xFFFA3942, 0x8771F681, 0x6D9D6122, 0xFDE5380C, 0xA4BEEA44, 0x4BDECFA9, 0xF6BB4B60, 0xBEBFBC70,
-          0x289B7EC6, 0xEAA127FA, 0xD4EF3085, 0x04881D05, 0xD9D4D039, 0xE6DB99E5, 0x1FA27CF8, 0xC4AC5665,
-          0xF4292244, 0x432AFF97, 0xAB9423A7, 0xFC93A039, 0x655B59C3, 0x8F0CCC92, 0xFFEFF47D, 0x85845DD1,
-          0x6FA87E4F, 0xFE2CE6E0, 0xA3014314, 0x4E0811A1, 0xF7537E82, 0xBD3AF235, 0x2AD7D2BB, 0xEB86D391
-        ][i];
-        
-        a = (a + f + k + chunk[g]) >>> 0;
-        a = ((a << s) | (a >>> (32 - s))) >>> 0;
-        a = (a + b) >>> 0;
-        
-        [a, b, c, d] = [temp, a, b, c];
-      }
-      
-      // Add this chunk's hash to result so far
-      h[0] = (h[0] + a) >>> 0;
-      h[1] = (h[1] + b) >>> 0;
-      h[2] = (h[2] + c) >>> 0;
-      h[3] = (h[3] + d) >>> 0;
-    }
-    
-    // Convert hash to hex string (little-endian)
-    const result = h.map(n => {
-      return [
-        (n & 0xFF).toString(16).padStart(2, '0'),
-        ((n >>> 8) & 0xFF).toString(16).padStart(2, '0'),
-        ((n >>> 16) & 0xFF).toString(16).padStart(2, '0'),
-        ((n >>> 24) & 0xFF).toString(16).padStart(2, '0')
-      ].join('');
-    }).join('');
-    
-    console.log(`✅ MD5 hash generated successfully: ${result.substring(0, 8)}...`);
-    return result;
-    
-  } catch (error) {
-    console.error('❌ MD5 hashing failed:', error);
-    throw new Error('MD5 hash generation failed');
-  }
-}
-
-// Inline GP51 authentication function
-async function authenticateWithGP51(credentials: { username: string; password: string; apiUrl?: string }) {
-  console.log('🔐 [GP51-AUTH] Starting authentication process');
-  
-  const { username, password, apiUrl = 'https://www.gps51.com/webapi' } = credentials;
-  const globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
-  
-  if (!globalToken) {
-    console.error('❌ [GP51-AUTH] GP51_GLOBAL_API_TOKEN not configured');
-    return {
-      success: false,
-      error: 'GP51 Global API Token not configured'
-    };
-  }
-
-  console.log('🔄 [GP51-AUTH] Step 1: Environment validation complete');
-  console.log('🔑 [GP51-AUTH] Global API token found (length:', globalToken.length, ')');
-  console.log('🌐 [GP51-AUTH] Using API URL:', apiUrl);
-
-  try {
-    // Step 1: Generate MD5 hash
-    console.log('🔄 [GP51-AUTH] Step 2: Generating MD5 hash');
-    const hashedPassword = await createMD5Hash(password);
-    console.log('✅ [GP51-AUTH] MD5 hash generated successfully');
-
-    // Step 2: Prepare login request
-    console.log('🔄 [GP51-AUTH] Step 3: Preparing login request');
-    
-    const loginUrl = `${apiUrl}?action=login`;
-    const loginPayload = {
-      username: username.trim(),
-      password: hashedPassword,
-      from: 'WEB',
-      type: 'USER',
-      token: globalToken
-    };
-
-    console.log('📊 [GP51-AUTH] Login request details:');
-    console.log('  - URL:', loginUrl);
-    console.log('  - Username:', username.trim());
-    console.log('  - Password hash:', hashedPassword.substring(0, 8) + '...');
-    console.log('  - From: WEB');
-    console.log('  - Type: USER');
-    console.log('  - Token (first 10 chars):', globalToken.substring(0, 10) + '...');
-
-    // Step 3: Make login request
-    console.log('🔄 [GP51-AUTH] Step 4: Making login request to GP51');
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-
-    const response = await fetch(loginUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'EnvioFleet-Hybrid-Auth/1.0'
-      },
-      body: JSON.stringify(loginPayload),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    console.log('📈 [GP51-AUTH] GP51 API Response Status:', response.status);
-    console.log('📈 [GP51-AUTH] Response Headers:', Object.fromEntries(response.headers.entries()));
-
-    if (!response.ok) {
-      console.error('❌ [GP51-AUTH] HTTP Error:', response.status, response.statusText);
-      return {
-        success: false,
-        error: `GP51 API returned ${response.status}: ${response.statusText}`
-      };
-    }
-
-    // Step 4: Parse response
-    const responseText = await response.text();
-    console.log('📄 [GP51-AUTH] Raw response length:', responseText.length);
-    console.log('📄 [GP51-AUTH] Raw response preview:', responseText.substring(0, 200));
-
-    if (!responseText || responseText.trim() === '') {
-      console.error('❌ [GP51-AUTH] Empty response from GP51 API');
-      
-      // Generate curl command for manual testing
-      const curlCommand = `curl -X POST "${loginUrl}" \\
-  -H "Content-Type: application/json" \\
-  -H "Accept: application/json" \\
-  -H "User-Agent: EnvioFleet-Hybrid-Auth/1.0" \\
-  -d '${JSON.stringify(loginPayload, null, 2)}'`;
-      
-      console.log('🔧 [GP51-AUTH] Test this manually with curl:');
-      console.log(curlCommand);
-      
-      return {
-        success: false,
-        error: 'Empty response from GP51 API. Check credentials and API endpoint.',
-        debug: {
-          url: loginUrl,
-          payload: loginPayload,
-          curlCommand
-        }
-      };
-    }
-
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-      console.log('📊 [GP51-AUTH] Parsed response data:', responseData);
-    } catch (parseError) {
-      console.error('❌ [GP51-AUTH] JSON parsing failed:', parseError);
-      console.log('📄 [GP51-AUTH] Response was not valid JSON:', responseText);
-      return {
-        success: false,
-        error: 'Invalid JSON response from GP51 API',
-        debug: { responseText }
-      };
-    }
-
-    // Step 5: Validate response
-    if (responseData.status !== 0) {
-      const errorMsg = responseData.cause || responseData.message || 'Authentication failed';
-      console.error('❌ [GP51-AUTH] GP51 authentication failed:', errorMsg);
-      return {
-        success: false,
-        error: errorMsg
-      };
-    }
-
-    if (!responseData.token) {
-      console.error('❌ [GP51-AUTH] No token in successful response');
-      return {
-        success: false,
-        error: 'No authentication token received from GP51'
-      };
-    }
-
-    console.log('✅ [GP51-AUTH] Authentication successful');
-    console.log('🎟️ [GP51-AUTH] Token received (first 10 chars):', responseData.token.substring(0, 10) + '...');
-
-    return {
-      success: true,
-      token: responseData.token,
-      username: username.trim(),
-      apiUrl,
-      method: 'hybrid-auth'
-    };
-
-  } catch (error) {
-    console.error('❌ [GP51-AUTH] Exception during authentication:', error);
-    
-    if (error.name === 'AbortError') {
-      return {
-        success: false,
-        error: 'GP51 authentication request timed out'
-      };
-    }
-    
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown authentication error'
-    };
-  }
-}
-
 serve(async (req) => {
-  console.log('📥 [REQUEST]', req.method, req.url);
+  console.log(`📥 [REQUEST] ${req.method} ${req.url}`);
 
   if (req.method === 'OPTIONS') {
+    console.log('📥 [REQUEST] OPTIONS - returning CORS headers');
     return new Response(null, { headers: corsHeaders });
   }
 
+  const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+  console.log(`🌍 [CLIENT] IP: ${clientIP}`);
+  
+  // Rate limiting
+  if (!checkRateLimit(clientIP, 10, 15 * 60 * 1000)) {
+    return new Response(
+      JSON.stringify({ success: false, error: 'Too many requests. Please try again later.' }),
+      { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
-    // Enhanced environment variable validation
-    console.log('🔍 [ENV DEBUG] Environment variables check:');
-    const gp51ApiBaseUrl = Deno.env.get('GP51_API_BASE_URL');
-    const gp51BaseUrl = Deno.env.get('GP51_BASE_URL');
-    const gp51GlobalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    console.log('  - GP51_API_BASE_URL:', gp51ApiBaseUrl ? 'SET' : 'NOT SET');
-    console.log('  - GP51_BASE_URL:', gp51BaseUrl ? 'SET' : 'NOT SET');
-    console.log('  - GP51_GLOBAL_API_TOKEN:', gp51GlobalToken ? 'SET' : 'NOT SET');
-    console.log('  - SUPABASE_URL:', supabaseUrl ? 'SET' : 'NOT SET');
-    console.log('  - SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? 'SET' : 'NOT SET');
-
-    const body: AuthRequest = await req.json();
-    const { action, username, password, apiUrl } = body;
-
-    // Enhanced client IP logging
-    const clientIP = req.headers.get('x-forwarded-for') || 
-                    req.headers.get('x-real-ip') || 
-                    req.headers.get('cf-connecting-ip') || 
-                    'unknown';
-    console.log('🌍 [CLIENT] IP:', clientIP);
-    
-    // Sanitize username for logging (show first 3 chars + ***)
-    const sanitizedUsername = username ? username.substring(0, 3) + '***' : 'undefined';
-    console.log('📋 [REQUEST] Action:', action, ', Username:', sanitizedUsername);
-
-    if (action === 'authenticate') {
-      console.log('🔐 [AUTH] Starting GP51 authentication for user:', sanitizedUsername);
-      
-      // Environment validation
-      console.log('🔄 [AUTH] Step 1: Validating environment variables');
-      if (!gp51GlobalToken) {
-        console.error('❌ [AUTH] GP51_GLOBAL_API_TOKEN not configured');
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: 'GP51 Global API Token not configured',
-            code: 'MISSING_API_TOKEN'
-          }),
-          { 
-            status: 500, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
-      }
-
-      // Determine base URL with fallback logic
-      const baseUrl = apiUrl || gp51ApiBaseUrl || 'https://www.gps51.com/webapi';
-      console.log('🌐 [GP51] Using base URL:', baseUrl);
-      console.log('🔑 [GP51] Global API token found (length:', gp51GlobalToken.length, ')');
-
-      // Step 2: Call inline authentication function
-      console.log('🔄 [AUTH] Step 2: Calling GP51 authentication');
-      const authResult = await authenticateWithGP51({ 
-        username: username.trim(),
-        password,
-        apiUrl: baseUrl
-      });
-
-      if (authResult.success) {
-        console.log('✅ [AUTH] GP51 authentication successful for user:', sanitizedUsername);
-        return new Response(
-          JSON.stringify(authResult),
-          { 
-            status: 200, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
-      } else {
-        console.error('❌ [AUTH] GP51 authentication failed for user:', sanitizedUsername, 'Error:', authResult.error);
-        return new Response(
-          JSON.stringify(authResult),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        );
-      }
+    const body = await req.json().catch(() => null);
+    if (!body) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    return new Response(
-      JSON.stringify({ success: false, error: 'Invalid action' }),
-      { 
-        status: 400, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    const { action, username, password } = body;
+    console.log(`📋 [REQUEST] Action: ${action}, Username: ${username ? username.substring(0, 3) + '***' : 'undefined'}`);
+
+    // Environment variables check
+    const GP51_API_BASE_URL = Deno.env.get('GP51_API_BASE_URL');
+    const GP51_BASE_URL = Deno.env.get('GP51_BASE_URL');
+    const GP51_GLOBAL_API_TOKEN = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    console.log('🔍 [ENV DEBUG] Environment variables check:');
+    console.log(`  - GP51_API_BASE_URL: ${GP51_API_BASE_URL ? 'SET' : 'NOT SET'}`);
+    console.log(`  - GP51_BASE_URL: ${GP51_BASE_URL ? 'SET' : 'NOT SET'}`);
+    console.log(`  - GP51_GLOBAL_API_TOKEN: ${GP51_GLOBAL_API_TOKEN ? 'SET' : 'NOT SET'}`);
+    console.log(`  - SUPABASE_URL: ${SUPABASE_URL ? 'SET' : 'NOT SET'}`);
+    console.log(`  - SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET'}`);
+
+    switch (action) {
+      case 'authenticate':
+        return await authenticateWithGP51(username, password);
+      
+      default:
+        console.warn(`❌ Unknown action: ${action}`);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Invalid action' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+    }
 
   } catch (error) {
-    console.error('❌ [ERROR] GP51 Hybrid Auth error:', error);
+    console.error('❌ GP51 Hybrid Auth error:', error);
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Internal server error' 
       }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
+
+async function authenticateWithGP51(username: string, password: string) {
+  console.log(`🔐 [AUTH] Starting GP51 authentication for user: ${username ? username.substring(0, 3) + '***' : 'undefined'}`);
+
+  console.log('🔄 [AUTH] Step 1: Validating environment variables');
+  
+  // Use GP51_BASE_URL primarily, fallback to GP51_API_BASE_URL
+  let gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || Deno.env.get('GP51_API_BASE_URL');
+  const GP51_GLOBAL_API_TOKEN = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+
+  console.log(`🌐 [GP51] Using base URL: ${gp51BaseUrl}`);
+  console.log(`🔑 [GP51] Global API token found (length: ${GP51_GLOBAL_API_TOKEN ? GP51_GLOBAL_API_TOKEN.length : 0})`);
+
+  if (!gp51BaseUrl) {
+    console.error('❌ GP51_BASE_URL environment variable is not set!');
+    return new Response(
+      JSON.stringify({ success: false, error: 'GP51 Base URL not configured' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  if (!GP51_GLOBAL_API_TOKEN) {
+    console.error('❌ GP51_GLOBAL_API_TOKEN environment variable is not set!');
+    return new Response(
+      JSON.stringify({ success: false, error: 'GP51 Global API Token not configured' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  console.log('🔄 [AUTH] Step 2: Calling GP51 authentication');
+
+  // Ensure base URL has proper protocol and no trailing slash
+  if (!gp51BaseUrl.startsWith('http://') && !gp51BaseUrl.startsWith('https://')) {
+    gp51BaseUrl = 'https://' + gp51BaseUrl;
+    console.warn('Prepended https:// to GP51_BASE_URL for safety.');
+  }
+  if (gp51BaseUrl.endsWith('/')) {
+    gp51BaseUrl = gp51BaseUrl.slice(0, -1);
+  }
+
+  console.log('🔐 [GP51-AUTH] Starting authentication process');
+  console.log('🔄 [GP51-AUTH] Step 1: Environment validation complete');
+  console.log(`🌐 [GP51-AUTH] Using API URL: ${gp51BaseUrl}`);
+
+  try {
+    console.log('🔄 [GP51-AUTH] Step 2: Generating MD5 hash');
+    console.log(`🔐 Creating MD5 hash for input of length: ${password.length}`);
+    
+    // Use the improved MD5 implementation for GP51 compatibility
+    const gp51Hash = await md5_for_gp51_only(password);
+    console.log(`✅ MD5 hash generated successfully: ${gp51Hash.substring(0, 8)}...`);
+    console.log('✅ [GP51-AUTH] MD5 hash generated successfully');
+
+    console.log('🔄 [GP51-AUTH] Step 3: Preparing login request');
+
+    // Construct the full authentication URL with ALL parameters in the query string
+    const authUrl = new URL(`${gp51BaseUrl}/webapi`);
+    authUrl.searchParams.append('action', 'login');
+    authUrl.searchParams.append('token', GP51_GLOBAL_API_TOKEN);
+    authUrl.searchParams.append('username', username);
+    authUrl.searchParams.append('password', gp51Hash);
+    authUrl.searchParams.append('from', 'WEB');
+    authUrl.searchParams.append('type', 'USER');
+
+    console.log('📊 [GP51-AUTH] Login request details:');
+    console.log(`  - URL: ${authUrl.toString()}`);
+    console.log(`  - Username: ${username}`);
+    console.log(`  - Password hash: ${gp51Hash.substring(0, 8)}...`);
+    console.log(`  - From: WEB`);
+    console.log(`  - Type: USER`);
+    console.log(`  - Token (first 10 chars): ${GP51_GLOBAL_API_TOKEN.substring(0, 10)}...`);
+
+    console.log('🔄 [GP51-AUTH] Step 4: Making login request to GP51');
+    const authResponse = await fetch(authUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    console.log(`📈 [GP51-AUTH] GP51 API Response Status: ${authResponse.status}`);
+    const responseHeaders = Object.fromEntries(authResponse.headers.entries());
+    console.log('📈 [GP51-AUTH] Response Headers:', JSON.stringify(responseHeaders, null, 2));
+
+    if (!authResponse.ok) {
+      const errorText = await authResponse.text();
+      console.error(`❌ [GP51-AUTH] GP51 API response not OK: ${authResponse.status} - ${errorText}`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `GP51 authentication failed: HTTP ${authResponse.status}: ${errorText}` 
+        }),
+        { status: authResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const contentLength = authResponse.headers.get('content-length');
+    if (authResponse.status === 200 && contentLength === '0') {
+      console.error('❌ [GP51-AUTH] GP51 API returned 200 OK but with an empty response body');
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'GP51 authentication failed: Empty response received' 
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const responseText = await authResponse.text();
+    console.log(`📄 [GP51-AUTH] Raw response length: ${responseText.length}`);
+    console.log(`📄 [GP51-AUTH] Raw response preview: ${responseText.substring(0, 200)}`);
+
+    let authResult;
+    try {
+      authResult = JSON.parse(responseText);
+      console.log('📊 [GP51-AUTH] Parsed response data:', JSON.stringify(authResult, null, 2));
+    } catch (parseError) {
+      console.error('❌ [GP51-AUTH] Failed to parse response as JSON:', parseError);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: 'GP51 authentication failed: Invalid response format' 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check for GP51's internal status code (0 for success) and presence of token
+    if (authResult && authResult.status === 0 && authResult.token) {
+      console.log('✅ [GP51-AUTH] GP51 authentication successful');
+      return new Response(
+        JSON.stringify({ 
+          success: true,
+          token: authResult.token,
+          username: authResult.username || username,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          method: 'GET_URL_PARAMS'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      console.error('❌ [GP51-AUTH] GP51 authentication failed:', authResult.cause || 'Unknown error');
+      const errorMessage = authResult.cause || 'Authentication failed based on GP51 response status';
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `GP51 authentication failed: ${errorMessage}`,
+          details: authResult
+        }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+  } catch (error) {
+    console.error('❌ [GP51-AUTH] Unexpected error during authentication:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: `GP51 authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+}
