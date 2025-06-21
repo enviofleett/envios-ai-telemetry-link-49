@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { calculateMd5 } from '@/lib/crypto';
@@ -9,10 +8,18 @@ const API_TIMEOUT = 15000; // 15 seconds
 
 // Helper function to get GP51 API URL with robust construction
 const getGP51ApiUrl = (): string => {
-  // In a production environment, this would come from environment variables
-  // For now, using the standardized base URL
-  const baseUrl = 'https://www.gps51.com';
-  return baseUrl.replace(/\/$/, '') + '/webapi';
+  // Try to get from environment variable first, fallback to standard URL
+  const baseUrl = process.env.GP51_BASE_URL || 'https://www.gps51.com';
+  
+  // Remove trailing slash if present
+  const cleanUrl = baseUrl.replace(/\/$/, '');
+  
+  // Only append /webapi if it's not already present
+  if (!cleanUrl.endsWith('/webapi')) {
+    return cleanUrl + '/webapi';
+  }
+  
+  return cleanUrl;
 };
 
 // Interfaces
@@ -106,7 +113,7 @@ export const useGP51Auth = () => {
       const url = new URL(apiUrl);
       url.searchParams.append('action', 'login');
 
-      console.log('📡 Sending login request to GP51 via POST');
+      console.log(`📡 Sending login request to GP51 API: ${apiUrl}`);
 
       const response = await fetch(url.toString(), {
         method: 'POST',
