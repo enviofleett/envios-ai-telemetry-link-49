@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Key, Save, TestTube } from 'lucide-react';
+import { Key, Save, TestTube, CheckCircle, AlertCircle } from 'lucide-react';
 import { GP51_BASE_URL } from '@/services/gp51/urlHelpers';
 
 interface GP51CredentialSetupProps {
@@ -21,6 +22,7 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
   const [password, setPassword] = useState('');
   const [isStoring, setIsStoring] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
+  const [lastStoredHash, setLastStoredHash] = useState<string | null>(null);
   const { toast } = useToast();
 
   const storeCredentials = async () => {
@@ -56,10 +58,16 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
       }
 
       console.log('✅ [GP51-SETUP] Credentials stored successfully');
+      console.log('🔐 [GP51-SETUP] Hash details:', data.details);
+
+      // Store the hash preview for display
+      if (data.details?.hashPreview) {
+        setLastStoredHash(data.details.hashPreview);
+      }
 
       toast({
         title: "Success",
-        description: "GP51 credentials stored successfully. You can now login with username 'octopus'."
+        description: `GP51 credentials stored and validated successfully. Password properly MD5 hashed: ${data.details?.hashPreview || 'hash generated'}`
       });
 
       setPassword('');
@@ -116,11 +124,20 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
       <Alert>
         <AlertDescription>
           {compact 
-            ? "Configure GP51 credentials for admin access. Use the octopus account credentials."
-            : "Store GP51 credentials for the octopus account to enable vehicle import functionality."
+            ? "Configure GP51 credentials for admin access. Password will be MD5 hashed for security."
+            : "Store GP51 credentials for the octopus account. The password will be automatically MD5 hashed before storage and testing with the GP51 API."
           }
         </AlertDescription>
       </Alert>
+
+      {lastStoredHash && (
+        <Alert className="border-green-200 bg-green-50">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">
+            Last stored password hash: <code className="bg-green-100 px-1 rounded">{lastStoredHash}</code>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="space-y-2">
         <Label htmlFor="username">Username</Label>
@@ -141,15 +158,19 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Enter GP51 password for octopus account"
         />
+        <p className="text-xs text-gray-600">
+          Password will be automatically MD5 hashed before storage and GP51 testing
+        </p>
       </div>
 
       <div className="flex gap-2">
         <Button
           onClick={storeCredentials}
           disabled={isStoring || !password.trim()}
+          className="flex-1"
         >
           <Save className="h-4 w-4 mr-2" />
-          {isStoring ? 'Storing...' : 'Store Credentials'}
+          {isStoring ? 'Storing & Testing...' : 'Store & Test Credentials'}
         </Button>
 
         <Button
@@ -158,8 +179,14 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
           disabled={isTesting}
         >
           <TestTube className="h-4 w-4 mr-2" />
-          {isTesting ? 'Testing...' : 'Test Connection'}
+          {isTesting ? 'Testing...' : 'Test'}
         </Button>
+      </div>
+
+      <div className="text-xs text-gray-500 space-y-1">
+        <p>• Credentials are tested with GP51 API before storage</p>
+        <p>• Password is MD5 hashed for GP51 compatibility</p>
+        <p>• Uses {GP51_BASE_URL} API endpoint</p>
       </div>
     </>
   );
