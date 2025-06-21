@@ -1,7 +1,8 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { md5_for_gp51_only, checkRateLimit, sanitizeInput } from '../_shared/crypto_utils.ts';
+import { getGP51ApiUrl, isValidGP51BaseUrl } from '../_shared/constants.ts';
+import { checkRateLimit } from '../_shared/crypto_utils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -32,7 +33,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('🔍 Checking GP51 connection status...');
+    console.log('🔍 [CONNECTION-CHECK] Checking GP51 connection status...');
 
     // Get the most recent GP51 session
     const { data: sessions, error: sessionError } = await supabase
@@ -42,7 +43,7 @@ serve(async (req) => {
       .limit(1);
 
     if (sessionError) {
-      console.error('Error fetching GP51 sessions:', sessionError);
+      console.error('❌ [CONNECTION-CHECK] Error fetching GP51 sessions:', sessionError);
       return new Response(JSON.stringify({
         success: false,
         connected: false,
@@ -54,7 +55,7 @@ serve(async (req) => {
     }
 
     if (!sessions || sessions.length === 0) {
-      console.log('No GP51 sessions found');
+      console.log('📭 [CONNECTION-CHECK] No GP51 sessions found');
       return new Response(JSON.stringify({
         success: true,
         connected: false,
@@ -70,7 +71,7 @@ serve(async (req) => {
     const now = new Date();
 
     if (tokenExpiry <= now) {
-      console.log('GP51 token has expired');
+      console.log('⏰ [CONNECTION-CHECK] GP51 token has expired');
       return new Response(JSON.stringify({
         success: true,
         connected: false,
@@ -83,10 +84,18 @@ serve(async (req) => {
       });
     }
 
-    // Test the token with GP51 API
+    // Test the token with GP51 API using standardized URL construction
     try {
-      const testUrl = `https://www.gps51.com/webapi?action=getuserinfo&token=${encodeURIComponent(session.gp51_token)}`;
-      const testResponse = await fetch(testUrl, {
+      const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
+      const gp51ApiUrl = getGP51ApiUrl(gp51BaseUrl);
+      
+      console.log(`🌐 [CONNECTION-CHECK] Using API URL: ${gp51ApiUrl}`);
+      
+      const testUrl = new URL(gp51ApiUrl);
+      testUrl.searchParams.set('action', 'getuserinfo');
+      testUrl.searchParams.set('token', session.gp51_token);
+
+      const testResponse = await fetch(testUrl.toString(), {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -98,7 +107,7 @@ serve(async (req) => {
       if (testResponse.ok) {
         const testResult = await testResponse.json();
         if (testResult.status === 0) {
-          console.log('✅ GP51 connection is active and valid');
+          console.log('✅ [CONNECTION-CHECK] GP51 connection is active and valid');
           
           // Update last validated time
           await supabase
@@ -112,7 +121,8 @@ serve(async (req) => {
             username: session.username,
             lastValidated: new Date().toISOString(),
             tokenExpiry: session.token_expires_at,
-            authMethod: session.auth_method
+            authMethod: session.auth_method,
+            apiUrl: gp51BaseUrl
           }), {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -120,7 +130,7 @@ serve(async (req) => {
         }
       }
 
-      console.log('GP51 token test failed, connection may be inactive');
+      console.log('❌ [CONNECTION-CHECK] GP51 token test failed, connection may be inactive');
       return new Response(JSON.stringify({
         success: true,
         connected: false,
@@ -133,7 +143,7 @@ serve(async (req) => {
       });
 
     } catch (testError) {
-      console.error('Error testing GP51 token:', testError);
+      console.error('❌ [CONNECTION-CHECK] Error testing GP51 token:', testError);
       return new Response(JSON.stringify({
         success: true,
         connected: false,
@@ -147,7 +157,7 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error('GP51 connection check error:', error);
+    console.error('❌ [CONNECTION-CHECK] GP51 connection check error:', error);
     return new Response(JSON.stringify({
       success: false,
       error: 'Internal server error during connection check'

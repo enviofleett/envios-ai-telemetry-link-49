@@ -1,293 +1,237 @@
 
-// Trigger re-deploy - 2025-06-14
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { md5_sync } from "../_shared/crypto_utils.ts";
+import { getGP51ApiUrl, isValidGP51BaseUrl } from '../_shared/constants.ts';
+import { md5_for_gp51_only, checkRateLimit, sanitizeInput } from '../_shared/crypto_utils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface GP51LoginRequest {
-  username: string;
-  password: string;
-  from?: string;
-  type?: string;
-}
-
-interface GP51ApiResponse {
-  status: number; // GP51 specific status, 0 for success
-  cause?: string;
-  token?: string;
-  message?: string;
-  groups?: any[]; 
-  records?: any[]; 
-}
-
-async function callGP51Api(action: string, params: Record<string, any>, token?: string): Promise<GP51ApiResponse> {
-  const GP51_BASE_URL = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com';
-  
-  let url = `${GP51_BASE_URL}/webapi?action=${encodeURIComponent(action)}`;
-  const requestBody: Record<string, any> = { ...params }; // Clone params to avoid modifying original
-
-  if (token) {
-    url += `&token=${encodeURIComponent(token)}`;
-  }
-  
-  console.log(`📞 Calling GP51 API: Action='${action}', URL='${url}'`, params.password ? { ...params, password: '***'} : params);
-  
-  const response = await fetch(url, {
-    method: 'POST', // GP51 primarily uses POST
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded', // GP51 often uses this
-      'Accept': 'application/json',
-      'User-Agent': 'EnvioFleet/1.0/GP51Service'
-    },
-    body: new URLSearchParams(requestBody).toString(),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`❌ GP51 API request failed for action '${action}': ${response.status} ${response.statusText}`, errorText.substring(0,500));
-    throw new Error(`GP51 API request failed: ${response.status} ${response.statusText}. Response: ${errorText.substring(0,100)}`);
-  }
-
-  const responseText = await response.text();
-  console.log(`📄 Raw GP51 API response for '${action}' (first 200 chars):`, responseText.substring(0, 200) + (responseText.length > 200 ? '...' : ''));
-  
-  try {
-    const result = JSON.parse(responseText);
-    console.log(`✅ GP51 API response for '${action}' (parsed):`, { status: result.status, cause: result.cause, token_present: !!result.token });
-    return result as GP51ApiResponse;
-  } catch (e) {
-    console.error(`❌ Failed to parse JSON response from GP51 for action '${action}':`, e.message, responseText.substring(0,500));
-    throw new Error(`Invalid JSON response from GP51 for action '${action}'. Preview: ${responseText.substring(0,100)}`);
-  }
-}
-
 serve(async (req) => {
-  // Handle CORS preflight requests
+  console.log(`📥 [GP51-SERVICE] ${req.method} ${req.url}`);
+
   if (req.method === 'OPTIONS') {
+    console.log('📥 [GP51-SERVICE] OPTIONS - returning CORS headers');
     return new Response(null, { headers: corsHeaders });
   }
 
-  let requestBody;
   try {
-    requestBody = await req.json();
-  } catch (e) {
-    return new Response(
-      JSON.stringify({ success: false, error: 'Invalid JSON request body' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
+    const body = await req.json();
+    const { action, username, password, apiUrl } = body;
 
-  const { action, ...params } = requestBody; // Use params for clarity
-  console.log(`🚀 GP51 Service request received. Action: '${action}'`, params.password ? { ...params, password: '***'} : params);
+    console.log(`🌍 [GP51-SERVICE] IP: ${req.headers.get('x-forwarded-for') || 'unknown'}`);
+    console.log(`📋 [GP51-SERVICE] Action: ${action}, Username: ${username?.substring(0, 3)}***`);
 
-  try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '' // Use SERVICE_ROLE_KEY for database operations
-    );
-
-    switch (action) {
-      case 'login': {
-        const { username, password, from = 'WEB', type = 'USER' }: GP51LoginRequest = params;
-        
-        if (!username || !password) {
-          return new Response(
-            JSON.stringify({ success: false, error: 'Username and password are required' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+    // Use standardized URL construction
+    const gp51BaseUrl = apiUrl || Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
+    const gp51ApiUrl = getGP51ApiUrl(gp51BaseUrl);
+    
+    console.log(`🌐 [GP51-SERVICE] Using API URL: ${gp51ApiUrl}`);
+    
+    // Validate the base URL if provided
+    if (apiUrl && !isValidGP51BaseUrl(apiUrl)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid GP51 base URL provided' }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
         }
-
-        const hashedPassword = md5_sync(password); // Changed to md5_sync
-        
-        const loginParams = {
-          username: username.trim(),
-          password: hashedPassword,
-          from,
-          type
-        };
-        
-        const loginResult = await callGP51Api('login', loginParams);
-
-        if (loginResult.status === 0 && loginResult.token) {
-          const { error: sessionError } = await supabase
-            .from('gp51_sessions') // Ensure this table exists
-            .upsert({
-              username: username.trim(),
-              password_hash: hashedPassword, // Store the hash of the original password
-              gp51_token: loginResult.token,
-              auth_method: 'POST_FORM_SERVICE', // Identify auth method
-              token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24hr
-              last_validated_at: new Date().toISOString(),
-            }, { onConflict: 'username' });
-
-          if (sessionError) {
-            console.warn('⚠️ Failed to store GP51 session:', sessionError.message);
-            // Decide if this is critical. For login, usually not.
-          }
-
-          return new Response(
-            JSON.stringify({
-              success: true,
-              token: loginResult.token,
-              username: username.trim(),
-              message: "Login successful."
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        } else {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: loginResult.cause || loginResult.message || 'GP51 authentication failed.',
-              gp51_status: loginResult.status
-            }),
-            { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
-      case 'logout': {
-        const { token } = params; // token from request body
-        
-        if (!token) {
-             return new Response(
-                JSON.stringify({ success: false, error: 'Token is required for logout.' }),
-                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-        }
-
-        try {
-          await callGP51Api('logout', {}, token); 
-          console.log(`Logout call to GP51 API for token (prefix): ${String(token).substring(0,5)}... completed.`);
-        } catch (error) {
-          console.warn('⚠️ GP51 logout API call failed (this might be normal if token was already invalid):', error.message);
-        }
-
-        const { error: deleteError } = await supabase
-          .from('gp51_sessions')
-          .delete()
-          .eq('gp51_token', token);
-
-        if (deleteError) {
-            console.warn('⚠️ Failed to delete session from database during logout:', deleteError.message);
-        }
-
-        return new Response(
-          JSON.stringify({ success: true, message: "Logout processed." }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      case 'health_check': // Renamed for consistency, or keep 'test_connection'
-      case 'test_connection': {
-        const { token } = params;
-        
-        if (!token) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: 'Token is required for health check.'
-            }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        try {
-          const result = await callGP51Api('getDeviceList', {}, token); // 'getDeviceList' action for GP51
-          
-          const healthy = result.status === 0;
-          return new Response(
-            JSON.stringify({
-              success: true, // The function call itself succeeded
-              healthy: healthy, // GP51 connection is healthy
-              message: healthy ? "GP51 connection is healthy." : (result.cause || result.message || "GP51 health check failed."),
-              gp51_status: result.status,
-              details: healthy ? result : { cause: result.cause, message: result.message }
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        } catch (error) {
-          return new Response(
-            JSON.stringify({
-              success: false, // The function call failed
-              healthy: false,
-              error: "Failed to perform GP51 health check.",
-              details: error instanceof Error ? error.message : String(error)
-            }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } } // Return 200, but healthy: false
-          );
-        }
-      }
-
-      case 'get_devices': // Or 'getDeviceList' to match GP51 action name
-      case 'getDeviceList': {
-        const { token } = params;
-        
-        if (!token) {
-          return new Response(
-            JSON.stringify({ success: false, error: 'Token is required to get devices.' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-
-        try {
-          const result = await callGP51Api('getDeviceList', {}, token); // Standardized action name
-          
-          if (result.status === 0) {
-            const devices = result.groups?.flatMap((group: any) => group.devices || []) || result.records || [];
-            
-            return new Response(
-              JSON.stringify({
-                success: true,
-                devices,
-                deviceCount: devices.length,
-                message: `Fetched ${devices.length} devices.`
-              }),
-              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
-          } else {
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error: result.cause || result.message || 'Failed to fetch devices from GP51.',
-                gp51_status: result.status
-              }),
-              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } } // 200 but success: false
-            );
-          }
-        } catch (error) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: "Failed to fetch devices due to an internal error.",
-              details: error instanceof Error ? error.message : String(error)
-            }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      }
-
-      default:
-        return new Response(
-          JSON.stringify({ success: false, error: `Unknown action: ${action}` }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      );
     }
 
-  } catch (error) {
-    console.error('💥 GP51 Service function error:', error.message, error.stack);
+    const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    
+    // Rate limiting
+    if (!checkRateLimit(clientIP, 20, 60 * 1000)) { // 20 requests per minute
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: 'Too many requests. Please try again later.' 
+      }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (action === 'authenticate') {
+      return await authenticateWithGP51(gp51ApiUrl, username, password);
+    } else if (action === 'getVehicles') {
+      const token = body.token;
+      return await getVehiclesFromGP51(gp51ApiUrl, token);
+    }
+
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'Internal server error in GP51 service function.',
-        details: error instanceof Error ? error.message : String(error)
+      JSON.stringify({ success: false, error: 'Invalid action' }),
+      { 
+        status: 400, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+
+  } catch (error) {
+    console.error('❌ [GP51-SERVICE] Request processing failed:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: 'Internal server error' 
       }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
     );
   }
 });
+
+async function authenticateWithGP51(apiUrl: string, username: string, password: string) {
+  console.log(`🔐 [GP51-AUTH] Starting authentication for user: ${username?.substring(0, 3)}***`);
+  
+  try {
+    const hashedPassword = await md5_for_gp51_only(password);
+    
+    const loginUrl = new URL(apiUrl);
+    loginUrl.searchParams.set('action', 'login');
+    loginUrl.searchParams.set('username', sanitizeInput(username));
+    loginUrl.searchParams.set('password', hashedPassword);
+    loginUrl.searchParams.set('from', 'WEB');
+    loginUrl.searchParams.set('type', 'USER');
+
+    const globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+    if (globalToken) {
+      loginUrl.searchParams.set('token', globalToken);
+    }
+
+    console.log(`📡 [GP51-AUTH] Making request to: ${loginUrl.toString()}`);
+
+    const response = await fetch(loginUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'Accept': '*/*',
+        'User-Agent': 'EnvioFleet/1.0'
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+
+    const responseText = await response.text();
+    console.log(`📄 [GP51-AUTH] Raw Response: ${responseText}`);
+
+    if (!response.ok) {
+      throw new Error(`GP51 API Error: ${response.status} - ${responseText}`);
+    }
+
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch {
+      responseData = { token: responseText.trim(), status: responseText.trim() ? 0 : 1 };
+    }
+
+    if (responseData.status === 0 || (responseData.token && responseData.token.length > 0)) {
+      console.log('✅ [GP51-AUTH] Authentication successful');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          token: responseData.token || responseText.trim(),
+          username: username,
+          apiUrl: apiUrl
+        }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    } else {
+      const errorMessage = responseData.cause || responseData.message || 'Authentication failed';
+      console.error('❌ [GP51-AUTH] Authentication failed:', errorMessage);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: errorMessage
+        }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+  } catch (error) {
+    console.error('❌ [GP51-AUTH] Request failed:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error'
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+}
+
+async function getVehiclesFromGP51(apiUrl: string, token: string) {
+  console.log('🚗 [GP51-VEHICLES] Fetching vehicles from GP51');
+  
+  try {
+    const vehiclesUrl = new URL(apiUrl);
+    vehiclesUrl.searchParams.set('action', 'querymonitorlist');
+    vehiclesUrl.searchParams.set('token', token);
+
+    const response = await fetch(vehiclesUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'EnvioFleet/1.0'
+      },
+      signal: AbortSignal.timeout(15000)
+    });
+
+    if (!response.ok) {
+      throw new Error(`GP51 API Error: ${response.status}`);
+    }
+
+    const responseData = await response.json();
+    
+    if (responseData.status === 0) {
+      console.log('✅ [GP51-VEHICLES] Vehicles fetched successfully');
+      return new Response(
+        JSON.stringify({
+          success: true,
+          vehicles: responseData.groups || []
+        }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    } else {
+      const errorMessage = responseData.cause || 'Failed to fetch vehicles';
+      console.error('❌ [GP51-VEHICLES] Failed to fetch vehicles:', errorMessage);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: errorMessage
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+  } catch (error) {
+    console.error('❌ [GP51-VEHICLES] Request failed:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Network error'
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+}

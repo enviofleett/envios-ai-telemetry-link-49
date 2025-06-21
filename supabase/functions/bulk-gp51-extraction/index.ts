@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { getGP51ApiUrl, isValidGP51BaseUrl } from '../_shared/constants.ts';
 import { md5_for_gp51_only, checkRateLimit, sanitizeInput } from '../_shared/crypto_utils.ts';
 
 const corsHeaders = {
@@ -56,10 +57,28 @@ async function getGP51Token(): Promise<string> {
     throw new Error('GP51 admin credentials not configured');
   }
 
-  // Use GP51-compatible hash for authentication
-  const hashedPassword = md5_for_gp51_only(password);
+  // Use standardized URL construction
+  const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
+  const gp51ApiUrl = getGP51ApiUrl(gp51BaseUrl);
   
-  const authResponse = await fetch(`https://www.gps51.com/webapi?action=login&username=${encodeURIComponent(username)}&password=${hashedPassword}`, {
+  console.log(`🌐 [BULK-EXTRACTION] Using API URL: ${gp51ApiUrl}`);
+
+  // Use GP51-compatible hash for authentication
+  const hashedPassword = await md5_for_gp51_only(password);
+  
+  const loginUrl = new URL(gp51ApiUrl);
+  loginUrl.searchParams.set('action', 'login');
+  loginUrl.searchParams.set('username', sanitizeInput(username));
+  loginUrl.searchParams.set('password', hashedPassword);
+  loginUrl.searchParams.set('from', 'WEB');
+  loginUrl.searchParams.set('type', 'USER');
+
+  const globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+  if (globalToken) {
+    loginUrl.searchParams.set('token', globalToken);
+  }
+
+  const authResponse = await fetch(loginUrl.toString(), {
     signal: AbortSignal.timeout(10000)
   });
 
@@ -91,7 +110,15 @@ async function getGP51Token(): Promise<string> {
 }
 
 async function extractDevicesFromGP51(token: string): Promise<GP51Device[]> {
-  const devicesResponse = await fetch(`https://www.gps51.com/webapi?action=getmonitorlist&token=${encodeURIComponent(token)}`, {
+  // Use standardized URL construction
+  const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
+  const gp51ApiUrl = getGP51ApiUrl(gp51BaseUrl);
+  
+  const devicesUrl = new URL(gp51ApiUrl);
+  devicesUrl.searchParams.set('action', 'getmonitorlist');
+  devicesUrl.searchParams.set('token', token);
+
+  const devicesResponse = await fetch(devicesUrl.toString(), {
     signal: AbortSignal.timeout(15000)
   });
 
@@ -140,15 +167,15 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('🚀 Starting bulk GP51 device extraction...');
+    console.log('🚀 [BULK-EXTRACTION] Starting bulk GP51 device extraction...');
 
     // Get GP51 token
     const token = await getGP51Token();
-    console.log('✅ GP51 token obtained');
+    console.log('✅ [BULK-EXTRACTION] GP51 token obtained');
 
     // Extract devices from GP51
     const devices = await extractDevicesFromGP51(token);
-    console.log(`📦 Extracted ${devices.length} devices from GP51`);
+    console.log(`📦 [BULK-EXTRACTION] Extracted ${devices.length} devices from GP51`);
 
     // Process and store devices
     const processedDevices = devices.map(device => ({
@@ -164,9 +191,7 @@ serve(async (req) => {
       extracted_at: new Date().toISOString()
     }));
 
-    // Store in database (you may need to create a table for this)
-    // For now, return the processed data
-    console.log(`✅ Bulk extraction completed for ${processedDevices.length} devices`);
+    console.log(`✅ [BULK-EXTRACTION] Bulk extraction completed for ${processedDevices.length} devices`);
 
     return new Response(JSON.stringify({
       success: true,
@@ -179,7 +204,7 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Bulk GP51 extraction error:', error);
+    console.error('❌ [BULK-EXTRACTION] Bulk GP51 extraction error:', error);
     return new Response(JSON.stringify({
       success: false,
       error: error instanceof Error ? error.message : 'Bulk extraction failed'
