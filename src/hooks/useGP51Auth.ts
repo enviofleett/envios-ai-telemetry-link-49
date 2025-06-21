@@ -4,9 +4,16 @@ import { useToast } from '@/hooks/use-toast';
 import { calculateMd5 } from '@/lib/crypto';
 
 // Constants
-const GP51_API_URL = 'https://www.gps51.com/webapi';
 const GP51_SESSION_KEY = 'gp51_session';
 const API_TIMEOUT = 15000; // 15 seconds
+
+// Helper function to get GP51 API URL with robust construction
+const getGP51ApiUrl = (): string => {
+  // In a production environment, this would come from environment variables
+  // For now, using the standardized base URL
+  const baseUrl = 'https://www.gps51.com';
+  return baseUrl.replace(/\/$/, '') + '/webapi';
+};
 
 // Interfaces
 interface GP51Session {
@@ -35,7 +42,6 @@ interface GP51LoginResponse {
   message?: string; // Alternative error message
   token?: string;
 }
-
 
 export const useGP51Auth = () => {
   const [authState, setAuthState] = useState<AuthState>({
@@ -68,7 +74,7 @@ export const useGP51Auth = () => {
             tokenExpiresAt: expiresAt,
           }));
         } else {
-          console.log(' session expired. Clearing.');
+          console.log('🕒 session expired. Clearing.');
           localStorage.removeItem(GP51_SESSION_KEY);
         }
       }
@@ -80,7 +86,6 @@ export const useGP51Auth = () => {
     }
   }, []);
   
-
   const login = useCallback(async (username: string, password: string): Promise<AuthResult> => {
     console.log(`🔐 useGP51Auth: Starting login for ${username}`);
     setAuthState(prev => ({ 
@@ -97,7 +102,8 @@ export const useGP51Auth = () => {
       const hashedPassword = calculateMd5(password);
       const trimmedUsername = username.trim();
       
-      const url = new URL(GP51_API_URL);
+      const apiUrl = getGP51ApiUrl();
+      const url = new URL(apiUrl);
       url.searchParams.append('action', 'login');
 
       console.log('📡 Sending login request to GP51 via POST');
