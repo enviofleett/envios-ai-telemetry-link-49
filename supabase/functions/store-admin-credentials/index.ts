@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { md5_for_gp51_only } from "../_shared/crypto_utils.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,6 +51,11 @@ serve(async (req) => {
 
     console.log('✅ [STORE-ADMIN-CREDS] Input validation passed');
 
+    // Hash the password using MD5 for GP51 compatibility
+    console.log('🔐 [STORE-ADMIN-CREDS] Hashing password for GP51 compatibility...');
+    const hashedPassword = await md5_for_gp51_only(password);
+    console.log('✅ [STORE-ADMIN-CREDS] Password hashed successfully');
+
     // Get the admin user (chudesyl@gmail.com)
     const { data: adminUser, error: userError } = await supabase
       .from('envio_users')
@@ -82,13 +88,13 @@ serve(async (req) => {
       console.log('🧹 [STORE-ADMIN-CREDS] Cleared existing sessions');
     }
 
-    // Insert new session with credentials
+    // Insert new session with pre-hashed credentials
     const { data: sessionData, error: insertError } = await supabase
       .from('gp51_sessions')
       .insert({
         envio_user_id: adminUser.id,
         username: 'octopus',
-        password_hash: password, // Store the password directly as provided
+        password_hash: hashedPassword, // Store the pre-hashed password
         gp51_token: 'pending_authentication',
         token_expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(), // 8 hours
         api_url: 'https://www.gps51.com',
@@ -109,12 +115,13 @@ serve(async (req) => {
       });
     }
 
-    console.log('✅ [STORE-ADMIN-CREDS] Credentials stored successfully');
+    console.log('✅ [STORE-ADMIN-CREDS] Credentials stored successfully with MD5 hash');
 
     return new Response(JSON.stringify({
       success: true,
       message: 'GP51 credentials stored successfully for admin user',
-      sessionId: sessionData?.[0]?.id
+      sessionId: sessionData?.[0]?.id,
+      details: 'Password has been pre-hashed for GP51 compatibility'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

@@ -77,8 +77,41 @@ async function authenticateWithGP51(username: string, password: string) {
   console.log(`🔐 [AUTH] Starting GP51 authentication for user: ${username?.substring(0, 3)}***`);
 
   try {
+    // Check if this is an admin octopus login and we have stored credentials
+    let hashedPassword = password;
+    
+    if (username === 'octopus') {
+      console.log('🔍 [AUTH] Checking for stored admin credentials...');
+      
+      // Create Supabase client to check for stored credentials
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+
+      // Look for stored admin session
+      const { data: storedSession, error: sessionError } = await supabase
+        .from('gp51_sessions')
+        .select('password_hash, envio_user_id')
+        .eq('username', 'octopus')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!sessionError && storedSession?.password_hash) {
+        console.log('✅ [AUTH] Found stored admin credentials, using pre-hashed password');
+        hashedPassword = storedSession.password_hash;
+      } else {
+        console.log('🔄 [AUTH] No stored credentials found, hashing provided password');
+        hashedPassword = await md5_for_gp51_only(password);
+      }
+    } else {
+      console.log('🔄 [AUTH] Regular user login, hashing password');
+      hashedPassword = await md5_for_gp51_only(password);
+    }
+
     console.log('🔄 [AUTH] Step 2: Calling GP51 authentication');
-    const result = await callGP51Authentication(baseUrl, username, password, gp51GlobalToken);
+    const result = await callGP51Authentication(baseUrl, username, hashedPassword, gp51GlobalToken);
     
     if (result.success) {
       console.log('✅ [AUTH] GP51 authentication successful');
@@ -114,15 +147,13 @@ async function authenticateWithGP51(username: string, password: string) {
   }
 }
 
-async function callGP51Authentication(baseUrl: string, username: string, password: string, globalToken?: string) {
+async function callGP51Authentication(baseUrl: string, username: string, hashedPassword: string, globalToken?: string) {
   console.log('🔄 [GP51-AUTH] Step 1: Environment validation complete');
   console.log(`🌐 [GP51-AUTH] Using API URL: ${baseUrl}`);
 
   try {
-    console.log('🔄 [GP51-AUTH] Step 2: Generating MD5 hash');
-    console.log(`🔐 Creating MD5 hash for input of length: ${password.length}`);
-    const hashedPassword = await md5_for_gp51_only(password);
-    console.log('✅ [GP51-AUTH] MD5 hash generated successfully');
+    console.log('🔄 [GP51-AUTH] Step 2: Using provided password hash (already hashed)');
+    console.log(`🔐 Password hash: ${hashedPassword.substring(0, 8)}...`);
 
     console.log('🔄 [GP51-AUTH] Step 3: Preparing login request');
 
