@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Zap, AlertCircle, CheckCircle, WifiOff } from 'lucide-react';
 import { telemetryApi } from '@/services/telemetryApi';
+import { GP51_BASE_URL } from '@/services/gp51/urlHelpers';
 
 interface LoginFormProps {
   onLoginSuccess: (vehicles: any[]) => void;
@@ -212,7 +213,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
           </form>
 
           <div className="text-xs text-center text-gray-500">
-            Uses standardized GP51 API (https://www.gps51.com)
+            Uses standardized GP51 API ({GP51_BASE_URL})
           </div>
         </CardContent>
       </Card>

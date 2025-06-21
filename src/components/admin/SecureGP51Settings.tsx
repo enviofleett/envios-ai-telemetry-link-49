@@ -7,12 +7,13 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, CheckCircle, AlertTriangle, Lock } from 'lucide-react';
 import { secureGP51AuthService } from '@/services/gp51/SecureGP51AuthService';
+import { GP51_BASE_URL } from '@/services/gp51/urlHelpers';
 
 export default function SecureGP51Settings() {
   const [credentials, setCredentials] = useState({
     username: '',
     password: '',
-    apiUrl: 'https://www.gps51.com' // Updated to use standardized base URL
+    apiUrl: GP51_BASE_URL // Use standardized base URL
   });
   const [isLoading, setIsLoading] = useState(false);
   const [authStatus, setAuthStatus] = useState<{
@@ -74,7 +75,7 @@ export default function SecureGP51Settings() {
         setCredentials({
           username: '',
           password: '',
-          apiUrl: 'https://www.gps51.com' // Reset to standardized base URL
+          apiUrl: GP51_BASE_URL // Reset to standardized base URL
         });
       } else {
         throw new Error(result.error || 'Authentication failed');
@@ -249,7 +250,7 @@ export default function SecureGP51Settings() {
             <div className="text-sm text-blue-800">
               <strong>Security:</strong> Passwords are encrypted using Supabase Vault. 
               All authentication attempts are logged for audit purposes. The system uses 
-              standardized GP51 base URL with automatic webapi endpoint appending.
+              standardized GP51 base URL ({GP51_BASE_URL}) with automatic webapi endpoint appending.
             </div>
           </div>
         </div>

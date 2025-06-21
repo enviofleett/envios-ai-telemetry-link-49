@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, Zap, AlertCircle, CheckCircle, WifiOff } from 'lucide-react';
 import { useConsolidatedGP51Auth } from '@/hooks/useConsolidatedGP51Auth';
 import { useNavigate } from 'react-router-dom';
+import { GP51_BASE_URL } from '@/services/gp51/urlHelpers';
 
 const OptimizedLoginForm: React.FC = () => {
   const navigate = useNavigate();
@@ -154,7 +155,7 @@ const OptimizedLoginForm: React.FC = () => {
           </form>
 
           <div className="text-xs text-center text-gray-500">
-            Uses standardized GP51 API (https://www.gps51.com)
+            Uses standardized GP51 API ({GP51_BASE_URL})
           </div>
         </CardContent>
       </Card>

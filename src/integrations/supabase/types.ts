@@ -10506,6 +10506,10 @@ export type Database = {
         Args: { _user_id: string; _feature_id_text: string }
         Returns: boolean
       }
+      validate_gp51_base_url: {
+        Args: { url_to_check: string }
+        Returns: boolean
+      }
     }
     Enums: {
       admin_role: "super_admin" | "system_admin" | "support_admin"

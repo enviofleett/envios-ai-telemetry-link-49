@@ -8,12 +8,13 @@ import { useToast } from '@/hooks/use-toast';
 import { Switch } from "@/components/ui/switch"
 import { supabase } from '@/integrations/supabase/client';
 import { GP51SessionManager } from '@/services/gp51/sessionManager';
+import { GP51_BASE_URL } from '@/services/gp51/urlHelpers';
 
 export default function GP51Settings() {
   const [credentials, setCredentials] = useState({
     username: '',
     password: '',
-    apiUrl: 'https://www.gps51.com' // Updated to use standardized base URL
+    apiUrl: GP51_BASE_URL // Use standardized base URL
   });
   const [isLoading, setIsLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{
@@ -97,7 +98,7 @@ export default function GP51Settings() {
         setCredentials({
           username: '',
           password: '',
-          apiUrl: 'https://www.gps51.com' // Reset to standardized base URL
+          apiUrl: GP51_BASE_URL // Reset to standardized base URL
         });
       } else {
         throw new Error(data.error || 'Failed to save credentials');

@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Key, Save, TestTube } from 'lucide-react';
+import { GP51_BASE_URL } from '@/services/gp51/urlHelpers';
 
 const GP51CredentialSetup: React.FC = () => {
   const [password, setPassword] = useState('');
@@ -53,7 +54,7 @@ const GP51CredentialSetup: React.FC = () => {
           password_hash: password,
           gp51_token: 'pending_authentication',
           token_expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-          api_url: 'https://www.gps51.com', // Updated to use standardized base URL
+          api_url: GP51_BASE_URL, // Use standardized base URL
           auth_method: 'MANUAL_SETUP'
         });
 
