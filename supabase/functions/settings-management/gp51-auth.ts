@@ -53,7 +53,7 @@ export async function authenticateWithGP51({
   }
   
   try {
-    // Get environment variables with enhanced fallback support
+    // Enhanced environment variables validation
     const rawBaseUrl = apiUrl || 
                       Deno.env.get('GP51_API_BASE_URL') || 
                       Deno.env.get('GP51_BASE_URL') || 
@@ -62,13 +62,25 @@ export async function authenticateWithGP51({
     
     console.log('🌐 [GP51-AUTH] Environment check:');
     console.log(`  - Raw Base URL: ${rawBaseUrl}`);
-    console.log(`  - Global token: ${globalApiToken ? 'SET' : 'NOT SET'}`);
+    console.log(`  - Global token: ${globalApiToken ? 'SET (length: ' + globalApiToken.length + ')' : 'NOT SET'}`);
     
     if (!globalApiToken) {
       console.error('❌ [GP51-AUTH] GP51_GLOBAL_API_TOKEN not configured');
       return {
         success: false,
-        error: 'GP51 API configuration missing',
+        error: 'GP51 API configuration missing - Global API Token not set',
+        code: 'MISSING_GLOBAL_TOKEN',
+        username: trimmedUsername
+      };
+    }
+
+    // Validate global token format (basic check)
+    if (globalApiToken.length < 10) {
+      console.error('❌ [GP51-AUTH] GP51_GLOBAL_API_TOKEN appears to be invalid (too short)');
+      return {
+        success: false,
+        error: 'GP51 Global API Token appears to be invalid',
+        code: 'INVALID_GLOBAL_TOKEN',
         username: trimmedUsername
       };
     }
@@ -88,8 +100,14 @@ export async function authenticateWithGP51({
     loginUrl.searchParams.set('from', 'web');
     loginUrl.searchParams.set('type', 'user');
     
-    const redactedUrl = loginUrl.toString().replace(globalApiToken, '[REDACTED]');
-    console.log('🌐 [GP51-AUTH] Making request to GP51 API:', redactedUrl);
+    const redactedUrl = loginUrl.toString().replace(globalApiToken, '[REDACTED_TOKEN]');
+    console.log('📡 [HTTP] Request details:');
+    console.log('  - Method: GET');
+    console.log('  - URL:', redactedUrl);
+    console.log('  - Headers: Accept=text/plain, User-Agent=FleetIQ/1.0');
+    console.log('  - Timeout: 15000ms');
+    
+    console.log('🔄 [GP51-AUTH] Step 4: Making HTTP request to GP51 API');
     
     const loginResponse = await fetch(loginUrl.toString(), {
       method: 'GET',
@@ -100,7 +118,47 @@ export async function authenticateWithGP51({
       signal: AbortSignal.timeout(15000)
     });
 
-    console.log(`📊 [GP51-AUTH] Response status: ${loginResponse.status} ${loginResponse.statusText}`);
+    console.log('📊 [HTTP] GP51 Response received:');
+    console.log('  - Status:', loginResponse.status, loginResponse.statusText);
+    
+    const responseHeaders = Object.fromEntries(loginResponse.headers.entries());
+    console.log('  - Headers:', JSON.stringify(responseHeaders));
+    
+    const contentType = loginResponse.headers.get('content-type');
+    console.log('  - Content-Type:', contentType || 'null');
+
+    // CRITICAL: Handle empty response body explicitly
+    const contentLength = loginResponse.headers.get('content-length');
+    console.log('📊 [HTTP] Response body length:', contentLength || 'not specified');
+    
+    console.log('🔄 [GP51-AUTH] Step 5: Validating GP51 response');
+
+    if (loginResponse.status === 200 && contentLength === '0') {
+      console.error('❌ [GP51-AUTH] GP51 API returned 200 OK but with an empty response body. Expected a token.');
+      console.error('📋 [DIAGNOSTIC] This suggests:');
+      console.error('  1. Invalid credentials (username/password)');
+      console.error('  2. Invalid or expired Global API Token');
+      console.error('  3. Incorrect request parameters (from/type)');
+      console.error('  4. GP51 API behavior change');
+      
+      // Provide curl command for manual testing
+      const curlCommand = `curl -X GET "${redactedUrl.replace('[REDACTED_TOKEN]', 'YOUR_GP51_GLOBAL_API_TOKEN')}" -H "Accept: text/plain" -H "User-Agent: FleetIQ/1.0" -v`;
+      console.error('🧪 [CURL_TEST] Test with this curl command:');
+      console.error(curlCommand);
+      
+      return {
+        success: false,
+        error: 'GP51 authentication failed: Empty response received. Check credentials or API behavior.',
+        code: '200_EMPTY_BODY',
+        username: trimmedUsername,
+        diagnostics: {
+          contentLength: contentLength,
+          status: loginResponse.status,
+          headers: responseHeaders,
+          curlTest: curlCommand
+        }
+      };
+    }
 
     if (!loginResponse.ok) {
       const errorText = await loginResponse.text();
@@ -109,28 +167,59 @@ export async function authenticateWithGP51({
       return {
         success: false,
         error: `GP51 API error: ${loginResponse.status} ${loginResponse.statusText}`,
+        code: `HTTP_${loginResponse.status}`,
         username: trimmedUsername,
         details: errorText.substring(0, 200)
       };
     }
 
-    const loginResult = await loginResponse.text();
+    let loginResult: string;
+    try {
+      loginResult = await loginResponse.text();
+      console.log(`📊 [HTTP] Response preview: ${loginResult.substring(0, 100)}`);
+    } catch (textError) {
+      console.error('❌ [GP51-AUTH] Failed to read response text:', textError);
+      return {
+        success: false,
+        error: 'Failed to read GP51 API response',
+        code: 'RESPONSE_READ_ERROR',
+        username: trimmedUsername,
+        details: textError instanceof Error ? textError.message : 'Unknown error'
+      };
+    }
+
     console.log(`📊 [GP51-AUTH] Response received, length: ${loginResult.length}`);
-    console.log(`📊 [GP51-AUTH] Response preview: ${loginResult.substring(0, 100)}`);
 
     // Enhanced response validation
     const trimmedResult = loginResult.trim();
-    const isValidResponse = trimmedResult.length >= 10 && 
-                           !trimmedResult.toLowerCase().includes('error') && 
-                           !trimmedResult.toLowerCase().includes('fail') && 
-                           !trimmedResult.toLowerCase().includes('invalid') &&
-                           !trimmedResult.toLowerCase().includes('denied');
+    
+    // Check for empty response
+    if (trimmedResult.length === 0) {
+      console.error('❌ [GP51-AUTH] GP51 authentication failed: Completely empty response body');
+      return {
+        success: false,
+        error: 'GP51 authentication failed: Empty response body',
+        code: 'EMPTY_RESPONSE_BODY',
+        username: trimmedUsername
+      };
+    }
+
+    // Check for common error indicators
+    const lowerResult = trimmedResult.toLowerCase();
+    const hasError = lowerResult.includes('error') || 
+                    lowerResult.includes('fail') || 
+                    lowerResult.includes('invalid') ||
+                    lowerResult.includes('denied') ||
+                    lowerResult.includes('unauthorized');
+
+    const isValidResponse = trimmedResult.length >= 10 && !hasError;
 
     if (!isValidResponse) {
       console.error('❌ [GP51-AUTH] GP51 authentication failed:', trimmedResult.substring(0, 100));
       return {
         success: false,
-        error: 'Invalid GP51 credentials',
+        error: 'Invalid GP51 credentials or authentication failed',
+        code: 'INVALID_CREDENTIALS',
         username: trimmedUsername,
         details: trimmedResult.substring(0, 100)
       };
@@ -138,7 +227,7 @@ export async function authenticateWithGP51({
 
     const sessionToken = trimmedResult;
     console.log(`✅ [GP51-AUTH] GP51 authentication successful for ${trimmedUsername}`);
-    console.log(`✅ [GP51-AUTH] Session token length: ${sessionToken.length}`);
+    console.log(`✅ [GP51-AUTH] Session token received (length: ${sessionToken.length})`);
     
     return {
       success: true,
@@ -147,24 +236,43 @@ export async function authenticateWithGP51({
       password: password,
       hashedPassword: gp51Hash,
       apiUrl: baseApiUrl,
-      method: 'ENHANCED_GP51_API'
+      method: 'ENHANCED_GP51_API',
+      diagnostics: {
+        responseLength: sessionToken.length,
+        contentType: contentType,
+        headers: responseHeaders
+      }
     };
 
   } catch (error) {
     console.error('❌ [GP51-AUTH] GP51 authentication failed:', error);
     
-    // Return structured error response
-    if (error.name === 'AbortError') {
-      return {
-        success: false,
-        error: 'GP51 connection timed out. Please try again.',
-        username: trimmedUsername
-      };
+    // Enhanced error handling
+    if (error instanceof Error) {
+      if (error.name === 'AbortError') {
+        return {
+          success: false,
+          error: 'GP51 connection timed out after 15 seconds. Please try again.',
+          code: 'TIMEOUT_ERROR',
+          username: trimmedUsername
+        };
+      }
+      
+      if (error.message.includes('fetch')) {
+        return {
+          success: false,
+          error: 'Network error connecting to GP51 API. Please check your internet connection.',
+          code: 'NETWORK_ERROR',
+          username: trimmedUsername,
+          details: error.message
+        };
+      }
     }
     
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Authentication failed',
+      error: error instanceof Error ? error.message : 'Unknown authentication error',
+      code: 'UNKNOWN_ERROR',
       username: trimmedUsername,
       details: error instanceof Error ? error.stack : 'Unknown error'
     };
