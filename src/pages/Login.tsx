@@ -1,9 +1,9 @@
 
 import React from 'react';
-import OptimizedLoginForm from '@/components/auth/OptimizedLoginForm';
+import EnhancedLoginPage from '@/components/auth/EnhancedLoginPage';
 
 const Login: React.FC = () => {
-  return <OptimizedLoginForm />;
+  return <EnhancedLoginPage />;
 };
 
 export default Login;
