@@ -1,6 +1,6 @@
 
-// Web Crypto API-based cryptographic utilities
-// Updated with proper MD5 implementation for GP51 compatibility
+// Simplified crypto utilities for GP51 compatibility
+// This version includes only essential functions to avoid dependency issues
 
 // Rate limiting storage
 const rateLimits = new Map<string, { count: number; resetTime: number }>();
@@ -112,51 +112,6 @@ export async function md5_for_gp51_only(input: string): Promise<string> {
   } catch (error) {
     console.error('❌ MD5 hashing failed:', error);
     throw new Error('MD5 hash generation failed');
-  }
-}
-
-// Synchronous wrapper for backward compatibility (deprecated)
-export const md5_sync = (input: string): string => {
-  console.warn('md5_sync is deprecated, use md5_for_gp51_only instead');
-  // Simple fallback hash for sync usage
-  let hash = 0;
-  if (input.length === 0) return hash.toString(16).padStart(32, '0');
-  
-  for (let i = 0; i < input.length; i++) {
-    const char = input.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  
-  return Math.abs(hash).toString(16).padStart(32, '0');
-};
-
-/**
- * Secure SHA-256 hash using Web Crypto API
- */
-export async function secureHash(input: string): Promise<string> {
-  try {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(input);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  } catch (error) {
-    console.error('Secure hash failed:', error);
-    throw new Error('Hash generation failed');
-  }
-}
-
-/**
- * Verify secure hash
- */
-export async function verifySecureHash(input: string, hash: string): Promise<boolean> {
-  try {
-    const computedHash = await secureHash(input);
-    return computedHash === hash;
-  } catch (error) {
-    console.error('Hash verification failed:', error);
-    return false;
   }
 }
 
