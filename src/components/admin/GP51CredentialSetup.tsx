@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,37 +35,27 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
 
     setIsStoring(true);
     try {
-      // First, store credentials directly in gp51_sessions
-      const { data: adminUser } = await supabase
-        .from('envio_users')
-        .select('id')
-        .eq('email', 'chudesyl@gmail.com')
-        .single();
+      console.log('🔑 [GP51-SETUP] Storing credentials via Edge Function...');
 
-      if (!adminUser) {
-        throw new Error('Admin user not found');
+      // Call the dedicated Edge Function for credential storage
+      const { data, error } = await supabase.functions.invoke('store-admin-credentials', {
+        body: {
+          username: 'octopus',
+          password: password
+        }
+      });
+
+      if (error) {
+        console.error('❌ [GP51-SETUP] Edge Function error:', error);
+        throw new Error(error.message || 'Failed to call credential storage function');
       }
 
-      // Clear existing sessions
-      await supabase
-        .from('gp51_sessions')
-        .delete()
-        .eq('envio_user_id', adminUser.id);
+      if (!data?.success) {
+        console.error('❌ [GP51-SETUP] Storage failed:', data?.error);
+        throw new Error(data?.error || 'Failed to store credentials');
+      }
 
-      // Insert new session with standardized API URL
-      const { error } = await supabase
-        .from('gp51_sessions')
-        .insert({
-          envio_user_id: adminUser.id,
-          username: 'octopus',
-          password_hash: password,
-          gp51_token: 'pending_authentication',
-          token_expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-          api_url: GP51_BASE_URL,
-          auth_method: 'MANUAL_SETUP'
-        });
-
-      if (error) throw error;
+      console.log('✅ [GP51-SETUP] Credentials stored successfully');
 
       toast({
         title: "Success",
@@ -80,7 +69,7 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
         onCredentialsStored();
       }
     } catch (error) {
-      console.error('Error storing credentials:', error);
+      console.error('❌ [GP51-SETUP] Error storing credentials:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to store credentials",
