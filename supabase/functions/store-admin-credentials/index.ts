@@ -60,9 +60,10 @@ serve(async (req) => {
     console.log('🔍 [STORE-ADMIN-CREDS] Testing credentials with GP51...');
     
     const globalToken = Deno.env.get("GP51_GLOBAL_API_TOKEN");
-    const apiUrl = Deno.env.get("GP51_API_BASE_URL") || "https://www.gps51.com/webapi";
+    let gp51BaseUrl = Deno.env.get("GP51_BASE_URL");
     
     if (!globalToken) {
+      console.error('❌ [STORE-ADMIN-CREDS] GP51 configuration error - missing global token');
       return new Response(JSON.stringify({
         success: false,
         error: 'GP51 configuration error - missing global token'
@@ -70,6 +71,32 @@ serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
+    }
+
+    if (!gp51BaseUrl) {
+      console.error('❌ [STORE-ADMIN-CREDS] GP51 configuration error - missing base URL');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'GP51 configuration error - missing base URL'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Robust URL construction
+    if (!gp51BaseUrl.startsWith('http://') && !gp51BaseUrl.startsWith('https://')) {
+      gp51BaseUrl = 'https://' + gp51BaseUrl;
+      console.warn('⚠️ [STORE-ADMIN-CREDS] Prepended https:// to GP51_BASE_URL');
+    }
+    if (gp51BaseUrl.endsWith('/')) {
+      gp51BaseUrl = gp51BaseUrl.slice(0, -1);
+    }
+
+    // Construct API URL
+    let apiUrl = gp51BaseUrl;
+    if (!apiUrl.endsWith('/webapi')) {
+      apiUrl += '/webapi';
     }
 
     // Build test URL with MD5 hashed password
@@ -81,7 +108,7 @@ serve(async (req) => {
     testUrl.searchParams.set('from', 'WEB');
     testUrl.searchParams.set('type', 'USER');
 
-    console.log(`🧪 [STORE-ADMIN-CREDS] Testing GP51 with URL: ${testUrl.toString().replace(hashedPassword, 'HASHED_PASSWORD')}`);
+    console.log(`🧪 [STORE-ADMIN-CREDS] Testing GP51 with URL: ${testUrl.toString().replace(hashedPassword, '***MD5_HASH***')}`);
 
     const testResponse = await fetch(testUrl.toString(), {
       method: 'GET',
@@ -93,37 +120,60 @@ serve(async (req) => {
     });
 
     const testResponseText = await testResponse.text();
-    console.log(`📋 [STORE-ADMIN-CREDS] GP51 test response status: ${testResponse.status}`);
-    console.log(`📋 [STORE-ADMIN-CREDS] GP51 test response: ${testResponseText.substring(0, 100)}...`);
+    const contentLength = testResponse.headers.get('content-length');
+    
+    console.log(`📋 [STORE-ADMIN-CREDS] GP51 test response status: ${testResponse.status} ${testResponse.statusText}`);
+    console.log(`📋 [STORE-ADMIN-CREDS] GP51 test response Content-Length: ${contentLength}`);
+    console.log(`📋 [STORE-ADMIN-CREDS] GP51 test response body: ${testResponseText}`);
 
     if (!testResponse.ok) {
       console.error('❌ [STORE-ADMIN-CREDS] GP51 test failed with HTTP error:', testResponse.status);
       return new Response(JSON.stringify({
         success: false,
-        error: `GP51 authentication test failed: HTTP ${testResponse.status}`
+        error: `GP51 authentication test failed: HTTP ${testResponse.status} - ${testResponseText}`
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    // Check if authentication was successful
+    // Enhanced response validation
     let isValidCredential = false;
-    try {
-      const testResult = JSON.parse(testResponseText);
-      isValidCredential = testResult.status === 0 && testResult.token;
-      console.log(`🔍 [STORE-ADMIN-CREDS] GP51 JSON response - status: ${testResult.status}, has token: ${!!testResult.token}`);
-    } catch (e) {
-      // If not JSON, check if we got a token as plain text
-      isValidCredential = testResponseText && testResponseText.trim().length > 0 && testResponseText.trim() !== '0';
-      console.log(`🔍 [STORE-ADMIN-CREDS] GP51 text response - length: ${testResponseText.trim().length}, content: ${testResponseText.substring(0, 20)}...`);
+    let gp51Status = null;
+    let gp51Cause = null;
+
+    if (contentLength === '0' || testResponseText.trim() === '') {
+      console.warn('⚠️ [STORE-ADMIN-CREDS] GP51 API returned empty response');
+      isValidCredential = false;
+      gp51Cause = "Empty response from GP51 API. Check GP51_GLOBAL_API_TOKEN validity and octopus account API access.";
+      gp51Status = "EMPTY_RESPONSE";
+    } else {
+      try {
+        const testResult = JSON.parse(testResponseText);
+        gp51Status = testResult.status;
+        gp51Cause = testResult.cause;
+        isValidCredential = testResult.status === 0 && testResult.token;
+        console.log(`🔍 [STORE-ADMIN-CREDS] GP51 JSON response - status: ${gp51Status}, has token: ${!!testResult.token}, cause: ${gp51Cause}`);
+      } catch (e) {
+        console.error('❌ [STORE-ADMIN-CREDS] Failed to parse GP51 response as JSON:', e);
+        isValidCredential = false;
+        gp51Cause = `GP51 API returned invalid JSON: ${testResponseText.substring(0, 100)}...`;
+        gp51Status = "INVALID_JSON";
+      }
     }
 
     if (!isValidCredential) {
-      console.error('❌ [STORE-ADMIN-CREDS] GP51 credentials validation failed');
+      console.error(`❌ [STORE-ADMIN-CREDS] GP51 credentials validation failed. Status: ${gp51Status}, Cause: ${gp51Cause}`);
       return new Response(JSON.stringify({
         success: false,
-        error: 'Invalid GP51 credentials. The provided password does not work with the octopus account.'
+        error: gp51Cause || 'Invalid GP51 credentials. The provided password does not work with the octopus account.',
+        gp51Status: gp51Status,
+        debugInfo: {
+          responseLength: testResponseText.length,
+          contentLength: contentLength,
+          hashedPasswordPreview: `${hashedPassword.substring(0, 8)}...`,
+          apiUrl: apiUrl
+        }
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -192,7 +242,7 @@ serve(async (req) => {
     }
 
     console.log('✅ [STORE-ADMIN-CREDS] Credentials stored successfully with validated MD5 hash');
-    console.log(`🔐 [STORE-ADMIN-CREDS] Stored hash: ${hashedPassword.substring(0, 8)}...${hashedPassword.substring(-8)}`);
+    console.log(`🔐 [STORE-ADMIN-CREDS] Stored hash: ${hashedPassword.substring(0, 8)}...${hashedPassword.substring(hashedPassword.length - 8)}`);
 
     return new Response(JSON.stringify({
       success: true,
@@ -202,8 +252,9 @@ serve(async (req) => {
         username: 'octopus',
         passwordValidated: true,
         hashMethod: 'MD5',
-        hashPreview: `${hashedPassword.substring(0, 8)}...${hashedPassword.substring(-8)}`,
-        gp51ApiTested: true
+        hashPreview: `${hashedPassword.substring(0, 8)}...${hashedPassword.substring(hashedPassword.length - 8)}`,
+        gp51ApiTested: true,
+        apiUrl: apiUrl
       }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }

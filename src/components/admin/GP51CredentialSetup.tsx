@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Key, Save, TestTube, CheckCircle, AlertCircle } from 'lucide-react';
+import { Key, Save, TestTube, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { GP51_BASE_URL } from '@/services/gp51/urlHelpers';
 
 interface GP51CredentialSetupProps {
@@ -23,6 +23,7 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
   const [isStoring, setIsStoring] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [lastStoredHash, setLastStoredHash] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
   const { toast } = useToast();
 
   const storeCredentials = async () => {
@@ -36,10 +37,12 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
     }
 
     setIsStoring(true);
+    setDebugInfo(null);
+    
     try {
       console.log('🔑 [GP51-SETUP] Storing credentials via Edge Function...');
 
-      // Call the dedicated Edge Function for credential storage
+      // Call the enhanced Edge Function for credential storage
       const { data, error } = await supabase.functions.invoke('store-admin-credentials', {
         body: {
           username: 'octopus',
@@ -54,7 +57,21 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
 
       if (!data?.success) {
         console.error('❌ [GP51-SETUP] Storage failed:', data?.error);
-        throw new Error(data?.error || 'Failed to store credentials');
+        
+        // Store debug info for troubleshooting
+        if (data?.debugInfo) {
+          setDebugInfo(data.debugInfo);
+        }
+        
+        // Provide more specific error messages
+        let errorMessage = data?.error || 'Failed to store credentials';
+        if (data?.gp51Status === 'EMPTY_RESPONSE') {
+          errorMessage = 'GP51 API returned empty response. This usually indicates an invalid API token or account access issue.';
+        } else if (data?.gp51Status === 'INVALID_JSON') {
+          errorMessage = 'GP51 API returned invalid response format. Please check GP51 service status.';
+        }
+        
+        throw new Error(errorMessage);
       }
 
       console.log('✅ [GP51-SETUP] Credentials stored successfully');
@@ -71,6 +88,7 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
       });
 
       setPassword('');
+      setDebugInfo(null);
       
       // Callback for parent component
       if (onCredentialsStored) {
@@ -124,8 +142,8 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
       <Alert>
         <AlertDescription>
           {compact 
-            ? "Configure GP51 credentials for admin access. Password will be MD5 hashed for security."
-            : "Store GP51 credentials for the octopus account. The password will be automatically MD5 hashed before storage and testing with the GP51 API."
+            ? "Configure GP51 credentials for admin access. Password will be MD5 hashed and tested with GP51 API before storage."
+            : "Store GP51 credentials for the octopus account. The password will be automatically MD5 hashed, tested with GP51 API, and stored securely if validation succeeds."
           }
         </AlertDescription>
       </Alert>
@@ -134,7 +152,22 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
         <Alert className="border-green-200 bg-green-50">
           <CheckCircle className="h-4 w-4 text-green-600" />
           <AlertDescription className="text-green-800">
-            Last stored password hash: <code className="bg-green-100 px-1 rounded">{lastStoredHash}</code>
+            ✅ Credentials stored successfully! Password hash: <code className="bg-green-100 px-1 rounded">{lastStoredHash}</code>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {debugInfo && (
+        <Alert className="border-blue-200 bg-blue-50">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-800">
+            <strong>Debug Info:</strong>
+            <ul className="text-xs mt-2 space-y-1">
+              <li>API URL: {debugInfo.apiUrl}</li>
+              <li>Response Length: {debugInfo.responseLength}</li>
+              <li>Content-Length: {debugInfo.contentLength}</li>
+              <li>Hash Preview: {debugInfo.hashedPasswordPreview}</li>
+            </ul>
           </AlertDescription>
         </Alert>
       )}
@@ -159,7 +192,7 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
           placeholder="Enter GP51 password for octopus account"
         />
         <p className="text-xs text-gray-600">
-          Password will be automatically MD5 hashed before storage and GP51 testing
+          Password will be MD5 hashed and tested with GP51 API before storage
         </p>
       </div>
 
@@ -187,6 +220,7 @@ const GP51CredentialSetup: React.FC<GP51CredentialSetupProps> = ({
         <p>• Credentials are tested with GP51 API before storage</p>
         <p>• Password is MD5 hashed for GP51 compatibility</p>
         <p>• Uses {GP51_BASE_URL} API endpoint</p>
+        <p>• Enhanced error reporting for troubleshooting</p>
       </div>
     </>
   );
