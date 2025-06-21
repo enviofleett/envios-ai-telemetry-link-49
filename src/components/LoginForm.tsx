@@ -210,6 +210,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
               )}
             </Button>
           </form>
+
+          <div className="text-xs text-center text-gray-500">
+            Uses standardized GP51 API (https://www.gps51.com)
+          </div>
         </CardContent>
       </Card>
     </div>

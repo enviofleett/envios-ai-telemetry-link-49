@@ -44,7 +44,7 @@ const GP51CredentialSetup: React.FC = () => {
         .delete()
         .eq('envio_user_id', adminUser.id);
 
-      // Insert new session
+      // Insert new session with standardized API URL
       const { error } = await supabase
         .from('gp51_sessions')
         .insert({
@@ -53,7 +53,7 @@ const GP51CredentialSetup: React.FC = () => {
           password_hash: password,
           gp51_token: 'pending_authentication',
           token_expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
-          api_url: 'https://www.gps51.com/webapi',
+          api_url: 'https://www.gps51.com', // Updated to use standardized base URL
           auth_method: 'MANUAL_SETUP'
         });
 

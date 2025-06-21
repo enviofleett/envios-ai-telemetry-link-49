@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -12,7 +13,7 @@ export default function GP51Settings() {
   const [credentials, setCredentials] = useState({
     username: '',
     password: '',
-    apiUrl: 'https://www.gps51.com/webapi'
+    apiUrl: 'https://www.gps51.com' // Updated to use standardized base URL
   });
   const [isLoading, setIsLoading] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<{
@@ -96,7 +97,7 @@ export default function GP51Settings() {
         setCredentials({
           username: '',
           password: '',
-          apiUrl: 'https://www.gps51.com/webapi'
+          apiUrl: 'https://www.gps51.com' // Reset to standardized base URL
         });
       } else {
         throw new Error(data.error || 'Failed to save credentials');
@@ -148,16 +149,18 @@ export default function GP51Settings() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="apiUrl">API URL</Label>
+          <Label htmlFor="apiUrl">API Base URL</Label>
           <Input
             id="apiUrl"
             name="apiUrl"
             type="text"
             value={credentials.apiUrl}
             onChange={handleChange}
-            placeholder="GP51 API URL"
-            defaultValue="https://www.gps51.com/webapi"
+            placeholder="GP51 API Base URL"
           />
+          <p className="text-xs text-muted-foreground">
+            Base URL for GP51 API (webapi endpoint will be automatically appended)
+          </p>
         </div>
         <div>
           <Button onClick={handleSave} disabled={isLoading}>

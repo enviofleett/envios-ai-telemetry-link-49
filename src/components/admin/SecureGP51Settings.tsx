@@ -12,7 +12,7 @@ export default function SecureGP51Settings() {
   const [credentials, setCredentials] = useState({
     username: '',
     password: '',
-    apiUrl: 'https://www.gps51.com/webapi'
+    apiUrl: 'https://www.gps51.com' // Updated to use standardized base URL
   });
   const [isLoading, setIsLoading] = useState(false);
   const [authStatus, setAuthStatus] = useState<{
@@ -74,7 +74,7 @@ export default function SecureGP51Settings() {
         setCredentials({
           username: '',
           password: '',
-          apiUrl: 'https://www.gps51.com/webapi'
+          apiUrl: 'https://www.gps51.com' // Reset to standardized base URL
         });
       } else {
         throw new Error(result.error || 'Authentication failed');
@@ -209,15 +209,18 @@ export default function SecureGP51Settings() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="apiUrl">API URL</Label>
+            <Label htmlFor="apiUrl">API Base URL</Label>
             <Input
               id="apiUrl"
               name="apiUrl"
               type="text"
               value={credentials.apiUrl}
               onChange={handleChange}
-              placeholder="GP51 API URL"
+              placeholder="GP51 API Base URL"
             />
+            <p className="text-xs text-muted-foreground">
+              Base URL for GP51 API (webapi endpoint will be automatically appended)
+            </p>
           </div>
         </div>
 
@@ -245,7 +248,8 @@ export default function SecureGP51Settings() {
             <Shield className="h-4 w-4 text-blue-600 mt-0.5" />
             <div className="text-sm text-blue-800">
               <strong>Security:</strong> Passwords are encrypted using Supabase Vault. 
-              All authentication attempts are logged for audit purposes.
+              All authentication attempts are logged for audit purposes. The system uses 
+              standardized GP51 base URL with automatic webapi endpoint appending.
             </div>
           </div>
         </div>
