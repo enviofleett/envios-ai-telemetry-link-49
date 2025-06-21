@@ -11,7 +11,7 @@ const ModernSplitScreenLoginLayout: React.FC<ModernSplitScreenLoginLayoutProps> 
       {/* Left Panel - Gradient Background with Branding */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         {/* Gradient Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400"></div>
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-600 via-blue-500 to-orange-400"></div>
         
         {/* Geometric Pattern Overlay */}
         <div className="absolute inset-0 opacity-10">
