@@ -1,9 +1,9 @@
 
-import { md5_sync } from "../_shared/crypto_utils.ts";
+import { md5_for_gp51_only } from "../_shared/crypto_utils.ts";
 import { GP51_API_URL } from "../_shared/constants.ts";
 
 // Re-export commonly used utilities
-export { md5_sync, GP51_API_URL };
+export { md5_for_gp51_only as md5_sync, GP51_API_URL };
 
 // Additional utility functions for GP51 service management
 export function calculateLatency(startTime: number): number {

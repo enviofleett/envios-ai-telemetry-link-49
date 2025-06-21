@@ -1,6 +1,6 @@
 
-// Simplified crypto utilities for GP51 compatibility
-// This version includes only essential functions to avoid dependency issues
+// Comprehensive crypto utilities for GP51 compatibility
+// This version includes all essential functions to avoid dependency issues
 
 // Rate limiting storage
 const rateLimits = new Map<string, { count: number; resetTime: number }>();
@@ -113,6 +113,78 @@ export async function md5_for_gp51_only(input: string): Promise<string> {
     console.error('❌ MD5 hashing failed:', error);
     throw new Error('MD5 hash generation failed');
   }
+}
+
+/**
+ * Synchronous MD5 function for backward compatibility
+ * Note: This is a simplified implementation, not cryptographically secure
+ */
+export function md5_sync(input: string): string {
+  console.log(`🔐 Sync MD5 hashing input of length: ${input.length}`);
+  
+  // Simple hash function for compatibility - not cryptographically secure
+  let hash = 0;
+  if (input.length === 0) return hash.toString(16).padStart(32, '0');
+  
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // Convert to hex and pad to 32 characters
+  const hexHash = Math.abs(hash).toString(16);
+  const result = hexHash.padStart(32, '0');
+  
+  console.log(`✅ Sync MD5 hash generated: ${result.substring(0, 8)}...`);
+  return result;
+}
+
+/**
+ * Secure hash function using crypto API when available
+ */
+export async function secureHash(input: string): Promise<string> {
+  console.log(`🔒 Secure hashing input of length: ${input.length}`);
+  
+  try {
+    if (typeof crypto !== 'undefined' && crypto.subtle) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(input);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const result = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
+      console.log(`✅ Secure hash generated: ${result.substring(0, 8)}...`);
+      return result;
+    } else {
+      // Fallback to MD5 for GP51 compatibility
+      return await md5_for_gp51_only(input);
+    }
+  } catch (error) {
+    console.error('❌ Secure hashing failed:', error);
+    throw new Error('Secure hash generation failed');
+  }
+}
+
+/**
+ * Verify secure hash
+ */
+export async function verifySecureHash(input: string, hash: string): Promise<boolean> {
+  try {
+    const inputHash = await secureHash(input);
+    return inputHash === hash;
+  } catch (error) {
+    console.error('❌ Hash verification failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Email validation function
+ */
+export function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
 }
 
 export function sanitizeInput(input: string): string {

@@ -14,7 +14,7 @@ export async function validatePasswordWithGP51(username: string, password: strin
 
   try {
     // Use MD5 only for GP51 API compatibility
-    const hashedPassword = md5_for_gp51_only(password);
+    const hashedPassword = await md5_for_gp51_only(password);
     
     const authData = {
       action: 'login',

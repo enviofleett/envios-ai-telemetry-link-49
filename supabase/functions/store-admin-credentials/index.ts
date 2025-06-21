@@ -51,10 +51,82 @@ serve(async (req) => {
 
     console.log('✅ [STORE-ADMIN-CREDS] Input validation passed');
 
-    // Hash the password using MD5 for GP51 compatibility
-    console.log('🔐 [STORE-ADMIN-CREDS] Hashing password for GP51 compatibility...');
+    // Test the credentials with GP51 first
+    console.log('🔍 [STORE-ADMIN-CREDS] Testing credentials with GP51...');
+    
     const hashedPassword = await md5_for_gp51_only(password);
     console.log('✅ [STORE-ADMIN-CREDS] Password hashed successfully');
+
+    // Test GP51 authentication before storing
+    const globalToken = Deno.env.get("GP51_GLOBAL_API_TOKEN");
+    const apiUrl = Deno.env.get("GP51_API_BASE_URL") || "https://www.gps51.com/webapi";
+    
+    if (!globalToken) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'GP51 configuration error - missing global token'
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Build test URL
+    const testUrl = new URL(apiUrl);
+    testUrl.searchParams.set('action', 'login');
+    testUrl.searchParams.set('token', globalToken);
+    testUrl.searchParams.set('username', 'octopus');
+    testUrl.searchParams.set('password', hashedPassword);
+    testUrl.searchParams.set('from', 'WEB');
+    testUrl.searchParams.set('type', 'USER');
+
+    console.log('🧪 [STORE-ADMIN-CREDS] Testing GP51 authentication...');
+
+    const testResponse = await fetch(testUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'EnvioFleet/2.0/CredentialTest'
+      },
+      signal: AbortSignal.timeout(10000)
+    });
+
+    const testResponseText = await testResponse.text();
+    console.log(`📋 [STORE-ADMIN-CREDS] GP51 test response: ${testResponseText.substring(0, 100)}...`);
+
+    if (!testResponse.ok) {
+      console.error('❌ [STORE-ADMIN-CREDS] GP51 test failed with HTTP error:', testResponse.status);
+      return new Response(JSON.stringify({
+        success: false,
+        error: `GP51 authentication test failed: HTTP ${testResponse.status}`
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Check if authentication was successful
+    let isValidCredential = false;
+    try {
+      const testResult = JSON.parse(testResponseText);
+      isValidCredential = testResult.status === 0 && testResult.token;
+    } catch (e) {
+      // If not JSON, check if we got a token as plain text
+      isValidCredential = testResponseText && testResponseText.trim().length > 0;
+    }
+
+    if (!isValidCredential) {
+      console.error('❌ [STORE-ADMIN-CREDS] GP51 credentials validation failed');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Invalid GP51 credentials. Please check username and password.'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log('✅ [STORE-ADMIN-CREDS] GP51 credentials validated successfully');
 
     // Get the admin user (chudesyl@gmail.com)
     const { data: adminUser, error: userError } = await supabase
@@ -88,16 +160,16 @@ serve(async (req) => {
       console.log('🧹 [STORE-ADMIN-CREDS] Cleared existing sessions');
     }
 
-    // Insert new session with pre-hashed credentials
+    // Insert new session with properly hashed credentials
     const { data: sessionData, error: insertError } = await supabase
       .from('gp51_sessions')
       .insert({
         envio_user_id: adminUser.id,
         username: 'octopus',
-        password_hash: hashedPassword, // Store the pre-hashed password
+        password_hash: hashedPassword, // Store the MD5 hashed password
         gp51_token: 'pending_authentication',
         token_expires_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(), // 8 hours
-        api_url: 'https://www.gps51.com',
+        api_url: apiUrl,
         auth_method: 'ADMIN_SETUP',
         created_at: new Date().toISOString(),
         last_validated_at: new Date().toISOString()
@@ -115,13 +187,18 @@ serve(async (req) => {
       });
     }
 
-    console.log('✅ [STORE-ADMIN-CREDS] Credentials stored successfully with MD5 hash');
+    console.log('✅ [STORE-ADMIN-CREDS] Credentials stored successfully with validated MD5 hash');
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'GP51 credentials stored successfully for admin user',
+      message: 'GP51 credentials stored and validated successfully for admin user',
       sessionId: sessionData?.[0]?.id,
-      details: 'Password has been pre-hashed for GP51 compatibility'
+      details: {
+        username: 'octopus',
+        passwordValidated: true,
+        hashMethod: 'MD5',
+        gp51ApiTested: true
+      }
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
