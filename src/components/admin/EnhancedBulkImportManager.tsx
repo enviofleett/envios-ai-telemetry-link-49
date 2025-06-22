@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Download, Play, Pause, AlertCircle, CheckCircle, Info } from 'lucide-react';
 import GP51DiagnosticsPanel from './GP51DiagnosticsPanel';
-import { enhancedImportErrorHandler } from '@/utils/enhanced-import-error-handler';
+import { enhancedImportErrorHandler, EnhancedImportErrorHandler } from '@/utils/enhanced-import-error-handler';
 
 interface ImportProgress {
   phase: string;
@@ -41,14 +41,14 @@ const EnhancedBulkImportManager: React.FC = () => {
       });
 
       if (error) {
-        const importError = enhancedImportErrorHandler.parseApiError(error);
+        const importError = EnhancedImportErrorHandler.parseApiError(error);
         enhancedImportErrorHandler.addError(importError);
         
         throw new Error(error.message || 'Import failed');
       }
 
       if (!data.success) {
-        const importError = enhancedImportErrorHandler.parseApiError({ message: data.error });
+        const importError = EnhancedImportErrorHandler.parseApiError({ message: data.error });
         enhancedImportErrorHandler.addError(importError);
         
         throw new Error(data.error || 'Import failed');
@@ -142,7 +142,7 @@ const EnhancedBulkImportManager: React.FC = () => {
                       • {error.message}
                       {error.details && (
                         <div className="ml-4 text-xs text-red-600">
-                          {enhancedImportErrorHandler.getRecoveryRecommendation(error)}
+                          {EnhancedImportErrorHandler.getRecoveryRecommendation(error)}
                         </div>
                       )}
                     </div>
