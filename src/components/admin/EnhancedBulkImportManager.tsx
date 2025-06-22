@@ -66,26 +66,45 @@ const EnhancedBulkImportManager: React.FC = () => {
         throw new Error(error.message || 'Failed to fetch preview data');
       }
 
-      if (!data.success) {
-        throw new Error(data.error || 'Preview fetch failed');
+      // Fix: Handle the correct response structure
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'Preview fetch failed');
       }
 
-      setPreviewData(data.data);
+      // Fix: Access the data property correctly
+      const previewData = data.data;
+      
+      // Fix: Validate that we have the expected structure
+      if (!previewData || !previewData.summary) {
+        throw new Error('Invalid preview data structure received');
+      }
+
+      setPreviewData(previewData);
       setShowPreview(true);
 
       toast({
         title: "Data Preview Ready",
-        description: `Found ${data.data.summary.totalDevices} vehicles and ${data.data.summary.totalUsers} users`
+        description: `Found ${previewData.summary.totalDevices} vehicles and ${previewData.summary.totalUsers} users`
       });
 
     } catch (error) {
       console.error('Preview fetch error:', error);
       
+      // Fix: Provide more specific error handling
+      let errorMessage = 'Failed to fetch preview data';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Preview Failed",
-        description: error instanceof Error ? error.message : 'Failed to fetch preview data',
+        description: errorMessage,
         variant: "destructive"
       });
+      
+      // Fix: Reset state on error
+      setPreviewData(null);
+      setShowPreview(false);
     } finally {
       setIsLoadingPreview(false);
     }
@@ -108,33 +127,36 @@ const EnhancedBulkImportManager: React.FC = () => {
         throw new Error(error.message || 'Import failed');
       }
 
-      if (!data.success) {
-        throw new Error(data.error || 'Import failed');
+      // Fix: Handle response structure correctly
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'Import failed');
       }
 
       setProgress({
         phase: 'completed',
         percentage: 100,
-        message: 'Import completed successfully'
+        message: data.message || 'Import completed successfully'
       });
 
       toast({
         title: "Import Completed",
-        description: "Bulk import completed successfully"
+        description: data.message || "Bulk import completed successfully"
       });
 
     } catch (error) {
       console.error('Import error:', error);
       
+      const errorMessage = error instanceof Error ? error.message : 'Import failed';
+      
       setProgress({
         phase: 'error',
         percentage: 0,
-        message: error instanceof Error ? error.message : 'Import failed'
+        message: errorMessage
       });
 
       toast({
         title: "Import Failed",
-        description: error instanceof Error ? error.message : 'Import failed',
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -188,7 +210,10 @@ const EnhancedBulkImportManager: React.FC = () => {
                   <div className="flex gap-2">
                     <Button 
                       variant="outline"
-                      onClick={() => setShowPreview(false)}
+                      onClick={() => {
+                        setShowPreview(false);
+                        setPreviewData(null);
+                      }}
                       disabled={isImporting}
                     >
                       Refresh Preview
