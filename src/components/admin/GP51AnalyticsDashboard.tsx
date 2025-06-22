@@ -1,246 +1,252 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart3, TrendingUp, Activity, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { useQuery } from '@tanstack/react-query';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
-import type { SyncStatus } from '../types/syncTypes';
+import { useToast } from '@/hooks/use-toast';
+import { Activity, TrendingUp, AlertTriangle, CheckCircle, Clock, Database } from 'lucide-react';
+import { SyncStatus, SyncAnalyticsSummary } from './types/syncTypes';
 import { Json } from '@/integrations/supabase/types';
 
-// Type-safe helper functions for Json data
-const getSyncDetailsProperty = (syncDetails: Json, property: string): number => {
-  if (typeof syncDetails === 'object' && syncDetails !== null && !Array.isArray(syncDetails)) {
-    const value = (syncDetails as Record<string, any>)[property];
-    return typeof value === 'number' ? value : 0;
+// Helper function to safely extract number from Json
+const extractNumber = (json: Json, key: string, defaultValue: number = 0): number => {
+  if (typeof json === 'object' && json !== null && !Array.isArray(json)) {
+    const value = (json as Record<string, Json>)[key];
+    return typeof value === 'number' ? value : defaultValue;
   }
-  return 0;
+  return defaultValue;
 };
 
-const isValidSyncDetails = (syncDetails: Json): syncDetails is Record<string, any> => {
-  return typeof syncDetails === 'object' && syncDetails !== null && !Array.isArray(syncDetails);
+// Helper function to safely extract string from Json
+const extractString = (json: Json, key: string, defaultValue: string = ''): string => {
+  if (typeof json === 'object' && json !== null && !Array.isArray(json)) {
+    const value = (json as Record<string, Json>)[key];
+    return typeof value === 'string' ? value : defaultValue;
+  }
+  return defaultValue;
 };
 
 const GP51AnalyticsDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('overview');
+  const [syncHistory, setSyncHistory] = useState<SyncStatus[]>([]);
+  const [analyticsSummary, setAnalyticsSummary] = useState<SyncAnalyticsSummary | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
-  const { data: syncHistory, isLoading } = useQuery({
-    queryKey: ['gp51-sync-history'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+  useEffect(() => {
+    fetchSyncAnalytics();
+  }, []);
+
+  const fetchSyncAnalytics = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Fetch recent sync history
+      const { data: syncData, error: syncError } = await supabase
         .from('gp51_sync_status')
         .select('*')
         .order('created_at', { ascending: false })
-        .limit(50);
-      
-      if (error) throw error;
-      return data as SyncStatus[];
-    },
-  });
+        .limit(10);
 
-  const { data: syncMetrics } = useQuery({
-    queryKey: ['gp51-sync-metrics'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('gp51_sync_status')
-        .select('status, total_devices, successful_syncs, failed_syncs, sync_details')
-        .order('created_at', { ascending: false })
-        .limit(100);
-      
-      if (error) throw error;
-      
-      const totalSyncs = data?.length || 0;
-      const successfulSyncs = data?.filter(s => s.status === 'completed').length || 0;
-      const avgDevices = data?.reduce((sum, s) => sum + (s.total_devices || 0), 0) / Math.max(totalSyncs, 1);
-      
-      return {
-        totalSyncs,
-        successfulSyncs,
-        failedSyncs: totalSyncs - successfulSyncs,
-        successRate: totalSyncs > 0 ? (successfulSyncs / totalSyncs) * 100 : 0,
-        avgDevicesPerSync: Math.round(avgDevices),
-        totalDevicesSynced: data?.reduce((sum, s) => sum + (s.successful_syncs || 0), 0) || 0
-      };
-    },
-  });
+      if (syncError) throw syncError;
+
+      setSyncHistory(syncData || []);
+
+      // Calculate analytics summary
+      if (syncData && syncData.length > 0) {
+        const totalSyncs = syncData.length;
+        const successfulSyncs = syncData.filter(s => s.status === 'completed').length;
+        const failedSyncs = syncData.filter(s => s.status === 'failed').length;
+        const successRate = totalSyncs > 0 ? (successfulSyncs / totalSyncs) * 100 : 0;
+        
+        // Calculate average duration for completed syncs
+        const completedSyncs = syncData.filter(s => s.status === 'completed' && s.completed_at);
+        let averageDuration = 0;
+        if (completedSyncs.length > 0) {
+          const totalDuration = completedSyncs.reduce((sum, sync) => {
+            const start = new Date(sync.started_at).getTime();
+            const end = new Date(sync.completed_at!).getTime();
+            return sum + (end - start);
+          }, 0);
+          averageDuration = totalDuration / completedSyncs.length / 1000; // Convert to seconds
+        }
+
+        const totalDevices = syncData.reduce((sum, sync) => {
+          return sum + extractNumber(sync.sync_details, 'total_devices', sync.total_devices || 0);
+        }, 0);
+
+        setAnalyticsSummary({
+          total_devices: totalDevices,
+          successful_syncs: successfulSyncs,
+          failed_syncs: failedSyncs,
+          success_rate: successRate,
+          average_sync_duration: averageDuration,
+          last_sync_time: syncData[0]?.created_at || null
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching sync analytics:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch sync analytics",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const formatDuration = (seconds: number): string => {
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+    return `${Math.round(seconds / 3600)}h`;
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <Badge variant="default" className="bg-green-100 text-green-800">Completed</Badge>;
+      case 'running':
+        return <Badge variant="default" className="bg-blue-100 text-blue-800">Running</Badge>;
+      case 'failed':
+        return <Badge variant="destructive">Failed</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
+          </div>
+          <div className="h-64 bg-gray-200 rounded"></div>
+        </div>
       </div>
     );
   }
 
-  const recentSyncs = syncHistory?.slice(0, 10) || [];
-  const performanceData = syncHistory?.slice(0, 30).map(sync => ({
-    date: new Date(sync.created_at).toLocaleDateString(),
-    devices: sync.total_devices || 0,
-    success_rate: sync.total_devices > 0 ? ((sync.successful_syncs || 0) / sync.total_devices) * 100 : 0,
-    duration: isValidSyncDetails(sync.sync_details) ? getSyncDetailsProperty(sync.sync_details, 'duration_minutes') : 0
-  })) || [];
-
   return (
     <div className="space-y-6">
-      {/* Analytics Overview Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Syncs</CardTitle>
-            <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{syncMetrics?.totalSyncs || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              All time sync operations
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{syncMetrics?.successRate.toFixed(1) || 0}%</div>
-            <Progress value={syncMetrics?.successRate || 0} className="mt-2" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Devices Synced</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{syncMetrics?.totalDevicesSynced || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Avg {syncMetrics?.avgDevicesPerSync || 0} per sync
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Failed Syncs</CardTitle>
-            <AlertCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{syncMetrics?.failedSyncs || 0}</div>
-            <p className="text-xs text-muted-foreground">
-              Requires attention
-            </p>
-          </CardContent>
-        </Card>
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">GP51 Analytics Dashboard</h2>
+        <p className="text-gray-600">Monitor sync performance and system health</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-4">
+      {analyticsSummary && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Recent Sync Activity</CardTitle>
-              <CardDescription>Latest synchronization operations</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Devices</CardTitle>
+              <Database className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {recentSyncs.map((sync) => (
-                  <div key={sync.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      {sync.status === 'completed' ? (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                      ) : sync.status === 'failed' ? (
-                        <AlertCircle className="h-5 w-5 text-red-500" />
-                      ) : (
-                        <Clock className="h-5 w-5 text-yellow-500" />
-                      )}
-                      <div>
-                        <p className="font-medium">{sync.sync_type}</p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(sync.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant={sync.status === 'completed' ? 'default' : sync.status === 'failed' ? 'destructive' : 'secondary'}>
-                        {sync.status}
-                      </Badge>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {sync.successful_syncs || 0}/{sync.total_devices || 0} devices
-                      </p>
-                    </div>
-                  </div>
-                ))}
+              <div className="text-2xl font-bold">{analyticsSummary.total_devices}</div>
+              <p className="text-xs text-muted-foreground">Connected devices</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{analyticsSummary.success_rate.toFixed(1)}%</div>
+              <Progress value={analyticsSummary.success_rate} className="mt-2" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Avg Duration</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {formatDuration(analyticsSummary.average_sync_duration)}
+              </div>
+              <p className="text-xs text-muted-foreground">Per sync operation</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Last Sync</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm font-bold">
+                {analyticsSummary.last_sync_time ? 
+                  new Date(analyticsSummary.last_sync_time).toLocaleString() : 
+                  'No recent syncs'
+                }
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
+      )}
 
-        <TabsContent value="performance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Performance Trends</CardTitle>
-              <CardDescription>Sync performance over the last 30 operations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {performanceData.slice(0, 10).map((data, index) => (
-                  <div key={index} className="flex items-center justify-between">
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Sync History</CardTitle>
+          <CardDescription>Last 10 synchronization operations</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {syncHistory.length === 0 ? (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>No sync history available</AlertDescription>
+            </Alert>
+          ) : (
+            <div className="space-y-4">
+              {syncHistory.map((sync) => (
+                <div key={sync.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="flex items-center space-x-4">
                     <div className="flex-1">
-                      <div className="flex justify-between text-sm">
-                        <span>{data.date}</span>
-                        <span>{data.devices} devices</span>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-medium">{sync.sync_type}</h4>
+                        {getStatusBadge(sync.status)}
                       </div>
-                      <Progress value={data.success_rate} className="mt-1" />
-                    </div>
-                    <div className="ml-4 text-right">
-                      <div className="text-sm font-medium">{data.success_rate.toFixed(1)}%</div>
-                      <div className="text-xs text-gray-500">{data.duration}min</div>
+                      <p className="text-sm text-gray-600 mt-1">
+                        Started: {new Date(sync.started_at).toLocaleString()}
+                      </p>
+                      {sync.completed_at && (
+                        <p className="text-sm text-gray-600">
+                          Completed: {new Date(sync.completed_at).toLocaleString()}
+                        </p>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                  <div className="text-right">
+                    <div className="text-sm">
+                      <span className="text-green-600">{sync.successful_syncs} success</span>
+                      {sync.failed_syncs > 0 && (
+                        <span className="text-red-600 ml-2">{sync.failed_syncs} failed</span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {extractNumber(sync.sync_details, 'total_devices', sync.total_devices || 0)} devices
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-        <TabsContent value="history" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sync History</CardTitle>
-              <CardDescription>Complete synchronization history</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {syncHistory?.map((sync) => (
-                  <div key={sync.id} className="flex items-center justify-between p-2 border-b">
-                    <div className="flex items-center space-x-2">
-                      <Badge variant={sync.status === 'completed' ? 'default' : 'destructive'}>
-                        {sync.status}
-                      </Badge>
-                      <span className="text-sm">{sync.sync_type}</span>
-                    </div>
-                    <div className="text-right text-sm">
-                      <div>{sync.successful_syncs || 0}/{sync.total_devices || 0}</div>
-                      <div className="text-gray-500">
-                        {new Date(sync.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      <div className="flex justify-end">
+        <Button onClick={fetchSyncAnalytics} variant="outline">
+          <Activity className="h-4 w-4 mr-2" />
+          Refresh Analytics
+        </Button>
+      </div>
     </div>
   );
 };
