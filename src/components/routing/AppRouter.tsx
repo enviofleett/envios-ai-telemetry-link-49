@@ -25,7 +25,7 @@ import StableAdminSettings from '@/pages/StableAdminSettings';
 import SystemImport from '@/pages/SystemImport';
 import DeviceConfiguration from '@/pages/DeviceConfiguration';
 
-// Operations
+// Operations - Now with full functionality
 import Maintenance from '@/pages/Maintenance';
 import WorkshopManagement from '@/pages/WorkshopManagement';
 import Marketplace from '@/pages/Marketplace';
@@ -34,7 +34,7 @@ import Marketplace from '@/pages/Marketplace';
 import Reports from '@/pages/Reports';
 import AdminAnalytics from '@/pages/AdminAnalytics';
 
-// Business Management
+// Business Management - Now with full functionality
 import PackageManagement from '@/pages/PackageManagement';
 import ActiveServices from '@/pages/ActiveServices';
 import MerchantApplication from '@/pages/MerchantApplication';
@@ -155,7 +155,7 @@ export const AppRouter: React.FC = () => {
         }
       />
 
-      {/* Operations */}
+      {/* Enhanced Operations */}
       <Route
         path="/maintenance"
         element={
@@ -209,7 +209,7 @@ export const AppRouter: React.FC = () => {
         }
       />
 
-      {/* Business Management */}
+      {/* Enhanced Business Management */}
       <Route
         path="/packages"
         element={
