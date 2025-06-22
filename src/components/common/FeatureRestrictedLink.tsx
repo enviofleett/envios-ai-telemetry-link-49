@@ -1,32 +1,18 @@
 
-import React from "react";
-import FeatureGate from "@/components/auth/FeatureGate";
-import { useUnifiedAuth } from "@/contexts/UnifiedAuthContext";
+import React from 'react';
 
-/**
- * Wrap any navigation link with this component to restrict its visibility or enablement
- * based on a required feature ID.
- */
-export function FeatureRestrictedLink({
-  featureId,
-  children,
-  fallback = null,
-}: {
+interface FeatureRestrictedLinkProps {
   featureId: string;
   children: React.ReactNode;
-  fallback?: React.ReactNode;
-}) {
-  const { user } = useUnifiedAuth();
-
-  // For now, show all links since we don't have role checking in UnifiedAuth yet
-  // TODO: Add role checking when UnifiedAuth supports it
-  if (user) {
-    return <>{children}</>;
-  }
-
-  return (
-    <FeatureGate featureId={featureId} fallback={fallback}>
-      {children}
-    </FeatureGate>
-  );
 }
+
+const FeatureRestrictedLink: React.FC<FeatureRestrictedLinkProps> = ({ 
+  featureId, 
+  children 
+}) => {
+  // For now, all features are available
+  // This component can be enhanced later with actual feature restriction logic
+  return <>{children}</>;
+};
+
+export { FeatureRestrictedLink };

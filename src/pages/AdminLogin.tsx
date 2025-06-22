@@ -1,9 +1,9 @@
 
 import React from 'react';
-import ModernAdminOnlyLoginPage from '@/components/auth/ModernAdminOnlyLoginPage';
+import AdminOnlyLoginPage from '@/components/auth/AdminOnlyLoginPage';
 
 const AdminLogin: React.FC = () => {
-  return <ModernAdminOnlyLoginPage />;
+  return <AdminOnlyLoginPage />;
 };
 
 export default AdminLogin;

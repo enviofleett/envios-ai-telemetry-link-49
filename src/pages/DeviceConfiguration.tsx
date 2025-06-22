@@ -1,63 +1,65 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import DeviceConfigurationTab from '@/components/devices/DeviceConfigurationTab';
-import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
+import { Settings, Smartphone, Wifi } from 'lucide-react';
 
 const DeviceConfiguration: React.FC = () => {
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
-  const { vehicles } = useUnifiedVehicleData();
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">Device Configuration</h1>
+        <p className="text-gray-600">Configure and manage GPS tracking devices</p>
+      </div>
 
-  if (!selectedDeviceId) {
-    return (
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Device Configuration</CardTitle>
+            <CardTitle className="flex items-center">
+              <Smartphone className="h-5 w-5 mr-2" />
+              Devices
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="device-select" className="text-sm font-medium">
-                Select a device to configure:
-              </label>
-              <Select onValueChange={setSelectedDeviceId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a device..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {vehicles.map((vehicle) => (
-                    <SelectItem key={vehicle.device_id} value={vehicle.device_id}>
-                      {vehicle.device_name} ({vehicle.device_id})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {vehicles.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No devices available for configuration.
-              </p>
-            )}
+          <CardContent>
+            <div className="text-2xl font-bold">0</div>
+            <p className="text-sm text-gray-600">Configured devices</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Wifi className="h-5 w-5 mr-2" />
+              Online
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">0</div>
+            <p className="text-sm text-gray-600">Devices online</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Settings className="h-5 w-5 mr-2" />
+              Pending Setup
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">0</div>
+            <p className="text-sm text-gray-600">Needs configuration</p>
           </CardContent>
         </Card>
       </div>
-    );
-  }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Device Configuration</h1>
-        <Button 
-          variant="outline" 
-          onClick={() => setSelectedDeviceId('')}
-        >
-          Change Device
-        </Button>
-      </div>
-      <DeviceConfigurationTab deviceId={selectedDeviceId} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Device Management</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-gray-600">Device configuration interface will be available here.</p>
+        </CardContent>
+      </Card>
     </div>
   );
 };

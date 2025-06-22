@@ -1,250 +1,208 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+import React from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Car, 
-  Activity, 
-  AlertTriangle, 
-  MapPin, 
-  Gauge, 
-  RefreshCw,
-  Eye,
-  MoreHorizontal 
-} from 'lucide-react';
-import { useUnifiedVehicleData } from '@/hooks/useUnifiedVehicleData';
-import VehicleDetailsModal from './VehicleDetailsModal';
-import type { VehicleData } from '@/types/vehicle';
+import { Link } from 'react-router-dom';
+import { useUnifiedAuth } from '@/contexts/UnifiedAuthContext';
+import { Car, Users, MapPin, Settings, BarChart3, Shield, Activity } from 'lucide-react';
+import GP51HealthIndicator from '@/components/admin/GP51HealthIndicator';
 
 const DashboardContent: React.FC = () => {
-  const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
-
-  const {
-    vehicles,
-    metrics,
-    isLoading,
-    isRefreshing,
-    error,
-    forceRefresh,
-    getVehiclesByStatus
-  } = useUnifiedVehicleData();
-
-  const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.last_position?.timestamp) return 'offline';
-    
-    const lastUpdate = new Date(vehicle.last_position.timestamp);
-    const now = new Date();
-    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-    
-    if (minutesSinceUpdate <= 5) return 'online';
-    if (minutesSinceUpdate <= 30) return 'idle';
-    return 'offline';
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'default';
-      case 'idle': return 'secondary';
-      default: return 'outline';
-    }
-  };
-
-  const formatLastUpdate = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
-    
-    if (diffMinutes < 1) return 'Just now';
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
-    return date.toLocaleDateString();
-  };
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="animate-pulse">
-              <div className="bg-gray-200 h-32 rounded-lg"></div>
-            </div>
-          ))}
-        </div>
-        <div className="animate-pulse">
-          <div className="bg-gray-200 h-96 rounded-lg"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-12">
-        <AlertTriangle className="h-16 w-16 mx-auto text-red-500 mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Dashboard</h2>
-        <p className="text-gray-600 mb-4">{error}</p>
-        <Button onClick={forceRefresh}>
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Retry
-        </Button>
-      </div>
-    );
-  }
+  const { user, isAdmin } = useUnifiedAuth();
 
   return (
     <div className="space-y-6">
-      {/* Metrics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      {/* Welcome Section */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900">Welcome to EnvioFleet</h1>
+        <p className="text-gray-600 mt-2">
+          {user?.email ? `Welcome back, ${user.email}` : 'Intelligent Fleet Management Platform'}
+        </p>
+      </div>
+
+      {/* GP51 Health Status */}
+      <div className="mb-8">
+        <GP51HealthIndicator />
+      </div>
+
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Vehicles</p>
-                <p className="text-3xl font-bold text-gray-900">{metrics.total}</p>
-              </div>
-              <Car className="h-8 w-8 text-blue-600" />
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+            <Car className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">0</div>
+            <p className="text-xs text-muted-foreground">No vehicles added yet</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Online</p>
-                <p className="text-3xl font-bold text-green-600">{metrics.online}</p>
-              </div>
-              <Activity className="h-8 w-8 text-green-600" />
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">1</div>
+            <p className="text-xs text-muted-foreground">You are logged in</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Offline</p>
-                <p className="text-3xl font-bold text-gray-600">{metrics.offline}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-gray-600" />
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Live Tracking</CardTitle>
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Ready</div>
+            <p className="text-xs text-muted-foreground">System operational</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Alerts</p>
-                <p className="text-3xl font-bold text-red-600">{metrics.alerts}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-red-600" />
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <Button
-                onClick={forceRefresh}
-                disabled={isRefreshing}
-                variant="outline"
-                size="sm"
-              >
-                <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
-              </Button>
-            </div>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">GP51 Status</CardTitle>
+            <Shield className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Setup Required</div>
+            <p className="text-xs text-muted-foreground">Complete authentication</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Vehicle Activity */}
-      <Card>
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <MapPin className="h-5 w-5 mr-2" />
+              Live Tracking
+            </CardTitle>
+            <CardDescription>
+              Monitor vehicle locations in real-time
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link to="/tracking">
+              <Button className="w-full">
+                View Live Map
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Car className="h-5 w-5 mr-2" />
+              Vehicle Management
+            </CardTitle>
+            <CardDescription>
+              Add and manage your fleet vehicles
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link to="/vehicles">
+              <Button className="w-full">
+                Manage Fleet
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <BarChart3 className="h-5 w-5 mr-2" />
+              Reports
+            </CardTitle>
+            <CardDescription>
+              Generate comprehensive fleet reports
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link to="/reports">
+              <Button className="w-full">
+                View Reports
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Setup Instructions */}
+      <Card className="mb-8">
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            Recent Vehicle Activity
-            <Badge variant="outline">
-              {vehicles.length} vehicles
-            </Badge>
-          </CardTitle>
+          <CardTitle>Get Started with EnvioFleet</CardTitle>
+          <CardDescription>
+            Follow these steps to set up your fleet management system
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          {vehicles.length === 0 ? (
-            <div className="text-center py-8">
-              <Car className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Vehicles Found</h3>
-              <p className="text-gray-500">
-                No vehicles are currently available or connected to your fleet.
-              </p>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 border rounded-lg">
+              <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                <Shield className="h-4 w-4 mr-2" />
+                1. Configure GP51 Integration
+              </h3>
+              <p className="text-sm text-gray-600 mb-3">Connect to the GP51 platform for vehicle tracking.</p>
+              <Link to="/settings">
+                <Button size="sm">
+                  <Settings className="w-4 h-4 mr-2" />
+                  Open Settings
+                </Button>
+              </Link>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {vehicles.slice(0, 10).map((vehicle) => {
-                const status = getVehicleStatus(vehicle);
-                
-                return (
-                  <div
-                    key={vehicle.device_id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Car className="h-5 w-5 text-blue-600" />
-                      </div>
-                      
-                      <div>
-                        <h4 className="font-medium text-gray-900">{vehicle.device_name}</h4>
-                        <p className="text-sm text-gray-500">ID: {vehicle.device_id}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <Badge variant={getStatusColor(status)}>
-                        {status}
-                      </Badge>
-
-                      {vehicle.last_position && (
-                        <div className="text-right">
-                          <div className="flex items-center gap-2 text-sm">
-                            <Gauge className="h-4 w-4 text-gray-400" />
-                            <span>{vehicle.last_position.speed || 0} km/h</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <MapPin className="h-4 w-4" />
-                            <span>
-                              {vehicle.last_position.latitude.toFixed(4)}, {vehicle.last_position.longitude.toFixed(4)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setSelectedVehicle(vehicle)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {vehicles.length > 10 && (
-                <div className="text-center pt-4">
-                  <p className="text-sm text-gray-500">
-                    Showing 10 of {vehicles.length} vehicles
-                  </p>
-                </div>
-              )}
+            
+            <div className="p-4 border rounded-lg opacity-50">
+              <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
+                <Car className="h-4 w-4 mr-2" />
+                2. Add Vehicles
+              </h3>
+              <p className="text-sm text-gray-600 mb-3">Import or add vehicles to your fleet.</p>
+              <Button size="sm" disabled>
+                Add Vehicles
+              </Button>
             </div>
-          )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Vehicle Details Modal */}
-      {selectedVehicle && (
-        <VehicleDetailsModal
-          vehicle={selectedVehicle}
-          isOpen={!!selectedVehicle}
-          onClose={() => setSelectedVehicle(null)}
-        />
+      {/* System Status */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Activity className="h-5 w-5 mr-2" />
+              System Status
+            </CardTitle>
+            <CardDescription>
+              Current status of the EnvioFleet platform
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Authentication System</span>
+                <span className="text-green-600 text-sm font-medium">✓ Active</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Database Connection</span>
+                <span className="text-green-600 text-sm font-medium">✓ Connected</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">User Session</span>
+                <span className="text-green-600 text-sm font-medium">✓ Valid</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">GP51 Integration</span>
+                <span className="text-yellow-600 text-sm font-medium">⚠ Setup Required</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

@@ -1,9 +1,17 @@
 
 import React from 'react';
-import ModernAdminOnlyLoginPage from '@/components/auth/ModernAdminOnlyLoginPage';
+import { Navigate } from 'react-router-dom';
+import { useUnifiedAuth } from '@/contexts/UnifiedAuthContext';
 
 const Login: React.FC = () => {
-  return <ModernAdminOnlyLoginPage />;
+  const { user } = useUnifiedAuth();
+
+  // Redirect to auth page for unified authentication
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Navigate to="/auth" replace />;
 };
 
 export default Login;

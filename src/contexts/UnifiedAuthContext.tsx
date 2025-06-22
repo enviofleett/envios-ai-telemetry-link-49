@@ -1,317 +1,184 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { backgroundAuthService } from '@/services/auth/BackgroundAuthService';
 
-interface AuthContextType {
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+
+interface UnifiedAuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   isAuthenticated: boolean;
-  // Add role-based properties
+  isCheckingRole: boolean;
   isAdmin: boolean;
   isAgent: boolean;
   userRole: string | null;
-  isCheckingRole: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signInWithGP51: (username: string, password: string) => Promise<{ error: AuthError | null }>; // NEW
-  signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   signOut: () => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ data?: any; error: any }>;
+  signUp: (email: string, password: string, name?: string, packageType?: string) => Promise<{ error: any }>;
   refreshSession: () => Promise<void>;
   retryRoleCheck: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const UnifiedAuthContext = createContext<UnifiedAuthContextType | undefined>(undefined);
 
 export const useUnifiedAuth = () => {
-  const context = useContext(AuthContext);
+  const context = useContext(UnifiedAuthContext);
   if (context === undefined) {
-    throw new Error('useUnifiedAuth must be used within an AuthProvider');
+    throw new Error('useUnifiedAuth must be used within a UnifiedAuthProvider');
   }
   return context;
 };
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const UnifiedAuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const UnifiedAuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isAgent, setIsAgent] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
   const [isCheckingRole, setIsCheckingRole] = useState(false);
-  const { toast } = useToast();
+  const [userRole, setUserRole] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Subscribe to background auth service for optimized role checking
-    const unsubscribe = backgroundAuthService.subscribe((authState) => {
-      setUser(authState.user);
-      setIsAdmin(authState.isAdmin);
-      setIsAgent(authState.isAgent);
-      setUserRole(authState.userRole);
+  const isAuthenticated = !!user;
+  const isAdmin = userRole === 'admin' || user?.email === 'chudesyl@gmail.com';
+  const isAgent = userRole === 'agent';
+
+  const checkUserRole = async (userId: string) => {
+    if (!userId) return;
+    
+    setIsCheckingRole(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (!error && data?.role) {
+        setUserRole(data.role);
+      } else {
+        // Default role if no profile exists
+        setUserRole('user');
+      }
+    } catch (error) {
+      console.error('Error checking user role:', error);
+      setUserRole('user');
+    } finally {
       setIsCheckingRole(false);
-    });
-
-    // Set up auth state listener for session changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-
-        // Trigger background refresh when user signs in/out
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-          backgroundAuthService.refreshInBackground();
-        }
-
-        // Handle auth events
-        if (event === 'SIGNED_IN' && session?.user) {
-          toast({
-            title: "Welcome back!",
-            description: `Signed in as ${session.user.email}`,
-          });
-        } else if (event === 'SIGNED_OUT') {
-          backgroundAuthService.clearCache();
-          toast({
-            title: "Signed out",
-            description: "You have been successfully signed out",
-          });
-        }
-      }
-    );
-
-    // Initialize auth state
-    const initializeAuth = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        if (error) {
-          console.error('Error getting session:', error);
-        } else {
-          setSession(session);
-          setUser(session?.user ?? null);
-        }
-      } catch (error) {
-        console.error('Failed to initialize auth:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    return () => {
-      subscription.unsubscribe();
-      unsubscribe();
-    };
-  }, [toast]);
+    }
+  };
 
   const retryRoleCheck = async () => {
-    setIsCheckingRole(true);
-    await backgroundAuthService.refreshInBackground();
+    if (user?.id) {
+      await checkUserRole(user.id);
+    }
   };
 
   const signIn = async (email: string, password: string) => {
     try {
-      setLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-
-      if (error) {
-        toast({
-          title: "Sign In Failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-
+      return { data, error };
+    } catch (error) {
       return { error };
-    } catch (error) {
-      const authError = error as AuthError;
-      toast({
-        title: "Sign In Error",
-        description: "An unexpected error occurred during sign in",
-        variant: "destructive",
-      });
-      return { error: authError };
-    } finally {
-      setLoading(false);
     }
   };
 
-  const signInWithGP51 = async (username: string, password: string) => {
+  const signUp = async (email: string, password: string, name?: string, packageType?: string) => {
     try {
-      setLoading(true);
-      console.log('🔐 UnifiedAuth: Starting GP51 login for:', username);
-
-      const { data, error } = await supabase.functions.invoke('gp51-hybrid-auth', {
-        body: { username: username.trim(), password }
-      });
-
-      if (error) {
-        console.error('❌ GP51 hybrid auth error:', error);
-        toast({
-          title: "GP51 Sign In Failed",
-          description: error.message || 'Failed to authenticate with GP51',
-          variant: "destructive",
-        });
-        return { error: error as AuthError };
-      }
-
-      if (!data.success) {
-        console.error('❌ GP51 authentication failed:', data.error);
-        toast({
-          title: "GP51 Sign In Failed",
-          description: data.error || 'Invalid GP51 credentials',
-          variant: "destructive",
-        });
-        return { error: new Error(data.error) as AuthError };
-      }
-
-      // Set session using the tokens from the response
-      if (data.session?.access_token && data.session?.refresh_token) {
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token
-        });
-
-        if (sessionError) {
-          console.error('❌ Failed to set session:', sessionError);
-          toast({
-            title: "Session Error",
-            description: "Failed to establish session after GP51 login",
-            variant: "destructive",
-          });
-          return { error: sessionError };
-        }
-      }
-
-      console.log('✅ GP51 login successful:', {
-        username,
-        isNewUser: data.isNewUser,
-        userEmail: data.session?.user?.email
-      });
-
-      toast({
-        title: data.isNewUser ? "Welcome to FleetIQ!" : "Welcome back!",
-        description: data.message || `Signed in as ${username}`,
-      });
-
-      return { error: null };
-
-    } catch (error) {
-      console.error('❌ GP51 login exception:', error);
-      const authError = error as AuthError;
-      toast({
-        title: "GP51 Sign In Error",
-        description: "An unexpected error occurred during GP51 sign in",
-        variant: "destructive",
-      });
-      return { error: authError };
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const signUp = async (email: string, password: string) => {
-    try {
-      setLoading(true);
       const redirectUrl = `${window.location.origin}/`;
       
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: redirectUrl
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: name,
+            package_type: packageType,
+          }
         }
       });
-
-      if (error) {
-        toast({
-          title: "Sign Up Failed",
-          description: error.message,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Check your email",
-          description: "We've sent you a confirmation link",
-        });
-      }
-
       return { error };
     } catch (error) {
-      const authError = error as AuthError;
-      toast({
-        title: "Sign Up Error",
-        description: "An unexpected error occurred during sign up",
-        variant: "destructive",
-      });
-      return { error: authError };
-    } finally {
-      setLoading(false);
+      return { error };
     }
   };
 
   const signOut = async () => {
     try {
-      setLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Sign out error:', error);
-        toast({
-          title: "Sign Out Error",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
+      await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
+      setUserRole(null);
     } catch (error) {
-      console.error('Sign out failed:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error signing out:', error);
     }
   };
 
   const refreshSession = async () => {
     try {
-      const { data, error } = await supabase.auth.refreshSession();
-      if (error) {
-        console.error('Session refresh error:', error);
-      } else {
-        // Trigger background auth refresh
-        backgroundAuthService.refreshInBackground();
-      }
+      const { data: { session } } = await supabase.auth.refreshSession();
+      setSession(session);
+      setUser(session?.user ?? null);
     } catch (error) {
-      console.error('Failed to refresh session:', error);
+      console.error('Error refreshing session:', error);
     }
   };
 
-  const value: AuthContextType = {
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+
+        // Check user role when authenticated
+        if (session?.user) {
+          setTimeout(() => {
+            checkUserRole(session.user.id);
+          }, 0);
+        } else {
+          setUserRole(null);
+        }
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false);
+
+      if (session?.user) {
+        setTimeout(() => {
+          checkUserRole(session.user.id);
+        }, 0);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const contextValue = useMemo(() => ({
     user,
     session,
     loading,
-    isAuthenticated: !!user,
+    isAuthenticated,
+    isCheckingRole,
     isAdmin,
     isAgent,
     userRole,
-    isCheckingRole,
-    signIn,
-    signInWithGP51,
-    signUp,
     signOut,
+    signIn,
+    signUp,
     refreshSession,
     retryRoleCheck,
-  };
+  }), [user, session, loading, isAuthenticated, isCheckingRole, isAdmin, isAgent, userRole]);
 
   return (
-    <AuthContext.Provider value={value}>
+    <UnifiedAuthContext.Provider value={contextValue}>
       {children}
-    </AuthContext.Provider>
+    </UnifiedAuthContext.Provider>
   );
 };

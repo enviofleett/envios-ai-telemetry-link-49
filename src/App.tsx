@@ -3,74 +3,31 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import Dashboard from "./pages/Dashboard";
-import Auth from "./pages/Auth";
-import Login from "./pages/Login";
-import AdminLogin from "./pages/AdminLogin";
-import AdminSetup from "./pages/AdminSetup";
+import { BrowserRouter } from "react-router-dom";
+import { UnifiedAuthProvider } from "@/contexts/UnifiedAuthContext";
+import { AppRouter } from "@/components/routing/AppRouter";
 
-const queryClient = new QueryClient();
-
-// Protected Route wrapper
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <Navigate to="/auth" replace />;
-  }
-
-  return <>{children}</>;
-};
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
+      <UnifiedAuthProvider>
         <TooltipProvider>
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              {/* Public routes */}
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/admin-login" element={<AdminLogin />} />
-              
-              {/* Protected routes */}
-              <Route 
-                path="/" 
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              <Route 
-                path="/admin-setup" 
-                element={
-                  <ProtectedRoute>
-                    <AdminSetup />
-                  </ProtectedRoute>
-                } 
-              />
-              
-              {/* Redirect any unknown routes to auth */}
-              <Route path="*" element={<Navigate to="/auth" replace />} />
-            </Routes>
+            <AppRouter />
           </BrowserRouter>
         </TooltipProvider>
-      </AuthProvider>
+      </UnifiedAuthProvider>
     </QueryClientProvider>
   );
 };
