@@ -14,6 +14,7 @@ interface BillingSettings {
   currency: string;
   billing_amount: number;
   auto_renewal: boolean;
+  user_id: string;
 }
 
 const BillingSettingsForm: React.FC = () => {
@@ -22,7 +23,8 @@ const BillingSettingsForm: React.FC = () => {
     billing_cycle: 'monthly',
     currency: 'USD',
     billing_amount: 0,
-    auto_renewal: true
+    auto_renewal: true,
+    user_id: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -35,15 +37,23 @@ const BillingSettingsForm: React.FC = () => {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const { data, error } = await supabase
         .from('billing_settings')
         .select('*')
+        .eq('user_id', user.id)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
       
       if (data) {
-        setSettings(data);
+        setSettings({ ...data, user_id: user.id });
+      } else {
+        setSettings(prev => ({ ...prev, user_id: user.id }));
       }
     } catch (error) {
       console.error('Error loading billing settings:', error);
@@ -60,9 +70,16 @@ const BillingSettingsForm: React.FC = () => {
   const saveSettings = async () => {
     setIsSaving(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const settingsWithUserId = { ...settings, user_id: user.id };
+
       const { error } = await supabase
         .from('billing_settings')
-        .upsert(settings, { onConflict: 'user_id' });
+        .upsert(settingsWithUserId, { onConflict: 'user_id' });
 
       if (error) throw error;
 

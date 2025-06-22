@@ -16,6 +16,7 @@ interface CompanySettings {
   timezone: string;
   currency_code: string;
   fleet_size: number;
+  user_id: string;
 }
 
 const CompanySettingsForm: React.FC = () => {
@@ -26,7 +27,8 @@ const CompanySettingsForm: React.FC = () => {
     phone_number: '',
     timezone: 'UTC',
     currency_code: 'USD',
-    fleet_size: 0
+    fleet_size: 0,
+    user_id: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -39,15 +41,23 @@ const CompanySettingsForm: React.FC = () => {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const { data, error } = await supabase
         .from('company_settings')
         .select('*')
+        .eq('user_id', user.id)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
       
       if (data) {
-        setSettings(data);
+        setSettings({ ...data, user_id: user.id });
+      } else {
+        setSettings(prev => ({ ...prev, user_id: user.id }));
       }
     } catch (error) {
       console.error('Error loading company settings:', error);
@@ -64,9 +74,16 @@ const CompanySettingsForm: React.FC = () => {
   const saveSettings = async () => {
     setIsSaving(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const settingsWithUserId = { ...settings, user_id: user.id };
+
       const { error } = await supabase
         .from('company_settings')
-        .upsert(settings, { onConflict: 'user_id' });
+        .upsert(settingsWithUserId, { onConflict: 'user_id' });
 
       if (error) throw error;
 

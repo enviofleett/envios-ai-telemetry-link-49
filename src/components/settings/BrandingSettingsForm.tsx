@@ -16,6 +16,7 @@ interface BrandingSettings {
   text_color: string;
   font_family_heading: string;
   font_family_body: string;
+  user_id: string;
 }
 
 const BrandingSettingsForm: React.FC = () => {
@@ -27,7 +28,8 @@ const BrandingSettingsForm: React.FC = () => {
     background_color: '#ffffff',
     text_color: '#1f2937',
     font_family_heading: 'Inter',
-    font_family_body: 'Inter'
+    font_family_body: 'Inter',
+    user_id: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -40,15 +42,23 @@ const BrandingSettingsForm: React.FC = () => {
   const loadSettings = async () => {
     setIsLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       const { data, error } = await supabase
         .from('branding_settings')
         .select('*')
+        .eq('user_id', user.id)
         .single();
 
       if (error && error.code !== 'PGRST116') throw error;
       
       if (data) {
-        setSettings(data);
+        setSettings({ ...data, user_id: user.id });
+      } else {
+        setSettings(prev => ({ ...prev, user_id: user.id }));
       }
     } catch (error) {
       console.error('Error loading branding settings:', error);
@@ -65,9 +75,16 @@ const BrandingSettingsForm: React.FC = () => {
   const saveSettings = async () => {
     setIsSaving(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      const settingsWithUserId = { ...settings, user_id: user.id };
+
       const { error } = await supabase
         .from('branding_settings')
-        .upsert(settings, { onConflict: 'user_id' });
+        .upsert(settingsWithUserId, { onConflict: 'user_id' });
 
       if (error) throw error;
 
