@@ -32,16 +32,16 @@ export async function handleGP51Authentication(
 
     console.log('✅ GP51 authentication successful, saving credentials...');
 
-    // Store encrypted credentials
+    // Store encrypted credentials using correct column names
     const { error: insertError } = await adminSupabase
       .from('gp51_sessions')
       .upsert({
         envio_user_id: userId,
-        gp51_username: authResult.username,
+        username: authResult.username,
         gp51_token: authResult.token,
+        token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
         api_url: authResult.apiUrl,
-        last_activity_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
+        last_activity_at: new Date().toISOString()
       }, {
         onConflict: 'envio_user_id'
       });
