@@ -6,7 +6,8 @@ export interface GP51Session {
   username: string;
   password_hash: string;
   gp51_token: string;
-  token_expires_at?: string; // Or Date, adjust as per actual usage
+  token_expires_at?: string;
+  envio_user_id: string; // Add the user ID to the interface
   // Add any other relevant fields from your gp51_sessions table
 }
 
@@ -14,7 +15,7 @@ export async function getValidGp51Session(): Promise<{ session?: GP51Session; er
   const supabase = getSupabaseClient();
   const { data: sessionData, error: sessionError } = await supabase
     .from("gp51_sessions")
-    .select("*")
+    .select("*, envio_user_id") // Include envio_user_id in the selection
     .order("created_at", { ascending: false }) // Assuming most recent is desired
     .limit(1)
     .maybeSingle();
@@ -52,6 +53,19 @@ export async function getValidGp51Session(): Promise<{ session?: GP51Session; er
         "GP51 session is invalid (missing token)",
         401,
         "Session is invalid, please re-authenticate in admin settings.",
+        "INVALID_SESSION"
+      )
+    };
+  }
+
+  // Validate that we have a user ID
+  if (!session.envio_user_id) {
+    console.error("❌ GP51 session is missing envio_user_id.");
+    return {
+      errorResponse: errorResponse(
+        "GP51 session is invalid (missing user ID)",
+        401,
+        "Session is missing user association, please re-authenticate in admin settings.",
         "INVALID_SESSION"
       )
     };
