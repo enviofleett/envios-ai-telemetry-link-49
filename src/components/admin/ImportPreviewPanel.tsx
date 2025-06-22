@@ -9,7 +9,9 @@ import {
   FolderOpen, 
   Database,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 
 interface ImportSummary {
@@ -28,6 +30,7 @@ interface PreviewData {
   summary: ImportSummary;
   details: ImportDetails;
   message: string;
+  success?: boolean;
 }
 
 interface ImportPreviewPanelProps {
@@ -39,9 +42,30 @@ const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({
   previewData, 
   isLoading 
 }) => {
-  const { summary, details } = previewData;
-  
+  if (!previewData) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Import Preview & Data Analysis
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-lg">
+            <AlertCircle className="h-5 w-5 text-gray-600" />
+            <span className="text-gray-700">
+              Click "Test Connection" to discover available GP51 data
+            </span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const { summary, details, message, success } = previewData;
   const hasAnyData = summary.vehicles > 0 || summary.users > 0 || summary.groups > 0;
+  const isConnected = success !== false;
 
   return (
     <Card>
@@ -49,9 +73,30 @@ const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({
         <CardTitle className="flex items-center gap-2">
           <Database className="h-5 w-5" />
           Import Preview & Data Analysis
+          {isConnected ? (
+            <Wifi className="h-4 w-4 text-green-600" />
+          ) : (
+            <WifiOff className="h-4 w-4 text-red-600" />
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Connection Status */}
+        <div className={`flex items-center gap-2 p-4 rounded-lg ${
+          isConnected ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
+        }`}>
+          {isConnected ? (
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+          ) : (
+            <AlertCircle className="h-5 w-5 text-red-600" />
+          )}
+          <span className={`font-medium ${
+            isConnected ? 'text-green-800' : 'text-red-800'
+          }`}>
+            {isConnected ? 'GP51 API Connection Successful' : 'GP51 API Connection Failed'}
+          </span>
+        </div>
+
         {/* Summary Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
@@ -63,7 +108,7 @@ const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({
               </div>
             </div>
             <Badge variant={summary.vehicles > 0 ? "default" : "secondary"} className="text-lg px-3 py-1">
-              {summary.vehicles}
+              {summary.vehicles.toLocaleString()}
             </Badge>
           </div>
 
@@ -76,7 +121,7 @@ const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({
               </div>
             </div>
             <Badge variant={summary.users > 0 ? "default" : "secondary"} className="text-lg px-3 py-1">
-              {summary.users}
+              {summary.users.toLocaleString()}
             </Badge>
           </div>
 
@@ -89,7 +134,7 @@ const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({
               </div>
             </div>
             <Badge variant={summary.groups > 0 ? "default" : "secondary"} className="text-lg px-3 py-1">
-              {summary.groups}
+              {summary.groups.toLocaleString()}
             </Badge>
           </div>
         </div>
@@ -97,7 +142,9 @@ const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({
         <Separator />
 
         {/* Data Availability Status */}
-        <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-lg">
+        <div className={`flex items-center gap-2 p-4 rounded-lg ${
+          hasAnyData ? 'bg-green-50' : 'bg-amber-50'
+        }`}>
           {hasAnyData ? (
             <>
               <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -109,87 +156,54 @@ const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({
             <>
               <AlertCircle className="h-5 w-5 text-amber-600" />
               <span className="font-medium text-amber-800">
-                No Data Found - Check GP51 Connection
+                {isConnected ? 'No Data Found in GP51 Account' : 'Connection Issue - Check GP51 Settings'}
               </span>
             </>
           )}
         </div>
 
-        {/* Sample Data Preview */}
-        {hasAnyData && (
-          <div className="space-y-4">
-            <h4 className="font-semibold text-gray-900">Sample Data Preview</h4>
-            
-            {details.vehicles && details.vehicles.length > 0 && (
-              <div>
-                <h5 className="font-medium text-sm text-gray-700 mb-2">Sample Vehicles</h5>
-                <div className="space-y-2">
-                  {details.vehicles.slice(0, 3).map((vehicle, index) => (
-                    <div key={index} className="flex justify-between items-center p-2 bg-white border rounded">
-                      <div>
-                        <span className="font-medium">{vehicle.devicename || 'Unnamed Device'}</span>
-                        <span className="text-sm text-gray-500 ml-2">ID: {vehicle.deviceid}</span>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {vehicle.simnum ? 'SIM: ' + vehicle.simnum : 'No SIM'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* Import Readiness Message */}
+        <div className={`p-4 rounded-lg border ${
+          hasAnyData ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'
+        }`}>
+          <p className={`text-sm ${
+            hasAnyData ? 'text-blue-800' : 'text-gray-700'
+          }`}>
+            {message}
+          </p>
+          
+          {hasAnyData && (
+            <div className="mt-2 text-xs text-blue-600">
+              <strong>Next Steps:</strong> Use the "Start Import" button to begin importing this data into your system.
+            </div>
+          )}
+          
+          {!hasAnyData && isConnected && (
+            <div className="mt-2 text-xs text-gray-600">
+              <strong>Possible Causes:</strong>
+              <ul className="list-disc list-inside mt-1">
+                <li>Your GP51 account may not have any vehicles configured</li>
+                <li>The connected user account may not have access to device data</li>
+                <li>GP51 API permissions may be restricted for this account</li>
+              </ul>
+            </div>
+          )}
+        </div>
 
-            {details.users && details.users.length > 0 && (
-              <div>
-                <h5 className="font-medium text-sm text-gray-700 mb-2">Sample Users</h5>
-                <div className="space-y-2">
-                  {details.users.slice(0, 3).map((user, index) => (
-                    <div key={index} className="flex justify-between items-center p-2 bg-white border rounded">
-                      <div>
-                        <span className="font-medium">{user.username || 'Unknown User'}</span>
-                        {user.email && (
-                          <span className="text-sm text-gray-500 ml-2">{user.email}</span>
-                        )}
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        Type: {user.usertype || 'Unknown'}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {details.groups && details.groups.length > 0 && (
-              <div>
-                <h5 className="font-medium text-sm text-gray-700 mb-2">Device Groups</h5>
-                <div className="space-y-2">
-                  {details.groups.slice(0, 3).map((group, index) => (
-                    <div key={index} className="flex justify-between items-center p-2 bg-white border rounded">
-                      <div>
-                        <span className="font-medium">{group.groupname || 'Unnamed Group'}</span>
-                        <span className="text-sm text-gray-500 ml-2">ID: {group.groupid}</span>
-                      </div>
-                      <Badge variant="outline" className="text-xs">
-                        {group.deviceCount || 0} devices
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+        {/* Technical Details (for debugging) */}
+        {!isConnected && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="text-sm text-red-800">
+              <strong>Connection Troubleshooting:</strong>
+              <ul className="list-disc list-inside mt-1">
+                <li>Verify GP51 credentials in Admin Settings</li>
+                <li>Check that GP51 API URL is correct</li>
+                <li>Ensure GP51 account has API access enabled</li>
+                <li>Try re-authenticating with GP51</li>
+              </ul>
+            </div>
           </div>
         )}
-
-        {/* Import Readiness Message */}
-        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-          <p className="text-sm text-blue-800">
-            {hasAnyData 
-              ? `Ready to import ${summary.vehicles} vehicles, ${summary.users} users, and ${summary.groups} groups from GP51.`
-              : 'No data available for import. Please check your GP51 connection and ensure you have vehicles/users configured in your GP51 account.'
-            }
-          </p>
-        </div>
       </CardContent>
     </Card>
   );

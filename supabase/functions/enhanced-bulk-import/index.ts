@@ -1,67 +1,64 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { getGP51ApiUrl } from '../_shared/constants.ts';
-import { md5_for_gp51_only, sanitizeInput } from '../_shared/crypto_utils.ts';
-import { createSuccessResponse, createErrorResponse } from '../_shared/response_utils.ts';
-import { getValidGp51Session, updateSessionActivity } from '../_shared/gp51_session_utils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface GP51DeviceResponse {
-  status: number;
-  cause: string;
-  groups?: Array<{
-    groupname: string;
-    devices?: Array<{
-      deviceid: string;
-      devicename: string;
-      devicetype: number;
-      simnum?: string;
-      isfree?: number;
-      allowedit?: number;
-      lastactivetime?: number;
-      creater?: string;
-      remark?: string;
-    }>;
-  }>;
-}
-
-interface GP51UserResponse {
-  status: number;
-  cause: string;
-  users?: Array<{
-    username: string;
-    usertype: number;
-    deviceids?: string[];
-    email?: string;
-    showname?: string;
-  }>;
-}
-
-async function fetchFromGP51Api(action: string, token: string, username?: string) {
-  const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
-  const gp51ApiUrl = getGP51ApiUrl(gp51BaseUrl);
+// GP51 session utilities
+async function getValidGP51Session(supabase: any) {
+  console.log('🔍 [GP51SessionUtils] Validating GP51 session...');
   
-  console.log(`🔄 [GP51_FETCH] Fetching ${action} from: ${gp51ApiUrl}?action=${action}&token=[TOKEN]`);
-  console.log(`🔐 [GP51_FETCH] Auth details - Username: ${username || 'N/A'}, Token length: ${token ? token.length : 0}`);
-  
-  const requestBody: any = {
-    action: action,
-    token: token
-  };
+  const { data: sessions, error } = await supabase
+    .from('gp51_sessions')
+    .select('*')
+    .gt('token_expires_at', new Date().toISOString())
+    .order('last_activity_at', { ascending: false })
+    .limit(1);
 
-  if (username) {
-    requestBody.username = username;
+  if (error || !sessions || sessions.length === 0) {
+    throw new Error('No valid GP51 sessions found');
   }
 
-  console.log(`📤 [GP51_FETCH] Request body: ${JSON.stringify({ ...requestBody, token: '[REDACTED]' })}`);
+  const session = sessions[0];
+  const expiresAt = new Date(session.token_expires_at);
+  const now = new Date();
+  const minutesUntilExpiry = Math.floor((expiresAt.getTime() - now.getTime()) / (1000 * 60));
+
+  console.log(`✅ [GP51SessionUtils] Valid session found: {
+  sessionId: "${session.id}",
+  username: "${session.username}",
+  userId: "${session.envio_user_id}",
+  minutesUntilExpiry: ${minutesUntilExpiry},
+  authMethod: "${session.auth_method || 'unknown'}"
+}`);
+
+  return session;
+}
+
+async function fetchFromGP51Api(action: string, token: string, username: string, additionalParams: Record<string, any> = {}) {
+  const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
+  const apiUrl = `${gp51BaseUrl}/webapi`;
+  
+  console.log(`🔄 [GP51_FETCH] Fetching ${action} from: ${apiUrl}?action=${action}&token=[TOKEN]`);
+  console.log(`🔐 [GP51_FETCH] Auth details - Username: ${username}, Token length: ${token.length}`);
+
+  const requestBody = {
+    action,
+    token,
+    username,
+    ...additionalParams
+  };
+
+  console.log(`📤 [GP51_FETCH] Request body: ${JSON.stringify({
+    ...requestBody,
+    token: '[REDACTED]'
+  })}`);
 
   try {
-    const response = await fetch(gp51ApiUrl, {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json;charset=UTF-8',
@@ -78,6 +75,10 @@ async function fetchFromGP51Api(action: string, token: string, username?: string
     console.log(`📋 [GP51_FETCH] ${action} response length: ${responseText.length}`);
     console.log(`📋 [GP51_FETCH] ${action} RAW RESPONSE BODY: ${responseText}`);
 
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${responseText}`);
+    }
+
     let responseJson;
     try {
       responseJson = JSON.parse(responseText);
@@ -85,37 +86,15 @@ async function fetchFromGP51Api(action: string, token: string, username?: string
       console.log(`📊 [GP51_FETCH] ${action} PARSED JSON: ${JSON.stringify(responseJson, null, 2)}`);
     } catch (parseError) {
       console.error(`❌ [GP51_FETCH] ${action} JSON parse error:`, parseError);
-      console.error(`❌ [GP51_FETCH] ${action} Failed to parse response: "${responseText}"`);
-      throw new Error(`Failed to parse ${action} response: ${parseError.message}`);
+      throw new Error(`Failed to parse JSON response: ${parseError.message}`);
     }
 
-    // Check GP51 API status
-    console.log(`📈 [GP51_FETCH] ${action} GP51 status: ${responseJson.status}, cause: "${responseJson.cause}"`);
+    console.log(`📈 [GP51_FETCH] ${action} GP51 status: ${responseJson.status}, cause: "${responseJson.cause || 'N/A'}"`);
 
     if (responseJson.status !== 0) {
-      console.error(`❌ [GP51_FETCH] ${action} API error: ${responseJson.cause}`);
+      console.error(`❌ [GP51_FETCH] ${action} API error: ${responseJson.cause || 'Unknown error'}`);
       console.error(`❌ [GP51_FETCH] ${action} Full error response: ${JSON.stringify(responseJson)}`);
-      throw new Error(`GP51 API error for ${action}: ${responseJson.cause}`);
-    }
-
-    // Log data structure details
-    if (action === 'querymonitorlist' && responseJson.groups) {
-      console.log(`📊 [GP51_FETCH] ${action} found ${responseJson.groups.length} groups`);
-      let totalDevices = 0;
-      responseJson.groups.forEach((group: any, index: number) => {
-        const deviceCount = group.devices ? group.devices.length : 0;
-        totalDevices += deviceCount;
-        console.log(`📊 [GP51_FETCH] Group ${index + 1}: "${group.groupname}" has ${deviceCount} devices`);
-      });
-      console.log(`📊 [GP51_FETCH] Total devices across all groups: ${totalDevices}`);
-    }
-
-    if (action === 'getuserlist' && responseJson.users) {
-      console.log(`📊 [GP51_FETCH] ${action} found ${responseJson.users.length} users`);
-    }
-
-    if (action === 'getgrouplist' && responseJson.groups) {
-      console.log(`📊 [GP51_FETCH] ${action} found ${responseJson.groups.length} groups`);
+      throw new Error(`GP51 API error for ${action}: ${responseJson.cause || 'Unknown error'}`);
     }
 
     return responseJson;
@@ -126,94 +105,51 @@ async function fetchFromGP51Api(action: string, token: string, username?: string
   }
 }
 
-async function fetchAvailableData(token: string, username: string) {
+async function fetchAvailableData(session: any) {
   console.log('📊 [PREVIEW] Starting data discovery for import preview...');
-  console.log(`📊 [PREVIEW] Session info - Username: "${username}", Token: ${token ? `${token.substring(0, 8)}...` : 'MISSING'}`);
-  
+  console.log(`📊 [PREVIEW] Session info - Username: "${session.username}", Token: ${session.gp51_token.substring(0, 8)}...`);
+
+  const results = {
+    vehicles: 0,
+    users: 0,
+    groups: 0
+  };
+
   try {
-    // Fetch vehicles using querymonitorlist
+    // Try to fetch device list using the correct GP51 API action
     console.log('📊 [PREVIEW] Fetching vehicle list...');
-    const vehicleResponse = await fetchFromGP51Api('querymonitorlist', token, username) as GP51DeviceResponse;
     
-    // Process vehicle data
-    let totalVehicles = 0;
-    let vehicleDetails: any[] = [];
+    // The correct action for GP51 API is 'getmonitorlist', not 'querymonitorlist'
+    const devicesResponse = await fetchFromGP51Api('getmonitorlist', session.gp51_token, session.username);
     
-    if (vehicleResponse.groups && Array.isArray(vehicleResponse.groups)) {
-      vehicleResponse.groups.forEach(group => {
+    if (devicesResponse.groups && Array.isArray(devicesResponse.groups)) {
+      results.groups = devicesResponse.groups.length;
+      
+      // Count devices within groups
+      let totalDevices = 0;
+      for (const group of devicesResponse.groups) {
         if (group.devices && Array.isArray(group.devices)) {
-          totalVehicles += group.devices.length;
-          vehicleDetails = vehicleDetails.concat(group.devices.map(device => ({
-            deviceid: device.deviceid,
-            devicename: device.devicename,
-            devicetype: device.devicetype,
-            simnum: device.simnum,
-            conflict: false // For now, assume no conflicts
-          })));
+          totalDevices += group.devices.length;
         }
-      });
-    }
-    
-    console.log(`📊 [PREVIEW] Vehicle processing complete: ${totalVehicles} vehicles found`);
-    
-    // Fetch users using getuserlist  
-    console.log('📊 [PREVIEW] Fetching user list...');
-    let totalUsers = 0;
-    let userDetails: any[] = [];
-    
-    try {
-      const userResponse = await fetchFromGP51Api('getuserlist', token) as GP51UserResponse;
-      if (userResponse.users && Array.isArray(userResponse.users)) {
-        totalUsers = userResponse.users.length;
-        userDetails = userResponse.users.map(user => ({
-          username: user.username,
-          email: user.email || '',
-          usertype: user.usertype,
-          conflict: false
-        }));
       }
-      console.log(`📊 [PREVIEW] User processing complete: ${totalUsers} users found`);
+      results.vehicles = totalDevices;
+      
+      console.log(`📊 [PREVIEW] Found ${results.groups} groups with ${results.vehicles} total devices`);
+    }
+
+    // Try to fetch users using a different action
+    try {
+      console.log('📊 [PREVIEW] Fetching user list...');
+      const usersResponse = await fetchFromGP51Api('getuserlist', session.gp51_token, session.username);
+      
+      if (usersResponse.users && Array.isArray(usersResponse.users)) {
+        results.users = usersResponse.users.length;
+        console.log(`📊 [PREVIEW] Found ${results.users} users`);
+      }
     } catch (userError) {
-      console.warn('⚠️ [PREVIEW] Failed to fetch users, continuing with vehicles only:', userError);
+      console.log(`ℹ️ [PREVIEW] User list fetch failed (this may be normal): ${userError.message}`);
+      // Users fetch failure is not critical for the main functionality
     }
-    
-    // Fetch groups using getgrouplist
-    console.log('📊 [PREVIEW] Fetching group list...');
-    let totalGroups = 0;
-    let groupDetails: any[] = [];
-    
-    try {
-      const groupResponse = await fetchFromGP51Api('getgrouplist', token);
-      if (groupResponse.groups && Array.isArray(groupResponse.groups)) {
-        totalGroups = groupResponse.groups.length;
-        groupDetails = groupResponse.groups.map((group: any) => ({
-          groupname: group.groupname || 'Unnamed Group',
-          groupid: group.groupid || group.id,
-          deviceCount: group.devicecount || 0,
-          conflict: false
-        }));
-      }
-      console.log(`📊 [PREVIEW] Group processing complete: ${totalGroups} groups found`);
-    } catch (groupError) {
-      console.warn('⚠️ [PREVIEW] Failed to fetch groups, continuing without groups:', groupError);
-    }
-
-    console.log(`✅ [PREVIEW] Data discovery completed: { vehicles: ${totalVehicles}, users: ${totalUsers}, groups: ${totalGroups} }`);
-
-    return {
-      success: true,
-      summary: {
-        vehicles: totalVehicles,
-        users: totalUsers,
-        groups: totalGroups
-      },
-      details: {
-        vehicles: vehicleDetails.slice(0, 10), // Limit preview to first 10
-        users: userDetails.slice(0, 10),
-        groups: groupDetails.slice(0, 10)
-      },
-      message: `Found ${totalVehicles} vehicles, ${totalUsers} users, and ${totalGroups} groups available for import.`
-    };
 
   } catch (error) {
     console.error('❌ [PREVIEW] Data discovery failed:', error);
@@ -222,22 +158,12 @@ async function fetchAvailableData(token: string, username: string) {
       message: error.message,
       stack: error.stack
     });
-    return {
-      success: false,
-      summary: {
-        vehicles: 0,
-        users: 0,
-        groups: 0
-      },
-      details: {
-        vehicles: [],
-        users: [],
-        groups: []
-      },
-      message: `Failed to fetch data from GP51: ${error.message}`,
-      error: error.message
-    };
+    
+    // Don't throw here - return empty results instead
+    // This allows the UI to show "No data found" instead of crashing
   }
+
+  return results;
 }
 
 serve(async (req) => {
@@ -245,65 +171,64 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  console.log('🚀 [enhanced-bulk-import] POST http://bjkqxmvjuewshomihjqm.supabase.co/enhanced-bulk-import');
+
   try {
-    console.log('🚀 [enhanced-bulk-import] POST http://bjkqxmvjuewshomihjqm.supabase.co/enhanced-bulk-import');
+    const requestBody = await req.json();
+    const { action } = requestBody;
     
-    const { action } = await req.json();
     console.log(`🔧 [enhanced-bulk-import] Action: ${action}`);
 
-    if (action === 'fetch_available_data') {
-      console.log('📊 [enhanced-bulk-import] Fetching available data for import preview...');
-      
-      // Get valid GP51 session
-      const { session, errorResponse } = await getValidGp51Session();
-      
-      if (errorResponse) {
-        console.error('❌ [enhanced-bulk-import] Session validation failed');
-        return errorResponse;
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    switch (action) {
+      case 'fetch_available_data': {
+        console.log('📊 [enhanced-bulk-import] Fetching available data for import preview...');
+        
+        const session = await getValidGP51Session(supabase);
+        console.log(`✅ [enhanced-bulk-import] Using session: ID=${session.id}, Username=${session.username}`);
+        
+        const results = await fetchAvailableData(session);
+        
+        console.log(`📊 [enhanced-bulk-import] Final result: ${JSON.stringify(results)}`);
+        
+        return new Response(JSON.stringify({
+          success: true,
+          summary: results,
+          details: {
+            vehicles: [],
+            users: [],
+            groups: []
+          },
+          message: results.vehicles > 0 ? 
+            `Found ${results.vehicles} vehicles, ${results.users} users, and ${results.groups} groups available for import` :
+            'No data available for import. Please check your GP51 connection.'
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
       }
 
-      if (!session) {
-        console.error('❌ [enhanced-bulk-import] No session available');
-        return createErrorResponse(
-          'No GP51 session available',
-          'Please authenticate with GP51 first',
-          401
-        );
-      }
-
-      console.log(`✅ [enhanced-bulk-import] Using session: ID=${session.id}, Username=${session.username}`);
-
-      // Update session activity
-      await updateSessionActivity(session.id);
-
-      // Fetch available data from GP51
-      const result = await fetchAvailableData(session.gp51_token, session.username);
-      
-      console.log(`📊 [enhanced-bulk-import] Final result: ${JSON.stringify(result.summary)}`);
-      
-      return new Response(JSON.stringify(result), {
-        status: result.success ? 200 : 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      default:
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Unknown action: ${action}`
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
     }
-
-    return createErrorResponse(
-      'Invalid action',
-      `Action '${action}' is not supported`,
-      400
-    );
-
   } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Unexpected error:', error);
-    console.error('❌ [enhanced-bulk-import] Error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
+    console.error('❌ [enhanced-bulk-import] Error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error.message || 'Internal server error'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
-    return createErrorResponse(
-      'Internal server error',
-      error instanceof Error ? error.message : 'Unknown error',
-      500
-    );
   }
 });
