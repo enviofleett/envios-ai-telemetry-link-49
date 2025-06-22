@@ -47,6 +47,7 @@ async function fetchFromGP51Api(action: string, token: string, username?: string
   const gp51ApiUrl = getGP51ApiUrl(gp51BaseUrl);
   
   console.log(`🔄 [GP51_FETCH] Fetching ${action} from: ${gp51ApiUrl}?action=${action}&token=[TOKEN]`);
+  console.log(`🔐 [GP51_FETCH] Auth details - Username: ${username || 'N/A'}, Token length: ${token ? token.length : 0}`);
   
   const requestBody: any = {
     action: action,
@@ -56,6 +57,8 @@ async function fetchFromGP51Api(action: string, token: string, username?: string
   if (username) {
     requestBody.username = username;
   }
+
+  console.log(`📤 [GP51_FETCH] Request body: ${JSON.stringify({ ...requestBody, token: '[REDACTED]' })}`);
 
   try {
     const response = await fetch(gp51ApiUrl, {
@@ -68,32 +71,64 @@ async function fetchFromGP51Api(action: string, token: string, username?: string
       signal: AbortSignal.timeout(15000)
     });
 
+    console.log(`📡 [GP51_FETCH] ${action} HTTP response status: ${response.status} ${response.statusText}`);
+    console.log(`📡 [GP51_FETCH] ${action} response headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()))}`);
+
     const responseText = await response.text();
     console.log(`📋 [GP51_FETCH] ${action} response length: ${responseText.length}`);
+    console.log(`📋 [GP51_FETCH] ${action} RAW RESPONSE BODY: ${responseText}`);
 
     let responseJson;
     try {
       responseJson = JSON.parse(responseText);
       console.log(`✅ [GP51_FETCH] ${action} parsed successfully`);
+      console.log(`📊 [GP51_FETCH] ${action} PARSED JSON: ${JSON.stringify(responseJson, null, 2)}`);
     } catch (parseError) {
       console.error(`❌ [GP51_FETCH] ${action} JSON parse error:`, parseError);
-      throw new Error(`Failed to parse ${action} response`);
+      console.error(`❌ [GP51_FETCH] ${action} Failed to parse response: "${responseText}"`);
+      throw new Error(`Failed to parse ${action} response: ${parseError.message}`);
     }
+
+    // Check GP51 API status
+    console.log(`📈 [GP51_FETCH] ${action} GP51 status: ${responseJson.status}, cause: "${responseJson.cause}"`);
 
     if (responseJson.status !== 0) {
       console.error(`❌ [GP51_FETCH] ${action} API error: ${responseJson.cause}`);
+      console.error(`❌ [GP51_FETCH] ${action} Full error response: ${JSON.stringify(responseJson)}`);
       throw new Error(`GP51 API error for ${action}: ${responseJson.cause}`);
+    }
+
+    // Log data structure details
+    if (action === 'querymonitorlist' && responseJson.groups) {
+      console.log(`📊 [GP51_FETCH] ${action} found ${responseJson.groups.length} groups`);
+      let totalDevices = 0;
+      responseJson.groups.forEach((group: any, index: number) => {
+        const deviceCount = group.devices ? group.devices.length : 0;
+        totalDevices += deviceCount;
+        console.log(`📊 [GP51_FETCH] Group ${index + 1}: "${group.groupname}" has ${deviceCount} devices`);
+      });
+      console.log(`📊 [GP51_FETCH] Total devices across all groups: ${totalDevices}`);
+    }
+
+    if (action === 'getuserlist' && responseJson.users) {
+      console.log(`📊 [GP51_FETCH] ${action} found ${responseJson.users.length} users`);
+    }
+
+    if (action === 'getgrouplist' && responseJson.groups) {
+      console.log(`📊 [GP51_FETCH] ${action} found ${responseJson.groups.length} groups`);
     }
 
     return responseJson;
   } catch (error) {
     console.error(`❌ [GP51_FETCH] ${action} request failed:`, error);
+    console.error(`❌ [GP51_FETCH] ${action} error details: ${error.message}`);
     throw error;
   }
 }
 
 async function fetchAvailableData(token: string, username: string) {
   console.log('📊 [PREVIEW] Starting data discovery for import preview...');
+  console.log(`📊 [PREVIEW] Session info - Username: "${username}", Token: ${token ? `${token.substring(0, 8)}...` : 'MISSING'}`);
   
   try {
     // Fetch vehicles using querymonitorlist
@@ -119,6 +154,8 @@ async function fetchAvailableData(token: string, username: string) {
       });
     }
     
+    console.log(`📊 [PREVIEW] Vehicle processing complete: ${totalVehicles} vehicles found`);
+    
     // Fetch users using getuserlist  
     console.log('📊 [PREVIEW] Fetching user list...');
     let totalUsers = 0;
@@ -135,6 +172,7 @@ async function fetchAvailableData(token: string, username: string) {
           conflict: false
         }));
       }
+      console.log(`📊 [PREVIEW] User processing complete: ${totalUsers} users found`);
     } catch (userError) {
       console.warn('⚠️ [PREVIEW] Failed to fetch users, continuing with vehicles only:', userError);
     }
@@ -155,6 +193,7 @@ async function fetchAvailableData(token: string, username: string) {
           conflict: false
         }));
       }
+      console.log(`📊 [PREVIEW] Group processing complete: ${totalGroups} groups found`);
     } catch (groupError) {
       console.warn('⚠️ [PREVIEW] Failed to fetch groups, continuing without groups:', groupError);
     }
@@ -178,6 +217,11 @@ async function fetchAvailableData(token: string, username: string) {
 
   } catch (error) {
     console.error('❌ [PREVIEW] Data discovery failed:', error);
+    console.error('❌ [PREVIEW] Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
     return {
       success: false,
       summary: {
@@ -214,10 +258,12 @@ serve(async (req) => {
       const { session, errorResponse } = await getValidGp51Session();
       
       if (errorResponse) {
+        console.error('❌ [enhanced-bulk-import] Session validation failed');
         return errorResponse;
       }
 
       if (!session) {
+        console.error('❌ [enhanced-bulk-import] No session available');
         return createErrorResponse(
           'No GP51 session available',
           'Please authenticate with GP51 first',
@@ -225,11 +271,15 @@ serve(async (req) => {
         );
       }
 
+      console.log(`✅ [enhanced-bulk-import] Using session: ID=${session.id}, Username=${session.username}`);
+
       // Update session activity
       await updateSessionActivity(session.id);
 
       // Fetch available data from GP51
       const result = await fetchAvailableData(session.gp51_token, session.username);
+      
+      console.log(`📊 [enhanced-bulk-import] Final result: ${JSON.stringify(result.summary)}`);
       
       return new Response(JSON.stringify(result), {
         status: result.success ? 200 : 400,
@@ -245,6 +295,11 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ [enhanced-bulk-import] Unexpected error:', error);
+    console.error('❌ [enhanced-bulk-import] Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack
+    });
     return createErrorResponse(
       'Internal server error',
       error instanceof Error ? error.message : 'Unknown error',
