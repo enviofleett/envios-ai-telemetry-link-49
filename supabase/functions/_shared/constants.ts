@@ -1,5 +1,5 @@
 
-export const GP51_BASE_URL = "https://www.gps51.com";
+export const GP51_BASE_URL = "https://api.gps51.com"; // Updated to new endpoint
 export const REQUEST_TIMEOUT = 5000; // 5 seconds
 export const MAX_RETRIES = 2;
 
@@ -10,7 +10,9 @@ export const MAX_RETRIES = 2;
  * @returns The complete GP51 API URL with /webapi endpoint
  */
 export function getGP51ApiUrl(baseUrl?: string): string {
-  const url = baseUrl || GP51_BASE_URL;
+  // Use environment variable first, then parameter, then default
+  const envBaseUrl = Deno.env.get('GP51_API_BASE_URL');
+  const url = envBaseUrl || baseUrl || GP51_BASE_URL;
   
   // Remove trailing slash if present
   const cleanUrl = url.replace(/\/$/, '');
@@ -25,13 +27,17 @@ export function getGP51ApiUrl(baseUrl?: string): string {
 
 /**
  * Validates if a GP51 base URL is properly formatted
+ * Updated to accept both old and new GP51 domains
  * @param url - The URL to validate
  * @returns true if the URL is valid for GP51 usage
  */
 export function isValidGP51BaseUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
-    return urlObj.protocol === 'https:' && urlObj.hostname.includes('gps51.com');
+    return urlObj.protocol === 'https:' && (
+      urlObj.hostname.includes('gps51.com') || 
+      urlObj.hostname.includes('api.gps51.com')
+    );
   } catch {
     return false;
   }

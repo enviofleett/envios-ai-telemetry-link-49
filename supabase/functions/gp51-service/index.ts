@@ -1,4 +1,3 @@
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { getGP51ApiUrl, isValidGP51BaseUrl } from '../_shared/constants.ts';
@@ -24,11 +23,13 @@ serve(async (req) => {
     console.log(`🌍 [GP51-SERVICE] IP: ${req.headers.get('x-forwarded-for') || 'unknown'}`);
     console.log(`📋 [GP51-SERVICE] Action: ${action}, Username: ${username?.substring(0, 3)}***`);
 
-    // Use standardized URL construction
-    const gp51BaseUrl = apiUrl || Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
+    // Use environment variable first, then provided URL, then default
+    const envBaseUrl = Deno.env.get('GP51_API_BASE_URL');
+    const gp51BaseUrl = envBaseUrl || apiUrl || 'https://api.gps51.com'; // Updated default
     const gp51ApiUrl = getGP51ApiUrl(gp51BaseUrl);
     
     console.log(`🌐 [GP51-SERVICE] Using API URL: ${gp51ApiUrl}`);
+    console.log(`🔧 [GP51-SERVICE] Environment GP51_API_BASE_URL: ${envBaseUrl || 'not set'}`);
     
     // Validate the base URL if provided
     if (apiUrl && !isValidGP51BaseUrl(apiUrl)) {
@@ -86,6 +87,7 @@ serve(async (req) => {
 
 async function authenticateWithGP51(apiUrl: string, username: string, password: string) {
   console.log(`🔐 [GP51-AUTH] Starting authentication for user: ${username?.substring(0, 3)}***`);
+  console.log(`🔗 [GP51-AUTH] Using endpoint: ${apiUrl}`);
   
   try {
     const hashedPassword = await md5_for_gp51_only(password);
@@ -100,9 +102,10 @@ async function authenticateWithGP51(apiUrl: string, username: string, password: 
     const globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
     if (globalToken) {
       loginUrl.searchParams.set('token', globalToken);
+      console.log(`🔑 [GP51-AUTH] Using global API token`);
     }
 
-    console.log(`📡 [GP51-AUTH] Making request to: ${loginUrl.toString()}`);
+    console.log(`📡 [GP51-AUTH] Making request to: ${loginUrl.toString().replace(hashedPassword, '***')}`);
 
     const response = await fetch(loginUrl.toString(), {
       method: 'GET',
@@ -114,7 +117,7 @@ async function authenticateWithGP51(apiUrl: string, username: string, password: 
     });
 
     const responseText = await response.text();
-    console.log(`📄 [GP51-AUTH] Raw Response: ${responseText}`);
+    console.log(`📄 [GP51-AUTH] Raw Response (${response.status}): ${responseText}`);
 
     if (!response.ok) {
       throw new Error(`GP51 API Error: ${response.status} - ${responseText}`);
