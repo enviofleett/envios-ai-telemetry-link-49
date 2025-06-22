@@ -6,7 +6,7 @@ import SMSLogsTable from "@/components/sms/SMSLogsTable";
 import CreateSMSEventModal from "@/components/sms/CreateSMSEventModal";
 import SMSLogsPagination from "@/components/sms/SMSLogsPagination";
 import { useSMSLogs } from "@/components/sms/hooks/useSMSLogs";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 import { AlertTriangle } from "lucide-react";
 
 // Helper to check if ENCRYPTION_KEY error is present

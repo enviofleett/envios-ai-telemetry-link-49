@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { smsService, SMSLogsResponse } from "@/services/smsService";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@/hooks/use-toast";
 
 export function useSMSLogs(initialPage = 1, initialLimit = 10) {
   const [smsLogsResponse, setSmsLogsResponse] = useState<SMSLogsResponse | null>(null);
