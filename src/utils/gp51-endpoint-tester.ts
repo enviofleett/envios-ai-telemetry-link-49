@@ -1,23 +1,30 @@
 
 /**
  * GP51 Endpoint Testing Utility
- * This utility helps test the new GP51 API endpoint structure
+ * This utility helps test the new GP51 API endpoint structure with different request patterns
  */
 
 export interface EndpointTestResult {
   endpoint: string;
+  method: 'GET' | 'POST';
   isReachable: boolean;
   responseStatus?: number;
   responseData?: any;
+  responseHeaders?: Record<string, string>;
+  contentLength?: number;
   error?: string;
   testType: 'connectivity' | 'authentication';
+  requestFormat?: string;
 }
 
 export class GP51EndpointTester {
   private testEndpoints = [
-    'https://api.gps51.com/',
-    'https://api.gps51.com/webapi',
-    'https://www.gps51.com/webapi' // Keep old for comparison
+    // New API endpoint patterns
+    { url: 'https://api.gps51.com', name: 'New API Base' },
+    { url: 'https://api.gps51.com/webapi', name: 'New API with /webapi' },
+    { url: 'https://api.gps51.com/', name: 'New API with trailing slash' },
+    // Legacy endpoint for comparison
+    { url: 'https://www.gps51.com/webapi', name: 'Legacy API' }
   ];
 
   async testConnectivity(): Promise<EndpointTestResult[]> {
@@ -25,30 +32,55 @@ export class GP51EndpointTester {
     
     for (const endpoint of this.testEndpoints) {
       try {
-        console.log(`🔍 Testing connectivity to: ${endpoint}`);
+        console.log(`🔍 Testing connectivity to: ${endpoint.url}`);
         
-        // Simple connectivity test - try to reach the endpoint
-        const response = await fetch(endpoint, {
+        const response = await fetch(endpoint.url, {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
             'User-Agent': 'EnvioFleet-Test/1.0'
           },
-          signal: AbortSignal.timeout(10000) // 10 second timeout
+          signal: AbortSignal.timeout(10000)
         });
 
+        // Extract response headers
+        const responseHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
+        });
+
+        const contentLength = parseInt(responseHeaders['content-length'] || '0');
+        let responseData: any = null;
+
+        try {
+          const responseText = await response.text();
+          if (responseText) {
+            try {
+              responseData = JSON.parse(responseText);
+            } catch {
+              responseData = responseText;
+            }
+          }
+        } catch (readError) {
+          console.warn(`Could not read response body from ${endpoint.url}:`, readError);
+        }
+
         results.push({
-          endpoint,
+          endpoint: `${endpoint.url} (${endpoint.name})`,
+          method: 'GET',
           isReachable: true,
           responseStatus: response.status,
-          responseData: response.status < 400 ? await response.text().catch(() => 'Unable to parse response') : null,
+          responseData,
+          responseHeaders,
+          contentLength,
           testType: 'connectivity'
         });
         
       } catch (error) {
-        console.error(`❌ Connectivity test failed for ${endpoint}:`, error);
+        console.error(`❌ Connectivity test failed for ${endpoint.url}:`, error);
         results.push({
-          endpoint,
+          endpoint: `${endpoint.url} (${endpoint.name})`,
+          method: 'GET',
           isReachable: false,
           error: error instanceof Error ? error.message : 'Unknown error',
           testType: 'connectivity'
@@ -62,73 +94,122 @@ export class GP51EndpointTester {
   async testAuthentication(username: string, password: string): Promise<EndpointTestResult[]> {
     const results: EndpointTestResult[] = [];
     
-    // Test authentication on endpoints that passed connectivity
-    const authEndpoints = [
-      'https://api.gps51.com/webapi',
-      'https://api.gps51.com/',
+    // Test different authentication patterns
+    const authPatterns = [
+      // Pattern 1: POST with JSON body (modern API style)
+      {
+        url: 'https://api.gps51.com',
+        method: 'POST' as const,
+        format: 'POST JSON body',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'login',
+          username,
+          password,
+          from: 'WEB',
+          type: 'USER'
+        })
+      },
+      // Pattern 2: POST with action in URL, data in JSON body
+      {
+        url: 'https://api.gps51.com?action=login',
+        method: 'POST' as const,
+        format: 'POST action in URL, JSON body',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          password,
+          from: 'WEB',
+          type: 'USER'
+        })
+      },
+      // Pattern 3: GET with all parameters in URL (legacy style)
+      {
+        url: `https://api.gps51.com?action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&from=WEB&type=USER`,
+        method: 'GET' as const,
+        format: 'GET with query parameters',
+        headers: { 'Accept': 'application/json' }
+      },
+      // Pattern 4: POST with /webapi suffix
+      {
+        url: 'https://api.gps51.com/webapi?action=login',
+        method: 'POST' as const,
+        format: 'POST /webapi action in URL, JSON body',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username,
+          password,
+          from: 'WEB',
+          type: 'USER'
+        })
+      }
     ];
 
-    for (const baseEndpoint of authEndpoints) {
+    for (const pattern of authPatterns) {
       try {
-        console.log(`🔐 Testing authentication on: ${baseEndpoint}`);
+        console.log(`🔐 Testing authentication: ${pattern.format} - ${pattern.url}`);
         
-        // Construct login URL - try both patterns
-        const loginUrls = [
-          `${baseEndpoint}?action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&from=WEB&type=USER`,
-          `${baseEndpoint}/Login` // Alternative pattern
-        ];
+        const requestOptions: RequestInit = {
+          method: pattern.method,
+          headers: {
+            'User-Agent': 'EnvioFleet-Test/1.0',
+            ...pattern.headers
+          },
+          signal: AbortSignal.timeout(15000)
+        };
 
-        for (const loginUrl of loginUrls) {
-          try {
-            const response = await fetch(loginUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json',
-                'User-Agent': 'EnvioFleet-Test/1.0'
-              },
-              body: new URLSearchParams({
-                username,
-                password,
-                from: 'WEB',
-                type: 'USER'
-              }),
-              signal: AbortSignal.timeout(15000)
-            });
-
-            const responseText = await response.text();
-            
-            results.push({
-              endpoint: loginUrl,
-              isReachable: response.ok,
-              responseStatus: response.status,
-              responseData: responseText,
-              testType: 'authentication',
-              error: response.ok ? undefined : `HTTP ${response.status}: ${responseText}`
-            });
-            
-            // If we get a successful response, break the inner loop
-            if (response.ok && !responseText.includes('error')) {
-              break;
-            }
-            
-          } catch (authError) {
-            results.push({
-              endpoint: loginUrl,
-              isReachable: false,
-              error: authError instanceof Error ? authError.message : 'Authentication test failed',
-              testType: 'authentication'
-            });
-          }
+        if (pattern.body) {
+          requestOptions.body = pattern.body;
         }
-        
-      } catch (error) {
-        console.error(`❌ Authentication test failed for ${baseEndpoint}:`, error);
+
+        const response = await fetch(pattern.url, requestOptions);
+
+        // Extract response headers
+        const responseHeaders: Record<string, string> = {};
+        response.headers.forEach((value, key) => {
+          responseHeaders[key] = value;
+        });
+
+        const contentLength = parseInt(responseHeaders['content-length'] || '0');
+        let responseData: any = null;
+        let parseError: string | undefined;
+
+        try {
+          const responseText = await response.text();
+          if (responseText) {
+            try {
+              responseData = JSON.parse(responseText);
+            } catch {
+              responseData = responseText;
+            }
+          } else if (contentLength === 0) {
+            parseError = 'Empty response body (content-length: 0)';
+          }
+        } catch (readError) {
+          parseError = `Could not read response: ${readError}`;
+        }
+
         results.push({
-          endpoint: baseEndpoint,
+          endpoint: pattern.url,
+          method: pattern.method,
+          isReachable: response.ok,
+          responseStatus: response.status,
+          responseData,
+          responseHeaders,
+          contentLength,
+          testType: 'authentication',
+          requestFormat: pattern.format,
+          error: parseError || (!response.ok ? `HTTP ${response.status}` : undefined)
+        });
+        
+      } catch (authError) {
+        results.push({
+          endpoint: pattern.url,
+          method: pattern.method,
           isReachable: false,
-          error: error instanceof Error ? error.message : 'Unknown authentication error',
-          testType: 'authentication'
+          error: authError instanceof Error ? authError.message : 'Authentication test failed',
+          testType: 'authentication',
+          requestFormat: pattern.format
         });
       }
     }
@@ -136,23 +217,30 @@ export class GP51EndpointTester {
     return results;
   }
 
-  generateCurlCommands(): string[] {
+  generateCurlCommands(username: string = 'USERNAME', password: string = 'PASSWORD'): string[] {
     return [
       '# Test new API endpoint connectivity',
       'curl -v "https://api.gps51.com/" -H "Accept: application/json"',
       '',
-      '# Test new API with webapi path',
-      'curl -v "https://api.gps51.com/webapi" -H "Accept: application/json"',
+      '# Pattern 1: POST with JSON body (modern API style)',
+      'curl -X POST "https://api.gps51.com" \\',
+      '  -H "Content-Type: application/json" \\',
+      '  -H "Accept: application/json" \\',
+      `  -d '{"action":"login","username":"${username}","password":"${password}","from":"WEB","type":"USER"}'`,
       '',
-      '# Test authentication on new endpoint (replace USERNAME and PASSWORD)',
-      'curl -X POST "https://api.gps51.com/webapi?action=login&username=USERNAME&password=PASSWORD&from=WEB&type=USER" \\',
-      '  -H "Content-Type: application/x-www-form-urlencoded" \\',
+      '# Pattern 2: POST with action in URL, data in JSON body',
+      'curl -X POST "https://api.gps51.com?action=login" \\',
+      '  -H "Content-Type: application/json" \\',
+      `  -d '{"username":"${username}","password":"${password}","from":"WEB","type":"USER"}'`,
+      '',
+      '# Pattern 3: GET with query parameters (legacy style)',
+      `curl -v "https://api.gps51.com?action=login&username=${username}&password=${password}&from=WEB&type=USER" \\`,
       '  -H "Accept: application/json"',
       '',
-      '# Alternative authentication endpoint test',
-      'curl -X POST "https://api.gps51.com/Login" \\',
-      '  -H "Content-Type: application/x-www-form-urlencoded" \\',
-      '  -d "username=USERNAME&password=PASSWORD&from=WEB&type=USER"'
+      '# Pattern 4: POST with /webapi suffix',
+      'curl -X POST "https://api.gps51.com/webapi?action=login" \\',
+      '  -H "Content-Type: application/json" \\',
+      `  -d '{"username":"${username}","password":"${password}","from":"WEB","type":"USER"}'`
     ];
   }
 }
