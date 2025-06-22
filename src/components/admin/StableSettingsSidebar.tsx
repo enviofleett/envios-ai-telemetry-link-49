@@ -1,3 +1,4 @@
+
 import React, { memo } from 'react';
 import { 
   Settings, 
@@ -78,6 +79,7 @@ const sidebarItems: SidebarItem[] = [
   { id: 'ai-assistant', label: 'AI Assistant', icon: Bot, category: 'Integrations' },
 
   // Monitoring
+  { id: 'monitoring', label: 'Monitoring', icon: Activity, category: 'Monitoring' },
   { id: 'health', label: 'Health', icon: Activity, category: 'Monitoring' },
 
   // Data Management

@@ -3,7 +3,8 @@ import React, { useState, useCallback, memo } from 'react';
 import { useOptimizedAuth } from '@/hooks/useOptimizedAuth';
 import { StableErrorBoundary } from '@/components/StableErrorBoundary';
 import { ProgressiveAdminLoader } from './ProgressiveAdminLoader';
-import AdminSettingsLayout from './AdminSettingsLayout';
+import StableSettingsSidebar from './StableSettingsSidebar';
+import AdminTabContentRenderer from './AdminTabContentRenderer';
 
 const AdminSettingsContent = memo(() => {
   const [activeTab, setActiveTab] = useState('company');
@@ -23,10 +24,15 @@ const AdminSettingsContent = memo(() => {
         </div>
       </div>
 
-      <AdminSettingsLayout 
-        activeTab={activeTab} 
-        onTabChange={handleTabChange} 
-      />
+      <div className="flex min-h-[600px] bg-white rounded-lg shadow-sm border">
+        <StableSettingsSidebar 
+          activeTab={activeTab} 
+          onTabChange={handleTabChange} 
+        />
+        <div className="flex-1 p-6">
+          <AdminTabContentRenderer activeTab={activeTab} />
+        </div>
+      </div>
     </div>
   );
 });
