@@ -5,11 +5,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings, Shield, Activity, Database } from 'lucide-react';
 import GP51AuthenticationPanel from '@/components/admin/GP51AuthenticationPanel';
 import GP51HealthIndicator from '@/components/admin/GP51HealthIndicator';
-import { useAuth } from '@/contexts/AuthContext';
+import { useUnifiedAuth } from '@/contexts/UnifiedAuthContext';
 import { Navigate } from 'react-router-dom';
 
 const AdminSetup: React.FC = () => {
-  const { user, loading } = useAuth();
+  const { user, loading } = useUnifiedAuth();
   const [healthStatus, setHealthStatus] = useState(null);
 
   if (loading) {

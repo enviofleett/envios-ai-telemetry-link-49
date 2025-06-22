@@ -1,57 +1,38 @@
 
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { authService } from '@/services/auth/AuthService';
+import { createContext, useContext } from 'react';
+import { useUnifiedAuth } from './UnifiedAuthContext';
 
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  isCheckingRole: boolean;
-  isAdmin: boolean;
-  isAgent: boolean;
-  userRole: string | null;
-  isPlatformAdmin: boolean; // NEW
-  platformAdminRoles: string[]; // NEW
-  signOut: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<{ data?: any; error: any }>;
-  signUp: (email: string, password: string, name?: string, packageType?: string) => Promise<{ error: any }>;
-  refreshUser: () => Promise<void>;
-  retryRoleCheck: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Legacy AuthContext for backwards compatibility
+const AuthContext = createContext<any>(null);
 
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
+  // Redirect to unified auth system
+  const unifiedAuth = useUnifiedAuth();
+  
+  if (!unifiedAuth) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  return context;
+  
+  return {
+    user: unifiedAuth.user,
+    session: unifiedAuth.session,
+    loading: unifiedAuth.loading,
+    isAuthenticated: unifiedAuth.isAuthenticated,
+    isAdmin: unifiedAuth.isAdmin,
+    isAgent: unifiedAuth.isAgent,
+    userRole: unifiedAuth.userRole,
+    isCheckingRole: unifiedAuth.isCheckingRole,
+    signIn: unifiedAuth.signIn,
+    signUp: unifiedAuth.signUp,
+    signOut: unifiedAuth.signOut,
+    refreshSession: unifiedAuth.refreshSession,
+    retryRoleCheck: unifiedAuth.retryRoleCheck,
+  };
 };
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [authState, setAuthState] = useState(authService.getState());
-
-  useEffect(() => {
-    const unsubscribe = authService.subscribe(setAuthState);
-    return () => unsubscribe();
-  }, []);
-
-  const contextValue = useMemo(() => ({
-    ...authState,
-    signOut: authService.signOut,
-    signIn: authService.signIn,
-    signUp: authService.signUp,
-    refreshUser: authService.refreshUser,
-    retryRoleCheck: authService.retryRoleCheck,
-    isPlatformAdmin: authState.isPlatformAdmin,
-    platformAdminRoles: authState.platformAdminRoles,
-  }), [authState]);
-
-  return (
-    <AuthContext.Provider value={contextValue}>
-      {children}
-    </AuthContext.Provider>
-  );
+// Legacy provider - not needed since we use UnifiedAuthProvider
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  return <>{children}</>;
 };
+
+export default AuthContext;
