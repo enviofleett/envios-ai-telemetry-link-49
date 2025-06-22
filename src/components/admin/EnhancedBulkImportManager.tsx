@@ -2,42 +2,89 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
-import { BulkImportJob } from '@/types/bulk-import';
-import { parseErrorLog, parseImportData } from '@/utils/bulk-import-utils';
+import { useToast } from '@/hooks/use-toast';
+import { parseErrorLog } from '@/utils/bulk-import-utils';
+import type { BulkImportJob } from '@/types/bulk-import';
 import { 
   Database, 
   Play, 
   Pause, 
   Square, 
-  CheckCircle, 
-  AlertCircle, 
-  RefreshCw,
+  RefreshCw, 
+  AlertTriangle, 
+  CheckCircle,
+  Clock,
   Shield,
-  Zap
+  Wifi,
+  WifiOff
 } from 'lucide-react';
+
+// Type guard to ensure status is valid
+const validateStatus = (status: string): BulkImportJob['status'] => {
+  const validStatuses: BulkImportJob['status'][] = [
+    'pending', 'running', 'paused', 'completed', 'completed_with_errors', 'failed'
+  ];
+  return validStatuses.includes(status as BulkImportJob['status']) 
+    ? status as BulkImportJob['status'] 
+    : 'pending';
+};
+
+// Safe data mapper to handle database inconsistencies
+const mapDatabaseToBulkImportJob = (dbData: any): BulkImportJob => {
+  return {
+    id: dbData.id || '',
+    job_name: dbData.job_name || 'Unknown Job',
+    status: validateStatus(dbData.status || 'pending'),
+    total_items: Number(dbData.total_items) || 0,
+    processed_items: Number(dbData.processed_items) || 0,
+    successful_items: Number(dbData.successful_items) || 0,
+    failed_items: Number(dbData.failed_items) || 0,
+    current_chunk: Number(dbData.current_chunk) || 0,
+    total_chunks: Number(dbData.total_chunks) || 0,
+    chunk_size: Number(dbData.chunk_size) || 50,
+    error_log: parseErrorLog(dbData.error_log),
+    started_at: dbData.started_at || undefined,
+    completed_at: dbData.completed_at || undefined,
+    created_at: dbData.created_at || new Date().toISOString(),
+    updated_at: dbData.updated_at || new Date().toISOString(),
+    import_type: dbData.import_type || 'gp51_vehicles',
+    import_data: dbData.import_data || {}
+  };
+};
+
+interface ConnectionTestResult {
+  success: boolean;
+  message: string;
+  details?: any;
+}
 
 const EnhancedBulkImportManager: React.FC = () => {
   const [jobs, setJobs] = useState<BulkImportJob[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [jobName, setJobName] = useState('');
-  const [chunkSize, setChunkSize] = useState(50);
-  const [isStarting, setIsStarting] = useState(false);
-  const [connectionTest, setConnectionTest] = useState<{
-    status: 'idle' | 'testing' | 'success' | 'error';
-    message?: string;
-  }>({ status: 'idle' });
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionTestResult | null>(null);
+  const [activeJob, setActiveJob] = useState<BulkImportJob | null>(null);
   const { toast } = useToast();
 
+  // Load existing jobs
   useEffect(() => {
     loadJobs();
-    const interval = setInterval(loadJobs, 3000); // Poll every 3 seconds
-    return () => clearInterval(interval);
+    // Set up real-time subscription for job updates
+    const subscription = supabase
+      .channel('bulk_import_jobs')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'bulk_import_jobs' },
+        () => loadJobs()
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const loadJobs = async () => {
@@ -50,15 +97,16 @@ const EnhancedBulkImportManager: React.FC = () => {
 
       if (error) throw error;
 
-      const mappedJobs: BulkImportJob[] = (data || []).map(job => ({
-        ...job,
-        error_log: parseErrorLog(job.error_log),
-        import_data: parseImportData(job.import_data)
-      }));
-
+      // Safely map database data to expected types
+      const mappedJobs = (data || []).map(mapDatabaseToBulkImportJob);
       setJobs(mappedJobs);
+
+      // Update active job if it exists
+      const runningJob = mappedJobs.find(job => job.status === 'running');
+      setActiveJob(runningJob || null);
+
     } catch (error) {
-      console.error('Failed to load jobs:', error);
+      console.error('Error loading jobs:', error);
       toast({
         title: "Error",
         description: "Failed to load import jobs",
@@ -67,172 +115,141 @@ const EnhancedBulkImportManager: React.FC = () => {
     }
   };
 
-  const testConnection = async () => {
-    setConnectionTest({ status: 'testing', message: 'Testing GP51 connectivity...' });
-    
+  const testGP51Connection = async () => {
+    setIsConnecting(true);
+    setConnectionStatus(null);
+
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      console.log('🔗 Testing GP51 connection...');
+      
       const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: {
-          action: 'test_connection'
+        body: { 
+          action: 'test_connection',
+          user_id: user.id
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Connection test failed:', error);
+        setConnectionStatus({
+          success: false,
+          message: `Connection test failed: ${error.message}`,
+          details: error
+        });
+        return;
+      }
 
-      if (data.success) {
-        setConnectionTest({ 
-          status: 'success', 
-          message: 'GP51 connection successful' 
+      console.log('✅ Connection test result:', data);
+      
+      if (data?.success) {
+        setConnectionStatus({
+          success: true,
+          message: `Connected successfully! Found ${data.device_count || 0} devices`,
+          details: data
         });
         toast({
-          title: "Connection Test",
-          description: "GP51 connectivity verified successfully",
+          title: "Connection Successful",
+          description: `GP51 connection verified. ${data.device_count || 0} devices available for import.`
         });
       } else {
-        throw new Error(data.error || 'Connection test failed');
+        setConnectionStatus({
+          success: false,
+          message: data?.error || 'Connection test failed',
+          details: data
+        });
       }
+
     } catch (error) {
-      console.error('Connection test failed:', error);
-      setConnectionTest({ 
-        status: 'error', 
-        message: error instanceof Error ? error.message : 'Connection test failed' 
+      console.error('❌ Connection test error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setConnectionStatus({
+        success: false,
+        message: `Connection failed: ${errorMessage}`,
+        details: error
       });
       toast({
-        title: "Connection Test Failed",
-        description: error instanceof Error ? error.message : 'Failed to test GP51 connection',
+        title: "Connection Failed",
+        description: errorMessage,
         variant: "destructive"
       });
+    } finally {
+      setIsConnecting(false);
     }
   };
 
   const startBulkImport = async () => {
-    if (!jobName.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Please enter a job name",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsStarting(true);
+    setIsLoading(true);
+    
     try {
-      console.log('🚀 Starting bulk import with params:', { 
-        action: 'start', 
-        jobName: jobName.trim(), 
-        chunkSize 
-      });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
 
+      console.log('🚀 Starting bulk import...');
+      
       const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: {
-          action: 'start', // Fixed: changed from 'start_import' to 'start'
-          jobName: jobName.trim(),
-          chunkSize,
-          importType: 'gp51_vehicles'
+        body: { 
+          action: 'start',
+          job_name: `GP51 Bulk Import - ${new Date().toISOString()}`,
+          user_id: user.id
         }
       });
 
-      console.log('📋 Import response:', { data, error });
-
       if (error) {
-        console.error('❌ Import invocation error:', error);
+        console.error('❌ Import start failed:', error);
         throw error;
       }
 
-      if (!data?.success) {
-        console.error('❌ Import failed:', data);
-        throw new Error(data?.error || 'Import failed with unknown error');
+      console.log('✅ Import started:', data);
+
+      if (data?.success) {
+        toast({
+          title: "Import Started",
+          description: `Bulk import initiated. Job ID: ${data.job_id || 'Unknown'}`
+        });
+        loadJobs(); // Refresh the jobs list
+      } else {
+        throw new Error(data?.error || 'Failed to start import');
       }
-
-      toast({
-        title: "Import Started",
-        description: `Bulk import job "${jobName}" has been started successfully`,
-      });
-
-      // Clear form and reload jobs
-      setJobName('');
-      setChunkSize(50);
-      await loadJobs();
 
     } catch (error) {
-      console.error('❌ Failed to start bulk import:', error);
-      
-      // More specific error handling
-      let errorMessage = 'Failed to start bulk import';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (typeof error === 'object' && error !== null) {
-        errorMessage = JSON.stringify(error);
-      }
-
+      console.error('❌ Start import error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast({
         title: "Import Failed",
         description: errorMessage,
         variant: "destructive"
       });
     } finally {
-      setIsStarting(false);
+      setIsLoading(false);
     }
   };
 
-  const cancelJob = async (jobId: string) => {
-    try {
-      const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: {
-          action: 'cancel',
-          jobId
-        }
-      });
+  const getStatusBadge = (status: BulkImportJob['status']) => {
+    const statusConfig = {
+      pending: { color: 'bg-gray-500', icon: Clock, label: 'Pending' },
+      running: { color: 'bg-blue-500', icon: RefreshCw, label: 'Running' },
+      paused: { color: 'bg-yellow-500', icon: Pause, label: 'Paused' },
+      completed: { color: 'bg-green-500', icon: CheckCircle, label: 'Completed' },
+      completed_with_errors: { color: 'bg-orange-500', icon: AlertTriangle, label: 'Completed with Errors' },
+      failed: { color: 'bg-red-500', icon: AlertTriangle, label: 'Failed' }
+    };
 
-      if (error) throw error;
+    const config = statusConfig[status];
+    const Icon = config.icon;
 
-      if (data.success) {
-        toast({
-          title: "Job Cancelled",
-          description: "Import job has been cancelled successfully",
-        });
-        await loadJobs();
-      } else {
-        throw new Error(data.error || 'Failed to cancel job');
-      }
-    } catch (error) {
-      console.error('Failed to cancel job:', error);
-      toast({
-        title: "Cancel Failed",
-        description: error instanceof Error ? error.message : 'Failed to cancel job',
-        variant: "destructive"
-      });
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle className="h-5 w-5 text-green-600" />;
-      case 'failed':
-        return <AlertCircle className="h-5 w-5 text-red-600" />;
-      case 'running':
-        return <RefreshCw className="h-5 w-5 text-blue-600 animate-spin" />;
-      case 'paused':
-        return <Pause className="h-5 w-5 text-orange-600" />;
-      default:
-        return <Database className="h-5 w-5 text-gray-600" />;
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'text-green-600 bg-green-50';
-      case 'failed':
-        return 'text-red-600 bg-red-50';
-      case 'running':
-        return 'text-blue-600 bg-blue-50';
-      case 'paused':
-        return 'text-orange-600 bg-orange-50';
-      default:
-        return 'text-gray-600 bg-gray-50';
-    }
+    return (
+      <Badge className={`${config.color} text-white`}>
+        <Icon className="h-3 w-3 mr-1" />
+        {config.label}
+      </Badge>
+    );
   };
 
   const calculateProgress = (job: BulkImportJob) => {
@@ -242,210 +259,174 @@ const EnhancedBulkImportManager: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Connection Test */}
+      {/* Connection Test Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-600" />
-            GP51 Connection Test
+            <Shield className="h-5 w-5" />
+            GP51 Connection Status
           </CardTitle>
           <CardDescription>
-            Verify GP51 platform connectivity before starting import operations
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <Button 
-              onClick={testConnection} 
-              disabled={connectionTest.status === 'testing'}
-              variant="outline"
-            >
-              {connectionTest.status === 'testing' ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Zap className="h-4 w-4 mr-2" />
-              )}
-              {connectionTest.status === 'testing' ? 'Testing...' : 'Test Connection'}
-            </Button>
-            
-            {connectionTest.message && (
-              <Alert className={`flex-1 ${
-                connectionTest.status === 'success' ? 'border-green-200 bg-green-50' :
-                connectionTest.status === 'error' ? 'border-red-200 bg-red-50' :
-                'border-blue-200 bg-blue-50'
-              }`}>
-                <AlertDescription className={
-                  connectionTest.status === 'success' ? 'text-green-700' :
-                  connectionTest.status === 'error' ? 'text-red-700' :
-                  'text-blue-700'
-                }>
-                  {connectionTest.message}
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Start New Import */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Play className="h-5 w-5 text-green-600" />
-            Start Bulk Import
-          </CardTitle>
-          <CardDescription>
-            Import all vehicles from GP51 platform with automatic backup and progress tracking
+            Test your GP51 platform connection before starting bulk import
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="jobName">Job Name</Label>
-              <Input
-                id="jobName"
-                value={jobName}
-                onChange={(e) => setJobName(e.target.value)}
-                placeholder="e.g., Production Import December 2024"
-                disabled={isStarting}
-              />
-            </div>
-            <div>
-              <Label htmlFor="chunkSize">Chunk Size</Label>
-              <Input
-                id="chunkSize"
-                type="number"
-                value={chunkSize}
-                onChange={(e) => setChunkSize(parseInt(e.target.value) || 50)}
-                min={10}
-                max={200}
-                disabled={isStarting}
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Number of vehicles to process per chunk (10-200)
-              </p>
-            </div>
+          <div className="flex items-center gap-4">
+            <Button 
+              onClick={testGP51Connection}
+              disabled={isConnecting}
+              variant="outline"
+            >
+              {isConnecting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Testing Connection...
+                </>
+              ) : (
+                <>
+                  <Wifi className="h-4 w-4 mr-2" />
+                  Test GP51 Connection
+                </>
+              )}
+            </Button>
           </div>
-          
-          <Alert>
-            <Database className="h-4 w-4" />
-            <AlertDescription>
-              This will create an automatic backup before starting the import process. 
-              All 3,822 vehicles will be imported in chunks to ensure system stability.
-            </AlertDescription>
-          </Alert>
 
-          <Button 
-            onClick={startBulkImport} 
-            disabled={isStarting || !jobName.trim()}
-            className="w-full"
-          >
-            {isStarting ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Play className="h-4 w-4 mr-2" />
-            )}
-            {isStarting ? 'Starting Import...' : 'Start Bulk Import'}
-          </Button>
+          {connectionStatus && (
+            <Alert className={connectionStatus.success ? 'border-green-500' : 'border-red-500'}>
+              {connectionStatus.success ? (
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              ) : (
+                <WifiOff className="h-4 w-4 text-red-600" />
+              )}
+              <AlertDescription>
+                {connectionStatus.message}
+              </AlertDescription>
+            </Alert>
+          )}
         </CardContent>
       </Card>
 
-      {/* Active Jobs */}
+      {/* Import Control Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
-            Import Jobs
+            Bulk Import Control
           </CardTitle>
           <CardDescription>
-            Monitor active and completed import operations
+            Import all 3,822 vehicles from GP51 platform
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Button 
+              onClick={startBulkImport}
+              disabled={isLoading || !!activeJob}
+              size="lg"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Starting Import...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 mr-2" />
+                  Start Bulk Import
+                </>
+              )}
+            </Button>
+
+            <Button 
+              onClick={loadJobs}
+              variant="outline"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+
+          {activeJob && (
+            <Alert>
+              <RefreshCw className="h-4 w-4 animate-spin" />
+              <AlertDescription>
+                Import job "{activeJob.job_name}" is currently running. 
+                Progress: {calculateProgress(activeJob)}%
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Jobs List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Import Jobs</CardTitle>
+          <CardDescription>
+            Monitor the status and progress of your bulk import operations
           </CardDescription>
         </CardHeader>
         <CardContent>
           {jobs.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              No import jobs found. Start your first import above.
+              No import jobs found. Start a new bulk import to see progress here.
             </div>
           ) : (
             <div className="space-y-4">
               {jobs.map((job) => (
-                <div key={job.id} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(job.status)}
-                      <span className="font-medium">{job.job_name}</span>
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(job.status)}`}>
-                        {job.status.toUpperCase()}
-                      </span>
-                    </div>
-                    
-                    {job.status === 'running' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => cancelJob(job.id)}
-                      >
-                        <Square className="h-3 w-3 mr-1" />
-                        Cancel
-                      </Button>
-                    )}
+                <div key={job.id} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium">{job.job_name}</h3>
+                    {getStatusBadge(job.status)}
                   </div>
-
-                  {job.total_items > 0 && (
-                    <div className="mb-2">
-                      <div className="flex justify-between text-sm text-gray-600 mb-1">
-                        <span>Progress: {job.processed_items}/{job.total_items} items</span>
-                        <span>{calculateProgress(job)}%</span>
-                      </div>
-                      <Progress value={calculateProgress(job)} className="h-2" />
-                    </div>
-                  )}
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-500">Successful:</span>
-                      <span className="ml-1 font-medium text-green-600">{job.successful_items}</span>
+                      <span className="text-gray-600">Total Items:</span>
+                      <div className="font-medium">{job.total_items}</div>
                     </div>
                     <div>
-                      <span className="text-gray-500">Failed:</span>
-                      <span className="ml-1 font-medium text-red-600">{job.failed_items}</span>
+                      <span className="text-gray-600">Processed:</span>
+                      <div className="font-medium">{job.processed_items}</div>
                     </div>
                     <div>
-                      <span className="text-gray-500">Chunk:</span>
-                      <span className="ml-1 font-medium">{job.current_chunk}/{job.total_chunks}</span>
+                      <span className="text-gray-600">Successful:</span>
+                      <div className="font-medium text-green-600">{job.successful_items}</div>
                     </div>
                     <div>
-                      <span className="text-gray-500">Started:</span>
-                      <span className="ml-1 font-medium">
-                        {job.started_at ? new Date(job.started_at).toLocaleString() : 'Not started'}
-                      </span>
+                      <span className="text-gray-600">Failed:</span>
+                      <div className="font-medium text-red-600">{job.failed_items}</div>
                     </div>
                   </div>
 
-                  {job.error_log.length > 0 && (
-                    <Alert className="mt-2">
-                      <AlertCircle className="h-4 w-4" />
+                  {job.status === 'running' && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Progress</span>
+                        <span>{calculateProgress(job)}%</span>
+                      </div>
+                      <Progress value={calculateProgress(job)} className="h-2" />
+                      <div className="text-xs text-gray-600">
+                        Chunk {job.current_chunk} of {job.total_chunks}
+                      </div>
+                    </div>
+                  )}
+
+                  {job.error_log && job.error_log.length > 0 && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
                       <AlertDescription>
-                        <details>
-                          <summary className="cursor-pointer font-medium">
-                            {job.error_log.length} error(s) occurred
-                          </summary>
-                          <div className="mt-2 space-y-1">
-                            {job.error_log.slice(0, 3).map((error, index) => (
-                              <div key={index} className="text-sm bg-red-50 p-2 rounded">
-                                {typeof error === 'string' ? error : JSON.stringify(error)}
-                              </div>
-                            ))}
-                            {job.error_log.length > 3 && (
-                              <div className="text-sm text-gray-500">
-                                ... and {job.error_log.length - 3} more errors
-                              </div>
-                            )}
-                          </div>
-                        </details>
+                        {job.error_log.length} error(s) occurred during import.
                       </AlertDescription>
                     </Alert>
                   )}
+
+                  <div className="text-xs text-gray-500">
+                    Created: {new Date(job.created_at).toLocaleString()}
+                    {job.completed_at && (
+                      <> • Completed: {new Date(job.completed_at).toLocaleString()}</>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
