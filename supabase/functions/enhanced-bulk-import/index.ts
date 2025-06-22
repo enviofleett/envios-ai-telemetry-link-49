@@ -5,8 +5,264 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
+
+interface GP51Session {
+  id: string;
+  envio_user_id: string;
+  username: string;
+  gp51_token: string;
+  token_expires_at: string;
+  created_at: string;
+  last_validated_at?: string;
+  auth_method?: string;
+  api_url?: string;
+}
+
+async function getValidGP51Session(supabase: any): Promise<{
+  session: GP51Session | null;
+  error: string | null;
+  sessionCount: number;
+}> {
+  console.log('🔍 [enhanced-bulk-import] Checking for valid GP51 sessions...');
+  
+  try {
+    // Get ALL sessions first to see what's available
+    const { data: allSessions, error: allSessionsError } = await supabase
+      .from('gp51_sessions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (allSessionsError) {
+      console.error('❌ [enhanced-bulk-import] Database error fetching all sessions:', allSessionsError);
+      return { session: null, error: `Database error: ${allSessionsError.message}`, sessionCount: 0 };
+    }
+
+    console.log(`📊 [enhanced-bulk-import] Found ${allSessions?.length || 0} total GP51 sessions in database`);
+    
+    if (allSessions && allSessions.length > 0) {
+      allSessions.forEach((session, index) => {
+        console.log(`📋 [enhanced-bulk-import] Session ${index + 1}: ${session.username}, expires: ${session.token_expires_at}, created: ${session.created_at}`);
+      });
+    }
+
+    // Now get the most recent session that hasn't expired
+    const { data: sessions, error: sessionError } = await supabase
+      .from('gp51_sessions')
+      .select('*')
+      .gt('token_expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (sessionError) {
+      console.error('❌ [enhanced-bulk-import] Database error fetching valid sessions:', sessionError);
+      return { session: null, error: `Database error: ${sessionError.message}`, sessionCount: allSessions?.length || 0 };
+    }
+
+    if (!sessions || sessions.length === 0) {
+      console.log('⚠️ [enhanced-bulk-import] No valid (non-expired) GP51 sessions found');
+      
+      // Check if we have expired sessions
+      const now = new Date();
+      const expiredSessions = allSessions?.filter(session => new Date(session.token_expires_at) <= now) || [];
+      
+      if (expiredSessions.length > 0) {
+        console.log(`⏰ [enhanced-bulk-import] Found ${expiredSessions.length} expired sessions`);
+        expiredSessions.forEach((session, index) => {
+          const expiresAt = new Date(session.token_expires_at);
+          const minutesAgo = Math.round((now.getTime() - expiresAt.getTime()) / (1000 * 60));
+          console.log(`⏰ [enhanced-bulk-import] Expired session ${index + 1}: ${session.username}, expired ${minutesAgo} minutes ago`);
+        });
+        
+        return { 
+          session: null, 
+          error: `All ${expiredSessions.length} GP51 sessions have expired. Please re-authenticate.`, 
+          sessionCount: allSessions?.length || 0 
+        };
+      }
+      
+      return { session: null, error: 'No GP51 sessions found', sessionCount: 0 };
+    }
+
+    const session = sessions[0] as GP51Session;
+    const expiresAt = new Date(session.token_expires_at);
+    const now = new Date();
+    const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+    const minutesUntilExpiry = Math.round(timeUntilExpiry / (1000 * 60));
+
+    console.log('✅ [enhanced-bulk-import] Found valid session for', session.username);
+    console.log(`📅 [enhanced-bulk-import] Session expires in ${minutesUntilExpiry} minutes`);
+    console.log(`🔑 [enhanced-bulk-import] Token present: ${!!session.gp51_token}, length: ${session.gp51_token?.length || 0}`);
+
+    return { session, error: null, sessionCount: allSessions?.length || 0 };
+
+  } catch (error) {
+    console.error('❌ [enhanced-bulk-import] Exception during session validation:', error);
+    return { 
+      session: null, 
+      error: `Session validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+      sessionCount: 0 
+    };
+  }
+}
+
+async function testGP51Connection(session: GP51Session): Promise<{
+  success: boolean;
+  responseTime: number;
+  deviceCount?: number;
+  error?: string;
+}> {
+  const startTime = Date.now();
+  
+  try {
+    console.log('🧪 [enhanced-bulk-import] Testing session validity for', session.username);
+    
+    // Use the simple getmonitorlist endpoint to test the session
+    const apiUrl = session.api_url || 'https://www.gps51.com/webapi';
+    const testUrl = new URL(apiUrl);
+    testUrl.searchParams.set('action', 'getmonitorlist');
+    testUrl.searchParams.set('token', session.gp51_token);
+
+    console.log(`🔗 [enhanced-bulk-import] Testing with URL: ${testUrl.toString().replace(session.gp51_token, '[TOKEN]')}`);
+
+    const response = await fetch(testUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'EnvioFleet/1.0'
+      },
+      signal: AbortSignal.timeout(15000)
+    });
+
+    const responseTime = Date.now() - startTime;
+    console.log(`📊 [enhanced-bulk-import] Session test response: ${response.status}`);
+
+    if (!response.ok) {
+      return {
+        success: false,
+        responseTime,
+        error: `HTTP ${response.status}: ${response.statusText}`
+      };
+    }
+
+    const responseText = await response.text();
+    
+    try {
+      const data = JSON.parse(responseText);
+      
+      if (data.status === 0) {
+        // Count devices from the response
+        let deviceCount = 0;
+        if (data.groups && Array.isArray(data.groups)) {
+          deviceCount = data.groups.reduce((acc: number, group: any) => 
+            acc + (group.devices ? group.devices.length : 0), 0
+          );
+        }
+        
+        console.log(`✅ [enhanced-bulk-import] Session test successful, found ${deviceCount} devices`);
+        
+        return {
+          success: true,
+          responseTime,
+          deviceCount
+        };
+      } else {
+        return {
+          success: false,
+          responseTime,
+          error: data.cause || data.message || `GP51 API error: status ${data.status}`
+        };
+      }
+    } catch (parseError) {
+      // If it's not JSON, check if it's a plain text response
+      if (responseText && !responseText.includes('<html') && !responseText.includes('error')) {
+        console.log(`✅ [enhanced-bulk-import] Session test successful (plain text response)`);
+        return {
+          success: true,
+          responseTime
+        };
+      }
+      
+      return {
+        success: false,
+        responseTime,
+        error: `Invalid response format: ${responseText.substring(0, 100)}`
+      };
+    }
+
+  } catch (error) {
+    const responseTime = Date.now() - startTime;
+    console.error('❌ [enhanced-bulk-import] Session test failed:', error);
+    
+    return {
+      success: false,
+      responseTime,
+      error: error instanceof Error ? error.message : 'Connection test failed'
+    };
+  }
+}
+
+async function handleConnectionTest(supabase: any): Promise<Response> {
+  console.log('🧪 [enhanced-bulk-import] Testing GP51 connection');
+  
+  const { session, error: sessionError, sessionCount } = await getValidGP51Session(supabase);
+  
+  if (sessionError || !session) {
+    console.log('❌ [enhanced-bulk-import] No valid session available:', sessionError);
+    
+    return new Response(JSON.stringify({
+      success: false,
+      status: 'not_configured',
+      message: sessionError || 'No valid GP51 session found',
+      sessionCount,
+      details: {
+        hasActiveSessions: sessionCount > 0,
+        requiresReAuthentication: sessionCount > 0,
+        timestamp: new Date().toISOString()
+      }
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
+  console.log('✅ [enhanced-bulk-import] Using existing valid session for', session.username);
+  
+  // Test the session by making an API call
+  const connectionTest = await testGP51Connection(session);
+  
+  const expiresAt = new Date(session.token_expires_at);
+  const now = new Date();
+  const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+  const minutesUntilExpiry = Math.round(timeUntilExpiry / (1000 * 60));
+  
+  return new Response(JSON.stringify({
+    success: connectionTest.success,
+    status: connectionTest.success ? 'healthy' : 'failed',
+    message: connectionTest.success 
+      ? `GP51 connection successful for ${session.username}`
+      : `GP51 connection failed: ${connectionTest.error}`,
+    sessionCount,
+    details: {
+      username: session.username,
+      expiresAt: session.token_expires_at,
+      minutesUntilExpiry,
+      tokenPresent: !!session.gp51_token,
+      tokenLength: session.gp51_token?.length || 0,
+      apiUrl: session.api_url,
+      authMethod: session.auth_method,
+      lastValidated: session.last_validated_at,
+      responseTime: connectionTest.responseTime,
+      deviceCount: connectionTest.deviceCount,
+      sessionId: session.id,
+      timestamp: new Date().toISOString(),
+      connectionError: connectionTest.error
+    }
+  }), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
+}
 
 serve(async (req) => {
   console.log(`🚀 [enhanced-bulk-import] ${req.method} ${req.url}`);
@@ -16,415 +272,36 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return createSuccessResponse({
-        success: false,
-        error: 'No authorization header',
-        errorType: 'authentication_error'
-      });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return createSuccessResponse({
-        success: false,
-        error: 'Invalid authentication',
-        errorType: 'authentication_error'
-      });
-    }
-
-    const { action, username, password } = await req.json();
+    const { action } = await req.json();
     console.log(`🔧 [enhanced-bulk-import] Action: ${action}`);
 
     switch (action) {
       case 'test_connection':
-        return await handleConnectionTest(supabase, username, password);
-      
-      case 'start_import':
-        return await handleStartImport(supabase);
+        return await handleConnectionTest(supabase);
       
       default:
-        return createSuccessResponse({
+        return new Response(JSON.stringify({
           success: false,
-          error: `Unknown action: ${action}`,
-          errorType: 'validation_error'
+          error: `Unknown action: ${action}`
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
     }
+
   } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Error:', error);
-    
-    return createSuccessResponse({
+    console.error('❌ [enhanced-bulk-import] Function error:', error);
+    return new Response(JSON.stringify({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      errorType: 'internal_error',
-      timestamp: new Date().toISOString()
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
-
-function createSuccessResponse(data: any) {
-  return new Response(
-    JSON.stringify(data),
-    { 
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    }
-  );
-}
-
-async function handleConnectionTest(supabase: any, username?: string, password?: string) {
-  console.log(`🧪 [enhanced-bulk-import] Testing GP51 connection`);
-  
-  try {
-    // First, try to use existing session
-    const sessionResult = await getValidGP51Session(supabase);
-    
-    if (sessionResult.success && sessionResult.session) {
-      console.log(`✅ [enhanced-bulk-import] Using existing valid session for ${sessionResult.session.username}`);
-      
-      // Test the session with a simple GP51 API call
-      const testResult = await testGP51SessionValidity(sessionResult.session);
-      
-      if (testResult.success) {
-        return createSuccessResponse({
-          success: true,
-          authMethod: 'existing_session',
-          tokenValid: true,
-          message: `Successfully using existing GP51 session for ${sessionResult.session.username}`,
-          diagnostics: {
-            strategy: 'existing_session',
-            username: sessionResult.session.username,
-            sessionId: sessionResult.session.id,
-            expiresAt: sessionResult.session.token_expires_at,
-            details: testResult.details,
-            timestamp: new Date().toISOString()
-          }
-        });
-      }
-    }
-
-    // If no valid session exists and credentials provided, try authentication
-    if (username && password) {
-      console.log(`🔐 [enhanced-bulk-import] No valid session found, attempting authentication for: ${username}`);
-      
-      const authResult = await authenticateWithGP51(supabase, username, password);
-      
-      if (authResult.success) {
-        return createSuccessResponse({
-          success: true,
-          authMethod: 'new_authentication',
-          tokenValid: true,
-          message: `Successfully authenticated with GP51 for ${username}`,
-          diagnostics: {
-            strategy: 'form_data_post',
-            username: authResult.username,
-            details: authResult.details,
-            timestamp: new Date().toISOString()
-          }
-        });
-      } else {
-        return createSuccessResponse({
-          success: false,
-          error: authResult.error,
-          errorType: 'authentication_failed',
-          diagnostics: authResult.details
-        });
-      }
-    }
-
-    // No session and no credentials
-    return createSuccessResponse({
-      success: false,
-      error: 'No valid GP51 session found and no credentials provided',
-      errorType: 'session_required',
-      message: 'Please authenticate with GP51 first or provide credentials',
-      diagnostics: {
-        hasValidSession: false,
-        credentialsProvided: false,
-        timestamp: new Date().toISOString()
-      }
-    });
-
-  } catch (error) {
-    console.error(`❌ [enhanced-bulk-import] Connection test failed:`, error);
-    return createSuccessResponse({
-      success: false,
-      error: error instanceof Error ? error.message : 'Connection test failed',
-      errorType: 'system_error',
-      timestamp: new Date().toISOString()
-    });
-  }
-}
-
-async function getValidGP51Session(supabase: any) {
-  try {
-    console.log('🔍 [enhanced-bulk-import] Checking for valid GP51 sessions...');
-    
-    const { data: sessions, error } = await supabase
-      .from('gp51_sessions')
-      .select('*')
-      .gt('token_expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (error) {
-      console.error('❌ [enhanced-bulk-import] Database error:', error);
-      return { success: false, error: error.message };
-    }
-
-    if (!sessions || sessions.length === 0) {
-      console.log('📝 [enhanced-bulk-import] No valid GP51 sessions found');
-      return { success: false, error: 'No valid sessions found' };
-    }
-
-    const session = sessions[0];
-    console.log(`✅ [enhanced-bulk-import] Found valid session for ${session.username}`);
-    
-    return { success: true, session };
-  } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Session check failed:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
-}
-
-async function testGP51SessionValidity(session: any) {
-  try {
-    console.log(`🧪 [enhanced-bulk-import] Testing session validity for ${session.username}`);
-    
-    const baseUrl = session.api_url || 'https://www.gps51.com/webapi';
-    const formData = new URLSearchParams();
-    formData.append('token', session.gp51_token);
-    formData.append('action', 'querymonitorlist');
-
-    const response = await fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-        'User-Agent': 'FleetIQ/1.0'
-      },
-      body: formData.toString(),
-      signal: AbortSignal.timeout(15000)
-    });
-
-    const responseText = await response.text();
-    console.log(`📊 [enhanced-bulk-import] Session test response: ${response.status}`);
-
-    if (!response.ok) {
-      return {
-        success: false,
-        error: `HTTP ${response.status}: ${response.statusText}`,
-        details: { statusCode: response.status, responseText: responseText.substring(0, 200) }
-      };
-    }
-
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch {
-      responseData = { rawResponse: responseText };
-    }
-
-    if (responseData.status === 0 || (responseData.groups && Array.isArray(responseData.groups))) {
-      console.log(`✅ [enhanced-bulk-import] Session is valid`);
-      return {
-        success: true,
-        details: {
-          responseStatus: responseData.status,
-          hasData: !!responseData.groups,
-          dataCount: responseData.groups?.length || 0
-        }
-      };
-    } else {
-      return {
-        success: false,
-        error: responseData.cause || 'Session validation failed',
-        details: responseData
-      };
-    }
-  } catch (error) {
-    console.error(`❌ [enhanced-bulk-import] Session test failed:`, error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Session test failed',
-      details: { error: error instanceof Error ? error.message : 'Unknown error' }
-    };
-  }
-}
-
-async function authenticateWithGP51(supabase: any, username: string, password: string) {
-  try {
-    console.log(`🔐 [enhanced-bulk-import] Authenticating with GP51 for: ${username}`);
-    
-    // Use the proven working pattern from other Edge Functions
-    const baseUrl = 'https://www.gps51.com/webapi';
-    
-    // Import the MD5 function
-    const { md5_for_gp51_only } = await import('../_shared/crypto_utils.ts');
-    const hashedPassword = await md5_for_gp51_only(password);
-    
-    console.log(`🔐 [enhanced-bulk-import] Password hashed successfully`);
-    
-    // Use form-data POST without action=login (proven working pattern)
-    const formData = new URLSearchParams();
-    formData.append('username', username.trim());
-    formData.append('password', hashedPassword);
-    formData.append('from', 'WEB');
-    formData.append('type', 'USER');
-    
-    // Add global token if available
-    const globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
-    if (globalToken) {
-      formData.append('token', globalToken);
-      console.log(`🔑 [enhanced-bulk-import] Using global API token`);
-    }
-
-    console.log(`📡 [enhanced-bulk-import] Making authentication request to GP51`);
-
-    const response = await fetch(baseUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Accept': 'application/json',
-        'User-Agent': 'FleetIQ/1.0'
-      },
-      body: formData.toString(),
-      signal: AbortSignal.timeout(15000)
-    });
-
-    const responseText = await response.text();
-    console.log(`📊 [enhanced-bulk-import] Auth response: ${response.status} - ${responseText.substring(0, 100)}`);
-
-    if (!response.ok) {
-      return {
-        success: false,
-        error: `HTTP ${response.status}: ${response.statusText}`,
-        details: { statusCode: response.status, responseText: responseText.substring(0, 200) }
-      };
-    }
-
-    // Parse response
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch {
-      // Treat as plain text token
-      const token = responseText.trim();
-      if (token && token.length > 0 && !token.includes('error') && !token.includes('<html')) {
-        responseData = { token, status: 0 };
-      } else {
-        return {
-          success: false,
-          error: `Invalid response format: ${responseText.substring(0, 100)}`,
-          details: { responseText }
-        };
-      }
-    }
-
-    if (responseData.status === 0 && responseData.token) {
-      console.log(`✅ [enhanced-bulk-import] Authentication successful`);
-      
-      // Store the session in the database
-      await storeGP51Session(supabase, username, responseData.token, baseUrl);
-      
-      return {
-        success: true,
-        username,
-        token: responseData.token,
-        details: {
-          method: 'form_data_post',
-          hasGlobalToken: !!globalToken,
-          responseStatus: responseData.status
-        }
-      };
-    } else {
-      const errorMsg = responseData.cause || responseData.message || 'Authentication failed';
-      return {
-        success: false,
-        error: errorMsg,
-        details: responseData
-      };
-    }
-  } catch (error) {
-    console.error(`❌ [enhanced-bulk-import] Authentication failed:`, error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Authentication failed',
-      details: { error: error instanceof Error ? error.message : 'Unknown error' }
-    };
-  }
-}
-
-async function storeGP51Session(supabase: any, username: string, token: string, apiUrl: string) {
-  try {
-    const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000); // 8 hours from now
-    
-    const { error } = await supabase
-      .from('gp51_sessions')
-      .upsert({
-        username,
-        gp51_token: token,
-        token_expires_at: expiresAt.toISOString(),
-        api_url: apiUrl,
-        auth_method: 'form_data_post',
-        created_at: new Date().toISOString(),
-        last_validated_at: new Date().toISOString()
-      }, {
-        onConflict: 'username'
-      });
-
-    if (error) {
-      console.error('❌ [enhanced-bulk-import] Failed to store session:', error);
-    } else {
-      console.log(`✅ [enhanced-bulk-import] Session stored for ${username}`);
-    }
-  } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Error storing session:', error);
-  }
-}
-
-async function handleStartImport(supabase: any) {
-  console.log(`🚀 [enhanced-bulk-import] Starting bulk import`);
-  
-  try {
-    // Check for valid session first
-    const sessionResult = await getValidGP51Session(supabase);
-    
-    if (!sessionResult.success || !sessionResult.session) {
-      return createSuccessResponse({
-        success: false,
-        error: 'No valid GP51 session found for import',
-        errorType: 'session_required',
-        message: 'Please authenticate with GP51 first before starting import'
-      });
-    }
-
-    // Placeholder for actual import logic
-    return createSuccessResponse({
-      success: true,
-      message: 'Import functionality will be implemented in Phase 2',
-      phase: 'Phase 1 Complete - Authentication Fixed',
-      sessionInfo: {
-        username: sessionResult.session.username,
-        sessionId: sessionResult.session.id,
-        expiresAt: sessionResult.session.token_expires_at
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error(`❌ [enhanced-bulk-import] Import start failed:`, error);
-    return createSuccessResponse({
-      success: false,
-      error: error instanceof Error ? error.message : 'Import start failed',
-      errorType: 'system_error',
-      timestamp: new Date().toISOString()
-    });
-  }
-}
