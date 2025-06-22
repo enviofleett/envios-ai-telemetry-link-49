@@ -247,6 +247,104 @@ export type Database = {
         }
         Relationships: []
       }
+      alert_configurations: {
+        Row: {
+          alert_name: string
+          alert_type: string
+          condition_rules: Json
+          cooldown_minutes: number | null
+          created_at: string
+          created_by: string
+          id: string
+          is_active: boolean | null
+          notification_channels: Json
+          updated_at: string
+        }
+        Insert: {
+          alert_name: string
+          alert_type: string
+          condition_rules: Json
+          cooldown_minutes?: number | null
+          created_at?: string
+          created_by: string
+          id?: string
+          is_active?: boolean | null
+          notification_channels: Json
+          updated_at?: string
+        }
+        Update: {
+          alert_name?: string
+          alert_type?: string
+          condition_rules?: Json
+          cooldown_minutes?: number | null
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_active?: boolean | null
+          notification_channels?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      alert_history: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_configuration_id: string | null
+          alert_status: string
+          created_at: string
+          escalated_at: string | null
+          id: string
+          notification_details: Json | null
+          notification_sent: boolean | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          trigger_data: Json
+          triggered_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_configuration_id?: string | null
+          alert_status: string
+          created_at?: string
+          escalated_at?: string | null
+          id?: string
+          notification_details?: Json | null
+          notification_sent?: boolean | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          trigger_data: Json
+          triggered_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_configuration_id?: string | null
+          alert_status?: string
+          created_at?: string
+          escalated_at?: string | null
+          id?: string
+          notification_details?: Json | null
+          notification_sent?: boolean | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          trigger_data?: Json
+          triggered_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alert_history_alert_configuration_id_fkey"
+            columns: ["alert_configuration_id"]
+            isOneToOne: false
+            referencedRelation: "alert_configurations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_rate_limits: {
         Row: {
           block_expires_at: string | null
@@ -2448,6 +2546,63 @@ export type Database = {
           registration_status?: string | null
           registration_type?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      error_tracking_logs: {
+        Row: {
+          created_at: string
+          error_context: Json | null
+          error_message: string
+          error_severity: string
+          error_source: string
+          error_stack: string | null
+          error_type: string
+          first_occurred_at: string
+          id: string
+          last_occurred_at: string
+          occurrence_count: number | null
+          resolution_notes: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          session_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error_context?: Json | null
+          error_message: string
+          error_severity: string
+          error_source: string
+          error_stack?: string | null
+          error_type: string
+          first_occurred_at?: string
+          id?: string
+          last_occurred_at?: string
+          occurrence_count?: number | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error_context?: Json | null
+          error_message?: string
+          error_severity?: string
+          error_source?: string
+          error_stack?: string | null
+          error_type?: string
+          first_occurred_at?: string
+          id?: string
+          last_occurred_at?: string
+          occurrence_count?: number | null
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          session_id?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -5541,6 +5696,39 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_channels: {
+        Row: {
+          channel_config: Json
+          channel_type: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_config: Json
+          channel_type: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_config?: Json
+          channel_type?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notification_preferences: {
         Row: {
           created_at: string
@@ -7515,6 +7703,63 @@ export type Database = {
         }
         Relationships: []
       }
+      sync_performance_metrics: {
+        Row: {
+          api_calls_made: number | null
+          completed_at: string
+          cpu_usage_percent: number | null
+          created_at: string
+          error_details: Json | null
+          id: string
+          memory_usage_mb: number | null
+          metadata: Json | null
+          network_latency_ms: number | null
+          operation_duration_ms: number
+          operation_type: string
+          records_failed: number | null
+          records_processed: number | null
+          records_successful: number | null
+          started_at: string
+          sync_operation_id: string | null
+        }
+        Insert: {
+          api_calls_made?: number | null
+          completed_at?: string
+          cpu_usage_percent?: number | null
+          created_at?: string
+          error_details?: Json | null
+          id?: string
+          memory_usage_mb?: number | null
+          metadata?: Json | null
+          network_latency_ms?: number | null
+          operation_duration_ms: number
+          operation_type: string
+          records_failed?: number | null
+          records_processed?: number | null
+          records_successful?: number | null
+          started_at: string
+          sync_operation_id?: string | null
+        }
+        Update: {
+          api_calls_made?: number | null
+          completed_at?: string
+          cpu_usage_percent?: number | null
+          created_at?: string
+          error_details?: Json | null
+          id?: string
+          memory_usage_mb?: number | null
+          metadata?: Json | null
+          network_latency_ms?: number | null
+          operation_duration_ms?: number
+          operation_type?: string
+          records_failed?: number | null
+          records_processed?: number | null
+          records_successful?: number | null
+          started_at?: string
+          sync_operation_id?: string | null
+        }
+        Relationships: []
+      }
       sync_status: {
         Row: {
           completed_at: string | null
@@ -7560,6 +7805,36 @@ export type Database = {
           successful_records?: number | null
           sync_type?: string
           total_records?: number | null
+        }
+        Relationships: []
+      }
+      system_health_metrics: {
+        Row: {
+          created_at: string
+          id: string
+          metadata: Json | null
+          metric_type: string
+          metric_unit: string
+          metric_value: number
+          recorded_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          metric_type: string
+          metric_unit: string
+          metric_value: number
+          recorded_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          metric_type?: string
+          metric_unit?: string
+          metric_value?: number
+          recorded_at?: string
         }
         Relationships: []
       }
