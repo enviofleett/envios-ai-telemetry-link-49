@@ -2,241 +2,196 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
 import { 
-  Database, 
-  Users, 
   Car, 
-  Clock, 
-  Activity, 
-  Pause,
-  Info
+  Users, 
+  FolderOpen, 
+  Database,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
-interface ImportPreviewData {
-  vehicles: {
-    total: number;
-    sample: any[];
-    activeCount: number;
-    inactiveCount: number;
-  };
-  users: {
-    total: number;
-    sample: any[];
-    activeCount: number;
-  };
-  groups: {
-    total: number;
-    sample: any[];
-  };
-  summary: {
-    totalDevices: number;
-    totalUsers: number;
-    totalGroups: number;
-    lastUpdate: string;
-    estimatedImportTime: string;
-  };
+interface ImportSummary {
+  vehicles: number;
+  users: number;
+  groups: number;
+}
+
+interface ImportDetails {
+  vehicles: any[];
+  users: any[];
+  groups: any[];
+}
+
+interface PreviewData {
+  summary: ImportSummary;
+  details: ImportDetails;
+  message: string;
 }
 
 interface ImportPreviewPanelProps {
-  data: ImportPreviewData;
+  previewData: PreviewData;
+  isLoading: boolean;
 }
 
-const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({ data }) => {
-  // Fix: Add null safety checks for data structure
-  if (!data || !data.summary) {
-    return (
-      <Card>
-        <CardContent className="p-6 text-center">
-          <div className="text-muted-foreground">
-            <Info className="h-12 w-12 mx-auto mb-4 opacity-50" />
-            <h3 className="text-lg font-medium mb-2">Invalid Preview Data</h3>
-            <p>The preview data structure is invalid or incomplete.</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Fix: Provide fallback values for all data access
-  const vehicles = data.vehicles || { total: 0, sample: [], activeCount: 0, inactiveCount: 0 };
-  const users = data.users || { total: 0, sample: [], activeCount: 0 };
-  const groups = data.groups || { total: 0, sample: [] };
-  const summary = data.summary;
+const ImportPreviewPanel: React.FC<ImportPreviewPanelProps> = ({ 
+  previewData, 
+  isLoading 
+}) => {
+  const { summary, details } = previewData;
+  
+  const hasAnyData = summary.vehicles > 0 || summary.users > 0 || summary.groups > 0;
 
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Database className="h-5 w-5" />
+          Import Preview & Data Analysis
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Summary Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
             <div className="flex items-center gap-3">
-              <Car className="h-8 w-8 text-blue-600" />
+              <Car className="h-6 w-6 text-blue-600" />
               <div>
-                <div className="text-2xl font-bold">{vehicles.total}</div>
-                <div className="text-sm text-gray-600">Total Vehicles</div>
-                <div className="flex gap-2 mt-1">
-                  <Badge variant="outline" className="text-xs">
-                    <Activity className="h-3 w-3 mr-1" />
-                    {vehicles.activeCount} Active
-                  </Badge>
-                  <Badge variant="secondary" className="text-xs">
-                    <Pause className="h-3 w-3 mr-1" />
-                    {vehicles.inactiveCount} Inactive
-                  </Badge>
-                </div>
+                <p className="font-semibold text-blue-900">Vehicles</p>
+                <p className="text-sm text-blue-700">GP51 Devices</p>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Users className="h-8 w-8 text-green-600" />
-              <div>
-                <div className="text-2xl font-bold">{users.total}</div>
-                <div className="text-sm text-gray-600">Total Users</div>
-                <div className="flex gap-2 mt-1">
-                  <Badge variant="outline" className="text-xs">
-                    {users.activeCount} Active
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <Database className="h-8 w-8 text-purple-600" />
-              <div>
-                <div className="text-2xl font-bold">{groups.total}</div>
-                <div className="text-sm text-gray-600">Device Groups</div>
-                <div className="flex gap-2 mt-1">
-                  <Badge variant="outline" className="text-xs">
-                    <Clock className="h-3 w-3 mr-1" />
-                    {summary.estimatedImportTime}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Import Summary */}
-      <Alert>
-        <Info className="h-4 w-4" />
-        <AlertDescription>
-          <div className="space-y-2">
-            <div className="font-medium">Import Summary</div>
-            <div className="text-sm space-y-1">
-              <div>• {summary.totalDevices} vehicles will be imported and assigned to users</div>
-              <div>• {summary.totalUsers} GP51 users will be processed for account mapping</div>
-              <div>• {summary.totalGroups} device groups will be created for organization</div>
-              <div>• Estimated completion time: {summary.estimatedImportTime}</div>
-              <div>• Data last fetched: {new Date(summary.lastUpdate).toLocaleString()}</div>
-            </div>
+            <Badge variant={summary.vehicles > 0 ? "default" : "secondary"} className="text-lg px-3 py-1">
+              {summary.vehicles}
+            </Badge>
           </div>
-        </AlertDescription>
-      </Alert>
 
-      {/* Sample Data Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Vehicle Samples */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Car className="h-4 w-4" />
-              Sample Vehicles ({vehicles.sample.length} of {vehicles.total})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {vehicles.sample.length > 0 ? (
-                <>
-                  {vehicles.sample.slice(0, 5).map((vehicle, index) => (
-                    <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+          <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Users className="h-6 w-6 text-green-600" />
+              <div>
+                <p className="font-semibold text-green-900">Users</p>
+                <p className="text-sm text-green-700">User Accounts</p>
+              </div>
+            </div>
+            <Badge variant={summary.users > 0 ? "default" : "secondary"} className="text-lg px-3 py-1">
+              {summary.users}
+            </Badge>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
+            <div className="flex items-center gap-3">
+              <FolderOpen className="h-6 w-6 text-purple-600" />
+              <div>
+                <p className="font-semibold text-purple-900">Groups</p>
+                <p className="text-sm text-purple-700">Device Groups</p>
+              </div>
+            </div>
+            <Badge variant={summary.groups > 0 ? "default" : "secondary"} className="text-lg px-3 py-1">
+              {summary.groups}
+            </Badge>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Data Availability Status */}
+        <div className="flex items-center gap-2 p-4 bg-gray-50 rounded-lg">
+          {hasAnyData ? (
+            <>
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              <span className="font-medium text-green-800">
+                Data Available - Ready for Import
+              </span>
+            </>
+          ) : (
+            <>
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              <span className="font-medium text-amber-800">
+                No Data Found - Check GP51 Connection
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Sample Data Preview */}
+        {hasAnyData && (
+          <div className="space-y-4">
+            <h4 className="font-semibold text-gray-900">Sample Data Preview</h4>
+            
+            {details.vehicles && details.vehicles.length > 0 && (
+              <div>
+                <h5 className="font-medium text-sm text-gray-700 mb-2">Sample Vehicles</h5>
+                <div className="space-y-2">
+                  {details.vehicles.slice(0, 3).map((vehicle, index) => (
+                    <div key={index} className="flex justify-between items-center p-2 bg-white border rounded">
                       <div>
-                        <div className="font-medium text-sm">{vehicle.devicename || `Device ${vehicle.deviceid}`}</div>
-                        <div className="text-xs text-gray-500">ID: {vehicle.deviceid}</div>
-                        {vehicle.simnum && <div className="text-xs text-gray-500">SIM: {vehicle.simnum}</div>}
+                        <span className="font-medium">{vehicle.devicename || 'Unnamed Device'}</span>
+                        <span className="text-sm text-gray-500 ml-2">ID: {vehicle.deviceid}</span>
                       </div>
-                      <div className="text-right">
-                        {vehicle.devicetype && (
-                          <Badge variant="outline" className="text-xs mb-1">
-                            Type {vehicle.devicetype}
-                          </Badge>
-                        )}
-                        {vehicle.lastactivetime && (
-                          <div className="text-xs text-gray-500">
-                            {new Date(vehicle.lastactivetime * 1000).toLocaleDateString()}
-                          </div>
-                        )}
-                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {vehicle.simnum ? 'SIM: ' + vehicle.simnum : 'No SIM'}
+                      </Badge>
                     </div>
                   ))}
-                  {vehicles.total > 5 && (
-                    <div className="text-xs text-gray-500 text-center pt-2">
-                      ... and {vehicles.total - 5} more vehicles
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-sm text-gray-500 text-center py-4">
-                  No vehicle samples available
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            )}
 
-        {/* User Samples */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Sample Users ({users.sample.length} of {users.total})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {users.sample.length > 0 ? (
-                <>
-                  {users.sample.slice(0, 5).map((user, index) => (
-                    <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+            {details.users && details.users.length > 0 && (
+              <div>
+                <h5 className="font-medium text-sm text-gray-700 mb-2">Sample Users</h5>
+                <div className="space-y-2">
+                  {details.users.slice(0, 3).map((user, index) => (
+                    <div key={index} className="flex justify-between items-center p-2 bg-white border rounded">
                       <div>
-                        <div className="font-medium text-sm">{user.username}</div>
-                        {user.email && <div className="text-xs text-gray-500">{user.email}</div>}
-                        {user.phone && <div className="text-xs text-gray-500">{user.phone}</div>}
-                      </div>
-                      <div className="text-right">
-                        {user.usertype && (
-                          <Badge variant="outline" className="text-xs">
-                            Type {user.usertype}
-                          </Badge>
+                        <span className="font-medium">{user.username || 'Unknown User'}</span>
+                        {user.email && (
+                          <span className="text-sm text-gray-500 ml-2">{user.email}</span>
                         )}
                       </div>
+                      <Badge variant="outline" className="text-xs">
+                        Type: {user.usertype || 'Unknown'}
+                      </Badge>
                     </div>
                   ))}
-                  {users.total > 5 && (
-                    <div className="text-xs text-gray-500 text-center pt-2">
-                      ... and {users.total - 5} more users
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-sm text-gray-500 text-center py-4">
-                  No user samples available
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+              </div>
+            )}
+
+            {details.groups && details.groups.length > 0 && (
+              <div>
+                <h5 className="font-medium text-sm text-gray-700 mb-2">Device Groups</h5>
+                <div className="space-y-2">
+                  {details.groups.slice(0, 3).map((group, index) => (
+                    <div key={index} className="flex justify-between items-center p-2 bg-white border rounded">
+                      <div>
+                        <span className="font-medium">{group.groupname || 'Unnamed Group'}</span>
+                        <span className="text-sm text-gray-500 ml-2">ID: {group.groupid}</span>
+                      </div>
+                      <Badge variant="outline" className="text-xs">
+                        {group.deviceCount || 0} devices
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Import Readiness Message */}
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800">
+            {hasAnyData 
+              ? `Ready to import ${summary.vehicles} vehicles, ${summary.users} users, and ${summary.groups} groups from GP51.`
+              : 'No data available for import. Please check your GP51 connection and ensure you have vehicles/users configured in your GP51 account.'
+            }
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
