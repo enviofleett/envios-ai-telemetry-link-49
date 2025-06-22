@@ -22,31 +22,59 @@ const GP51SyncMonitor: React.FC = () => {
   const fetchSyncHistory = async () => {
     setIsLoading(true);
     try {
+      console.log('🔍 Fetching sync history from gp51_sync_status table...');
+      
       const { data, error } = await supabase
         .from('gp51_sync_status')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error fetching sync history:', error);
+        throw error;
+      }
+
+      console.log('✅ Fetched sync data:', data);
 
       const syncData: SyncStatus[] = data || [];
       setSyncHistory(syncData);
 
-      // Calculate metrics
+      // Calculate metrics from the fetched data
       const completed = syncData.filter(s => s.status === 'completed');
       const failed = syncData.filter(s => s.status === 'failed');
       
+      // Calculate average duration from sync_details
+      const completedWithDuration = completed.filter(s => 
+        s.sync_details && 
+        typeof s.sync_details === 'object' && 
+        'duration_minutes' in s.sync_details
+      );
+      
+      const avgDuration = completedWithDuration.length > 0 
+        ? completedWithDuration.reduce((sum, sync) => {
+            const details = sync.sync_details as any;
+            return sum + (details.duration_minutes || 0);
+          }, 0) / completedWithDuration.length
+        : null;
+
       setMetrics({
         totalSyncs: syncData.length,
         successfulSyncs: completed.length,
         failedSyncs: failed.length,
         lastSyncTime: syncData.length > 0 ? syncData[0].created_at : null,
-        averageDuration: null // Could calculate if we had duration data
+        averageDuration: avgDuration
+      });
+
+      console.log('📊 Calculated metrics:', {
+        totalSyncs: syncData.length,
+        successfulSyncs: completed.length,
+        failedSyncs: failed.length,
+        avgDuration
       });
 
     } catch (error) {
-      console.error('Error fetching sync history:', error);
+      console.error('❌ Error fetching sync history:', error);
     } finally {
       setIsLoading(false);
     }
@@ -55,11 +83,18 @@ const GP51SyncMonitor: React.FC = () => {
   const triggerManualSync = async () => {
     setIsTriggering(true);
     try {
+      console.log('🚀 Triggering manual sync...');
+      
       const { data, error } = await supabase.functions.invoke('syncGp51Vehicles', {
         body: { manual: true }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error triggering sync:', error);
+        throw error;
+      }
+
+      console.log('✅ Manual sync triggered:', data);
 
       // Refresh the sync history after triggering
       setTimeout(() => {
@@ -67,7 +102,7 @@ const GP51SyncMonitor: React.FC = () => {
       }, 2000);
 
     } catch (error) {
-      console.error('Error triggering sync:', error);
+      console.error('❌ Error triggering sync:', error);
     } finally {
       setIsTriggering(false);
     }
@@ -103,6 +138,14 @@ const GP51SyncMonitor: React.FC = () => {
         {status}
       </Badge>
     );
+  };
+
+  const formatDuration = (minutes: number | null) => {
+    if (!minutes) return 'N/A';
+    if (minutes < 60) return `${Math.round(minutes)}m`;
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    return `${hours}h ${mins}m`;
   };
 
   return (
@@ -203,7 +246,7 @@ const GP51SyncMonitor: React.FC = () => {
         <CardContent>
           {syncHistory.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No sync history available
+              {isLoading ? 'Loading sync history...' : 'No sync history available'}
             </div>
           ) : (
             <div className="space-y-3">
@@ -216,10 +259,22 @@ const GP51SyncMonitor: React.FC = () => {
                       <div className="text-sm text-muted-foreground">
                         {new Date(sync.created_at).toLocaleString()}
                       </div>
+                      {sync.started_at && sync.completed_at && (
+                        <div className="text-xs text-muted-foreground">
+                          Duration: {formatDuration(
+                            (new Date(sync.completed_at).getTime() - new Date(sync.started_at).getTime()) / (1000 * 60)
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
-                    <div className="text-sm">
+                    <div className="text-sm text-right">
+                      {sync.total_devices > 0 && (
+                        <div className="text-muted-foreground">
+                          {sync.total_devices} devices
+                        </div>
+                      )}
                       {sync.successful_syncs > 0 && (
                         <span className="text-green-600">
                           {sync.successful_syncs} successful
@@ -239,6 +294,37 @@ const GP51SyncMonitor: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Performance Metrics */}
+      {metrics.averageDuration && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Performance Metrics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">
+                  {formatDuration(metrics.averageDuration)}
+                </div>
+                <div className="text-sm text-muted-foreground">Average Duration</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {metrics.totalSyncs > 0 ? Math.round((metrics.successfulSyncs / metrics.totalSyncs) * 100) : 0}%
+                </div>
+                <div className="text-sm text-muted-foreground">Success Rate</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">
+                  {syncHistory.filter(s => s.status === 'running').length}
+                </div>
+                <div className="text-sm text-muted-foreground">Currently Running</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

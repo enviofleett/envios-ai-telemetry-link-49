@@ -2907,6 +2907,59 @@ export type Database = {
         }
         Relationships: []
       }
+      gp51_entity_sync_conflicts: {
+        Row: {
+          conflict_data: Json | null
+          created_at: string | null
+          entity_id: string
+          entity_type: string
+          gp51_id: string | null
+          id: string
+          import_job_id: string | null
+          last_sync_attempt: string | null
+          sync_attempts: number | null
+          sync_error: string | null
+          sync_status: string
+          updated_at: string | null
+        }
+        Insert: {
+          conflict_data?: Json | null
+          created_at?: string | null
+          entity_id: string
+          entity_type: string
+          gp51_id?: string | null
+          id?: string
+          import_job_id?: string | null
+          last_sync_attempt?: string | null
+          sync_attempts?: number | null
+          sync_error?: string | null
+          sync_status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          conflict_data?: Json | null
+          created_at?: string | null
+          entity_id?: string
+          entity_type?: string
+          gp51_id?: string | null
+          id?: string
+          import_job_id?: string | null
+          last_sync_attempt?: string | null
+          sync_attempts?: number | null
+          sync_error?: string | null
+          sync_status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_sync_status_import_job_id_fkey"
+            columns: ["import_job_id"]
+            isOneToOne: false
+            referencedRelation: "csv_import_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gp51_health_metrics: {
         Row: {
           created_at: string
@@ -3494,56 +3547,45 @@ export type Database = {
       }
       gp51_sync_status: {
         Row: {
-          conflict_data: Json | null
+          completed_at: string | null
           created_at: string | null
-          entity_id: string
-          entity_type: string
-          gp51_id: string | null
+          error_log: Json | null
+          failed_syncs: number | null
           id: string
-          import_job_id: string | null
-          last_sync_attempt: string | null
-          sync_attempts: number | null
-          sync_error: string | null
-          sync_status: string
-          updated_at: string | null
+          started_at: string
+          status: string
+          successful_syncs: number | null
+          sync_details: Json | null
+          sync_type: string
+          total_devices: number | null
         }
         Insert: {
-          conflict_data?: Json | null
+          completed_at?: string | null
           created_at?: string | null
-          entity_id: string
-          entity_type: string
-          gp51_id?: string | null
+          error_log?: Json | null
+          failed_syncs?: number | null
           id?: string
-          import_job_id?: string | null
-          last_sync_attempt?: string | null
-          sync_attempts?: number | null
-          sync_error?: string | null
-          sync_status?: string
-          updated_at?: string | null
+          started_at?: string
+          status?: string
+          successful_syncs?: number | null
+          sync_details?: Json | null
+          sync_type?: string
+          total_devices?: number | null
         }
         Update: {
-          conflict_data?: Json | null
+          completed_at?: string | null
           created_at?: string | null
-          entity_id?: string
-          entity_type?: string
-          gp51_id?: string | null
+          error_log?: Json | null
+          failed_syncs?: number | null
           id?: string
-          import_job_id?: string | null
-          last_sync_attempt?: string | null
-          sync_attempts?: number | null
-          sync_error?: string | null
-          sync_status?: string
-          updated_at?: string | null
+          started_at?: string
+          status?: string
+          successful_syncs?: number | null
+          sync_details?: Json | null
+          sync_type?: string
+          total_devices?: number | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "gp51_sync_status_import_job_id_fkey"
-            columns: ["import_job_id"]
-            isOneToOne: false
-            referencedRelation: "csv_import_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       gp51_system_imports: {
         Row: {
