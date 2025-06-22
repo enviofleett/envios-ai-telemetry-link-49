@@ -32,12 +32,13 @@ export async function handleGP51Authentication(
 
     console.log('✅ GP51 authentication successful, saving credentials...');
 
-    // Store encrypted credentials using correct column names
+    // Store encrypted credentials using correct column names and include password_hash
     const { error: insertError } = await adminSupabase
       .from('gp51_sessions')
       .upsert({
         envio_user_id: userId,
         username: authResult.username,
+        password_hash: authResult.hashedPassword, // Include the MD5 hashed password
         gp51_token: authResult.token,
         token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
         api_url: authResult.apiUrl,

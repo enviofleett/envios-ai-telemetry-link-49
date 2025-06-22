@@ -8,6 +8,7 @@ export interface GP51AuthResult {
   apiUrl?: string;
   error?: string;
   method?: string;
+  hashedPassword?: string; // Add this to pass the MD5 hash
 }
 
 export async function authenticateWithGP51(credentials: {
@@ -127,7 +128,8 @@ export async function authenticateWithGP51(credentials: {
           token: responseData.token,
           username,
           apiUrl: apiEndpoint,
-          method: 'POST_JSON'
+          method: 'POST_JSON',
+          hashedPassword // Include the hashed password in the result
         };
       } else {
         const errorMsg = responseData.cause || responseData.message || `Authentication failed with status ${responseData.status}`;
@@ -154,7 +156,8 @@ export async function authenticateWithGP51(credentials: {
           token,
           username,
           apiUrl: apiEndpoint,
-          method: 'POST_TEXT'
+          method: 'POST_TEXT',
+          hashedPassword // Include the hashed password in the result
         };
       } else {
         console.error(`❌ [GP51-AUTH] Invalid token response:`, token);
