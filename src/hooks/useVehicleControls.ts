@@ -1,107 +1,112 @@
 
-import { useState, useEffect } from 'react';
-import { GP51ProductionService } from '@/services/gp51ProductionService';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useCallback } from 'react';
 
-interface VehicleControlState {
-  engineState: Record<string, boolean>;
-  lockState: Record<string, boolean>;
+export interface VehicleControlState {
+  engineRunning: boolean;
+  locked: boolean;
+  isLoading: boolean;
 }
 
-export const useVehicleControls = (vehicles: any[]) => {
-  const [controlStates, setControlStates] = useState<VehicleControlState>({
-    engineState: {},
-    lockState: {}
-  });
+export interface UseVehicleControlsReturn {
+  controlStates: Record<string, VehicleControlState>;
+  isUpdating: boolean;
+  toggleEngine: (vehicleId: string) => Promise<void>;
+  toggleLock: (vehicleId: string) => Promise<void>;
+}
+
+export const useVehicleControls = (vehicles: any[]): UseVehicleControlsReturn => {
+  const [controlStates, setControlStates] = useState<Record<string, VehicleControlState>>({});
   const [isUpdating, setIsUpdating] = useState(false);
-  const { toast } = useToast();
 
-  // Initialize control states
-  useEffect(() => {
-    const newEngineState: Record<string, boolean> = {};
-    const newLockState: Record<string, boolean> = {};
-
-    vehicles.forEach((vehicle) => {
-      const hasIgnitionData = vehicle.lastPosition?.statusText?.includes('ignition') || 
-                              vehicle.lastPosition?.statusText?.includes('engine');
-      newEngineState[vehicle.deviceid] = hasIgnitionData || false;
-      newLockState[vehicle.deviceid] = true; // Default to locked
+  // Initialize control states for vehicles
+  React.useEffect(() => {
+    const newStates: Record<string, VehicleControlState> = {};
+    vehicles.forEach(vehicle => {
+      if (vehicle.id && !controlStates[vehicle.id]) {
+        newStates[vehicle.id] = {
+          engineRunning: false,
+          locked: true,
+          isLoading: false
+        };
+      }
     });
-
-    setControlStates({
-      engineState: newEngineState,
-      lockState: newLockState
-    });
+    
+    if (Object.keys(newStates).length > 0) {
+      setControlStates(prev => ({ ...prev, ...newStates }));
+    }
   }, [vehicles]);
 
-  const toggleEngine = async (deviceId: string) => {
+  const toggleEngine = useCallback(async (vehicleId: string) => {
     setIsUpdating(true);
-    try {
-      const newState = !controlStates.engineState[deviceId];
-      
-      const result = await GP51ProductionService.performRealDeviceHandshake(
-        deviceId,
-        'admin-token'
-      );
-
-      if (result.success) {
-        setControlStates(prev => ({
-          ...prev,
-          engineState: {
-            ...prev.engineState,
-            [deviceId]: newState
-          }
-        }));
-
-        toast({
-          title: `Engine ${newState ? 'Started' : 'Stopped'}`,
-          description: `Vehicle ${deviceId} engine has been ${newState ? 'started' : 'stopped'} remotely`,
-        });
-      } else {
-        toast({
-          title: "Command Failed",
-          description: result.error || "Failed to control engine",
-          variant: "destructive"
-        });
+    setControlStates(prev => ({
+      ...prev,
+      [vehicleId]: {
+        ...prev[vehicleId],
+        isLoading: true
       }
-    } catch (error) {
-      toast({
-        title: "Control Error",
-        description: "Unable to communicate with vehicle",
-        variant: "destructive"
-      });
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+    }));
 
-  const toggleLock = async (deviceId: string) => {
-    setIsUpdating(true);
     try {
-      const newState = !controlStates.lockState[deviceId];
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       setControlStates(prev => ({
         ...prev,
-        lockState: {
-          ...prev.lockState,
-          [deviceId]: newState
+        [vehicleId]: {
+          ...prev[vehicleId],
+          engineRunning: !prev[vehicleId]?.engineRunning,
+          isLoading: false
         }
       }));
-
-      toast({
-        title: `Doors ${newState ? 'Locked' : 'Unlocked'}`,
-        description: `Vehicle ${deviceId} doors have been ${newState ? 'locked' : 'unlocked'}`,
-      });
     } catch (error) {
-      toast({
-        title: "Lock Control Error",
-        description: "Unable to control door locks",
-        variant: "destructive"
-      });
+      console.error('Failed to toggle engine:', error);
+      setControlStates(prev => ({
+        ...prev,
+        [vehicleId]: {
+          ...prev[vehicleId],
+          isLoading: false
+        }
+      }));
     } finally {
       setIsUpdating(false);
     }
-  };
+  }, []);
+
+  const toggleLock = useCallback(async (vehicleId: string) => {
+    setIsUpdating(true);
+    setControlStates(prev => ({
+      ...prev,
+      [vehicleId]: {
+        ...prev[vehicleId],
+        isLoading: true
+      }
+    }));
+
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      setControlStates(prev => ({
+        ...prev,
+        [vehicleId]: {
+          ...prev[vehicleId],
+          locked: !prev[vehicleId]?.locked,
+          isLoading: false
+        }
+      }));
+    } catch (error) {
+      console.error('Failed to toggle lock:', error);
+      setControlStates(prev => ({
+        ...prev,
+        [vehicleId]: {
+          ...prev[vehicleId],
+          isLoading: false
+        }
+      }));
+    } finally {
+      setIsUpdating(false);
+    }
+  }, []);
 
   return {
     controlStates,

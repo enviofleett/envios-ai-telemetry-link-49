@@ -45,8 +45,9 @@ export const UnifiedAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
     
     setIsCheckingRole(true);
     try {
+      // Query user_profiles table instead of profiles
       const { data, error } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .select('role')
         .eq('id', userId)
         .single();
@@ -54,8 +55,19 @@ export const UnifiedAuthProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (!error && data?.role) {
         setUserRole(data.role);
       } else {
-        // Default role if no profile exists
-        setUserRole('user');
+        // Fallback: check user_roles table if user_profiles doesn't have role
+        const { data: roleData, error: roleError } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId)
+          .single();
+
+        if (!roleError && roleData?.role) {
+          setUserRole(roleData.role);
+        } else {
+          // Default role if no profile or role exists
+          setUserRole('user');
+        }
       }
     } catch (error) {
       console.error('Error checking user role:', error);
