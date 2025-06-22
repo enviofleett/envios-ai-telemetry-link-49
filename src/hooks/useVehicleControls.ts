@@ -1,5 +1,4 @@
-
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 
 export interface VehicleControlState {
   engineRunning: boolean;
@@ -19,7 +18,7 @@ export const useVehicleControls = (vehicles: any[]): UseVehicleControlsReturn =>
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Initialize control states for vehicles
-  React.useEffect(() => {
+  useEffect(() => {
     const newStates: Record<string, VehicleControlState> = {};
     vehicles.forEach(vehicle => {
       if (vehicle.id && !controlStates[vehicle.id]) {
