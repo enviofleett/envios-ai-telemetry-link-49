@@ -44,17 +44,23 @@ export async function authenticateWithGP51(credentials: {
       url.searchParams.set('token', globalToken);
     }
     
-    console.log(`🔧 [URL] Final constructed URL: "${apiEndpoint}"`);
+    console.log(`🔧 [URL] Final constructed URL: "${url.toString()}"`);
     
-    // Prepare request body with credentials
+    // Prepare request body with credentials (FIXED: Using uppercase values)
     const requestBody = {
       username: username.trim(),
       password: hashedPassword,
-      from: 'web',
-      type: 'user'
+      from: 'WEB',     // Changed from 'web' to 'WEB' (uppercase)
+      type: 'USER'     // Changed from 'user' to 'USER' (uppercase)
     };
     
-    console.log(`🔄 [GP51-AUTH] Step 4: Making HTTP request to GP51 API`);
+    // Log the request body for debugging (with password redacted)
+    console.log(`📤 [GP51-AUTH] Request body being sent:`, JSON.stringify({
+      ...requestBody,
+      password: '[REDACTED]'
+    }));
+    
+    console.log(`🔄 [GP51-AUTH] Step 4: Making HTTP POST request to GP51 API`);
     console.log(`📡 [HTTP] Request details:`);
     console.log(`  - Method: POST`);
     console.log(`  - URL: ${url.toString()}`);
