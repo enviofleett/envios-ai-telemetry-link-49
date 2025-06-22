@@ -2,7 +2,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { getValidGp51Session } from "../_shared/gp51_session_utils.ts";
-import { GP51UnifiedClient } from "../_shared/gp51_unified_client.ts";
+import { gp51ApiClient } from "../_shared/gp51_api_client_unified.ts";
 import { createSuccessResponse, createErrorResponse, calculateLatency } from "../_shared/response_utils.ts";
 import { getSupabaseClient } from "../_shared/supabase_client.ts";
 
@@ -35,22 +35,21 @@ serve(async (req) => {
     console.log(`🔑 Using token: ${session.gp51_token.substring(0, 8)}... (expires: ${session.token_expires_at})`);
     console.log(`👤 Associated with user: ${session.envio_user_id}`);
 
-    // Get all devices from GP51
-    const client = new GP51UnifiedClient();
+    // Get all devices from GP51 using queryMonitorList
     console.log('📱 Fetching all devices from GP51...');
     
-    const devicesResponse = await client.getAllDevices(session.gp51_token);
-    if (!devicesResponse.success || !devicesResponse.data) {
-      console.error('❌ Failed to fetch devices from GP51:', devicesResponse.error);
+    const devicesResponse = await gp51ApiClient.queryMonitorList(session.gp51_token, session.username);
+    if (devicesResponse.status !== 0 || !devicesResponse.records) {
+      console.error('❌ Failed to fetch devices from GP51:', devicesResponse.cause);
       return createErrorResponse(
         'Failed to fetch devices from GP51',
-        devicesResponse.error || 'Unknown error',
+        devicesResponse.cause || 'Unknown error',
         500,
         calculateLatency(startTime)
       );
     }
 
-    const devices = devicesResponse.data;
+    const devices = devicesResponse.records;
     console.log(`📊 Found ${devices.length} devices in GP51`);
 
     if (devices.length === 0) {
@@ -66,7 +65,7 @@ serve(async (req) => {
 
     // Process devices in batches
     const BATCH_SIZE = 50;
-    const deviceIds = devices.map(d => d.deviceid);
+    const deviceIds = devices.map(d => d.deviceid || d.id);
     const batches = [];
     
     for (let i = 0; i < deviceIds.length; i += BATCH_SIZE) {
@@ -83,14 +82,17 @@ serve(async (req) => {
       console.log(`🔄 Processing batch ${batchIndex}/${batches.length} with ${batch.length} devices...`);
       
       try {
-        const positionsResponse = await client.getLastPosition(batch, session.gp51_token);
+        const positionsResponse = await gp51ApiClient.getLastPosition(
+          session.gp51_token,
+          batch
+        );
         
-        if (positionsResponse.success && positionsResponse.data) {
-          const batchPositions = Array.isArray(positionsResponse.data) ? positionsResponse.data : [positionsResponse.data];
+        if (positionsResponse.status === 0 && positionsResponse.records) {
+          const batchPositions = Array.isArray(positionsResponse.records) ? positionsResponse.records : [positionsResponse.records];
           allPositions = allPositions.concat(batchPositions);
           console.log(`✅ Batch ${batchIndex} completed: ${batchPositions.length} positions retrieved`);
         } else {
-          console.warn(`⚠️ Batch ${batchIndex} failed: ${positionsResponse.error}`);
+          console.warn(`⚠️ Batch ${batchIndex} failed: ${positionsResponse.cause}`);
         }
 
         // Add delay between batches to avoid overwhelming the GP51 API
