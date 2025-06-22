@@ -1,8 +1,6 @@
-
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { createErrorResponse, createSuccessResponse } from '../_shared/response_utils.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
 import { getValidGp51Session } from '../_shared/gp51_session_utils.ts';
+import { createErrorResponse, createSuccessResponse } from '../_shared/response_utils.ts';
 import { authStrategies } from './gp51-auth-strategies.ts';
 
 const corsHeaders = {
@@ -10,29 +8,173 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface SessionDiagnosticResult {
-  sessionFound: boolean;
-  sessionDetails?: {
-    username: string;
-    tokenExists: boolean;
-    tokenLength: number;
-    expiresAt: string;
-    timeUntilExpiry: number;
-    sessionAge: number;
-    authMethod?: string;
-    apiUrl?: string;
-  };
-  apiTest?: {
-    success: boolean;
-    responseTime: number;
-    deviceCount?: number;
-    error?: string;
-    strategy?: string;
-  };
-  error?: string;
+interface GP51Vehicle {
+  deviceid: string;
+  devicename: string;
+  username?: string;
+  sim?: string;
+  devicetype?: string;
+  groupname?: string;
+  lastupdate?: string;
 }
 
-async function performComprehensiveSessionDiagnostics(): Promise<SessionDiagnosticResult> {
+interface GP51User {
+  userid: string;
+  username: string;
+  email?: string;
+  phone?: string;
+  usertype?: string;
+}
+
+interface ImportPreviewData {
+  vehicles: {
+    total: number;
+    sample: GP51Vehicle[];
+    activeCount: number;
+    inactiveCount: number;
+  };
+  users: {
+    total: number;
+    sample: GP51User[];
+    activeCount: number;
+  };
+  groups: {
+    total: number;
+    sample: Array<{ groupid: string; groupname: string; devicecount: number }>;
+  };
+  summary: {
+    totalDevices: number;
+    totalUsers: number;
+    totalGroups: number;
+    lastUpdate: string;
+    estimatedImportTime: string;
+  };
+}
+
+async function fetchGP51Data(session: any, action: string): Promise<any> {
+  const baseUrl = session.api_url || 'https://www.gps51.com/webapi';
+  
+  const url = new URL(baseUrl);
+  url.searchParams.set('action', action);
+  url.searchParams.set('token', session.gp51_token);
+  url.searchParams.set('from', 'WEB');
+  url.searchParams.set('type', 'USER');
+
+  console.log(`🔄 [GP51_FETCH] Fetching ${action} from: ${url.toString().replace(session.gp51_token, '[TOKEN]')}`);
+
+  const response = await fetch(url.toString(), {
+    method: 'GET',
+    headers: {
+      'Accept': 'application/json, text/plain',
+      'User-Agent': 'FleetIQ/1.0'
+    },
+    signal: AbortSignal.timeout(30000)
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const responseText = await response.text();
+  
+  // Try to parse as JSON
+  try {
+    const jsonData = JSON.parse(responseText);
+    if (jsonData.status === 0) {
+      return jsonData.data || jsonData;
+    } else {
+      throw new Error(jsonData.cause || jsonData.message || 'GP51 API error');
+    }
+  } catch (parseError) {
+    // If not JSON, return as text
+    if (responseText.trim() && !responseText.includes('error') && !responseText.includes('<html')) {
+      return responseText.trim();
+    }
+    throw new Error(`Invalid response: ${responseText.substring(0, 100)}`);
+  }
+}
+
+async function generateImportPreview(session: any): Promise<ImportPreviewData> {
+  console.log('📊 [PREVIEW] Starting data discovery for import preview...');
+  
+  try {
+    // Fetch vehicles/devices
+    console.log('📊 [PREVIEW] Fetching vehicle list...');
+    const vehiclesData = await fetchGP51Data(session, 'getmonitorlist');
+    const vehicles: GP51Vehicle[] = Array.isArray(vehiclesData) ? vehiclesData : [];
+    
+    // Fetch users
+    console.log('📊 [PREVIEW] Fetching user list...');
+    let users: GP51User[] = [];
+    try {
+      const usersData = await fetchGP51Data(session, 'getuserlist');
+      users = Array.isArray(usersData) ? usersData : [];
+    } catch (error) {
+      console.log('⚠️ [PREVIEW] User list not available:', error.message);
+    }
+
+    // Fetch groups
+    console.log('📊 [PREVIEW] Fetching group list...');
+    let groups: Array<{ groupid: string; groupname: string; devicecount: number }> = [];
+    try {
+      const groupsData = await fetchGP51Data(session, 'getgrouplist');
+      groups = Array.isArray(groupsData) ? groupsData : [];
+    } catch (error) {
+      console.log('⚠️ [PREVIEW] Group list not available:', error.message);
+    }
+
+    // Process and analyze data
+    const activeVehicles = vehicles.filter(v => v.lastupdate && 
+      new Date(v.lastupdate).getTime() > (Date.now() - 30 * 24 * 60 * 60 * 1000)); // Active in last 30 days
+    const activeUsers = users.filter(u => u.usertype !== 'inactive');
+
+    // Calculate estimated import time (rough estimate: 50 vehicles per minute)
+    const totalItems = vehicles.length + users.length;
+    const estimatedMinutes = Math.ceil(totalItems / 50);
+    const estimatedTime = estimatedMinutes < 60 
+      ? `${estimatedMinutes} minutes` 
+      : `${Math.floor(estimatedMinutes / 60)}h ${estimatedMinutes % 60}m`;
+
+    const previewData: ImportPreviewData = {
+      vehicles: {
+        total: vehicles.length,
+        sample: vehicles.slice(0, 10), // First 10 as sample
+        activeCount: activeVehicles.length,
+        inactiveCount: vehicles.length - activeVehicles.length
+      },
+      users: {
+        total: users.length,
+        sample: users.slice(0, 10), // First 10 as sample
+        activeCount: activeUsers.length
+      },
+      groups: {
+        total: groups.length,
+        sample: groups.slice(0, 10) // First 10 as sample
+      },
+      summary: {
+        totalDevices: vehicles.length,
+        totalUsers: users.length,
+        totalGroups: groups.length,
+        lastUpdate: new Date().toISOString(),
+        estimatedImportTime: estimatedTime
+      }
+    };
+
+    console.log('✅ [PREVIEW] Data discovery completed:', {
+      vehicles: previewData.vehicles.total,
+      users: previewData.users.total,
+      groups: previewData.groups.total
+    });
+
+    return previewData;
+
+  } catch (error) {
+    console.error('❌ [PREVIEW] Data discovery failed:', error);
+    throw error;
+  }
+}
+
+async function runComprehensiveDiagnostics(): Promise<any> {
   console.log('🔍 [DIAGNOSTICS] Starting comprehensive GP51 session diagnostics...');
   
   try {
@@ -41,259 +183,204 @@ async function performComprehensiveSessionDiagnostics(): Promise<SessionDiagnost
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Phase 1: Enhanced Session Retrieval with Detailed Logging
+    // Phase 1: Retrieve GP51 sessions
     console.log('📊 [DIAGNOSTICS] Phase 1: Retrieving GP51 sessions...');
-    
-    const { data: allSessions, error: sessionError } = await supabase
+    const { data: sessions, error: sessionError } = await supabase
       .from('gp51_sessions')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (sessionError) {
-      console.error('❌ [DIAGNOSTICS] Database error:', sessionError);
+      throw new Error(`Database error: ${sessionError.message}`);
+    }
+
+    console.log('📋 [DIAGNOSTICS] Found', sessions?.length || 0, 'total sessions in database');
+    console.log('🕐 [DIAGNOSTICS] Current time:', new Date().toISOString());
+
+    if (!sessions || sessions.length === 0) {
       return {
-        sessionFound: false,
-        error: `Database error: ${sessionError.message}`
+        success: false,
+        phase: 'session_retrieval',
+        error: 'No GP51 sessions found in database',
+        details: { sessionCount: 0 }
       };
     }
 
-    console.log(`📋 [DIAGNOSTICS] Found ${allSessions?.length || 0} total sessions in database`);
-    
-    if (!allSessions || allSessions.length === 0) {
-      console.log('📝 [DIAGNOSTICS] No GP51 sessions found in database');
+    // Analyze sessions
+    const sessionDetails = sessions.map((session, index) => {
+      const now = new Date();
+      const expiresAt = new Date(session.token_expires_at);
+      const createdAt = new Date(session.created_at);
+      const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+      const sessionAge = now.getTime() - createdAt.getTime();
+      
+      console.log(`📄 [DIAGNOSTICS] Session ${index + 1}: ${session.username}, expires: ${session.token_expires_at}, created: ${session.created_at}`);
+      
       return {
-        sessionFound: false,
-        error: 'No GP51 sessions exist in database'
+        username: session.username,
+        tokenExists: !!session.gp51_token,
+        tokenLength: session.gp51_token?.length || 0,
+        expiresAt: session.token_expires_at,
+        isExpired: expiresAt <= now,
+        timeUntilExpiry: Math.round(timeUntilExpiry / 1000), // seconds
+        sessionAge: Math.round(sessionAge / 1000), // seconds
+        authMethod: session.auth_method || 'unknown',
+        apiUrl: session.api_url || 'https://www.gps51.com/webapi'
       };
-    }
+    });
 
-    // Analyze all sessions for debugging
-    const now = new Date();
-    console.log(`🕐 [DIAGNOSTICS] Current time: ${now.toISOString()}`);
-    
-    for (const session of allSessions) {
+    // Find valid session
+    const validSession = sessions.find(session => {
       const expiresAt = new Date(session.token_expires_at);
-      const isExpired = expiresAt <= now;
-      const timeUntilExpiry = Math.round((expiresAt.getTime() - now.getTime()) / 1000);
-      
-      console.log(`📄 [DIAGNOSTICS] Session: ${session.username}`);
-      console.log(`   - Token exists: ${!!session.gp51_token}`);
-      console.log(`   - Token length: ${session.gp51_token?.length || 0}`);
-      console.log(`   - Expires at: ${session.token_expires_at}`);
-      console.log(`   - Is expired: ${isExpired}`);
-      console.log(`   - Time until expiry: ${timeUntilExpiry} seconds`);
-      console.log(`   - Auth method: ${session.auth_method || 'unknown'}`);
-    }
-
-    // Find the most recent valid session with robust date comparison
-    let validSession = null;
-    for (const session of allSessions) {
-      // Check if session has required fields
-      if (!session.gp51_token || !session.username) {
-        console.log(`⚠️ [DIAGNOSTICS] Session ${session.username || 'unknown'} missing required fields`);
-        continue;
-      }
-
-      // Robust date comparison
-      const expiresAt = new Date(session.token_expires_at);
-      const isValid = expiresAt > now;
-      
-      if (isValid) {
-        validSession = session;
-        console.log(`✅ [DIAGNOSTICS] Found valid session for user: ${session.username}`);
-        break;
-      }
-    }
+      return expiresAt > new Date() && session.gp51_token && session.username;
+    });
 
     if (!validSession) {
-      console.log('❌ [DIAGNOSTICS] No valid sessions found after filtering');
       return {
-        sessionFound: false,
-        error: 'All sessions are expired or missing required fields'
+        success: false,
+        phase: 'session_validation',
+        error: 'No valid GP51 sessions found',
+        details: { 
+          totalSessions: sessions.length,
+          sessionDetails,
+          allExpired: sessions.every(s => new Date(s.token_expires_at) <= new Date())
+        }
       };
     }
 
-    // Phase 2: Calculate session details
-    const expiresAt = new Date(validSession.token_expires_at);
-    const createdAt = new Date(validSession.created_at);
-    const timeUntilExpiry = Math.round((expiresAt.getTime() - now.getTime()) / 1000);
-    const sessionAge = Math.round((now.getTime() - createdAt.getTime()) / 1000);
+    console.log('✅ [DIAGNOSTICS] Found valid session for user:', validSession.username);
 
-    const sessionDetails = {
-      username: validSession.username,
-      tokenExists: !!validSession.gp51_token,
-      tokenLength: validSession.gp51_token?.length || 0,
-      expiresAt: validSession.token_expires_at,
-      timeUntilExpiry,
-      sessionAge,
-      authMethod: validSession.auth_method || 'unknown',
-      apiUrl: validSession.api_url || 'default'
-    };
+    const sessionDetail = sessionDetails.find(s => s.username === validSession.username);
+    console.log('✅ [DIAGNOSTICS] Session details compiled:', sessionDetail);
 
-    console.log('✅ [DIAGNOSTICS] Session details compiled:', sessionDetails);
-
-    // Phase 3: Improved GP51 API Testing
+    // Phase 3: Test GP51 API connectivity
     console.log('🧪 [DIAGNOSTICS] Phase 3: Testing GP51 API connectivity...');
     
-    const apiTestStartTime = Date.now();
-    let apiTestResult = null;
+    const apiUrl = validSession.api_url || 'https://www.gps51.com/webapi';
+    const testUrl = new URL(apiUrl);
+    testUrl.searchParams.set('action', 'getmonitorlist');
+    testUrl.searchParams.set('token', validSession.gp51_token);
 
+    console.log('🔗 [DIAGNOSTICS] Testing API with URL:', testUrl.toString().replace(validSession.gp51_token, '[TOKEN]'));
+
+    const apiResponse = await fetch(testUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json, text/plain',
+        'User-Agent': 'FleetIQ/1.0'
+      },
+      signal: AbortSignal.timeout(15000)
+    });
+
+    const responseText = await apiResponse.text();
+    console.log('📋 [DIAGNOSTICS] API Response (first 200 chars):', responseText.substring(0, 200));
+
+    let apiTestResult;
     try {
-      // Use the authentication strategies to test the API
-      const baseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
-      
-      // Test with the stored token directly
-      const testUrl = new URL(`${baseUrl}/webapi`);
-      testUrl.searchParams.set('action', 'getmonitorlist');
-      testUrl.searchParams.set('token', validSession.gp51_token);
-
-      console.log(`🔗 [DIAGNOSTICS] Testing API with URL: ${testUrl.toString().replace(validSession.gp51_token, '[TOKEN]')}`);
-
-      const response = await fetch(testUrl.toString(), {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json, text/plain',
-          'User-Agent': 'FleetIQ/1.0'
-        },
-        signal: AbortSignal.timeout(15000)
-      });
-
-      const responseTime = Date.now() - apiTestStartTime;
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const jsonResponse = JSON.parse(responseText);
+      if (jsonResponse.status === 0) {
+        apiTestResult = {
+          success: true,
+          type: 'json',
+          dataCount: Array.isArray(jsonResponse.data) ? jsonResponse.data.length : 0,
+          response: jsonResponse
+        };
+        console.log('✅ [DIAGNOSTICS] API test successful (JSON response)');
+      } else {
+        apiTestResult = {
+          success: false,
+          type: 'json_error',
+          error: jsonResponse.cause || jsonResponse.message,
+          response: jsonResponse
+        };
       }
-
-      const responseText = await response.text();
-      console.log(`📋 [DIAGNOSTICS] API Response (first 200 chars): ${responseText.substring(0, 200)}`);
-
-      let deviceCount = 0;
-      try {
-        const jsonResponse = JSON.parse(responseText);
-        if (jsonResponse.status === 0) {
-          // Count devices from groups
-          if (jsonResponse.groups && Array.isArray(jsonResponse.groups)) {
-            deviceCount = jsonResponse.groups.reduce((acc: number, group: any) => 
-              acc + (group.devices ? group.devices.length : 0), 0
-            );
-          }
-          
-          apiTestResult = {
-            success: true,
-            responseTime,
-            deviceCount,
-            strategy: 'direct_token_test'
-          };
-          
-          console.log(`✅ [DIAGNOSTICS] API test successful - found ${deviceCount} devices`);
-        } else {
-          throw new Error(`GP51 API error: ${jsonResponse.cause || 'Unknown error'}`);
-        }
-      } catch (parseError) {
-        // Handle plain text responses
-        if (responseText && !responseText.includes('error') && !responseText.includes('<html')) {
-          apiTestResult = {
-            success: true,
-            responseTime,
-            deviceCount: 0,
-            strategy: 'plain_text_response'
-          };
-          console.log('✅ [DIAGNOSTICS] API test successful (plain text response)');
-        } else {
-          throw new Error(`Invalid API response: ${responseText.substring(0, 100)}`);
-        }
+    } catch (parseError) {
+      if (responseText.trim() && !responseText.includes('error') && !responseText.includes('<html')) {
+        apiTestResult = {
+          success: true,
+          type: 'plain_text',
+          response: responseText.trim()
+        };
+        console.log('✅ [DIAGNOSTICS] API test successful (plain text response)');
+      } else {
+        apiTestResult = {
+          success: false,
+          type: 'invalid_response',
+          error: 'Invalid or error response',
+          response: responseText.substring(0, 200)
+        };
       }
-
-    } catch (apiError) {
-      console.error('❌ [DIAGNOSTICS] API test failed:', apiError);
-      apiTestResult = {
-        success: false,
-        responseTime: Date.now() - apiTestStartTime,
-        error: apiError instanceof Error ? apiError.message : 'Unknown API error',
-        strategy: 'direct_token_test'
-      };
     }
 
+    console.log('✅ [DIAGNOSTICS] Connection test completed successfully');
+
     return {
-      sessionFound: true,
-      sessionDetails,
-      apiTest: apiTestResult
-    };
-
-  } catch (error) {
-    console.error('❌ [DIAGNOSTICS] Comprehensive diagnostics failed:', error);
-    return {
-      sessionFound: false,
-      error: `Diagnostics failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-    };
-  }
-}
-
-async function handleConnectionTest(): Promise<Response> {
-  console.log('🧪 [enhanced-bulk-import] Starting comprehensive connection test...');
-  
-  try {
-    const diagnostics = await performComprehensiveSessionDiagnostics();
-    
-    if (!diagnostics.sessionFound) {
-      return createErrorResponse(
-        'No valid GP51 session found',
-        diagnostics.error || 'Session diagnostics failed',
-        401
-      );
-    }
-
-    const response = {
       success: true,
-      message: 'GP51 connection test completed',
-      session: diagnostics.sessionDetails,
-      apiTest: diagnostics.apiTest,
-      overall_status: diagnostics.apiTest?.success ? 'healthy' : 'degraded',
-      recommendations: diagnostics.apiTest?.success 
-        ? ['GP51 integration is working properly']
-        : ['Check GP51 service status', 'Verify token validity', 'Review API endpoint configuration']
+      phase: 'completed',
+      sessionDetails: sessionDetail,
+      apiTest: apiTestResult,
+      recommendations: apiTestResult.success 
+        ? ['GP51 connection is healthy and ready for import operations']
+        : ['Check GP51 token validity', 'Verify API endpoint accessibility', 'Review authentication settings']
     };
 
-    console.log('✅ [enhanced-bulk-import] Connection test completed successfully');
-    return createSuccessResponse(response);
-
   } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Connection test failed:', error);
-    return createErrorResponse(
-      'Connection test failed',
-      error instanceof Error ? error.message : 'Unknown error',
-      500
-    );
+    console.error('❌ [DIAGNOSTICS] Connection test failed:', error);
+    return {
+      success: false,
+      phase: 'connection_test',
+      error: error.message,
+      details: { errorType: error.name, stack: error.stack }
+    };
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
+  console.log(`🚀 [enhanced-bulk-import] ${req.method} ${req.url}`);
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { action } = await req.json();
+    const { action, ...requestData } = await req.json();
     console.log(`🔧 [enhanced-bulk-import] Action: ${action}`);
 
     switch (action) {
       case 'test_connection':
-        return await handleConnectionTest();
-      
+        console.log('🧪 [enhanced-bulk-import] Starting comprehensive connection test...');
+        const diagnostics = await runComprehensiveDiagnostics();
+        console.log('📊 [enhanced-bulk-import] Session test response:', JSON.stringify(diagnostics).substring(0, 200));
+        return createSuccessResponse(diagnostics, corsHeaders);
+
+      case 'fetch_available_data':
+        console.log('📊 [enhanced-bulk-import] Fetching available data for import preview...');
+        
+        const { session, errorResponse } = await getValidGp51Session();
+        if (errorResponse) {
+          return errorResponse;
+        }
+
+        const previewData = await generateImportPreview(session);
+        return createSuccessResponse(previewData, corsHeaders);
+
+      case 'start_import':
+        console.log('🚀 [enhanced-bulk-import] Starting bulk import process...');
+        
+        // TODO: Implement in Phase 3
+        return createErrorResponse('Import functionality coming soon', 'This feature is being implemented in phases', 501, corsHeaders);
+
       default:
-        return createErrorResponse(
-          'Invalid action',
-          `Unknown action: ${action}`,
-          400
-        );
+        return createErrorResponse('Invalid action', `Unknown action: ${action}`, 400, corsHeaders);
     }
 
   } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Request processing failed:', error);
+    console.error('❌ [enhanced-bulk-import] Request failed:', error);
     return createErrorResponse(
       'Request processing failed',
-      error instanceof Error ? error.message : 'Unknown error',
-      500
+      error.message,
+      500,
+      corsHeaders
     );
   }
 });
