@@ -1,118 +1,178 @@
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { TestTube, CheckCircle, AlertCircle, Network, Clock, Database, Shield } from 'lucide-react';
+import { 
+  Activity, 
+  CheckCircle, 
+  AlertTriangle, 
+  XCircle, 
+  RefreshCw, 
+  Database,
+  Settings,
+  Zap
+} from 'lucide-react';
 
 interface DiagnosticResult {
-  success: boolean;
-  error?: string;
-  authMethod?: string;
-  tokenValid?: boolean;
-  diagnostics?: any;
-  warning?: string;
+  test: string;
+  status: 'pass' | 'warning' | 'fail';
+  details?: string;
   sessionInfo?: any;
+  error?: string;
+}
+
+interface SessionInfo {
+  username?: string;
+  expiresAt?: string;
+  isValid?: boolean;
+  tokenLength?: number;
 }
 
 const GP51DiagnosticsPanel: React.FC = () => {
-  const [credentials, setCredentials] = useState({
-    username: '',
-    password: ''
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [lastResult, setLastResult] = useState<DiagnosticResult | null>(null);
-  const [startTime, setStartTime] = useState<number | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [results, setResults] = useState<DiagnosticResult[]>([]);
+  const [lastRun, setLastRun] = useState<Date | null>(null);
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
   const { toast } = useToast();
 
   const runDiagnostics = async () => {
-    setIsLoading(true);
-    setStartTime(Date.now());
-    setLastResult(null);
-
+    setIsRunning(true);
+    setResults([]);
+    
     try {
       console.log('🧪 Running enhanced GP51 diagnostics...');
-
+      
       const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: {
-          action: 'test_connection',
-          username: credentials.username.trim() || undefined,
-          password: credentials.password || undefined
-        }
+        body: { action: 'test_connection' }
       });
 
-      const elapsed = startTime ? Date.now() - startTime : 0;
+      console.log('✅ Diagnostics completed:', data);
 
       if (error) {
-        console.error('❌ Diagnostics error:', error);
-        setLastResult({
-          success: false,
-          error: error.message || 'Diagnostics failed',
-          diagnostics: { elapsed, error: error.message }
-        });
+        setResults([{
+          test: 'GP51 Connection Test',
+          status: 'fail',
+          details: `Edge Function Error: ${error.message}`,
+          error: error.message
+        }]);
+        
         toast({
           title: "Diagnostics Failed",
-          description: error.message || 'Failed to run GP51 diagnostics',
+          description: "Edge Function error occurred",
           variant: "destructive"
         });
         return;
       }
 
-      console.log('✅ Diagnostics completed:', data);
-      setLastResult({
-        ...data,
-        diagnostics: { ...data.diagnostics, elapsed }
-      });
+      // Parse the response and create diagnostic results
+      const diagnosticResults: DiagnosticResult[] = [];
 
       if (data.success) {
-        toast({
-          title: "GP51 Connection Verified",
-          description: data.message || `Authentication successful using ${data.authMethod} method`,
+        diagnosticResults.push({
+          test: 'GP51 API Connection',
+          status: 'pass',
+          details: `Successfully connected to GP51 API`
         });
+
+        if (data.sessionInfo) {
+          setSessionInfo(data.sessionInfo);
+          diagnosticResults.push({
+            test: 'GP51 Session Status',
+            status: 'pass',
+            details: `Active session for ${data.sessionInfo.username}`,
+            sessionInfo: data.sessionInfo
+          });
+        }
+
+        if (data.diagnostics?.deviceCount !== undefined) {
+          diagnosticResults.push({
+            test: 'GP51 Data Access',
+            status: 'pass',
+            details: `Found ${data.diagnostics.deviceCount} devices`
+          });
+        }
       } else {
-        toast({
-          title: "GP51 Connection Issue",
-          description: data.error || 'Connection test failed',
-          variant: "destructive"
+        diagnosticResults.push({
+          test: 'GP51 Connection Test',
+          status: 'fail',
+          details: data.error || 'Connection test failed',
+          error: data.error
         });
+
+        if (data.errorType === 'authentication_failed') {
+          diagnosticResults.push({
+            test: 'GP51 Authentication',
+            status: 'fail',
+            details: 'Authentication failed - check credentials',
+            error: data.error
+          });
+        }
+
+        if (data.errorType === 'validation_error') {
+          diagnosticResults.push({
+            test: 'Request Validation',
+            status: 'fail',
+            details: 'Invalid request parameters',
+            error: data.error
+          });
+        }
       }
-    } catch (error) {
-      console.error('❌ Diagnostics exception:', error);
-      const elapsed = startTime ? Date.now() - startTime : 0;
-      setLastResult({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        diagnostics: { elapsed }
+
+      setResults(diagnosticResults);
+      setLastRun(new Date());
+
+      toast({
+        title: "Diagnostics Completed",
+        description: `Ran ${diagnosticResults.length} tests`,
       });
+
+    } catch (error) {
+      console.error('❌ Diagnostics error:', error);
+      
+      setResults([{
+        test: 'GP51 Diagnostics',
+        status: 'fail',
+        details: error instanceof Error ? error.message : 'Unknown error occurred',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }]);
+
       toast({
         title: "Diagnostics Error",
-        description: "Failed to run GP51 diagnostics",
+        description: "Failed to run diagnostics",
         variant: "destructive"
       });
     } finally {
-      setIsLoading(false);
-      setStartTime(null);
+      setIsRunning(false);
     }
   };
 
-  const getStatusIcon = () => {
-    if (!lastResult) return <TestTube className="h-5 w-5" />;
-    if (lastResult.success) return <CheckCircle className="h-5 w-5 text-green-600" />;
-    return <AlertCircle className="h-5 w-5 text-red-600" />;
+  const getStatusIcon = (status: DiagnosticResult['status']) => {
+    switch (status) {
+      case 'pass':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'warning':
+        return <AlertTriangle className="h-4 w-4 text-yellow-600" />;
+      case 'fail':
+        return <XCircle className="h-4 w-4 text-red-600" />;
+      default:
+        return <Activity className="h-4 w-4 text-gray-600" />;
+    }
   };
 
-  const getAuthMethodIcon = (method?: string) => {
-    switch (method) {
-      case 'existing_session':
-        return <Database className="h-4 w-4 text-blue-600" />;
-      case 'new_authentication':
-        return <Shield className="h-4 w-4 text-green-600" />;
+  const getStatusBadge = (status: DiagnosticResult['status']) => {
+    switch (status) {
+      case 'pass':
+        return <Badge className="bg-green-100 text-green-800">Pass</Badge>;
+      case 'warning':
+        return <Badge className="bg-yellow-100 text-yellow-800">Warning</Badge>;
+      case 'fail':
+        return <Badge className="bg-red-100 text-red-800">Fail</Badge>;
       default:
-        return <Network className="h-4 w-4" />;
+        return <Badge variant="secondary">Unknown</Badge>;
     }
   };
 
@@ -120,119 +180,102 @@ const GP51DiagnosticsPanel: React.FC = () => {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          {getStatusIcon()}
-          Enhanced GP51 Connection Diagnostics
+          <Activity className="h-5 w-5" />
+          GP51 Diagnostics Panel
         </CardTitle>
+        <CardDescription>
+          Test GP51 connection, authentication, and data access
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Alert>
-          <Network className="h-4 w-4" />
-          <AlertDescription>
-            Enhanced diagnostics using existing sessions and proven authentication patterns. 
-            Leave credentials empty to test existing sessions only.
-          </AlertDescription>
-        </Alert>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="test-username">GP51 Username (Optional)</Label>
-            <Input
-              id="test-username"
-              value={credentials.username}
-              onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
-              placeholder="Leave empty to use existing session"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="test-password">GP51 Password (Optional)</Label>
-            <Input
-              id="test-password"
-              type="password"
-              value={credentials.password}
-              onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
-              placeholder="Leave empty to use existing session"
-            />
-          </div>
+        {/* Control Panel */}
+        <div className="flex items-center justify-between">
+          <Button 
+            onClick={runDiagnostics} 
+            disabled={isRunning}
+            className="flex items-center gap-2"
+          >
+            {isRunning ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <Zap className="h-4 w-4" />
+            )}
+            {isRunning ? 'Running Tests...' : 'Run Diagnostics'}
+          </Button>
+          
+          {lastRun && (
+            <div className="text-sm text-gray-500">
+              Last run: {lastRun.toLocaleTimeString()}
+            </div>
+          )}
         </div>
 
-        <Button 
-          onClick={runDiagnostics} 
-          disabled={isLoading}
-          className="w-full"
-        >
-          <TestTube className="h-4 w-4 mr-2" />
-          {isLoading ? 'Running Enhanced Diagnostics...' : 'Run Enhanced GP51 Diagnostics'}
-        </Button>
-
-        {isLoading && startTime && (
-          <Alert>
-            <Clock className="h-4 w-4" />
+        {/* Session Information */}
+        {sessionInfo && (
+          <Alert className="border-blue-200 bg-blue-50">
+            <Database className="h-4 w-4 text-blue-600" />
             <AlertDescription>
-              Testing GP51 connection with enhanced diagnostics... ({Math.round((Date.now() - startTime) / 1000)}s)
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {lastResult && (
-          <Alert className={lastResult.success ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
-            <div className="flex items-center gap-2 mb-2">
-              {lastResult.success ? (
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              ) : (
-                <AlertCircle className="h-4 w-4 text-red-600" />
-              )}
-              <span className="font-medium">
-                {lastResult.success ? 'Connection Successful' : 'Connection Failed'}
-              </span>
-            </div>
-            <AlertDescription>
-              <div className="space-y-3">
-                <div className={lastResult.success ? "text-green-800" : "text-red-800"}>
-                  <strong>Result:</strong> {lastResult.success ? lastResult.message : lastResult.error}
+              <div className="space-y-1">
+                <div className="font-medium text-blue-800">Active GP51 Session</div>
+                <div className="text-sm text-blue-700">
+                  User: {sessionInfo.username} | 
+                  Valid: {sessionInfo.isValid ? 'Yes' : 'No'} | 
+                  Token Length: {sessionInfo.tokenLength}
                 </div>
-                
-                {lastResult.authMethod && (
-                  <div className="flex items-center gap-2 text-blue-800">
-                    {getAuthMethodIcon(lastResult.authMethod)}
-                    <span><strong>Method:</strong> {lastResult.authMethod.replace('_', ' ').toUpperCase()}</span>
+                {sessionInfo.expiresAt && (
+                  <div className="text-xs text-blue-600">
+                    Expires: {new Date(sessionInfo.expiresAt).toLocaleString()}
                   </div>
-                )}
-
-                {lastResult.sessionInfo && (
-                  <div className="text-blue-800">
-                    <strong>Session:</strong> {lastResult.sessionInfo.username} (ID: {lastResult.sessionInfo.sessionId?.substring(0, 8)}...)
-                  </div>
-                )}
-                
-                {lastResult.warning && (
-                  <div className="text-amber-700">
-                    <strong>Warning:</strong> {lastResult.warning}
-                  </div>
-                )}
-
-                {lastResult.diagnostics && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-sm font-medium">
-                      Technical Details ({lastResult.diagnostics.elapsed || 0}ms)
-                    </summary>
-                    <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40">
-                      {JSON.stringify(lastResult.diagnostics, null, 2)}
-                    </pre>
-                  </details>
                 )}
               </div>
             </AlertDescription>
           </Alert>
         )}
 
-        <div className="text-xs text-gray-500 space-y-1">
-          <p>• Enhanced diagnostics with session management and proven authentication</p>
-          <p>• Automatically uses existing valid sessions when available</p>
-          <p>• Falls back to new authentication only when credentials provided</p>
-          <p>• Uses form-data POST pattern proven to work with GP51</p>
-          <p>• Provides detailed technical diagnostics for troubleshooting</p>
-        </div>
+        {/* Diagnostic Results */}
+        {results.length > 0 && (
+          <div className="space-y-3">
+            <h4 className="font-medium text-gray-900">Test Results</h4>
+            <div className="space-y-2">
+              {results.map((result, index) => (
+                <div 
+                  key={index} 
+                  className="flex items-center justify-between p-3 border rounded-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    {getStatusIcon(result.status)}
+                    <div>
+                      <div className="font-medium">{result.test}</div>
+                      <div className="text-sm text-gray-600">{result.details}</div>
+                      {result.error && (
+                        <div className="text-xs text-red-600 mt-1">
+                          Error: {result.error}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {getStatusBadge(result.status)}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Instructions */}
+        <Alert>
+          <Settings className="h-4 w-4" />
+          <AlertDescription>
+            <div className="space-y-2">
+              <div className="font-medium">Diagnostics Information:</div>
+              <ul className="text-sm space-y-1 list-disc list-inside">
+                <li>Tests GP51 API connectivity and authentication</li>
+                <li>Checks for valid existing sessions</li>
+                <li>Validates data access permissions</li>
+                <li>Provides detailed error information for troubleshooting</li>
+              </ul>
+            </div>
+          </AlertDescription>
+        </Alert>
       </CardContent>
     </Card>
   );
