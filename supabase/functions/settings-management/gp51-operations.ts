@@ -43,7 +43,7 @@ export async function handleGP51Authentication(
         api_url: authResult.apiUrl,
         last_activity_at: new Date().toISOString()
       }, {
-        onConflict: 'envio_user_id'
+        onConflict: 'username'
       });
 
     if (insertError) {
