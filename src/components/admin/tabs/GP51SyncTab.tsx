@@ -2,13 +2,14 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { RefreshCw, Database, Clock, Settings, BarChart3, Shield, Zap } from 'lucide-react';
+import { RefreshCw, Database, Clock, Settings, BarChart3, Shield, Zap, Brain } from 'lucide-react';
 import GP51SyncMonitor from '../GP51SyncMonitor';
 import GP51SyncControlPanel from '../GP51SyncControlPanel';
 import GP51RealTimeMonitor from '../GP51RealTimeMonitor';
 import GP51ErrorRecoverySystem from '../GP51ErrorRecoverySystem';
 import GP51PerformanceOptimizer from '../GP51PerformanceOptimizer';
 import GP51AnalyticsDashboard from '../GP51AnalyticsDashboard';
+import FleetAnalyticsDashboard from '../analytics/FleetAnalyticsDashboard';
 
 const GP51SyncTab: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -60,7 +61,7 @@ const GP51SyncTab: React.FC = () => {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview" className="flex items-center space-x-2">
             <Settings className="h-4 w-4" />
             <span>Overview</span>
@@ -80,6 +81,10 @@ const GP51SyncTab: React.FC = () => {
           <TabsTrigger value="analytics" className="flex items-center space-x-2">
             <BarChart3 className="h-4 w-4" />
             <span>Analytics</span>
+          </TabsTrigger>
+          <TabsTrigger value="intelligence" className="flex items-center space-x-2">
+            <Brain className="h-4 w-4" />
+            <span>Intelligence</span>
           </TabsTrigger>
           <TabsTrigger value="legacy" className="flex items-center space-x-2">
             <Database className="h-4 w-4" />
@@ -108,6 +113,10 @@ const GP51SyncTab: React.FC = () => {
 
         <TabsContent value="analytics" className="space-y-6">
           <GP51AnalyticsDashboard />
+        </TabsContent>
+
+        <TabsContent value="intelligence" className="space-y-6">
+          <FleetAnalyticsDashboard />
         </TabsContent>
 
         <TabsContent value="legacy" className="space-y-6">
