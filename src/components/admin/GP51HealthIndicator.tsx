@@ -1,86 +1,185 @@
 
-import React from 'react';
-import { Activity, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { useGP51Health } from '@/hooks/useGP51Health';
+import { Button } from '@/components/ui/button';
+import { CheckCircle, AlertCircle, XCircle, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
-const GP51HealthIndicator: React.FC = () => {
-  const { health } = useGP51Health();
+interface HealthStatus {
+  isConnected: boolean;
+  isAuthenticated: boolean;
+  sessionHealth: 'healthy' | 'expired' | 'invalid';
+  lastCheck: string;
+  error?: string;
+  username?: string;
+}
+
+interface GP51HealthIndicatorProps {
+  onStatusChange?: (status: HealthStatus) => void;
+  compact?: boolean;
+}
+
+const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({ 
+  onStatusChange, 
+  compact = false 
+}) => {
+  const [status, setStatus] = useState<HealthStatus>({
+    isConnected: false,
+    isAuthenticated: false,
+    sessionHealth: 'invalid',
+    lastCheck: new Date().toISOString()
+  });
+  const [isChecking, setIsChecking] = useState(false);
+
+  const checkHealth = async () => {
+    setIsChecking(true);
+    try {
+      console.log('🏥 Checking GP51 health status...');
+      
+      // Check connection status
+      const { data: statusData, error: statusError } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'get-gp51-status' }
+      });
+
+      if (statusError) {
+        throw new Error(`Status check failed: ${statusError.message}`);
+      }
+
+      // Test actual API connectivity
+      const { data: testData, error: testError } = await supabase.functions.invoke('gp51-service-management', {
+        body: { action: 'test_gp51_api' }
+      });
+
+      const now = new Date();
+      const expiresAt = statusData.expiresAt ? new Date(statusData.expiresAt) : null;
+      const isExpired = expiresAt && expiresAt <= now;
+      
+      const healthStatus: HealthStatus = {
+        isConnected: !testError && testData?.success === true,
+        isAuthenticated: statusData.connected && !isExpired,
+        sessionHealth: !statusData.connected ? 'invalid' : (isExpired ? 'expired' : 'healthy'),
+        lastCheck: now.toISOString(),
+        error: testError?.message || statusData.error,
+        username: statusData.username
+      };
+
+      setStatus(healthStatus);
+      onStatusChange?.(healthStatus);
+
+      console.log('✅ GP51 health check completed:', healthStatus);
+    } catch (error) {
+      console.error('❌ GP51 health check failed:', error);
+      const errorStatus: HealthStatus = {
+        isConnected: false,
+        isAuthenticated: false,
+        sessionHealth: 'invalid',
+        lastCheck: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Health check failed'
+      };
+      setStatus(errorStatus);
+      onStatusChange?.(errorStatus);
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  useEffect(() => {
+    checkHealth();
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(checkHealth, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getStatusIcon = () => {
-    switch (health.status) {
-      case 'healthy':
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case 'degraded':
-        return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
-      case 'unhealthy':
-        return <XCircle className="h-5 w-5 text-red-500" />;
-      default:
-        return <Activity className="h-5 w-5 text-gray-500" />;
+    if (isChecking) {
+      return <RefreshCw className="h-4 w-4 animate-spin" />;
     }
+    
+    if (status.isConnected && status.isAuthenticated && status.sessionHealth === 'healthy') {
+      return <CheckCircle className="h-4 w-4 text-green-500" />;
+    }
+    
+    if (status.sessionHealth === 'expired') {
+      return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+    }
+    
+    return <XCircle className="h-4 w-4 text-red-500" />;
   };
 
   const getStatusColor = () => {
-    switch (health.status) {
-      case 'healthy':
-        return 'default';
-      case 'degraded':
-        return 'secondary';
-      case 'unhealthy':
-        return 'destructive';
-      default:
-        return 'outline';
+    if (status.isConnected && status.isAuthenticated && status.sessionHealth === 'healthy') {
+      return 'bg-green-100 text-green-800 border-green-200';
     }
+    
+    if (status.sessionHealth === 'expired') {
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    }
+    
+    return 'bg-red-100 text-red-800 border-red-200';
   };
 
+  const getStatusText = () => {
+    if (isChecking) return 'Checking...';
+    
+    if (status.isConnected && status.isAuthenticated && status.sessionHealth === 'healthy') {
+      return 'Healthy';
+    }
+    
+    if (status.sessionHealth === 'expired') {
+      return 'Session Expired';
+    }
+    
+    if (!status.isAuthenticated) {
+      return 'Not Authenticated';
+    }
+    
+    return 'Disconnected';
+  };
+
+  if (compact) {
+    return (
+      <div className="flex items-center space-x-2">
+        {getStatusIcon()}
+        <Badge className={getStatusColor()}>
+          {getStatusText()}
+        </Badge>
+      </div>
+    );
+  }
+
   return (
-    <Card className="w-full">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm">
-          {getStatusIcon()}
-          GP51 Service Health
-          <Badge variant={getStatusColor() as any} className="ml-auto">
-            {health.status.toUpperCase()}
-          </Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <div className="text-muted-foreground">Success Rate</div>
-            <div className="font-medium">{health.successRate}%</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Avg Response</div>
-            <div className="font-medium">{health.responseTime}ms</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Total Requests</div>
-            <div className="font-medium">{health.totalRequests}</div>
-          </div>
-          <div>
-            <div className="text-muted-foreground">Recent Errors</div>
-            <div className="font-medium">{health.errorCount}</div>
-          </div>
-        </div>
-
-        {health.issues.length > 0 && (
-          <div className="space-y-1">
-            <div className="text-xs font-medium text-muted-foreground">Issues:</div>
-            {health.issues.map((issue, index) => (
-              <div key={index} className="text-xs text-orange-600 dark:text-orange-400">
-                • {issue}
-              </div>
-            ))}
-          </div>
+    <div className="flex items-center justify-between p-3 bg-white border rounded-lg">
+      <div className="flex items-center space-x-3">
+        {status.isConnected ? (
+          <Wifi className="h-5 w-5 text-green-500" />
+        ) : (
+          <WifiOff className="h-5 w-5 text-red-500" />
         )}
-
-        <div className="text-xs text-muted-foreground">
-          Last Check: {health.lastCheck.toLocaleTimeString()}
+        <div>
+          <div className="flex items-center space-x-2">
+            <span className="font-medium">GP51 Status</span>
+            <Badge className={getStatusColor()}>
+              {getStatusText()}
+            </Badge>
+          </div>
+          {status.username && (
+            <p className="text-sm text-gray-600">User: {status.username}</p>
+          )}
+          {status.error && (
+            <p className="text-xs text-red-600">Error: {status.error}</p>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={checkHealth}
+        disabled={isChecking}
+      >
+        <RefreshCw className={`h-4 w-4 ${isChecking ? 'animate-spin' : ''}`} />
+      </Button>
+    </div>
   );
 };
 

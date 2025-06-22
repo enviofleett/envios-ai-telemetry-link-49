@@ -1,333 +1,327 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useGP51Auth } from '@/hooks/useGP51Auth';
-import { 
-  Shield, 
-  CheckCircle, 
-  XCircle, 
-  RefreshCw, 
-  LogIn, 
-  LogOut,
-  Activity,
-  Clock,
-  AlertTriangle,
-  Loader2
-} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/hooks/use-toast';
+import { Shield, CheckCircle, AlertCircle, Loader2, Key } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
-const GP51_USERNAME_STORAGE_KEY = 'gp51_last_username';
+interface AuthStatus {
+  isAuthenticated: boolean;
+  username?: string;
+  expiresAt?: string;
+  sessionHealth?: 'healthy' | 'expired' | 'invalid';
+  error?: string;
+}
 
-export const GP51AuthenticationPanel: React.FC = () => {
+const GP51AuthenticationPanel: React.FC = () => {
   const [credentials, setCredentials] = useState({
-    username: '',
+    username: 'octopus',
     password: ''
   });
-  const [showPassword, setShowPassword] = useState(false);
+  const [authStatus, setAuthStatus] = useState<AuthStatus>({
+    isAuthenticated: false
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
+  const { toast } = useToast();
 
-  const { 
-    isAuthenticated, 
-    username, 
-    tokenExpiresAt, 
-    isLoading, 
-    error,
-    isRestoringSession,
-    login, 
-    logout, 
-    healthCheck,
-    clearError
-  } = useGP51Auth();
-
-  // Load saved username from localStorage on component mount
   useEffect(() => {
-    const savedUsername = localStorage.getItem(GP51_USERNAME_STORAGE_KEY);
-    if (savedUsername && !isAuthenticated) {
-      setCredentials(prev => ({ ...prev, username: savedUsername }));
-    }
-  }, [isAuthenticated]);
+    checkAuthenticationStatus();
+  }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!credentials.username.trim() || !credentials.password.trim()) {
+  const checkAuthenticationStatus = async () => {
+    try {
+      setIsCheckingStatus(true);
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: { action: 'get-gp51-status' }
+      });
+
+      if (error) {
+        console.error('Failed to check GP51 status:', error);
+        setAuthStatus({ 
+          isAuthenticated: false, 
+          error: 'Failed to check authentication status',
+          sessionHealth: 'invalid'
+        });
+        return;
+      }
+
+      const now = new Date();
+      const expiresAt = data.expiresAt ? new Date(data.expiresAt) : null;
+      const isExpired = expiresAt && expiresAt <= now;
+
+      setAuthStatus({
+        isAuthenticated: data.connected && !isExpired,
+        username: data.username,
+        expiresAt: data.expiresAt,
+        sessionHealth: !data.connected ? 'invalid' : (isExpired ? 'expired' : 'healthy'),
+        error: data.error
+      });
+    } catch (error) {
+      console.error('Error checking GP51 status:', error);
+      setAuthStatus({ 
+        isAuthenticated: false, 
+        error: 'Connection check failed',
+        sessionHealth: 'invalid'
+      });
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
+  const handleAuthenticate = async () => {
+    if (!credentials.password.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Password is required",
+        variant: "destructive"
+      });
       return;
     }
-    
-    console.log('🔐 GP51AuthenticationPanel: Initiating login...');
-    clearError();
-    const result = await login(credentials.username, credentials.password);
-    
-    // Save username to localStorage on successful login
-    if (result.success) {
-      localStorage.setItem(GP51_USERNAME_STORAGE_KEY, credentials.username.trim());
-    }
-    
-    // Clear password after login attempt for security
-    setCredentials(prev => ({ ...prev, password: '' }));
-  };
 
-  const handleLogout = async () => {
-    console.log('👋 GP51AuthenticationPanel: Initiating logout...');
-    await logout();
-    
-    // Clear saved username and form on logout
-    localStorage.removeItem(GP51_USERNAME_STORAGE_KEY);
-    setCredentials({ username: '', password: '' });
-  };
+    setIsLoading(true);
+    try {
+      console.log('🔐 Starting GP51 authentication process...');
 
-  const handleHealthCheck = async () => {
-    console.log('🏥 GP51AuthenticationPanel: Running health check...');
-    await healthCheck();
-  };
+      // Clear existing sessions first
+      await supabase.functions.invoke('settings-management', {
+        body: { action: 'clear-gp51-sessions' }
+      });
 
-  const handleRetryLogin = async () => {
-    console.log('🔄 GP51AuthenticationPanel: Retrying login...');
-    if (credentials.username.trim() && credentials.password.trim()) {
-      clearError();
-      const result = await login(credentials.username, credentials.password);
-      
-      // Save username on successful retry
-      if (result.success) {
-        localStorage.setItem(GP51_USERNAME_STORAGE_KEY, credentials.username.trim());
+      // Authenticate with new credentials
+      const { data, error } = await supabase.functions.invoke('settings-management', {
+        body: {
+          action: 'save-gp51-credentials',
+          username: credentials.username,
+          password: credentials.password,
+          apiUrl: 'https://www.gps51.com'
+        }
+      });
+
+      if (error) {
+        throw new Error(error.message);
       }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Authentication failed');
+      }
+
+      console.log('✅ GP51 authentication successful');
+      
+      toast({
+        title: "Authentication Successful",
+        description: `Successfully authenticated with GP51 as ${credentials.username}`,
+      });
+
+      // Clear password for security
+      setCredentials(prev => ({ ...prev, password: '' }));
+      
+      // Refresh status
+      await checkAuthenticationStatus();
+
+    } catch (error) {
+      console.error('❌ GP51 authentication failed:', error);
+      toast({
+        title: "Authentication Failed",
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getStatusIcon = () => {
-    if (isLoading || isRestoringSession) return <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />;
-    if (error) return <XCircle className="h-5 w-5 text-red-600" />;
-    if (isAuthenticated) return <CheckCircle className="h-5 w-5 text-green-600" />;
-    return <XCircle className="h-5 w-5 text-gray-400" />;
+  const handleClearSessions = async () => {
+    try {
+      setIsLoading(true);
+      await supabase.functions.invoke('settings-management', {
+        body: { action: 'clear-gp51-sessions' }
+      });
+      
+      toast({
+        title: "Sessions Cleared",
+        description: "All GP51 sessions have been cleared",
+      });
+      
+      await checkAuthenticationStatus();
+    } catch (error) {
+      console.error('Failed to clear sessions:', error);
+      toast({
+        title: "Clear Failed",
+        description: "Failed to clear GP51 sessions",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const getStatusText = () => {
-    if (isRestoringSession) return 'Restoring session...';
-    if (isLoading) return 'Processing...';
-    if (error) return 'Connection Error';
-    if (isAuthenticated) return 'Connected';
-    return 'Not Connected';
-  };
+  const getStatusBadge = () => {
+    if (isCheckingStatus) {
+      return (
+        <Badge variant="secondary">
+          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+          Checking...
+        </Badge>
+      );
+    }
 
-  const formatExpiryTime = (expiresAt?: Date) => {
-    if (!expiresAt) return 'Unknown';
-    
-    const now = new Date();
-    const diff = expiresAt.getTime() - now.getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (diff <= 0) return 'Expired';
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
+    if (authStatus.isAuthenticated && authStatus.sessionHealth === 'healthy') {
+      return (
+        <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">
+          <CheckCircle className="h-3 w-3 mr-1" />
+          Authenticated
+        </Badge>
+      );
+    }
 
-  // Show loading state during session restoration
-  if (isRestoringSession) {
+    if (authStatus.sessionHealth === 'expired') {
+      return (
+        <Badge variant="destructive">
+          <AlertCircle className="h-3 w-3 mr-1" />
+          Session Expired
+        </Badge>
+      );
+    }
+
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            GP51 Authentication
-          </CardTitle>
-          <CardDescription>
-            Secure authentication with GP51 telemetry service
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-center p-8">
-            <div className="flex items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-              <span className="text-muted-foreground">Restoring previous session...</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Badge variant="destructive">
+        <AlertCircle className="h-3 w-3 mr-1" />
+        Not Authenticated
+      </Badge>
     );
-  }
+  };
 
   return (
-    <Card>
+    <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Shield className="h-5 w-5" />
-          GP51 Authentication
-        </CardTitle>
-        <CardDescription>
-          Secure authentication with GP51 telemetry service with session persistence
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Status Section */}
-        <div className="flex items-center justify-between p-4 border rounded-lg">
-          <div className="flex items-center gap-3">
-            {getStatusIcon()}
-            <div>
-              <p className="font-medium">{getStatusText()}</p>
-              {isAuthenticated && username && (
-                <p className="text-sm text-muted-foreground">
-                  Logged in as: {username}
-                </p>
-              )}
-            </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Shield className="h-5 w-5 text-blue-600" />
+            <CardTitle>GP51 Authentication Panel</CardTitle>
           </div>
-          
-          <div className="flex items-center gap-2">
-            <Badge variant={isAuthenticated ? "default" : error ? "destructive" : "secondary"}>
-              {isAuthenticated ? 'Active' : error ? 'Error' : 'Inactive'}
-            </Badge>
-            {isAuthenticated && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleHealthCheck}
-                disabled={isLoading}
-              >
-                <Activity className="h-4 w-4 mr-2" />
-                Test Connection
-              </Button>
+          {getStatusBadge()}
+        </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        {/* Current Status */}
+        <div className="p-4 bg-gray-50 rounded-lg">
+          <h3 className="font-medium mb-2">Current Status</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span>Authentication:</span>
+              <span className={authStatus.isAuthenticated ? 'text-green-600' : 'text-red-600'}>
+                {authStatus.isAuthenticated ? 'Active' : 'Inactive'}
+              </span>
+            </div>
+            {authStatus.username && (
+              <div className="flex justify-between">
+                <span>Username:</span>
+                <span className="font-mono">{authStatus.username}</span>
+              </div>
+            )}
+            {authStatus.expiresAt && (
+              <div className="flex justify-between">
+                <span>Expires:</span>
+                <span>{new Date(authStatus.expiresAt).toLocaleString()}</span>
+              </div>
+            )}
+            {authStatus.error && (
+              <div className="text-red-600 text-xs">
+                Error: {authStatus.error}
+              </div>
             )}
           </div>
         </div>
 
-        {/* Session Restoration Info */}
-        {isAuthenticated && !isLoading && (
-          <Alert>
-            <CheckCircle className="h-4 w-4" />
-            <AlertDescription>
-              ✅ Session automatically restored from previous login. You're connected to GP51!
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Error Display Section */}
-        {error && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="flex items-center justify-between">
-              <span>{error}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRetryLogin}
-                disabled={isLoading || !credentials.username.trim() || !credentials.password.trim()}
-                className="ml-2"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Retry
-              </Button>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Token Expiry Info */}
-        {isAuthenticated && tokenExpiresAt && (
-          <Alert>
-            <Clock className="h-4 w-4" />
-            <AlertDescription>
-              <strong>Token expires in:</strong> {formatExpiryTime(tokenExpiresAt)}
-              <br />
-              <span className="text-sm text-muted-foreground">
-                Tokens are automatically renewed and persisted across browser sessions
-              </span>
-            </AlertDescription>
-          </Alert>
-        )}
-
         {/* Authentication Form */}
-        {!isAuthenticated ? (
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">GP51 Username</Label>
-              <Input
-                id="username"
-                type="text"
-                value={credentials.username}
-                onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
-                placeholder="Enter your GP51 username"
-                disabled={isLoading}
-                autoComplete="username"
-                required
-              />
-              {credentials.username && localStorage.getItem(GP51_USERNAME_STORAGE_KEY) === credentials.username && (
-                <p className="text-xs text-muted-foreground">
-                  ✓ Username restored from previous session
-                </p>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">GP51 Password</Label>
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                value={credentials.password}
-                onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
-                placeholder="Enter your GP51 password"
-                disabled={isLoading}
-                autoComplete="current-password"
-                required
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="showPassword"
-                checked={showPassword}
-                onChange={(e) => setShowPassword(e.target.checked)}
-                className="rounded"
-              />
-              <Label htmlFor="showPassword" className="text-sm">
-                Show password
-              </Label>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={isLoading || !credentials.username.trim() || !credentials.password.trim()}
-              className="w-full"
-            >
-              <LogIn className="h-4 w-4 mr-2" />
-              {isLoading ? 'Connecting...' : 'Connect to GP51'}
-            </Button>
-          </form>
-        ) : (
-          <div className="space-y-4">
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertDescription>
-                Successfully connected to GP51 telemetry service. 
-                Your session is automatically saved and will persist across browser refreshes.
-              </AlertDescription>
-            </Alert>
-            
-            <Button
-              onClick={handleLogout}
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="username">Username</Label>
+            <Input
+              id="username"
+              type="text"
+              value={credentials.username}
+              onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
               disabled={isLoading}
-              variant="outline"
-              className="w-full"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Disconnect from GP51
-            </Button>
+              className="font-mono"
+            />
           </div>
-        )}
-
-        {/* Security Information */}
-        <div className="text-xs text-muted-foreground space-y-1">
-          <p>🔒 All communications use HTTPS encryption with 10-second timeout protection</p>
-          <p>🔄 Tokens are automatically renewed before expiry with retry logic</p>
-          <p>🏥 Connection health is monitored continuously with error recovery</p>
-          <p>📊 All authentication attempts are logged for security and debugging</p>
-          <p>🛡️ Enhanced MD5 implementation ensures cross-browser compatibility</p>
-          <p>💾 Username is remembered for convenience (password never stored)</p>
-          <p>🔑 Session tokens are securely persisted and restored on browser refresh</p>
+          
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              value={credentials.password}
+              onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
+              disabled={isLoading}
+              placeholder="Enter GP51 password"
+            />
+          </div>
         </div>
+
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button
+            onClick={handleAuthenticate}
+            disabled={isLoading || !credentials.password.trim()}
+            className="flex-1"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Authenticating...
+              </>
+            ) : (
+              <>
+                <Key className="h-4 w-4 mr-2" />
+                Authenticate GP51
+              </>
+            )}
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={handleClearSessions}
+            disabled={isLoading}
+          >
+            Clear Sessions
+          </Button>
+          
+          <Button
+            variant="outline"
+            onClick={checkAuthenticationStatus}
+            disabled={isLoading}
+          >
+            Refresh Status
+          </Button>
+        </div>
+
+        {/* Help Information */}
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            <div className="space-y-1">
+              <p className="font-medium">Authentication Instructions:</p>
+              <ul className="text-sm space-y-1 ml-4 list-disc">
+                <li>Use your GP51 platform credentials</li>
+                <li>Default username is 'octopus' for admin access</li>
+                <li>Authentication sessions are automatically managed</li>
+                <li>Clear sessions if you experience connection issues</li>
+              </ul>
+            </div>
+          </AlertDescription>
+        </Alert>
       </CardContent>
     </Card>
   );
 };
+
+export default GP51AuthenticationPanel;
