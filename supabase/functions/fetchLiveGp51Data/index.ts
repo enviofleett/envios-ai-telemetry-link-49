@@ -1,8 +1,9 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 import { getValidGp51Session } from "../_shared/gp51_session_utils.ts";
 import { gp51ApiClient } from "../_shared/gp51_api_client_unified.ts";
-import { createSuccessResponse, createErrorResponse, calculateLatency } from "../settings-management/response-utils.ts";
+import { createSuccessResponse, createErrorResponse, calculateLatency } from "../_shared/response_utils.ts";
 import { getSupabaseClient } from "../_shared/supabase_client.ts";
 
 serve(async (req) => {
