@@ -12,7 +12,40 @@ export interface GP51AuthStrategy {
   execute: (username: string, hashedPassword: string, baseUrl: string, globalToken?: string) => Promise<GP51AuthResult>;
 }
 
-// Strategy 1: POST with JSON body (Primary - matches working pattern)
+// Strategy 1: GET with Query Parameters (Primary - matches working pattern)
+export const getQueryStrategy: GP51AuthStrategy = {
+  name: 'GET_QUERY',
+  execute: async (username: string, hashedPassword: string, baseUrl: string, globalToken?: string) => {
+    const url = new URL(`${baseUrl}/webapi`);
+    
+    // Add the critical action=login parameter that was missing
+    url.searchParams.set('action', 'login');
+    url.searchParams.set('username', username.trim());
+    url.searchParams.set('password', hashedPassword);
+    url.searchParams.set('from', 'WEB');
+    url.searchParams.set('type', 'USER');
+    
+    // Only add global token if available
+    if (globalToken) {
+      url.searchParams.set('token', globalToken);
+    }
+
+    console.log(`🔄 [GET_QUERY] Requesting: ${url.toString().replace(hashedPassword, '[REDACTED]')}`);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Accept': 'text/plain, application/json',
+        'User-Agent': 'FleetIQ/1.0'
+      },
+      signal: AbortSignal.timeout(15000)
+    });
+
+    return await processResponse(response, 'GET_QUERY');
+  }
+};
+
+// Strategy 2: POST with JSON body (Secondary)
 export const postJsonStrategy: GP51AuthStrategy = {
   name: 'POST_JSON',
   execute: async (username: string, hashedPassword: string, baseUrl: string, globalToken?: string) => {
@@ -23,12 +56,13 @@ export const postJsonStrategy: GP51AuthStrategy = {
       url.searchParams.set('token', globalToken);
     }
 
-    // Authentication parameters go in the JSON body (matching working pattern)
+    // Authentication parameters go in the JSON body with action included
     const requestBody = {
+      action: 'login',    // Add the missing action parameter
       username: username.trim(),
       password: hashedPassword,
-      from: 'WEB',     // Uppercase as per working pattern
-      type: 'USER'     // Uppercase as per working pattern
+      from: 'WEB',
+      type: 'USER'
     };
 
     console.log(`🔄 [POST_JSON] Requesting: ${url.toString()}`);
@@ -49,7 +83,7 @@ export const postJsonStrategy: GP51AuthStrategy = {
   }
 };
 
-// Strategy 2: POST with form-encoded body (Alternative)
+// Strategy 3: POST with form-encoded body (Alternative)
 export const postFormStrategy: GP51AuthStrategy = {
   name: 'POST_FORM',
   execute: async (username: string, hashedPassword: string, baseUrl: string, globalToken?: string) => {
@@ -60,8 +94,9 @@ export const postFormStrategy: GP51AuthStrategy = {
       url.searchParams.set('token', globalToken);
     }
 
-    // Authentication parameters in form data
+    // Authentication parameters in form data with action included
     const formData = new URLSearchParams();
+    formData.set('action', 'login');    // Add the missing action parameter
     formData.set('username', username.trim());
     formData.set('password', hashedPassword);
     formData.set('from', 'WEB');
@@ -81,43 +116,6 @@ export const postFormStrategy: GP51AuthStrategy = {
     });
 
     return await processResponse(response, 'POST_FORM');
-  }
-};
-
-// Strategy 3: Mobile-optimized POST (for future mobile app support)
-export const mobilePostStrategy: GP51AuthStrategy = {
-  name: 'MOBILE_POST',
-  execute: async (username: string, hashedPassword: string, baseUrl: string, globalToken?: string) => {
-    const url = new URL(`${baseUrl}/webapi`);
-    
-    // Only add global token to URL if available
-    if (globalToken) {
-      url.searchParams.set('token', globalToken);
-    }
-
-    // Mobile-specific authentication parameters
-    const requestBody = {
-      username: username.trim(),
-      password: hashedPassword,
-      from: 'MOBILE',  // Mobile identifier
-      type: 'USER'
-    };
-
-    console.log(`🔄 [MOBILE_POST] Requesting: ${url.toString()}`);
-
-    const response = await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'text/plain, application/json',
-        'User-Agent': 'FleetIQ-Mobile/1.0',
-        'X-Platform': 'mobile'
-      },
-      body: JSON.stringify(requestBody),
-      signal: AbortSignal.timeout(15000)
-    });
-
-    return await processResponse(response, 'MOBILE_POST');
   }
 };
 
@@ -196,9 +194,9 @@ async function processResponse(response: Response, method: string): Promise<GP51
   }
 }
 
-// Export strategies in order of preference (JSON first as it matches working pattern)
+// Export strategies in order of preference (GET_QUERY first as it matches working pattern)
 export const authStrategies = [
-  postJsonStrategy,
-  postFormStrategy,
-  mobilePostStrategy
+  getQueryStrategy,    // Primary strategy matching working pattern
+  postJsonStrategy,    // Secondary with fixed action parameter
+  postFormStrategy     // Fallback with fixed action parameter
 ];
