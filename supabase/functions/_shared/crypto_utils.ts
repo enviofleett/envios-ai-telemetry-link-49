@@ -1,24 +1,48 @@
-
 // Comprehensive crypto utilities for GP51 compatibility
-// This version includes all essential functions to avoid dependency issues
+// This version includes a CORRECT MD5 implementation following RFC 1321
 
 // Rate limiting storage
 const rateLimits = new Map<string, { count: number; resetTime: number }>();
 
 /**
- * Proper MD5 hash implementation using Web Crypto API
+ * CORRECTED MD5 hash implementation following RFC 1321 specification
  * This implements actual MD5 algorithm for GP51 compatibility
  */
 export async function md5_for_gp51_only(input: string): Promise<string> {
   console.log(`🔐 MD5 hashing input of length: ${input.length}`);
   
   try {
+    // Test with known vector first
+    if (input === "hello") {
+      console.log(`🧪 [MD5-TEST] Testing with known vector "hello"`);
+    }
+    
     // Convert string to bytes
     const encoder = new TextEncoder();
     const data = encoder.encode(input);
     
-    // Initialize MD5 constants
+    // MD5 constants
     const h = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476];
+    
+    // MD5 round constants (correct values from RFC 1321)
+    const k = [
+      0xD76AA478, 0xE8C7B756, 0x242070DB, 0xC1BDCEEE, 0xF57C0FAF, 0x4787C62A, 0xA8304613, 0xFD469501,
+      0x698098D8, 0x8B44F7AF, 0xFFFF5BB1, 0x895CD7BE, 0x6B901122, 0xFD987193, 0xA679438E, 0x49B40821,
+      0xF61E2562, 0xC040B340, 0x265E5A51, 0xE9B6C7AA, 0xD62F105D, 0x02441453, 0xD8A1E681, 0xE7D3FBC8,
+      0x21E1CDE6, 0xC33707D6, 0xF4D50D87, 0x455A14ED, 0xA9E3E905, 0xFCEFA3F8, 0x676F02D9, 0x8D2A4C8A,
+      0xFFFA3942, 0x8771F681, 0x6D9D6122, 0xFDE5380C, 0xA4BEEA44, 0x4BDECFA9, 0xF6BB4B60, 0xBEBFBC70,
+      0x289B7EC6, 0xEAA127FA, 0xD4EF3085, 0x04881D05, 0xD9D4D039, 0xE6DB99E5, 0x1FA27CF8, 0xC4AC5665,
+      0xF4292244, 0x432AFF97, 0xAB9423A7, 0xFC93A039, 0x655B59C3, 0x8F0CCC92, 0xFFEFF47D, 0x85845DD1,
+      0x6FA87E4F, 0xFE2CE6E0, 0xA3014314, 0x4E0811A1, 0xF7537E82, 0xBD3AF235, 0x2AD7D2BB, 0xEB86D391
+    ];
+    
+    // Shift amounts for each round
+    const s = [
+      7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+      5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
+      4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+      6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+    ];
     
     // Pre-processing: adding padding bits
     const msgLength = data.length;
@@ -35,58 +59,45 @@ export async function md5_for_gp51_only(input: string): Promise<string> {
     
     // Process the message in 512-bit chunks
     for (let offset = 0; offset < paddedLength; offset += 64) {
-      const chunk = new Uint32Array(padded.buffer, offset, 16);
+      const w = new Uint32Array(16);
       
-      // Convert to little-endian
+      // Break chunk into sixteen 32-bit little-endian words
       for (let i = 0; i < 16; i++) {
-        chunk[i] = ((chunk[i] & 0xFF) << 24) | 
-                   (((chunk[i] >>> 8) & 0xFF) << 16) | 
-                   (((chunk[i] >>> 16) & 0xFF) << 8) | 
-                   ((chunk[i] >>> 24) & 0xFF);
+        w[i] = view.getUint32(offset + i * 4, true);
       }
       
       // Initialize hash value for this chunk
       let [a, b, c, d] = h;
       
-      // Main loop
+      // Main loop (64 operations, divided into 4 rounds of 16 operations each)
       for (let i = 0; i < 64; i++) {
         let f, g;
         
         if (i < 16) {
-          f = (b & c) | (~b & d);
+          // Round 1
+          f = (b & c) | ((~b) & d);
           g = i;
         } else if (i < 32) {
-          f = (d & b) | (~d & c);
+          // Round 2
+          f = (d & b) | ((~d) & c);
           g = (5 * i + 1) % 16;
         } else if (i < 48) {
+          // Round 3
           f = b ^ c ^ d;
           g = (3 * i + 5) % 16;
         } else {
-          f = c ^ (b | ~d);
+          // Round 4
+          f = c ^ (b | (~d));
           g = (7 * i) % 16;
         }
         
-        const temp = d;
+        // Be sure to keep as 32-bit
+        f = (f + a + k[i] + w[g]) >>> 0;
+        a = d;
         d = c;
         c = b;
-        
-        const s = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21][Math.floor(i / 4) % 16];
-        const k = [
-          0xD76AA478, 0xE8C7B756, 0x242070DB, 0xC1BDCEEE, 0xF57C0FAF, 0x4787C62A, 0xA8304613, 0xFD469501,
-          0x698098D8, 0x8B44F7AF, 0xFFFF5BB1, 0x895CD7BE, 0x6B901122, 0xFD987193, 0xA679438E, 0x49B40821,
-          0xF61E2562, 0xC040B340, 0x265E5A51, 0xE9B6C7AA, 0xD62F105D, 0x02441453, 0xD8A1E681, 0xE7D3FBC8,
-          0x21E1CDE6, 0xC33707D6, 0xF4D50D87, 0x455A14ED, 0xA9E3E905, 0xFCEFA3F8, 0x676F02D9, 0x8D2A4C8A,
-          0xFFFA3942, 0x8771F681, 0x6D9D6122, 0xFDE5380C, 0xA4BEEA44, 0x4BDECFA9, 0xF6BB4B60, 0xBEBFBC70,
-          0x289B7EC6, 0xEAA127FA, 0xD4EF3085, 0x04881D05, 0xD9D4D039, 0xE6DB99E5, 0x1FA27CF8, 0xC4AC5665,
-          0xF4292244, 0x432AFF97, 0xAB9423A7, 0xFC93A039, 0x655B59C3, 0x8F0CCC92, 0xFFEFF47D, 0x85845DD1,
-          0x6FA87E4F, 0xFE2CE6E0, 0xA3014314, 0x4E0811A1, 0xF7537E82, 0xBD3AF235, 0x2AD7D2BB, 0xEB86D391
-        ][i];
-        
-        a = (a + f + k + chunk[g]) >>> 0;
-        a = ((a << s) | (a >>> (32 - s))) >>> 0;
-        a = (a + b) >>> 0;
-        
-        [a, b, c, d] = [temp, a, b, c];
+        // Correct left rotation
+        b = (b + ((f << s[i]) | (f >>> (32 - s[i])))) >>> 0;
       }
       
       // Add this chunk's hash to result so far
@@ -106,7 +117,16 @@ export async function md5_for_gp51_only(input: string): Promise<string> {
       ].join('');
     }).join('');
     
-    console.log(`✅ MD5 hash generated successfully: ${result.substring(0, 8)}...`);
+    console.log(`✅ MD5 hash generated successfully: ${result}`);
+    
+    // Test known vectors for verification
+    if (input === "hello") {
+      const expected = "5d41402abc4b2a76b9719d911017c592";
+      console.log(`🧪 [MD5-TEST] Expected: ${expected}`);
+      console.log(`🧪 [MD5-TEST] Got:      ${result}`);
+      console.log(`🧪 [MD5-TEST] Match:    ${result === expected ? "✅ PASS" : "❌ FAIL"}`);
+    }
+    
     return result;
     
   } catch (error) {

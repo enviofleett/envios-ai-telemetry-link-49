@@ -26,10 +26,18 @@ export async function authenticateWithGP51(credentials: {
     console.log(`  - Raw Base URL: ${apiUrl}`);
     console.log(`  - Global token: ${globalToken ? 'SET (length: ' + globalToken.length + ')' : 'NOT SET'}`);
     
+    // Test MD5 function with known vector first
+    console.log(`🧪 [GP51-AUTH] Testing MD5 function with known vector...`);
+    const testHash = await md5_for_gp51_only("hello");
+    const expectedHash = "5d41402abc4b2a76b9719d911017c592";
+    console.log(`🧪 [MD5-TEST] "hello" -> ${testHash} (expected: ${expectedHash})`);
+    console.log(`🧪 [MD5-TEST] MD5 function ${testHash === expectedHash ? "✅ WORKING" : "❌ BROKEN"}`);
+    
     // Generate MD5 hash for password
     console.log(`🔄 [GP51-AUTH] Generating MD5 hash for password`);
     const hashedPassword = await md5_for_gp51_only(password);
-    console.log(`🔐 [GP51-AUTH] Password hashed successfully (${hashedPassword.substring(0, 8)}...)`);
+    console.log(`🔐 [GP51-AUTH] Password hashed successfully: ${hashedPassword}`);
+    console.log(`🔍 [GP51-AUTH] Hash length: ${hashedPassword.length} chars, format: ${/^[a-f0-9]{32}$/.test(hashedPassword) ? "✅ valid" : "❌ invalid"}`);
     
     // Construct the API URL with query parameters
     const baseUrl = apiUrl.replace(/\/webapi\/?$/, '');
@@ -124,6 +132,13 @@ export async function authenticateWithGP51(credentials: {
       } else {
         const errorMsg = responseData.cause || responseData.message || `Authentication failed with status ${responseData.status}`;
         console.error(`❌ [GP51-AUTH] Authentication failed:`, errorMsg);
+        
+        // Log additional details for debugging
+        if (responseData.lockoutattempts !== undefined) {
+          console.error(`🔒 [GP51-AUTH] Lockout attempts: ${responseData.lockoutattempts}`);
+          console.error(`🔑 [GP51-AUTH] This suggests password hash mismatch - check MD5 implementation`);
+        }
+        
         return {
           success: false,
           error: errorMsg
