@@ -1,234 +1,172 @@
-// Comprehensive crypto utilities for GP51 compatibility
-// This version includes a CORRECT MD5 implementation following RFC 1321
 
-// Rate limiting storage
-const rateLimits = new Map<string, { count: number; resetTime: number }>();
+// MD5 implementation for GP51 authentication only
+// This is specifically for GP51 which requires MD5 hashed passwords
 
-/**
- * CORRECTED MD5 hash implementation following RFC 1321 specification
- * This implements actual MD5 algorithm for GP51 compatibility
- */
-export async function md5_for_gp51_only(input: string): Promise<string> {
-  console.log(`🔐 MD5 hashing input of length: ${input.length}`);
+export async function md5_for_gp51_only(message: string): Promise<string> {
+  // Use Web Crypto API's digest with legacy support
+  const msgUint8 = new TextEncoder().encode(message);
   
   try {
-    // Test with known vector first
-    if (input === "hello") {
-      console.log(`🧪 [MD5-TEST] Testing with known vector "hello"`);
-    }
-    
-    // Convert string to bytes
-    const encoder = new TextEncoder();
-    const data = encoder.encode(input);
-    
-    // MD5 constants
-    const h = [0x67452301, 0xEFCDAB89, 0x98BADCFE, 0x10325476];
-    
-    // MD5 round constants (correct values from RFC 1321)
-    const k = [
-      0xD76AA478, 0xE8C7B756, 0x242070DB, 0xC1BDCEEE, 0xF57C0FAF, 0x4787C62A, 0xA8304613, 0xFD469501,
-      0x698098D8, 0x8B44F7AF, 0xFFFF5BB1, 0x895CD7BE, 0x6B901122, 0xFD987193, 0xA679438E, 0x49B40821,
-      0xF61E2562, 0xC040B340, 0x265E5A51, 0xE9B6C7AA, 0xD62F105D, 0x02441453, 0xD8A1E681, 0xE7D3FBC8,
-      0x21E1CDE6, 0xC33707D6, 0xF4D50D87, 0x455A14ED, 0xA9E3E905, 0xFCEFA3F8, 0x676F02D9, 0x8D2A4C8A,
-      0xFFFA3942, 0x8771F681, 0x6D9D6122, 0xFDE5380C, 0xA4BEEA44, 0x4BDECFA9, 0xF6BB4B60, 0xBEBFBC70,
-      0x289B7EC6, 0xEAA127FA, 0xD4EF3085, 0x04881D05, 0xD9D4D039, 0xE6DB99E5, 0x1FA27CF8, 0xC4AC5665,
-      0xF4292244, 0x432AFF97, 0xAB9423A7, 0xFC93A039, 0x655B59C3, 0x8F0CCC92, 0xFFEFF47D, 0x85845DD1,
-      0x6FA87E4F, 0xFE2CE6E0, 0xA3014314, 0x4E0811A1, 0xF7537E82, 0xBD3AF235, 0x2AD7D2BB, 0xEB86D391
-    ];
-    
-    // Shift amounts for each round
-    const s = [
-      7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
-      5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
-      4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
-      6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
-    ];
-    
-    // Pre-processing: adding padding bits
-    const msgLength = data.length;
-    const paddedLength = Math.ceil((msgLength + 9) / 64) * 64;
-    const padded = new Uint8Array(paddedLength);
-    padded.set(data);
-    padded[msgLength] = 0x80;
-    
-    // Append original length in bits as 64-bit little-endian
-    const lengthInBits = msgLength * 8;
-    const view = new DataView(padded.buffer);
-    view.setUint32(paddedLength - 8, lengthInBits, true);
-    view.setUint32(paddedLength - 4, Math.floor(lengthInBits / 0x100000000), true);
-    
-    // Process the message in 512-bit chunks
-    for (let offset = 0; offset < paddedLength; offset += 64) {
-      const w = new Uint32Array(16);
-      
-      // Break chunk into sixteen 32-bit little-endian words
-      for (let i = 0; i < 16; i++) {
-        w[i] = view.getUint32(offset + i * 4, true);
-      }
-      
-      // Initialize hash value for this chunk
-      let [a, b, c, d] = h;
-      
-      // Main loop (64 operations, divided into 4 rounds of 16 operations each)
-      for (let i = 0; i < 64; i++) {
-        let f, g;
-        
-        if (i < 16) {
-          // Round 1
-          f = (b & c) | ((~b) & d);
-          g = i;
-        } else if (i < 32) {
-          // Round 2
-          f = (d & b) | ((~d) & c);
-          g = (5 * i + 1) % 16;
-        } else if (i < 48) {
-          // Round 3
-          f = b ^ c ^ d;
-          g = (3 * i + 5) % 16;
-        } else {
-          // Round 4
-          f = c ^ (b | (~d));
-          g = (7 * i) % 16;
-        }
-        
-        // Be sure to keep as 32-bit
-        f = (f + a + k[i] + w[g]) >>> 0;
-        a = d;
-        d = c;
-        c = b;
-        // Correct left rotation
-        b = (b + ((f << s[i]) | (f >>> (32 - s[i])))) >>> 0;
-      }
-      
-      // Add this chunk's hash to result so far
-      h[0] = (h[0] + a) >>> 0;
-      h[1] = (h[1] + b) >>> 0;
-      h[2] = (h[2] + c) >>> 0;
-      h[3] = (h[3] + d) >>> 0;
-    }
-    
-    // Convert hash to hex string (little-endian)
-    const result = h.map(n => {
-      return [
-        (n & 0xFF).toString(16).padStart(2, '0'),
-        ((n >>> 8) & 0xFF).toString(16).padStart(2, '0'),
-        ((n >>> 16) & 0xFF).toString(16).padStart(2, '0'),
-        ((n >>> 24) & 0xFF).toString(16).padStart(2, '0')
-      ].join('');
-    }).join('');
-    
-    console.log(`✅ MD5 hash generated successfully: ${result}`);
-    
-    // Test known vectors for verification
-    if (input === "hello") {
-      const expected = "5d41402abc4b2a76b9719d911017c592";
-      console.log(`🧪 [MD5-TEST] Expected: ${expected}`);
-      console.log(`🧪 [MD5-TEST] Got:      ${result}`);
-      console.log(`🧪 [MD5-TEST] Match:    ${result === expected ? "✅ PASS" : "❌ FAIL"}`);
-    }
-    
-    return result;
-    
+    // Try modern approach first
+    const hashBuffer = await crypto.subtle.digest('MD5', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   } catch (error) {
-    console.error('❌ MD5 hashing failed:', error);
-    throw new Error('MD5 hash generation failed');
+    // Fallback to manual MD5 implementation for environments without MD5 support
+    console.warn('⚠️ [crypto_utils] Native MD5 not available, using fallback implementation');
+    return fallbackMD5(message);
   }
 }
 
-/**
- * Synchronous MD5 function for backward compatibility
- * Note: This is a simplified implementation, not cryptographically secure
- */
-export function md5_sync(input: string): string {
-  console.log(`🔐 Sync MD5 hashing input of length: ${input.length}`);
+// Fallback MD5 implementation
+function fallbackMD5(message: string): string {
+  // Simple MD5 implementation for GP51 compatibility
+  // This is a basic implementation - in production, consider using a proper crypto library
   
-  // Simple hash function for compatibility - not cryptographically secure
-  let hash = 0;
-  if (input.length === 0) return hash.toString(16).padStart(32, '0');
-  
-  for (let i = 0; i < input.length; i++) {
-    const char = input.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  
-  // Convert to hex and pad to 32 characters
-  const hexHash = Math.abs(hash).toString(16);
-  const result = hexHash.padStart(32, '0');
-  
-  console.log(`✅ Sync MD5 hash generated: ${result.substring(0, 8)}...`);
-  return result;
-}
+  function md5cycle(x: number[], k: number[]): void {
+    let a = x[0], b = x[1], c = x[2], d = x[3];
+    
+    a = ff(a, b, c, d, k[0], 7, -680876936);
+    d = ff(d, a, b, c, k[1], 12, -389564586);
+    c = ff(c, d, a, b, k[2], 17, 606105819);
+    b = ff(b, c, d, a, k[3], 22, -1044525330);
+    a = ff(a, b, c, d, k[4], 7, -176418897);
+    d = ff(d, a, b, c, k[5], 12, 1200080426);
+    c = ff(c, d, a, b, k[6], 17, -1473231341);
+    b = ff(b, c, d, a, k[7], 22, -45705983);
+    a = ff(a, b, c, d, k[8], 7, 1770035416);
+    d = ff(d, a, b, c, k[9], 12, -1958414417);
+    c = ff(c, d, a, b, k[10], 17, -42063);
+    b = ff(b, c, d, a, k[11], 22, -1990404162);
+    a = ff(a, b, c, d, k[12], 7, 1804603682);
+    d = ff(d, a, b, c, k[13], 12, -40341101);
+    c = ff(c, d, a, b, k[14], 17, -1502002290);
+    b = ff(b, c, d, a, k[15], 22, 1236535329);
 
-/**
- * Secure hash function using crypto API when available
- */
-export async function secureHash(input: string): Promise<string> {
-  console.log(`🔒 Secure hashing input of length: ${input.length}`);
-  
-  try {
-    if (typeof crypto !== 'undefined' && crypto.subtle) {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(input);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const result = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      
-      console.log(`✅ Secure hash generated: ${result.substring(0, 8)}...`);
-      return result;
-    } else {
-      // Fallback to MD5 for GP51 compatibility
-      return await md5_for_gp51_only(input);
+    a = gg(a, b, c, d, k[1], 5, -165796510);
+    d = gg(d, a, b, c, k[6], 9, -1069501632);
+    c = gg(c, d, a, b, k[11], 14, 643717713);
+    b = gg(b, c, d, a, k[0], 20, -373897302);
+    a = gg(a, b, c, d, k[5], 5, -701558691);
+    d = gg(d, a, b, c, k[10], 9, 38016083);
+    c = gg(c, d, a, b, k[15], 14, -660478335);
+    b = gg(b, c, d, a, k[4], 20, -405537848);
+    a = gg(a, b, c, d, k[9], 5, 568446438);
+    d = gg(d, a, b, c, k[14], 9, -1019803690);
+    c = gg(c, d, a, b, k[3], 14, -187363961);
+    b = gg(b, c, d, a, k[8], 20, 1163531501);
+    a = gg(a, b, c, d, k[13], 5, -1444681467);
+    d = gg(d, a, b, c, k[2], 9, -51403784);
+    c = gg(c, d, a, b, k[7], 14, 1735328473);
+    b = gg(b, c, d, a, k[12], 20, -1926607734);
+
+    a = hh(a, b, c, d, k[5], 4, -378558);
+    d = hh(d, a, b, c, k[8], 11, -2022574463);
+    c = hh(c, d, a, b, k[11], 16, 1839030562);
+    b = hh(b, c, d, a, k[14], 23, -35309556);
+    a = hh(a, b, c, d, k[1], 4, -1530992060);
+    d = hh(d, a, b, c, k[4], 11, 1272893353);
+    c = hh(c, d, a, b, k[7], 16, -155497632);
+    b = hh(b, c, d, a, k[10], 23, -1094730640);
+    a = hh(a, b, c, d, k[13], 4, 681279174);
+    d = hh(d, a, b, c, k[0], 11, -358537222);
+    c = hh(c, d, a, b, k[3], 16, -722521979);
+    b = hh(b, c, d, a, k[6], 23, 76029189);
+    a = hh(a, b, c, d, k[9], 4, -640364487);
+    d = hh(d, a, b, c, k[12], 11, -421815835);
+    c = hh(c, d, a, b, k[15], 16, 530742520);
+    b = hh(b, c, d, a, k[2], 23, -995338651);
+
+    a = ii(a, b, c, d, k[0], 6, -198630844);
+    d = ii(d, a, b, c, k[7], 10, 1126891415);
+    c = ii(c, d, a, b, k[14], 15, -1416354905);
+    b = ii(b, c, d, a, k[5], 21, -57434055);
+    a = ii(a, b, c, d, k[12], 6, 1700485571);
+    d = ii(d, a, b, c, k[3], 10, -1894986606);
+    c = ii(c, d, a, b, k[10], 15, -1051523);
+    b = ii(b, c, d, a, k[1], 21, -2054922799);
+    a = ii(a, b, c, d, k[8], 6, 1873313359);
+    d = ii(d, a, b, c, k[15], 10, -30611744);
+    c = ii(c, d, a, b, k[6], 15, -1560198380);
+    b = ii(b, c, d, a, k[13], 21, 1309151649);
+    a = ii(a, b, c, d, k[4], 6, -145523070);
+    d = ii(d, a, b, c, k[11], 10, -1120210379);
+    c = ii(c, d, a, b, k[2], 15, 718787259);
+    b = ii(b, c, d, a, k[9], 21, -343485551);
+
+    x[0] = add32(a, x[0]);
+    x[1] = add32(b, x[1]);
+    x[2] = add32(c, x[2]);
+    x[3] = add32(d, x[3]);
+  }
+
+  function cmn(q: number, a: number, b: number, x: number, s: number, t: number): number {
+    a = add32(add32(a, q), add32(x, t));
+    return add32((a << s) | (a >>> (32 - s)), b);
+  }
+
+  function ff(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
+    return cmn((b & c) | ((~b) & d), a, b, x, s, t);
+  }
+
+  function gg(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
+    return cmn((b & d) | (c & (~d)), a, b, x, s, t);
+  }
+
+  function hh(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
+    return cmn(b ^ c ^ d, a, b, x, s, t);
+  }
+
+  function ii(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
+    return cmn(c ^ (b | (~d)), a, b, x, s, t);
+  }
+
+  function add32(a: number, b: number): number {
+    return (a + b) & 0xFFFFFFFF;
+  }
+
+  function md51(s: string): number[] {
+    const n = s.length;
+    const state = [1732584193, -271733879, -1732584194, 271733878];
+    let i;
+    for (i = 64; i <= s.length; i += 64) {
+      md5cycle(state, md5blk(s.substring(i - 64, i)));
     }
-  } catch (error) {
-    console.error('❌ Secure hashing failed:', error);
-    throw new Error('Secure hash generation failed');
+    s = s.substring(i - 64);
+    const tail = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    for (i = 0; i < s.length; i++) {
+      tail[i >> 2] |= s.charCodeAt(i) << ((i % 4) << 3);
+    }
+    tail[i >> 2] |= 0x80 << ((i % 4) << 3);
+    if (i > 55) {
+      md5cycle(state, tail);
+      for (i = 0; i < 16; i++) tail[i] = 0;
+    }
+    tail[14] = n * 8;
+    md5cycle(state, tail);
+    return state;
   }
-}
 
-/**
- * Verify secure hash
- */
-export async function verifySecureHash(input: string, hash: string): Promise<boolean> {
-  try {
-    const inputHash = await secureHash(input);
-    return inputHash === hash;
-  } catch (error) {
-    console.error('❌ Hash verification failed:', error);
-    return false;
+  function md5blk(s: string): number[] {
+    const md5blks = [];
+    for (let i = 0; i < 64; i += 4) {
+      md5blks[i >> 2] = s.charCodeAt(i)
+        + (s.charCodeAt(i + 1) << 8)
+        + (s.charCodeAt(i + 2) << 16)
+        + (s.charCodeAt(i + 3) << 24);
+    }
+    return md5blks;
   }
-}
 
-/**
- * Email validation function
- */
-export function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
-export function sanitizeInput(input: string): string {
-  return input.trim().toLowerCase();
-}
-
-export function isValidUsername(username: string): boolean {
-  return /^[a-zA-Z0-9._@-]+$/.test(username) && username.length >= 3 && username.length <= 50;
-}
-
-export function checkRateLimit(identifier: string, maxRequests: number, windowMs: number): boolean {
-  const now = Date.now();
-  const key = identifier;
-  const current = rateLimits.get(key);
-  
-  if (!current || now > current.resetTime) {
-    rateLimits.set(key, { count: 1, resetTime: now + windowMs });
-    return true;
+  function rhex(n: number): string {
+    let s = '';
+    for (let j = 0; j < 4; j++) {
+      s += hex_chr[(n >> (j * 8 + 4)) & 0x0F] + hex_chr[(n >> (j * 8)) & 0x0F];
+    }
+    return s;
   }
-  
-  if (current.count >= maxRequests) {
-    return false;
-  }
-  
-  current.count++;
-  return true;
+
+  const hex_chr = '0123456789abcdef'.split('');
+  const state = md51(message);
+  return state.map(rhex).join('');
 }
