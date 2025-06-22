@@ -1,293 +1,235 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders } from "../_shared/cors.ts";
-import { getValidGp51Session } from "../_shared/gp51_session_utils.ts";
-import { gp51ApiClient, GP51DeviceInfo } from "../_shared/gp51_api_client_unified.ts";
-import { createSuccessResponse, createErrorResponse, calculateLatency } from "../_shared/response_utils.ts";
 import { getSupabaseClient } from "../_shared/supabase_client.ts";
-
-interface SyncResult {
-  success: boolean;
-  message: string;
-  totalDevices: number;
-  successfulSyncs: number;
-  failedSyncs: number;
-  newDevices: number;
-  updatedDevices: number;
-  errorLog: string[];
-  latency: number;
-}
+import { getValidGp51Session } from "../_shared/gp51_session_utils.ts";
+import { createErrorResponse } from "../_shared/response_utils.ts";
 
 serve(async (req) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
   const startTime = Date.now();
+  console.log('🚀 GP51 Vehicle Sync Started');
 
   try {
-    console.log('🚀 [SyncGP51Vehicles] Starting enhanced GP51 vehicle synchronization...');
-
-    // Get valid GP51 session using existing authentication system
-    const { session, errorResponse } = await getValidGp51Session();
-    if (errorResponse) {
-      return errorResponse;
-    }
-
-    if (!session) {
-      return createErrorResponse(
-        'No valid GP51 session found',
-        'Please configure GP51 credentials',
-        401,
-        calculateLatency(startTime)
-      );
-    }
-
-    console.log(`🔑 Using authenticated session for user: ${session.envio_user_id}`);
-    console.log(`👤 GP51 Username: ${session.username}`);
-
     const supabase = getSupabaseClient();
-
-    // Log sync start
-    const { data: syncStatus, error: syncInsertError } = await supabase
+    
+    // Create sync status record
+    const { data: syncStatus, error: syncError } = await supabase
       .from('gp51_sync_status')
       .insert({
-        sync_type: 'enhanced_vehicle_sync',
+        sync_type: 'vehicle_sync',
         status: 'running',
-        sync_details: {
-          user_id: session.envio_user_id,
-          username: session.username,
-          started_by: 'sync_function'
-        }
+        sync_details: { started_at: new Date().toISOString() }
       })
       .select()
       .single();
 
-    if (syncInsertError) {
-      console.error('❌ Failed to log sync start:', syncInsertError);
+    if (syncError) {
+      console.error('❌ Failed to create sync status:', syncError);
+      return createErrorResponse('Failed to initialize sync', syncError.message, 500);
     }
 
-    const syncId = syncStatus?.id;
+    const syncId = syncStatus.id;
 
-    // Get complete device and position data using enhanced API client
-    console.log('📡 Fetching complete device and position data from GP51...');
-    
-    let devicesData: { devices: GP51DeviceInfo[], positions: GP51DeviceInfo[] };
-    
     try {
-      devicesData = await gp51ApiClient.getDevicesWithPositions(
-        session.gp51_token,
-        session.username
-      );
-    } catch (error) {
-      console.error('❌ Failed to fetch devices and positions:', error);
+      // Validate GP51 session
+      const { session, errorResponse } = await getValidGp51Session();
+      if (errorResponse) {
+        await updateSyncStatus(supabase, syncId, 'failed', 0, 0, 1, 'No valid GP51 session');
+        return errorResponse;
+      }
+
+      console.log('✅ GP51 session validated');
+
+      // Fetch vehicles from GP51
+      const devicesResponse = await fetch(`${session.api_url}/webapi?operation=get_devices&login_token=${session.gp51_token}&user_id=${session.envio_user_id}`);
       
-      // Update sync status
-      if (syncId) {
-        await supabase
-          .from('gp51_sync_status')
-          .update({
-            status: 'failed',
-            completed_at: new Date().toISOString(),
-            error_log: [{ error: error.message, timestamp: new Date().toISOString() }]
-          })
-          .eq('id', syncId);
+      if (!devicesResponse.ok) {
+        const errorText = await devicesResponse.text();
+        console.error('❌ GP51 API error:', errorText);
+        await updateSyncStatus(supabase, syncId, 'failed', 0, 0, 1, `GP51 API error: ${errorText}`);
+        return createErrorResponse('GP51 API error', errorText, devicesResponse.status);
       }
 
-      return createErrorResponse(
-        'Failed to fetch devices from GP51',
-        error instanceof Error ? error.message : 'Unknown error',
-        500,
-        calculateLatency(startTime)
-      );
-    }
-
-    const { devices, positions } = devicesData;
-    console.log(`📊 Processing ${devices.length} devices and ${positions.length} positions`);
-
-    if (devices.length === 0) {
-      console.log('ℹ️ No devices found in GP51 account');
+      const devicesData = await devicesResponse.json();
       
-      // Update sync status
-      if (syncId) {
-        await supabase
-          .from('gp51_sync_status')
-          .update({
-            status: 'completed',
-            completed_at: new Date().toISOString(),
-            total_devices: 0
-          })
-          .eq('id', syncId);
+      if (!devicesData.success || !devicesData.devices) {
+        console.error('❌ Invalid GP51 response:', devicesData);
+        await updateSyncStatus(supabase, syncId, 'failed', 0, 0, 1, 'Invalid GP51 response');
+        return createErrorResponse('Invalid GP51 response', 'No devices data returned', 400);
       }
 
-      return createSuccessResponse({
-        success: true,
-        message: 'No devices found in GP51 account',
-        totalDevices: 0,
-        successfulSyncs: 0,
-        failedSyncs: 0,
-        newDevices: 0,
-        updatedDevices: 0,
-        errorLog: []
-      }, calculateLatency(startTime));
-    }
+      const devices = devicesData.devices;
+      console.log(`📊 Processing ${devices.length} devices from GP51`);
 
-    // Create a map of positions by device ID for efficient lookup
-    const positionMap = new Map<string, GP51DeviceInfo>();
-    positions.forEach(pos => {
-      if (pos.deviceid) {
-        positionMap.set(pos.deviceid, pos);
-      }
-    });
-
-    // Process each device
-    let successfulSyncs = 0;
-    let failedSyncs = 0;
-    let newDevices = 0;
-    let updatedDevices = 0;
-    const errorLog: string[] = [];
-
-    for (const device of devices) {
-      try {
-        const position = positionMap.get(device.deviceid);
-        
-        // Prepare vehicle data with enhanced metadata
-        const vehicleData = {
-          gp51_device_id: device.deviceid,
-          name: device.devicename || device.deviceid,
-          device_name: device.devicename,
-          device_type: device.devicetype,
-          sim_number: device.simnum,
-          login_name: device.loginname,
-          gp51_group_id: device.groupid,
-          is_free: device.isfree || false,
-          allow_edit: device.allowedit !== false,
-          icon: device.icon,
-          starred: device.starred || false,
-          total_distance: device.totaldistance || 0,
-          total_oil: device.totaloil || 0,
-          last_active_time: device.lastactivetime ? new Date(device.lastactivetime).toISOString() : null,
-          expire_notify_time: device.expirenotifytime ? new Date(device.expirenotifytime).toISOString() : null,
-          user_id: session.envio_user_id,
-          last_sync_time: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-
-        // Add position data if available
-        if (position) {
-          vehicleData.last_position = {
-            lat: position.callat,
-            lon: position.callon,
-            speed: position.speed,
-            course: position.course,
-            timestamp: position.updatetime || position.devicetime,
-            status_text: position.strstatusen || position.strstatus,
-            altitude: position.altitude
-          };
-          
-          vehicleData.altitude = position.altitude;
-          vehicleData.course = position.course;
-          vehicleData.device_time = position.devicetime ? new Date(position.devicetime).toISOString() : null;
-          vehicleData.arrived_time = position.arrivedtime ? new Date(position.arrivedtime).toISOString() : null;
-          vehicleData.valid_position_time = position.validpositiontime ? new Date(position.validpositiontime).toISOString() : null;
-          vehicleData.gp51_status = position.status;
-          vehicleData.gp51_status_text = position.strstatusen || position.strstatus;
-          vehicleData.gp51_alarm = position.alarm;
-        }
-
-        // Check if vehicle exists
-        const { data: existingVehicle } = await supabase
-          .from('vehicles')
-          .select('id')
-          .eq('gp51_device_id', device.deviceid)
-          .eq('user_id', session.envio_user_id)
-          .single();
-
-        if (existingVehicle) {
-          // Update existing vehicle
-          const { error: updateError } = await supabase
-            .from('vehicles')
-            .update(vehicleData)
-            .eq('id', existingVehicle.id);
-
-          if (updateError) {
-            console.error(`❌ Failed to update vehicle ${device.deviceid}:`, updateError);
-            errorLog.push(`Update failed for ${device.deviceid}: ${updateError.message}`);
-            failedSyncs++;
-          } else {
-            console.log(`✅ Updated vehicle: ${device.deviceid}`);
-            updatedDevices++;
-            successfulSyncs++;
-          }
-        } else {
-          // Insert new vehicle
-          const { error: insertError } = await supabase
-            .from('vehicles')
-            .insert(vehicleData);
-
-          if (insertError) {
-            console.error(`❌ Failed to insert vehicle ${device.deviceid}:`, insertError);
-            errorLog.push(`Insert failed for ${device.deviceid}: ${insertError.message}`);
-            failedSyncs++;
-          } else {
-            console.log(`✅ Inserted new vehicle: ${device.deviceid}`);
-            newDevices++;
-            successfulSyncs++;
-          }
-        }
-
-      } catch (error) {
-        console.error(`❌ Error processing device ${device.deviceid}:`, error);
-        errorLog.push(`Processing error for ${device.deviceid}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        failedSyncs++;
-      }
-    }
-
-    const syncResult: SyncResult = {
-      success: failedSyncs === 0,
-      message: `Sync completed: ${successfulSyncs} successful, ${failedSyncs} failed`,
-      totalDevices: devices.length,
-      successfulSyncs,
-      failedSyncs,
-      newDevices,
-      updatedDevices,
-      errorLog,
-      latency: calculateLatency(startTime)
-    };
-
-    // Update sync status
-    if (syncId) {
+      // Update total devices count
       await supabase
         .from('gp51_sync_status')
-        .update({
-          status: syncResult.success ? 'completed' : 'failed',
-          completed_at: new Date().toISOString(),
+        .update({ total_devices: devices.length })
+        .eq('id', syncId);
+
+      let successfulSyncs = 0;
+      let failedSyncs = 0;
+      const errorLog = [];
+
+      // Process each device
+      for (const device of devices) {
+        try {
+          // Check if vehicle exists
+          const { data: existingVehicle } = await supabase
+            .from('vehicles')
+            .select('id')
+            .eq('gp51_device_id', device.device_id)
+            .single();
+
+          const vehicleData = {
+            gp51_device_id: device.device_id,
+            device_name: device.device_name || device.device_id,
+            device_type: device.device_type,
+            sim_number: device.sim_number,
+            latitude: device.latitude,
+            longitude: device.longitude,
+            last_active_time: device.last_active_time ? new Date(device.last_active_time * 1000).toISOString() : null,
+            expire_notify_time: device.expire_notify_time ? new Date(device.expire_notify_time * 1000).toISOString() : null,
+            is_free: device.is_free === 1,
+            allow_edit: device.allow_edit === 1,
+            icon: device.icon,
+            starred: device.starred === 1,
+            login_name: device.login_name,
+            gp51_group_id: device.group_id,
+            total_distance: device.total_distance || 0,
+            total_oil: device.total_oil || 0,
+            altitude: device.altitude || 0,
+            course: device.course || 0,
+            device_time: device.device_time ? new Date(device.device_time * 1000).toISOString() : null,
+            arrived_time: device.arrived_time ? new Date(device.arrived_time * 1000).toISOString() : null,
+            valid_position_time: device.valid_position_time ? new Date(device.valid_position_time * 1000).toISOString() : null,
+            gp51_status: device.status,
+            gp51_status_text: device.status_text,
+            gp51_alarm: device.alarm,
+            last_sync_time: new Date().toISOString()
+          };
+
+          if (existingVehicle) {
+            // Update existing vehicle
+            const { error: updateError } = await supabase
+              .from('vehicles')
+              .update(vehicleData)
+              .eq('id', existingVehicle.id);
+
+            if (updateError) {
+              console.error(`❌ Failed to update vehicle ${device.device_id}:`, updateError);
+              failedSyncs++;
+              errorLog.push(`Update failed for ${device.device_id}: ${updateError.message}`);
+            } else {
+              successfulSyncs++;
+            }
+          } else {
+            // Create new vehicle (only if we have valid location data)
+            if (device.latitude && device.longitude) {
+              const newVehicleData = {
+                ...vehicleData,
+                vehicle_name: device.device_name || `Vehicle ${device.device_id}`,
+                license_plate: `GP51-${device.device_id}`,
+                user_id: session.envio_user_id
+              };
+
+              const { error: insertError } = await supabase
+                .from('vehicles')
+                .insert(newVehicleData);
+
+              if (insertError) {
+                console.error(`❌ Failed to create vehicle ${device.device_id}:`, insertError);
+                failedSyncs++;
+                errorLog.push(`Create failed for ${device.device_id}: ${insertError.message}`);
+              } else {
+                successfulSyncs++;
+              }
+            } else {
+              console.warn(`⚠️ Skipping vehicle ${device.device_id} - no location data`);
+              failedSyncs++;
+              errorLog.push(`Skipped ${device.device_id}: No location data`);
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error processing device ${device.device_id}:`, error);
+          failedSyncs++;
+          errorLog.push(`Error processing ${device.device_id}: ${error.message}`);
+        }
+      }
+
+      // Update final sync status
+      await updateSyncStatus(
+        supabase, 
+        syncId, 
+        'completed', 
+        successfulSyncs, 
+        failedSyncs, 
+        0,
+        null,
+        {
+          duration_ms: Date.now() - startTime,
+          total_devices: devices.length,
+          error_log: errorLog
+        }
+      );
+
+      console.log(`✅ Sync completed: ${successfulSyncs} successful, ${failedSyncs} failed`);
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Vehicle sync completed',
+        stats: {
           total_devices: devices.length,
           successful_syncs: successfulSyncs,
           failed_syncs: failedSyncs,
-          error_log: errorLog.map(err => ({ error: err, timestamp: new Date().toISOString() })),
-          sync_details: {
-            ...syncStatus?.sync_details,
-            new_devices: newDevices,
-            updated_devices: updatedDevices,
-            positions_processed: positions.length
-          }
-        })
-        .eq('id', syncId);
+          duration_ms: Date.now() - startTime
+        }
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+    } catch (error) {
+      console.error('❌ Sync error:', error);
+      await updateSyncStatus(supabase, syncId, 'failed', 0, 0, 1, error.message);
+      return createErrorResponse('Sync failed', error.message, 500);
     }
 
-    console.log(`🏁 Enhanced GP51 vehicle sync completed: ${syncResult.message}`);
-
-    return createSuccessResponse(syncResult, syncResult.latency);
-
   } catch (error) {
-    console.error('❌ Unexpected error in syncGp51Vehicles:', error);
-    return createErrorResponse(
-      'Internal server error during GP51 vehicle sync',
-      error instanceof Error ? error.message : 'Unknown error',
-      500,
-      calculateLatency(startTime)
-    );
+    console.error('❌ Critical sync error:', error);
+    return createErrorResponse('Critical sync error', error.message, 500);
   }
 });
+
+async function updateSyncStatus(
+  supabase: any,
+  syncId: string,
+  status: string,
+  successfulSyncs: number,
+  failedSyncs: number,
+  errorCount: number,
+  errorMessage?: string,
+  additionalDetails?: any
+) {
+  const updateData: any = {
+    status,
+    successful_syncs: successfulSyncs,
+    failed_syncs: failedSyncs,
+    sync_details: {
+      ...additionalDetails,
+      completed_at: new Date().toISOString()
+    }
+  };
+
+  if (status === 'completed' || status === 'failed') {
+    updateData.completed_at = new Date().toISOString();
+  }
+
+  if (errorMessage) {
+    updateData.error_log = [{ message: errorMessage, timestamp: new Date().toISOString() }];
+  }
+
+  await supabase
+    .from('gp51_sync_status')
+    .update(updateData)
+    .eq('id', syncId);
+}

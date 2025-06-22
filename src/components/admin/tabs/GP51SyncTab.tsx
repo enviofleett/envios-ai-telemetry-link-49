@@ -1,8 +1,9 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { RefreshCw, Database, Clock } from 'lucide-react';
+import { RefreshCw, Database, Clock, Settings } from 'lucide-react';
 import GP51SyncMonitor from '../GP51SyncMonitor';
+import GP51SyncControlPanel from '../GP51SyncControlPanel';
 
 const GP51SyncTab: React.FC = () => {
   return (
@@ -34,17 +35,20 @@ const GP51SyncTab: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center p-4 bg-purple-50 rounded-lg">
-              <RefreshCw className="h-8 w-8 text-purple-600 mr-3" />
+              <Settings className="h-8 w-8 text-purple-600 mr-3" />
               <div>
-                <div className="font-semibold text-purple-800">Real-time Monitoring</div>
-                <div className="text-sm text-purple-600">Track sync status and performance</div>
+                <div className="font-semibold text-purple-800">Configurable Settings</div>
+                <div className="text-sm text-purple-600">Customize sync intervals and behavior</div>
               </div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <GP51SyncMonitor />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <GP51SyncControlPanel />
+        <GP51SyncMonitor />
+      </div>
     </div>
   );
 };
