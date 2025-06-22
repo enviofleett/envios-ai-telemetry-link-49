@@ -1,123 +1,107 @@
 
-import { createResponse, createErrorResponse } from './response-utils.ts';
+import { createSuccessResponse, createErrorResponse } from './response-utils.ts';
 
-export async function handleGetGP51Status(supabase: any, userId: string) {
-  console.log('📊 [GP51Status] Checking GP51 status for user:', userId);
-  
+export async function handleGetGP51Status(adminSupabase: any, userId: string) {
   try {
-    // Get the most recent session for this user
-    const { data: sessions, error: sessionError } = await supabase
+    console.log(`📊 [GP51Status] Checking GP51 status for user: ${userId}`);
+
+    // Get the most recent GP51 session for this user
+    const { data: session, error: sessionError } = await adminSupabase
       .from('gp51_sessions')
-      .select('id, username, gp51_token, token_expires_at, created_at, last_validated_at, auth_method, api_url')
+      .select('*')
       .eq('envio_user_id', userId)
       .order('created_at', { ascending: false })
-      .limit(1);
+      .limit(1)
+      .maybeSingle();
 
     if (sessionError) {
       console.error('❌ [GP51Status] Database error:', sessionError);
-      return createErrorResponse('Failed to check GP51 status', sessionError.message, 500);
+      return createErrorResponse('Database error checking GP51 status', sessionError.message, 500);
     }
 
-    if (!sessions || sessions.length === 0) {
-      console.log('📝 [GP51Status] No GP51 sessions found for user');
-      return createResponse({
+    if (!session) {
+      console.log('📊 [GP51Status] No GP51 session found for user');
+      return createSuccessResponse({
         connected: false,
-        isExpired: false,
-        message: 'No GP51 configuration found. Please authenticate first.',
-        requiresAuth: true
+        username: null,
+        apiUrl: null,
+        lastActivity: null,
+        tokenExpiry: null,
+        message: 'GP51 not configured for this user'
       });
     }
 
-    const session = sessions[0];
+    // Check if token is expired
     const now = new Date();
-    const expiresAt = new Date(session.token_expires_at);
-    const isExpired = expiresAt <= now;
-    const timeUntilExpiry = expiresAt.getTime() - now.getTime();
-    const minutesUntilExpiry = Math.round(timeUntilExpiry / (1000 * 60));
+    const tokenExpiry = session.token_expires_at ? new Date(session.token_expires_at) : null;
+    const isExpired = tokenExpiry ? tokenExpiry <= now : false;
 
-    console.log('📊 [GP51Status] Session details:', {
+    // Calculate minutes until expiry
+    const minutesUntilExpiry = tokenExpiry ? Math.floor((tokenExpiry.getTime() - now.getTime()) / (1000 * 60)) : null;
+
+    const statusInfo = {
       sessionId: session.id,
       username: session.username,
       hasToken: !!session.gp51_token,
-      tokenLength: session.gp51_token?.length || 0,
+      tokenLength: session.gp51_token ? session.gp51_token.length : 0,
       expiresAt: session.token_expires_at,
       isExpired,
       minutesUntilExpiry,
       authMethod: session.auth_method,
       apiUrl: session.api_url
-    });
+    };
 
-    return createResponse({
-      connected: !isExpired,
-      isExpired,
+    console.log(`📊 [GP51Status] Session details:`, JSON.stringify(statusInfo, null, 2));
+
+    return createSuccessResponse({
+      connected: !isExpired && !!session.gp51_token,
       username: session.username,
-      expiresAt: session.token_expires_at,
-      createdAt: session.created_at,
-      lastValidated: session.last_validated_at,
-      authMethod: session.auth_method,
       apiUrl: session.api_url,
+      lastActivity: session.last_activity_at,
+      tokenExpiry: session.token_expires_at,
+      isExpired,
+      minutesUntilExpiry,
       sessionId: session.id,
-      timeUntilExpiry: minutesUntilExpiry,
-      tokenPresent: !!session.gp51_token,
-      tokenLength: session.gp51_token?.length || 0,
-      message: isExpired ? 
-        'GP51 session has expired. Please re-authenticate.' : 
-        `GP51 session active. Expires in ${minutesUntilExpiry} minutes.`
+      message: isExpired ? 'GP51 session expired - please re-authenticate' : 'GP51 session active'
     });
 
   } catch (error) {
-    console.error('❌ [GP51Status] Status check failed:', error);
+    console.error('❌ [GP51Status] Unexpected error:', error);
     return createErrorResponse(
-      'GP51 status check failed',
+      'Unexpected error checking GP51 status',
       error instanceof Error ? error.message : 'Unknown error',
       500
     );
   }
 }
 
-export async function handleClearGP51Sessions(supabase: any, userId: string) {
-  console.log('🧹 [GP51Clear] Clearing GP51 sessions for user:', userId);
-  
+export async function handleClearGP51Sessions(adminSupabase: any, userId: string) {
   try {
-    // Get sessions before deleting for logging
-    const { data: existingSessions, error: selectError } = await supabase
-      .from('gp51_sessions')
-      .select('id, username, created_at')
-      .eq('envio_user_id', userId);
+    console.log(`🗑️ [GP51Clear] Clearing GP51 sessions for user: ${userId}`);
 
-    if (selectError) {
-      console.error('❌ [GP51Clear] Failed to fetch existing sessions:', selectError);
-      // Continue with deletion anyway
-    } else {
-      console.log(`🔍 [GP51Clear] Found ${existingSessions?.length || 0} sessions to clear`);
-      existingSessions?.forEach(session => {
-        console.log(`🗑️ [GP51Clear] Will delete session ${session.id} for ${session.username}`);
-      });
-    }
-
-    const { error: deleteError, count } = await supabase
+    const { data: deletedSessions, error: deleteError } = await adminSupabase
       .from('gp51_sessions')
       .delete()
       .eq('envio_user_id', userId)
-      .select('id', { count: 'exact' });
+      .select();
 
     if (deleteError) {
-      console.error('❌ [GP51Clear] Failed to clear GP51 sessions:', deleteError);
+      console.error('❌ [GP51Clear] Error deleting sessions:', deleteError);
       return createErrorResponse('Failed to clear GP51 sessions', deleteError.message, 500);
     }
 
-    console.log(`✅ [GP51Clear] Successfully cleared ${count || 0} GP51 sessions`);
+    const deletedCount = deletedSessions ? deletedSessions.length : 0;
+    console.log(`✅ [GP51Clear] Cleared ${deletedCount} GP51 sessions`);
 
-    return createResponse({
-      success: true,
-      message: `Successfully cleared ${count || 0} GP51 sessions`,
-      clearedSessions: count || 0
+    return createSuccessResponse({
+      message: `Cleared ${deletedCount} GP51 session(s)`,
+      deletedCount
     });
 
   } catch (error) {
-    console.error('❌ [GP51Clear] Clear sessions failed:', error);
+    console.error('❌ [GP51Clear] Unexpected error:', error);
     return createErrorResponse(
-      'Failed to clear GP51 sessions',
+      'Unexpected error clearing GP51 sessions',
       error instanceof Error ? error.message : 'Unknown error',
       500
     );

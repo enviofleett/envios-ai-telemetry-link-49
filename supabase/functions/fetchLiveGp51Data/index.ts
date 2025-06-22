@@ -16,70 +16,97 @@ serve(async (req) => {
 
   try {
     console.log('🚀 [fetchLiveGp51Data] Starting GP51 live data fetch...');
+    console.log(`🌐 [fetchLiveGp51Data] Environment check - GP51_GLOBAL_API_TOKEN: ${Deno.env.get('GP51_GLOBAL_API_TOKEN') ? 'SET' : 'NOT SET'}`);
 
     // Get valid GP51 session
     const { session, errorResponse } = await getValidGp51Session();
     if (errorResponse) {
+      console.error('❌ [fetchLiveGp51Data] No valid session found');
       return errorResponse;
     }
 
     if (!session) {
+      console.error('❌ [fetchLiveGp51Data] Session is null');
       return createErrorResponse(
         'No valid GP51 session found',
-        'Please configure GP51 credentials',
+        'Please configure GP51 credentials in admin settings',
         401,
         calculateLatency(startTime)
       );
     }
 
-    console.log(`🔑 Using token: ${session.gp51_token.substring(0, 8)}... (expires: ${session.token_expires_at})`);
-    console.log(`👤 Associated with user: ${session.envio_user_id}`);
+    console.log(`🔑 [fetchLiveGp51Data] Using session:`);
+    console.log(`  - Token: ${session.gp51_token.substring(0, 8)}...`);
+    console.log(`  - Username: ${session.username}`);
+    console.log(`  - User ID: ${session.envio_user_id}`);
+    console.log(`  - Expires: ${session.token_expires_at}`);
 
     // Get all devices from GP51 using queryMonitorList
-    console.log('📱 Fetching all devices from GP51...');
+    console.log('📱 [fetchLiveGp51Data] Fetching all devices from GP51...');
     
-    const devicesResponse = await gp51ApiClient.queryMonitorList(session.gp51_token, session.username);
-    if (devicesResponse.status !== 0 || !devicesResponse.records) {
-      console.error('❌ Failed to fetch devices from GP51:', devicesResponse.cause);
+    let devicesResponse;
+    try {
+      devicesResponse = await gp51ApiClient.queryMonitorList(session.gp51_token, session.username);
+    } catch (error) {
+      console.error('❌ [fetchLiveGp51Data] Failed to fetch devices:', error);
       return createErrorResponse(
         'Failed to fetch devices from GP51',
-        devicesResponse.cause || 'Unknown error',
+        error instanceof Error ? error.message : 'Unknown error',
         500,
         calculateLatency(startTime)
       );
     }
 
-    const devices = devicesResponse.records;
-    console.log(`📊 Found ${devices.length} devices in GP51`);
+    if (devicesResponse.status !== 0 || !devicesResponse.groups) {
+      console.error('❌ [fetchLiveGp51Data] Invalid devices response:', devicesResponse);
+      return createErrorResponse(
+        'Failed to fetch devices from GP51',
+        devicesResponse.cause || 'Invalid response format',
+        500,
+        calculateLatency(startTime)
+      );
+    }
 
-    if (devices.length === 0) {
-      console.log('ℹ️ No devices found in GP51 account');
+    // Extract devices from groups structure
+    const allDevices = [];
+    for (const group of devicesResponse.groups) {
+      if (group.devices && Array.isArray(group.devices)) {
+        allDevices.push(...group.devices);
+      }
+    }
+
+    console.log(`📊 [fetchLiveGp51Data] Found ${allDevices.length} devices across ${devicesResponse.groups.length} groups`);
+
+    if (allDevices.length === 0) {
+      console.log('ℹ️ [fetchLiveGp51Data] No devices found in GP51 account');
       return createSuccessResponse({
         message: 'No devices found in GP51 account',
         total_devices: 0,
         total_positions: 0,
         devices_processed: 0,
-        batches_processed: 0
+        batches_processed: 0,
+        user_id: session.envio_user_id
       }, calculateLatency(startTime));
     }
 
     // Process devices in batches
     const BATCH_SIZE = 50;
-    const deviceIds = devices.map(d => d.deviceid || d.id);
+    const deviceIds = allDevices.map(d => d.deviceid || d.id).filter(id => id);
     const batches = [];
     
     for (let i = 0; i < deviceIds.length; i += BATCH_SIZE) {
       batches.push(deviceIds.slice(i, i + BATCH_SIZE));
     }
 
-    console.log(`🔄 Processing ${devices.length} devices in ${batches.length} batches of max ${BATCH_SIZE}`);
+    console.log(`🔄 [fetchLiveGp51Data] Processing ${deviceIds.length} devices in ${batches.length} batches of max ${BATCH_SIZE}`);
 
     let allPositions: any[] = [];
     let batchIndex = 0;
+    let successfulBatches = 0;
 
     for (const batch of batches) {
       batchIndex++;
-      console.log(`🔄 Processing batch ${batchIndex}/${batches.length} with ${batch.length} devices...`);
+      console.log(`🔄 [fetchLiveGp51Data] Processing batch ${batchIndex}/${batches.length} with ${batch.length} devices...`);
       
       try {
         const positionsResponse = await gp51ApiClient.getLastPosition(
@@ -90,9 +117,10 @@ serve(async (req) => {
         if (positionsResponse.status === 0 && positionsResponse.records) {
           const batchPositions = Array.isArray(positionsResponse.records) ? positionsResponse.records : [positionsResponse.records];
           allPositions = allPositions.concat(batchPositions);
-          console.log(`✅ Batch ${batchIndex} completed: ${batchPositions.length} positions retrieved`);
+          successfulBatches++;
+          console.log(`✅ [fetchLiveGp51Data] Batch ${batchIndex} completed: ${batchPositions.length} positions retrieved`);
         } else {
-          console.warn(`⚠️ Batch ${batchIndex} failed: ${positionsResponse.cause}`);
+          console.warn(`⚠️ [fetchLiveGp51Data] Batch ${batchIndex} failed: ${positionsResponse.cause || 'Unknown error'}`);
         }
 
         // Add delay between batches to avoid overwhelming the GP51 API
@@ -100,33 +128,41 @@ serve(async (req) => {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
       } catch (error) {
-        console.error(`❌ Error processing batch ${batchIndex}:`, error);
+        console.error(`❌ [fetchLiveGp51Data] Error processing batch ${batchIndex}:`, error);
       }
     }
 
-    console.log(`📊 Total positions collected: ${allPositions.length}`);
+    console.log(`📊 [fetchLiveGp51Data] Total positions collected: ${allPositions.length} from ${successfulBatches}/${batches.length} successful batches`);
 
     // Process and persist the vehicle position data
     if (allPositions.length > 0) {
-      console.log('🔧 Processing positions for persistence...');
+      console.log('🔧 [fetchLiveGp51Data] Processing positions for persistence...');
       
       const supabase = getSupabaseClient();
       const vehicleData = allPositions.map(position => ({
         gp51_device_id: position.deviceid,
         name: position.deviceid, // Use device ID as name, can be updated later
-        user_id: session.envio_user_id, // Use the user ID from the GP51 session
+        user_id: session.envio_user_id,
         last_position: {
           lat: position.callat,
           lon: position.callon,
           speed: position.speed,
           course: position.course,
           timestamp: position.updatetime,
-          status_text: position.strstatusen || position.strstatus
+          status_text: position.strstatusen || position.strstatus,
+          altitude: position.altitude,
+          radius: position.radius,
+          total_distance: position.totaldistance,
+          device_time: position.devicetime,
+          arrived_time: position.arrivedtime,
+          valid_position_time: position.validpoistiontime,
+          moving: position.moving,
+          park_duration: position.parkduration
         },
         updated_at: new Date().toISOString()
       }));
 
-      console.log(`🔧 Prepared ${vehicleData.length} vehicle records for upsert`);
+      console.log(`🔧 [fetchLiveGp51Data] Prepared ${vehicleData.length} vehicle records for upsert`);
 
       // Batch upsert vehicles
       const { data: upsertedVehicles, error: upsertError } = await supabase
@@ -137,7 +173,7 @@ serve(async (req) => {
         });
 
       if (upsertError) {
-        console.error('❌ Error upserting vehicles:', upsertError);
+        console.error('❌ [fetchLiveGp51Data] Error upserting vehicles:', upsertError);
         return createErrorResponse(
           'Failed to save vehicle data',
           upsertError.message,
@@ -146,24 +182,27 @@ serve(async (req) => {
         );
       }
 
-      console.log(`✅ Successfully upserted ${vehicleData.length} vehicles`);
+      console.log(`✅ [fetchLiveGp51Data] Successfully upserted ${vehicleData.length} vehicles`);
     }
 
     const responseData = {
       message: 'GP51 live data fetch completed successfully',
-      total_devices: devices.length,
+      total_devices: allDevices.length,
       total_positions: allPositions.length,
-      devices_processed: devices.length,
+      devices_processed: deviceIds.length,
       batches_processed: batches.length,
-      user_id: session.envio_user_id // Include user ID in response for confirmation
+      successful_batches: successfulBatches,
+      user_id: session.envio_user_id,
+      processing_time_ms: calculateLatency(startTime)
     };
 
-    console.log('🏁 GP51 live data fetch completed successfully');
+    console.log('🏁 [fetchLiveGp51Data] GP51 live data fetch completed successfully');
+    console.log(`📊 [fetchLiveGp51Data] Final stats:`, responseData);
 
     return createSuccessResponse(responseData, calculateLatency(startTime));
 
   } catch (error) {
-    console.error('❌ Unexpected error in fetchLiveGp51Data:', error);
+    console.error('❌ [fetchLiveGp51Data] Unexpected error:', error);
     return createErrorResponse(
       'Internal server error during GP51 data fetch',
       error instanceof Error ? error.message : 'Unknown error',
