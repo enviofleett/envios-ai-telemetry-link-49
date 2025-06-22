@@ -1,167 +1,194 @@
 
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Play, Clock, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { RefreshCw, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-
-interface SyncStatus {
-  id: string;
-  sync_type: string;
-  started_at: string;
-  completed_at?: string;
-  status: string;
-  total_devices: number;
-  successful_syncs: number;
-  failed_syncs: number;
-  error_log: any[];
-  sync_details: any;
-}
+import { SyncStatus, SyncMetrics } from './types/syncTypes';
 
 const GP51SyncMonitor: React.FC = () => {
+  const [syncHistory, setSyncHistory] = useState<SyncStatus[]>([]);
+  const [metrics, setMetrics] = useState<SyncMetrics>({
+    totalSyncs: 0,
+    successfulSyncs: 0,
+    failedSyncs: 0,
+    lastSyncTime: null,
+    averageDuration: null
+  });
+  const [isLoading, setIsLoading] = useState(false);
   const [isTriggering, setIsTriggering] = useState(false);
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  // Fetch sync status history
-  const { data: syncHistory, isLoading, refetch } = useQuery({
-    queryKey: ['gp51-sync-status'],
-    queryFn: async () => {
+  const fetchSyncHistory = async () => {
+    setIsLoading(true);
+    try {
       const { data, error } = await supabase
         .from('gp51_sync_status')
         .select('*')
-        .order('started_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(10);
 
       if (error) throw error;
-      return data as SyncStatus[];
-    },
-    refetchInterval: 30000, // Refresh every 30 seconds
-  });
 
-  // Trigger manual sync
-  const triggerSyncMutation = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('syncGp51Vehicles', {
-        body: { manual_trigger: true }
+      const syncData: SyncStatus[] = data || [];
+      setSyncHistory(syncData);
+
+      // Calculate metrics
+      const completed = syncData.filter(s => s.status === 'completed');
+      const failed = syncData.filter(s => s.status === 'failed');
+      
+      setMetrics({
+        totalSyncs: syncData.length,
+        successfulSyncs: completed.length,
+        failedSyncs: failed.length,
+        lastSyncTime: syncData.length > 0 ? syncData[0].created_at : null,
+        averageDuration: null // Could calculate if we had duration data
       });
 
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      toast({
-        title: 'Sync Triggered',
-        description: data.success ? 'Vehicle sync completed successfully' : `Sync completed with ${data.failedSyncs} errors`,
-        variant: data.success ? 'default' : 'destructive',
-      });
-      queryClient.invalidateQueries({ queryKey: ['gp51-sync-status'] });
-      queryClient.invalidateQueries({ queryKey: ['vehicle-metrics'] });
-    },
-    onError: (error) => {
-      toast({
-        title: 'Sync Failed',
-        description: error instanceof Error ? error.message : 'Failed to trigger sync',
-        variant: 'destructive',
-      });
-    },
-    onSettled: () => {
-      setIsTriggering(false);
-    },
-  });
-
-  const handleTriggerSync = () => {
-    setIsTriggering(true);
-    triggerSyncMutation.mutate();
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <Badge variant="default" className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Completed</Badge>;
-      case 'running':
-        return <Badge variant="secondary"><Clock className="h-3 w-3 mr-1" />Running</Badge>;
-      case 'failed':
-        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Failed</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+    } catch (error) {
+      console.error('Error fetching sync history:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const formatDuration = (startTime: string, endTime?: string) => {
-    const start = new Date(startTime);
-    const end = endTime ? new Date(endTime) : new Date();
-    const duration = Math.round((end.getTime() - start.getTime()) / 1000);
-    
-    if (duration < 60) return `${duration}s`;
-    if (duration < 3600) return `${Math.round(duration / 60)}m`;
-    return `${Math.round(duration / 3600)}h`;
+  const triggerManualSync = async () => {
+    setIsTriggering(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('syncGp51Vehicles', {
+        body: { manual: true }
+      });
+
+      if (error) throw error;
+
+      // Refresh the sync history after triggering
+      setTimeout(() => {
+        fetchSyncHistory();
+      }, 2000);
+
+    } catch (error) {
+      console.error('Error triggering sync:', error);
+    } finally {
+      setIsTriggering(false);
+    }
   };
 
-  const latestSync = syncHistory?.[0];
+  useEffect(() => {
+    fetchSyncHistory();
+  }, []);
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-600" />;
+      case 'running':
+        return <RefreshCw className="h-4 w-4 text-blue-600 animate-spin" />;
+      default:
+        return <AlertCircle className="h-4 w-4 text-yellow-600" />;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    const variants = {
+      completed: 'default',
+      failed: 'destructive',
+      running: 'secondary',
+      pending: 'outline'
+    } as const;
+
+    return (
+      <Badge variant={variants[status as keyof typeof variants] || 'outline'}>
+        {status}
+      </Badge>
+    );
+  };
 
   return (
     <div className="space-y-6">
-      {/* Sync Control Panel */}
+      {/* Metrics Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <RefreshCw className="h-5 w-5 text-blue-600" />
+              <div>
+                <div className="font-semibold">{metrics.totalSyncs}</div>
+                <div className="text-sm text-muted-foreground">Total Syncs</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <div>
+                <div className="font-semibold">{metrics.successfulSyncs}</div>
+                <div className="text-sm text-muted-foreground">Successful</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <XCircle className="h-5 w-5 text-red-600" />
+              <div>
+                <div className="font-semibold">{metrics.failedSyncs}</div>
+                <div className="text-sm text-muted-foreground">Failed</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Clock className="h-5 w-5 text-gray-600" />
+              <div>
+                <div className="font-semibold">
+                  {metrics.lastSyncTime 
+                    ? new Date(metrics.lastSyncTime).toLocaleTimeString()
+                    : 'Never'
+                  }
+                </div>
+                <div className="text-sm text-muted-foreground">Last Sync</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Sync Controls */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <RefreshCw className="h-5 w-5" />
-                GP51 Vehicle Sync Monitor
-              </CardTitle>
-              <CardDescription>
-                Monitor and control GP51 vehicle synchronization
-              </CardDescription>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                disabled={isLoading}
-              >
-                <RefreshCw className={`h-4 w-4 mr-1 ${isLoading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              <Button
-                onClick={handleTriggerSync}
-                disabled={isTriggering || latestSync?.status === 'running'}
-                size="sm"
-              >
-                <Play className={`h-4 w-4 mr-1 ${isTriggering ? 'animate-spin' : ''}`} />
-                Trigger Sync
-              </Button>
-            </div>
-          </div>
+          <CardTitle>Sync Controls</CardTitle>
+          <CardDescription>
+            Manually trigger synchronization or refresh the sync history
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {latestSync && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{latestSync.total_devices}</div>
-                <div className="text-sm text-blue-800">Total Devices</div>
-              </div>
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{latestSync.successful_syncs}</div>
-                <div className="text-sm text-green-800">Successful</div>
-              </div>
-              <div className="text-center p-4 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{latestSync.failed_syncs}</div>
-                <div className="text-sm text-red-800">Failed</div>
-              </div>
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">
-                  {formatDuration(latestSync.started_at, latestSync.completed_at)}
-                </div>
-                <div className="text-sm text-purple-800">Duration</div>
-              </div>
-            </div>
-          )}
+          <div className="flex space-x-2">
+            <Button 
+              onClick={triggerManualSync} 
+              disabled={isTriggering}
+              className="flex items-center space-x-2"
+            >
+              <RefreshCw className={`h-4 w-4 ${isTriggering ? 'animate-spin' : ''}`} />
+              <span>{isTriggering ? 'Syncing...' : 'Trigger Sync'}</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={fetchSyncHistory}
+              disabled={isLoading}
+            >
+              {isLoading ? 'Loading...' : 'Refresh History'}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -170,51 +197,44 @@ const GP51SyncMonitor: React.FC = () => {
         <CardHeader>
           <CardTitle>Recent Sync History</CardTitle>
           <CardDescription>
-            Last 10 synchronization attempts
+            Latest 10 synchronization attempts with GP51 platform
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin mr-2" />
-              Loading sync history...
-            </div>
-          ) : syncHistory && syncHistory.length > 0 ? (
-            <div className="space-y-4">
-              {syncHistory.map((sync) => (
-                <div key={sync.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div>
-                      {getStatusBadge(sync.status)}
-                    </div>
-                    <div>
-                      <div className="font-medium">
-                        {sync.sync_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {new Date(sync.started_at).toLocaleString()}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm">
-                      {sync.total_devices} devices • {sync.successful_syncs} success • {sync.failed_syncs} failed
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Duration: {formatDuration(sync.started_at, sync.completed_at)}
-                    </div>
-                  </div>
-                  {sync.error_log && sync.error_log.length > 0 && (
-                    <div className="ml-4">
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    </div>
-                  )}
-                </div>
-              ))}
+          {syncHistory.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No sync history available
             </div>
           ) : (
-            <div className="text-center py-8 text-gray-500">
-              No sync history available
+            <div className="space-y-3">
+              {syncHistory.map((sync) => (
+                <div key={sync.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    {getStatusIcon(sync.status)}
+                    <div>
+                      <div className="font-medium">{sync.sync_type}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {new Date(sync.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <div className="text-sm">
+                      {sync.successful_syncs > 0 && (
+                        <span className="text-green-600">
+                          {sync.successful_syncs} successful
+                        </span>
+                      )}
+                      {sync.failed_syncs > 0 && (
+                        <span className="text-red-600 ml-2">
+                          {sync.failed_syncs} failed
+                        </span>
+                      )}
+                    </div>
+                    {getStatusBadge(sync.status)}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

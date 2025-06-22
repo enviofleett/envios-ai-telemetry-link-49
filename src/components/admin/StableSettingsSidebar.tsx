@@ -1,4 +1,3 @@
-
 import React, { memo } from 'react';
 import { 
   Settings, 
@@ -6,7 +5,7 @@ import {
   Shield, 
   BarChart3, 
   Truck,
-  Sync,
+  RefreshCw,
   UserCheck,
   CheckSquare,
   Package,
@@ -50,7 +49,7 @@ const sidebarItems: SidebarItem[] = [
 
   // GP51 Integration
   { id: 'gp51-integration', label: 'GP51 Connection', icon: Truck, category: 'GP51' },
-  { id: 'gp51-sync', label: 'GP51 Sync', icon: Sync, category: 'GP51' },
+  { id: 'gp51-sync', label: 'GP51 Sync', icon: RefreshCw, category: 'GP51' },
   { id: 'gp51-user-mapping', label: 'User Mapping', icon: UserCheck, category: 'GP51' },
   { id: 'gp51-validation', label: 'GP51 Validation', icon: CheckSquare, category: 'GP51' },
 

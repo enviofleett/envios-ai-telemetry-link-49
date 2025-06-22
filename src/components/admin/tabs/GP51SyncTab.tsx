@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Sync, Database, Clock } from 'lucide-react';
+import { RefreshCw, Database, Clock } from 'lucide-react';
 import GP51SyncMonitor from '../GP51SyncMonitor';
 
 const GP51SyncTab: React.FC = () => {
@@ -10,7 +10,7 @@ const GP51SyncTab: React.FC = () => {
       <Card>
         <CardHeader>
           <div className="flex items-center space-x-2">
-            <Sync className="h-5 w-5 text-blue-600" />
+            <RefreshCw className="h-5 w-5 text-blue-600" />
             <CardTitle>GP51 Vehicle Synchronization</CardTitle>
           </div>
           <CardDescription>
@@ -34,7 +34,7 @@ const GP51SyncTab: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center p-4 bg-purple-50 rounded-lg">
-              <Sync className="h-8 w-8 text-purple-600 mr-3" />
+              <RefreshCw className="h-8 w-8 text-purple-600 mr-3" />
               <div>
                 <div className="font-semibold text-purple-800">Real-time Monitoring</div>
                 <div className="text-sm text-purple-600">Track sync status and performance</div>
