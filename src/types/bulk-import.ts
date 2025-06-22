@@ -10,7 +10,7 @@ export interface BulkImportJob {
   current_chunk: number;
   total_chunks: number;
   chunk_size: number;
-  error_log: any[];
+  error_log: any; // Changed from any[] to any to match Supabase Json type
   started_at?: string;
   completed_at?: string;
   created_at: string;
