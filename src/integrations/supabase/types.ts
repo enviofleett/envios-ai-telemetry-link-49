@@ -7545,6 +7545,51 @@ export type Database = {
         }
         Relationships: []
       }
+      user_authentication_logs: {
+        Row: {
+          authentication_method:
+            | Database["public"]["Enums"]["authentication_method"]
+            | null
+          created_at: string | null
+          email: string | null
+          failure_reason: string | null
+          id: string
+          ip_address: unknown | null
+          session_id: string | null
+          success: boolean
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          authentication_method?:
+            | Database["public"]["Enums"]["authentication_method"]
+            | null
+          created_at?: string | null
+          email?: string | null
+          failure_reason?: string | null
+          id?: string
+          ip_address?: unknown | null
+          session_id?: string | null
+          success: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          authentication_method?:
+            | Database["public"]["Enums"]["authentication_method"]
+            | null
+          created_at?: string | null
+          email?: string | null
+          failure_reason?: string | null
+          id?: string
+          ip_address?: unknown | null
+          session_id?: string | null
+          success?: boolean
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       user_creation_approvals: {
         Row: {
           approval_reason: string | null
@@ -10525,6 +10570,7 @@ export type Database = {
         | "merchant"
         | "agent"
       app_user_type: "end_user" | "sub_admin"
+      authentication_method: "password" | "otp" | "social" | "gp51"
       campaign_schedule_type_enum: "immediate" | "scheduled" | "recurring"
       campaign_target_audience_enum:
         | "all_users"
@@ -10556,6 +10602,7 @@ export type Database = {
         | "active"
         | "suspended"
         | "rejected"
+      registration_status: "pending" | "approved" | "rejected" | "verified"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -10685,6 +10732,7 @@ export const Constants = {
         "agent",
       ],
       app_user_type: ["end_user", "sub_admin"],
+      authentication_method: ["password", "otp", "social", "gp51"],
       campaign_schedule_type_enum: ["immediate", "scheduled", "recurring"],
       campaign_target_audience_enum: [
         "all_users",
@@ -10721,6 +10769,7 @@ export const Constants = {
         "suspended",
         "rejected",
       ],
+      registration_status: ["pending", "approved", "rejected", "verified"],
     },
   },
 } as const

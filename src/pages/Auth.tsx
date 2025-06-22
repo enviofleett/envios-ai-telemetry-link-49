@@ -1,416 +1,77 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Lock, User, LogOut } from 'lucide-react';
-import { OTPService } from '@/services/otpService';
-import { useToast } from '@/hooks/use-toast';
-import PackageSelectionCard from '@/components/auth/PackageSelectionCard';
-import { PackageMappingService } from '@/services/packageMappingService';
+import { Shield, UserPlus, LogIn } from 'lucide-react';
+import LoginForm from '@/components/auth/LoginForm';
+import RegistrationForm from '@/components/auth/RegistrationForm';
+import { useAuth } from '@/contexts/AuthContext';
+import { Navigate } from 'react-router-dom';
 
-const Auth = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [selectedPackage, setSelectedPackage] = useState('basic');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [otpStep, setOtpStep] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [otpId, setOtpId] = useState('');
-  const [otpLoading, setOtpLoading] = useState(false);
-  const { signIn, signUp, signOut, user } = useAuth();
-  const { toast } = useToast();
-  const navigate = useNavigate();
+const Auth: React.FC = () => {
+  const [activeTab, setActiveTab] = useState('login');
+  const { user, loading } = useAuth();
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (user) {
-      navigate('/');
-    }
-  }, [user, navigate]);
-
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    const { error } = await signIn(email, password);
-    
-    if (error) {
-      setError(error.message);
-    } else {
-      navigate('/');
-    }
-    
-    setLoading(false);
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-
-    // Validate package selection
-    const packageValidation = PackageMappingService.validatePackage(selectedPackage);
-    if (!packageValidation.isValid) {
-      setError(packageValidation.error || 'Invalid package selection');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      // Generate OTP
-      const otpResult = await OTPService.generateOTP(
-        '', // phone number not required for email OTP
-        email,
-        'registration'
-      );
-
-      if (!otpResult.success) {
-        setError(otpResult.error || 'Failed to send verification code');
-        setLoading(false);
-        return;
-      }
-
-      setOtpId(otpResult.otpId!);
-      setOtpStep(true);
-      
-      // Show appropriate message based on email delivery status
-      if (otpResult.emailDelivered === false) {
-        toast({
-          title: "Verification Code Generated",
-          description: "Verification code created but email delivery failed. Please check your email settings or contact support.",
-          variant: "destructive"
-        });
-        setError("Email delivery failed. Please contact support if you don't receive the verification code.");
-      } else {
-        toast({
-          title: "Verification Code Sent",
-          description: "Please check your email for the verification code",
-        });
-      }
-    } catch (error) {
-      setError('Failed to send verification code');
-    }
-    
-    setLoading(false);
-  };
-
-  const handleOTPVerification = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setOtpLoading(true);
-    setError('');
-
-    try {
-      // Verify OTP
-      const verifyResult = await OTPService.verifyOTP(otpId, otpCode);
-      
-      if (!verifyResult.success || !verifyResult.verified) {
-        setError(verifyResult.error || 'Invalid verification code');
-        setOtpLoading(false);
-        return;
-      }
-
-      // OTP verified, now create the user account with package
-      const { error } = await signUp(email, password, name, selectedPackage);
-      
-      if (error) {
-        setError(error.message);
-      } else {
-        const packageInfo = PackageMappingService.getPackageInfo(selectedPackage);
-        toast({
-          title: "Registration Successful!",
-          description: packageInfo?.requiresApproval
-            ? "Your account has been created. Admin approval may be required for your selected package."
-            : "Your account has been created successfully.",
-        });
-        setOtpStep(false);
-        // Reset form
-        setEmail('');
-        setPassword('');
-        setName('');
-        setSelectedPackage('basic');
-        setOtpCode('');
-      }
-    } catch (error) {
-      setError('Registration failed');
-    }
-    
-    setOtpLoading(false);
-  };
-
-  const handleResendOTP = async () => {
-    setOtpLoading(true);
-    try {
-      const resendResult = await OTPService.resendOTP(otpId);
-      if (resendResult.success) {
-        toast({
-          title: "Code Resent",
-          description: "A new verification code has been sent to your email",
-        });
-      } else {
-        setError(resendResult.error || 'Failed to resend code');
-      }
-    } catch (error) {
-      setError('Failed to resend verification code');
-    }
-    setOtpLoading(false);
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut();
-      navigate('/auth');
-    } catch (error) {
-      console.error('Logout failed:', error);
-    }
-  };
-
-  // If user is logged in, show logout option
-  if (user) {
+  if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle>Already Signed In</CardTitle>
-            <CardDescription>
-              You are currently signed in as {user.email}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button 
-              onClick={() => navigate('/')} 
-              className="w-full"
-            >
-              Go to Dashboard
-            </Button>
-            <Button 
-              onClick={handleLogout} 
-              variant="outline" 
-              className="w-full flex items-center gap-2"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <Card className="w-full max-w-4xl">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Envío Console</CardTitle>
-          <CardDescription>
-            Sign in to your account or create a new one
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {!otpStep ? (
-            <Tabs defaultValue="signin" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="w-full max-w-md">
+        <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+          <CardHeader className="space-y-6 text-center pb-4">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Shield className="w-8 h-8 text-white" />
+            </div>
+            
+            <div>
+              <CardTitle className="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                EnvioFleet Portal
+              </CardTitle>
+              <CardDescription className="text-gray-600 mt-2">
+                GPS Fleet Management Platform
+              </CardDescription>
+            </div>
+          </CardHeader>
+          
+          <CardContent className="space-y-6">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="grid w-full grid-cols-2 bg-gray-100">
+                <TabsTrigger value="login" className="flex items-center gap-2">
+                  <LogIn className="h-4 w-4" />
+                  Sign In
+                </TabsTrigger>
+                <TabsTrigger value="register" className="flex items-center gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Register
+                </TabsTrigger>
               </TabsList>
-
-              <TabsContent value="signin">
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-email">Email</Label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="signin-email"
-                        type="email"
-                        placeholder="Enter your email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="signin-password"
-                        type="password"
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
-                  {error && (
-                    <Alert variant="destructive">
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? 'Signing in...' : 'Sign In'}
-                  </Button>
-                </form>
+              
+              <TabsContent value="login" className="mt-6">
+                <LoginForm />
               </TabsContent>
-
-              <TabsContent value="signup">
-                <form onSubmit={handleSignUp} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-name">Name</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="signup-name"
-                          type="text"
-                          placeholder="Enter your name"
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          className="pl-10"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-email">Email</Label>
-                      <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                        <Input
-                          id="signup-email"
-                          type="email"
-                          placeholder="Enter your email"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          className="pl-10"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                      <Input
-                        id="signup-password"
-                        type="password"
-                        placeholder="Enter your password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <Label>Select Your Package</Label>
-                    <div className="grid grid-cols-1 gap-3">
-                      {PackageMappingService.getAvailablePackages().map((packageInfo) => (
-                        <PackageSelectionCard
-                          key={packageInfo.packageId}
-                          package={packageInfo}
-                          isSelected={selectedPackage === packageInfo.packageId}
-                          onSelect={setSelectedPackage}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {error && (
-                    <Alert variant={error.includes('check your email') ? 'default' : 'destructive'}>
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? 'Sending verification...' : 'Send Verification Code'}
-                  </Button>
-                </form>
+              
+              <TabsContent value="register" className="mt-6">
+                <RegistrationForm />
               </TabsContent>
             </Tabs>
-          ) : (
-            <div className="space-y-4">
-              <div className="text-center">
-                <h3 className="text-lg font-semibold">Verify Your Email</h3>
-                <p className="text-sm text-gray-600">
-                  Enter the 6-digit verification code sent to {email}
-                </p>
-              </div>
-              
-              <form onSubmit={handleOTPVerification} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="otp-code">Verification Code</Label>
-                  <Input
-                    id="otp-code"
-                    type="text"
-                    placeholder="Enter 6-digit code"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value)}
-                    maxLength={6}
-                    className="text-center text-lg tracking-wider"
-                    required
-                  />
-                </div>
-                
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                
-                <Button type="submit" className="w-full" disabled={otpLoading}>
-                  {otpLoading ? 'Verifying...' : 'Complete Registration'}
-                </Button>
-                
-                <div className="text-center">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={handleResendOTP}
-                    disabled={otpLoading}
-                    className="text-sm"
-                  >
-                    Resend Code
-                  </Button>
-                </div>
-                
-                <div className="text-center">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setOtpStep(false);
-                      setError('');
-                      setOtpCode('');
-                    }}
-                    className="text-sm"
-                  >
-                    Back to Registration
-                  </Button>
-                </div>
-              </form>
-            </div>
-          )}
 
-          <div className="mt-6 text-center">
-            <Link to="/" className="text-sm text-blue-600 hover:underline">
-              Back to Home
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="text-xs text-center text-gray-500 border-t pt-4">
+              <div>Professional GPS Fleet Management</div>
+              <div>Secure • Reliable • Scalable</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
