@@ -923,6 +923,69 @@ export type Database = {
         }
         Relationships: []
       }
+      bulk_import_jobs: {
+        Row: {
+          chunk_size: number
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          current_chunk: number
+          error_log: Json | null
+          failed_items: number
+          id: string
+          import_data: Json | null
+          import_type: string
+          job_name: string
+          processed_items: number
+          started_at: string | null
+          status: string
+          successful_items: number
+          total_chunks: number
+          total_items: number
+          updated_at: string
+        }
+        Insert: {
+          chunk_size?: number
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_chunk?: number
+          error_log?: Json | null
+          failed_items?: number
+          id?: string
+          import_data?: Json | null
+          import_type?: string
+          job_name: string
+          processed_items?: number
+          started_at?: string | null
+          status?: string
+          successful_items?: number
+          total_chunks?: number
+          total_items?: number
+          updated_at?: string
+        }
+        Update: {
+          chunk_size?: number
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_chunk?: number
+          error_log?: Json | null
+          failed_items?: number
+          id?: string
+          import_data?: Json | null
+          import_type?: string
+          job_name?: string
+          processed_items?: number
+          started_at?: string | null
+          status?: string
+          successful_items?: number
+          total_chunks?: number
+          total_items?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       campaign_executions: {
         Row: {
           campaign_id: string
