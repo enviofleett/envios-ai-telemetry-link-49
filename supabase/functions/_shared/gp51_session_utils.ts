@@ -1,91 +1,150 @@
 
 import { getSupabaseClient } from "./supabase_client.ts";
-import { errorResponse } from "./response_utils.ts";
+import { createErrorResponse } from "./response_utils.ts";
 
 export interface GP51Session {
+  id: string;
+  envio_user_id: string;
   username: string;
-  password_hash: string;
   gp51_token: string;
-  token_expires_at?: string;
-  envio_user_id: string; // Add the user ID to the interface
-  // Add any other relevant fields from your gp51_sessions table
+  token_expires_at: string;
+  created_at: string;
+  last_validated_at?: string;
+  auth_method?: string;
+  api_url?: string;
 }
 
-export async function getValidGp51Session(): Promise<{ session?: GP51Session; errorResponse?: Response }> {
-  const supabase = getSupabaseClient();
-  const { data: sessionData, error: sessionError } = await supabase
-    .from("gp51_sessions")
-    .select("*, envio_user_id") // Include envio_user_id in the selection
-    .order("created_at", { ascending: false }) // Assuming most recent is desired
-    .limit(1)
-    .maybeSingle();
+export interface SessionValidationResult {
+  session: GP51Session | null;
+  errorResponse: Response | null;
+}
 
-  if (sessionError) {
-    console.error("❌ Database error fetching session:", sessionError);
-    return { 
-      errorResponse: errorResponse(
-        "Database error accessing GP51 sessions", 
-        500, 
-        sessionError.message,
-        "DATABASE_ERROR"
-      ) 
-    };
-  }
-
-  if (!sessionData) {
-    console.log("❌ No GP51 sessions found - GP51 not configured");
-    return { 
-      errorResponse: errorResponse(
-        "GP51 integration not configured", 
-        400, 
-        "Please configure GP51 credentials in the admin settings.",
-        "NO_GP51_CONFIG"
-      ) 
-    };
-  }
+export async function getValidGp51Session(): Promise<SessionValidationResult> {
+  console.log('🔍 [GP51SessionUtils] Validating GP51 session...');
   
-  const session = sessionData as GP51Session;
+  try {
+    const supabase = getSupabaseClient();
 
-  if (!session.gp51_token) {
-    console.error("❌ GP51 session in database is missing a token.");
+    // Get the most recent active session
+    const { data: sessions, error: sessionError } = await supabase
+      .from('gp51_sessions')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (sessionError) {
+      console.error('❌ [GP51SessionUtils] Database error:', sessionError);
+      return {
+        session: null,
+        errorResponse: createErrorResponse(
+          'Failed to retrieve GP51 session',
+          sessionError.message,
+          500
+        )
+      };
+    }
+
+    if (!sessions || sessions.length === 0) {
+      console.log('📝 [GP51SessionUtils] No GP51 sessions found');
+      return {
+        session: null,
+        errorResponse: createErrorResponse(
+          'No GP51 configuration found',
+          'Please authenticate with GP51 first',
+          401
+        )
+      };
+    }
+
+    const session = sessions[0] as GP51Session;
+    
+    // Check if session is expired
+    const now = new Date();
+    const expiresAt = new Date(session.token_expires_at);
+    
+    if (expiresAt <= now) {
+      console.log('⏰ [GP51SessionUtils] Session expired:', {
+        sessionId: session.id,
+        username: session.username,
+        expiresAt: session.token_expires_at
+      });
+      
+      return {
+        session: null,
+        errorResponse: createErrorResponse(
+          'GP51 session expired',
+          'Please re-authenticate with GP51',
+          401
+        )
+      };
+    }
+
+    // Validate required fields
+    if (!session.gp51_token || !session.username || !session.envio_user_id) {
+      console.error('❌ [GP51SessionUtils] Invalid session data:', {
+        hasToken: !!session.gp51_token,
+        hasUsername: !!session.username,
+        hasUserId: !!session.envio_user_id
+      });
+      
+      return {
+        session: null,
+        errorResponse: createErrorResponse(
+          'Invalid GP51 session data',
+          'Session is missing required fields',
+          400
+        )
+      };
+    }
+
+    const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+    const minutesUntilExpiry = Math.round(timeUntilExpiry / (1000 * 60));
+
+    console.log('✅ [GP51SessionUtils] Valid session found:', {
+      sessionId: session.id,
+      username: session.username,
+      userId: session.envio_user_id,
+      minutesUntilExpiry,
+      authMethod: session.auth_method || 'unknown'
+    });
+
     return {
-      errorResponse: errorResponse(
-        "GP51 session is invalid (missing token)",
-        401,
-        "Session is invalid, please re-authenticate in admin settings.",
-        "INVALID_SESSION"
+      session,
+      errorResponse: null
+    };
+
+  } catch (error) {
+    console.error('❌ [GP51SessionUtils] Session validation failed:', error);
+    return {
+      session: null,
+      errorResponse: createErrorResponse(
+        'Session validation failed',
+        error instanceof Error ? error.message : 'Unknown error',
+        500
       )
     };
   }
+}
 
-  // Validate that we have a user ID
-  if (!session.envio_user_id) {
-    console.error("❌ GP51 session is missing envio_user_id.");
-    return {
-      errorResponse: errorResponse(
-        "GP51 session is invalid (missing user ID)",
-        401,
-        "Session is missing user association, please re-authenticate in admin settings.",
-        "INVALID_SESSION"
-      )
-    };
+export async function updateSessionActivity(sessionId: string): Promise<boolean> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    const { error } = await supabase
+      .from('gp51_sessions')
+      .update({
+        last_validated_at: new Date().toISOString()
+      })
+      .eq('id', sessionId);
+
+    if (error) {
+      console.error('❌ [GP51SessionUtils] Failed to update session activity:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('❌ [GP51SessionUtils] Error updating session activity:', error);
+    return false;
   }
-
-  if (session.token_expires_at) {
-      const expiresAt = new Date(session.token_expires_at);
-      const now = new Date();
-      if (expiresAt <= now) {
-          console.error('❌ GP51 session expired:', { expiresAt, now });
-          return { 
-            errorResponse: errorResponse(
-              'GP51 session expired', 
-              401, 
-              'Session expired, please refresh credentials',
-              'SESSION_EXPIRED'
-            ) 
-          };
-      }
-  }
-
-  return { session };
 }

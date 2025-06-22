@@ -1,5 +1,5 @@
 
-// Unified GP51 API Client with proper token handling
+// Unified GP51 API Client with proper token handling and enhanced sync capabilities
 import { md5_sync } from "./crypto_utils.ts";
 
 export interface GP51ApiResponse<T = any> {
@@ -10,6 +10,37 @@ export interface GP51ApiResponse<T = any> {
   data?: T;
   records?: T[];
   groups?: any[];
+}
+
+export interface GP51DeviceInfo {
+  deviceid: string;
+  devicename?: string;
+  devicetype?: string;
+  loginname?: string;
+  groupid?: number;
+  simnum?: string;
+  lastactivetime?: string;
+  expirenotifytime?: string;
+  isfree?: boolean;
+  allowedit?: boolean;
+  icon?: string;
+  starred?: boolean;
+  totaldistance?: number;
+  totaloil?: number;
+  // Position data
+  callat?: number;
+  callon?: number;
+  altitude?: number;
+  speed?: number;
+  course?: number;
+  devicetime?: string;
+  arrivedtime?: string;
+  validpositiontime?: string;
+  updatetime?: string;
+  status?: number;
+  strstatus?: string;
+  strstatusen?: string;
+  alarm?: string;
 }
 
 export class UnifiedGP51ApiClient {
@@ -120,13 +151,13 @@ export class UnifiedGP51ApiClient {
     }
   }
 
-  async queryMonitorList(token: string, username: string): Promise<GP51ApiResponse> {
+  async queryMonitorList(token: string, username: string): Promise<GP51ApiResponse<GP51DeviceInfo>> {
     console.log(`📡 [GP51Client] Querying monitor list for user: ${username}`);
     
-    const result = await this.makeRequest('querymonitorlist', token, { username }, 'POST');
+    const result = await this.makeRequest<GP51DeviceInfo>('querymonitorlist', token, { username }, 'POST');
     
     if (result.status === 0) {
-      console.log(`✅ [GP51Client] Monitor list query successful`);
+      console.log(`✅ [GP51Client] Monitor list query successful, devices: ${result.records?.length || 0}`);
       return result;
     } else {
       const errorMsg = result.cause || `Monitor list query failed with status ${result.status}`;
@@ -139,7 +170,7 @@ export class UnifiedGP51ApiClient {
     token: string,
     deviceIds: string[],
     lastQueryPositionTime?: string
-  ): Promise<GP51ApiResponse> {
+  ): Promise<GP51ApiResponse<GP51DeviceInfo>> {
     console.log(`📡 [GP51Client] Getting last position for ${deviceIds.length} devices`);
     
     const positionParams = {
@@ -147,16 +178,48 @@ export class UnifiedGP51ApiClient {
       lastquerypositiontime: lastQueryPositionTime || ""
     };
 
-    const result = await this.makeRequest('lastposition', token, positionParams, 'POST');
+    const result = await this.makeRequest<GP51DeviceInfo>('lastposition', token, positionParams, 'POST');
     
     if (result.status === 0) {
-      console.log(`✅ [GP51Client] Last position query successful`);
+      console.log(`✅ [GP51Client] Last position query successful, positions: ${result.records?.length || 0}`);
       return result;
     } else {
       const errorMsg = result.cause || `Last position query failed with status ${result.status}`;
       console.error(`❌ [GP51Client] Get last position failed: ${errorMsg}`);
       throw new Error(errorMsg);
     }
+  }
+
+  async getDevicesWithPositions(
+    token: string,
+    username: string
+  ): Promise<{ devices: GP51DeviceInfo[], positions: GP51DeviceInfo[] }> {
+    console.log(`🔄 [GP51Client] Getting complete device and position data for user: ${username}`);
+    
+    // Step 1: Get all devices
+    const devicesResponse = await this.queryMonitorList(token, username);
+    if (devicesResponse.status !== 0 || !devicesResponse.records) {
+      throw new Error(`Failed to fetch devices: ${devicesResponse.cause}`);
+    }
+
+    const devices = devicesResponse.records;
+    console.log(`📱 [GP51Client] Found ${devices.length} devices`);
+
+    if (devices.length === 0) {
+      return { devices: [], positions: [] };
+    }
+
+    // Step 2: Get positions for all devices
+    const deviceIds = devices.map(d => d.deviceid);
+    const positionsResponse = await this.getLastPosition(token, deviceIds);
+    
+    const positions = positionsResponse.status === 0 && positionsResponse.records 
+      ? positionsResponse.records 
+      : [];
+
+    console.log(`📍 [GP51Client] Retrieved ${positions.length} positions`);
+
+    return { devices, positions };
   }
 
   async callAction(action: string, parameters: Record<string, any>): Promise<GP51ApiResponse> {

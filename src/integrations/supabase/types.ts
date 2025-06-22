@@ -8940,51 +8940,114 @@ export type Database = {
       }
       vehicles: {
         Row: {
+          allow_edit: boolean | null
+          altitude: number | null
+          arrived_time: string | null
+          course: number | null
           created_at: string
+          device_name: string | null
+          device_time: string | null
+          device_type: string | null
+          expire_notify_time: string | null
           fuel_level: number | null
+          gp51_alarm: string | null
           gp51_device_id: string
+          gp51_group_id: number | null
           gp51_metadata: Json | null
+          gp51_status: number | null
+          gp51_status_text: string | null
+          icon: string | null
           id: string
           is_active: boolean | null
+          is_free: boolean | null
+          last_active_time: string | null
           last_position: Json | null
+          last_sync_time: string | null
+          login_name: string | null
           name: string
           sim_number: string | null
+          starred: boolean | null
           status: string | null
+          total_distance: number | null
           total_mileage: number | null
+          total_oil: number | null
           updated_at: string
           user_id: string
+          valid_position_time: string | null
           voltage: number | null
         }
         Insert: {
+          allow_edit?: boolean | null
+          altitude?: number | null
+          arrived_time?: string | null
+          course?: number | null
           created_at?: string
+          device_name?: string | null
+          device_time?: string | null
+          device_type?: string | null
+          expire_notify_time?: string | null
           fuel_level?: number | null
+          gp51_alarm?: string | null
           gp51_device_id: string
+          gp51_group_id?: number | null
           gp51_metadata?: Json | null
+          gp51_status?: number | null
+          gp51_status_text?: string | null
+          icon?: string | null
           id?: string
           is_active?: boolean | null
+          is_free?: boolean | null
+          last_active_time?: string | null
           last_position?: Json | null
+          last_sync_time?: string | null
+          login_name?: string | null
           name: string
           sim_number?: string | null
+          starred?: boolean | null
           status?: string | null
+          total_distance?: number | null
           total_mileage?: number | null
+          total_oil?: number | null
           updated_at?: string
           user_id: string
+          valid_position_time?: string | null
           voltage?: number | null
         }
         Update: {
+          allow_edit?: boolean | null
+          altitude?: number | null
+          arrived_time?: string | null
+          course?: number | null
           created_at?: string
+          device_name?: string | null
+          device_time?: string | null
+          device_type?: string | null
+          expire_notify_time?: string | null
           fuel_level?: number | null
+          gp51_alarm?: string | null
           gp51_device_id?: string
+          gp51_group_id?: number | null
           gp51_metadata?: Json | null
+          gp51_status?: number | null
+          gp51_status_text?: string | null
+          icon?: string | null
           id?: string
           is_active?: boolean | null
+          is_free?: boolean | null
+          last_active_time?: string | null
           last_position?: Json | null
+          last_sync_time?: string | null
+          login_name?: string | null
           name?: string
           sim_number?: string | null
+          starred?: boolean | null
           status?: string | null
+          total_distance?: number | null
           total_mileage?: number | null
+          total_oil?: number | null
           updated_at?: string
           user_id?: string
+          valid_position_time?: string | null
           voltage?: number | null
         }
         Relationships: [
@@ -10520,6 +10583,10 @@ export type Database = {
       }
       store_gp51_credentials: {
         Args: { p_username: string; p_password: string; p_api_url?: string }
+        Returns: string
+      }
+      trigger_gp51_vehicle_sync: {
+        Args: Record<PropertyKey, never>
         Returns: string
       }
       update_agent_performance_snapshots: {

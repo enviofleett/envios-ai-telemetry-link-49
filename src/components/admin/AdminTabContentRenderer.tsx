@@ -1,139 +1,116 @@
 
-import React from 'react';
+import React, { memo } from 'react';
+import CompanyTab from './tabs/CompanyTab';
 import UsersTab from './tabs/UsersTab';
-import BillingTab from './tabs/BillingTab';
-import HealthTab from './tabs/HealthTab';
-import EmailTemplatesTab from './tabs/EmailTemplatesTab';
-import EmailQueueTab from './tabs/EmailQueueTab';
-import PackagesTab from './tabs/PackagesTab';
+import SystemTab from './tabs/SystemTab';
+import SecurityTab from './tabs/SecurityTab';
 import AnalyticsTab from './tabs/AnalyticsTab';
 import GP51IntegrationTab from './tabs/GP51IntegrationTab';
-import NotificationsTab from './tabs/NotificationsTab';
-import SecurityTab from './tabs/SecurityTab';
-import SystemSettingsTab from './tabs/SystemSettingsTab';
-import GeofencingTab from './tabs/GeofencingTab';
-import SMSSettingsTab from './tabs/SMSSettingsTab';
-import SMSLogsTab from './tabs/SMSLogsTab';
-import EmailTriggersAdminTab from './tabs/EmailTriggersAdminTab';
-import AdvancedEmailManagementTab from './tabs/AdvancedEmailManagementTab';
-import GP51DataSyncTab from './tabs/GP51DataSyncTab';
-import VehicleAssignmentTab from './tabs/VehicleAssignmentTab';
-
-// Import existing working tabs from settings directory
-import CompanySettingsTab from '../settings/CompanySettingsTab';
-import EnhancedBrandingTab from '../settings/EnhancedBrandingTab';
-import CurrencyManagementTab from '../settings/CurrencyManagementTab';
-import SMTPConfigurationTab from '../settings/SMTPConfigurationTab'; // Corrected import path
-
-// Import missing tabs
-import VinApiTab from './tabs/VinApiTab';
-import MapsTab from './tabs/MapsTab';
-import WhatsAppApiTab from './tabs/WhatsAppApiTab';
-import CSVImportTab from './tabs/CSVImportTab';
-import DataManagementTab from './tabs/DataManagementTab';
-import WorkshopsTab from './tabs/WorkshopsTab';
+import GP51SyncTab from './tabs/GP51SyncTab';
+import GP51UserMappingTab from './tabs/GP51UserMappingTab';
 import GP51ValidationTab from './tabs/GP51ValidationTab';
-import SMTPGuideTab from './tabs/SMTPGuideTab';
+import PackagesTab from './tabs/PackagesTab';
+import WorkshopsTab from './tabs/WorkshopsTab';
+import PaymentGatewayTab from './tabs/PaymentGatewayTab';
+import CurrencyTab from './tabs/CurrencyTab';
+import BrandingTab from './tabs/BrandingTab';
+import MapsTab from './tabs/MapsTab';
 import APIIntegrationsTab from './tabs/APIIntegrationsTab';
+import HealthTab from './tabs/HealthTab';
+import DataManagementTab from './tabs/DataManagementTab';
+import CSVImportTab from './tabs/CSVImportTab';
+import EmailTriggersTab from './tabs/EmailTriggersTab';
+import AdvancedEmailManagementTab from './tabs/AdvancedEmailManagementTab';
+import SMSLogsTab from './tabs/SMSLogsTab';
+import SMSDeliveryStatusTab from './tabs/SMSDeliveryStatusTab';
+import SMTPGuideTab from './tabs/SMTPGuideTab';
+import UserManagementTab from './tabs/UserManagementTab';
+import MarketplaceSettingsTab from './tabs/MarketplaceSettingsTab';
+import MarketplaceAnalyticsTab from './tabs/MarketplaceAnalyticsTab';
+import CustomerAnalyticsTab from './tabs/CustomerAnalyticsTab';
+import PaymentAnalyticsTab from './tabs/PaymentAnalyticsTab';
+import ReferralAnalyticsTab from './tabs/ReferralAnalyticsTab';
+import WorkshopPaymentsTab from './tabs/WorkshopPaymentsTab';
+import AIAssistantTab from './tabs/AIAssistantTab';
 
 interface AdminTabContentRendererProps {
   activeTab: string;
 }
 
-const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activeTab }) => {
-  console.log('Admin Tab Renderer - Active Tab:', activeTab);
+const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = memo(({ activeTab }) => {
+  console.log('AdminTabContentRenderer rendering tab:', activeTab);
 
   const renderTabContent = () => {
     switch (activeTab) {
-      // Working tabs with backend connections
       case 'company':
-        return <CompanySettingsTab />;
-      case 'branding':
-        return <EnhancedBrandingTab />;
-      case 'currency':
-        return <CurrencyManagementTab />;
-      
-      // Phase 1 - Now connected to backend
+        return <CompanyTab />;
       case 'users':
         return <UsersTab />;
-      case 'billing':
-        return <BillingTab />;
-      case 'health':
-        return <HealthTab />;
-      case 'email-templates':
-        return <EmailTemplatesTab />;
-      case 'email-queue':
-        return <EmailQueueTab />;
-      
-      // New Email Management Features
-      case 'smtp-config':
-        return <SMTPConfigurationTab />;
-      case 'email-triggers':
-        return <EmailTriggersAdminTab />;
-      case 'advanced-email':
-        return <AdvancedEmailManagementTab />;
-      case 'smtp-guide':
-        return <SMTPGuideTab />;
-      
-      // SMS functionality
-      case 'sms-settings':
-        return <SMSSettingsTab />;
-      case 'sms-logs':
-        return <SMSLogsTab />;
-      
-      // API Integration tabs
-      case 'vin-api':
-        return <VinApiTab />;
-      case 'maps':
-        return <MapsTab />;
-      case 'whatsapp-api':
-        return <WhatsAppApiTab />;
-      case 'api-integrations':
-        return <APIIntegrationsTab />;
-      
-      // Data Management tabs
-      case 'csv-import':
-        return <CSVImportTab />;
-      case 'data-management':
-        return <DataManagementTab />;
-      
-      // User Management tabs
-      case 'workshops':
-        return <WorkshopsTab />;
-      
-      // Integration tabs
-      case 'gp51':
-        return <GP51IntegrationTab />;
-      case 'gp51-validation':
-        return <GP51ValidationTab />;
-      case 'gp51-data-sync':
-        return <GP51DataSyncTab />;
-      case 'vehicle-assignment':
-        return <VehicleAssignmentTab />;
-      case 'geofencing':
-        return <GeofencingTab />;
-      
-      // Phase 2 - Static tabs (to be connected next)
-      case 'packages':
-        return <PackagesTab />;
-      case 'analytics':
-        return <AnalyticsTab />;
-      case 'notifications':
-        return <NotificationsTab />;
+      case 'system':
+        return <SystemTab />;
       case 'security':
         return <SecurityTab />;
-      case 'system':
-        return <SystemSettingsTab />;
-      
+      case 'analytics':
+        return <AnalyticsTab />;
+      case 'gp51-integration':
+        return <GP51IntegrationTab />;
+      case 'gp51-sync':
+        return <GP51SyncTab />;
+      case 'gp51-user-mapping':
+        return <GP51UserMappingTab />;
+      case 'gp51-validation':
+        return <GP51ValidationTab />;
+      case 'packages':
+        return <PackagesTab />;
+      case 'workshops':
+        return <WorkshopsTab />;
+      case 'payment-gateway':
+        return <PaymentGatewayTab />;
+      case 'currency':
+        return <CurrencyTab />;
+      case 'branding':
+        return <BrandingTab />;
+      case 'maps':
+        return <MapsTab />;
+      case 'api-integrations':
+        return <APIIntegrationsTab />;
+      case 'health':
+        return <HealthTab />;
+      case 'data-management':
+        return <DataManagementTab />;
+      case 'csv-import':
+        return <CSVImportTab />;
+      case 'email-triggers':
+        return <EmailTriggersTab />;
+      case 'advanced-email':
+        return <AdvancedEmailManagementTab />;
+      case 'sms-logs':
+        return <SMSLogsTab />;
+      case 'sms-delivery':
+        return <SMSDeliveryStatusTab />;
+      case 'smtp-guide':
+        return <SMTPGuideTab />;
+      case 'user-management':
+        return <UserManagementTab />;
+      case 'marketplace-settings':
+        return <MarketplaceSettingsTab />;
+      case 'marketplace-analytics':
+        return <MarketplaceAnalyticsTab />;
+      case 'customer-analytics':
+        return <CustomerAnalyticsTab />;
+      case 'payment-analytics':
+        return <PaymentAnalyticsTab />;
+      case 'referral-analytics':
+        return <ReferralAnalyticsTab />;
+      case 'workshop-payments':
+        return <WorkshopPaymentsTab />;
+      case 'ai-assistant':
+        return <AIAssistantTab />;
       default:
         return (
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Tab Not Found</h3>
-              <p className="text-gray-600">
-                The tab "{activeTab}" is not implemented yet.
-              </p>
-            </div>
+          <div className="p-6 text-center">
+            <h2 className="text-xl font-semibold mb-2">Tab Not Found</h2>
+            <p className="text-muted-foreground">The requested tab "{activeTab}" could not be found.</p>
           </div>
         );
     }
@@ -144,6 +121,8 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = ({ activ
       {renderTabContent()}
     </div>
   );
-};
+});
+
+AdminTabContentRenderer.displayName = 'AdminTabContentRenderer';
 
 export default AdminTabContentRenderer;
