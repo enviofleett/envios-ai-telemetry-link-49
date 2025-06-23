@@ -10,6 +10,18 @@ export interface RealConnectionResult {
   errorMessage?: string;
   deviceCount?: number;
   latency?: number;
+  apiResponseTime?: number;
+}
+
+export interface GP51ConnectionHealth {
+  isConnected: boolean;
+  sessionValid: boolean;
+  apiReachable: boolean;
+  dataFlowing: boolean;
+  errorMessage?: string;
+  deviceCount?: number;
+  apiResponseTime?: number;
+  lastChecked?: Date;
 }
 
 export class GP51RealConnectionTester {
@@ -17,13 +29,22 @@ export class GP51RealConnectionTester {
   private static lastTestTime: Date | null = null;
   private static readonly CACHE_DURATION = 30000; // 30 seconds
 
-  static async testRealConnection(): Promise<RealConnectionResult> {
+  static async testRealConnection(): Promise<GP51ConnectionHealth> {
     // Return cached result if recent
     if (this.lastTestResult && this.lastTestTime) {
       const timeSinceLastTest = Date.now() - this.lastTestTime.getTime();
       if (timeSinceLastTest < this.CACHE_DURATION) {
         console.log('🎯 [REAL-CONNECTION] Using cached test result');
-        return this.lastTestResult;
+        return {
+          isConnected: this.lastTestResult.isConnected,
+          sessionValid: this.lastTestResult.sessionValid,
+          apiReachable: this.lastTestResult.apiReachable,
+          dataFlowing: this.lastTestResult.dataFlowing,
+          errorMessage: this.lastTestResult.errorMessage,
+          deviceCount: this.lastTestResult.deviceCount,
+          apiResponseTime: this.lastTestResult.apiResponseTime,
+          lastChecked: this.lastTestTime
+        };
       }
     }
 
@@ -41,10 +62,11 @@ export class GP51RealConnectionTester {
           apiReachable: false,
           dataFlowing: false,
           errorMessage: sessionResult.error,
-          latency: Date.now() - startTime
+          latency: Date.now() - startTime,
+          apiResponseTime: Date.now() - startTime
         };
         this.cacheResult(result);
-        return result;
+        return this.convertToHealthResult(result);
       }
 
       // Test 2: API reachability
@@ -57,10 +79,11 @@ export class GP51RealConnectionTester {
           apiReachable: false,
           dataFlowing: false,
           errorMessage: apiResult.error,
-          latency: Date.now() - startTime
+          latency: Date.now() - startTime,
+          apiResponseTime: Date.now() - startTime
         };
         this.cacheResult(result);
-        return result;
+        return this.convertToHealthResult(result);
       }
 
       // Test 3: Data flow verification
@@ -74,11 +97,12 @@ export class GP51RealConnectionTester {
         lastSuccessfulPing: new Date(),
         deviceCount: dataResult.deviceCount,
         errorMessage: dataResult.error,
-        latency: Date.now() - startTime
+        latency: Date.now() - startTime,
+        apiResponseTime: Date.now() - startTime
       };
 
       this.cacheResult(result);
-      return result;
+      return this.convertToHealthResult(result);
 
     } catch (error) {
       console.error('❌ [REAL-CONNECTION] Test failed:', error);
@@ -88,11 +112,59 @@ export class GP51RealConnectionTester {
         apiReachable: false,
         dataFlowing: false,
         errorMessage: error instanceof Error ? error.message : 'Connection test failed',
-        latency: Date.now() - startTime
+        latency: Date.now() - startTime,
+        apiResponseTime: Date.now() - startTime
       };
       this.cacheResult(result);
-      return result;
+      return this.convertToHealthResult(result);
     }
+  }
+
+  static async generateConnectionReport(): Promise<{
+    summary: string;
+    details: GP51ConnectionHealth;
+    recommendations: string[];
+  }> {
+    const health = await this.testRealConnection();
+    
+    let summary = 'GP51 Connection ';
+    if (health.isConnected && health.dataFlowing) {
+      summary += 'Healthy';
+    } else if (health.sessionValid) {
+      summary += 'Degraded';
+    } else {
+      summary += 'Critical';
+    }
+
+    const recommendations: string[] = [];
+    if (!health.sessionValid) {
+      recommendations.push('Re-authenticate with GP51');
+    }
+    if (!health.apiReachable) {
+      recommendations.push('Check network connectivity');
+    }
+    if (!health.dataFlowing) {
+      recommendations.push('Verify GP51 API permissions');
+    }
+
+    return {
+      summary,
+      details: health,
+      recommendations
+    };
+  }
+
+  private static convertToHealthResult(result: RealConnectionResult): GP51ConnectionHealth {
+    return {
+      isConnected: result.isConnected,
+      sessionValid: result.sessionValid,
+      apiReachable: result.apiReachable,
+      dataFlowing: result.dataFlowing,
+      errorMessage: result.errorMessage,
+      deviceCount: result.deviceCount,
+      apiResponseTime: result.apiResponseTime,
+      lastChecked: new Date()
+    };
   }
 
   private static async testSessionValidity(): Promise<{ valid: boolean; error?: string }> {

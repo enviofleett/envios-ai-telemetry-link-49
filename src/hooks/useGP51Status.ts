@@ -26,7 +26,7 @@ export const useGP51Status = () => {
       setError(null);
 
       // Check session validation with real connectivity test
-      const sessionResult = await gp51SessionValidator.ensureValidSession();
+      const sessionResult = await gp51SessionValidator.testConnection();
       
       // Also check basic connection status
       const connectionResult = await GP51SessionManager.testConnection();

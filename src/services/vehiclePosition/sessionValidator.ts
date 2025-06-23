@@ -3,11 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface SessionValidationResult {
   success: boolean;
+  valid: boolean;
   error?: string;
   needsRefresh?: boolean;
   expiresAt?: Date;
   username?: string;
   status?: string;
+  isReallyConnected?: boolean;
 }
 
 export class GP51SessionValidator {
@@ -43,6 +45,7 @@ export class GP51SessionValidator {
       if (error) {
         const result: SessionValidationResult = {
           success: false,
+          valid: false,
           error: error.message
         };
         this.cacheValidation(result);
@@ -51,11 +54,13 @@ export class GP51SessionValidator {
 
       const result: SessionValidationResult = {
         success: data?.isValid || false,
+        valid: data?.isValid || false,
         error: data?.errorMessage,
         needsRefresh: data?.needsRefresh,
         expiresAt: data?.expiresAt ? new Date(data.expiresAt) : undefined,
         username: data?.username,
-        status: data?.status
+        status: data?.status,
+        isReallyConnected: data?.isValid || false
       };
 
       this.cacheValidation(result);
@@ -65,11 +70,22 @@ export class GP51SessionValidator {
       console.error('❌ [SESSION-VALIDATOR] Validation failed:', error);
       const result: SessionValidationResult = {
         success: false,
+        valid: false,
         error: error instanceof Error ? error.message : 'Session validation failed'
       };
       this.cacheValidation(result);
       return result;
     }
+  }
+
+  async ensureValidSession(): Promise<SessionValidationResult> {
+    return await this.testConnection();
+  }
+
+  clearCache(): void {
+    this.lastValidation = null;
+    this.lastValidationTime = null;
+    console.log('🔄 [SESSION-VALIDATOR] Cache cleared, will force fresh validation');
   }
 
   private cacheValidation(result: SessionValidationResult): void {
@@ -78,9 +94,7 @@ export class GP51SessionValidator {
   }
 
   forceReset(): void {
-    this.lastValidation = null;
-    this.lastValidationTime = null;
-    console.log('🔄 [SESSION-VALIDATOR] Cache reset, will force fresh validation');
+    this.clearCache();
   }
 }
 
