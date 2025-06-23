@@ -1,309 +1,181 @@
 
-// Enhanced GP51 Standard Client with proper authentication state management
-import { md5_sync } from "./crypto_utils.ts";
+import { md5_sync } from './crypto_utils.ts';
 
-export interface GP51StandardClientConfig {
-  baseUrl?: string;
-  timeout?: number;
-  retryAttempts?: number;
-  retryDelay?: number;
+export interface GP51AuthResult {
+  success: boolean;
+  username?: string;
+  token?: string;
+  expiresAt?: string;
+  error?: string;
 }
 
-export interface GP51AuthState {
-  isAuthenticated: boolean;
-  token?: string;
-  username?: string;
-  tokenExpiresAt?: Date;
-  lastActivity?: Date;
-}
-
-export interface GP51ApiResponse<T = any> {
-  status: number;
-  cause?: string;
-  token?: string;
-  username?: string;
-  data?: T;
-  records?: T[];
-  groups?: any[];
+export interface GP51ApiResult {
+  success: boolean;
+  data?: any;
+  error?: string;
 }
 
 export class GP51StandardClient {
-  private config: Required<GP51StandardClientConfig>;
-  private authState: GP51AuthState;
+  private baseUrl: string = 'https://www.gps51.com/webapi';
+  private authToken: string | null = null;
+  private username: string | null = null;
 
-  constructor(config: GP51StandardClientConfig = {}) {
-    this.config = {
-      baseUrl: config.baseUrl || 'https://www.gps51.com',
-      timeout: config.timeout || 30000,
-      retryAttempts: config.retryAttempts || 3,
-      retryDelay: config.retryDelay || 1000,
-    };
+  async authenticate(username: string, password: string): Promise<GP51AuthResult> {
+    console.log(`🔐 [GP51Standard] Starting authentication for user: ${username}`);
+    
+    try {
+      // Hash password using MD5 for GP51 compatibility
+      const hashedPassword = md5_sync(password);
+      
+      const response = await this.makeRequest('login', {
+        username: username.trim(),
+        password: hashedPassword,
+        from: 'WEB',      // Fixed: was 'logintype'
+        type: 'USER'      // Fixed: was 'usertype'
+      }, false); // No auth required for login
 
-    this.authState = {
-      isAuthenticated: false,
-    };
+      if (!response.success) {
+        return {
+          success: false,
+          error: response.error || 'Authentication failed'
+        };
+      }
 
-    console.log(`🔧 [GP51StandardClient] Initialized with base URL: ${this.config.baseUrl}`);
+      const data = response.data;
+      
+      // Store authentication details
+      this.authToken = data.token;
+      this.username = username.trim();
+      
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+      console.log(`🔐 [GP51Standard] Token stored, expires at: ${expiresAt}`);
+
+      console.log(`✅ [GP51Standard] Authentication successful for ${username}`);
+      
+      return {
+        success: true,
+        username: this.username,
+        token: this.authToken,
+        expiresAt
+      };
+
+    } catch (error) {
+      const errorMsg = `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(`❌ [GP51Standard] ${errorMsg}`);
+      
+      return {
+        success: false,
+        error: errorMsg
+      };
+    }
   }
 
-  private async makeRequest<T = any>(
-    action: string,
-    parameters: Record<string, any> = {},
-    requiresAuth: boolean = false,
-    method: 'GET' | 'POST' = 'POST'
-  ): Promise<GP51ApiResponse<T>> {
-    // CRITICAL FIX: Build URL with token as query parameter for authenticated calls
-    const url = new URL(`${this.config.baseUrl}/webapi`);
-    url.searchParams.append('action', action);
+  async queryUserDetail(username: string): Promise<GP51ApiResult> {
+    console.log(`👤 [GP51Standard] Querying user details for: ${username}`);
     
-    // Add token to URL query parameters for authenticated calls
-    if (requiresAuth && this.authState.token) {
-      url.searchParams.append('token', this.authState.token);
-      console.log(`🔑 [GP51StandardClient] Added token to URL for ${action}`);
-    }
+    return await this.makeRequest('queryuserdetail', {
+      username: username.trim()
+    }, true); // Requires authentication
+  }
 
-    console.log(`📤 [GP51StandardClient] Making ${method} request to: ${url.toString()}`);
+  async queryMonitorList(): Promise<GP51ApiResult> {
+    console.log(`🚗 [GP51Standard] Querying monitor list (devices)`);
     
-    const headers: HeadersInit = {
-      'User-Agent': 'Envio-Fleet-Management/1.0',
-    };
+    return await this.makeRequest('querymonitorlist', {}, true); // Requires authentication
+  }
 
-    let body: string | undefined;
-    
-    // CRITICAL FIX: Remove token from JSON body when it's in URL
-    const bodyParams = { ...parameters };
-    if (requiresAuth && this.authState.token && 'token' in bodyParams) {
-      delete bodyParams.token;
-      console.log(`🔧 [GP51StandardClient] Removed token from JSON body for ${action}`);
-    }
-    
-    // Only add body for POST requests with parameters
-    if (method === 'POST' && Object.keys(bodyParams).length > 0) {
-      headers['Content-Type'] = 'application/json';
-      body = JSON.stringify(bodyParams);
-      console.log(`📤 [GP51StandardClient] Request body:`, JSON.stringify(bodyParams, null, 2));
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
-
+  private async makeRequest(action: string, params: Record<string, any>, requiresAuth: boolean = true): Promise<GP51ApiResult> {
     try {
+      // Construct URL with action parameter
+      const url = new URL(this.baseUrl);
+      url.searchParams.set('action', action);
+      
+      // Add auth token to URL if required and available
+      if (requiresAuth) {
+        if (!this.authToken) {
+          return {
+            success: false,
+            error: 'Authentication token not available'
+          };
+        }
+        url.searchParams.set('token', this.authToken);
+        console.log(`📤 [GP51Standard] Action: ${action}, Auth: Required`);
+      } else {
+        console.log(`📤 [GP51Standard] Action: ${action}, Auth: Not Required`);
+      }
+
+      console.log(`📤 [GP51Standard] Making POST request to: ${url.toString()}`);
+
+      // Log parameters (redact sensitive data)
+      const logParams = { ...params };
+      if (logParams.password) {
+        logParams.password = '[REDACTED]';
+      }
+      console.log(`📤 [GP51Standard] Parameters:`, JSON.stringify(logParams, null, 2));
+
+      // Make the request
       const response = await fetch(url.toString(), {
-        method,
-        headers,
-        body,
-        signal: controller.signal,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(params),
+        signal: AbortSignal.timeout(15000) // 15 second timeout
       });
 
-      clearTimeout(timeoutId);
+      console.log(`📊 [GP51Standard] Response status: ${response.status}`);
 
       if (!response.ok) {
-        throw new Error(`HTTP error: ${response.status}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const responseText = await response.text();
-      console.log(`📊 [GP51StandardClient] Response received for ${action}, length: ${responseText.length}`);
+      console.log(`📊 [GP51Standard] Raw response: ${responseText}`);
 
-      let result: GP51ApiResponse<T>;
+      // Try to parse as JSON
+      let parsedResponse;
       try {
-        result = JSON.parse(responseText);
-        console.log(`📋 [GP51StandardClient] Parsed response for ${action}:`, result);
+        parsedResponse = JSON.parse(responseText);
       } catch (parseError) {
-        console.error(`❌ [GP51StandardClient] JSON parse error for ${action}:`, parseError);
-        throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}`);
+        // If not JSON, treat as plain text (might be a token)
+        if (action === 'login' && responseText.trim().length > 8) {
+          parsedResponse = {
+            status: 0,
+            token: responseText.trim(),
+            username: params.username
+          };
+        } else {
+          throw new Error(`Invalid response format: ${responseText}`);
+        }
       }
 
-      // Update last activity
-      if (requiresAuth) {
-        this.authState.lastActivity = new Date();
+      console.log(`📊 [GP51Standard] Parsed response:`, parsedResponse);
+
+      // Check for GP51 API errors
+      if (parsedResponse.status && parsedResponse.status !== 0) {
+        const errorMsg = parsedResponse.cause || parsedResponse.message || `GP51 API error: ${parsedResponse.status}`;
+        console.error(`❌ [GP51Standard] ${action} failed: ${errorMsg}`);
+        
+        return {
+          success: false,
+          error: errorMsg
+        };
       }
 
-      return result;
-    } catch (error) {
-      clearTimeout(timeoutId);
-      console.error(`❌ [GP51StandardClient] Request failed for ${action}:`, error);
-      throw error;
-    }
-  }
-
-  async authenticate(username: string, password: string): Promise<boolean> {
-    console.log(`🔐 [GP51StandardClient] Authenticating user: ${username}`);
-    
-    try {
-      const hashedPassword = md5_sync(password);
-      console.log(`🔐 [GP51StandardClient] Password hashed successfully`);
-      
-      const loginParams = {
-        username: username.trim(),
-        password: hashedPassword,
-        logintype: 'WEB',
-        usertype: 'USER'
+      return {
+        success: true,
+        data: parsedResponse
       };
 
-      const result = await this.makeRequest('login', loginParams, false, 'POST');
-      
-      if (result.status === 0 && result.token) {
-        // Store authentication state
-        this.authState = {
-          isAuthenticated: true,
-          token: result.token,
-          username: result.username || username,
-          tokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-          lastActivity: new Date()
-        };
-        
-        console.log(`✅ [GP51StandardClient] Authentication successful for ${username}`);
-        console.log(`🔑 [GP51StandardClient] Token stored: ${result.token.substring(0, 8)}...`);
-        return true;
-      } else {
-        const errorMsg = result.cause || `Login failed with status ${result.status}`;
-        console.error(`❌ [GP51StandardClient] Authentication failed: ${errorMsg}`);
-        throw new Error(errorMsg);
-      }
     } catch (error) {
-      console.error(`❌ [GP51StandardClient] Authentication error:`, error);
-      this.authState = { isAuthenticated: false };
-      throw error;
-    }
-  }
-
-  isAuthenticated(): boolean {
-    if (!this.authState.isAuthenticated || !this.authState.token) {
-      return false;
-    }
-
-    // Check token expiration
-    if (this.authState.tokenExpiresAt && this.authState.tokenExpiresAt <= new Date()) {
-      console.log(`⚠️ [GP51StandardClient] Token expired`);
-      this.authState = { isAuthenticated: false };
-      return false;
-    }
-
-    return true;
-  }
-
-  getAuthState(): GP51AuthState {
-    return { ...this.authState };
-  }
-
-  clearAuth(): void {
-    console.log(`🔓 [GP51StandardClient] Clearing authentication state`);
-    this.authState = { isAuthenticated: false };
-  }
-
-  // API Methods
-  async queryUserDetail(username: string): Promise<GP51ApiResponse> {
-    if (!this.isAuthenticated()) {
-      throw new Error('Not authenticated. Please call authenticate() first.');
-    }
-
-    console.log(`👤 [GP51StandardClient] Querying user details for: ${username}`);
-    
-    const result = await this.makeRequest('queryuserdetail', { username }, true, 'POST');
-    
-    if (result.status === 0) {
-      console.log(`✅ [GP51StandardClient] User details query successful`);
-      return result;
-    } else {
-      const errorMsg = result.cause || `User details query failed with status ${result.status}`;
-      console.error(`❌ [GP51StandardClient] User details query failed: ${errorMsg}`);
-      throw new Error(errorMsg);
-    }
-  }
-
-  async queryMonitorList(): Promise<GP51ApiResponse> {
-    if (!this.isAuthenticated()) {
-      throw new Error('Not authenticated. Please call authenticate() first.');
-    }
-
-    console.log(`📡 [GP51StandardClient] Querying monitor list for user: ${this.authState.username}`);
-    
-    const result = await this.makeRequest('querymonitorlist', 
-      { username: this.authState.username }, true, 'POST');
-    
-    if (result.status === 0) {
-      console.log(`✅ [GP51StandardClient] Monitor list query successful, devices: ${result.records?.length || 0}`);
-      return result;
-    } else {
-      const errorMsg = result.cause || `Monitor list query failed with status ${result.status}`;
-      console.error(`❌ [GP51StandardClient] Monitor list query failed: ${errorMsg}`);
-      throw new Error(errorMsg);
-    }
-  }
-
-  async getLastPosition(deviceIds: string[], lastQueryPositionTime?: string): Promise<GP51ApiResponse> {
-    if (!this.isAuthenticated()) {
-      throw new Error('Not authenticated. Please call authenticate() first.');
-    }
-
-    console.log(`📡 [GP51StandardClient] Getting last position for ${deviceIds.length} devices`);
-    
-    const positionParams = {
-      deviceids: deviceIds,
-      lastquerypositiontime: lastQueryPositionTime || ""
-    };
-
-    const result = await this.makeRequest('lastposition', positionParams, true, 'POST');
-    
-    if (result.status === 0) {
-      console.log(`✅ [GP51StandardClient] Last position query successful, positions: ${result.records?.length || 0}`);
-      return result;
-    } else {
-      const errorMsg = result.cause || `Last position query failed with status ${result.status}`;
-      console.error(`❌ [GP51StandardClient] Get last position failed: ${errorMsg}`);
-      throw new Error(errorMsg);
-    }
-  }
-
-  async getDevicesWithPositions(): Promise<{ devices: any[], positions: any[] }> {
-    if (!this.isAuthenticated()) {
-      throw new Error('Not authenticated. Please call authenticate() first.');
-    }
-
-    console.log(`🔄 [GP51StandardClient] Getting complete device and position data for user: ${this.authState.username}`);
-    
-    // Step 1: Get all devices
-    const devicesResponse = await this.queryMonitorList();
-    if (devicesResponse.status !== 0 || !devicesResponse.records) {
-      throw new Error(`Failed to fetch devices: ${devicesResponse.cause}`);
-    }
-
-    const devices = devicesResponse.records;
-    console.log(`📱 [GP51StandardClient] Found ${devices.length} devices`);
-
-    if (devices.length === 0) {
-      return { devices: [], positions: [] };
-    }
-
-    // Step 2: Get positions for all devices
-    const deviceIds = devices.map(d => d.deviceid);
-    const positionsResponse = await this.getLastPosition(deviceIds);
-    
-    const positions = positionsResponse.status === 0 && positionsResponse.records 
-      ? positionsResponse.records 
-      : [];
-
-    console.log(`📍 [GP51StandardClient] Retrieved ${positions.length} positions`);
-
-    return { devices, positions };
-  }
-
-  async callAction(action: string, parameters: Record<string, any>): Promise<GP51ApiResponse> {
-    if (!this.isAuthenticated()) {
-      throw new Error('Not authenticated. Please call authenticate() first.');
-    }
-
-    console.log(`📡 [GP51StandardClient] Calling action: ${action}`);
-    
-    const result = await this.makeRequest(action, parameters, true, 'POST');
-    
-    if (result.status === 0) {
-      console.log(`✅ [GP51StandardClient] Action ${action} successful`);
-      return result;
-    } else {
-      const errorMsg = result.cause || `Action ${action} failed with status ${result.status}`;
-      console.error(`❌ [GP51StandardClient] Action ${action} failed: ${errorMsg}`);
-      throw new Error(errorMsg);
+      const errorMsg = `${action} request failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(`❌ [GP51Standard] ${errorMsg}`);
+      
+      return {
+        success: false,
+        error: errorMsg
+      };
     }
   }
 }
