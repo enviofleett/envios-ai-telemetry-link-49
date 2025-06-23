@@ -106,7 +106,22 @@ const Settings: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="data">
-          <DataManagementTab />
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Data Management
+              </CardTitle>
+              <CardDescription>
+                Import and export data, manage backups
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Data management features will be available in the next phase of development.
+              </p>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

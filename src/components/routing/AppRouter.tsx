@@ -16,6 +16,15 @@ import Marketplace from '@/pages/Marketplace';
 import PackageManagement from '@/pages/PackageManagement';
 import StableAdminSettings from '@/pages/StableAdminSettings';
 
+// New restored pages
+import LiveTracking from '@/pages/LiveTracking';
+import UserVehicles from '@/pages/UserVehicles';
+import Reports from '@/pages/Reports';
+import Maintenance from '@/pages/Maintenance';
+import WorkshopManagement from '@/pages/WorkshopManagement';
+import ActiveServices from '@/pages/ActiveServices';
+import Settings from '@/pages/Settings';
+
 export const AppRouter: React.FC = () => {
   const { loading } = useUnifiedAuth();
 
@@ -46,6 +55,16 @@ export const AppRouter: React.FC = () => {
                 <Route path="/users" element={<UserManagement />} />
                 <Route path="/marketplace" element={<Marketplace />} />
                 <Route path="/packages" element={<PackageManagement />} />
+                
+                {/* Restored routes */}
+                <Route path="/tracking" element={<LiveTracking />} />
+                <Route path="/my-vehicles" element={<UserVehicles />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/maintenance" element={<Maintenance />} />
+                <Route path="/workshop-management" element={<WorkshopManagement />} />
+                <Route path="/services" element={<ActiveServices />} />
+                <Route path="/settings" element={<Settings />} />
+                
                 <Route 
                   path="/admin" 
                   element={
