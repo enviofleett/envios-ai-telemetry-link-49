@@ -2,6 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Package, CreditCard, Users } from 'lucide-react';
+import PackageManagementDashboard from '@/components/packages/PackageManagementDashboard';
 
 const PackageManagement: React.FC = () => {
   return (
@@ -11,16 +12,17 @@ const PackageManagement: React.FC = () => {
         <p className="text-gray-600">Manage subscription packages and billing</p>
       </div>
 
+      {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
               <Package className="h-5 w-5 mr-2" />
-              Packages
+              Active Packages
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">0</div>
+            <div className="text-2xl font-bold">3</div>
             <p className="text-sm text-gray-600">Available packages</p>
           </CardContent>
         </Card>
@@ -46,20 +48,14 @@ const PackageManagement: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">$0</div>
+            <div className="text-2xl font-bold text-green-600">₦0</div>
             <p className="text-sm text-gray-600">Monthly revenue</p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Package Configuration</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-gray-600">Package management and subscription interface.</p>
-        </CardContent>
-      </Card>
+      {/* Main Package Management Dashboard */}
+      <PackageManagementDashboard />
     </div>
   );
 };

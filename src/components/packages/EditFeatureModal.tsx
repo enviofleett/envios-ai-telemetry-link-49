@@ -1,31 +1,29 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { subscriberPackageApi } from '@/services/subscriberPackageApi';
-import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-  DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { subscriberPackageApi } from '@/services/subscriberPackageApi';
 import type { PackageFeature } from '@/types/subscriber-packages';
+
+const editFeatureSchema = z.object({
+  feature_name: z.string().min(1, 'Feature name is required'),
+  description: z.string().optional(),
+});
+
+type EditFeatureFormData = z.infer<typeof editFeatureSchema>;
 
 interface EditFeatureModalProps {
   feature: PackageFeature | null;
@@ -33,52 +31,57 @@ interface EditFeatureModalProps {
   onClose: () => void;
 }
 
-const formSchema = z.object({
-  feature_name: z.string().min(3, { message: 'Feature name must be at least 3 characters long.' }),
-  description: z.string().optional(),
-});
-
-const EditFeatureModal: React.FC<EditFeatureModalProps> = ({ feature, isOpen, onClose }) => {
-  const queryClient = useQueryClient();
+const EditFeatureModal: React.FC<EditFeatureModalProps> = ({
+  feature,
+  isOpen,
+  onClose
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    values: {
-      feature_name: feature?.feature_name || '',
-      description: feature?.description || '',
-    },
+  const form = useForm<EditFeatureFormData>({
+    resolver: zodResolver(editFeatureSchema),
+    defaultValues: {
+      feature_name: '',
+      description: '',
+    }
   });
 
-  const mutation = useMutation({
-    mutationFn: (values: {id: string, feature_name: string, description?: string}) => subscriberPackageApi.updateFeature(values),
-    onSuccess: () => {
-      toast({
-        title: 'Feature Updated',
-        description: 'The feature has been updated successfully.',
+  useEffect(() => {
+    if (feature) {
+      form.reset({
+        feature_name: feature.feature_name,
+        description: feature.description || '',
       });
-      queryClient.invalidateQueries({ queryKey: ['package-features'] });
-      onClose();
-    },
-    onError: (error) => {
-      toast({
-        title: 'Error',
-        description: `Failed to update feature: ${error.message}`,
-        variant: 'destructive',
-      });
-    },
-  });
+    }
+  }, [feature, form]);
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (data: EditFeatureFormData) => {
     if (!feature) return;
-    mutation.mutate({
-      id: feature.id,
-      feature_name: values.feature_name,
-      description: values.description,
-    });
-  };
 
-  if (!feature) return null;
+    setIsLoading(true);
+    try {
+      await subscriberPackageApi.updateFeature({
+        id: feature.id,
+        ...data,
+      });
+
+      toast({
+        title: "Success",
+        description: "Feature updated successfully",
+      });
+
+      onClose();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update feature",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -86,50 +89,48 @@ const EditFeatureModal: React.FC<EditFeatureModalProps> = ({ feature, isOpen, on
         <DialogHeader>
           <DialogTitle>Edit Feature</DialogTitle>
           <DialogDescription>
-            Update the name and description for the feature: {feature.feature_name}.
+            Update the feature name and description.
           </DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="feature_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Feature Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Real-time Tracking" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div>
+            <Label htmlFor="feature_name">Feature Name</Label>
+            <Input
+              id="feature_name"
+              {...form.register('feature_name')}
+              placeholder="Enter feature name"
             />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="e.g., Track your vehicles in real-time on the map."
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+            {form.formState.errors.feature_name && (
+              <p className="text-sm text-red-600 mt-1">
+                {form.formState.errors.feature_name.message}
+              </p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              {...form.register('description')}
+              placeholder="Feature description"
+              rows={3}
             />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? 'Updating...' : 'Update Feature'}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   );

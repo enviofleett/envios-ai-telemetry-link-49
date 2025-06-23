@@ -1,131 +1,133 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+
+import React, { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { subscriberPackageApi } from '@/services/subscriberPackageApi';
 import { useToast } from '@/hooks/use-toast';
-import type { CreatePackageRequest, PackageFeature, MenuPermission } from '@/types/subscriber-packages';
+import { subscriberPackageApi } from '@/services/subscriberPackageApi';
+import type { PackageFeature, MenuPermission } from '@/types/subscriber-packages';
+
+const createPackageSchema = z.object({
+  package_name: z.string().min(1, 'Package name is required'),
+  description: z.string().optional(),
+  user_type: z.enum(['end_user', 'sub_admin', 'both']),
+  subscription_fee_monthly: z.number().min(0).optional(),
+  subscription_fee_annually: z.number().min(0).optional(),
+  referral_discount_percentage: z.number().min(0).max(100).default(0),
+  vehicle_limit: z.number().min(1).optional(),
+  chatbot_prompt_limit: z.number().min(0).default(100),
+  feature_ids: z.array(z.string()).default([]),
+  menu_permission_ids: z.array(z.string()).default([]),
+});
+
+type CreatePackageFormData = z.infer<typeof createPackageSchema>;
 
 interface CreatePackageFormProps {
   onSuccess: () => void;
 }
 
 const CreatePackageForm: React.FC<CreatePackageFormProps> = ({ onSuccess }) => {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState<CreatePackageRequest>({
-    package_name: '',
-    description: '',
-    user_type: 'end_user',
-    subscription_fee_monthly: 0,
-    subscription_fee_annually: 0,
-    referral_discount_percentage: 0,
-    feature_ids: [],
-    menu_permission_ids: [],
-    vehicle_limit: null,
-    chatbot_prompt_limit: 0,
-  });
-
+  const [isLoading, setIsLoading] = useState(false);
+  const [features, setFeatures] = useState<PackageFeature[]>([]);
+  const [menuPermissions, setMenuPermissions] = useState<MenuPermission[]>([]);
   const { toast } = useToast();
 
-  const { data: features } = useQuery({
-    queryKey: ['package-features'],
-    queryFn: subscriberPackageApi.getFeatures
-  });
-
-  const { data: menuPermissions } = useQuery({
-    queryKey: ['menu-permissions'],
-    queryFn: subscriberPackageApi.getMenuPermissions
-  });
-
-  const handleFeatureToggle = (featureId: string, checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      feature_ids: checked
-        ? [...prev.feature_ids, featureId]
-        : prev.feature_ids.filter(id => id !== featureId)
-    }));
-  };
-
-  const handleMenuPermissionToggle = (menuId: string, checked: boolean) => {
-    setFormData(prev => ({
-      ...prev,
-      menu_permission_ids: checked
-        ? [...prev.menu_permission_ids, menuId]
-        : prev.menu_permission_ids.filter(id => id !== menuId)
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.package_name.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Package name is required.",
-        variant: "destructive"
-      });
-      return;
+  const form = useForm<CreatePackageFormData>({
+    resolver: zodResolver(createPackageSchema),
+    defaultValues: {
+      package_name: '',
+      description: '',
+      user_type: 'end_user',
+      subscription_fee_monthly: 0,
+      subscription_fee_annually: 0,
+      referral_discount_percentage: 0,
+      vehicle_limit: undefined,
+      chatbot_prompt_limit: 100,
+      feature_ids: [],
+      menu_permission_ids: [],
     }
+  });
 
-    setIsSubmitting(true);
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [featuresData, menuData] = await Promise.all([
+          subscriberPackageApi.getFeatures(),
+          subscriberPackageApi.getMenuPermissions()
+        ]);
+        setFeatures(featuresData);
+        setMenuPermissions(menuData);
+      } catch (error) {
+        console.error('Failed to load package data:', error);
+      }
+    };
 
+    loadData();
+  }, []);
+
+  const onSubmit = async (data: CreatePackageFormData) => {
+    setIsLoading(true);
     try {
-      await subscriberPackageApi.createPackage(formData);
+      await subscriberPackageApi.createPackage(data);
+
       toast({
-        title: "Package created",
-        description: "The package has been successfully created."
+        title: "Success",
+        description: "Package created successfully",
       });
+
+      form.reset();
       onSuccess();
     } catch (error) {
-      console.error('Create package error:', error);
       toast({
         title: "Error",
-        description: "Failed to create package. Please try again.",
-        variant: "destructive"
+        description: "Failed to create package",
+        variant: "destructive",
       });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
-  const groupedFeatures = features?.reduce((acc, feature) => {
-    if (!acc[feature.category]) {
-      acc[feature.category] = [];
-    }
-    acc[feature.category].push(feature);
-    return acc;
-  }, {} as Record<string, PackageFeature[]>);
+  const selectedFeatures = form.watch('feature_ids');
+  const selectedMenuPermissions = form.watch('menu_permission_ids');
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Create New Package</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Basic Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="package_name">Package Name *</Label>
+    <Card>
+      <CardHeader>
+        <CardTitle>Create New Package</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="package_name">Package Name</Label>
               <Input
                 id="package_name"
-                value={formData.package_name}
-                onChange={(e) => setFormData(prev => ({ ...prev, package_name: e.target.value }))}
+                {...form.register('package_name')}
                 placeholder="Enter package name"
-                required
               />
+              {form.formState.errors.package_name && (
+                <p className="text-sm text-red-600 mt-1">
+                  {form.formState.errors.package_name.message}
+                </p>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="user_type">User Type *</Label>
-              <Select value={formData.user_type} onValueChange={(value: any) => setFormData(prev => ({ ...prev, user_type: value }))}>
+            <div>
+              <Label htmlFor="user_type">User Type</Label>
+              <Select
+                value={form.watch('user_type')}
+                onValueChange={(value) => form.setValue('user_type', value as any)}
+              >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select user type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="end_user">End User</SelectItem>
@@ -136,148 +138,130 @@ const CreatePackageForm: React.FC<CreatePackageFormProps> = ({ onSuccess }) => {
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div>
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              {...form.register('description')}
               placeholder="Package description"
               rows={3}
             />
           </div>
 
-          {/* Pricing */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="monthly_fee">Monthly Fee (₦)</Label>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="subscription_fee_monthly">Monthly Fee (₦)</Label>
               <Input
-                id="monthly_fee"
+                id="subscription_fee_monthly"
                 type="number"
-                min="0"
                 step="0.01"
-                value={formData.subscription_fee_monthly || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, subscription_fee_monthly: parseFloat(e.target.value) || 0 }))}
+                {...form.register('subscription_fee_monthly', { valueAsNumber: true })}
                 placeholder="0.00"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="annual_fee">Annual Fee (₦)</Label>
+            <div>
+              <Label htmlFor="subscription_fee_annually">Annual Fee (₦)</Label>
               <Input
-                id="annual_fee"
+                id="subscription_fee_annually"
                 type="number"
-                min="0"
                 step="0.01"
-                value={formData.subscription_fee_annually || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, subscription_fee_annually: parseFloat(e.target.value) || 0 }))}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="referral_discount">Referral Discount (%)</Label>
-              <Input
-                id="referral_discount"
-                type="number"
-                min="0"
-                max="100"
-                step="0.01"
-                value={formData.referral_discount_percentage || ''}
-                onChange={(e) => setFormData(prev => ({ ...prev, referral_discount_percentage: parseFloat(e.target.value) || 0 }))}
+                {...form.register('subscription_fee_annually', { valueAsNumber: true })}
                 placeholder="0.00"
               />
             </div>
           </div>
 
-          {/* Limits */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
               <Label htmlFor="vehicle_limit">Vehicle Limit</Label>
               <Input
                 id="vehicle_limit"
                 type="number"
-                min="0"
-                step="1"
-                value={formData.vehicle_limit ?? ''}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  vehicle_limit: e.target.value === '' ? null : parseInt(e.target.value)
-                }))}
-                placeholder="Enter vehicle limit (leave blank for unlimited)"
+                {...form.register('vehicle_limit', { valueAsNumber: true })}
+                placeholder="Leave empty for unlimited"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="chatbot_prompt_limit">Chatbot Prompt Limit (Monthly)</Label>
+
+            <div>
+              <Label htmlFor="chatbot_prompt_limit">Chatbot Prompt Limit</Label>
               <Input
                 id="chatbot_prompt_limit"
                 type="number"
-                min="0"
-                step="1"
-                value={formData.chatbot_prompt_limit ?? 0}
-                onChange={(e) => setFormData(prev => ({
-                  ...prev,
-                  chatbot_prompt_limit: parseInt(e.target.value) || 0
-                }))}
-                placeholder="e.g., 100"
+                {...form.register('chatbot_prompt_limit', { valueAsNumber: true })}
+                placeholder="100"
               />
             </div>
           </div>
 
-          {/* Features */}
-          <div className="space-y-4">
-            <Label>Package Features</Label>
-            {groupedFeatures && Object.entries(groupedFeatures).map(([category, categoryFeatures]) => (
-              <div key={category} className="space-y-2">
-                <h4 className="font-medium text-sm capitalize">{category}</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {categoryFeatures.map((feature) => (
-                    <div key={feature.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={feature.id}
-                        checked={formData.feature_ids.includes(feature.id)}
-                        onCheckedChange={(checked) => handleFeatureToggle(feature.id, !!checked)}
-                      />
-                      <Label htmlFor={feature.id} className="text-sm">
-                        {feature.feature_name}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+          <div>
+            <Label htmlFor="referral_discount_percentage">Referral Discount (%)</Label>
+            <Input
+              id="referral_discount_percentage"
+              type="number"
+              min="0"
+              max="100"
+              {...form.register('referral_discount_percentage', { valueAsNumber: true })}
+              placeholder="0"
+            />
           </div>
 
-          {/* Menu Permissions */}
-          <div className="space-y-4">
-            <Label>Menu Permissions</Label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {menuPermissions?.map((menu) => (
-                <div key={menu.id} className="flex items-center space-x-2">
+          <div>
+            <Label>Features</Label>
+            <div className="grid grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto border rounded p-3">
+              {features.map((feature) => (
+                <div key={feature.id} className="flex items-center space-x-2">
                   <Checkbox
-                    id={menu.id}
-                    checked={formData.menu_permission_ids.includes(menu.id)}
-                    onCheckedChange={(checked) => handleMenuPermissionToggle(menu.id, !!checked)}
+                    id={`feature-${feature.id}`}
+                    checked={selectedFeatures.includes(feature.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        form.setValue('feature_ids', [...selectedFeatures, feature.id]);
+                      } else {
+                        form.setValue('feature_ids', selectedFeatures.filter(id => id !== feature.id));
+                      }
+                    }}
                   />
-                  <Label htmlFor={menu.id} className="text-sm">
-                    {menu.menu_name}
+                  <Label htmlFor={`feature-${feature.id}`} className="text-sm">
+                    {feature.feature_name}
                   </Label>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="flex justify-end gap-4">
-            <Button type="button" variant="outline" onClick={onSuccess}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create Package'}
+          <div>
+            <Label>Menu Permissions</Label>
+            <div className="grid grid-cols-2 gap-2 mt-2 max-h-48 overflow-y-auto border rounded p-3">
+              {menuPermissions.map((permission) => (
+                <div key={permission.id} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`menu-${permission.id}`}
+                    checked={selectedMenuPermissions.includes(permission.id)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        form.setValue('menu_permission_ids', [...selectedMenuPermissions, permission.id]);
+                      } else {
+                        form.setValue('menu_permission_ids', selectedMenuPermissions.filter(id => id !== permission.id));
+                      }
+                    }}
+                  />
+                  <Label htmlFor={`menu-${permission.id}`} className="text-sm">
+                    {permission.menu_name}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? 'Creating...' : 'Create Package'}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-    </form>
+        </form>
+      </CardContent>
+    </Card>
   );
 };
 

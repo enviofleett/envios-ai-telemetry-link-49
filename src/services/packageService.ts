@@ -33,6 +33,35 @@ export const packageService = {
     return data;
   },
 
+  // Get user's current package
+  async getUserPackage(userId: string): Promise<SubscriberPackage | null> {
+    try {
+      // First get the user's active subscription
+      const { data: subscription, error: subError } = await supabase
+        .from('user_subscriptions')
+        .select('package_id')
+        .eq('user_id', userId)
+        .eq('subscription_status', 'active')
+        .single();
+
+      if (subError && subError.code !== 'PGRST116') throw subError;
+      if (!subscription) return null;
+
+      // Then get the package details
+      const { data: packageData, error: pkgError } = await supabase
+        .from('subscriber_packages')
+        .select('*')
+        .eq('id', subscription.package_id)
+        .single();
+
+      if (pkgError && pkgError.code !== 'PGRST116') throw pkgError;
+      return packageData;
+    } catch (error) {
+      console.error('Error getting user package:', error);
+      return null;
+    }
+  },
+
   // Get default package (Basic Plan)
   async getDefaultPackage(): Promise<SubscriberPackage | null> {
     const { data, error } = await supabase
