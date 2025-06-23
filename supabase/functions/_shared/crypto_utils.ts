@@ -170,3 +170,6 @@ function fallbackMD5(message: string): string {
   const state = md51(message);
   return state.map(rhex).join('');
 }
+
+// THIS IS THE CRUCIAL FIX: Export synchronous md5_sync function
+export const md5_sync = (input: string): string => fallbackMD5(input);
