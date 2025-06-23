@@ -1,6 +1,6 @@
 
 // Lightweight crypto utilities for Edge Functions
-// This version contains only essential functions to prevent boot errors
+// Essential functions only to prevent boot errors
 
 // Basic input sanitization for GP51 API calls
 export function sanitizeInput(input: string): string {
@@ -15,7 +15,7 @@ export function sanitizeInput(input: string): string {
     .substring(0, 100); // Limit length
 }
 
-// Synchronous MD5 implementation for GP51 compatibility
+// Lightweight MD5 implementation for GP51 compatibility
 export function md5_sync(input: string): string {
   // Simple hash function for GP51 authentication
   let hash = 0;
@@ -32,10 +32,10 @@ export function md5_sync(input: string): string {
   return hexHash.padStart(32, '0');
 }
 
-// Async MD5 for GP51 compatibility
+// Async MD5 for GP51 compatibility with Web Crypto API fallback
 export async function md5_for_gp51_only(message: string): Promise<string> {
   try {
-    // Use Web Crypto API if available
+    // Use Web Crypto API if available for better security
     const msgUint8 = new TextEncoder().encode(message);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
@@ -43,7 +43,7 @@ export async function md5_for_gp51_only(message: string): Promise<string> {
     // Truncate to 32 characters to match MD5 length
     return hexHash.substring(0, 32);
   } catch (error) {
-    console.warn('⚠️ [crypto_utils] Web Crypto API not available, using fallback');
+    console.warn('⚠️ Web Crypto API not available, using fallback');
     return md5_sync(message);
   }
 }

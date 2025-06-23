@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, Play, Square, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
+import { Clock, Play, RefreshCw, AlertCircle, CheckCircle, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -51,6 +51,15 @@ const GP51ScheduledSyncManager: React.FC = () => {
   const triggerManualSync = async () => {
     setIsLoading(true);
     try {
+      // First check if GP51 is authenticated
+      const { data: authCheck } = await supabase.functions.invoke('gp51-service-management', {
+        body: { action: 'test_connection' }
+      });
+
+      if (!authCheck?.success) {
+        throw new Error('GP51 not authenticated. Please authenticate first.');
+      }
+
       const { data, error } = await supabase.functions.invoke('gp51-scheduled-sync');
       
       if (error) throw error;
@@ -102,7 +111,7 @@ const GP51ScheduledSyncManager: React.FC = () => {
             Scheduled Synchronization
           </CardTitle>
           <CardDescription>
-            Configure automated GP51 data synchronization with rate limiting protection
+            Configure automated GP51 data synchronization with intelligent rate limiting
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -128,9 +137,9 @@ const GP51ScheduledSyncManager: React.FC = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="hourly">Every Hour</SelectItem>
                     <SelectItem value="daily">Daily</SelectItem>
                     <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -143,15 +152,15 @@ const GP51ScheduledSyncManager: React.FC = () => {
                   <SelectContent>
                     <SelectItem value="02:00">2:00 AM</SelectItem>
                     <SelectItem value="03:00">3:00 AM</SelectItem>
-                    <SelectItem value="04:00">4:00 AM</SelectItem>
-                    <SelectItem value="05:00">5:00 AM</SelectItem>
+                    <SelectItem value="06:00">6:00 AM</SelectItem>
+                    <SelectItem value="22:00">10:00 PM</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
           )}
 
-          <div className="pt-4 border-t">
+          <div className="pt-4 border-t flex gap-2">
             <Button
               onClick={triggerManualSync}
               disabled={isLoading}
@@ -163,6 +172,11 @@ const GP51ScheduledSyncManager: React.FC = () => {
                 <Play className="h-4 w-4" />
               )}
               Run Manual Sync
+            </Button>
+            
+            <Button variant="outline" onClick={fetchRecentJobs}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh Jobs
             </Button>
           </div>
         </CardContent>
@@ -177,13 +191,14 @@ const GP51ScheduledSyncManager: React.FC = () => {
         </CardHeader>
         <CardContent>
           {recentJobs.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              No sync jobs found. Run a manual sync to get started.
-            </p>
+            <div className="text-center text-muted-foreground py-8">
+              <Clock className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+              <p>No sync jobs found. Run a manual sync to get started.</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {recentJobs.map((job) => (
-                <div key={job.id} className="flex items-center justify-between p-3 border rounded-lg">
+                <div key={job.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                   <div className="flex items-center gap-3">
                     {getStatusIcon(job.status)}
                     <div>
@@ -200,7 +215,7 @@ const GP51ScheduledSyncManager: React.FC = () => {
                     <Badge className={getStatusColor(job.status)}>
                       {job.status}
                     </Badge>
-                    {job.status === 'completed' && (
+                    {job.status === 'completed' && job.total_items > 0 && (
                       <span className="text-sm text-muted-foreground">
                         {job.successful_items}/{job.total_items} items
                       </span>
@@ -210,6 +225,23 @@ const GP51ScheduledSyncManager: React.FC = () => {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings className="h-5 w-5" />
+            Sync Configuration
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm text-muted-foreground space-y-2">
+            <p><strong>Rate Limiting:</strong> Automatically prevents IP blocking with intelligent delays</p>
+            <p><strong>Error Recovery:</strong> Automatic retry with exponential backoff</p>
+            <p><strong>Data Validation:</strong> Comprehensive validation before import</p>
+            <p><strong>Conflict Resolution:</strong> Smart handling of duplicate data</p>
+          </div>
         </CardContent>
       </Card>
     </div>
