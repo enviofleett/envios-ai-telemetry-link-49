@@ -9325,6 +9325,7 @@ export type Database = {
           arrived_time: string | null
           course: number | null
           created_at: string
+          creator: string | null
           device_name: string | null
           device_time: string | null
           device_type: string | null
@@ -9362,6 +9363,7 @@ export type Database = {
           arrived_time?: string | null
           course?: number | null
           created_at?: string
+          creator?: string | null
           device_name?: string | null
           device_time?: string | null
           device_type?: string | null
@@ -9399,6 +9401,7 @@ export type Database = {
           arrived_time?: string | null
           course?: number | null
           created_at?: string
+          creator?: string | null
           device_name?: string | null
           device_time?: string | null
           device_type?: string | null
