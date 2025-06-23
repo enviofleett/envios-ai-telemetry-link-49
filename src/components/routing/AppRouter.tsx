@@ -14,7 +14,7 @@ import VehicleManagement from '@/pages/VehicleManagement';
 import UserManagement from '@/pages/UserManagement';
 import Marketplace from '@/pages/Marketplace';
 import PackageManagement from '@/pages/PackageManagement';
-import AdminSettings from '@/pages/AdminSettings';
+import StableAdminSettings from '@/pages/StableAdminSettings';
 
 export const AppRouter: React.FC = () => {
   const { loading } = useUnifiedAuth();
@@ -50,7 +50,7 @@ export const AppRouter: React.FC = () => {
                   path="/admin" 
                   element={
                     <ProtectedRoute requireAdmin>
-                      <AdminSettings />
+                      <StableAdminSettings />
                     </ProtectedRoute>
                   } 
                 />
