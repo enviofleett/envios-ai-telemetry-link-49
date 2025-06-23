@@ -3,7 +3,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useUnifiedAuth } from '@/contexts/UnifiedAuthContext';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import DashboardLayout from '@/components/layout/DashboardLayout';
+import Layout from '@/components/Layout';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 // Pages
@@ -38,7 +38,7 @@ export const AppRouter: React.FC = () => {
         path="/*"
         element={
           <ProtectedRoute>
-            <DashboardLayout>
+            <Layout>
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/dashboard" element={<Index />} />
@@ -57,7 +57,7 @@ export const AppRouter: React.FC = () => {
                 {/* Redirect any unknown routes to dashboard */}
                 <Route path="*" element={<Navigate to="/dashboard" replace />} />
               </Routes>
-            </DashboardLayout>
+            </Layout>
           </ProtectedRoute>
         }
       />
