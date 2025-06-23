@@ -7,12 +7,14 @@ import BrandingSettingsForm from '@/components/settings/BrandingSettingsForm';
 import BillingSettingsForm from '@/components/settings/BillingSettingsForm';
 import GP51IntegrationTab from '@/components/admin/tabs/GP51IntegrationTab';
 import DataManagementTab from '@/components/admin/tabs/DataManagementTab';
+import CurrentPackageDisplay from '@/components/packages/CurrentPackageDisplay';
 import { 
   Building2, 
   Palette, 
   CreditCard, 
   Shield, 
   Database,
+  Package,
   Settings as SettingsIcon 
 } from 'lucide-react';
 
@@ -27,10 +29,14 @@ const Settings: React.FC = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="company" className="flex items-center gap-2">
             <Building2 className="h-4 w-4" />
             Company
+          </TabsTrigger>
+          <TabsTrigger value="package" className="flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            Package
           </TabsTrigger>
           <TabsTrigger value="branding" className="flex items-center gap-2">
             <Palette className="h-4 w-4" />
@@ -65,6 +71,16 @@ const Settings: React.FC = () => {
               <CompanySettingsForm />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="package">
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Package Management</h2>
+              <p className="text-gray-600">View and manage your current subscription package</p>
+            </div>
+            <CurrentPackageDisplay />
+          </div>
         </TabsContent>
 
         <TabsContent value="branding">

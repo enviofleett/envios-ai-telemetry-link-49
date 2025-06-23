@@ -1,6 +1,10 @@
+
 import React, { useState, Suspense } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StableErrorBoundary } from '@/components/StableErrorBoundary';
+import AdminSubscriptionManager from "./AdminSubscriptionManager";
+import BulkPackageAssignment from "./BulkPackageAssignment";
+import PackageAnalyticsDashboard from "./PackageAnalyticsDashboard";
 
 const PackageList = React.lazy(() => import('./PackageList'));
 const CreatePackageForm = React.lazy(() => import('./CreatePackageForm'));
@@ -75,7 +79,3 @@ const PackageManagementDashboard: React.FC = () => {
 };
 
 export default PackageManagementDashboard;
-
-import AdminSubscriptionManager from "./AdminSubscriptionManager";
-import BulkPackageAssignment from "./BulkPackageAssignment";
-import PackageAnalyticsDashboard from "./PackageAnalyticsDashboard";

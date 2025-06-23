@@ -150,6 +150,28 @@ export const subscriberPackageApi = {
     if (error) throw error;
   },
 
+  // Add new method to get user's current package
+  async getUserPackage(userId: string): Promise<SubscriberPackage | null> {
+    const { data: subscription, error: subError } = await supabase
+      .from('user_subscriptions')
+      .select('package_id')
+      .eq('user_id', userId)
+      .eq('subscription_status', 'active')
+      .single();
+
+    if (subError && subError.code !== 'PGRST116') throw subError;
+    if (!subscription) return null;
+
+    const { data: packageData, error: pkgError } = await supabase
+      .from('subscriber_packages')
+      .select('*')
+      .eq('id', subscription.package_id)
+      .single();
+
+    if (pkgError && pkgError.code !== 'PGRST116') throw pkgError;
+    return packageData as SubscriberPackage | null;
+  },
+
   // Feature management
   async getFeatures(): Promise<PackageFeature[]> {
     const { data, error } = await supabase
