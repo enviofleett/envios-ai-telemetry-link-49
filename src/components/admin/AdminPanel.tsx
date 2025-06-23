@@ -2,8 +2,9 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Settings, Users, Bell, Store, BarChart2 } from 'lucide-react';
+import { Shield, Database, Settings, Users, Bell, Store, BarChart2 } from 'lucide-react';
 import SecurityTab from './tabs/SecurityTab';
+import DataManagementTab from './tabs/DataManagementTab';
 import SystemSettingsTab from './tabs/SystemSettingsTab';
 import UserManagementTab from './tabs/UserManagementTab';
 import NotificationsTab from './tabs/NotificationsTab';
@@ -32,10 +33,14 @@ const AdminPanel: React.FC = () => {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
+            <TabsList className="grid w-full grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
               <TabsTrigger value="security" className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
                 Security
+              </TabsTrigger>
+              <TabsTrigger value="data" className="flex items-center gap-2">
+                <Database className="h-4 w-4" />
+                Data
               </TabsTrigger>
               <TabsTrigger value="settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" />
@@ -67,6 +72,10 @@ const AdminPanel: React.FC = () => {
 
             <TabsContent value="security" className="space-y-4">
               <SecurityTab />
+            </TabsContent>
+
+            <TabsContent value="data" className="space-y-4">
+              <DataManagementTab />
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-4">

@@ -13,6 +13,7 @@ import {
   Map,
   ShoppingCart,
   Activity,
+  Database,
   Bot,
   Zap
 } from 'lucide-react';
@@ -29,6 +30,7 @@ import PaymentGatewayTab from './tabs/PaymentGatewayTab';
 import MapsTab from './tabs/MapsTab';
 import MarketplaceSettingsTab from './tabs/MarketplaceSettingsTab';
 import HealthTab from './tabs/HealthTab';
+import DataManagementTab from './tabs/DataManagementTab';
 import AIAssistantTab from './tabs/AIAssistantTab';
 import GP51SyncTab from './tabs/GP51SyncTab';
 
@@ -57,6 +59,7 @@ const AdminSettingsLayout: React.FC<AdminSettingsLayoutProps> = ({
     { id: 'marketplace', label: 'Marketplace', icon: ShoppingCart, component: MarketplaceSettingsTab },
     { id: 'monitoring', label: 'Monitoring', icon: Activity, component: MonitoringTab },
     { id: 'health', label: 'Health', icon: Activity, component: HealthTab },
+    { id: 'data', label: 'Data', icon: Database, component: DataManagementTab },
     { id: 'ai', label: 'AI Assistant', icon: Bot, component: AIAssistantTab },
     { id: 'gp51', label: 'GP51 Sync', icon: Zap, component: GP51SyncTab },
   ];
@@ -80,7 +83,7 @@ const AdminSettingsLayout: React.FC<AdminSettingsLayoutProps> = ({
       </TabsList>
       
       {tabs.length > 8 && (
-        <TabsList className="grid w-full grid-cols-6 lg:grid-cols-6 h-auto p-1 mt-2">
+        <TabsList className="grid w-full grid-cols-7 lg:grid-cols-7 h-auto p-1 mt-2">
           {tabs.slice(8).map((tab) => {
             const IconComponent = tab.icon;
             return (

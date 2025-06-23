@@ -1,85 +1,258 @@
 
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useUnifiedAuth } from '@/contexts/UnifiedAuthContext';
-import ProtectedRoute from '@/components/ProtectedRoute';
 import Layout from '@/components/Layout';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
-// Pages
-import Index from '@/pages/Index';
+// Public Pages
 import Login from '@/pages/Login';
-import Register from '@/pages/Register';
-import VehicleManagement from '@/pages/VehicleManagement';
-import UserManagement from '@/pages/UserManagement';
-import Marketplace from '@/pages/Marketplace';
-import PackageManagement from '@/pages/PackageManagement';
-import StableAdminSettings from '@/pages/StableAdminSettings';
+import Auth from '@/pages/Auth';
+import AdminLogin from '@/pages/AdminLogin';
 
-// New restored pages
-import LiveTracking from '@/pages/LiveTracking';
+// Protected Pages - Dashboard
+import Index from '@/pages/Index';
+import Dashboard from '@/pages/Dashboard';
+import AdminSetup from '@/pages/AdminSetup';
+
+// Core Fleet Management
+import EnhancedLiveTracking from '@/pages/EnhancedLiveTracking';
+import EnhancedVehicleManagement from '@/pages/EnhancedVehicleManagement';
 import UserVehicles from '@/pages/UserVehicles';
-import Reports from '@/pages/Reports';
+import EnhancedUserManagement from '@/pages/EnhancedUserManagement';
+
+// System Management
+import StableAdminSettings from '@/pages/StableAdminSettings';
+import SystemImport from '@/pages/SystemImport';
+import DeviceConfiguration from '@/pages/DeviceConfiguration';
+
+// Operations - Now with full functionality
 import Maintenance from '@/pages/Maintenance';
 import WorkshopManagement from '@/pages/WorkshopManagement';
+import Marketplace from '@/pages/Marketplace';
+
+// Analytics & Reports
+import Reports from '@/pages/Reports';
+import AdminAnalytics from '@/pages/AdminAnalytics';
+
+// Business Management - Now with full functionality
+import PackageManagement from '@/pages/PackageManagement';
 import ActiveServices from '@/pages/ActiveServices';
-import Settings from '@/pages/Settings';
+import MerchantApplication from '@/pages/MerchantApplication';
+import ReferralAgents from '@/pages/ReferralAgents';
 
 export const AppRouter: React.FC = () => {
-  const { loading } = useUnifiedAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    );
-  }
-
   return (
     <Routes>
       {/* Public routes */}
+      <Route path="/auth" element={<Auth />} />
       <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-
-      {/* Protected routes with dashboard layout */}
-      <Route
-        path="/*"
+      <Route path="/admin-login" element={<AdminLogin />} />
+      
+      {/* Protected routes with Layout */}
+      <Route 
+        path="/" 
         element={
           <ProtectedRoute>
             <Layout>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/dashboard" element={<Index />} />
-                <Route path="/vehicles" element={<VehicleManagement />} />
-                <Route path="/users" element={<UserManagement />} />
-                <Route path="/marketplace" element={<Marketplace />} />
-                <Route path="/packages" element={<PackageManagement />} />
-                
-                {/* Restored routes */}
-                <Route path="/tracking" element={<LiveTracking />} />
-                <Route path="/my-vehicles" element={<UserVehicles />} />
-                <Route path="/reports" element={<Reports />} />
-                <Route path="/maintenance" element={<Maintenance />} />
-                <Route path="/workshop-management" element={<WorkshopManagement />} />
-                <Route path="/services" element={<ActiveServices />} />
-                <Route path="/settings" element={<Settings />} />
-                
-                <Route 
-                  path="/admin" 
-                  element={
-                    <ProtectedRoute requireAdmin>
-                      <StableAdminSettings />
-                    </ProtectedRoute>
-                  } 
-                />
-                {/* Redirect any unknown routes to dashboard */}
-                <Route path="*" element={<Navigate to="/dashboard" replace />} />
-              </Routes>
+              <Index />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+      
+      <Route 
+        path="/dashboard" 
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Dashboard />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+
+      {/* Core Fleet Management */}
+      <Route
+        path="/tracking"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <EnhancedLiveTracking />
             </Layout>
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/vehicles"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <EnhancedVehicleManagement />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-vehicles"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <UserVehicles />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <EnhancedUserManagement />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* System Management */}
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <StableAdminSettings />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin-setup"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AdminSetup />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system-import"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <SystemImport />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/device-configuration"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <DeviceConfiguration />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Enhanced Operations */}
+      <Route
+        path="/maintenance"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Maintenance />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/workshop-management"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <WorkshopManagement />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/marketplace"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Marketplace />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Analytics & Reports */}
+      <Route
+        path="/reports"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Reports />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/analytics"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AdminAnalytics />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Enhanced Business Management */}
+      <Route
+        path="/packages"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <PackageManagement />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/services"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ActiveServices />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/merchant-application"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <MerchantApplication />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/referral-agents"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ReferralAgents />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Redirect any unknown routes to home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };

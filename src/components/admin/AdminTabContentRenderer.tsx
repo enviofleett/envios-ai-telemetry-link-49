@@ -13,6 +13,7 @@ import PaymentGatewayTab from './tabs/PaymentGatewayTab';
 import MapsTab from './tabs/MapsTab';
 import MarketplaceSettingsTab from './tabs/MarketplaceSettingsTab';
 import HealthTab from './tabs/HealthTab';
+import DataManagementTab from './tabs/DataManagementTab';
 import AIAssistantTab from './tabs/AIAssistantTab';
 import GP51SyncTab from './tabs/GP51SyncTab';
 import MonitoringTab from './tabs/MonitoringTab';
@@ -111,6 +112,8 @@ const AdminTabContentRenderer: React.FC<AdminTabContentRendererProps> = memo(({ 
         return <HealthTab />;
 
       // Data Management
+      case 'data-management':
+        return <DataManagementTab />;
       case 'csv-import':
         return <CSVImportTab />;
       case 'user-management':

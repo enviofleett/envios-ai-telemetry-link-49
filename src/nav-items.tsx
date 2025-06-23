@@ -1,37 +1,15 @@
 
-import { HomeIcon, Settings, Car, Navigation, Users, ShoppingCart, Package, MapPin, Wrench, FileText, Activity } from "lucide-react";
+import { HomeIcon, Settings, Car, Navigation, BarChart3, ShoppingCart, Users, FileText, Package, Database, Cog } from "lucide-react";
 import Index from "./pages/Index";
 import UserManagement from "./pages/UserManagement";
 import VehicleManagement from "./pages/VehicleManagement";
+import Reports from "./pages/Reports";
 import Marketplace from "./pages/Marketplace";
 import PackageManagement from "./pages/PackageManagement";
-import LiveTracking from "./pages/LiveTracking";
-import UserVehicles from "./pages/UserVehicles";
-import Reports from "./pages/Reports";
-import Maintenance from "./pages/Maintenance";
-import WorkshopManagement from "./pages/WorkshopManagement";
-import ActiveServices from "./pages/ActiveServices";
-import Settings from "./pages/Settings";
+import SystemImport from "./pages/SystemImport";
+import DeviceConfiguration from "./pages/DeviceConfiguration";
 
 export const navItems = [
-  {
-    title: "Dashboard",
-    to: "/dashboard",
-    icon: <HomeIcon className="h-4 w-4" />,
-    page: <Index />,
-  },
-  {
-    title: "Live Tracking",
-    to: "/tracking",
-    icon: <MapPin className="h-4 w-4" />,
-    page: <LiveTracking />,
-  },
-  {
-    title: "My Vehicles",
-    to: "/my-vehicles",
-    icon: <Car className="h-4 w-4" />,
-    page: <UserVehicles />,
-  },
   {
     title: "Vehicle Management",
     to: "/vehicles",
@@ -45,22 +23,10 @@ export const navItems = [
     page: <UserManagement />,
   },
   {
-    title: "Reports & Analytics",
+    title: "Reports",
     to: "/reports",
     icon: <FileText className="h-4 w-4" />,
     page: <Reports />,
-  },
-  {
-    title: "Maintenance",
-    to: "/maintenance",
-    icon: <Wrench className="h-4 w-4" />,
-    page: <Maintenance />,
-  },
-  {
-    title: "Workshop Management",
-    to: "/workshop-management",
-    icon: <Wrench className="h-4 w-4" />,
-    page: <WorkshopManagement />,
   },
   {
     title: "Marketplace",
@@ -75,15 +41,15 @@ export const navItems = [
     page: <PackageManagement />,
   },
   {
-    title: "Active Services",
-    to: "/services",
-    icon: <Activity className="h-4 w-4" />,
-    page: <ActiveServices />,
+    title: "System Import",
+    to: "/system-import",
+    icon: <Database className="h-4 w-4" />,
+    page: <SystemImport />,
   },
   {
-    title: "Settings",
-    to: "/settings",
-    icon: <Settings className="h-4 w-4" />,
-    page: <Settings />,
+    title: "Device Configuration",
+    to: "/device-configuration",
+    icon: <Cog className="h-4 w-4" />,
+    page: <DeviceConfiguration />,
   },
 ];

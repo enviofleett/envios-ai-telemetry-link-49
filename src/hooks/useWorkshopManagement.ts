@@ -1,81 +1,144 @@
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Workshop, WorkshopStats } from '@/types/workshop';
+import { Workshop } from '@/types/workshop';
 
 export const useWorkshopManagement = () => {
-  const [allWorkshops, setAllWorkshops] = useState<Workshop[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isApproving, setIsApproving] = useState(false);
-  const [isRejecting, setIsRejecting] = useState(false);
-  const [workshopStats, setWorkshopStats] = useState<WorkshopStats>({
-    total: 0,
-    pending: 0,
-    approved: 0,
-    rejected: 0
-  });
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    // Mock data since workshops table was removed
-    const mockWorkshops: Workshop[] = [];
-    setAllWorkshops(mockWorkshops);
-    setWorkshopStats({
-      total: 0,
-      pending: 0,
-      approved: 0,
-      rejected: 0
-    });
-    setIsLoading(false);
-  }, []);
+  // Fetch all workshops for admin
+  const { data: allWorkshops, isLoading: workshopsLoading } = useQuery({
+    queryKey: ['admin-workshops'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('workshops')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-  const approveWorkshop = async ({ workshopId, notes }: { workshopId: string; notes?: string }) => {
-    setIsApproving(true);
-    try {
-      // Mock approval since workshops table was removed
+      if (error) throw error;
+      return data as Workshop[];
+    }
+  });
+
+  // Approve workshop mutation
+  const approveWorkshopMutation = useMutation({
+    mutationFn: async ({ workshopId, notes }: { workshopId: string; notes?: string }) => {
+      const { data, error } = await supabase
+        .from('workshops')
+        .update({
+          verified: true,
+          is_active: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', workshopId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log the approval action
+      const { data: user } = await supabase.auth.getUser();
+      if (user.user) {
+        await supabase
+          .from('workshop_approval_logs')
+          .insert({
+            workshop_id: workshopId,
+            action: 'approved',
+            notes: notes,
+            performed_by: user.user.id
+          });
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-workshops'] });
+      queryClient.invalidateQueries({ queryKey: ['workshops'] });
       toast({
         title: "Workshop Approved",
-        description: "The workshop has been approved successfully.",
+        description: "The workshop has been successfully approved and activated."
       });
-    } catch (error) {
-      console.error('Error approving workshop:', error);
+    },
+    onError: (error) => {
       toast({
         title: "Error",
-        description: "Failed to approve workshop.",
+        description: `Failed to approve workshop: ${error.message}`,
         variant: "destructive"
       });
-    } finally {
-      setIsApproving(false);
     }
-  };
+  });
 
-  const rejectWorkshop = async ({ workshopId, reason }: { workshopId: string; reason: string }) => {
-    setIsRejecting(true);
-    try {
-      // Mock rejection since workshops table was removed
+  // Reject workshop mutation
+  const rejectWorkshopMutation = useMutation({
+    mutationFn: async ({ workshopId, reason }: { workshopId: string; reason: string }) => {
+      const { data, error } = await supabase
+        .from('workshops')
+        .update({
+          verified: false,
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', workshopId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Log the rejection action
+      const { data: user } = await supabase.auth.getUser();
+      if (user.user) {
+        await supabase
+          .from('workshop_approval_logs')
+          .insert({
+            workshop_id: workshopId,
+            action: 'rejected',
+            notes: reason,
+            performed_by: user.user.id
+          });
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-workshops'] });
+      queryClient.invalidateQueries({ queryKey: ['workshops'] });
       toast({
         title: "Workshop Rejected",
-        description: "The workshop has been rejected.",
+        description: "The workshop has been rejected and deactivated."
       });
-    } catch (error) {
-      console.error('Error rejecting workshop:', error);
+    },
+    onError: (error) => {
       toast({
         title: "Error",
-        description: "Failed to reject workshop.",
+        description: `Failed to reject workshop: ${error.message}`,
         variant: "destructive"
       });
-    } finally {
-      setIsRejecting(false);
     }
+  });
+
+  // Get workshop statistics
+  const getWorkshopStats = () => {
+    if (!allWorkshops) return null;
+
+    return {
+      total: allWorkshops.length,
+      pending: allWorkshops.filter(w => !w.verified && w.is_active).length,
+      approved: allWorkshops.filter(w => w.verified && w.is_active).length,
+      rejected: allWorkshops.filter(w => !w.is_active).length
+    };
   };
 
   return {
     allWorkshops,
-    isLoading,
-    approveWorkshop,
-    rejectWorkshop,
-    isApproving,
-    isRejecting,
-    workshopStats
+    isLoading: isLoading || workshopsLoading,
+    approveWorkshop: approveWorkshopMutation.mutate,
+    rejectWorkshop: rejectWorkshopMutation.mutate,
+    isApproving: approveWorkshopMutation.isPending,
+    isRejecting: rejectWorkshopMutation.isPending,
+    workshopStats: getWorkshopStats()
   };
 };

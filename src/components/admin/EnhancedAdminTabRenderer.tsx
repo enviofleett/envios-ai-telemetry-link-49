@@ -28,6 +28,7 @@ import VinApiTab from './tabs/VinApiTab';
 import MapsTab from './tabs/MapsTab';
 import WhatsAppApiTab from './tabs/WhatsAppApiTab';
 import CSVImportTab from './tabs/CSVImportTab';
+import DataManagementTab from './tabs/DataManagementTab';
 import WorkshopsTab from './tabs/WorkshopsTab';
 import GP51ValidationTab from './tabs/GP51ValidationTab';
 import SMTPGuideTab from './tabs/SMTPGuideTab';
@@ -91,6 +92,8 @@ const EnhancedAdminTabRenderer: React.FC<EnhancedAdminTabRendererProps> = ({ act
       // Data Management tabs
       case 'csv-import':
         return <CSVImportTab />;
+      case 'data-management':
+        return <DataManagementTab />;
       
       // User Management tabs
       case 'workshops':
