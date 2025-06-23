@@ -8,14 +8,12 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
   requireAgent?: boolean;
-  requiredRole?: 'admin' | 'agent';
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ 
   children, 
   requireAdmin = false,
-  requireAgent = false,
-  requiredRole
+  requireAgent = false
 }) => {
   const { user, loading, isAdmin, isAgent } = useUnifiedAuth();
   const location = useLocation();
@@ -34,21 +32,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check role requirements
-  if (requiredRole === 'admin' && !isAdmin) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  if (requiredRole === 'agent' && !isAgent) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // Check admin requirement (legacy support)
+  // Check admin requirement
   if (requireAdmin && !isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Check agent requirement (legacy support)
+  // Check agent requirement
   if (requireAgent && !isAgent) {
     return <Navigate to="/dashboard" replace />;
   }

@@ -1,389 +1,344 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { md5_for_gp51_only, sanitizeInput } from './crypto_utils.ts';
+import { md5_sync } from './crypto_utils.ts';
 
 export interface ImportOptions {
   usernames?: string[];
   importUsers?: boolean;
   importDevices?: boolean;
-  conflictResolution?: 'skip' | 'update';
-}
-
-export interface ImportStatistics {
-  usersProcessed: number;
-  usersImported: number;
-  devicesProcessed: number;
-  devicesImported: number;
-  conflicts: number;
+  conflictResolution?: 'skip' | 'update' | 'replace';
 }
 
 export interface ImportResult {
   success: boolean;
   message: string;
-  statistics: ImportStatistics;
+  statistics: {
+    usersProcessed: number;
+    usersImported: number;
+    devicesProcessed: number;
+    devicesImported: number;
+    conflicts: number;
+  };
   errors: string[];
 }
 
-// Rate limiting configuration for GP51 API calls
-interface RateLimitConfig {
-  baseDelay: number;
-  maxRetries: number;
-  backoffMultiplier: number;
-  maxDelay: number;
+export interface GP51Device {
+  deviceid: string;
+  devicename: string;
+  devicetype?: number;
+  simnum?: string;
+  loginame?: string;
+  remark?: string;
+}
+
+export interface GP51User {
+  username: string;
+  nickname?: string;
+  email?: string;
+  phone?: string;
+  usertype?: number;
 }
 
 export class GP51ImportService {
   private supabaseUrl: string;
   private supabaseServiceKey: string;
   private supabase: any;
-  private rateLimitConfig: RateLimitConfig;
-  private lastRequestTime = 0;
-  private consecutiveFailures = 0;
+  
+  // Token management - separate global and user tokens
+  private globalToken: string | null = null;
+  private userToken: string | null = null;
+  private username: string | null = null;
+  
+  private baseUrl: string = 'https://www.gps51.com/webapi';
 
   constructor(supabaseUrl: string, supabaseServiceKey: string) {
     this.supabaseUrl = supabaseUrl;
     this.supabaseServiceKey = supabaseServiceKey;
     this.supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Configure rate limiting for GP51's strict limits
-    this.rateLimitConfig = {
-      baseDelay: 3000, // 3 seconds between requests
-      maxRetries: 3,
-      backoffMultiplier: 2,
-      maxDelay: 30000 // 30 seconds max
-    };
-  }
-
-  private async waitForRateLimit(): Promise<void> {
-    const timeSinceLastRequest = Date.now() - this.lastRequestTime;
-    const requiredDelay = this.rateLimitConfig.baseDelay;
-
-    if (timeSinceLastRequest < requiredDelay) {
-      const waitTime = requiredDelay - timeSinceLastRequest;
-      console.log(`⏳ [GP51ImportService] Rate limiting: waiting ${waitTime}ms`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    }
-
-    this.lastRequestTime = Date.now();
-  }
-
-  private async executeWithRetry<T>(
-    operation: () => Promise<T>,
-    operationName: string
-  ): Promise<T> {
-    let lastError: Error;
-    let currentDelay = this.rateLimitConfig.baseDelay;
-
-    for (let attempt = 1; attempt <= this.rateLimitConfig.maxRetries; attempt++) {
-      try {
-        await this.waitForRateLimit();
-        console.log(`🔄 [GP51ImportService] ${operationName} - Attempt ${attempt}/${this.rateLimitConfig.maxRetries}`);
-        
-        const result = await operation();
-        this.consecutiveFailures = 0; // Reset on success
-        return result;
-
-      } catch (error) {
-        lastError = error as Error;
-        this.consecutiveFailures++;
-        
-        console.error(`❌ [GP51ImportService] ${operationName} failed (attempt ${attempt}):`, error);
-
-        // Check for specific GP51 errors
-        const errorMessage = error.message.toLowerCase();
-        if (errorMessage.includes('ip limit') || errorMessage.includes('8902')) {
-          console.warn(`🚫 [GP51ImportService] GP51 rate/IP limit detected`);
-          
-          // Longer delay for rate limit errors
-          currentDelay = Math.min(currentDelay * 2, this.rateLimitConfig.maxDelay);
-        }
-
-        if (attempt < this.rateLimitConfig.maxRetries) {
-          console.log(`⏳ [GP51ImportService] Backing off for ${currentDelay}ms`);
-          await new Promise(resolve => setTimeout(resolve, currentDelay));
-          currentDelay = Math.min(currentDelay * this.rateLimitConfig.backoffMultiplier, this.rateLimitConfig.maxDelay);
-        }
-      }
-    }
-
-    throw lastError!;
+    // Get global token from environment
+    this.globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+    console.log(`🔐 [GP51ImportService] Global token: ${this.globalToken ? 'AVAILABLE' : 'NOT SET'}`);
   }
 
   async authenticate(): Promise<boolean> {
     try {
+      console.log('🔐 [GP51ImportService] Starting authentication...');
+      
       const username = Deno.env.get('GP51_ADMIN_USERNAME');
       const password = Deno.env.get('GP51_ADMIN_PASSWORD');
-      const globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+      
+      if (!username || !password) {
+        throw new Error('GP51 credentials not configured');
+      }
+      
+      if (!this.globalToken) {
+        throw new Error('GP51 global token not configured');
+      }
 
-      if (!username || !password || !globalToken) {
-        console.error('❌ [GP51ImportService] Missing GP51 credentials');
+      // Hash password using MD5 for GP51 compatibility
+      const hashedPassword = md5_sync(password);
+      console.log('🔐 [GP51ImportService] Password hashed successfully');
+
+      // Construct login URL with ONLY the global token
+      const url = new URL(this.baseUrl);
+      url.searchParams.set('action', 'login');
+      url.searchParams.set('token', this.globalToken);
+
+      console.log(`📤 [GP51ImportService] Making login request to: ${url.toString()}`);
+
+      const requestBody = {
+        username: username.trim(),
+        password: hashedPassword,
+        from: 'WEB',
+        type: 'USER'
+      };
+
+      // Log the request body for debugging (with password redacted)
+      console.log(`📤 [GP51ImportService] Parameters:`, JSON.stringify({
+        ...requestBody,
+        password: '[REDACTED]'
+      }));
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(15000)
+      });
+
+      console.log(`📊 [GP51ImportService] Response status: ${response.status}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const responseText = await response.text();
+      console.log(`📊 [GP51ImportService] Raw response: ${responseText}`);
+
+      // Try to parse as JSON
+      let parsedResponse;
+      try {
+        parsedResponse = JSON.parse(responseText);
+      } catch (parseError) {
+        // If not JSON, treat as plain text token
+        if (responseText.trim().length > 8) {
+          parsedResponse = {
+            status: 0,
+            token: responseText.trim(),
+            username: username
+          };
+        } else {
+          throw new Error(`Invalid response format: ${responseText}`);
+        }
+      }
+
+      console.log(`📊 [GP51ImportService] Parsed response:`, JSON.stringify(parsedResponse, null, 2));
+
+      // Check for GP51 API errors
+      if (parsedResponse.status && parsedResponse.status !== 0) {
+        const errorMsg = parsedResponse.cause || parsedResponse.message || `GP51 API error: ${parsedResponse.status}`;
+        console.error(`❌ [GP51ImportService] Login failed: ${errorMsg}`);
         return false;
       }
 
-      return await this.executeWithRetry(async () => {
-        console.log('🔐 [GP51ImportService] Testing GP51 authentication...');
-        
-        const hashedPassword = await md5_for_gp51_only(password);
-        const loginUrl = new URL('https://www.gps51.com/webapi');
-        loginUrl.searchParams.set('action', 'login');
-        loginUrl.searchParams.set('token', globalToken);
-
-        const response = await fetch(loginUrl.toString(), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'text/plain',
-            'User-Agent': 'FleetIQ/1.0'
-          },
-          body: JSON.stringify({
-            username: sanitizeInput(username),
-            password: hashedPassword,
-            from: 'WEB',
-            type: 'USER'
-          }),
-          signal: AbortSignal.timeout(15000)
-        });
-
-        if (!response.ok) {
-          throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
-        }
-
-        const responseText = await response.text();
-        if (!responseText || responseText.trim().length === 0) {
-          throw new Error('Empty authentication response - check credentials');
-        }
-
-        let responseData;
-        try {
-          responseData = JSON.parse(responseText);
-          if (responseData.status !== 0) {
-            throw new Error(`Authentication failed: status ${responseData.status} - ${responseData.cause || 'Unknown error'}`);
-          }
-        } catch (parseError) {
-          // Treat as plain text token if JSON parsing fails
-          if (responseText.includes('error') || responseText.includes('fail')) {
-            throw new Error(`Authentication failed: ${responseText}`);
-          }
-        }
-
-        console.log('✅ [GP51ImportService] Authentication successful');
-        return true;
-      }, 'Authentication');
+      // Store user session token and username
+      this.userToken = parsedResponse.token;
+      this.username = parsedResponse.username || username;
+      
+      console.log(`✅ [GP51ImportService] Authentication successful`);
+      console.log(`🔑 [GP51ImportService] User token: ${this.userToken ? 'RECEIVED' : 'NOT RECEIVED'}`);
+      console.log(`👤 [GP51ImportService] Username: ${this.username}`);
+      
+      return true;
 
     } catch (error) {
-      console.error('❌ [GP51ImportService] Authentication failed:', error);
+      console.error(`❌ [GP51ImportService] Authentication failed:`, error);
       return false;
     }
   }
 
-  private async makeAuthenticatedRequest(action: string, body: any = {}): Promise<any> {
-    return await this.executeWithRetry(async () => {
-      console.log(`🔐 [GP51ImportService] Making authenticated request for action: ${action}`);
-      
-      // Step 1: Fresh authentication for each request
-      console.log(`🔐 [GP51ImportService] Step 1: Authenticating for ${action}...`);
-      
-      const username = Deno.env.get('GP51_ADMIN_USERNAME');
-      const password = Deno.env.get('GP51_ADMIN_PASSWORD');
-      const globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+  async fetchDevices(): Promise<GP51Device[]> {
+    if (!this.userToken) {
+      throw new Error('Not authenticated - user token required');
+    }
 
-      const hashedPassword = await md5_for_gp51_only(password);
-      const loginUrl = new URL('https://www.gps51.com/webapi');
-      loginUrl.searchParams.set('action', 'login');
-      loginUrl.searchParams.set('token', globalToken);
+    console.log('🚗 [GP51ImportService] Fetching device list...');
+    console.log(`🔑 [GP51ImportService] Using user token for authenticated request`);
 
-      const loginResponse = await fetch(loginUrl.toString(), {
+    try {
+      // Construct URL with ONLY the user session token for authenticated requests
+      const url = new URL(this.baseUrl);
+      url.searchParams.set('action', 'querymonitorlist');
+      url.searchParams.set('token', this.userToken);
+
+      console.log(`📤 [GP51ImportService] Making request to: ${url.toString()}`);
+      console.log(`📤 [GP51ImportService] Parameters: {}`);
+
+      const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'text/plain',
-          'User-Agent': 'FleetIQ/1.0'
+          'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          username: sanitizeInput(username),
-          password: hashedPassword,
-          from: 'WEB',
-          type: 'USER'
-        }),
+        body: JSON.stringify({}),
         signal: AbortSignal.timeout(15000)
       });
 
-      if (!loginResponse.ok) {
-        throw new Error(`Login failed: ${loginResponse.status}`);
-      }
-
-      const loginResponseText = await loginResponse.text();
-      let userToken;
-
-      try {
-        const loginData = JSON.parse(loginResponseText);
-        console.log(`🔐 [GP51ImportService] Login response status: ${loginData.status}`);
-        
-        if (loginData.status !== 0) {
-          throw new Error(`Login failed with status ${loginData.status}: ${loginData.cause || 'Unknown error'}`);
-        }
-        
-        userToken = loginData.token;
-      } catch (parseError) {
-        userToken = loginResponseText.trim();
-      }
-
-      if (!userToken) {
-        throw new Error('No token received from login');
-      }
-
-      console.log(`🔐 [GP51ImportService] Fresh token obtained for ${action}`);
-
-      // Step 2: Make the actual request with fresh token
-      console.log(`📤 [GP51ImportService] Step 2: Making ${action} request with fresh token...`);
-      
-      const apiUrl = new URL('https://www.gps51.com/webapi');
-      apiUrl.searchParams.set('action', action);
-      apiUrl.searchParams.set('token', userToken);
-      apiUrl.searchParams.set('username', sanitizeInput(username));
-
-      const response = await fetch(apiUrl.toString(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'FleetIQ/1.0'
-        },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30000)
-      });
+      console.log(`📊 [GP51ImportService] Response status: ${response.status}`);
 
       if (!response.ok) {
-        throw new Error(`${action} request failed: ${response.status}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const responseText = await response.text();
-      if (!responseText) {
-        throw new Error(`Empty response from ${action} request`);
+      console.log(`📊 [GP51ImportService] Raw response: ${responseText}`);
+
+      const parsedResponse = JSON.parse(responseText);
+      console.log(`📊 [GP51ImportService] Parsed response:`, parsedResponse);
+
+      // Check for GP51 API errors
+      if (parsedResponse.status && parsedResponse.status !== 0) {
+        const errorMsg = parsedResponse.cause || parsedResponse.message || `GP51 API error: ${parsedResponse.status}`;
+        throw new Error(errorMsg);
       }
 
-      const responseData = JSON.parse(responseText);
-      console.log(`📊 [GP51ImportService] ${action} response status: ${responseData.status}`);
+      const devices: GP51Device[] = [];
       
-      if (responseData.status !== 0) {
-        throw new Error(`${action} failed: ${responseData.cause || 'Unknown error'}`);
-      }
-
-      return responseData;
-    }, `${action} Request`);
-  }
-
-  private async fetchUsers(): Promise<any[]> {
-    try {
-      console.log('👤 [GP51ImportService] Fetching users with fresh authentication...');
-      
-      const response = await this.makeAuthenticatedRequest('queryuserlist');
-      const users = response.results || [];
-      
-      console.log(`📊 [GP51ImportService] Processed ${users.length} users`);
-      return users;
-    } catch (error) {
-      console.error('❌ [GP51ImportService] Failed to fetch users:', error);
-      throw error;
-    }
-  }
-
-  private async fetchDevices(): Promise<any[]> {
-    try {
-      console.log('🚗 [GP51ImportService] Fetching devices with fresh authentication...');
-      
-      const response = await this.makeAuthenticatedRequest('querymonitorlist');
-      
-      const devices: any[] = [];
-      if (response.groups && Array.isArray(response.groups)) {
-        for (const group of response.groups) {
+      if (parsedResponse.groups && Array.isArray(parsedResponse.groups)) {
+        for (const group of parsedResponse.groups) {
           if (group.devices && Array.isArray(group.devices)) {
             devices.push(...group.devices);
           }
         }
       }
-      
-      console.log(`🚗 [GP51ImportService] Successfully fetched ${devices.length} devices`);
-      console.log(`📊 [GP51ImportService] Processed ${devices.length} devices`);
+
+      console.log(`✅ [GP51ImportService] Successfully fetched ${devices.length} devices`);
       return devices;
+
     } catch (error) {
-      console.error('❌ [GP51ImportService] Failed to fetch devices:', error);
-      throw error;
+      const errorMsg = `Failed to fetch devices: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(`❌ [GP51ImportService] ${errorMsg}`);
+      throw new Error(errorMsg);
     }
   }
 
-  async performImport(options: ImportOptions): Promise<ImportResult> {
-    console.log(`🚀 [GP51ImportService] Starting import with options:`, options);
+  async fetchUsers(): Promise<GP51User[]> {
+    if (!this.userToken) {
+      throw new Error('Not authenticated - user token required');
+    }
+
+    console.log('👥 [GP51ImportService] Fetching user list...');
     
-    const statistics: ImportStatistics = {
+    // For now, return the authenticated user as we don't have a bulk user endpoint
+    const users: GP51User[] = [];
+    
+    if (this.username) {
+      try {
+        // Query user details using the user session token
+        const url = new URL(this.baseUrl);
+        url.searchParams.set('action', 'queryuserdetail');
+        url.searchParams.set('token', this.userToken);
+
+        const response = await fetch(url.toString(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            username: this.username
+          }),
+          signal: AbortSignal.timeout(15000)
+        });
+
+        if (response.ok) {
+          const responseText = await response.text();
+          const userData = JSON.parse(responseText);
+          
+          if (userData.status === 0) {
+            users.push({
+              username: userData.username || this.username,
+              nickname: userData.nickname,
+              email: userData.email,
+              phone: userData.phone,
+              usertype: userData.usertype
+            });
+          }
+        }
+      } catch (error) {
+        console.warn(`⚠️ [GP51ImportService] Could not fetch user details: ${error}`);
+      }
+    }
+
+    console.log(`✅ [GP51ImportService] Found ${users.length} users`);
+    return users;
+  }
+
+  async performImport(options: ImportOptions): Promise<ImportResult> {
+    console.log('🚀 [GP51ImportService] Starting import with options:', options);
+
+    const statistics = {
       usersProcessed: 0,
       usersImported: 0,
       devicesProcessed: 0,
       devicesImported: 0,
       conflicts: 0
     };
-    
+
     const errors: string[] = [];
-    const isPreview = options.conflictResolution === 'skip';
-    
-    if (isPreview) {
-      console.log('📊 [GP51ImportService] Running in preview mode');
-    }
 
     try {
-      // Fetch users if requested
-      if (options.importUsers) {
-        try {
-          const users = await this.fetchUsers();
-          statistics.usersProcessed = users.length;
-          if (!isPreview) {
-            // TODO: Implement actual user import with rate limiting
-            statistics.usersImported = users.length;
-          }
-        } catch (error) {
-          const errorMsg = `Failed to process users: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          errors.push(errorMsg);
-        }
+      // Fetch devices
+      let devices: GP51Device[] = [];
+      if (options.importDevices !== false) {
+        devices = await this.fetchDevices();
+        statistics.devicesProcessed = devices.length;
       }
 
-      // Fetch devices if requested
-      if (options.importDevices) {
-        try {
-          const devices = await this.fetchDevices();
-          statistics.devicesProcessed = devices.length;
-          if (!isPreview) {
-            // TODO: Implement actual device import with rate limiting
-            statistics.devicesImported = devices.length;
-          }
-        } catch (error) {
-          const errorMsg = `Failed to process devices: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          errors.push(errorMsg);
-        }
+      // Fetch users
+      let users: GP51User[] = [];
+      if (options.importUsers !== false) {
+        users = await this.fetchUsers();
+        statistics.usersProcessed = users.length;
       }
 
-      const hasData = statistics.usersProcessed > 0 || statistics.devicesProcessed > 0;
-      const message = isPreview 
-        ? (hasData ? 'Preview completed successfully' : 'No data available for import')
-        : `Import completed: ${statistics.usersImported} users, ${statistics.devicesImported} devices`;
+      console.log(`📊 [GP51ImportService] Estimated ${users.length} users and ${devices.length} devices`);
 
-      console.log(`📊 [GP51ImportService] ${isPreview ? 'Preview' : 'Import'} completed`);
+      // For preview mode (skip conflict resolution), just return the statistics
+      if (options.conflictResolution === 'skip') {
+        console.log(`📊 [GP51ImportService] Running in preview mode`);
+        return {
+          success: true,
+          message: `Preview completed: Found ${devices.length} devices and ${users.length} users`,
+          statistics,
+          errors
+        };
+      }
+
+      // TODO: Implement actual import logic here when not in preview mode
+      // This would involve inserting the devices and users into Supabase tables
 
       return {
         success: true,
-        message,
+        message: `Import completed: ${statistics.devicesProcessed} devices and ${statistics.usersProcessed} users processed`,
         statistics,
         errors
       };
 
     } catch (error) {
-      const errorMsg = `Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      console.error('❌ [GP51ImportService] Import failed:', error);
-      
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`❌ [GP51ImportService] Import failed:`, errorMsg);
+      errors.push(errorMsg);
+
       return {
         success: false,
-        message: errorMsg,
+        message: `Import failed: ${errorMsg}`,
         statistics,
-        errors: [errorMsg, ...errors]
+        errors
       };
     }
   }

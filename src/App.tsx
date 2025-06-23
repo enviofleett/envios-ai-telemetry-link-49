@@ -4,7 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { BrowserRouter as Router } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 import { UnifiedAuthProvider } from "@/contexts/UnifiedAuthContext";
 import { BrandingProvider } from "@/contexts/BrandingContext";
 import { CurrencyProvider } from "@/contexts/CurrencyContext";
@@ -21,7 +21,7 @@ const queryClient = new QueryClient({
   },
 });
 
-function App() {
+const App = () => {
   return (
     <StableErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -30,11 +30,9 @@ function App() {
             <BrandingProvider>
               <CurrencyProvider>
                 <TooltipProvider>
-                  <Router>
-                    <div className="min-h-screen bg-background">
-                      <AppRouter />
-                    </div>
-                  </Router>
+                  <BrowserRouter>
+                    <AppRouter />
+                  </BrowserRouter>
                   <Toaster />
                   <Sonner />
                   <ReactQueryDevtools initialIsOpen={false} />
@@ -46,6 +44,6 @@ function App() {
       </QueryClientProvider>
     </StableErrorBoundary>
   );
-}
+};
 
 export default App;

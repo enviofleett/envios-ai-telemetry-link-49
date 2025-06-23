@@ -3,7 +3,6 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { SystemMonitoringDashboard } from '@/components/monitoring/SystemMonitoringDashboard';
 
 // Public Pages
 import Login from '@/pages/Login';
@@ -67,18 +66,6 @@ export const AppRouter: React.FC = () => {
           <ProtectedRoute>
             <Layout>
               <Dashboard />
-            </Layout>
-          </ProtectedRoute>
-        } 
-      />
-
-      {/* System Monitoring Dashboard - Admin Only */}
-      <Route 
-        path="/monitoring" 
-        element={
-          <ProtectedRoute requiredRole="admin">
-            <Layout>
-              <SystemMonitoringDashboard />
             </Layout>
           </ProtectedRoute>
         } 

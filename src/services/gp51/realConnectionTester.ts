@@ -3,267 +3,149 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface GP51ConnectionHealth {
   isConnected: boolean;
+  lastSuccessfulPing?: Date;
+  apiResponseTime?: number;
+  deviceCount?: number;
+  errorMessage?: string;
   sessionValid: boolean;
   apiReachable: boolean;
   dataFlowing: boolean;
-  errorMessage?: string;
-  apiResponseTime?: number;
-  deviceCount?: number;
-  lastCheck?: Date;
-}
-
-interface ConnectionTestResult {
-  success: boolean;
-  responseTime: number;
-  status: 'connected' | 'disconnected' | 'error';
-  message: string;
-  timestamp: Date;
-  details?: any;
-}
-
-interface SystemAlert {
-  alert_type: string;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  title: string;
-  message: string;
-  source_system: string;
-  source_entity_id?: string;
-  alert_data?: any;
 }
 
 export class GP51RealConnectionTester {
-  private lastTestResult: ConnectionTestResult | null = null;
-  private testInProgress = false;
-
-  async testRealConnection(): Promise<GP51ConnectionHealth> {
-    if (this.testInProgress) {
-      return {
-        isConnected: false,
-        sessionValid: false,
-        apiReachable: false,
-        dataFlowing: false,
-        errorMessage: 'Test already in progress'
-      };
-    }
-
-    this.testInProgress = true;
+  /**
+   * Performs comprehensive GP51 connection testing beyond just session validation
+   */
+  static async testRealConnection(): Promise<GP51ConnectionHealth> {
     const startTime = Date.now();
-
+    
+    console.log('🧪 Testing real GP51 API connectivity...');
+    
     try {
-      // Get GP51 credentials and test connection
-      const { data: sessions, error: sessionError } = await supabase
-        .from('gp51_sessions')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // Step 1: Test if GP51 API is reachable with real data
+      const { data: apiTest, error: apiError } = await supabase.functions.invoke('gp51-service-management', {
+        body: { action: 'test_gp51_api' }
+      });
+
+      if (apiError) {
+        console.error('❌ GP51 API unreachable:', apiError);
+        return {
+          isConnected: false,
+          sessionValid: false,
+          apiReachable: false,
+          dataFlowing: false,
+          errorMessage: apiError.message,
+          apiResponseTime: Date.now() - startTime
+        };
+      }
+
+      if (!apiTest.success) {
+        console.error('❌ GP51 API test failed:', apiTest);
+        return {
+          isConnected: false,
+          sessionValid: apiTest.code !== 'SESSION_EXPIRED',
+          apiReachable: apiTest.code !== 'API_CONNECTION_ERROR',
+          dataFlowing: false,
+          errorMessage: apiTest.error,
+          apiResponseTime: Date.now() - startTime
+        };
+      }
+
+      // Step 2: Test live data flow by fetching actual vehicle data
+      const { data: liveDataTest, error: liveError } = await supabase.functions.invoke('fetchLiveGp51Data', {
+        body: {}
+      });
 
       const responseTime = Date.now() - startTime;
 
-      if (sessionError) {
-        const result: GP51ConnectionHealth = {
-          isConnected: false,
-          sessionValid: false,
-          apiReachable: false,
-          dataFlowing: false,
-          errorMessage: `Database connection failed: ${sessionError.message}`,
-          apiResponseTime: responseTime
-        };
-        
-        await this.logTestResult(result);
-        return result;
-      }
-
-      if (!sessions || sessions.length === 0) {
-        const result: GP51ConnectionHealth = {
-          isConnected: false,
-          sessionValid: false,
-          apiReachable: false,
-          dataFlowing: false,
-          errorMessage: 'No GP51 sessions found. Please authenticate first.',
-          apiResponseTime: responseTime
-        };
-        
-        await this.logTestResult(result);
-        return result;
-      }
-
-      const session = sessions[0];
-      const now = new Date();
-      const expiresAt = new Date(session.token_expires_at || 0);
-      
-      if (expiresAt <= now) {
-        const result: GP51ConnectionHealth = {
-          isConnected: false,
-          sessionValid: false,
+      if (liveError || !liveDataTest?.success) {
+        console.warn('⚠️ Live data test failed:', liveError || liveDataTest);
+        return {
+          isConnected: true, // API is reachable but data isn't flowing
+          sessionValid: true,
           apiReachable: true,
           dataFlowing: false,
-          errorMessage: 'GP51 session has expired. Please re-authenticate.',
-          apiResponseTime: responseTime
+          errorMessage: liveError?.message || liveDataTest?.error || 'Live data not available',
+          apiResponseTime: responseTime,
+          deviceCount: apiTest.deviceCount || 0
         };
-        
-        await this.logTestResult(result);
-        return result;
       }
 
-      // Test successful
-      const result: GP51ConnectionHealth = {
+      console.log('✅ Real GP51 connection test successful');
+      return {
         isConnected: true,
         sessionValid: true,
         apiReachable: true,
         dataFlowing: true,
+        lastSuccessfulPing: new Date(),
         apiResponseTime: responseTime,
-        deviceCount: 0, // Would be populated by actual device count
-        lastCheck: new Date()
+        deviceCount: liveDataTest.data?.total_devices || apiTest.deviceCount || 0
       };
 
-      await this.logTestResult(result);
-      return result;
-
     } catch (error) {
-      const responseTime = Date.now() - startTime;
-      const result: GP51ConnectionHealth = {
+      console.error('❌ Connection test exception:', error);
+      return {
         isConnected: false,
         sessionValid: false,
         apiReachable: false,
         dataFlowing: false,
-        errorMessage: `Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        apiResponseTime: responseTime
+        errorMessage: error instanceof Error ? error.message : 'Connection test failed',
+        apiResponseTime: Date.now() - startTime
       };
-      
-      await this.logTestResult(result);
-      return result;
-    } finally {
-      this.testInProgress = false;
     }
   }
 
-  async generateConnectionReport(): Promise<any> {
-    const health = await this.testRealConnection();
+  /**
+   * Quick health check that validates both session and live API access
+   */
+  static async quickHealthCheck(): Promise<boolean> {
+    try {
+      const health = await this.testRealConnection();
+      return health.isConnected && health.dataFlowing;
+    } catch (error) {
+      console.error('❌ Quick health check failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Comprehensive connection report for admin dashboard
+   */
+  static async generateConnectionReport(): Promise<{
+    overallHealth: 'healthy' | 'degraded' | 'critical';
+    details: GP51ConnectionHealth;
+    recommendations: string[];
+  }> {
+    const details = await this.testRealConnection();
+    
+    let overallHealth: 'healthy' | 'degraded' | 'critical';
+    const recommendations: string[] = [];
+
+    if (details.isConnected && details.dataFlowing) {
+      overallHealth = 'healthy';
+      if (details.apiResponseTime && details.apiResponseTime > 3000) {
+        recommendations.push('API response time is high (>3s). Check network connectivity.');
+      }
+    } else if (details.sessionValid && details.apiReachable) {
+      overallHealth = 'degraded';
+      recommendations.push('API is reachable but live data is not flowing. Check GP51 service status.');
+      if (!details.dataFlowing) {
+        recommendations.push('Vehicle telemetry may not be updating. Verify device connectivity.');
+      }
+    } else {
+      overallHealth = 'critical';
+      if (!details.sessionValid) {
+        recommendations.push('GP51 session expired or invalid. Re-authenticate in Admin Settings.');
+      }
+      if (!details.apiReachable) {
+        recommendations.push('GP51 API unreachable. Check internet connectivity or GP51 service status.');
+      }
+    }
+
     return {
-      timestamp: new Date(),
-      connectionHealth: health,
-      recommendations: this.generateRecommendations(health)
+      overallHealth,
+      details,
+      recommendations
     };
   }
-
-  private generateRecommendations(health: GP51ConnectionHealth): string[] {
-    const recommendations: string[] = [];
-    
-    if (!health.isConnected) {
-      recommendations.push('Check GP51 API credentials and network connectivity');
-    }
-    
-    if (!health.sessionValid) {
-      recommendations.push('Re-authenticate with GP51 to refresh session');
-    }
-    
-    if (health.apiResponseTime && health.apiResponseTime > 5000) {
-      recommendations.push('API response time is slow, check network connection');
-    }
-    
-    return recommendations;
-  }
-
-  private async logTestResult(result: GP51ConnectionHealth): Promise<void> {
-    try {
-      // Create a system alert if the connection test fails
-      if (!result.isConnected) {
-        await this.createSystemAlert({
-          alert_type: 'gp51_connection_failure',
-          severity: 'high',
-          title: 'GP51 Connection Test Failed',
-          message: result.errorMessage || 'Connection test failed',
-          source_system: 'gp51_connection_tester',
-          alert_data: {
-            responseTime: result.apiResponseTime,
-            timestamp: new Date(),
-            details: result
-          }
-        });
-      }
-
-      // Log to application errors table for tracking
-      if (!result.isConnected) {
-        await supabase
-          .from('application_errors')
-          .insert({
-            error_type: 'gp51_connection_test',
-            error_message: result.errorMessage || 'Connection test failed',
-            severity: result.sessionValid ? 'medium' : 'high',
-            error_context: {
-              responseTime: result.apiResponseTime,
-              details: result
-            }
-          });
-      }
-    } catch (error) {
-      console.error('Failed to log connection test result:', error);
-    }
-  }
-
-  private async createSystemAlert(alert: SystemAlert): Promise<void> {
-    try {
-      // Use direct insert instead of RPC function
-      const { error } = await supabase
-        .from('system_alerts')
-        .insert({
-          alert_type: alert.alert_type,
-          severity: alert.severity,
-          title: alert.title,
-          message: alert.message,
-          source_system: alert.source_system,
-          source_entity_id: alert.source_entity_id || null,
-          alert_data: alert.alert_data || {}
-        });
-
-      if (error) {
-        console.error('Failed to create system alert:', error);
-      }
-    } catch (error) {
-      console.error('Error creating system alert:', error);
-    }
-  }
-
-  async performHealthCheck(): Promise<{
-    database: boolean;
-    gp51Session: boolean;
-    responseTime: number;
-    lastCheck: Date;
-  }> {
-    const startTime = Date.now();
-    
-    try {
-      // Test database connectivity
-      const { data, error: dbError } = await supabase
-        .from('gp51_sessions')
-        .select('count', { count: 'exact', head: true });
-
-      const databaseHealthy = !dbError;
-
-      // Test GP51 session validity
-      const connectionTest = await this.testRealConnection();
-      const gp51Healthy = connectionTest.isConnected;
-
-      const responseTime = Date.now() - startTime;
-
-      return {
-        database: databaseHealthy,
-        gp51Session: gp51Healthy,
-        responseTime,
-        lastCheck: new Date()
-      };
-    } catch (error) {
-      console.error('Health check failed:', error);
-      return {
-        database: false,
-        gp51Session: false,
-        responseTime: Date.now() - startTime,
-        lastCheck: new Date()
-      };
-    }
-  }
 }
-
-// Export singleton instance
-export const realConnectionTester = new GP51RealConnectionTester();
-export default realConnectionTester;
