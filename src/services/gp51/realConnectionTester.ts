@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface RealConnectionResult {
@@ -43,7 +44,8 @@ export class GP51RealConnectionTester {
           errorMessage: this.lastTestResult.errorMessage,
           deviceCount: this.lastTestResult.deviceCount,
           apiResponseTime: this.lastTestResult.apiResponseTime,
-          lastChecked: this.lastTestTime
+          lastChecked: this.lastTestTime,
+          lastSuccessfulPing: this.lastTestResult.lastSuccessfulPing
         };
       }
     }
@@ -52,7 +54,7 @@ export class GP51RealConnectionTester {
     const startTime = Date.now();
 
     try {
-      // Test 1: Session validation
+      // Test 1: Session validation using new service
       const sessionResult = await this.testSessionValidity();
       
       if (!sessionResult.valid) {
@@ -66,6 +68,10 @@ export class GP51RealConnectionTester {
           apiResponseTime: Date.now() - startTime
         };
         this.cacheResult(result);
+        
+        // Create system alert for session failure
+        await this.createSessionAlert(sessionResult.error || 'Session validation failed');
+        
         return this.convertToHealthResult(result);
       }
 
@@ -222,6 +228,25 @@ export class GP51RealConnectionTester {
         flowing: false, 
         error: error instanceof Error ? error.message : 'Data flow test failed' 
       };
+    }
+  }
+
+  private static async createSessionAlert(errorMessage: string): Promise<void> {
+    try {
+      await supabase.from('system_alerts').insert({
+        alert_type: 'credential_failure',
+        severity: 'critical',
+        title: 'GP51 Session Validation Failed',
+        message: `Real-time connection test failed: ${errorMessage}`,
+        source_system: 'gp51_validation',
+        alert_data: {
+          testType: 'real_time_connection',
+          errorMessage,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('❌ [REAL-CONNECTION] Failed to create alert:', error);
     }
   }
 
