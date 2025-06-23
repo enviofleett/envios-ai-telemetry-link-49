@@ -36,7 +36,11 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         success: false,
         error: 'GP51 credentials not configured',
-        details: 'Please configure GP51_ADMIN_USERNAME and GP51_ADMIN_PASSWORD in Supabase secrets'
+        details: 'Please configure GP51_ADMIN_USERNAME and GP51_ADMIN_PASSWORD in Supabase secrets',
+        authenticationStatus: {
+          connected: false,
+          error: 'GP51 credentials not configured'
+        }
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -55,13 +59,14 @@ serve(async (req) => {
           console.log('✅ [enhanced-bulk-import] GP51 authentication successful');
           
           // Get sample data using the authenticated import service
+          // Use 'skip' mode to just count available data without importing
           const previewResult = await importService.performImport({
             importUsers: true,
             importDevices: true,
             conflictResolution: 'skip' // Just for preview, don't actually import
           });
           
-          if (previewResult.success) {
+          if (previewResult.success || previewResult.statistics.devicesProcessed > 0 || previewResult.statistics.usersProcessed > 0) {
             const statistics = {
               vehicles: previewResult.statistics.devicesProcessed,
               users: previewResult.statistics.usersProcessed,
@@ -91,7 +96,7 @@ serve(async (req) => {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
           } else {
-            throw new Error(previewResult.message);
+            throw new Error(previewResult.message || 'No data available for import');
           }
 
         } catch (error) {
@@ -131,6 +136,13 @@ serve(async (req) => {
           console.log('📋 [enhanced-bulk-import] Import options:', importOptions);
 
           const result = await importService.performImport(importOptions);
+
+          console.log('📊 [enhanced-bulk-import] Import completed:', {
+            success: result.success,
+            usersImported: result.statistics.usersImported,
+            devicesImported: result.statistics.devicesImported,
+            errorCount: result.errors.length
+          });
 
           return new Response(JSON.stringify({
             success: result.success,

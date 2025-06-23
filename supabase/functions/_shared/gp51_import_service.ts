@@ -68,6 +68,8 @@ export class GP51ImportService {
       conflicts: 0
     };
 
+    this.errors = []; // Reset errors for this import
+
     try {
       // Process users if requested
       if (options.importUsers !== false) {
@@ -89,11 +91,14 @@ export class GP51ImportService {
 
             statistics.usersProcessed++;
 
-            // Process user data (skip import for preview mode)
+            // Actually import user data (not skip mode)
             if (options.conflictResolution !== 'skip') {
-              const importResult = await this.importUserToSupabase(userDetailsResult.data, options.conflictResolution);
+              const importResult = await this.importUserToSupabase(userDetailsResult.data, options.conflictResolution || 'update');
               if (importResult) {
                 statistics.usersImported++;
+                console.log(`✅ [GP51ImportService] Successfully imported user: ${username}`);
+              } else {
+                this.errors.push(`Failed to import user: ${username}`);
               }
             }
 
@@ -119,19 +124,28 @@ export class GP51ImportService {
           } else {
             const devices = this.extractDevicesFromMonitorList(monitorListResult.data);
             statistics.devicesProcessed = devices.length;
+            console.log(`📊 [GP51ImportService] Found ${devices.length} devices to process`);
 
-            // Process devices (skip import for preview mode)
+            // Actually import devices (not skip mode)
             if (options.conflictResolution !== 'skip') {
-              for (const device of devices) {
-                try {
-                  const importResult = await this.importDeviceToSupabase(device, options.conflictResolution);
-                  if (importResult) {
-                    statistics.devicesImported++;
+              const batchSize = 50; // Process in batches to avoid overwhelming the database
+              for (let i = 0; i < devices.length; i += batchSize) {
+                const batch = devices.slice(i, i + batchSize);
+                console.log(`📦 [GP51ImportService] Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(devices.length / batchSize)} (${batch.length} devices)`);
+                
+                for (const device of batch) {
+                  try {
+                    const importResult = await this.importDeviceToSupabase(device, options.conflictResolution || 'update');
+                    if (importResult) {
+                      statistics.devicesImported++;
+                    } else {
+                      this.errors.push(`Failed to import device: ${device.deviceid}`);
+                    }
+                  } catch (error) {
+                    const errorMsg = `Failed to import device ${device.deviceid}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+                    console.error(`❌ [GP51ImportService] ${errorMsg}`);
+                    this.errors.push(errorMsg);
                   }
-                } catch (error) {
-                  const errorMsg = `Failed to import device ${device.deviceid}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-                  console.error(`❌ [GP51ImportService] ${errorMsg}`);
-                  this.errors.push(errorMsg);
                 }
               }
             }
@@ -145,16 +159,20 @@ export class GP51ImportService {
       }
 
       console.log('📊 [GP51ImportService] Final statistics:', statistics);
+      console.log('📊 [GP51ImportService] Total errors:', this.errors.length);
 
       const successRate = statistics.usersProcessed + statistics.devicesProcessed > 0 
         ? ((statistics.usersImported + statistics.devicesImported) / (statistics.usersProcessed + statistics.devicesProcessed) * 100).toFixed(1)
         : '0.0';
 
-      const message = `Import completed: ${statistics.usersImported} users, ${statistics.devicesImported} devices imported. Success rate: ${successRate}%`;
+      const message = statistics.devicesImported > 0 || statistics.usersImported > 0
+        ? `Import completed: ${statistics.usersImported} users, ${statistics.devicesImported} devices imported. Success rate: ${successRate}%`
+        : 'Import completed but no data was imported. Check GP51 connection and credentials.';
+
       console.log(`✅ [GP51ImportService] ${message}`);
 
       return {
-        success: true,
+        success: statistics.usersImported > 0 || statistics.devicesImported > 0 || this.errors.length === 0,
         message,
         statistics,
         errors: this.errors
@@ -190,9 +208,31 @@ export class GP51ImportService {
 
   private async importUserToSupabase(userData: any, conflictMode: string): Promise<boolean> {
     try {
-      // Import user logic would go here
-      // For now, just return true to indicate successful processing
-      console.log(`✅ [GP51ImportService] User ${userData.username} processed successfully`);
+      console.log(`📝 [GP51ImportService] Importing user: ${userData.username || 'unknown'}`);
+      
+      // Create user data structure for Supabase
+      const userRecord = {
+        email: userData.email || `${userData.username}@gp51.import`,
+        username: userData.username,
+        gp51_user_id: userData.username,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      // Insert into envio_users table (or your equivalent users table)
+      const { data, error } = await this.supabase
+        .from('envio_users')
+        .upsert(userRecord, { 
+          onConflict: 'gp51_user_id',
+          ignoreDuplicates: conflictMode === 'skip'
+        });
+
+      if (error) {
+        console.error(`❌ [GP51ImportService] Failed to import user ${userData.username}:`, error);
+        return false;
+      }
+
+      console.log(`✅ [GP51ImportService] User ${userData.username} imported successfully`);
       return true;
     } catch (error) {
       console.error(`❌ [GP51ImportService] Failed to import user:`, error);
@@ -202,9 +242,37 @@ export class GP51ImportService {
 
   private async importDeviceToSupabase(deviceData: any, conflictMode: string): Promise<boolean> {
     try {
-      // Import device logic would go here
-      // For now, just return true to indicate successful processing
-      console.log(`✅ [GP51ImportService] Device ${deviceData.deviceid} processed successfully`);
+      console.log(`📝 [GP51ImportService] Importing device: ${deviceData.deviceid}`);
+      
+      // Create device data structure for Supabase
+      const deviceRecord = {
+        gp51_device_id: deviceData.deviceid,
+        name: deviceData.devicename || deviceData.deviceid,
+        device_type: deviceData.devicetype || 0,
+        sim_number: deviceData.simnum || null,
+        last_active_time: deviceData.lastactivetime ? new Date(deviceData.lastactivetime * 1000).toISOString() : null,
+        creator: deviceData.creater || 'octopus',
+        remark: deviceData.remark || null,
+        is_free: deviceData.isfree === 1,
+        allow_edit: deviceData.allowedit === 1,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      // Insert into vehicles table
+      const { data, error } = await this.supabase
+        .from('vehicles')
+        .upsert(deviceRecord, { 
+          onConflict: 'gp51_device_id',
+          ignoreDuplicates: conflictMode === 'skip'
+        });
+
+      if (error) {
+        console.error(`❌ [GP51ImportService] Failed to import device ${deviceData.deviceid}:`, error);
+        return false;
+      }
+
+      console.log(`✅ [GP51ImportService] Device ${deviceData.deviceid} imported successfully`);
       return true;
     } catch (error) {
       console.error(`❌ [GP51ImportService] Failed to import device:`, error);
