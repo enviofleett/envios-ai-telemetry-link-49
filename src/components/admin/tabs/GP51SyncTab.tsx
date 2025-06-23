@@ -7,6 +7,7 @@ import GP51SyncMonitor from '../GP51SyncMonitor';
 import GP51SyncControlPanel from '../GP51SyncControlPanel';
 import GP51RealTimeMonitor from '../GP51RealTimeMonitor';
 import GP51PerformanceOptimizer from '../GP51PerformanceOptimizer';
+import GP51RateLimitConfig from '../GP51RateLimitConfig';
 
 const GP51SyncTab: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -20,11 +21,11 @@ const GP51SyncTab: React.FC = () => {
             <CardTitle>GP51 Vehicle Synchronization - Production Ready</CardTitle>
           </div>
           <CardDescription>
-            Production-grade vehicle synchronization with enhanced monitoring, error handling, and performance optimization.
+            Production-grade vehicle synchronization with enhanced monitoring, error handling, and rate limiting protection.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="flex items-center p-4 bg-blue-50 rounded-lg">
               <Database className="h-8 w-8 text-blue-600 mr-3" />
               <div>
@@ -42,8 +43,15 @@ const GP51SyncTab: React.FC = () => {
             <div className="flex items-center p-4 bg-purple-50 rounded-lg">
               <Shield className="h-8 w-8 text-purple-600 mr-3" />
               <div>
-                <div className="font-semibold text-purple-800">Production Hardened</div>
-                <div className="text-sm text-purple-600">Error recovery & monitoring</div>
+                <div className="font-semibold text-purple-800">Rate Limiting</div>
+                <div className="text-sm text-purple-600">IP protection & throttling</div>
+              </div>
+            </div>
+            <div className="flex items-center p-4 bg-orange-50 rounded-lg">
+              <BarChart3 className="h-8 w-8 text-orange-600 mr-3" />
+              <div>
+                <div className="font-semibold text-orange-800">Performance</div>
+                <div className="text-sm text-orange-600">Optimized for scale</div>
               </div>
             </div>
           </div>
@@ -51,7 +59,7 @@ const GP51SyncTab: React.FC = () => {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview" className="flex items-center space-x-2">
             <Settings className="h-4 w-4" />
             <span>Overview</span>
@@ -59,6 +67,10 @@ const GP51SyncTab: React.FC = () => {
           <TabsTrigger value="realtime" className="flex items-center space-x-2">
             <RefreshCw className="h-4 w-4" />
             <span>Real-Time</span>
+          </TabsTrigger>
+          <TabsTrigger value="ratelimit" className="flex items-center space-x-2">
+            <Shield className="h-4 w-4" />
+            <span>Rate Limiting</span>
           </TabsTrigger>
           <TabsTrigger value="performance" className="flex items-center space-x-2">
             <BarChart3 className="h-4 w-4" />
@@ -75,6 +87,10 @@ const GP51SyncTab: React.FC = () => {
 
         <TabsContent value="realtime" className="space-y-6">
           <GP51RealTimeMonitor />
+        </TabsContent>
+
+        <TabsContent value="ratelimit" className="space-y-6">
+          <GP51RateLimitConfig />
         </TabsContent>
 
         <TabsContent value="performance" className="space-y-6">
