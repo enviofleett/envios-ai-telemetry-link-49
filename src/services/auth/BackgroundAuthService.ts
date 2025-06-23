@@ -1,211 +1,284 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { User } from '@supabase/supabase-js';
 
-interface AuthState {
+interface CachedAuthState {
   user: User | null;
   isAdmin: boolean;
   isAgent: boolean;
   userRole: string | null;
   isPlatformAdmin: boolean;
   platformAdminRoles: string[];
+  timestamp: number;
+  expiresAt: number;
 }
 
-type AuthStateCallback = (state: AuthState) => void;
+interface AuthUpdateCallback {
+  (state: CachedAuthState): void;
+}
 
 class BackgroundAuthService {
-  private subscribers: Set<AuthStateCallback> = new Set();
-  private cachedState: AuthState | null = null;
-  private isRefreshing = false;
-  private cacheExpiry = 0;
-  private readonly CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+  private static instance: BackgroundAuthService;
+  private cache: CachedAuthState | null = null;
+  private callbacks: Set<AuthUpdateCallback> = new Set();
+  private refreshPromise: Promise<void> | null = null;
+  private refreshTimer: NodeJS.Timeout | null = null;
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  private readonly REFRESH_INTERVAL = 2 * 60 * 1000; // 2 minutes
+  private readonly MAX_RETRIES = 3;
+  private retryCount = 0;
 
-  constructor() {
-    this.initializeAuthListener();
-    this.loadFromLocalStorage();
+  private constructor() {
+    this.initializeCache();
+    this.startBackgroundRefresh();
   }
 
-  private initializeAuthListener() {
+  static getInstance(): BackgroundAuthService {
+    if (!BackgroundAuthService.instance) {
+      BackgroundAuthService.instance = new BackgroundAuthService();
+    }
+    return BackgroundAuthService.instance;
+  }
+
+  // Get cached state immediately (no delays)
+  getCachedState(): CachedAuthState | null {
+    if (this.cache && this.isCacheValid()) {
+      return this.cache;
+    }
+    return null;
+  }
+
+  // Subscribe to auth state updates
+  subscribe(callback: AuthUpdateCallback): () => void {
+    this.callbacks.add(callback);
+    
+    // Send current state immediately
+    const cachedState = this.getCachedState();
+    if (cachedState) {
+      callback(cachedState);
+    }
+
+    return () => {
+      this.callbacks.delete(callback);
+    };
+  }
+
+  // Force refresh in background (non-blocking)
+  async refreshInBackground(): Promise<void> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.refreshPromise = this.performRefresh();
+    
     try {
-      supabase.auth.onAuthStateChange((event, session) => {
-        console.log('🔄 [BackgroundAuthService] Auth state changed:', event);
-        
-        if (event === 'SIGNED_OUT') {
-          this.clearCache();
-          this.notifySubscribers({
-            user: null,
-            isAdmin: false,
-            isAgent: false,
-            userRole: null,
-            isPlatformAdmin: false,
-            platformAdminRoles: []
-          });
-        } else if (session?.user) {
-          this.refreshInBackground();
-        }
-      });
-    } catch (error) {
-      console.error('❌ [BackgroundAuthService] Failed to initialize auth listener:', error);
+      await this.refreshPromise;
+    } finally {
+      this.refreshPromise = null;
     }
   }
 
-  private loadFromLocalStorage() {
+  private async initializeCache(): Promise<void> {
+    console.log('🔄 Initializing auth cache...');
+    
+    // Try to load from localStorage first
+    const cachedData = this.loadFromLocalStorage();
+    if (cachedData && this.isCacheValid(cachedData)) {
+      this.cache = cachedData;
+      this.notifyCallbacks();
+    }
+
+    // Start background refresh immediately
+    this.refreshInBackground();
+  }
+
+  private async performRefresh(): Promise<void> {
     try {
-      const cached = localStorage.getItem('auth_state_cache');
-      const expiry = localStorage.getItem('auth_cache_expiry');
+      console.log('🔄 Refreshing auth state in background...');
       
-      if (cached && expiry && Date.now() < parseInt(expiry)) {
-        this.cachedState = JSON.parse(cached);
-        this.cacheExpiry = parseInt(expiry);
-        console.log('📦 [BackgroundAuthService] Loaded cached auth state');
-      } else {
-        console.log('⏰ [BackgroundAuthService] Cache expired or missing, will refresh');
-        this.refreshInBackground();
+      // Get current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        throw sessionError;
       }
-    } catch (error) {
-      console.error('❌ [BackgroundAuthService] Failed to load from localStorage:', error);
-      this.refreshInBackground();
-    }
-  }
 
-  private saveToLocalStorage(state: AuthState) {
-    try {
-      localStorage.setItem('auth_state_cache', JSON.stringify(state));
-      localStorage.setItem('auth_cache_expiry', (Date.now() + this.CACHE_DURATION).toString());
-    } catch (error) {
-      console.error('❌ [BackgroundAuthService] Failed to save to localStorage:', error);
-    }
-  }
-
-  private clearCache() {
-    try {
-      this.cachedState = null;
-      this.cacheExpiry = 0;
-      localStorage.removeItem('auth_state_cache');
-      localStorage.removeItem('auth_cache_expiry');
-      console.log('🗑️ [BackgroundAuthService] Cache cleared');
-    } catch (error) {
-      console.error('❌ [BackgroundAuthService] Failed to clear cache:', error);
-    }
-  }
-
-  async refreshInBackground() {
-    if (this.isRefreshing) {
-      console.log('⏭️ [BackgroundAuthService] Refresh already in progress, skipping');
-      return;
-    }
-
-    this.isRefreshing = true;
-    console.log('🔄 [BackgroundAuthService] Refreshing auth state in background...');
-
-    try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const user = session?.user || null;
       
-      if (userError || !user) {
-        console.log('👤 [BackgroundAuthService] No authenticated user found');
-        const emptyState: AuthState = {
+      if (!user) {
+        this.updateCache({
           user: null,
           isAdmin: false,
           isAgent: false,
           userRole: null,
           isPlatformAdmin: false,
-          platformAdminRoles: []
-        };
-        
-        this.cachedState = emptyState;
-        this.saveToLocalStorage(emptyState);
-        this.notifySubscribers(emptyState);
+          platformAdminRoles: [],
+          timestamp: Date.now(),
+          expiresAt: Date.now() + this.CACHE_DURATION
+        });
         return;
       }
 
-      // Get user role with better error handling
-      let userRole = null;
+      // Batch all role queries together for better performance
+      const [roleResult, platformAdminResult] = await Promise.allSettled([
+        supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        this.getPlatformAdminRoles(user.id)
+      ]);
+
+      // Process role data
+      let userRole = 'user';
       let isAdmin = false;
       let isAgent = false;
+
+      if (roleResult.status === 'fulfilled' && roleResult.value.data) {
+        userRole = roleResult.value.data.role;
+        isAdmin = userRole === 'admin';
+        isAgent = userRole === 'agent';
+      }
+
+      // Process platform admin data
       let isPlatformAdmin = false;
       let platformAdminRoles: string[] = [];
 
-      try {
-        const { data: roleData, error: roleError } = await supabase
-          .from('envio_users')
-          .select('role, platform_admin_roles')
-          .eq('email', user.email)
-          .single();
-
-        if (!roleError && roleData) {
-          userRole = roleData.role;
-          isAdmin = userRole === 'admin';
-          isAgent = userRole === 'agent';
-          isPlatformAdmin = Array.isArray(roleData.platform_admin_roles) && roleData.platform_admin_roles.length > 0;
-          platformAdminRoles = roleData.platform_admin_roles || [];
-        } else {
-          console.warn('⚠️ [BackgroundAuthService] Could not fetch user role:', roleError?.message || 'No role data');
-        }
-      } catch (roleError) {
-        console.error('❌ [BackgroundAuthService] Error fetching user role:', roleError);
+      if (platformAdminResult.status === 'fulfilled') {
+        platformAdminRoles = platformAdminResult.value;
+        isPlatformAdmin = platformAdminRoles.length > 0;
       }
 
-      const newState: AuthState = {
+      const newState: CachedAuthState = {
         user,
         isAdmin,
         isAgent,
         userRole,
         isPlatformAdmin,
-        platformAdminRoles
+        platformAdminRoles,
+        timestamp: Date.now(),
+        expiresAt: Date.now() + this.CACHE_DURATION
       };
 
-      this.cachedState = newState;
-      this.cacheExpiry = Date.now() + this.CACHE_DURATION;
-      this.saveToLocalStorage(newState);
-      this.notifySubscribers(newState);
-      
-      console.log('✅ [BackgroundAuthService] Auth state refreshed successfully');
+      this.updateCache(newState);
+      this.retryCount = 0; // Reset retry count on success
+      console.log('✅ Auth state refreshed successfully');
 
     } catch (error) {
-      console.error('❌ [BackgroundAuthService] Failed to refresh auth state:', error);
-      
-      // If we have cached state, keep using it
-      if (this.cachedState) {
-        console.log('📦 [BackgroundAuthService] Using cached state due to refresh error');
-        this.notifySubscribers(this.cachedState);
-      }
-    } finally {
-      this.isRefreshing = false;
+      console.error('❌ Auth refresh failed:', error);
+      await this.handleRefreshError();
     }
   }
 
-  private notifySubscribers(state: AuthState) {
-    this.subscribers.forEach(callback => {
-      try {
-        callback(state);
-      } catch (error) {
-        console.error('❌ [BackgroundAuthService] Error in subscriber callback:', error);
+  private async getPlatformAdminRoles(userId: string): Promise<string[]> {
+    try {
+      // Get platform admin user first
+      const { data: adminUser } = await supabase
+        .from('platform_admin_users')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (!adminUser?.id) {
+        return [];
       }
-    });
+
+      // Get roles
+      const { data: roles } = await supabase
+        .from('platform_admin_roles')
+        .select('role')
+        .eq('admin_user_id', adminUser.id);
+
+      return roles?.map(r => r.role) || [];
+    } catch (error) {
+      console.error('Error fetching platform admin roles:', error);
+      return [];
+    }
   }
 
-  subscribe(callback: AuthStateCallback): () => void {
-    this.subscribers.add(callback);
+  private async handleRefreshError(): Promise<void> {
+    this.retryCount++;
     
-    // Immediately call with current state if available
-    if (this.cachedState) {
-      try {
-        callback(this.cachedState);
-      } catch (error) {
-        console.error('❌ [BackgroundAuthService] Error in initial callback:', error);
-      }
+    if (this.retryCount < this.MAX_RETRIES) {
+      // Exponential backoff
+      const delay = Math.pow(2, this.retryCount) * 1000;
+      console.log(`🔄 Retrying auth refresh in ${delay}ms (attempt ${this.retryCount}/${this.MAX_RETRIES})`);
+      
+      setTimeout(() => {
+        this.refreshInBackground();
+      }, delay);
+    } else {
+      console.error('❌ Max retries reached for auth refresh');
+      this.retryCount = 0;
     }
-
-    return () => {
-      this.subscribers.delete(callback);
-    };
   }
 
-  getCachedState(): AuthState | null {
-    if (this.cachedState && Date.now() < this.cacheExpiry) {
-      return this.cachedState;
+  private updateCache(newState: CachedAuthState): void {
+    this.cache = newState;
+    this.saveToLocalStorage(newState);
+    this.notifyCallbacks();
+  }
+
+  private notifyCallbacks(): void {
+    if (this.cache) {
+      this.callbacks.forEach(callback => {
+        try {
+          callback(this.cache!);
+        } catch (error) {
+          console.error('Error in auth state callback:', error);
+        }
+      });
     }
-    return null;
+  }
+
+  private isCacheValid(state?: CachedAuthState): boolean {
+    const targetState = state || this.cache;
+    return targetState ? Date.now() < targetState.expiresAt : false;
+  }
+
+  private startBackgroundRefresh(): void {
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
+
+    this.refreshTimer = setInterval(() => {
+      this.refreshInBackground();
+    }, this.REFRESH_INTERVAL);
+  }
+
+  private loadFromLocalStorage(): CachedAuthState | null {
+    try {
+      const cached = localStorage.getItem('auth_cache');
+      return cached ? JSON.parse(cached) : null;
+    } catch (error) {
+      console.warn('Failed to load auth cache from localStorage:', error);
+      return null;
+    }
+  }
+
+  private saveToLocalStorage(state: CachedAuthState): void {
+    try {
+      localStorage.setItem('auth_cache', JSON.stringify(state));
+    } catch (error) {
+      console.warn('Failed to save auth cache to localStorage:', error);
+    }
+  }
+
+  public clearCache(): void {
+    this.cache = null;
+    localStorage.removeItem('auth_cache');
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
+  }
+
+  public destroy(): void {
+    this.clearCache();
+    this.callbacks.clear();
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+    }
   }
 }
 
-export const backgroundAuthService = new BackgroundAuthService();
+export const backgroundAuthService = BackgroundAuthService.getInstance();
