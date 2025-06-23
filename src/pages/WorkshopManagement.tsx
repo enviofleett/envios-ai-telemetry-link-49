@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { EnhancedWorkshopDashboard } from '@/components/workshop/EnhancedWorkshopDashboard';
+import EnhancedWorkshopDashboard from '@/components/workshop/EnhancedWorkshopDashboard';
 
 const WorkshopManagement: React.FC = () => {
   return <EnhancedWorkshopDashboard />;
