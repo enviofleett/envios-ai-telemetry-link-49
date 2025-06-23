@@ -30,13 +30,14 @@ serve(async (req) => {
     // Validate GP51 environment configuration
     const gp51Username = Deno.env.get('GP51_ADMIN_USERNAME');
     const gp51Password = Deno.env.get('GP51_ADMIN_PASSWORD');
+    const gp51GlobalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
     
-    if (!gp51Username || !gp51Password) {
-      console.error('❌ [enhanced-bulk-import] GP51 credentials not configured');
+    if (!gp51Username || !gp51Password || !gp51GlobalToken) {
+      console.error('❌ [enhanced-bulk-import] GP51 configuration incomplete');
       return new Response(JSON.stringify({
         success: false,
-        error: 'GP51 credentials not configured',
-        details: 'Please configure GP51_ADMIN_USERNAME and GP51_ADMIN_PASSWORD in Supabase secrets'
+        error: 'GP51 configuration incomplete',
+        details: 'Please configure GP51_ADMIN_USERNAME, GP51_ADMIN_PASSWORD, and GP51_GLOBAL_API_TOKEN in Supabase secrets'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -50,8 +51,12 @@ serve(async (req) => {
         console.log('📊 [enhanced-bulk-import] Fetching available data for import preview...');
         
         try {
-          // Authenticate with GP51
-          await importService.authenticate();
+          // Authenticate with GP51 first
+          const authSuccess = await importService.authenticate();
+          if (!authSuccess) {
+            throw new Error('GP51 authentication failed');
+          }
+          
           console.log('✅ [enhanced-bulk-import] GP51 authentication successful');
           
           // Get sample data using the authenticated import service
@@ -117,8 +122,12 @@ serve(async (req) => {
         console.log('🎯 [enhanced-bulk-import] Starting import process...');
         
         try {
-          // Authenticate with GP51
-          await importService.authenticate();
+          // Authenticate with GP51 first
+          const authSuccess = await importService.authenticate();
+          if (!authSuccess) {
+            throw new Error('GP51 authentication failed');
+          }
+          
           console.log('✅ [enhanced-bulk-import] GP51 authentication successful for import');
           
           const importOptions: ImportOptions = {
