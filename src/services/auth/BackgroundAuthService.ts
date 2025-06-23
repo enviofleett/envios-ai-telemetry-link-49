@@ -117,7 +117,7 @@ class BackgroundAuthService {
         return;
       }
 
-      // Get user role with better error handling
+      // Get user role from user_roles table
       let userRole = null;
       let isAdmin = false;
       let isAgent = false;
@@ -125,23 +125,43 @@ class BackgroundAuthService {
       let platformAdminRoles: string[] = [];
 
       try {
+        // Query user roles from user_roles table
         const { data: roleData, error: roleError } = await supabase
-          .from('envio_users')
-          .select('role, platform_admin_roles')
-          .eq('email', user.email)
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
           .single();
 
         if (!roleError && roleData) {
           userRole = roleData.role;
           isAdmin = userRole === 'admin';
           isAgent = userRole === 'agent';
-          isPlatformAdmin = Array.isArray(roleData.platform_admin_roles) && roleData.platform_admin_roles.length > 0;
-          platformAdminRoles = roleData.platform_admin_roles || [];
         } else {
           console.warn('⚠️ [BackgroundAuthService] Could not fetch user role:', roleError?.message || 'No role data');
         }
+
+        // Check for platform admin roles
+        const { data: platformAdminData, error: platformAdminError } = await supabase
+          .from('platform_admin_users')
+          .select(`
+            platform_admin_roles (
+              role
+            )
+          `)
+          .eq('user_id', user.id)
+          .single();
+
+        if (!platformAdminError && platformAdminData?.platform_admin_roles) {
+          const roles = Array.isArray(platformAdminData.platform_admin_roles) 
+            ? platformAdminData.platform_admin_roles 
+            : [platformAdminData.platform_admin_roles];
+          
+          platformAdminRoles = roles.map((r: any) => r.role).filter(Boolean);
+          isPlatformAdmin = platformAdminRoles.length > 0;
+        }
+
       } catch (roleError) {
-        console.error('❌ [BackgroundAuthService] Error fetching user role:', roleError);
+        console.error('❌ [BackgroundAuthService] Error fetching user roles:', roleError);
       }
 
       const newState: AuthState = {
