@@ -1,4 +1,3 @@
-
 // Standardized GP51 API Client following the exact API specifications
 import { md5_sync } from "./crypto_utils.ts";
 
@@ -65,7 +64,8 @@ export class GP51StandardClient {
     parameters: Record<string, any>,
     method: 'POST' = 'POST'
   ): Promise<T> {
-    const url = `${this.baseUrl}/webapi`;
+    // CRITICAL FIX: action must be in URL query parameter, not JSON body
+    const url = `${this.baseUrl}/webapi?action=${action}`;
     
     console.log(`📤 [GP51Standard] Making ${method} request to: ${url}`);
     console.log(`📤 [GP51Standard] Action: ${action}`);
@@ -74,10 +74,8 @@ export class GP51StandardClient {
       password: parameters.password ? '[REDACTED]' : undefined
     }, null, 2));
 
-    const requestBody = {
-      action,
-      ...parameters
-    };
+    // Remove action from parameters since it's now in the URL
+    const requestBody = { ...parameters };
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
