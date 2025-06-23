@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { GP51StandardClient } from './gp51_standard_client.ts';
 
@@ -28,10 +27,17 @@ export class GP51ImportService {
   private supabase: any;
   private gp51Client: GP51StandardClient;
   private errors: string[] = [];
+  private adminUserId: string;
 
   constructor(supabaseUrl: string, supabaseServiceKey: string) {
     this.supabase = createClient(supabaseUrl, supabaseServiceKey);
     this.gp51Client = new GP51StandardClient();
+    
+    // Get admin user ID from environment variable
+    this.adminUserId = Deno.env.get('GP51_ADMIN_USER_ID') || '';
+    if (!this.adminUserId) {
+      console.warn('⚠️ [GP51ImportService] GP51_ADMIN_USER_ID not configured - imports may fail');
+    }
   }
 
   async authenticate(): Promise<void> {
@@ -122,18 +128,19 @@ export class GP51ImportService {
 
             // Process devices (skip import for preview mode)
             if (options.conflictResolution !== 'skip') {
-              for (const device of devices) {
-                try {
-                  const importResult = await this.importDeviceToSupabase(device, options.conflictResolution);
-                  if (importResult) {
-                    statistics.devicesImported++;
-                  }
-                } catch (error) {
-                  const errorMsg = `Failed to import device ${device.deviceid}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-                  console.error(`❌ [GP51ImportService] ${errorMsg}`);
-                  this.errors.push(errorMsg);
-                }
+              let successCount = 0;
+              
+              // Process devices in batches for better performance
+              const batchSize = 50;
+              for (let i = 0; i < devices.length; i += batchSize) {
+                const batch = devices.slice(i, i + batchSize);
+                console.log(`📦 [GP51ImportService] Processing device batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(devices.length/batchSize)} (${batch.length} devices)`);
+                
+                const batchResults = await this.importDeviceBatchToSupabase(batch, options.conflictResolution);
+                successCount += batchResults;
               }
+              
+              statistics.devicesImported = successCount;
             }
           }
 
@@ -190,25 +197,118 @@ export class GP51ImportService {
 
   private async importUserToSupabase(userData: any, conflictMode: string): Promise<boolean> {
     try {
-      // Import user logic would go here
-      // For now, just return true to indicate successful processing
-      console.log(`✅ [GP51ImportService] User ${userData.username} processed successfully`);
+      console.log(`👤 [GP51ImportService] Importing user: ${userData.username}`);
+      
+      // Map GP51 user data to Supabase envio_users schema
+      const userRecord = {
+        name: userData.showname || userData.username,
+        email: userData.email || `${userData.username}@gp51.import`,
+        // Store additional GP51 data in metadata
+        gp51_metadata: {
+          username: userData.username,
+          usertype: userData.usertype,
+          createtime: userData.createtime,
+          creater: userData.creater,
+          phone: userData.phone || '',
+          qq: userData.qq || '',
+          wechat: userData.wechat || ''
+        },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      console.log(`📝 [GP51ImportService] Preparing user upsert for: ${userData.username}`);
+      console.log(`📊 [GP51ImportService] User data structure:`, JSON.stringify(userRecord, null, 2));
+
+      const { data: upsertData, error: upsertError } = await this.supabase
+        .from('envio_users')
+        .upsert(userRecord, { 
+          onConflict: 'email',
+          ignoreDuplicates: conflictMode === 'skip'
+        })
+        .select();
+
+      if (upsertError) {
+        console.error(`❌ [GP51ImportService] User upsert FAILED for ${userData.username}:`, upsertError);
+        console.error(`📋 [GP51ImportService] User upsert error details:`, upsertError.details);
+        console.error(`💡 [GP51ImportService] User upsert error hint:`, upsertError.hint);
+        this.errors.push(`User import failed for ${userData.username}: ${upsertError.message}`);
+        return false;
+      }
+
+      console.log(`✅ [GP51ImportService] User upsert SUCCESS for ${userData.username}. Records affected: ${upsertData?.length || 0}`);
       return true;
+
     } catch (error) {
-      console.error(`❌ [GP51ImportService] Failed to import user:`, error);
+      const errorMsg = `Failed to import user ${userData.username}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(`❌ [GP51ImportService] ${errorMsg}`);
+      this.errors.push(errorMsg);
       return false;
     }
   }
 
-  private async importDeviceToSupabase(deviceData: any, conflictMode: string): Promise<boolean> {
+  private async importDeviceBatchToSupabase(deviceBatch: any[], conflictMode: string): Promise<number> {
     try {
-      // Import device logic would go here
-      // For now, just return true to indicate successful processing
-      console.log(`✅ [GP51ImportService] Device ${deviceData.deviceid} processed successfully`);
-      return true;
+      console.log(`🚗 [GP51ImportService] Preparing batch upsert for ${deviceBatch.length} devices`);
+      
+      // Map GP51 device data to Supabase vehicles schema
+      const vehicleRecords = deviceBatch.map(device => ({
+        gp51_device_id: device.deviceid,
+        name: device.devicename || device.deviceid,
+        user_id: this.adminUserId, // Assign to admin user
+        sim_number: device.simnum || null,
+        // Store additional GP51 metadata
+        gp51_metadata: {
+          devicetype: device.devicetype,
+          createtime: device.createtime,
+          creater: device.creater,
+          lastactivetime: device.lastactivetime,
+          isfree: device.isfree,
+          allowedit: device.allowedit,
+          expirenotifytime: device.expirenotifytime,
+          remark: device.remark,
+          icon: device.icon
+        },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }));
+
+      console.log(`📊 [GP51ImportService] Sample vehicle record structure:`, JSON.stringify(vehicleRecords[0], null, 2));
+      console.log(`📝 [GP51ImportService] Attempting to upsert ${vehicleRecords.length} vehicles to admin user: ${this.adminUserId}`);
+
+      const { data: upsertData, error: upsertError } = await this.supabase
+        .from('vehicles')
+        .upsert(vehicleRecords, { 
+          onConflict: 'gp51_device_id',
+          ignoreDuplicates: conflictMode === 'skip'
+        })
+        .select();
+
+      if (upsertError) {
+        console.error(`❌ [GP51ImportService] Vehicle batch upsert FAILED:`, upsertError);
+        console.error(`📋 [GP51ImportService] Vehicle upsert error details:`, upsertError.details);
+        console.error(`💡 [GP51ImportService] Vehicle upsert error hint:`, upsertError.hint);
+        this.errors.push(`Device batch import failed: ${upsertError.message}`);
+        return 0;
+      }
+
+      const successCount = upsertData?.length || 0;
+      console.log(`✅ [GP51ImportService] Vehicle batch upsert SUCCESS. Records affected: ${successCount}`);
+      
+      return successCount;
+
     } catch (error) {
-      console.error(`❌ [GP51ImportService] Failed to import device:`, error);
-      return false;
+      const errorMsg = `Failed to import device batch: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(`❌ [GP51ImportService] ${errorMsg}`);
+      this.errors.push(errorMsg);
+      return 0;
     }
+  }
+
+  private async importDeviceToSupabase(deviceData: any, conflictMode: string): Promise<boolean> {
+    // This method is now replaced by importDeviceBatchToSupabase for better performance
+    // But keeping it for backward compatibility
+    const result = await this.importDeviceBatchToSupabase([deviceData], conflictMode);
+    return result > 0;
   }
 }
