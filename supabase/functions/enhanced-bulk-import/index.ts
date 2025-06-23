@@ -51,26 +51,26 @@ serve(async (req) => {
         console.log('📊 [enhanced-bulk-import] Fetching available data for import preview...');
         
         try {
-          // Authenticate with GP51 first
-          const authSuccess = await importService.authenticate();
-          if (!authSuccess) {
-            throw new Error('GP51 authentication failed');
+          // Validate credentials are available
+          const credentialsValid = await importService.authenticate();
+          if (!credentialsValid) {
+            throw new Error('GP51 credentials validation failed');
           }
           
-          console.log('✅ [enhanced-bulk-import] GP51 authentication successful');
+          console.log('✅ [enhanced-bulk-import] GP51 credentials validated');
           
-          // Get sample data using the authenticated import service
+          // Get preview data using fresh authentication per request
           const previewResult = await importService.performImport({
             importUsers: true,
             importDevices: true,
-            conflictResolution: 'skip' // Just for preview, don't actually import
+            conflictResolution: 'skip' // Preview mode
           });
           
           if (previewResult.success) {
             const statistics = {
               vehicles: previewResult.statistics.devicesProcessed,
               users: previewResult.statistics.usersProcessed,
-              groups: 0 // We'll add group counting later if needed
+              groups: 0
             };
 
             console.log(`📊 [enhanced-bulk-import] Preview data:`, statistics);
@@ -79,17 +79,18 @@ serve(async (req) => {
               success: true,
               summary: statistics,
               details: {
-                vehicles: [], // Preview data will be empty since we're using 'skip' mode
+                vehicles: [],
                 users: [],
                 groups: []
               },
-              message: statistics.vehicles > 0 
+              message: statistics.vehicles > 0 || statistics.users > 0
                 ? `Found ${statistics.vehicles} vehicles and ${statistics.users} users ready for import.`
                 : 'Connection successful, but no data found. Please check GP51 account configuration.',
               authenticationStatus: {
                 connected: true,
                 username: gp51Username,
-                authenticatedAt: new Date().toISOString()
+                authenticatedAt: new Date().toISOString(),
+                tokenStrategy: 'per-request-authentication'
               }
             }), {
               status: 200,
@@ -109,10 +110,11 @@ serve(async (req) => {
             message: `Connection or data fetch failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
             authenticationStatus: {
               connected: false,
-              error: error instanceof Error ? error.message : 'Unknown error'
+              error: error instanceof Error ? error.message : 'Unknown error',
+              recommendation: 'Check GP51 credentials and try again. Tokens expire very quickly (1-2 seconds).'
             }
           }), {
-            status: 200, // Return 200 for graceful handling in UI
+            status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           });
         }
@@ -122,13 +124,13 @@ serve(async (req) => {
         console.log('🎯 [enhanced-bulk-import] Starting import process...');
         
         try {
-          // Authenticate with GP51 first
-          const authSuccess = await importService.authenticate();
-          if (!authSuccess) {
-            throw new Error('GP51 authentication failed');
+          // Validate credentials are available
+          const credentialsValid = await importService.authenticate();
+          if (!credentialsValid) {
+            throw new Error('GP51 credentials validation failed');
           }
           
-          console.log('✅ [enhanced-bulk-import] GP51 authentication successful for import');
+          console.log('✅ [enhanced-bulk-import] GP51 credentials validated for import');
           
           const importOptions: ImportOptions = {
             usernames: options?.usernames || undefined,
@@ -145,10 +147,11 @@ serve(async (req) => {
             success: result.success,
             statistics: result.statistics,
             message: result.message,
-            errors: result.errors.slice(0, 10), // Limit errors in response
+            errors: result.errors.slice(0, 10),
             authenticationStatus: {
               connected: true,
-              username: gp51Username
+              username: gp51Username,
+              tokenStrategy: 'per-request-authentication'
             }
           }), {
             status: result.success ? 200 : 500,
@@ -171,7 +174,8 @@ serve(async (req) => {
             errors: [error instanceof Error ? error.message : 'Unknown error'],
             authenticationStatus: {
               connected: false,
-              error: error instanceof Error ? error.message : 'Unknown error'
+              error: error instanceof Error ? error.message : 'Unknown error',
+              recommendation: 'Check GP51 credentials and try again. Tokens expire very quickly (1-2 seconds).'
             }
           }), {
             status: 500,
