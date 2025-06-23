@@ -1,116 +1,115 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { 
-  Database, 
   Download, 
   Upload, 
-  RefreshCw, 
+  AlertTriangle, 
   CheckCircle, 
-  XCircle, 
-  AlertTriangle,
+  Loader2,
+  Database,
   Users,
   Car,
-  TrendingUp
+  Clock
 } from 'lucide-react';
 
-interface ImportStatistics {
-  usersProcessed: number;
-  usersImported: number;
-  devicesProcessed: number;
-  devicesImported: number;
-  conflicts: number;
-}
-
-interface ImportResult {
+interface ApiPreviewData {
   success: boolean;
-  message: string;
-  statistics: ImportStatistics;
-  errors: string[];
-  authenticationStatus?: {
-    connected: boolean;
-    username?: string;
-    authenticatedAt?: string;
-    error?: string;
+  summary: {
+    vehicles: number;
+    users: number;
+    groups: number;
   };
+  details: {
+    vehicles: any[];
+    users: any[];
+    groups: any[];
+  };
+  message: string;
 }
 
-interface ImportJob {
-  id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  progress: number;
-  statistics: ImportStatistics;
+interface ImportStatistics {
+  users: {
+    created: number;
+    updated: number;
+    failed: number;
+  };
+  devices: {
+    created: number;
+    updated: number;
+    failed: number;
+  };
+  totalProcessed: number;
   errors: string[];
-  startedAt?: string;
-  completedAt?: string;
 }
 
 const EnhancedBulkImportManager: React.FC = () => {
-  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [importJob, setImportJob] = useState<ImportJob | null>(null);
-  const [availableData, setAvailableData] = useState<any>(null);
-  const [authStatus, setAuthStatus] = useState<any>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [previewData, setPreviewData] = useState<ApiPreviewData | null>(null);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResults, setImportResults] = useState<ImportStatistics | null>(null);
+  const { toast } = useToast();
 
-  // Safely access nested properties with fallbacks
-  const getStatsSafely = (stats: ImportStatistics | undefined) => ({
-    usersProcessed: stats?.usersProcessed ?? 0,
-    usersImported: stats?.usersImported ?? 0,
-    devicesProcessed: stats?.devicesProcessed ?? 0,
-    devicesImported: stats?.devicesImported ?? 0,
-    conflicts: stats?.conflicts ?? 0
-  });
-
-  const fetchAvailableData = async () => {
+  const fetchPreviewData = async () => {
     setIsLoading(true);
     try {
-      console.log('🔍 [EnhancedBulkImport] Fetching available GP51 data...');
+      console.log('🔄 Fetching GP51 preview data...');
       
       const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: {
+        body: { 
           action: 'fetch_available_data'
         }
       });
 
       if (error) {
-        console.error('❌ [EnhancedBulkImport] Edge function error:', error);
-        throw new Error(`Failed to fetch data: ${error.message}`);
+        console.error('❌ Preview fetch error:', error);
+        throw new Error(`API Error: ${error.message}`);
       }
 
-      console.log('📊 [EnhancedBulkImport] Response received:', data);
+      console.log('📊 Preview data received:', data);
       
-      setAvailableData(data);
-      setAuthStatus(data?.authenticationStatus || { connected: false });
+      if (!data) {
+        throw new Error('No data received from API');
+      }
 
-      if (data?.success) {
+      setPreviewData(data as ApiPreviewData);
+      
+      if (data.success) {
         toast({
           title: "Data Preview Loaded",
-          description: data.message || "Successfully fetched available GP51 data",
+          description: `Found ${data.summary.vehicles} vehicles, ${data.summary.users} users, and ${data.summary.groups} groups`,
         });
       } else {
         toast({
-          title: "Connection Issue",
-          description: data?.message || "Could not connect to GP51 service",
-          variant: "destructive"
+          title: "Preview Warning",
+          description: data.message || "Unable to fetch all data",
+          variant: "destructive",
         });
       }
 
     } catch (error) {
-      console.error('❌ [EnhancedBulkImport] Failed to fetch available data:', error);
+      console.error('❌ Failed to fetch preview:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
-      setAuthStatus({ connected: false, error: errorMessage });
-      
       toast({
-        title: "Connection Failed",
+        title: "Preview Failed",
         description: errorMessage,
-        variant: "destructive"
+        variant: "destructive",
+      });
+
+      // Set empty preview data to show the error state
+      setPreviewData({
+        success: false,
+        summary: { vehicles: 0, users: 0, groups: 0 },
+        details: { vehicles: [], users: [], groups: [] },
+        message: errorMessage
       });
     } finally {
       setIsLoading(false);
@@ -118,21 +117,24 @@ const EnhancedBulkImportManager: React.FC = () => {
   };
 
   const startImport = async () => {
-    if (!availableData?.success) {
+    if (!previewData || !previewData.success) {
       toast({
-        title: "No Data Available",
-        description: "Please fetch available data first",
-        variant: "destructive"
+        title: "Cannot Start Import",
+        description: "Please fetch and verify preview data first",
+        variant: "destructive",
       });
       return;
     }
 
-    setIsLoading(true);
-    try {
-      console.log('🚀 [EnhancedBulkImport] Starting import process...');
+    setIsImporting(true);
+    setImportProgress(0);
+    setImportResults(null);
 
+    try {
+      console.log('🚀 Starting GP51 import process...');
+      
       const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: {
+        body: { 
           action: 'start_import',
           options: {
             importUsers: true,
@@ -143,275 +145,253 @@ const EnhancedBulkImportManager: React.FC = () => {
       });
 
       if (error) {
-        console.error('❌ [EnhancedBulkImport] Import failed:', error);
+        console.error('❌ Import error:', error);
         throw new Error(`Import failed: ${error.message}`);
       }
 
-      console.log('📊 [EnhancedBulkImport] Import result:', data);
+      console.log('✅ Import completed:', data);
 
-      const safeStats = getStatsSafely(data?.statistics);
-      
-      const newJob: ImportJob = {
-        id: `import-${Date.now()}`,
-        status: data?.success ? 'completed' : 'failed',
-        progress: 100,
-        statistics: safeStats,
-        errors: data?.errors || [],
-        startedAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      };
-
-      setImportJob(newJob);
-
-      if (data?.success) {
+      if (data.success) {
+        setImportResults(data.statistics);
+        setImportProgress(100);
+        
         toast({
           title: "Import Completed",
-          description: data.message || `Successfully imported ${safeStats.usersImported} users and ${safeStats.devicesImported} devices`,
+          description: `Successfully imported ${data.statistics.totalProcessed} records`,
         });
       } else {
-        toast({
-          title: "Import Failed",
-          description: data?.message || "Import process encountered errors",
-          variant: "destructive"
-        });
+        throw new Error(data.message || 'Import failed');
       }
 
     } catch (error) {
-      console.error('❌ [EnhancedBulkImport] Import error:', error);
+      console.error('❌ Import process failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      
-      const failedJob: ImportJob = {
-        id: `import-${Date.now()}`,
-        status: 'failed',
-        progress: 0,
-        statistics: getStatsSafely(undefined),
-        errors: [errorMessage],
-        startedAt: new Date().toISOString(),
-        completedAt: new Date().toISOString()
-      };
-
-      setImportJob(failedJob);
       
       toast({
         title: "Import Failed",
         description: errorMessage,
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
-      setIsLoading(false);
+      setIsImporting(false);
     }
   };
 
   const resetImport = () => {
-    setImportJob(null);
-    setAvailableData(null);
-    setAuthStatus(null);
-    toast({
-      title: "Import Reset",
-      description: "Cleared all import data and status"
-    });
+    setPreviewData(null);
+    setImportProgress(0);
+    setImportResults(null);
   };
-
-  useEffect(() => {
-    // Auto-fetch available data on component mount
-    fetchAvailableData();
-  }, []);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Enhanced Bulk Import</h2>
-          <p className="text-muted-foreground">
-            Import users and devices from GP51 with advanced error handling and progress tracking
-          </p>
-        </div>
-      </div>
-
-      {/* Authentication Status */}
+      {/* Control Panel */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
-            GP51 Connection Status
+            GP51 Data Import Manager
           </CardTitle>
+          <CardDescription>
+            Import users and vehicles from GP51 platform with preview and validation
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            {authStatus?.connected ? (
-              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Connected
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                <XCircle className="h-3 w-3 mr-1" />
-                Disconnected
-              </Badge>
-            )}
+        <CardContent className="space-y-4">
+          <div className="flex gap-3">
+            <Button
+              onClick={fetchPreviewData}
+              disabled={isLoading || isImporting}
+              className="flex items-center gap-2"
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+              {isLoading ? 'Loading Preview...' : 'Fetch Preview Data'}
+            </Button>
             
-            {authStatus?.username && (
-              <span className="text-sm text-muted-foreground">
-                Authenticated as: {authStatus.username}
-              </span>
-            )}
-            
-            {authStatus?.error && (
-              <span className="text-sm text-red-600">
-                Error: {authStatus.error}
-              </span>
-            )}
+            <Button
+              onClick={startImport}
+              disabled={!previewData?.success || isImporting || isLoading}
+              variant="default"
+              className="flex items-center gap-2"
+            >
+              {isImporting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4" />
+              )}
+              {isImporting ? 'Importing...' : 'Start Import'}
+            </Button>
+
+            <Button
+              onClick={resetImport}
+              variant="outline"
+              disabled={isLoading || isImporting}
+            >
+              Reset
+            </Button>
           </div>
+
+          {isImporting && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-sm">
+                <span>Import Progress</span>
+                <span>{importProgress}%</span>
+              </div>
+              <Progress value={importProgress} className="w-full" />
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Available Data Preview */}
-      {availableData && (
+      {/* Preview Data Display */}
+      {previewData && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Available Data Summary
+              {previewData.success ? (
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-red-600" />
+              )}
+              Data Preview
             </CardTitle>
+            <CardDescription>
+              {previewData.message}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
-                <Users className="h-8 w-8 text-blue-600" />
+                <Car className="h-6 w-6 text-blue-600" />
                 <div>
-                  <div className="text-2xl font-bold">{availableData?.summary?.users ?? 0}</div>
-                  <div className="text-sm text-muted-foreground">Users Available</div>
+                  <div className="text-2xl font-bold text-blue-900">{previewData.summary.vehicles}</div>
+                  <div className="text-sm text-blue-700">Vehicles</div>
                 </div>
               </div>
               
               <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg">
-                <Car className="h-8 w-8 text-green-600" />
+                <Users className="h-6 w-6 text-green-600" />
                 <div>
-                  <div className="text-2xl font-bold">{availableData?.summary?.vehicles ?? 0}</div>
-                  <div className="text-sm text-muted-foreground">Vehicles Available</div>
+                  <div className="text-2xl font-bold text-green-900">{previewData.summary.users}</div>
+                  <div className="text-sm text-green-700">Users</div>
                 </div>
               </div>
               
               <div className="flex items-center gap-3 p-4 bg-purple-50 rounded-lg">
-                <Database className="h-8 w-8 text-purple-600" />
+                <Database className="h-6 w-6 text-purple-600" />
                 <div>
-                  <div className="text-2xl font-bold">{availableData?.summary?.groups ?? 0}</div>
-                  <div className="text-sm text-muted-foreground">Groups Available</div>
+                  <div className="text-2xl font-bold text-purple-900">{previewData.summary.groups}</div>
+                  <div className="text-sm text-purple-700">Groups</div>
                 </div>
               </div>
             </div>
-            
-            {availableData?.message && (
-              <Alert className="mt-4">
+
+            {!previewData.success && (
+              <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  {availableData.message}
+                  {previewData.message}
                 </AlertDescription>
               </Alert>
+            )}
+
+            {previewData.success && previewData.details.vehicles.length > 0 && (
+              <div className="space-y-4">
+                <h4 className="font-medium">Sample Vehicles (First 5)</h4>
+                <div className="grid gap-2">
+                  {previewData.details.vehicles.slice(0, 5).map((vehicle: any, index: number) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                      <div>
+                        <div className="font-medium">{vehicle.devicename || 'Unnamed Device'}</div>
+                        <div className="text-sm text-gray-600">ID: {vehicle.deviceid}</div>
+                      </div>
+                      <Badge variant="outline">{vehicle.devicetype || 'Unknown Type'}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Import Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Import Actions</CardTitle>
-          <CardDescription>
-            Manage your GP51 data import process
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              onClick={fetchAvailableData}
-              disabled={isLoading}
-              variant="outline"
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh Data
-            </Button>
-            
-            <Button
-              onClick={startImport}
-              disabled={isLoading || !availableData?.success}
-            >
-              <Upload className="h-4 w-4 mr-2" />
-              Start Import
-            </Button>
-            
-            {importJob && (
-              <Button
-                onClick={resetImport}
-                variant="outline"
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Reset
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Import Job Status */}
-      {importJob && (
+      {/* Import Results */}
+      {importResults && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Import Job Status
-              <Badge variant={importJob.status === 'completed' ? 'default' : importJob.status === 'failed' ? 'destructive' : 'secondary'}>
-                {importJob.status}
-              </Badge>
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Import Results
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <Progress value={importJob.progress} className="w-full" />
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center p-3 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">
-                  {getStatsSafely(importJob.statistics).usersImported}
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-medium mb-3">Users</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Created:</span>
+                    <Badge variant="default">{importResults.users.created}</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Updated:</span>
+                    <Badge variant="secondary">{importResults.users.updated}</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Failed:</span>
+                    <Badge variant="destructive">{importResults.users.failed}</Badge>
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground">Users Imported</div>
               </div>
               
-              <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">
-                  {getStatsSafely(importJob.statistics).devicesImported}
+              <div>
+                <h4 className="font-medium mb-3">Devices</h4>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Created:</span>
+                    <Badge variant="default">{importResults.devices.created}</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Updated:</span>
+                    <Badge variant="secondary">{importResults.devices.updated}</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Failed:</span>
+                    <Badge variant="destructive">{importResults.devices.failed}</Badge>
+                  </div>
                 </div>
-                <div className="text-sm text-muted-foreground">Devices Imported</div>
-              </div>
-              
-              <div className="text-center p-3 bg-yellow-50 rounded-lg">
-                <div className="text-2xl font-bold text-yellow-600">
-                  {getStatsSafely(importJob.statistics).conflicts}
-                </div>
-                <div className="text-sm text-muted-foreground">Conflicts</div>
-              </div>
-              
-              <div className="text-center p-3 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">
-                  {importJob.errors?.length ?? 0}
-                </div>
-                <div className="text-sm text-muted-foreground">Errors</div>
               </div>
             </div>
 
-            {importJob.errors && importJob.errors.length > 0 && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="font-medium mb-2">Import Errors:</div>
-                  <ul className="list-disc list-inside space-y-1">
-                    {importJob.errors.slice(0, 5).map((error, index) => (
-                      <li key={index} className="text-sm">{error}</li>
-                    ))}
-                    {importJob.errors.length > 5 && (
-                      <li className="text-sm">... and {importJob.errors.length - 5} more errors</li>
-                    )}
-                  </ul>
-                </AlertDescription>
-              </Alert>
+            <div className="mt-6 p-4 bg-green-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+                <span className="font-medium text-green-900">
+                  Total Records Processed: {importResults.totalProcessed}
+                </span>
+              </div>
+            </div>
+
+            {importResults.errors.length > 0 && (
+              <div className="mt-4">
+                <h4 className="font-medium mb-2">Errors</h4>
+                <div className="space-y-1">
+                  {importResults.errors.slice(0, 5).map((error, index) => (
+                    <Alert key={index} variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-sm">{error}</AlertDescription>
+                    </Alert>
+                  ))}
+                  {importResults.errors.length > 5 && (
+                    <p className="text-sm text-gray-600">
+                      ... and {importResults.errors.length - 5} more errors
+                    </p>
+                  )}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

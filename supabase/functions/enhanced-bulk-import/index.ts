@@ -30,34 +30,13 @@ serve(async (req) => {
     // Validate GP51 environment configuration
     const gp51Username = Deno.env.get('GP51_ADMIN_USERNAME');
     const gp51Password = Deno.env.get('GP51_ADMIN_PASSWORD');
-    const gp51AdminUserId = Deno.env.get('GP51_ADMIN_USER_ID');
     
     if (!gp51Username || !gp51Password) {
       console.error('❌ [enhanced-bulk-import] GP51 credentials not configured');
       return new Response(JSON.stringify({
         success: false,
         error: 'GP51 credentials not configured',
-        details: 'Please configure GP51_ADMIN_USERNAME and GP51_ADMIN_PASSWORD in Supabase secrets',
-        authenticationStatus: {
-          connected: false,
-          error: 'GP51 credentials not configured'
-        }
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    if (!gp51AdminUserId) {
-      console.error('❌ [enhanced-bulk-import] GP51 admin user ID not configured');
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'GP51 admin user ID not configured',
-        details: 'Please configure GP51_ADMIN_USER_ID in Supabase secrets',
-        authenticationStatus: {
-          connected: false,
-          error: 'GP51 admin user ID not configured'
-        }
+        details: 'Please configure GP51_ADMIN_USERNAME and GP51_ADMIN_PASSWORD in Supabase secrets'
       }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -76,14 +55,13 @@ serve(async (req) => {
           console.log('✅ [enhanced-bulk-import] GP51 authentication successful');
           
           // Get sample data using the authenticated import service
-          // Use 'skip' mode to just count available data without importing
           const previewResult = await importService.performImport({
             importUsers: true,
             importDevices: true,
             conflictResolution: 'skip' // Just for preview, don't actually import
           });
           
-          if (previewResult.success || previewResult.statistics.devicesProcessed > 0 || previewResult.statistics.usersProcessed > 0) {
+          if (previewResult.success) {
             const statistics = {
               vehicles: previewResult.statistics.devicesProcessed,
               users: previewResult.statistics.usersProcessed,
@@ -106,7 +84,6 @@ serve(async (req) => {
               authenticationStatus: {
                 connected: true,
                 username: gp51Username,
-                adminUserId: gp51AdminUserId,
                 authenticatedAt: new Date().toISOString()
               }
             }), {
@@ -114,23 +91,7 @@ serve(async (req) => {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
           } else {
-            // Still return success but with empty data - this is not an error condition
-            console.log('⚠️ [enhanced-bulk-import] No data found but connection successful');
-            return new Response(JSON.stringify({
-              success: true,
-              summary: { vehicles: 0, users: 0, groups: 0 },
-              details: { vehicles: [], users: [], groups: [] },
-              message: 'Connection successful, but no data found. Please check GP51 account configuration.',
-              authenticationStatus: {
-                connected: true,
-                username: gp51Username,
-                adminUserId: gp51AdminUserId,
-                authenticatedAt: new Date().toISOString()
-              }
-            }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            });
+            throw new Error(previewResult.message);
           }
 
         } catch (error) {
@@ -171,13 +132,6 @@ serve(async (req) => {
 
           const result = await importService.performImport(importOptions);
 
-          console.log('📊 [enhanced-bulk-import] Import completed:', {
-            success: result.success,
-            usersImported: result.statistics.usersImported,
-            devicesImported: result.statistics.devicesImported,
-            errorCount: result.errors.length
-          });
-
           return new Response(JSON.stringify({
             success: result.success,
             statistics: result.statistics,
@@ -185,8 +139,7 @@ serve(async (req) => {
             errors: result.errors.slice(0, 10), // Limit errors in response
             authenticationStatus: {
               connected: true,
-              username: gp51Username,
-              adminUserId: gp51AdminUserId
+              username: gp51Username
             }
           }), {
             status: result.success ? 200 : 500,
