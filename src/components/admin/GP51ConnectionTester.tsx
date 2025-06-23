@@ -4,11 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Activity as ActivityIconLucide } from 'lucide-react';
 import { useGP51AuthConsolidated } from '@/hooks/useGP51AuthConsolidated';
 
-import GP51SessionStatusDisplay from './gp51-testing/components/GP51SessionStatusDisplay';
-import GP51ApiConnectionTest from './gp51-testing/components/GP51ApiConnectionTest';
-import GP51LiveDataFetchTest from './gp51-testing/components/GP51LiveDataFetchTest';
-import type { ConnectionTestResult } from './gp51-testing/types/connectionTesting';
-
 const GP51ConnectionTester: React.FC = () => {
   const { 
     isAuthenticated: isGp51Authenticated, 
@@ -16,12 +11,6 @@ const GP51ConnectionTester: React.FC = () => {
     tokenExpiresAt: gp51TokenExpiresAt,
     isCheckingStatus: authLoading 
   } = useGP51AuthConsolidated();
-
-  const [apiTestResult, setApiTestResult] = useState<ConnectionTestResult | null>(null);
-
-  const handleApiTestResult = (result: ConnectionTestResult) => {
-    setApiTestResult(result);
-  };
 
   return (
     <Card>
@@ -31,37 +20,34 @@ const GP51ConnectionTester: React.FC = () => {
           GP51 Connection Testing
         </CardTitle>
         <CardDescription>
-          Test your GP51 integration and verify live data connectivity. 
+          Test your GP51 integration and verify connectivity. 
           Session status is managed by the Authentication tab.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        <GP51SessionStatusDisplay
-          isLoading={authLoading}
-          isAuthenticated={isGp51Authenticated}
-          username={gp51Username}
-          tokenExpiresAt={gp51TokenExpiresAt}
-        />
-
-        <GP51ApiConnectionTest
-          isGp51Authenticated={isGp51Authenticated}
-          authLoading={authLoading}
-          onTestResult={handleApiTestResult}
-        />
-
-        <GP51LiveDataFetchTest
-          isGp51Authenticated={isGp51Authenticated}
-          authLoading={authLoading}
-          isApiTestSuccessful={apiTestResult?.success}
-        />
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <ActivityIconLucide className="w-4 h-4 text-blue-600" />
+            <span className="font-medium text-blue-800">Connection Status</span>
+          </div>
+          <div className="text-sm text-blue-700">
+            {authLoading ? (
+              <span>Checking authentication status...</span>
+            ) : isGp51Authenticated ? (
+              <span>✅ Authenticated as: {gp51Username}</span>
+            ) : (
+              <span>❌ Not authenticated - Please configure GP51 credentials in the Authentication tab</span>
+            )}
+          </div>
+        </div>
 
         <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-md">
-          <strong>Testing Guide:</strong>
+          <strong>Connection Guide:</strong>
           <ul className="mt-1 space-y-1 list-disc list-inside">
             <li>Ensure you are authenticated with GP51 via the 'Authentication' tab.</li>
-            <li>First, use the 'API Connection Test' to verify credentials and basic API reachability.</li>
-            <li>If successful, use 'Fetch Live Data' to test pulling actual data from GP51.</li>
-            <li>Both tests should pass for complete GP51 functionality.</li>
+            <li>GP51 credentials are securely stored and managed through the admin settings.</li>
+            <li>Connection status is automatically monitored and updated.</li>
+            <li>Contact support if you experience persistent connection issues.</li>
           </ul>
         </div>
       </CardContent>
