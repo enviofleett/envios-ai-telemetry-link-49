@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -12,6 +11,7 @@ import AdminLogin from '@/pages/AdminLogin';
 // Protected Pages - Dashboard
 import Index from '@/pages/Index';
 import Dashboard from '@/pages/Dashboard';
+import AnalyticsDashboard from '@/pages/AnalyticsDashboard';
 import AdminSetup from '@/pages/AdminSetup';
 
 // Core Fleet Management
@@ -71,6 +71,17 @@ export const AppRouter: React.FC = () => {
         } 
       />
 
+      <Route 
+        path="/analytics-dashboard" 
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AnalyticsDashboard />
+            </Layout>
+          </ProtectedRoute>
+        } 
+      />
+
       {/* Core Fleet Management */}
       <Route
         path="/tracking"
@@ -82,37 +93,7 @@ export const AppRouter: React.FC = () => {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/vehicles"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <EnhancedVehicleManagement />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/my-vehicles"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <UserVehicles />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/users"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <EnhancedUserManagement />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-
+      
       {/* System Management */}
       <Route
         path="/settings"

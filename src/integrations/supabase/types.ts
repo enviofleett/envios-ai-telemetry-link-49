@@ -483,146 +483,6 @@ export type Database = {
         }
         Relationships: []
       }
-      appointment_conflicts: {
-        Row: {
-          appointment_id: string
-          conflict_details: Json | null
-          conflict_type: string
-          created_at: string
-          id: string
-          resolution_status: string
-          resolved_at: string | null
-          resolved_by: string | null
-        }
-        Insert: {
-          appointment_id: string
-          conflict_details?: Json | null
-          conflict_type: string
-          created_at?: string
-          id?: string
-          resolution_status?: string
-          resolved_at?: string | null
-          resolved_by?: string | null
-        }
-        Update: {
-          appointment_id?: string
-          conflict_details?: Json | null
-          conflict_type?: string
-          created_at?: string
-          id?: string
-          resolution_status?: string
-          resolved_at?: string | null
-          resolved_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appointment_conflicts_appointment_id_fkey"
-            columns: ["appointment_id"]
-            isOneToOne: false
-            referencedRelation: "workshop_appointments"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "appointment_conflicts_resolved_by_fkey"
-            columns: ["resolved_by"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      appointment_notifications: {
-        Row: {
-          appointment_id: string
-          created_at: string
-          error_message: string | null
-          id: string
-          notification_type: string
-          recipient_email: string
-          scheduled_for: string
-          sent_at: string | null
-          status: string
-        }
-        Insert: {
-          appointment_id: string
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          notification_type: string
-          recipient_email: string
-          scheduled_for: string
-          sent_at?: string | null
-          status?: string
-        }
-        Update: {
-          appointment_id?: string
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          notification_type?: string
-          recipient_email?: string
-          scheduled_for?: string
-          sent_at?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appointment_notifications_appointment_id_fkey"
-            columns: ["appointment_id"]
-            isOneToOne: false
-            referencedRelation: "workshop_appointments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      backup_metadata: {
-        Row: {
-          backup_type: string
-          can_rollback: boolean
-          checksum_hash: string
-          created_at: string
-          description: string | null
-          expires_at: string | null
-          id: string
-          is_verified: boolean
-          name: string
-          record_count: number
-          size: number
-          tables: Json
-          tags: Json
-        }
-        Insert: {
-          backup_type?: string
-          can_rollback?: boolean
-          checksum_hash: string
-          created_at?: string
-          description?: string | null
-          expires_at?: string | null
-          id?: string
-          is_verified?: boolean
-          name: string
-          record_count?: number
-          size?: number
-          tables?: Json
-          tags?: Json
-        }
-        Update: {
-          backup_type?: string
-          can_rollback?: boolean
-          checksum_hash?: string
-          created_at?: string
-          description?: string | null
-          expires_at?: string | null
-          id?: string
-          is_verified?: boolean
-          name?: string
-          record_count?: number
-          size?: number
-          tables?: Json
-          tags?: Json
-        }
-        Relationships: []
-      }
       billing_cycles: {
         Row: {
           billing_date: string
@@ -872,117 +732,6 @@ export type Database = {
           status?: string
           successful_items?: number
           total_items?: number
-        }
-        Relationships: []
-      }
-      bulk_extraction_jobs: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          error_log: Json | null
-          extracted_data: Json | null
-          failed_accounts: number
-          id: string
-          job_name: string
-          processed_accounts: number
-          status: string
-          successful_accounts: number
-          total_accounts: number
-          total_vehicles: number
-          updated_at: string
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          error_log?: Json | null
-          extracted_data?: Json | null
-          failed_accounts?: number
-          id?: string
-          job_name: string
-          processed_accounts?: number
-          status?: string
-          successful_accounts?: number
-          total_accounts?: number
-          total_vehicles?: number
-          updated_at?: string
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          error_log?: Json | null
-          extracted_data?: Json | null
-          failed_accounts?: number
-          id?: string
-          job_name?: string
-          processed_accounts?: number
-          status?: string
-          successful_accounts?: number
-          total_accounts?: number
-          total_vehicles?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      bulk_import_jobs: {
-        Row: {
-          chunk_size: number
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          current_chunk: number
-          error_log: Json | null
-          failed_items: number
-          id: string
-          import_data: Json | null
-          import_type: string
-          job_name: string
-          processed_items: number
-          started_at: string | null
-          status: string
-          successful_items: number
-          total_chunks: number
-          total_items: number
-          updated_at: string
-        }
-        Insert: {
-          chunk_size?: number
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          current_chunk?: number
-          error_log?: Json | null
-          failed_items?: number
-          id?: string
-          import_data?: Json | null
-          import_type?: string
-          job_name: string
-          processed_items?: number
-          started_at?: string | null
-          status?: string
-          successful_items?: number
-          total_chunks?: number
-          total_items?: number
-          updated_at?: string
-        }
-        Update: {
-          chunk_size?: number
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          current_chunk?: number
-          error_log?: Json | null
-          failed_items?: number
-          id?: string
-          import_data?: Json | null
-          import_type?: string
-          job_name?: string
-          processed_items?: number
-          started_at?: string | null
-          status?: string
-          successful_items?: number
-          total_chunks?: number
-          total_items?: number
-          updated_at?: string
         }
         Relationships: []
       }
@@ -1307,271 +1056,92 @@ export type Database = {
         }
         Relationships: []
       }
-      csv_import_jobs: {
+      credential_health_reports: {
         Row: {
-          completed_at: string | null
+          api_response_time_ms: number | null
+          connectivity_test_passed: boolean
           created_at: string
-          created_by: string
-          error_log: Json | null
-          failed_imports: number
-          file_name: string
+          health_status: string
           id: string
-          import_results: Json | null
-          job_name: string
-          processed_rows: number
-          progress_percentage: number | null
-          status: string
-          successful_imports: number
-          total_rows: number
+          issues_detected: string[] | null
+          recommendations: string[] | null
+          token_expires_at: string | null
           updated_at: string
+          username: string
+          validation_job_id: string | null
         }
         Insert: {
-          completed_at?: string | null
+          api_response_time_ms?: number | null
+          connectivity_test_passed?: boolean
           created_at?: string
-          created_by: string
-          error_log?: Json | null
-          failed_imports?: number
-          file_name: string
+          health_status?: string
           id?: string
-          import_results?: Json | null
-          job_name: string
-          processed_rows?: number
-          progress_percentage?: number | null
-          status?: string
-          successful_imports?: number
-          total_rows?: number
+          issues_detected?: string[] | null
+          recommendations?: string[] | null
+          token_expires_at?: string | null
           updated_at?: string
+          username: string
+          validation_job_id?: string | null
         }
         Update: {
-          completed_at?: string | null
+          api_response_time_ms?: number | null
+          connectivity_test_passed?: boolean
           created_at?: string
-          created_by?: string
-          error_log?: Json | null
-          failed_imports?: number
-          file_name?: string
+          health_status?: string
           id?: string
-          import_results?: Json | null
-          job_name?: string
-          processed_rows?: number
-          progress_percentage?: number | null
-          status?: string
-          successful_imports?: number
-          total_rows?: number
+          issues_detected?: string[] | null
+          recommendations?: string[] | null
+          token_expires_at?: string | null
           updated_at?: string
-        }
-        Relationships: []
-      }
-      csv_import_relationships: {
-        Row: {
-          created_at: string | null
-          device_id: string
-          gp51_device_id: string | null
-          gp51_user_id: string | null
-          id: string
-          import_job_id: string | null
-          relationship_type: string
-          row_number: number
-          sync_status: string
-          user_identifier: string
-        }
-        Insert: {
-          created_at?: string | null
-          device_id: string
-          gp51_device_id?: string | null
-          gp51_user_id?: string | null
-          id?: string
-          import_job_id?: string | null
-          relationship_type?: string
-          row_number: number
-          sync_status?: string
-          user_identifier: string
-        }
-        Update: {
-          created_at?: string | null
-          device_id?: string
-          gp51_device_id?: string | null
-          gp51_user_id?: string | null
-          id?: string
-          import_job_id?: string | null
-          relationship_type?: string
-          row_number?: number
-          sync_status?: string
-          user_identifier?: string
+          username?: string
+          validation_job_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "csv_import_relationships_import_job_id_fkey"
-            columns: ["import_job_id"]
+            foreignKeyName: "fk_credential_health_reports_validation_job"
+            columns: ["validation_job_id"]
             isOneToOne: false
-            referencedRelation: "csv_import_jobs"
+            referencedRelation: "credential_validation_jobs"
             referencedColumns: ["id"]
           },
         ]
       }
-      csv_import_templates: {
-        Row: {
-          auto_username_generation: boolean | null
-          column_mappings: Json
-          created_at: string
-          created_by: string | null
-          gp51_sync_enabled: boolean | null
-          id: string
-          is_system_template: boolean | null
-          supports_user_import: boolean | null
-          template_name: string
-          template_type: string
-          updated_at: string
-          validation_rules: Json
-        }
-        Insert: {
-          auto_username_generation?: boolean | null
-          column_mappings: Json
-          created_at?: string
-          created_by?: string | null
-          gp51_sync_enabled?: boolean | null
-          id?: string
-          is_system_template?: boolean | null
-          supports_user_import?: boolean | null
-          template_name: string
-          template_type?: string
-          updated_at?: string
-          validation_rules: Json
-        }
-        Update: {
-          auto_username_generation?: boolean | null
-          column_mappings?: Json
-          created_at?: string
-          created_by?: string | null
-          gp51_sync_enabled?: boolean | null
-          id?: string
-          is_system_template?: boolean | null
-          supports_user_import?: boolean | null
-          template_name?: string
-          template_type?: string
-          updated_at?: string
-          validation_rules?: Json
-        }
-        Relationships: []
-      }
-      csv_validation_logs: {
-        Row: {
-          created_at: string
-          error_message: string
-          field_name: string | null
-          id: string
-          import_job_id: string | null
-          raw_data: Json | null
-          row_number: number
-          validation_type: string
-        }
-        Insert: {
-          created_at?: string
-          error_message: string
-          field_name?: string | null
-          id?: string
-          import_job_id?: string | null
-          raw_data?: Json | null
-          row_number: number
-          validation_type: string
-        }
-        Update: {
-          created_at?: string
-          error_message?: string
-          field_name?: string | null
-          id?: string
-          import_job_id?: string | null
-          raw_data?: Json | null
-          row_number?: number
-          validation_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "csv_validation_logs_import_job_id_fkey"
-            columns: ["import_job_id"]
-            isOneToOne: false
-            referencedRelation: "csv_import_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      data_consistency_logs: {
-        Row: {
-          checks_failed: number
-          checks_passed: number
-          checks_performed: number
-          data_health: string
-          id: string
-          overall_score: number
-          report_data: Json
-          timestamp: string
-        }
-        Insert: {
-          checks_failed?: number
-          checks_passed?: number
-          checks_performed?: number
-          data_health: string
-          id?: string
-          overall_score: number
-          report_data?: Json
-          timestamp?: string
-        }
-        Update: {
-          checks_failed?: number
-          checks_passed?: number
-          checks_performed?: number
-          data_health?: string
-          id?: string
-          overall_score?: number
-          report_data?: Json
-          timestamp?: string
-        }
-        Relationships: []
-      }
-      data_reconciliation_jobs: {
+      credential_validation_jobs: {
         Row: {
           completed_at: string | null
           created_at: string
-          error_log: Json
-          failed_items: number
           id: string
-          job_type: string
-          processed_items: number
-          progress_percentage: number
-          reconciliation_rules: Json
-          results: Json
+          job_name: string
+          next_scheduled_at: string | null
           started_at: string | null
           status: string
-          total_items: number
+          updated_at: string
+          validation_results: Json | null
+          validation_type: string
         }
         Insert: {
           completed_at?: string | null
           created_at?: string
-          error_log?: Json
-          failed_items?: number
           id?: string
-          job_type: string
-          processed_items?: number
-          progress_percentage?: number
-          reconciliation_rules?: Json
-          results?: Json
+          job_name: string
+          next_scheduled_at?: string | null
           started_at?: string | null
           status?: string
-          total_items?: number
+          updated_at?: string
+          validation_results?: Json | null
+          validation_type: string
         }
         Update: {
           completed_at?: string | null
           created_at?: string
-          error_log?: Json
-          failed_items?: number
           id?: string
-          job_type?: string
-          processed_items?: number
-          progress_percentage?: number
-          reconciliation_rules?: Json
-          results?: Json
+          job_name?: string
+          next_scheduled_at?: string | null
           started_at?: string | null
           status?: string
-          total_items?: number
+          updated_at?: string
+          validation_results?: Json | null
+          validation_type?: string
         }
         Relationships: []
       }
@@ -1616,330 +1186,6 @@ export type Database = {
           is_active?: boolean
           max_vehicles_allowed?: number | null
           name?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      device_configurations: {
-        Row: {
-          configuration_data: Json
-          configuration_name: string
-          created_at: string
-          created_by: string | null
-          device_id: string
-          id: string
-          is_active: boolean | null
-          updated_at: string
-        }
-        Insert: {
-          configuration_data: Json
-          configuration_name: string
-          created_at?: string
-          created_by?: string | null
-          device_id: string
-          id?: string
-          is_active?: boolean | null
-          updated_at?: string
-        }
-        Update: {
-          configuration_data?: Json
-          configuration_name?: string
-          created_at?: string
-          created_by?: string | null
-          device_id?: string
-          id?: string
-          is_active?: boolean | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      device_group_assignments: {
-        Row: {
-          assigned_at: string
-          assigned_by: string | null
-          device_group_id: string
-          device_id: string
-          id: string
-        }
-        Insert: {
-          assigned_at?: string
-          assigned_by?: string | null
-          device_group_id: string
-          device_id: string
-          id?: string
-        }
-        Update: {
-          assigned_at?: string
-          assigned_by?: string | null
-          device_group_id?: string
-          device_id?: string
-          id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "device_group_assignments_assigned_by_fkey"
-            columns: ["assigned_by"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "device_group_assignments_device_group_id_fkey"
-            columns: ["device_group_id"]
-            isOneToOne: false
-            referencedRelation: "device_groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      device_groups: {
-        Row: {
-          color_code: string | null
-          created_at: string
-          description: string | null
-          gp51_group_id: number | null
-          id: string
-          name: string
-          parent_group_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          color_code?: string | null
-          created_at?: string
-          description?: string | null
-          gp51_group_id?: number | null
-          id?: string
-          name: string
-          parent_group_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          color_code?: string | null
-          created_at?: string
-          description?: string | null
-          gp51_group_id?: number | null
-          id?: string
-          name?: string
-          parent_group_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "device_groups_parent_group_id_fkey"
-            columns: ["parent_group_id"]
-            isOneToOne: false
-            referencedRelation: "device_groups"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      device_history: {
-        Row: {
-          action_description: string | null
-          action_type: string
-          created_at: string
-          device_id: string
-          id: string
-          new_values: Json | null
-          old_values: Json | null
-          performed_by: string | null
-        }
-        Insert: {
-          action_description?: string | null
-          action_type: string
-          created_at?: string
-          device_id: string
-          id?: string
-          new_values?: Json | null
-          old_values?: Json | null
-          performed_by?: string | null
-        }
-        Update: {
-          action_description?: string | null
-          action_type?: string
-          created_at?: string
-          device_id?: string
-          id?: string
-          new_values?: Json | null
-          old_values?: Json | null
-          performed_by?: string | null
-        }
-        Relationships: []
-      }
-      device_subscriptions: {
-        Row: {
-          auto_renewal: boolean | null
-          billing_cycle: string
-          created_at: string
-          customer_id: string | null
-          device_id: string
-          discount_percentage: number | null
-          end_date: string
-          id: string
-          notes: string | null
-          price_override: number | null
-          service_plan_id: string | null
-          start_date: string
-          subscription_status: string
-          updated_at: string
-        }
-        Insert: {
-          auto_renewal?: boolean | null
-          billing_cycle?: string
-          created_at?: string
-          customer_id?: string | null
-          device_id: string
-          discount_percentage?: number | null
-          end_date: string
-          id?: string
-          notes?: string | null
-          price_override?: number | null
-          service_plan_id?: string | null
-          start_date: string
-          subscription_status?: string
-          updated_at?: string
-        }
-        Update: {
-          auto_renewal?: boolean | null
-          billing_cycle?: string
-          created_at?: string
-          customer_id?: string | null
-          device_id?: string
-          discount_percentage?: number | null
-          end_date?: string
-          id?: string
-          notes?: string | null
-          price_override?: number | null
-          service_plan_id?: string | null
-          start_date?: string
-          subscription_status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "device_subscriptions_service_plan_id_fkey"
-            columns: ["service_plan_id"]
-            isOneToOne: false
-            referencedRelation: "service_plans"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      device_tag_assignments: {
-        Row: {
-          assigned_at: string
-          assigned_by: string | null
-          device_id: string
-          id: string
-          tag_id: string
-        }
-        Insert: {
-          assigned_at?: string
-          assigned_by?: string | null
-          device_id: string
-          id?: string
-          tag_id: string
-        }
-        Update: {
-          assigned_at?: string
-          assigned_by?: string | null
-          device_id?: string
-          id?: string
-          tag_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "device_tag_assignments_tag_id_fkey"
-            columns: ["tag_id"]
-            isOneToOne: false
-            referencedRelation: "device_tags"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      device_tags: {
-        Row: {
-          color: string | null
-          created_at: string
-          description: string | null
-          id: string
-          name: string
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          name: string
-        }
-        Update: {
-          color?: string | null
-          created_at?: string
-          description?: string | null
-          id?: string
-          name?: string
-        }
-        Relationships: []
-      }
-      device_types: {
-        Row: {
-          created_at: string
-          default_id_length: number | null
-          default_offline_delay: number | null
-          features: Json | null
-          functions: number | null
-          functions_long: number | null
-          gp51_device_type_id: number
-          id: string
-          is_active: boolean | null
-          price_1_year: number | null
-          price_10_year: number | null
-          price_3_year: number | null
-          price_5_year: number | null
-          remark: string | null
-          remark_en: string | null
-          type_code: string | null
-          type_name: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          default_id_length?: number | null
-          default_offline_delay?: number | null
-          features?: Json | null
-          functions?: number | null
-          functions_long?: number | null
-          gp51_device_type_id: number
-          id?: string
-          is_active?: boolean | null
-          price_1_year?: number | null
-          price_10_year?: number | null
-          price_3_year?: number | null
-          price_5_year?: number | null
-          remark?: string | null
-          remark_en?: string | null
-          type_code?: string | null
-          type_name: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          default_id_length?: number | null
-          default_offline_delay?: number | null
-          features?: Json | null
-          functions?: number | null
-          functions_long?: number | null
-          gp51_device_type_id?: number
-          id?: string
-          is_active?: boolean | null
-          price_1_year?: number | null
-          price_10_year?: number | null
-          price_3_year?: number | null
-          price_5_year?: number | null
-          remark?: string | null
-          remark_en?: string | null
-          type_code?: string | null
-          type_name?: string
           updated_at?: string
         }
         Relationships: []
@@ -3070,15 +2316,7 @@ export type Database = {
           resolved_by?: string | null
           system_import_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "gp51_data_conflicts_resolution_system_import_id_fkey"
-            columns: ["system_import_id"]
-            isOneToOne: false
-            referencedRelation: "gp51_system_imports"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       gp51_device_management: {
         Row: {
@@ -3168,15 +2406,7 @@ export type Database = {
           sync_status?: string
           updated_at?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "gp51_sync_status_import_job_id_fkey"
-            columns: ["import_job_id"]
-            isOneToOne: false
-            referencedRelation: "csv_import_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       gp51_health_metrics: {
         Row: {
@@ -3236,15 +2466,7 @@ export type Database = {
           success?: boolean | null
           system_import_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "gp51_import_audit_log_system_import_id_fkey"
-            columns: ["system_import_id"]
-            isOneToOne: false
-            referencedRelation: "gp51_system_imports"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       gp51_import_previews: {
         Row: {
@@ -3283,15 +2505,7 @@ export type Database = {
           review_status?: string
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "gp51_import_previews_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "user_import_jobs"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       gp51_import_progress_phases: {
         Row: {
@@ -3327,15 +2541,7 @@ export type Database = {
           started_at?: string | null
           system_import_id?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "gp51_import_progress_phases_system_import_id_fkey"
-            columns: ["system_import_id"]
-            isOneToOne: false
-            referencedRelation: "gp51_system_imports"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       gp51_polling_config: {
         Row: {
@@ -3763,6 +2969,60 @@ export type Database = {
         }
         Relationships: []
       }
+      gp51_sync_discrepancies: {
+        Row: {
+          actual_value: Json | null
+          auto_resolution_attempted: boolean | null
+          created_at: string
+          detected_at: string
+          discrepancy_type: string
+          entity_id: string
+          entity_type: string
+          expected_value: Json | null
+          id: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          severity: string
+          source_system: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actual_value?: Json | null
+          auto_resolution_attempted?: boolean | null
+          created_at?: string
+          detected_at?: string
+          discrepancy_type: string
+          entity_id: string
+          entity_type: string
+          expected_value?: Json | null
+          id?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          severity?: string
+          source_system?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actual_value?: Json | null
+          auto_resolution_attempted?: boolean | null
+          created_at?: string
+          detected_at?: string
+          discrepancy_type?: string
+          entity_id?: string
+          entity_type?: string
+          expected_value?: Json | null
+          id?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          severity?: string
+          source_system?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       gp51_sync_status: {
         Row: {
           completed_at: string | null
@@ -3804,110 +3064,6 @@ export type Database = {
           total_devices?: number | null
         }
         Relationships: []
-      }
-      gp51_system_imports: {
-        Row: {
-          admin_gp51_username: string | null
-          backup_tables: Json | null
-          can_rollback: boolean | null
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          current_phase: string | null
-          data_integrity_score: number | null
-          error_log: Json | null
-          failed_devices: number
-          failed_users: number
-          id: string
-          import_results: Json | null
-          import_scope: string | null
-          import_type: string
-          job_name: string
-          phase_details: string | null
-          pre_import_checks: Json | null
-          processed_devices: number
-          processed_users: number
-          progress_percentage: number | null
-          rollback_data: Json | null
-          status: string
-          successful_devices: number
-          successful_users: number
-          total_devices: number
-          total_users: number
-          updated_at: string
-          validation_results: Json | null
-        }
-        Insert: {
-          admin_gp51_username?: string | null
-          backup_tables?: Json | null
-          can_rollback?: boolean | null
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          current_phase?: string | null
-          data_integrity_score?: number | null
-          error_log?: Json | null
-          failed_devices?: number
-          failed_users?: number
-          id?: string
-          import_results?: Json | null
-          import_scope?: string | null
-          import_type?: string
-          job_name: string
-          phase_details?: string | null
-          pre_import_checks?: Json | null
-          processed_devices?: number
-          processed_users?: number
-          progress_percentage?: number | null
-          rollback_data?: Json | null
-          status?: string
-          successful_devices?: number
-          successful_users?: number
-          total_devices?: number
-          total_users?: number
-          updated_at?: string
-          validation_results?: Json | null
-        }
-        Update: {
-          admin_gp51_username?: string | null
-          backup_tables?: Json | null
-          can_rollback?: boolean | null
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          current_phase?: string | null
-          data_integrity_score?: number | null
-          error_log?: Json | null
-          failed_devices?: number
-          failed_users?: number
-          id?: string
-          import_results?: Json | null
-          import_scope?: string | null
-          import_type?: string
-          job_name?: string
-          phase_details?: string | null
-          pre_import_checks?: Json | null
-          processed_devices?: number
-          processed_users?: number
-          progress_percentage?: number | null
-          rollback_data?: Json | null
-          status?: string
-          successful_devices?: number
-          successful_users?: number
-          total_devices?: number
-          total_users?: number
-          updated_at?: string
-          validation_results?: Json | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "gp51_system_imports_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       gp51_user_management: {
         Row: {
@@ -4240,13 +3396,6 @@ export type Database = {
             referencedRelation: "envio_users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "inspection_form_templates_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
         ]
       }
       inspection_photos: {
@@ -4448,13 +3597,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "invoice_line_items_device_subscription_id_fkey"
-            columns: ["device_subscription_id"]
-            isOneToOne: false
-            referencedRelation: "device_subscriptions"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "invoice_line_items_invoice_id_fkey"
             columns: ["invoice_id"]
             isOneToOne: false
@@ -4604,13 +3746,6 @@ export type Database = {
             columns: ["service_plan_id"]
             isOneToOne: false
             referencedRelation: "maintenance_service_plans"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "maintenance_appointments_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
@@ -5759,6 +4894,200 @@ export type Database = {
         }
         Relationships: []
       }
+      mobile_app_crashes: {
+        Row: {
+          app_version: string
+          crash_type: string
+          created_at: string
+          device_info: Json | null
+          error_message: string | null
+          id: string
+          occurred_at: string
+          platform: string
+          resolved: boolean | null
+          resolved_at: string | null
+          session_id: string | null
+          severity: string | null
+          stack_trace: string | null
+          user_id: string | null
+        }
+        Insert: {
+          app_version: string
+          crash_type: string
+          created_at?: string
+          device_info?: Json | null
+          error_message?: string | null
+          id?: string
+          occurred_at?: string
+          platform: string
+          resolved?: boolean | null
+          resolved_at?: string | null
+          session_id?: string | null
+          severity?: string | null
+          stack_trace?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          app_version?: string
+          crash_type?: string
+          created_at?: string
+          device_info?: Json | null
+          error_message?: string | null
+          id?: string
+          occurred_at?: string
+          platform?: string
+          resolved?: boolean | null
+          resolved_at?: string | null
+          session_id?: string | null
+          severity?: string | null
+          stack_trace?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_mobile_app_crashes_session"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "mobile_app_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mobile_app_sessions: {
+        Row: {
+          app_version: string | null
+          crash_count: number | null
+          created_at: string
+          device_id: string
+          device_model: string | null
+          duration_minutes: number | null
+          features_used: string[] | null
+          id: string
+          performance_metrics: Json | null
+          platform: string
+          platform_version: string | null
+          session_end: string | null
+          session_start: string
+          user_id: string
+        }
+        Insert: {
+          app_version?: string | null
+          crash_count?: number | null
+          created_at?: string
+          device_id: string
+          device_model?: string | null
+          duration_minutes?: number | null
+          features_used?: string[] | null
+          id?: string
+          performance_metrics?: Json | null
+          platform: string
+          platform_version?: string | null
+          session_end?: string | null
+          session_start?: string
+          user_id: string
+        }
+        Update: {
+          app_version?: string | null
+          crash_count?: number | null
+          created_at?: string
+          device_id?: string
+          device_model?: string | null
+          duration_minutes?: number | null
+          features_used?: string[] | null
+          id?: string
+          performance_metrics?: Json | null
+          platform?: string
+          platform_version?: string | null
+          session_end?: string | null
+          session_start?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      mobile_performance_metrics: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          device_info: Json | null
+          id: string
+          metric_name: string
+          metric_type: string
+          metric_unit: string | null
+          metric_value: number
+          platform: string
+          recorded_at: string
+          session_id: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          device_info?: Json | null
+          id?: string
+          metric_name: string
+          metric_type: string
+          metric_unit?: string | null
+          metric_value: number
+          platform: string
+          recorded_at?: string
+          session_id?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          device_info?: Json | null
+          id?: string
+          metric_name?: string
+          metric_type?: string
+          metric_unit?: string | null
+          metric_value?: number
+          platform?: string
+          recorded_at?: string
+          session_id?: string | null
+        }
+        Relationships: []
+      }
+      mobile_usage_analytics: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          device_info: Json | null
+          event_category: string
+          event_data: Json | null
+          event_type: string
+          id: string
+          occurred_at: string
+          platform: string
+          session_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          device_info?: Json | null
+          event_category: string
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          occurred_at?: string
+          platform: string
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          device_info?: Json | null
+          event_category?: string
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          platform?: string
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       notification_channels: {
         Row: {
           channel_config: Json
@@ -6894,101 +6223,6 @@ export type Database = {
           },
         ]
       }
-      report_executions: {
-        Row: {
-          completed_at: string | null
-          error_message: string | null
-          execution_metrics: Json | null
-          execution_status: string
-          file_url: string | null
-          generated_at: string
-          id: string
-          report_data: Json | null
-          scheduled_report_id: string | null
-          template_id: string | null
-        }
-        Insert: {
-          completed_at?: string | null
-          error_message?: string | null
-          execution_metrics?: Json | null
-          execution_status?: string
-          file_url?: string | null
-          generated_at?: string
-          id?: string
-          report_data?: Json | null
-          scheduled_report_id?: string | null
-          template_id?: string | null
-        }
-        Update: {
-          completed_at?: string | null
-          error_message?: string | null
-          execution_metrics?: Json | null
-          execution_status?: string
-          file_url?: string | null
-          generated_at?: string
-          id?: string
-          report_data?: Json | null
-          scheduled_report_id?: string | null
-          template_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "report_executions_scheduled_report_id_fkey"
-            columns: ["scheduled_report_id"]
-            isOneToOne: false
-            referencedRelation: "scheduled_reports"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "report_executions_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "report_templates"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      report_templates: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          id: string
-          is_system_template: boolean
-          name: string
-          report_type: string
-          template_config: Json
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_system_template?: boolean
-          name: string
-          report_type: string
-          template_config?: Json
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_system_template?: boolean
-          name?: string
-          report_type?: string
-          template_config?: Json
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "report_templates_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       role_permissions: {
         Row: {
           created_at: string | null
@@ -7012,60 +6246,6 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
         }
         Relationships: []
-      }
-      scheduled_reports: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          id: string
-          is_active: boolean
-          last_run_at: string | null
-          next_run_at: string | null
-          recipients: Json
-          schedule_config: Json
-          template_id: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          last_run_at?: string | null
-          next_run_at?: string | null
-          recipients?: Json
-          schedule_config?: Json
-          template_id?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          last_run_at?: string | null
-          next_run_at?: string | null
-          recipients?: Json
-          schedule_config?: Json
-          template_id?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "scheduled_reports_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "scheduled_reports_template_id_fkey"
-            columns: ["template_id"]
-            isOneToOne: false
-            referencedRelation: "report_templates"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       secure_sessions: {
         Row: {
@@ -7638,15 +6818,7 @@ export type Database = {
           old_values?: Json | null
           performed_by?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "subscription_history_device_subscription_id_fkey"
-            columns: ["device_subscription_id"]
-            isOneToOne: false
-            referencedRelation: "device_subscriptions"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       subscription_migration_logs: {
         Row: {
@@ -7868,6 +7040,60 @@ export type Database = {
           successful_records?: number | null
           sync_type?: string
           total_records?: number | null
+        }
+        Relationships: []
+      }
+      system_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_data: Json | null
+          alert_type: string
+          created_at: string
+          id: string
+          message: string
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          source_entity_id: string | null
+          source_system: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_data?: Json | null
+          alert_type: string
+          created_at?: string
+          id?: string
+          message: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_entity_id?: string | null
+          source_system?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_data?: Json | null
+          alert_type?: string
+          created_at?: string
+          id?: string
+          message?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_entity_id?: string | null
+          source_system?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -8146,96 +7372,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      user_import_jobs: {
-        Row: {
-          admin_gp51_username: string | null
-          completed_at: string | null
-          conflicts_count: number | null
-          created_at: string
-          current_step: string | null
-          error_log: Json | null
-          failed_imports: number
-          id: string
-          import_results: Json | null
-          import_scope: string | null
-          import_type: string
-          imported_usernames: Json | null
-          job_name: string
-          preview_mode: boolean | null
-          processed_usernames: number
-          progress_percentage: number | null
-          review_status: string | null
-          reviewed_at: string | null
-          reviewed_by: string | null
-          rollback_available: boolean | null
-          status: string
-          step_details: string | null
-          successful_imports: number
-          total_devices_imported: number | null
-          total_usernames: number
-          total_vehicles_imported: number
-          updated_at: string
-        }
-        Insert: {
-          admin_gp51_username?: string | null
-          completed_at?: string | null
-          conflicts_count?: number | null
-          created_at?: string
-          current_step?: string | null
-          error_log?: Json | null
-          failed_imports?: number
-          id?: string
-          import_results?: Json | null
-          import_scope?: string | null
-          import_type?: string
-          imported_usernames?: Json | null
-          job_name: string
-          preview_mode?: boolean | null
-          processed_usernames?: number
-          progress_percentage?: number | null
-          review_status?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          rollback_available?: boolean | null
-          status?: string
-          step_details?: string | null
-          successful_imports?: number
-          total_devices_imported?: number | null
-          total_usernames?: number
-          total_vehicles_imported?: number
-          updated_at?: string
-        }
-        Update: {
-          admin_gp51_username?: string | null
-          completed_at?: string | null
-          conflicts_count?: number | null
-          created_at?: string
-          current_step?: string | null
-          error_log?: Json | null
-          failed_imports?: number
-          id?: string
-          import_results?: Json | null
-          import_scope?: string | null
-          import_type?: string
-          imported_usernames?: Json | null
-          job_name?: string
-          preview_mode?: boolean | null
-          processed_usernames?: number
-          progress_percentage?: number | null
-          review_status?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          rollback_available?: boolean | null
-          status?: string
-          step_details?: string | null
-          successful_imports?: number
-          total_devices_imported?: number | null
-          total_usernames?: number
-          total_vehicles_imported?: number
-          updated_at?: string
-        }
-        Relationships: []
       }
       user_notification_preferences: {
         Row: {
@@ -8896,13 +8032,6 @@ export type Database = {
             columns: ["inspector_id"]
             isOneToOne: false
             referencedRelation: "workshop_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "vehicle_inspections_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
@@ -9929,157 +9058,6 @@ export type Database = {
         }
         Relationships: []
       }
-      workshop_activations: {
-        Row: {
-          activated_at: string | null
-          activated_by: string | null
-          activation_fee_paid: number | null
-          activation_status: string
-          created_at: string
-          expires_at: string | null
-          id: string
-          notes: string | null
-          payment_status: string | null
-          service_duration_months: number | null
-          updated_at: string
-          vehicle_ids: Json
-          workshop_id: string
-        }
-        Insert: {
-          activated_at?: string | null
-          activated_by?: string | null
-          activation_fee_paid?: number | null
-          activation_status?: string
-          created_at?: string
-          expires_at?: string | null
-          id?: string
-          notes?: string | null
-          payment_status?: string | null
-          service_duration_months?: number | null
-          updated_at?: string
-          vehicle_ids?: Json
-          workshop_id: string
-        }
-        Update: {
-          activated_at?: string | null
-          activated_by?: string | null
-          activation_fee_paid?: number | null
-          activation_status?: string
-          created_at?: string
-          expires_at?: string | null
-          id?: string
-          notes?: string | null
-          payment_status?: string | null
-          service_duration_months?: number | null
-          updated_at?: string
-          vehicle_ids?: Json
-          workshop_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workshop_activations_activated_by_fkey"
-            columns: ["activated_by"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workshop_activations_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workshop_appointments: {
-        Row: {
-          actual_cost: number | null
-          appointment_status: string
-          appointment_type: string
-          cancellation_reason: string | null
-          cancelled_at: string | null
-          completed_at: string | null
-          confirmed_at: string | null
-          created_at: string
-          created_by: string | null
-          duration_minutes: number
-          estimated_cost: number | null
-          id: string
-          notes: string | null
-          scheduled_date: string
-          service_description: string | null
-          updated_at: string
-          user_id: string
-          vehicle_id: string
-          workshop_id: string
-        }
-        Insert: {
-          actual_cost?: number | null
-          appointment_status?: string
-          appointment_type?: string
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          completed_at?: string | null
-          confirmed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          duration_minutes?: number
-          estimated_cost?: number | null
-          id?: string
-          notes?: string | null
-          scheduled_date: string
-          service_description?: string | null
-          updated_at?: string
-          user_id: string
-          vehicle_id: string
-          workshop_id: string
-        }
-        Update: {
-          actual_cost?: number | null
-          appointment_status?: string
-          appointment_type?: string
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          completed_at?: string | null
-          confirmed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          duration_minutes?: number
-          estimated_cost?: number | null
-          id?: string
-          notes?: string | null
-          scheduled_date?: string
-          service_description?: string | null
-          updated_at?: string
-          user_id?: string
-          vehicle_id?: string
-          workshop_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workshop_appointments_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workshop_appointments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workshop_appointments_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       workshop_approval_logs: {
         Row: {
           action: string
@@ -10111,98 +9089,6 @@ export type Database = {
             columns: ["performed_by"]
             isOneToOne: false
             referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workshop_approval_logs_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workshop_availability: {
-        Row: {
-          buffer_minutes: number | null
-          created_at: string
-          day_of_week: number
-          end_time: string
-          id: string
-          is_available: boolean
-          max_concurrent_appointments: number | null
-          start_time: string
-          updated_at: string
-          workshop_id: string
-        }
-        Insert: {
-          buffer_minutes?: number | null
-          created_at?: string
-          day_of_week: number
-          end_time: string
-          id?: string
-          is_available?: boolean
-          max_concurrent_appointments?: number | null
-          start_time: string
-          updated_at?: string
-          workshop_id: string
-        }
-        Update: {
-          buffer_minutes?: number | null
-          created_at?: string
-          day_of_week?: number
-          end_time?: string
-          id?: string
-          is_available?: boolean
-          max_concurrent_appointments?: number | null
-          start_time?: string
-          updated_at?: string
-          workshop_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workshop_availability_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workshop_blackout_dates: {
-        Row: {
-          blackout_date: string
-          created_at: string
-          id: string
-          is_recurring: boolean | null
-          reason: string | null
-          recurring_type: string | null
-          workshop_id: string
-        }
-        Insert: {
-          blackout_date: string
-          created_at?: string
-          id?: string
-          is_recurring?: boolean | null
-          reason?: string | null
-          recurring_type?: string | null
-          workshop_id: string
-        }
-        Update: {
-          blackout_date?: string
-          created_at?: string
-          id?: string
-          is_recurring?: boolean | null
-          reason?: string | null
-          recurring_type?: string | null
-          workshop_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workshop_blackout_dates_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
@@ -10253,13 +9139,6 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workshop_connections_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
@@ -10316,105 +9195,6 @@ export type Database = {
             referencedRelation: "envio_users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "workshop_permissions_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workshop_reviews: {
-        Row: {
-          created_at: string
-          id: string
-          rating: number
-          review_text: string | null
-          service_date: string | null
-          updated_at: string
-          user_id: string
-          workshop_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          rating: number
-          review_text?: string | null
-          service_date?: string | null
-          updated_at?: string
-          user_id: string
-          workshop_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          rating?: number
-          review_text?: string | null
-          service_date?: string | null
-          updated_at?: string
-          user_id?: string
-          workshop_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workshop_reviews_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workshop_reviews_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workshop_services: {
-        Row: {
-          created_at: string
-          duration_hours: number | null
-          id: string
-          is_available: boolean | null
-          price: number | null
-          service_description: string | null
-          service_name: string
-          updated_at: string
-          workshop_id: string
-        }
-        Insert: {
-          created_at?: string
-          duration_hours?: number | null
-          id?: string
-          is_available?: boolean | null
-          price?: number | null
-          service_description?: string | null
-          service_name: string
-          updated_at?: string
-          workshop_id: string
-        }
-        Update: {
-          created_at?: string
-          duration_hours?: number | null
-          id?: string
-          is_available?: boolean | null
-          price?: number | null
-          service_description?: string | null
-          service_name?: string
-          updated_at?: string
-          workshop_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workshop_services_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
         ]
       }
       workshop_sessions: {
@@ -10443,13 +9223,6 @@ export type Database = {
           workshop_user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "workshop_sessions_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "workshop_sessions_workshop_user_id_fkey"
             columns: ["workshop_user_id"]
@@ -10528,13 +9301,6 @@ export type Database = {
             referencedRelation: "envio_users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "workshop_transactions_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
         ]
       }
       workshop_users: {
@@ -10586,13 +9352,6 @@ export type Database = {
             columns: ["envio_user_id"]
             isOneToOne: false
             referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "workshop_users_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
             referencedColumns: ["id"]
           },
         ]
@@ -10648,13 +9407,6 @@ export type Database = {
             referencedRelation: "envio_users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "workshop_vehicle_activations_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
         ]
       }
       workshop_vehicle_assignments: {
@@ -10699,87 +9451,6 @@ export type Database = {
             referencedRelation: "envio_users"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "workshop_vehicle_assignments_workshop_id_fkey"
-            columns: ["workshop_id"]
-            isOneToOne: false
-            referencedRelation: "workshops"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      workshops: {
-        Row: {
-          activation_fee: number | null
-          address: string | null
-          city: string | null
-          connection_fee: number | null
-          country: string | null
-          created_at: string
-          created_by: string | null
-          email: string
-          id: string
-          is_active: boolean | null
-          name: string
-          operating_hours: string | null
-          phone: string | null
-          rating: number | null
-          representative_name: string
-          review_count: number | null
-          service_types: Json | null
-          updated_at: string
-          verified: boolean | null
-        }
-        Insert: {
-          activation_fee?: number | null
-          address?: string | null
-          city?: string | null
-          connection_fee?: number | null
-          country?: string | null
-          created_at?: string
-          created_by?: string | null
-          email: string
-          id?: string
-          is_active?: boolean | null
-          name: string
-          operating_hours?: string | null
-          phone?: string | null
-          rating?: number | null
-          representative_name: string
-          review_count?: number | null
-          service_types?: Json | null
-          updated_at?: string
-          verified?: boolean | null
-        }
-        Update: {
-          activation_fee?: number | null
-          address?: string | null
-          city?: string | null
-          connection_fee?: number | null
-          country?: string | null
-          created_at?: string
-          created_by?: string | null
-          email?: string
-          id?: string
-          is_active?: boolean | null
-          name?: string
-          operating_hours?: string | null
-          phone?: string | null
-          rating?: number | null
-          representative_name?: string
-          review_count?: number | null
-          service_types?: Json | null
-          updated_at?: string
-          verified?: boolean | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "workshops_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "envio_users"
-            referencedColumns: ["id"]
-          },
         ]
       }
     }
@@ -10795,17 +9466,6 @@ export type Database = {
           p_window_seconds?: number
         }
         Returns: boolean
-      }
-      check_referential_integrity: {
-        Args: {
-          source_table: string
-          source_column: string
-          target_table: string
-          target_column: string
-        }
-        Returns: {
-          id: string
-        }[]
       }
       clean_expired_geocoding_cache: {
         Args: Record<PropertyKey, never>
@@ -10823,36 +9483,9 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      create_incremental_backup: {
-        Args: {
-          source_table: string
-          backup_table: string
-          since_timestamp: string
-        }
-        Returns: undefined
-      }
       create_payout_request: {
         Args: { request_amount: number; commission_ids: string[] }
         Returns: string
-      }
-      create_system_backup_for_import: {
-        Args: { import_id: string }
-        Returns: Json
-      }
-      create_table_backup: {
-        Args: { source_table: string; backup_table: string }
-        Returns: undefined
-      }
-      drop_table_if_exists: {
-        Args: { table_name: string }
-        Returns: undefined
-      }
-      find_duplicate_device_ids: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          device_id: string
-          count: number
-        }[]
       }
       generate_invoice_number: {
         Args: Record<PropertyKey, never>
@@ -10882,10 +9515,6 @@ export type Database = {
           api_url: string
           is_active: boolean
         }[]
-      }
-      get_import_job_progress: {
-        Args: { job_id: string }
-        Returns: Json
       }
       get_market_analytics: {
         Args: Record<PropertyKey, never>
@@ -10948,22 +9577,6 @@ export type Database = {
         }
         Returns: string
       }
-      merge_table_from_backup: {
-        Args: {
-          backup_table: string
-          target_table: string
-          backup_timestamp: string
-        }
-        Returns: undefined
-      }
-      perform_safe_data_cleanup: {
-        Args: { preserve_admin_email?: string }
-        Returns: Json
-      }
-      restore_table_from_backup: {
-        Args: { backup_table: string; target_table: string }
-        Returns: undefined
-      }
       store_gp51_credentials: {
         Args: { p_username: string; p_password: string; p_api_url?: string }
         Returns: string
@@ -10982,10 +9595,6 @@ export type Database = {
           p_success: boolean
           p_error_message?: string
         }
-        Returns: undefined
-      }
-      update_vehicle_activation_status: {
-        Args: { vehicle_id_param: string; status_param: string }
         Returns: undefined
       }
       upsert_geocoding_configuration: {

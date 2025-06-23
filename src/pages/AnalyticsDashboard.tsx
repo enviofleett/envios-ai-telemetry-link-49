@@ -2,8 +2,8 @@
 import React from 'react';
 import ModernAnalyticsDashboard from '@/components/analytics/ModernAnalyticsDashboard';
 
-const Dashboard: React.FC = () => {
+const AnalyticsDashboard: React.FC = () => {
   return <ModernAnalyticsDashboard />;
 };
 
-export default Dashboard;
+export default AnalyticsDashboard;
