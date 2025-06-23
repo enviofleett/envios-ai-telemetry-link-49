@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -11,8 +12,8 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { AppRouter } from "@/components/routing/AppRouter";
 import { StableErrorBoundary } from "@/components/StableErrorBoundary";
 import { SystemMonitoringDashboard } from '@/components/monitoring/SystemMonitoringDashboard';
-import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { Layout } from "@/components/Layout";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import Layout from "@/components/Layout";
 
 const queryClient = new QueryClient({
   defaultOptions: {
