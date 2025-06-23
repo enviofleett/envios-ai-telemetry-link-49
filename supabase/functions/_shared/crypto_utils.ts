@@ -173,3 +173,46 @@ function fallbackMD5(message: string): string {
 
 // THIS IS THE CRUCIAL FIX: Export synchronous md5_sync function
 export const md5_sync = (input: string): string => fallbackMD5(input);
+
+// Add basic input sanitization for GP51 API calls
+export function sanitizeInput(input: string): string {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+  
+  // Basic sanitization - remove dangerous characters but preserve GP51 username format
+  return input
+    .trim()
+    .replace(/[<>"/\\]/g, '') // Remove potentially dangerous characters
+    .substring(0, 100); // Limit length
+}
+
+// Add rate limiting functionality
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+
+export function checkRateLimit(identifier: string, maxRequests: number, windowMs: number): boolean {
+  const now = Date.now();
+  const key = identifier;
+  
+  if (!rateLimitStore.has(key)) {
+    rateLimitStore.set(key, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+  
+  const record = rateLimitStore.get(key)!;
+  
+  // Reset if window has passed
+  if (now > record.resetTime) {
+    record.count = 1;
+    record.resetTime = now + windowMs;
+    return true;
+  }
+  
+  // Check if under limit
+  if (record.count < maxRequests) {
+    record.count++;
+    return true;
+  }
+  
+  return false;
+}
