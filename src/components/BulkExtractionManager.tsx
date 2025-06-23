@@ -21,7 +21,7 @@ const BulkExtractionManager: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setJobs(data || []);
+      setJobs((data || []) as ExtractionJob[]);
     } catch (error) {
       console.error('Failed to load jobs:', error);
       toast({

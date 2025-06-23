@@ -735,6 +735,51 @@ export type Database = {
         }
         Relationships: []
       }
+      bulk_extraction_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_log: Json | null
+          extracted_data: Json | null
+          failed_accounts: number
+          id: string
+          job_name: string
+          processed_accounts: number
+          status: string
+          successful_accounts: number
+          total_accounts: number
+          total_vehicles: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          extracted_data?: Json | null
+          failed_accounts?: number
+          id?: string
+          job_name: string
+          processed_accounts?: number
+          status?: string
+          successful_accounts?: number
+          total_accounts?: number
+          total_vehicles?: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          extracted_data?: Json | null
+          failed_accounts?: number
+          id?: string
+          job_name?: string
+          processed_accounts?: number
+          status?: string
+          successful_accounts?: number
+          total_accounts?: number
+          total_vehicles?: number
+        }
+        Relationships: []
+      }
       campaign_executions: {
         Row: {
           campaign_id: string
@@ -3062,6 +3107,63 @@ export type Database = {
           sync_details?: Json | null
           sync_type?: string
           total_devices?: number | null
+        }
+        Relationships: []
+      }
+      gp51_system_imports: {
+        Row: {
+          backup_tables: Json | null
+          completed_at: string | null
+          created_at: string
+          current_phase: string | null
+          error_log: Json | null
+          id: string
+          import_type: string
+          phase_details: string | null
+          progress_percentage: number | null
+          rollback_data: Json | null
+          status: string
+          successful_devices: number | null
+          successful_users: number | null
+          total_devices: number | null
+          total_users: number | null
+          updated_at: string
+        }
+        Insert: {
+          backup_tables?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          current_phase?: string | null
+          error_log?: Json | null
+          id?: string
+          import_type?: string
+          phase_details?: string | null
+          progress_percentage?: number | null
+          rollback_data?: Json | null
+          status?: string
+          successful_devices?: number | null
+          successful_users?: number | null
+          total_devices?: number | null
+          total_users?: number | null
+          updated_at?: string
+        }
+        Update: {
+          backup_tables?: Json | null
+          completed_at?: string | null
+          created_at?: string
+          current_phase?: string | null
+          error_log?: Json | null
+          id?: string
+          import_type?: string
+          phase_details?: string | null
+          progress_percentage?: number | null
+          rollback_data?: Json | null
+          status?: string
+          successful_devices?: number | null
+          successful_users?: number | null
+          total_devices?: number | null
+          total_users?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -7373,6 +7475,72 @@ export type Database = {
           },
         ]
       }
+      user_import_jobs: {
+        Row: {
+          admin_gp51_username: string | null
+          completed_at: string | null
+          created_at: string
+          current_step: string | null
+          error_log: Json | null
+          failed_imports: number
+          id: string
+          import_results: Json | null
+          import_type: string | null
+          imported_usernames: Json | null
+          job_name: string
+          processed_usernames: number
+          progress_percentage: number | null
+          status: string
+          step_details: string | null
+          successful_imports: number
+          total_usernames: number
+          total_vehicles_imported: number
+          updated_at: string
+        }
+        Insert: {
+          admin_gp51_username?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_step?: string | null
+          error_log?: Json | null
+          failed_imports?: number
+          id?: string
+          import_results?: Json | null
+          import_type?: string | null
+          imported_usernames?: Json | null
+          job_name: string
+          processed_usernames?: number
+          progress_percentage?: number | null
+          status?: string
+          step_details?: string | null
+          successful_imports?: number
+          total_usernames?: number
+          total_vehicles_imported?: number
+          updated_at?: string
+        }
+        Update: {
+          admin_gp51_username?: string | null
+          completed_at?: string | null
+          created_at?: string
+          current_step?: string | null
+          error_log?: Json | null
+          failed_imports?: number
+          id?: string
+          import_results?: Json | null
+          import_type?: string | null
+          imported_usernames?: Json | null
+          job_name?: string
+          processed_usernames?: number
+          progress_percentage?: number | null
+          status?: string
+          step_details?: string | null
+          successful_imports?: number
+          total_usernames?: number
+          total_vehicles_imported?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_notification_preferences: {
         Row: {
           browser_notifications: boolean | null
@@ -9452,6 +9620,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      workshops: {
+        Row: {
+          address: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone_number: string | null
+          representative_name: string
+          service_types: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          phone_number?: string | null
+          representative_name: string
+          service_types?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone_number?: string | null
+          representative_name?: string
+          service_types?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {

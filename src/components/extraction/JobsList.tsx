@@ -26,10 +26,10 @@ const JobsList: React.FC<JobsListProps> = ({ jobs, onJobsUpdate }) => {
         .limit(10);
 
       if (error) throw error;
-      setImportJobs(data || []);
+      setImportJobs((data || []) as ImportJob[]);
       
       // Find any active import job
-      const activeJob = data?.find(job => job.status === 'processing');
+      const activeJob = (data || []).find((job: any) => job.status === 'processing');
       if (activeJob) {
         setActiveImportJob(activeJob.id);
       } else {

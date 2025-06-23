@@ -1,6 +1,4 @@
 
-import { Json } from '@/integrations/supabase/types';
-
 export interface ExtractionJob {
   id: string;
   job_name: string;
@@ -10,8 +8,8 @@ export interface ExtractionJob {
   successful_accounts: number;
   failed_accounts: number;
   total_vehicles: number;
+  extracted_data?: any;
+  error_log?: any;
   created_at: string;
-  completed_at?: string | null;
-  extracted_data?: Json;
-  error_log?: Json;
+  completed_at?: string;
 }
