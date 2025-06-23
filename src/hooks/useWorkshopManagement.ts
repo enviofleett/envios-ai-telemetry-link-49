@@ -1,25 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
-
-interface Workshop {
-  id: string;
-  name: string;
-  representative_name: string;
-  email: string;
-  phone_number: string;
-  location: string;
-  status: 'pending' | 'approved' | 'rejected';
-  created_at: string;
-  updated_at: string;
-}
-
-interface WorkshopStats {
-  total: number;
-  pending: number;
-  approved: number;
-  rejected: number;
-}
+import { Workshop, WorkshopStats } from '@/types/workshop';
 
 export const useWorkshopManagement = () => {
   const [allWorkshops, setAllWorkshops] = useState<Workshop[]>([]);

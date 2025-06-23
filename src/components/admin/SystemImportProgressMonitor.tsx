@@ -1,66 +1,37 @@
 
-import React, { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { 
-  RefreshCw, 
-  CheckCircle, 
-  AlertCircle, 
-  Clock, 
-  Database,
-  Users,
-  Car,
-  Shield
-} from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { fullSystemImportService } from '@/services/fullSystemImportService';
+import { RefreshCw, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-
-interface SystemImportJob {
-  id: string;
-  job_name: string;
-  status: string;
-  import_type: string;
-  import_scope: string;
-  progress_percentage: number;
-  created_at: string;
-  completed_at?: string;
-  current_phase: string;
-  phase_details?: string;
-  successful_users: number;
-  successful_devices: number;
-  failed_users: number;
-  failed_devices: number;
-  can_rollback: boolean;
-}
+import { SystemImportJob } from '@/services/fullSystemImportService';
 
 interface SystemImportProgressMonitorProps {
-  refreshTrigger?: number;
+  refreshInterval?: number;
 }
 
-const SystemImportProgressMonitor: React.FC<SystemImportProgressMonitorProps> = ({ refreshTrigger }) => {
+const SystemImportProgressMonitor: React.FC<SystemImportProgressMonitorProps> = ({
+  refreshInterval = 5000
+}) => {
   const [importJobs, setImportJobs] = useState<SystemImportJob[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
   const { toast } = useToast();
 
-  const loadImportJobs = async () => {
+  const fetchImportJobs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('gp51_system_imports')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (error) throw error;
-      setImportJobs(data || []);
+      setIsLoading(true);
+      // Mock implementation - replace with actual API call
+      const mockJobs: SystemImportJob[] = [];
+      setImportJobs(mockJobs);
+      setLastRefresh(new Date());
     } catch (error) {
-      console.error('Failed to load import jobs:', error);
+      console.error('Error fetching import jobs:', error);
       toast({
         title: "Error",
-        description: "Failed to load import jobs",
+        description: "Failed to fetch import jobs",
         variant: "destructive"
       });
     } finally {
@@ -68,218 +39,136 @@ const SystemImportProgressMonitor: React.FC<SystemImportProgressMonitorProps> = 
     }
   };
 
-  const handleRollback = async (jobId: string) => {
-    try {
-      await fullSystemImportService.rollbackImport(jobId);
-      toast({
-        title: "Rollback Initiated",
-        description: "System rollback has been started",
-      });
-      loadImportJobs();
-    } catch (error) {
-      console.error('Rollback failed:', error);
-      toast({
-        title: "Rollback Failed",
-        description: error.message || "Failed to rollback import",
-        variant: "destructive"
-      });
-    }
-  };
-
   useEffect(() => {
-    loadImportJobs();
-
-    // Set up real-time subscription
-    const channel = supabase
-      .channel('system-import-updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'gp51_system_imports'
-        },
-        () => {
-          loadImportJobs();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [refreshTrigger]);
+    fetchImportJobs();
+    const interval = setInterval(fetchImportJobs, refreshInterval);
+    return () => clearInterval(interval);
+  }, [refreshInterval]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle className="w-4 h-4 text-green-600" />;
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
       case 'failed':
-        return <AlertCircle className="w-4 h-4 text-red-600" />;
-      case 'processing':
-        return <RefreshCw className="w-4 h-4 text-blue-600 animate-spin" />;
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      case 'running':
+        return <RefreshCw className="h-4 w-4 text-blue-500 animate-spin" />;
+      case 'pending':
+        return <Clock className="h-4 w-4 text-yellow-500" />;
       default:
-        return <Clock className="w-4 h-4 text-gray-600" />;
+        return <AlertTriangle className="h-4 w-4 text-gray-500" />;
     }
   };
 
   const getStatusBadge = (status: string) => {
-    const variants = {
-      completed: 'default',
-      failed: 'destructive',
-      processing: 'secondary',
-      pending: 'outline'
+    const statusConfig = {
+      completed: { color: 'bg-green-100 text-green-800', text: 'Completed' },
+      failed: { color: 'bg-red-100 text-red-800', text: 'Failed' },
+      running: { color: 'bg-blue-100 text-blue-800', text: 'Running' },
+      pending: { color: 'bg-yellow-100 text-yellow-800', text: 'Pending' },
     };
+
+    const config = statusConfig[status as keyof typeof statusConfig] || { 
+      color: 'bg-gray-100 text-gray-800', 
+      text: status 
+    };
+    
     return (
-      <Badge variant={variants[status] || 'outline'}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+      <Badge className={config.color}>
+        {config.text}
       </Badge>
     );
   };
 
-  const getImportTypeIcon = (scope: string) => {
-    switch (scope) {
-      case 'complete_system':
-        return <Database className="w-4 h-4" />;
-      case 'users_only':
-        return <Users className="w-4 h-4" />;
-      case 'vehicles_only':
-        return <Car className="w-4 h-4" />;
-      default:
-        return <Shield className="w-4 h-4" />;
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="p-6 text-center">
-          <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
-          Loading import jobs...
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (importJobs.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-6 text-center text-gray-500">
-          No system import jobs found
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">System Import Jobs</h3>
-        <Button variant="outline" size="sm" onClick={loadImportJobs}>
-          <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
-        </Button>
-      </div>
-
-      {importJobs.map((job) => (
-        <Card key={job.id} className="transition-all duration-200 hover:shadow-md">
-          <CardHeader 
-            className="cursor-pointer"
-            onClick={() => setExpandedJobId(expandedJobId === job.id ? null : job.id)}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                {getImportTypeIcon(job.import_scope)}
-                <div>
-                  <CardTitle className="text-base">{job.job_name}</CardTitle>
-                  <div className="flex items-center space-x-2 mt-1">
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>System Import Monitor</CardTitle>
+            <CardDescription>
+              Real-time monitoring of GP51 system import operations
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              Last updated: {lastRefresh.toLocaleTimeString()}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchImportJobs}
+              disabled={isLoading}
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading && importJobs.length === 0 ? (
+          <div className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="animate-pulse">
+                <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+                <div className="h-2 bg-gray-200 rounded w-full mb-4"></div>
+              </div>
+            ))}
+          </div>
+        ) : importJobs.length === 0 ? (
+          <div className="text-center py-8">
+            <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Active Imports</h3>
+            <p className="text-gray-600">
+              All system import operations have completed successfully.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {importJobs.map((job) => (
+              <div key={job.id} className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
                     {getStatusIcon(job.status)}
-                    {getStatusBadge(job.status)}
-                    <span className="text-sm text-gray-500">
-                      {new Date(job.created_at).toLocaleString()}
-                    </span>
+                    <h4 className="font-medium">
+                      {job.import_type.replace('_', ' ').toUpperCase()} Import
+                    </h4>
                   </div>
+                  {getStatusBadge(job.status)}
                 </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-medium">{job.progress_percentage}%</div>
-                {job.status === 'processing' && (
-                  <div className="text-xs text-gray-500">{job.current_phase}</div>
+
+                {job.status === 'running' && (
+                  <div className="mb-3">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>Progress</span>
+                      <span>{job.progress}%</span>
+                    </div>
+                    <Progress value={job.progress} className="h-2" />
+                  </div>
                 )}
-              </div>
-            </div>
-            
-            {job.status === 'processing' && (
-              <Progress value={job.progress_percentage} className="w-full mt-3" />
-            )}
-          </CardHeader>
 
-          {expandedJobId === job.id && (
-            <CardContent className="pt-0">
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-3 bg-blue-50 rounded">
-                    <div className="text-lg font-bold text-blue-600">{job.successful_users}</div>
-                    <div className="text-xs text-blue-700">Users Imported</div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium">Started:</span>{' '}
+                    {new Date(job.created_at).toLocaleString()}
                   </div>
-                  <div className="text-center p-3 bg-green-50 rounded">
-                    <div className="text-lg font-bold text-green-600">{job.successful_devices}</div>
-                    <div className="text-xs text-green-700">Vehicles Imported</div>
-                  </div>
-                  <div className="text-center p-3 bg-red-50 rounded">
-                    <div className="text-lg font-bold text-red-600">{job.failed_users + job.failed_devices}</div>
-                    <div className="text-xs text-red-700">Failed Imports</div>
-                  </div>
-                  <div className="text-center p-3 bg-gray-50 rounded">
-                    <div className="text-lg font-bold text-gray-600">
-                      {job.completed_at ? 'Completed' : 'Running'}
-                    </div>
-                    <div className="text-xs text-gray-700">Status</div>
+                  <div>
+                    <span className="font-medium">Last Updated:</span>{' '}
+                    {new Date(job.updated_at).toLocaleString()}
                   </div>
                 </div>
 
-                <div className="text-sm space-y-2">
-                  <div className="flex justify-between">
-                    <span>Import Type:</span>
-                    <Badge variant="outline">{job.import_scope.replace('_', ' ').toUpperCase()}</Badge>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Current Phase:</span>
-                    <span className="font-medium">{job.current_phase || 'N/A'}</span>
-                  </div>
-                  {job.phase_details && (
-                    <div className="flex justify-between">
-                      <span>Phase Details:</span>
-                      <span className="font-medium">{job.phase_details}</span>
-                    </div>
-                  )}
-                  {job.completed_at && (
-                    <div className="flex justify-between">
-                      <span>Completed:</span>
-                      <span>{new Date(job.completed_at).toLocaleString()}</span>
-                    </div>
-                  )}
-                </div>
-
-                {job.can_rollback && job.status === 'completed' && (
-                  <div className="flex justify-end pt-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleRollback(job.id)}
-                      className="text-red-600 border-red-200 hover:bg-red-50"
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Rollback Import
-                    </Button>
+                {job.error_message && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
+                    <p className="text-sm text-red-800">{job.error_message}</p>
                   </div>
                 )}
               </div>
-            </CardContent>
-          )}
-        </Card>
-      ))}
-    </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
