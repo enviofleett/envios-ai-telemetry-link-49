@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Package, Users, Wrench, Building, CreditCard, Bell, Mail, Zap, Send, Clock, Server, BookOpen, MessageSquare, FileText, Radio, CheckCircle, Map, MapPin, Link, Car, BarChart, Shield, Upload, Database, Settings, Activity } from 'lucide-react';
+import { Package, Users, Wrench, Building, CreditCard, Bell, Mail, Zap, Send, Clock, Server, BookOpen, MessageSquare, FileText, Radio, CheckCircle, Map, MapPin, Link, Car, BarChart, Shield, Upload, Settings, Activity } from 'lucide-react';
 import PackagesTab from './tabs/PackagesTab';
 import UsersTab from './tabs/UsersTab';
 import WorkshopsTab from './tabs/WorkshopsTab';
@@ -23,7 +24,6 @@ import APIIntegrationsTab from './tabs/APIIntegrationsTab';
 import AnalyticsTab from './tabs/AnalyticsTab';
 import SecurityTab from './tabs/SecurityTab';
 import CSVImportTab from './tabs/CSVImportTab';
-import DataManagementTab from './tabs/DataManagementTab';
 import SystemSettingsTab from './tabs/SystemSettingsTab';
 import HealthTab from './tabs/HealthTab';
 import VinApiTab from './tabs/VinApiTab';
@@ -61,7 +61,6 @@ const MobileResponsiveAdminLayout: React.FC<MobileResponsiveAdminLayoutProps> = 
     { id: 'analytics', label: 'Analytics', icon: BarChart },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'csv-import', label: 'CSV Import', icon: Upload },
-    { id: 'data-management', label: 'Data Management', icon: Database },
     { id: 'system-settings', label: 'System Settings', icon: Settings },
     { id: 'health', label: 'Health', icon: Activity }
   ];
@@ -114,8 +113,6 @@ const MobileResponsiveAdminLayout: React.FC<MobileResponsiveAdminLayoutProps> = 
         return <SecurityTab />;
       case 'csv-import':
         return <CSVImportTab />;
-      case 'data-management':
-        return <DataManagementTab />;
       case 'system-settings':
         return <SystemSettingsTab />;
       case 'health':
