@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { GP51RealConnectionTester, type GP51ConnectionHealth } from '@/services/gp51/realConnectionTester';
+import { realConnectionTester, type GP51ConnectionHealth } from '@/services/gp51/realConnectionTester';
 import { useToast } from '@/hooks/use-toast';
 
 export const useRealGP51Connection = () => {
@@ -13,7 +13,7 @@ export const useRealGP51Connection = () => {
     setIsLoading(true);
     try {
       console.log('🔍 Performing real GP51 connection test...');
-      const health = await GP51RealConnectionTester.testRealConnection();
+      const health = await realConnectionTester.testRealConnection();
       setConnectionHealth(health);
       setLastChecked(new Date());
       
@@ -51,7 +51,7 @@ export const useRealGP51Connection = () => {
 
   const generateDetailedReport = useCallback(async () => {
     try {
-      return await GP51RealConnectionTester.generateConnectionReport();
+      return await realConnectionTester.generateConnectionReport();
     } catch (error) {
       console.error('❌ Failed to generate connection report:', error);
       throw error;

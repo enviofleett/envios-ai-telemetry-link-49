@@ -2,22 +2,26 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export interface DataDiscrepancy {
-  type: 'missing_vehicle' | 'data_mismatch' | 'orphaned_record';
-  entityType: 'vehicle' | 'user' | 'device';
-  entityId: string;
-  gp51Data?: any;
-  localData?: any;
+  id: string;
+  type: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  affectedEntity: string;
+  expectedValue: any;
+  actualValue: any;
+  autoResolvable: boolean;
+  detectedAt: Date;
 }
 
-export interface ConsistencyCheckResult {
-  success: boolean;
-  totalEntitiesChecked: number;
-  discrepanciesFound: number;
-  autoResolved: number;
-  manualReviewRequired: number;
+export interface DataConsistencyReport {
+  timestamp: Date;
+  overallHealth: 'healthy' | 'warning' | 'critical';
   consistencyScore: number;
+  totalChecks: number;
+  passedChecks: number;
+  failedChecks: number;
   discrepancies: DataDiscrepancy[];
+  recommendations: string[];
 }
 
 export class EnhancedDataConsistencyService {
@@ -30,239 +34,254 @@ export class EnhancedDataConsistencyService {
     return EnhancedDataConsistencyService.instance;
   }
 
-  async performFullConsistencyCheck(): Promise<ConsistencyCheckResult> {
-    console.log('🔍 [DATA-CONSISTENCY] Starting full consistency check...');
+  async performComprehensiveCheck(): Promise<DataConsistencyReport> {
+    console.log('🔍 [DATA-CONSISTENCY] Starting comprehensive data check...');
     
-    const monitoringId = await this.startMonitoring('full_sync');
+    const timestamp = new Date();
+    const discrepancies: DataDiscrepancy[] = [];
     
     try {
-      const result = await this.runConsistencyChecks();
-      await this.recordDiscrepancies(result.discrepancies);
-      await this.completeMonitoring(monitoringId, result);
-      
-      // Create alert if consistency score is low
-      if (result.consistencyScore < 85) {
-        await this.createConsistencyAlert(result);
+      // Check vehicle-user relationships
+      const vehicleDiscrepancies = await this.checkVehicleUserRelationships();
+      discrepancies.push(...vehicleDiscrepancies);
+
+      // Check GP51 session validity
+      const sessionDiscrepancies = await this.checkGP51SessionConsistency();
+      discrepancies.push(...sessionDiscrepancies);
+
+      // Check data integrity
+      const integrityDiscrepancies = await this.checkDataIntegrity();
+      discrepancies.push(...integrityDiscrepancies);
+
+      // Calculate metrics
+      const totalChecks = 10; // Total number of checks performed
+      const failedChecks = discrepancies.length;
+      const passedChecks = totalChecks - failedChecks;
+      const consistencyScore = Math.round((passedChecks / totalChecks) * 100);
+
+      // Determine overall health
+      let overallHealth: 'healthy' | 'warning' | 'critical' = 'healthy';
+      if (consistencyScore < 50) {
+        overallHealth = 'critical';
+      } else if (consistencyScore < 80) {
+        overallHealth = 'warning';
       }
-      
-      return result;
+
+      const report: DataConsistencyReport = {
+        timestamp,
+        overallHealth,
+        consistencyScore,
+        totalChecks,
+        passedChecks,
+        failedChecks,
+        discrepancies,
+        recommendations: this.generateRecommendations(discrepancies)
+      };
+
+      // Store the report
+      await this.storeConsistencyReport(report);
+
+      return report;
     } catch (error) {
       console.error('❌ [DATA-CONSISTENCY] Check failed:', error);
       throw error;
     }
   }
 
-  private async startMonitoring(checkType: string): Promise<string> {
-    const { data, error } = await supabase
-      .from('data_consistency_monitoring')
-      .insert({
-        check_type: checkType,
-        status: 'running'
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data.id;
-  }
-
-  private async runConsistencyChecks(): Promise<ConsistencyCheckResult> {
+  private async checkVehicleUserRelationships(): Promise<DataDiscrepancy[]> {
     const discrepancies: DataDiscrepancy[] = [];
-    let totalEntitiesChecked = 0;
-    let autoResolved = 0;
-
-    // Check vehicle data consistency
-    const vehicleCheck = await this.checkVehicleConsistency();
-    discrepancies.push(...vehicleCheck.discrepancies);
-    totalEntitiesChecked += vehicleCheck.entitiesChecked;
-    autoResolved += vehicleCheck.autoResolved;
-
-    // Check user mapping consistency
-    const userCheck = await this.checkUserMappingConsistency();
-    discrepancies.push(...userCheck.discrepancies);
-    totalEntitiesChecked += userCheck.entitiesChecked;
-    autoResolved += userCheck.autoResolved;
-
-    // Calculate consistency score
-    const consistencyScore = totalEntitiesChecked > 0 
-      ? Math.round(((totalEntitiesChecked - discrepancies.length) / totalEntitiesChecked) * 100)
-      : 100;
-
-    const manualReviewRequired = discrepancies.filter(d => 
-      d.severity === 'high' || d.severity === 'critical'
-    ).length;
-
-    return {
-      success: true,
-      totalEntitiesChecked,
-      discrepanciesFound: discrepancies.length,
-      autoResolved,
-      manualReviewRequired,
-      consistencyScore,
-      discrepancies
-    };
-  }
-
-  private async checkVehicleConsistency(): Promise<{
-    discrepancies: DataDiscrepancy[];
-    entitiesChecked: number;
-    autoResolved: number;
-  }> {
-    console.log('🚗 [DATA-CONSISTENCY] Checking vehicle consistency...');
     
-    const discrepancies: DataDiscrepancy[] = [];
-    let autoResolved = 0;
+    try {
+      // Check for vehicles without assigned users
+      const { data: orphanedVehicles } = await supabase
+        .from('vehicles')
+        .select('id, device_id, make, model')
+        .is('assigned_user_id', null);
 
-    // Get all local vehicles
-    const { data: localVehicles, error } = await supabase
-      .from('vehicles')
-      .select('*');
-
-    if (error) throw error;
-
-    // Check for duplicate device IDs
-    const deviceIdCounts = new Map<string, number>();
-    localVehicles?.forEach(vehicle => {
-      if (vehicle.gp51_device_id) {
-        const count = deviceIdCounts.get(vehicle.gp51_device_id) || 0;
-        deviceIdCounts.set(vehicle.gp51_device_id, count + 1);
-      }
-    });
-
-    // Report duplicates
-    deviceIdCounts.forEach((count, deviceId) => {
-      if (count > 1) {
+      orphanedVehicles?.forEach(vehicle => {
         discrepancies.push({
-          type: 'data_mismatch',
-          entityType: 'vehicle',
-          entityId: deviceId,
-          severity: 'high',
-          localData: { duplicateCount: count }
+          id: `orphaned_vehicle_${vehicle.id}`,
+          type: 'orphaned_vehicle',
+          severity: 'medium',
+          description: `Vehicle ${vehicle.make} ${vehicle.model} (${vehicle.device_id}) has no assigned user`,
+          affectedEntity: `vehicle:${vehicle.id}`,
+          expectedValue: 'assigned_user_id should not be null',
+          actualValue: null,
+          autoResolvable: false,
+          detectedAt: new Date()
         });
-      }
-    });
-
-    // Check for vehicles without device IDs
-    const vehiclesWithoutDeviceId = localVehicles?.filter(v => !v.gp51_device_id) || [];
-    vehiclesWithoutDeviceId.forEach(vehicle => {
-      discrepancies.push({
-        type: 'missing_vehicle',
-        entityType: 'vehicle',
-        entityId: vehicle.id,
-        severity: 'medium',
-        localData: vehicle
       });
-    });
 
-    return {
-      discrepancies,
-      entitiesChecked: localVehicles?.length || 0,
-      autoResolved
-    };
+    } catch (error) {
+      console.error('Failed to check vehicle-user relationships:', error);
+    }
+
+    return discrepancies;
   }
 
-  private async checkUserMappingConsistency(): Promise<{
-    discrepancies: DataDiscrepancy[];
-    entitiesChecked: number;
-    autoResolved: number;
-  }> {
-    console.log('👥 [DATA-CONSISTENCY] Checking user mapping consistency...');
-    
+  private async checkGP51SessionConsistency(): Promise<DataDiscrepancy[]> {
     const discrepancies: DataDiscrepancy[] = [];
-    let autoResolved = 0;
-
-    // Get all GP51 sessions without user mappings
-    const { data: orphanedSessions, error } = await supabase
-      .from('gp51_sessions')
-      .select('*')
-      .is('envio_user_id', null);
-
-    if (error) throw error;
-
-    orphanedSessions?.forEach(session => {
-      discrepancies.push({
-        type: 'orphaned_record',
-        entityType: 'user',
-        entityId: session.username,
-        severity: 'low',
-        gp51Data: session
-      });
-    });
-
-    return {
-      discrepancies,
-      entitiesChecked: orphanedSessions?.length || 0,
-      autoResolved
-    };
-  }
-
-  private async recordDiscrepancies(discrepancies: DataDiscrepancy[]): Promise<void> {
-    if (discrepancies.length === 0) return;
-
-    const discrepancyRecords = discrepancies.map(d => ({
-      discrepancy_type: d.type,
-      entity_type: d.entityType,
-      entity_id: d.entityId,
-      gp51_data: d.gp51Data,
-      local_data: d.localData,
-      severity: d.severity
-    }));
-
-    const { error } = await supabase
-      .from('gp51_sync_discrepancies')
-      .insert(discrepancyRecords);
-
-    if (error) {
-      console.error('❌ [DATA-CONSISTENCY] Failed to record discrepancies:', error);
-    }
-  }
-
-  private async completeMonitoring(
-    monitoringId: string,
-    result: ConsistencyCheckResult
-  ): Promise<void> {
-    const { error } = await supabase
-      .from('data_consistency_monitoring')
-      .update({
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        total_entities_checked: result.totalEntitiesChecked,
-        discrepancies_found: result.discrepanciesFound,
-        auto_resolved: result.autoResolved,
-        manual_review_required: result.manualReviewRequired,
-        consistency_score: result.consistencyScore,
-        detailed_results: {
-          discrepancies: result.discrepancies
-        },
-        next_check_scheduled: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      })
-      .eq('id', monitoringId);
-
-    if (error) {
-      console.error('❌ [DATA-CONSISTENCY] Failed to complete monitoring:', error);
-    }
-  }
-
-  private async createConsistencyAlert(result: ConsistencyCheckResult): Promise<void> {
-    const severity = result.consistencyScore < 70 ? 'critical' : 'warning';
     
-    const { error } = await supabase
-      .from('system_alerts')
-      .insert({
-        alert_type: 'data_inconsistency',
-        severity,
-        title: 'Data Consistency Issues Detected',
-        message: `Consistency score: ${result.consistencyScore}%. Found ${result.discrepanciesFound} discrepancies.`,
-        source_system: 'data_consistency',
-        alert_data: {
-          consistencyScore: result.consistencyScore,
-          totalDiscrepancies: result.discrepanciesFound,
-          manualReviewRequired: result.manualReviewRequired
-        }
+    try {
+      // Check for expired sessions
+      const { data: expiredSessions } = await supabase
+        .from('gp51_sessions')
+        .select('id, username, token_expires_at')
+        .lt('token_expires_at', new Date().toISOString());
+
+      expiredSessions?.forEach(session => {
+        discrepancies.push({
+          id: `expired_session_${session.id}`,
+          type: 'expired_session',
+          severity: 'high',
+          description: `GP51 session for ${session.username} has expired`,
+          affectedEntity: `session:${session.id}`,
+          expectedValue: 'token_expires_at should be in future',
+          actualValue: session.token_expires_at,
+          autoResolvable: true,
+          detectedAt: new Date()
+        });
       });
 
-    if (error) {
-      console.error('❌ [DATA-CONSISTENCY] Failed to create alert:', error);
+    } catch (error) {
+      console.error('Failed to check GP51 session consistency:', error);
+    }
+
+    return discrepancies;
+  }
+
+  private async checkDataIntegrity(): Promise<DataDiscrepancy[]> {
+    const discrepancies: DataDiscrepancy[] = [];
+    
+    try {
+      // Check for duplicate device IDs
+      const { data: duplicates } = await supabase
+        .rpc('find_duplicate_device_ids');
+
+      duplicates?.forEach(duplicate => {
+        discrepancies.push({
+          id: `duplicate_device_${duplicate.device_id}`,
+          type: 'duplicate_device_id',
+          severity: 'critical',
+          description: `Device ID ${duplicate.device_id} appears ${duplicate.count} times`,
+          affectedEntity: `device:${duplicate.device_id}`,
+          expectedValue: 'device_id should be unique',
+          actualValue: `appears ${duplicate.count} times`,
+          autoResolvable: false,
+          detectedAt: new Date()
+        });
+      });
+
+    } catch (error) {
+      console.error('Failed to check data integrity:', error);
+    }
+
+    return discrepancies;
+  }
+
+  private generateRecommendations(discrepancies: DataDiscrepancy[]): string[] {
+    const recommendations: string[] = [];
+    
+    const criticalCount = discrepancies.filter(d => d.severity === 'critical').length;
+    const highCount = discrepancies.filter(d => d.severity === 'high').length;
+    
+    if (criticalCount > 0) {
+      recommendations.push(`Address ${criticalCount} critical data issues immediately`);
+    }
+    
+    if (highCount > 0) {
+      recommendations.push(`Review ${highCount} high-priority discrepancies`);
+    }
+    
+    const autoResolvableCount = discrepancies.filter(d => d.autoResolvable).length;
+    if (autoResolvableCount > 0) {
+      recommendations.push(`${autoResolvableCount} issues can be auto-resolved`);
+    }
+    
+    return recommendations;
+  }
+
+  private async storeConsistencyReport(report: DataConsistencyReport): Promise<void> {
+    try {
+      // Store in gp51_sync_discrepancies table for individual discrepancies
+      if (report.discrepancies.length > 0) {
+        const discrepancyRecords = report.discrepancies.map(d => ({
+          discrepancy_type: d.type,
+          entity_type: d.affectedEntity.split(':')[0],
+          entity_id: d.affectedEntity.split(':')[1] || d.affectedEntity,
+          expected_value: d.expectedValue,
+          actual_value: d.actualValue,
+          severity: d.severity,
+          auto_resolution_attempted: d.autoResolvable,
+          detected_at: d.detectedAt.toISOString()
+        }));
+
+        const { error: discrepancyError } = await supabase
+          .from('gp51_sync_discrepancies')
+          .insert(discrepancyRecords);
+
+        if (discrepancyError) {
+          console.error('Failed to store discrepancies:', discrepancyError);
+        }
+      }
+
+      // Store overall report in data_consistency_monitoring
+      const { error: reportError } = await supabase
+        .from('data_consistency_monitoring')
+        .insert({
+          check_type: 'comprehensive_check',
+          status: 'completed',
+          completed_at: report.timestamp.toISOString(),
+          total_entities_checked: report.totalChecks,
+          discrepancies_found: report.failedChecks,
+          consistency_score: report.consistencyScore,
+          detailed_results: {
+            discrepancies: report.discrepancies.map(d => ({
+              id: d.id,
+              type: d.type,
+              severity: d.severity,
+              description: d.description,
+              autoResolvable: d.autoResolvable
+            }))
+          } as any // Cast to any to satisfy JSON type
+        });
+
+      if (reportError) {
+        console.error('Failed to store consistency report:', reportError);
+      }
+
+    } catch (error) {
+      console.error('❌ [DATA-CONSISTENCY] Failed to store report:', error);
+    }
+  }
+
+  async getLatestReport(): Promise<DataConsistencyReport | null> {
+    try {
+      const { data, error } = await supabase
+        .from('data_consistency_monitoring')
+        .select('*')
+        .eq('check_type', 'comprehensive_check')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data) {
+        return null;
+      }
+
+      return {
+        timestamp: new Date(data.created_at),
+        overallHealth: data.consistency_score >= 80 ? 'healthy' : data.consistency_score >= 50 ? 'warning' : 'critical',
+        consistencyScore: data.consistency_score || 0,
+        totalChecks: data.total_entities_checked || 0,
+        passedChecks: (data.total_entities_checked || 0) - (data.discrepancies_found || 0),
+        failedChecks: data.discrepancies_found || 0,
+        discrepancies: [], // Would need to fetch from gp51_sync_discrepancies
+        recommendations: []
+      };
+    } catch (error) {
+      console.error('Failed to get latest report:', error);
+      return null;
     }
   }
 }

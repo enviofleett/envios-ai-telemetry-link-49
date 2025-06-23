@@ -164,7 +164,7 @@ export class SystemAlertManager {
       return;
     }
 
-    // Schedule email notifications for each alert
+    // Schedule notifications for each alert
     for (const alert of unsentAlerts || []) {
       await this.scheduleAlertNotification(alert);
     }
@@ -184,27 +184,26 @@ export class SystemAlertManager {
       return;
     }
 
-    // Schedule notifications for each admin
+    // Since email_notification_queue doesn't exist, we'll create application_errors instead
+    // to track that notifications should be sent
     for (const admin of adminUsers || []) {
-      const { error: queueError } = await supabase
-        .from('email_notification_queue')
+      const { error: logError } = await supabase
+        .from('application_errors')
         .insert({
-          user_id: admin.user_id,
-          subject: `System Alert: ${alert.title}`,
-          body_text: `
-Alert Type: ${alert.alert_type}
-Severity: ${alert.severity}
-Source: ${alert.source_system}
-
-${alert.message}
-
-Please check the system dashboard for more details.
-          `.trim(),
-          priority: alert.severity === 'critical' ? 1 : 3
+          error_type: 'notification_required',
+          error_message: `System alert notification needed for: ${alert.title}`,
+          severity: alert.severity,
+          error_context: {
+            alertId: alert.id,
+            userId: admin.user_id,
+            subject: `System Alert: ${alert.title}`,
+            message: alert.message,
+            alertType: alert.alert_type
+          }
         });
 
-      if (queueError) {
-        console.error('❌ [ALERT-MANAGER] Failed to queue notification:', queueError);
+      if (logError) {
+        console.error('❌ [ALERT-MANAGER] Failed to log notification requirement:', logError);
       }
     }
 

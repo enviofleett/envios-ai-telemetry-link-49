@@ -3903,6 +3903,60 @@ export type Database = {
         }
         Relationships: []
       }
+      gp51_sync_discrepancies: {
+        Row: {
+          actual_value: Json | null
+          auto_resolution_attempted: boolean | null
+          created_at: string
+          detected_at: string
+          discrepancy_type: string
+          entity_id: string
+          entity_type: string
+          expected_value: Json | null
+          id: string
+          resolution_notes: string | null
+          resolved_at: string | null
+          severity: string
+          source_system: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actual_value?: Json | null
+          auto_resolution_attempted?: boolean | null
+          created_at?: string
+          detected_at?: string
+          discrepancy_type: string
+          entity_id: string
+          entity_type: string
+          expected_value?: Json | null
+          id?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          severity?: string
+          source_system?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actual_value?: Json | null
+          auto_resolution_attempted?: boolean | null
+          created_at?: string
+          detected_at?: string
+          discrepancy_type?: string
+          entity_id?: string
+          entity_type?: string
+          expected_value?: Json | null
+          id?: string
+          resolution_notes?: string | null
+          resolved_at?: string | null
+          severity?: string
+          source_system?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       gp51_sync_status: {
         Row: {
           completed_at: string | null
@@ -5912,6 +5966,7 @@ export type Database = {
           resolved: boolean | null
           resolved_at: string | null
           session_id: string | null
+          severity: string | null
           stack_trace: string | null
           user_id: string | null
         }
@@ -5927,6 +5982,7 @@ export type Database = {
           resolved?: boolean | null
           resolved_at?: string | null
           session_id?: string | null
+          severity?: string | null
           stack_trace?: string | null
           user_id?: string | null
         }
@@ -5942,6 +5998,7 @@ export type Database = {
           resolved?: boolean | null
           resolved_at?: string | null
           session_id?: string | null
+          severity?: string | null
           stack_trace?: string | null
           user_id?: string | null
         }
@@ -5961,11 +6018,13 @@ export type Database = {
           crash_count: number | null
           created_at: string
           device_id: string
+          device_model: string | null
           duration_minutes: number | null
           features_used: string[] | null
           id: string
           performance_metrics: Json | null
           platform: string
+          platform_version: string | null
           session_end: string | null
           session_start: string
           user_id: string
@@ -5975,11 +6034,13 @@ export type Database = {
           crash_count?: number | null
           created_at?: string
           device_id: string
+          device_model?: string | null
           duration_minutes?: number | null
           features_used?: string[] | null
           id?: string
           performance_metrics?: Json | null
           platform: string
+          platform_version?: string | null
           session_end?: string | null
           session_start?: string
           user_id: string
@@ -5989,14 +6050,100 @@ export type Database = {
           crash_count?: number | null
           created_at?: string
           device_id?: string
+          device_model?: string | null
           duration_minutes?: number | null
           features_used?: string[] | null
           id?: string
           performance_metrics?: Json | null
           platform?: string
+          platform_version?: string | null
           session_end?: string | null
           session_start?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      mobile_performance_metrics: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          device_info: Json | null
+          id: string
+          metric_name: string
+          metric_type: string
+          metric_unit: string | null
+          metric_value: number
+          platform: string
+          recorded_at: string
+          session_id: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          device_info?: Json | null
+          id?: string
+          metric_name: string
+          metric_type: string
+          metric_unit?: string | null
+          metric_value: number
+          platform: string
+          recorded_at?: string
+          session_id?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          device_info?: Json | null
+          id?: string
+          metric_name?: string
+          metric_type?: string
+          metric_unit?: string | null
+          metric_value?: number
+          platform?: string
+          recorded_at?: string
+          session_id?: string | null
+        }
+        Relationships: []
+      }
+      mobile_usage_analytics: {
+        Row: {
+          app_version: string | null
+          created_at: string
+          device_info: Json | null
+          event_category: string
+          event_data: Json | null
+          event_type: string
+          id: string
+          occurred_at: string
+          platform: string
+          session_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          app_version?: string | null
+          created_at?: string
+          device_info?: Json | null
+          event_category: string
+          event_data?: Json | null
+          event_type: string
+          id?: string
+          occurred_at?: string
+          platform: string
+          session_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          app_version?: string | null
+          created_at?: string
+          device_info?: Json | null
+          event_category?: string
+          event_data?: Json | null
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          platform?: string
+          session_id?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -11141,6 +11288,10 @@ export type Database = {
       drop_table_if_exists: {
         Args: { table_name: string }
         Returns: undefined
+      }
+      execute_sql: {
+        Args: { query: string; params?: string[] }
+        Returns: Json
       }
       find_duplicate_device_ids: {
         Args: Record<PropertyKey, never>
