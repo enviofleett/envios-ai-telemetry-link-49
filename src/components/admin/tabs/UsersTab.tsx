@@ -1,143 +1,184 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, RefreshCw, Search, Eye, UserPlus, Car } from 'lucide-react';
+import { Users, UserPlus, Search, RefreshCw, Eye, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 
 interface UserProfile {
   id: string;
-  email: string;
-  name: string;
-  phone?: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone_number: string | null;
+  registration_status: string;
   role: string;
   created_at: string;
-  gp51_sync_status?: string;
-  last_sync_at?: string;
-  vehicle_count: number;
+  updated_at: string;
+  // Joined from auth.users via edge function or separate query
+  email?: string;
+  vehicle_count?: number;
+  sync_status?: string;
 }
 
 const UsersTab: React.FC = () => {
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalUsers, setTotalUsers] = useState(0);
-  const usersPerPage = 10;
+  const [isSyncing, setIsSyncing] = useState(false);
   const { toast } = useToast();
+  const pageSize = 10;
 
-  useEffect(() => {
-    loadUsers();
-  }, [currentPage, searchTerm]);
+  // Fetch users from user_profiles table with proper error handling
+  const { data: usersData, isLoading, error, refetch } = useQuery({
+    queryKey: ['admin-users', searchTerm, currentPage],
+    queryFn: async () => {
+      try {
+        let query = supabase
+          .from('user_profiles')
+          .select(`
+            id,
+            first_name,
+            last_name,
+            phone_number,
+            registration_status,
+            role,
+            created_at,
+            updated_at
+          `, { count: 'exact' })
+          .order('created_at', { ascending: false });
 
-  const loadUsers = async () => {
-    setLoading(true);
-    try {
-      let query = supabase
-        .from('user_profiles')
-        .select(`
-          id,
-          email,
-          name,
-          phone,
-          role,
-          created_at,
-          gp51_sync_status,
-          last_sync_at
-        `)
-        .range((currentPage - 1) * usersPerPage, currentPage * usersPerPage - 1);
+        if (searchTerm && searchTerm.length >= 2) {
+          query = query.or(`first_name.ilike.%${searchTerm}%,last_name.ilike.%${searchTerm}%,phone_number.ilike.%${searchTerm}%`);
+        }
 
-      if (searchTerm.trim()) {
-        query = query.or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+        const offset = (currentPage - 1) * pageSize;
+        query = query.range(offset, offset + pageSize - 1);
+
+        const { data, error, count } = await query;
+
+        if (error) {
+          console.error('Error fetching users:', error);
+          throw error;
+        }
+
+        // Get email addresses from auth.users table separately
+        const userIds = data?.map(user => user.id) || [];
+        let emailMap = new Map<string, string>();
+        
+        if (userIds.length > 0) {
+          try {
+            const { data: authData } = await supabase
+              .from('envio_users')
+              .select('id, email')
+              .in('id', userIds);
+            
+            if (authData) {
+              emailMap = new Map(authData.map(user => [user.id, user.email || '']));
+            }
+          } catch (emailError) {
+            console.warn('Could not fetch email data:', emailError);
+          }
+        }
+
+        // Enhance user data with email and vehicle count
+        const enhancedUsers = (data || []).map(user => ({
+          ...user,
+          email: emailMap.get(user.id) || 'N/A',
+          vehicle_count: 0, // Will be populated separately if needed
+          sync_status: 'unknown'
+        }));
+
+        return {
+          users: enhancedUsers,
+          totalCount: count || 0,
+          totalPages: Math.ceil((count || 0) / pageSize)
+        };
+      } catch (error) {
+        console.error('Failed to fetch users:', error);
+        throw new Error('Failed to fetch users. Please try again.');
       }
+    },
+    retry: 2,
+    retryDelay: 1000,
+  });
 
-      const { data: usersData, error: usersError, count } = await query;
+  const handleManualSync = async () => {
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('gp51-scheduled-sync');
       
-      if (usersError) throw usersError;
+      if (error) throw error;
 
-      // Get vehicle counts for each user
-      const usersWithVehicleCounts = await Promise.all(
-        (usersData || []).map(async (user) => {
-          const { count: vehicleCount } = await supabase
-            .from('vehicles')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id);
-
-          return {
-            ...user,
-            vehicle_count: vehicleCount || 0
-          };
-        })
-      );
-
-      setUsers(usersWithVehicleCounts);
-      setTotalUsers(count || 0);
+      if (data?.success) {
+        toast({
+          title: "Manual Sync Started",
+          description: data.skipped ? "Sync already in progress" : "GP51 data synchronization initiated"
+        });
+        refetch();
+      } else {
+        throw new Error(data?.error || 'Manual sync failed');
+      }
     } catch (error) {
-      console.error('Failed to load users:', error);
       toast({
-        title: "Error",
-        description: "Failed to load users",
+        title: "Sync Failed",
+        description: error instanceof Error ? error.message : "Failed to start manual sync",
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setIsSyncing(false);
     }
   };
 
-  const handleManualSync = async (userId: string, userEmail: string) => {
-    try {
-      toast({
-        title: "Sync Started",
-        description: `Initiating GP51 sync for ${userEmail}...`
-      });
-
-      // This would trigger a specific user sync via the enhanced-bulk-import function
-      const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: {
-          action: 'sync_specific_user',
-          userId: userId,
-          importUsers: true,
-          importDevices: true
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Sync Completed",
-        description: `GP51 sync completed for ${userEmail}`
-      });
-
-      // Refresh the users list
-      loadUsers();
-    } catch (error) {
-      console.error('Manual sync failed:', error);
-      toast({
-        title: "Sync Failed",
-        description: `Failed to sync ${userEmail}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive"
-      });
+  const getDisplayName = (user: UserProfile) => {
+    if (user.first_name && user.last_name) {
+      return `${user.first_name} ${user.last_name}`;
     }
+    if (user.first_name) return user.first_name;
+    if (user.last_name) return user.last_name;
+    return 'Unknown User';
   };
 
-  const getSyncStatusBadge = (status?: string) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed':
-        return <Badge variant="default" className="bg-green-100 text-green-800">Synced</Badge>;
-      case 'pending':
-        return <Badge variant="secondary">Pending</Badge>;
-      case 'failed':
-        return <Badge variant="destructive">Failed</Badge>;
-      default:
-        return <Badge variant="outline">Not Synced</Badge>;
+      case 'active': return 'bg-green-100 text-green-800';
+      case 'pending_email_verification': return 'bg-yellow-100 text-yellow-800';
+      case 'pending_admin_approval': return 'bg-orange-100 text-orange-800';
+      case 'rejected': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const totalPages = Math.ceil(totalUsers / usersPerPage);
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'admin': return 'bg-purple-100 text-purple-800';
+      case 'manager': return 'bg-blue-100 text-blue-800';
+      case 'user': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-red-600">
+            <Users className="h-5 w-5" />
+            Error Loading Users
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-red-600">Failed to load users. Please try again.</p>
+          <Button onClick={() => refetch()} className="mt-4">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -148,148 +189,160 @@ const UsersTab: React.FC = () => {
             User Management
           </CardTitle>
           <CardDescription>
-            Manage users with GP51 sync status and vehicle assignments
+            Manage user accounts, roles, and permissions with GP51 integration
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Search and Actions */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div className="flex gap-2">
+              <Button className="flex items-center gap-2">
+                <UserPlus className="h-4 w-4" />
+                Add User
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleManualSync}
+                disabled={isSyncing}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                {isSyncing ? 'Syncing...' : 'Sync GP51'}
+              </Button>
+            </div>
+            
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search users by name or email..."
+                placeholder="Search users..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={loadUsers}
-                disabled={loading}
-                variant="outline"
-                size="sm"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </Button>
-              <Button size="sm">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add User
-              </Button>
+          </div>
+
+          {/* Users Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="p-4 bg-blue-50 rounded-lg">
+              <div className="font-semibold text-blue-800">Total Users</div>
+              <div className="text-2xl font-bold text-blue-600">
+                {usersData?.totalCount || 0}
+              </div>
+            </div>
+            <div className="p-4 bg-green-50 rounded-lg">
+              <div className="font-semibold text-green-800">Active Users</div>
+              <div className="text-2xl font-bold text-green-600">
+                {usersData?.users?.filter(u => u.registration_status === 'active').length || 0}
+              </div>
+            </div>
+            <div className="p-4 bg-yellow-50 rounded-lg">
+              <div className="font-semibold text-yellow-800">Pending Approval</div>
+              <div className="text-2xl font-bold text-yellow-600">
+                {usersData?.users?.filter(u => u.registration_status === 'pending_admin_approval').length || 0}
+              </div>
+            </div>
+            <div className="p-4 bg-purple-50 rounded-lg">
+              <div className="font-semibold text-purple-800">Admin Users</div>
+              <div className="text-2xl font-bold text-purple-600">
+                {usersData?.users?.filter(u => u.role === 'admin').length || 0}
+              </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Users Table */}
-          <div className="border rounded-lg">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>User</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Vehicles</TableHead>
-                  <TableHead>GP51 Status</TableHead>
-                  <TableHead>Last Sync</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      <div className="flex items-center justify-center">
-                        <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                        Loading users...
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : users.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No users found
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{user.name || 'Unnamed User'}</div>
-                          <div className="text-sm text-muted-foreground">{user.email}</div>
-                          {user.phone && (
-                            <div className="text-xs text-muted-foreground">{user.phone}</div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">
-                          {user.role || 'user'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Car className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{user.vehicle_count}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {getSyncStatusBadge(user.gp51_sync_status)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          {user.last_sync_at 
-                            ? new Date(user.last_sync_at).toLocaleDateString()
-                            : 'Never'
-                          }
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleManualSync(user.id, user.email)}
-                          >
-                            <RefreshCw className="h-3 w-3 mr-1" />
-                            Sync
-                          </Button>
-                          <Button size="sm" variant="ghost">
-                            <Eye className="h-3 w-3 mr-1" />
-                            View
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Users List</CardTitle>
+          <CardDescription>
+            {isLoading ? 'Loading users...' : `Showing ${usersData?.users?.length || 0} of ${usersData?.totalCount || 0} users`}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between p-3 border rounded-lg animate-pulse">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                    <div>
+                      <div className="w-32 h-4 bg-gray-200 rounded"></div>
+                      <div className="w-48 h-3 bg-gray-200 rounded mt-1"></div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="w-16 h-6 bg-gray-200 rounded"></div>
+                    <div className="w-12 h-6 bg-gray-200 rounded"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : usersData?.users && usersData.users.length > 0 ? (
+            <div className="space-y-3">
+              {usersData.users.map((user) => (
+                <div key={user.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold">
+                      {getDisplayName(user).charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="font-medium">{getDisplayName(user)}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {user.email} • Phone: {user.phone_number || 'Not provided'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Joined: {new Date(user.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={getStatusColor(user.registration_status)}>
+                      {user.registration_status?.replace(/_/g, ' ')}
+                    </Badge>
+                    <Badge className={getRoleColor(user.role)}>
+                      {user.role}
+                    </Badge>
+                    <Button variant="ghost" size="sm">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm">
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-muted-foreground">
+                {searchTerm ? 'No users found matching your search.' : 'No users found.'}
+              </p>
+            </div>
+          )}
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                Showing {(currentPage - 1) * usersPerPage + 1} to {Math.min(currentPage * usersPerPage, totalUsers)} of {totalUsers} users
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                >
-                  Previous
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
+          {usersData && usersData.totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {usersData.totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(usersData.totalPages, prev + 1))}
+                disabled={currentPage === usersData.totalPages}
+              >
+                Next
+              </Button>
             </div>
           )}
         </CardContent>
