@@ -1307,6 +1307,95 @@ export type Database = {
         }
         Relationships: []
       }
+      credential_health_reports: {
+        Row: {
+          api_response_time_ms: number | null
+          connectivity_test_passed: boolean
+          created_at: string
+          health_status: string
+          id: string
+          issues_detected: string[] | null
+          recommendations: string[] | null
+          token_expires_at: string | null
+          updated_at: string
+          username: string
+          validation_job_id: string | null
+        }
+        Insert: {
+          api_response_time_ms?: number | null
+          connectivity_test_passed?: boolean
+          created_at?: string
+          health_status?: string
+          id?: string
+          issues_detected?: string[] | null
+          recommendations?: string[] | null
+          token_expires_at?: string | null
+          updated_at?: string
+          username: string
+          validation_job_id?: string | null
+        }
+        Update: {
+          api_response_time_ms?: number | null
+          connectivity_test_passed?: boolean
+          created_at?: string
+          health_status?: string
+          id?: string
+          issues_detected?: string[] | null
+          recommendations?: string[] | null
+          token_expires_at?: string | null
+          updated_at?: string
+          username?: string
+          validation_job_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_credential_health_reports_validation_job"
+            columns: ["validation_job_id"]
+            isOneToOne: false
+            referencedRelation: "credential_validation_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      credential_validation_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          job_name: string
+          next_scheduled_at: string | null
+          started_at: string | null
+          status: string
+          updated_at: string
+          validation_results: Json | null
+          validation_type: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          job_name: string
+          next_scheduled_at?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          validation_results?: Json | null
+          validation_type: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          job_name?: string
+          next_scheduled_at?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          validation_results?: Json | null
+          validation_type?: string
+        }
+        Relationships: []
+      }
       csv_import_jobs: {
         Row: {
           completed_at: string | null
@@ -1524,6 +1613,57 @@ export type Database = {
           overall_score?: number
           report_data?: Json
           timestamp?: string
+        }
+        Relationships: []
+      }
+      data_consistency_monitoring: {
+        Row: {
+          auto_resolved: number | null
+          check_type: string
+          completed_at: string | null
+          consistency_score: number | null
+          created_at: string
+          detailed_results: Json | null
+          discrepancies_found: number | null
+          id: string
+          manual_review_required: number | null
+          next_check_scheduled: string | null
+          started_at: string
+          status: string
+          total_entities_checked: number | null
+          updated_at: string
+        }
+        Insert: {
+          auto_resolved?: number | null
+          check_type: string
+          completed_at?: string | null
+          consistency_score?: number | null
+          created_at?: string
+          detailed_results?: Json | null
+          discrepancies_found?: number | null
+          id?: string
+          manual_review_required?: number | null
+          next_check_scheduled?: string | null
+          started_at?: string
+          status?: string
+          total_entities_checked?: number | null
+          updated_at?: string
+        }
+        Update: {
+          auto_resolved?: number | null
+          check_type?: string
+          completed_at?: string | null
+          consistency_score?: number | null
+          created_at?: string
+          detailed_results?: Json | null
+          discrepancies_found?: number | null
+          id?: string
+          manual_review_required?: number | null
+          next_check_scheduled?: string | null
+          started_at?: string
+          status?: string
+          total_entities_checked?: number | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -5759,6 +5899,107 @@ export type Database = {
         }
         Relationships: []
       }
+      mobile_app_crashes: {
+        Row: {
+          app_version: string
+          crash_type: string
+          created_at: string
+          device_info: Json | null
+          error_message: string | null
+          id: string
+          occurred_at: string
+          platform: string
+          resolved: boolean | null
+          resolved_at: string | null
+          session_id: string | null
+          stack_trace: string | null
+          user_id: string | null
+        }
+        Insert: {
+          app_version: string
+          crash_type: string
+          created_at?: string
+          device_info?: Json | null
+          error_message?: string | null
+          id?: string
+          occurred_at?: string
+          platform: string
+          resolved?: boolean | null
+          resolved_at?: string | null
+          session_id?: string | null
+          stack_trace?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          app_version?: string
+          crash_type?: string
+          created_at?: string
+          device_info?: Json | null
+          error_message?: string | null
+          id?: string
+          occurred_at?: string
+          platform?: string
+          resolved?: boolean | null
+          resolved_at?: string | null
+          session_id?: string | null
+          stack_trace?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_mobile_app_crashes_session"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "mobile_app_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mobile_app_sessions: {
+        Row: {
+          app_version: string | null
+          crash_count: number | null
+          created_at: string
+          device_id: string
+          duration_minutes: number | null
+          features_used: string[] | null
+          id: string
+          performance_metrics: Json | null
+          platform: string
+          session_end: string | null
+          session_start: string
+          user_id: string
+        }
+        Insert: {
+          app_version?: string | null
+          crash_count?: number | null
+          created_at?: string
+          device_id: string
+          duration_minutes?: number | null
+          features_used?: string[] | null
+          id?: string
+          performance_metrics?: Json | null
+          platform: string
+          session_end?: string | null
+          session_start?: string
+          user_id: string
+        }
+        Update: {
+          app_version?: string | null
+          crash_count?: number | null
+          created_at?: string
+          device_id?: string
+          duration_minutes?: number | null
+          features_used?: string[] | null
+          id?: string
+          performance_metrics?: Json | null
+          platform?: string
+          session_end?: string | null
+          session_start?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       notification_channels: {
         Row: {
           channel_config: Json
@@ -7868,6 +8109,60 @@ export type Database = {
           successful_records?: number | null
           sync_type?: string
           total_records?: number | null
+        }
+        Relationships: []
+      }
+      system_alerts: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          alert_data: Json | null
+          alert_type: string
+          created_at: string
+          id: string
+          message: string
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          source_entity_id: string | null
+          source_system: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_data?: Json | null
+          alert_type: string
+          created_at?: string
+          id?: string
+          message: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_entity_id?: string | null
+          source_system?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          alert_data?: Json | null
+          alert_type?: string
+          created_at?: string
+          id?: string
+          message?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          source_entity_id?: string | null
+          source_system?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
