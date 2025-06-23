@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface RealConnectionResult {
@@ -22,6 +21,7 @@ export interface GP51ConnectionHealth {
   deviceCount?: number;
   apiResponseTime?: number;
   lastChecked?: Date;
+  lastSuccessfulPing?: Date;
 }
 
 export class GP51RealConnectionTester {
@@ -163,7 +163,8 @@ export class GP51RealConnectionTester {
       errorMessage: result.errorMessage,
       deviceCount: result.deviceCount,
       apiResponseTime: result.apiResponseTime,
-      lastChecked: new Date()
+      lastChecked: new Date(),
+      lastSuccessfulPing: result.lastSuccessfulPing
     };
   }
 
