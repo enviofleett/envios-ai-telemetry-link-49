@@ -1,36 +1,36 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
-  Shield, 
+  Database, 
+  RefreshCw, 
   AlertTriangle, 
   CheckCircle, 
-  RefreshCw,
-  Database,
-  TrendingUp,
-  AlertCircle,
-  Target
+  XCircle,
+  Info
 } from 'lucide-react';
-import { DataIntegrityReport, DataIntegrityIssue } from '@/services/gp51/GP51DataSyncManager';
-import { useDataSync } from '@/hooks/useDataSync';
+import { gp51DataSyncManager, DataIntegrityReport, DataIntegrityIssue } from '@/services/gp51/GP51DataSyncManager';
 
 const DataIntegrityDashboard: React.FC = () => {
-  const [integrityReport, setIntegrityReport] = useState<DataIntegrityReport | null>(null);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const { generateIntegrityReport } = useDataSync();
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+
+  const { data: report, refetch, isLoading } = useQuery({
+    queryKey: ['data-integrity-report'],
+    queryFn: () => gp51DataSyncManager.generateIntegrityReport(),
+    enabled: false, // Only run when explicitly requested
+  });
 
   const handleGenerateReport = async () => {
-    setIsGenerating(true);
+    setIsGeneratingReport(true);
     try {
-      const report = await generateIntegrityReport();
-      setIntegrityReport(report);
-    } catch (error) {
-      console.error('Failed to generate integrity report:', error);
+      await refetch();
     } finally {
-      setIsGenerating(false);
+      setIsGeneratingReport(false);
     }
   };
 
@@ -41,10 +41,10 @@ const DataIntegrityDashboard: React.FC = () => {
   };
 
   const getScoreStatus = (score: number) => {
-    if (score >= 90) return 'Excellent';
-    if (score >= 70) return 'Good';
-    if (score >= 50) return 'Fair';
-    return 'Poor';
+    if (score >= 90) return 'excellent';
+    if (score >= 70) return 'good';
+    if (score >= 50) return 'fair';
+    return 'poor';
   };
 
   const getSeverityColor = (severity: DataIntegrityIssue['severity']) => {
@@ -58,219 +58,177 @@ const DataIntegrityDashboard: React.FC = () => {
 
   const getSeverityIcon = (severity: DataIntegrityIssue['severity']) => {
     switch (severity) {
-      case 'critical': return <AlertCircle className="h-4 w-4" />;
-      case 'high': return <AlertTriangle className="h-4 w-4" />;
+      case 'critical':
+      case 'high': return <XCircle className="h-4 w-4" />;
       case 'medium': return <AlertTriangle className="h-4 w-4" />;
-      case 'low': return <AlertCircle className="h-4 w-4" />;
+      case 'low': return <Info className="h-4 w-4" />;
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Shield className="h-6 w-6 text-blue-600" />
-          <h2 className="text-2xl font-bold">Data Integrity Dashboard</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Data Integrity Dashboard</h2>
+          <p className="text-gray-600">Monitor and analyze data quality across your system</p>
         </div>
-        <Button onClick={handleGenerateReport} disabled={isGenerating}>
-          {isGenerating ? (
-            <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-          ) : (
-            <Target className="h-4 w-4 mr-2" />
-          )}
-          Generate Report
+        <Button 
+          onClick={handleGenerateReport}
+          disabled={isGeneratingReport || isLoading}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${(isGeneratingReport || isLoading) ? 'animate-spin' : ''}`} />
+          {isGeneratingReport || isLoading ? 'Generating...' : 'Generate Report'}
         </Button>
       </div>
 
-      {integrityReport ? (
+      {report && (
         <>
-          {/* Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <TrendingUp className="h-6 w-6 text-blue-600" />
+          {/* Overall Score Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                Data Integrity Score
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className={`text-4xl font-bold ${getScoreColor(report.score)}`}>
+                    {report.score}%
                   </div>
-                  <div>
-                    <div className={`text-3xl font-bold ${getScoreColor(integrityReport.score)}`}>
-                      {integrityReport.score}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      Integrity Score • {getScoreStatus(integrityReport.score)}
-                    </div>
-                  </div>
+                  <p className="text-gray-600 capitalize">
+                    {getScoreStatus(report.score)} data quality
+                  </p>
                 </div>
-                <Progress 
-                  value={integrityReport.score} 
-                  className="mt-4" 
-                />
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 bg-green-100 rounded-lg">
-                    <Database className="h-6 w-6 text-green-600" />
-                  </div>
-                  <div>
-                    <div className="text-3xl font-bold">{integrityReport.totalRecords.toLocaleString()}</div>
-                    <div className="text-sm text-gray-600">Total Records</div>
-                  </div>
+                <div className="text-right">
+                  <div className="text-sm text-gray-500">Total Records</div>
+                  <div className="text-2xl font-semibold">{report.totalRecords.toLocaleString()}</div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              <Progress value={report.score} className="w-full" />
+            </CardContent>
+          </Card>
 
+          {/* Issues Summary */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <AlertTriangle className="h-6 w-6 text-red-600" />
-                  </div>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-3xl font-bold text-red-600">{integrityReport.issues.length}</div>
-                    <div className="text-sm text-gray-600">Issues Found</div>
+                    <p className="text-sm text-gray-600">Total Issues</p>
+                    <p className="text-2xl font-bold">{report.issues.length}</p>
                   </div>
+                  <AlertTriangle className="h-8 w-8 text-orange-500" />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-2 bg-yellow-100 rounded-lg">
-                    <CheckCircle className="h-6 w-6 text-yellow-600" />
-                  </div>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-3xl font-bold text-yellow-600">
-                      {integrityReport.issues.filter(i => i.autoFixable).length}
-                    </div>
-                    <div className="text-sm text-gray-600">Auto-fixable</div>
+                    <p className="text-sm text-gray-600">Critical Issues</p>
+                    <p className="text-2xl font-bold text-red-600">
+                      {report.issues.filter(i => i.severity === 'critical').length}
+                    </p>
                   </div>
+                  <XCircle className="h-8 w-8 text-red-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Corrupted Records</p>
+                    <p className="text-2xl font-bold text-red-600">{report.corruptedRecords}</p>
+                  </div>
+                  <XCircle className="h-8 w-8 text-red-500" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Missing Relations</p>
+                    <p className="text-2xl font-bold text-orange-600">{report.missingRelations}</p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-orange-500" />
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Detailed Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Detailed Issues */}
+          {report.issues.length > 0 ? (
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Data Quality Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Corrupted Records</span>
-                  <Badge variant="destructive">{integrityReport.corruptedRecords}</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Missing Relations</span>
-                  <Badge variant="destructive">{integrityReport.missingRelations}</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Duplicate Records</span>
-                  <Badge variant="secondary">{integrityReport.duplicateRecords}</Badge>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Inconsistent Data</span>
-                  <Badge variant="secondary">{integrityReport.inconsistentData}</Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Issue Severity Distribution</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {['critical', 'high', 'medium', 'low'].map(severity => {
-                  const count = integrityReport.issues.filter(i => i.severity === severity).length;
-                  return (
-                    <div key={severity} className="flex justify-between items-center">
-                      <span className="text-sm capitalize">{severity}</span>
-                      <Badge className={getSeverityColor(severity as DataIntegrityIssue['severity'])}>
-                        {count}
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Report Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-sm">
-                  <div className="font-medium mb-2">Generated:</div>
-                  <div className="text-gray-600">{integrityReport.timestamp.toLocaleString()}</div>
-                </div>
-                <div className="text-sm">
-                  <div className="font-medium mb-2">Next Recommended Check:</div>
-                  <div className="text-gray-600">
-                    {new Date(integrityReport.timestamp.getTime() + 24 * 60 * 60 * 1000).toLocaleDateString()}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Issues List */}
-          {integrityReport.issues.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Data Integrity Issues</CardTitle>
+                <CardTitle>Identified Issues</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {integrityReport.issues.map((issue) => (
-                    <div key={issue.id} className="p-4 border rounded-lg">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-2 flex-1">
-                          <div className="flex items-center gap-2">
+                  {report.issues.map((issue) => (
+                    <Alert key={issue.id}>
+                      <div className="flex items-start gap-3">
+                        {getSeverityIcon(issue.severity)}
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className="font-medium">{issue.description}</h4>
                             <Badge className={getSeverityColor(issue.severity)}>
-                              {getSeverityIcon(issue.severity)}
-                              <span className="ml-1 capitalize">{issue.severity}</span>
+                              {issue.severity}
                             </Badge>
-                            <span className="font-medium">{issue.type.replace('_', ' ')}</span>
-                            <span className="text-sm text-gray-500">in {issue.table}</span>
                           </div>
-                          <div className="text-sm text-gray-700">{issue.description}</div>
-                          <div className="text-sm">
-                            <span className="font-medium">Recommended Action:</span> {issue.recommendedAction}
-                          </div>
+                          {issue.details && (
+                            <p className="text-sm text-gray-600">
+                              Details: {JSON.stringify(issue.details)}
+                            </p>
+                          )}
                         </div>
-                        {issue.autoFixable && (
-                          <Button size="sm" variant="outline">
-                            Auto Fix
-                          </Button>
-                        )}
                       </div>
-                    </div>
+                    </Alert>
                   ))}
                 </div>
               </CardContent>
             </Card>
+          ) : (
+            <Card className="border-green-200 bg-green-50">
+              <CardContent className="flex items-center gap-2 p-6">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+                <div>
+                  <h3 className="font-semibold text-green-800">No Issues Found</h3>
+                  <p className="text-green-700">Your data integrity is excellent!</p>
+                </div>
+              </CardContent>
+            </Card>
           )}
+
+          {/* Report Metadata */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Report Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-sm text-gray-600">
+                Generated on: {new Date(report.timestamp).toLocaleString()}
+              </div>
+            </CardContent>
+          </Card>
         </>
-      ) : (
+      )}
+
+      {!report && !isLoading && (
         <Card>
-          <CardContent className="p-12 text-center">
-            <Shield className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-semibold mb-2">No Integrity Report Available</h3>
-            <p className="text-gray-600 mb-6">
-              Generate a data integrity report to analyze the health and consistency of your data.
-            </p>
-            <Button onClick={handleGenerateReport} disabled={isGenerating}>
-              {isGenerating ? (
-                <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <Target className="h-4 w-4 mr-2" />
-              )}
-              Generate First Report
+          <CardContent className="text-center py-8">
+            <Database className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Report Available</h3>
+            <p className="text-gray-600 mb-4">Generate a data integrity report to see detailed analysis</p>
+            <Button onClick={handleGenerateReport}>
+              Generate Your First Report
             </Button>
           </CardContent>
         </Card>
