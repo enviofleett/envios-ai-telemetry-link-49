@@ -164,13 +164,24 @@ export const useUnifiedImport = () => {
     }
   }, [toast]);
 
+  const clearPreview = useCallback(() => {
+    setPreview(null);
+  }, []);
+
+  const clearJob = useCallback(() => {
+    setImportJob(null);
+  }, []);
+
   return {
     preview,
     isLoadingPreview,
     isImporting,
     importJob,
+    currentJob: importJob, // Add alias for compatibility
     fetchPreview,
     startImport,
-    validateConnection
+    validateConnection,
+    clearPreview,
+    clearJob
   };
 };
