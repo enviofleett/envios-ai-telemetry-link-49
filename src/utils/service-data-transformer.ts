@@ -36,21 +36,21 @@ export const calculateMonthlyFee = (subscription: DeviceSubscription, servicePla
       case 'quarterly':
         monthlyFee = servicePlan.price_1_year ? servicePlan.price_1_year / 4 : 0;
         break;
-      case 'annual':
+      case 'annually':
         monthlyFee = servicePlan.price_1_year || 0;
         break;
     }
   }
 
-  // Override with custom pricing if set
-  if (subscription.price_override) {
-    monthlyFee = subscription.price_override;
-  }
+  // Override with custom pricing if set (commented out as these properties don't exist)
+  // if (subscription.price_override) {
+  //   monthlyFee = subscription.price_override;
+  // }
 
-  // Apply discount
-  if (subscription.discount_percentage > 0) {
-    monthlyFee = monthlyFee * (1 - subscription.discount_percentage / 100);
-  }
+  // Apply discount (commented out as these properties don't exist)
+  // if (subscription.discount_percentage > 0) {
+  //   monthlyFee = monthlyFee * (1 - subscription.discount_percentage / 100);
+  // }
 
   return monthlyFee;
 };
@@ -77,7 +77,7 @@ export const calculateNextBillingDate = (subscription: DeviceSubscription): stri
     case 'quarterly':
       nextBillingDate.setMonth(nextBillingDate.getMonth() + 3);
       break;
-    case 'annual':
+    case 'annually':
       nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
       break;
   }
@@ -96,7 +96,7 @@ export const transformSubscriptionToActiveService = (
   context: ServiceTransformationContext
 ): ActiveService => {
   const { vehicles, invoices } = context;
-  const servicePlan = subscription.service_plan;
+  const servicePlan = subscription.service_plan || null;
   const subscriptionVehicles = vehicles.filter(v => v.device_id === subscription.device_id);
 
   const serviceType = determineServiceType(servicePlan);
@@ -107,8 +107,17 @@ export const transformSubscriptionToActiveService = (
 
   return {
     id: subscription.id,
+    name: servicePlan?.plan_name || 'Unknown Service',
     serviceName: servicePlan?.plan_name || 'Unknown Service',
     serviceType,
+    type: serviceType,
+    vehicle: subscriptionVehicles[0] ? {
+      id: subscriptionVehicles[0].id,
+      plateNumber: subscriptionVehicles[0].device_name || subscriptionVehicles[0].device_id,
+      model: 'Unknown Model',
+      activatedDate: subscription.start_date,
+      status: subscription.subscription_status === 'active' ? 'active' : 'paused'
+    } : undefined,
     vehicles: subscriptionVehicles.map(v => ({
       id: v.id,
       plateNumber: v.device_name || v.device_id,
@@ -116,11 +125,13 @@ export const transformSubscriptionToActiveService = (
       activatedDate: subscription.start_date,
       status: subscription.subscription_status === 'active' ? 'active' : 'paused'
     })),
-    status: mapSubscriptionToActiveServiceStatus(subscription.subscription_status),
+    status: mapSubscriptionToActiveServiceStatus(subscription.subscription_status as any),
     activatedDate: subscription.start_date,
     expiryDate: subscription.end_date,
     monthlyFee,
+    cost: monthlyFee,
     totalSpent,
+    nextRenewal: nextBillingDate,
     lastUsed: subscription.subscription_status === 'active' ? '2 hours ago' : '1 week ago',
     features,
     icon: getServiceIcon(serviceType),

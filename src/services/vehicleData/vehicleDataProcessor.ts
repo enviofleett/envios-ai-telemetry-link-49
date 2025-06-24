@@ -10,6 +10,7 @@ export class VehicleDataProcessor {
   static transformToVehicleData(rawVehicle: any): VehicleData {
     return {
       id: rawVehicle.id || rawVehicle.deviceId,
+      name: rawVehicle.name || rawVehicle.device_name || rawVehicle.deviceId || 'Unknown Vehicle', // Added required name property
       device_id: rawVehicle.device_id || rawVehicle.deviceId,
       device_name: rawVehicle.device_name || rawVehicle.name,
       user_id: rawVehicle.user_id || null,

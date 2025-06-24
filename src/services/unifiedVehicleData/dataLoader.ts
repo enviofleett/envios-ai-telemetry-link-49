@@ -8,6 +8,7 @@ class DataLoader {
     const mockData: VehicleData[] = [
       {
         id: '1',
+        name: 'Fleet Vehicle 001', // Added required name property
         device_id: 'GP51001',
         device_name: 'Fleet Vehicle 001',
         user_id: 'user1',
@@ -65,6 +66,7 @@ class DataLoader {
       // Transform to VehicleData with complete properties
       const transformedVehicles: VehicleData[] = vehicles.map(vehicle => ({
         id: vehicle.id,
+        name: vehicle.name || vehicle.gp51_device_id || 'Unknown Vehicle', // Added required name property
         device_id: vehicle.gp51_device_id,
         device_name: vehicle.name,
         user_id: vehicle.user_id,

@@ -1,12 +1,13 @@
 
 import { SubscriptionStatus, ActiveServiceStatus } from '@/types/service-transformations';
 
-export const mapSubscriptionToActiveServiceStatus = (status: SubscriptionStatus): ActiveServiceStatus => {
+export const mapSubscriptionToActiveServiceStatus = (status: string): ActiveServiceStatus => {
   switch (status) {
     case 'active': return 'active';
     case 'suspended': return 'paused';
     case 'cancelled': return 'expired';
     case 'expired': return 'expired';
+    case 'paused': return 'paused';
     default: return 'pending';
   }
 };

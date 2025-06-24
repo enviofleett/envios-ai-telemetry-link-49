@@ -20,3 +20,9 @@ export interface ImportJob {
   updated_at: string;
   completed_at?: string;
 }
+
+export interface ParsedErrorLog {
+  username: string;
+  error: string;
+  timestamp?: string;
+}
