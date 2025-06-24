@@ -2707,6 +2707,7 @@ export type Database = {
           envio_user_id: string | null
           gp51_token: string | null
           id: string
+          is_active: boolean
           last_activity_at: string | null
           last_validated_at: string | null
           password_hash: string
@@ -2721,6 +2722,7 @@ export type Database = {
           envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
+          is_active?: boolean
           last_activity_at?: string | null
           last_validated_at?: string | null
           password_hash: string
@@ -2735,6 +2737,7 @@ export type Database = {
           envio_user_id?: string | null
           gp51_token?: string | null
           id?: string
+          is_active?: boolean
           last_activity_at?: string | null
           last_validated_at?: string | null
           password_hash?: string
