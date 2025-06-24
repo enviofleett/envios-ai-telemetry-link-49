@@ -6,3 +6,13 @@ export const corsHeaders = {
 };
 
 export const CORS_HEADERS = corsHeaders;
+
+export function handleCorsOptionsRequest(req: Request): Response | null {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { 
+      headers: corsHeaders,
+      status: 200
+    });
+  }
+  return null;
+}
