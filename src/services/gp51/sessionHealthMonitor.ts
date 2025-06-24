@@ -1,20 +1,33 @@
 
 import { supabase } from '@/integrations/supabase/client';
+import { enhancedGP51SessionManager } from './enhancedGP51SessionManager';
 
 export interface SessionHealth {
-  totalSessions: number;
-  validSessions: number;
-  expiredSessions: number;
-  invalidTokens: number;
+  isHealthy: boolean;
+  riskLevel: 'low' | 'medium' | 'high';
+  lastValidated: Date | null;
+  issues: string[];
+  sessionAge: number;
+  tokenExpiry: Date | null;
+  connectionLatency?: number;
+}
+
+export interface HealthStatus {
+  overallHealth: 'excellent' | 'good' | 'warning' | 'critical';
+  uptime: number;
+  lastCheck: Date;
   recommendations: string[];
-  lastChecked: Date;
 }
 
 export class SessionHealthMonitor {
   private static instance: SessionHealthMonitor;
-  private healthData: SessionHealth | null = null;
-  private listeners: Set<(health: SessionHealth) => void> = new Set();
-  private checkInterval: NodeJS.Timeout | null = null;
+  private healthCheckInterval: number | null = null;
+  private currentHealth: SessionHealth | null = null;
+  private subscribers: Set<(health: SessionHealth) => void> = new Set();
+  private healthHistory: SessionHealth[] = [];
+  private readonly MAX_HISTORY = 50;
+
+  private constructor() {}
 
   static getInstance(): SessionHealthMonitor {
     if (!SessionHealthMonitor.instance) {
@@ -24,148 +37,191 @@ export class SessionHealthMonitor {
   }
 
   async checkSessionHealth(): Promise<SessionHealth> {
-    try {
-      console.log('🔍 Checking GP51 session health...');
-      
-      const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: { action: 'monitor_session_health' }
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (!data.success) {
-        throw new Error('Session health check failed');
-      }
-
-      const healthData: SessionHealth = {
-        ...data.health,
-        recommendations: data.recommendations || [],
-        lastChecked: new Date()
-      };
-
-      this.healthData = healthData;
-      this.notifyListeners(healthData);
-
-      console.log('✅ Session health check completed:', healthData);
-      return healthData;
-
-    } catch (error) {
-      console.error('❌ Session health check failed:', error);
-      
-      const errorHealth: SessionHealth = {
-        totalSessions: 0,
-        validSessions: 0,
-        expiredSessions: 0,
-        invalidTokens: 0,
-        recommendations: ['Health check failed - please verify GP51 connectivity'],
-        lastChecked: new Date()
-      };
-
-      this.healthData = errorHealth;
-      this.notifyListeners(errorHealth);
-      
-      throw error;
-    }
-  }
-
-  startMonitoring(intervalMinutes: number = 5): void {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-    }
-
-    // Initial check
-    this.checkSessionHealth();
-
-    // Set up periodic monitoring
-    this.checkInterval = setInterval(() => {
-      this.checkSessionHealth().catch(error => {
-        console.warn('Periodic session health check failed:', error);
-      });
-    }, intervalMinutes * 60 * 1000);
-
-    console.log(`🔄 Session health monitoring started (every ${intervalMinutes} minutes)`);
-  }
-
-  stopMonitoring(): void {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-      this.checkInterval = null;
-      console.log('⏹️ Session health monitoring stopped');
-    }
-  }
-
-  subscribe(callback: (health: SessionHealth) => void): () => void {
-    this.listeners.add(callback);
+    const startTime = Date.now();
     
-    // Send current health data immediately if available
-    if (this.healthData) {
-      callback(this.healthData);
-    }
+    try {
+      const session = enhancedGP51SessionManager.getCurrentSession();
+      
+      if (!session) {
+        const health: SessionHealth = {
+          isHealthy: false,
+          riskLevel: 'high',
+          lastValidated: null,
+          issues: ['No active session'],
+          sessionAge: 0,
+          tokenExpiry: null
+        };
+        
+        this.updateHealth(health);
+        return health;
+      }
 
-    return () => {
-      this.listeners.delete(callback);
-    };
+      // Check session validation
+      const validation = await enhancedGP51SessionManager.validateCurrentSession();
+      const connectionLatency = Date.now() - startTime;
+      
+      // Calculate session age
+      const sessionAge = Date.now() - session.lastValidated.getTime();
+      
+      const health: SessionHealth = {
+        isHealthy: validation.isValid,
+        riskLevel: validation.riskLevel,
+        lastValidated: session.lastValidated,
+        issues: validation.reasons,
+        sessionAge,
+        tokenExpiry: session.expiresAt,
+        connectionLatency
+      };
+
+      this.updateHealth(health);
+      return health;
+      
+    } catch (error) {
+      const health: SessionHealth = {
+        isHealthy: false,
+        riskLevel: 'high',
+        lastValidated: null,
+        issues: [`Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
+        sessionAge: 0,
+        tokenExpiry: null,
+        connectionLatency: Date.now() - startTime
+      };
+      
+      this.updateHealth(health);
+      return health;
+    }
   }
 
-  private notifyListeners(health: SessionHealth): void {
-    this.listeners.forEach(callback => {
+  private updateHealth(health: SessionHealth): void {
+    this.currentHealth = health;
+    
+    // Add to history
+    this.healthHistory.push({ ...health });
+    if (this.healthHistory.length > this.MAX_HISTORY) {
+      this.healthHistory.shift();
+    }
+
+    // Notify subscribers
+    this.subscribers.forEach(callback => {
       try {
         callback(health);
       } catch (error) {
-        console.error('Error notifying session health listener:', error);
+        console.error('Health monitor subscriber error:', error);
       }
     });
   }
 
-  getCurrentHealth(): SessionHealth | null {
-    return this.healthData;
+  subscribe(callback: (health: SessionHealth) => void): () => void {
+    this.subscribers.add(callback);
+    
+    // Immediately notify with current health if available
+    if (this.currentHealth) {
+      callback(this.currentHealth);
+    }
+    
+    return () => {
+      this.subscribers.delete(callback);
+    };
   }
 
-  getHealthStatus(): 'healthy' | 'warning' | 'critical' | 'unknown' {
-    if (!this.healthData) {
-      return 'unknown';
+  startMonitoring(intervalMinutes: number = 2): void {
+    this.stopMonitoring();
+    
+    // Initial check
+    this.checkSessionHealth();
+    
+    // Set up interval
+    this.healthCheckInterval = window.setInterval(() => {
+      this.checkSessionHealth();
+    }, intervalMinutes * 60 * 1000);
+    
+    console.log(`🏥 Session health monitoring started (checking every ${intervalMinutes} minutes)`);
+  }
+
+  stopMonitoring(): void {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+      console.log('🏥 Session health monitoring stopped');
+    }
+  }
+
+  getCurrentHealth(): SessionHealth | null {
+    return this.currentHealth;
+  }
+
+  getHealthHistory(): SessionHealth[] {
+    return [...this.healthHistory];
+  }
+
+  getHealthStatus(): HealthStatus {
+    if (!this.currentHealth) {
+      return {
+        overallHealth: 'critical',
+        uptime: 0,
+        lastCheck: new Date(),
+        recommendations: ['No health data available', 'Start monitoring to get health status']
+      };
     }
 
-    const { totalSessions, validSessions, expiredSessions, invalidTokens } = this.healthData;
+    const recommendations: string[] = [];
+    let overallHealth: 'excellent' | 'good' | 'warning' | 'critical' = 'excellent';
 
-    if (totalSessions === 0) {
-      return 'critical';
+    // Analyze health
+    if (!this.currentHealth.isHealthy) {
+      overallHealth = 'critical';
+      recommendations.push('Session is unhealthy - consider re-authentication');
+    } else if (this.currentHealth.riskLevel === 'high') {
+      overallHealth = 'critical';
+      recommendations.push('High risk level detected');
+    } else if (this.currentHealth.riskLevel === 'medium') {
+      overallHealth = 'warning';
+      recommendations.push('Medium risk level - monitor closely');
+    } else if (this.currentHealth.connectionLatency && this.currentHealth.connectionLatency > 5000) {
+      overallHealth = 'warning';
+      recommendations.push('High connection latency detected');
+    } else {
+      overallHealth = 'good';
     }
 
-    if (invalidTokens > 0 || validSessions === 0) {
-      return 'critical';
+    // Session age recommendations
+    if (this.currentHealth.sessionAge > 6 * 60 * 60 * 1000) { // 6 hours
+      recommendations.push('Session is getting old - consider refreshing');
     }
 
-    if (expiredSessions > 0) {
-      return 'warning';
+    // Token expiry recommendations
+    if (this.currentHealth.tokenExpiry) {
+      const timeUntilExpiry = this.currentHealth.tokenExpiry.getTime() - Date.now();
+      if (timeUntilExpiry < 60 * 60 * 1000) { // 1 hour
+        recommendations.push('Token expires soon - refresh recommended');
+      }
     }
 
-    return 'healthy';
+    const uptime = this.healthHistory.filter(h => h.isHealthy).length / Math.max(this.healthHistory.length, 1) * 100;
+
+    return {
+      overallHealth,
+      uptime,
+      lastCheck: new Date(),
+      recommendations: recommendations.length > 0 ? recommendations : ['Session is healthy']
+    };
   }
 
   async triggerSessionRefresh(): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('🔄 Triggering session refresh...');
+      const { consolidatedGP51Service } = await import('../gp51/ConsolidatedGP51Service');
+      const result = await consolidatedGP51Service.refreshSession();
       
-      // The session refresh will happen automatically when we try to get a valid session
-      const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: { action: 'fetch_available_data' }
-      });
-
-      if (error) {
-        return { success: false, error: error.message };
+      if (result.success) {
+        // Trigger immediate health check after refresh
+        await this.checkSessionHealth();
       }
-
-      // Check health after refresh attempt
-      await this.checkSessionHealth();
       
-      return { success: true };
+      return result;
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Session refresh failed' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Session refresh failed'
       };
     }
   }
