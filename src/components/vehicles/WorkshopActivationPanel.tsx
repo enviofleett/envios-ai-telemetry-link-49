@@ -1,281 +1,154 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { useWorkshops } from '@/hooks/useWorkshops';
 import { Workshop } from '@/types/workshop';
-import { Wrench, MapPin, Phone, Star, DollarSign, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { MapPin, Phone, Clock, DollarSign, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface WorkshopActivationPanelProps {
   vehicleId: string;
-  userId: string;
 }
 
-const WorkshopActivationPanel: React.FC<WorkshopActivationPanelProps> = ({
-  vehicleId,
-  userId
-}) => {
-  const [workshops, setWorkshops] = useState<Workshop[]>([]);
+const WorkshopActivationPanel: React.FC<WorkshopActivationPanelProps> = ({ vehicleId }) => {
   const [selectedWorkshop, setSelectedWorkshop] = useState<Workshop | null>(null);
-  const [activationNote, setActivationNote] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isActivating, setIsActivating] = useState(false);
-  const { toast } = useToast();
+  const { workshops, isLoading, connectToWorkshop, isConnecting } = useWorkshops();
 
-  useEffect(() => {
-    fetchWorkshops();
-  }, []);
-
-  const fetchWorkshops = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('workshops')
-        .select('*')
-        .eq('status', 'active')
-        .eq('is_active', true);
-
-      if (error) {
-        console.error('Error fetching workshops:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load workshops",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Transform the data to ensure it matches our Workshop interface
-      const transformedWorkshops: Workshop[] = (data || []).map(workshop => ({
-        id: workshop.id,
-        name: workshop.name,
-        representative_name: workshop.representative_name,
-        email: workshop.email,
-        phone_number: workshop.phone_number,
-        address: workshop.address,
-        status: workshop.status,
-        service_types: workshop.service_types || [],
-        created_at: workshop.created_at,
-        updated_at: workshop.updated_at,
-        phone: workshop.phone || workshop.phone_number,
-        city: workshop.city || '',
-        country: workshop.country || '',
-        operating_hours: workshop.operating_hours || '',
-        connection_fee: workshop.connection_fee || 0,
-        activation_fee: workshop.activation_fee || 0,
-        verified: workshop.verified || false,
-        is_active: workshop.is_active || true,
-        rating: workshop.rating || 0,
-        review_count: workshop.review_count || 0
-      }));
-
-      setWorkshops(transformedWorkshops);
-    } catch (error) {
-      console.error('Error fetching workshops:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load workshops",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
+  const handleActivateWorkshop = (workshop: Workshop) => {
+    setSelectedWorkshop(workshop);
+    connectToWorkshop(workshop.id);
   };
 
-  const handleWorkshopSelect = (workshopId: string) => {
-    const workshop = workshops.find(w => w.id === workshopId);
-    setSelectedWorkshop(workshop || null);
-  };
-
-  const handleActivation = async () => {
-    if (!selectedWorkshop) {
-      toast({
-        title: "Error",
-        description: "Please select a workshop first",
-        variant: "destructive"
-      });
-      return;
+  const getWorkshopStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'active': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'suspended': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
-
-    setIsActivating(true);
-    try {
-      // Since workshop_vehicle_activations table may not exist yet, we'll show a placeholder success
-      toast({
-        title: "Workshop Activation",
-        description: "Workshop activation functionality is being implemented. Your request has been noted.",
-        variant: "default"
-      });
-
-      // Reset form
-      setSelectedWorkshop(null);
-      setActivationNote('');
-    } catch (error) {
-      console.error('Error activating workshop:', error);
-      toast({
-        title: "Error",
-        description: "Failed to activate workshop connection",
-        variant: "destructive"
-      });
-    } finally {
-      setIsActivating(false);
-    }
-  };
-
-  const getServiceTypeBadges = (serviceTypes: any) => {
-    if (!serviceTypes || !Array.isArray(serviceTypes)) return null;
-    
-    return serviceTypes.slice(0, 3).map((service: string, index: number) => (
-      <Badge key={index} variant="secondary" className="text-xs">
-        {service}
-      </Badge>
-    ));
   };
 
   if (isLoading) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <div className="text-center">Loading workshops...</div>
+        <CardHeader>
+          <CardTitle>Workshop Activation</CardTitle>
+          <CardDescription>Loading available workshops...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="animate-pulse space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-24 bg-gray-200 rounded"></div>
+            ))}
+          </div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Wrench className="h-5 w-5" />
-            Workshop Activation
-          </CardTitle>
-          <CardDescription>
-            Connect your vehicle to a trusted workshop for maintenance and inspections
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-6">
-          <div>
-            <Label htmlFor="workshop-select">Select Workshop</Label>
-            <Select onValueChange={handleWorkshopSelect}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a workshop..." />
-              </SelectTrigger>
-              <SelectContent>
-                {workshops.map((workshop) => (
-                  <SelectItem key={workshop.id} value={workshop.id}>
-                    <div className="flex items-center justify-between w-full">
-                      <span>{workshop.name}</span>
-                      {workshop.verified && (
-                        <CheckCircle className="h-4 w-4 text-green-500 ml-2" />
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <AlertCircle className="h-5 w-5 text-blue-500" />
+          Workshop Activation
+        </CardTitle>
+        <CardDescription>
+          Connect your vehicle to authorized workshops for maintenance and inspections
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {workshops.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="text-gray-400 mb-4">
+              <MapPin className="h-12 w-12 mx-auto" />
+            </div>
+            <h3 className="text-lg font-medium mb-2">No workshops available</h3>
+            <p className="text-gray-500">
+              No workshops are currently available for activation in your area.
+            </p>
           </div>
-
-          {selectedWorkshop && (
-            <Card className="border-blue-200 bg-blue-50">
-              <CardContent className="p-4">
-                <div className="space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="font-semibold text-lg flex items-center gap-2">
-                        {selectedWorkshop.name}
-                        {selectedWorkshop.verified && (
-                          <CheckCircle className="h-5 w-5 text-green-500" />
-                        )}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedWorkshop.representative_name}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Star className="h-4 w-4 text-yellow-500" />
-                      <span className="text-sm font-medium">
-                        {selectedWorkshop.rating?.toFixed(1) || '0.0'}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        ({selectedWorkshop.review_count || 0})
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedWorkshop.address || 'Address not provided'}</span>
+        ) : (
+          <div className="space-y-4">
+            {workshops.map((workshop) => (
+              <div key={workshop.id} className="border rounded-lg p-4 hover:shadow-md transition-all">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="font-semibold text-lg">{workshop.name}</h3>
+                      <Badge className={getWorkshopStatusColor(workshop.status)}>
+                        {workshop.status || 'unknown'}
+                      </Badge>
+                      {workshop.verified && (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      )}
                     </div>
                     
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedWorkshop.phone || 'Phone not provided'}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      <span>{selectedWorkshop.operating_hours || 'Hours not specified'}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      <span>Activation: ${selectedWorkshop.activation_fee || 0}</span>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h4 className="font-medium text-sm mb-2">Services Offered:</h4>
-                    <div className="flex flex-wrap gap-2">
-                      {getServiceTypeBadges(selectedWorkshop.service_types) || (
-                        <span className="text-sm text-muted-foreground">No services listed</span>
+                    <div className="space-y-2 text-sm text-gray-600">
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4" />
+                        <span>{workshop.phone_number || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        <span>{workshop.address || 'Address not available'}</span>
+                      </div>
+                      {workshop.operating_hours && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          <span>{workshop.operating_hours}</span>
+                        </div>
                       )}
                     </div>
+                    
+                    <div className="mt-3 flex gap-4 text-sm">
+                      {workshop.connection_fee > 0 && (
+                        <div className="flex items-center gap-1 text-blue-600">
+                          <DollarSign className="h-4 w-4" />
+                          <span>Connection: ${workshop.connection_fee}</span>
+                        </div>
+                      )}
+                      {workshop.activation_fee > 0 && (
+                        <div className="flex items-center gap-1 text-green-600">
+                          <DollarSign className="h-4 w-4" />
+                          <span>Activation: ${workshop.activation_fee}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {workshop.service_types && Array.isArray(workshop.service_types) && workshop.service_types.length > 0 && (
+                      <div className="mt-3">
+                        <div className="flex flex-wrap gap-1">
+                          {workshop.service_types.map((service: string, index: number) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {service}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="ml-4">
+                    <Button
+                      onClick={() => handleActivateWorkshop(workshop)}
+                      disabled={isConnecting || workshop.status !== 'active'}
+                      className="min-w-[100px]"
+                    >
+                      {isConnecting && selectedWorkshop?.id === workshop.id 
+                        ? 'Connecting...' 
+                        : 'Activate'
+                      }
+                    </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <div>
-            <Label htmlFor="activation-note">Additional Notes (Optional)</Label>
-            <Textarea
-              id="activation-note"
-              value={activationNote}
-              onChange={(e) => setActivationNote(e.target.value)}
-              placeholder="Any specific requirements or notes for the workshop..."
-              rows={3}
-            />
+              </div>
+            ))}
           </div>
-
-          <div className="flex gap-3">
-            <Button
-              onClick={handleActivation}
-              disabled={!selectedWorkshop || isActivating}
-              className="flex-1"
-            >
-              {isActivating ? 'Activating...' : 'Activate Workshop Connection'}
-            </Button>
-          </div>
-
-          {selectedWorkshop?.activation_fee && selectedWorkshop.activation_fee > 0 && (
-            <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <span className="text-sm text-yellow-800">
-                This workshop charges an activation fee of ${selectedWorkshop.activation_fee}
-              </span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

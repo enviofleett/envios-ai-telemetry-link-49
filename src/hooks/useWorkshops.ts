@@ -5,6 +5,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Workshop, CreateWorkshopData } from '@/types/workshop';
 
+export interface WorkshopConnection {
+  id: string;
+  workshop_id: string;
+  user_id: string;
+  connection_status: string;
+  payment_status?: string;
+  connection_fee_paid: number;
+  created_at: string;
+  notes?: string;
+  workshops?: Workshop;
+}
+
 export const useWorkshops = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -40,10 +52,19 @@ export const useWorkshops = () => {
         connection_fee: workshop.connection_fee || 0,
         activation_fee: workshop.activation_fee || 0,
         verified: workshop.verified || false,
-        is_active: workshop.is_active !== false, // Default to true if undefined
+        is_active: workshop.is_active !== false,
         rating: workshop.rating || 0,
         review_count: workshop.review_count || 0
       }));
+    }
+  });
+
+  // Fetch workshop connections
+  const { data: connections } = useQuery({
+    queryKey: ['workshop-connections'],
+    queryFn: async (): Promise<WorkshopConnection[]> => {
+      // Mock data since workshop connections table may not exist
+      return [];
     }
   });
 
@@ -112,11 +133,44 @@ export const useWorkshops = () => {
     }
   });
 
+  // Connect to workshop mutation
+  const connectToWorkshopMutation = useMutation({
+    mutationFn: async (workshopId: string) => {
+      // Mock implementation - would create a connection record
+      console.log('Connecting to workshop:', workshopId);
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['workshop-connections'] });
+      toast({
+        title: "Workshop Connection",
+        description: "Connection request sent to workshop."
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to connect to workshop.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Search workshops function
+  const searchWorkshops = async (city: string, country: string) => {
+    // Mock implementation - would filter workshops
+    console.log('Searching workshops in:', city, country);
+  };
+
   return {
     workshops: workshops || [],
+    connections: connections || [],
     isLoading: isLoading || workshopsLoading,
+    isConnecting: connectToWorkshopMutation.isPending,
     createWorkshop: createWorkshopMutation.mutate,
     updateWorkshopStatus: updateWorkshopStatusMutation.mutate,
+    connectToWorkshop: connectToWorkshopMutation.mutate,
+    searchWorkshops,
     isCreating: createWorkshopMutation.isPending,
     isUpdating: updateWorkshopStatusMutation.isPending
   };

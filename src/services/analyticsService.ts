@@ -15,9 +15,68 @@ export interface MonthlyMetric {
   metric_value: number;
 }
 
+// Add missing type definitions
+export interface MetricWithGrowth {
+  current: number;
+  growth: number;
+  trend: 'up' | 'down' | 'stable';
+}
+
+export interface MonthlyGrowthData {
+  month: string;
+  vehicles: number;
+  users: number;
+  workshops: number;
+  marketplaceMerchants: number;
+  referralAgents: number;
+}
+
+export interface DashboardMetrics {
+  vehicles: number;
+  users: number;
+  workshops: number;
+  marketplaceMerchants: number;
+  referralAgents: number;
+}
+
+// Analytics service object
+export const analyticsService = {
+  getDashboardMetrics: async (): Promise<DashboardMetrics> => {
+    // Mock data since actual tables may not exist
+    return {
+      vehicles: 1245,
+      users: 890,
+      workshops: 156,
+      marketplaceMerchants: 78,
+      referralAgents: 34
+    };
+  },
+
+  getMonthlyGrowthData: async (): Promise<MonthlyGrowthData[]> => {
+    // Mock data for the last 6 months
+    return [
+      { month: '2024-01', vehicles: 1000, users: 750, workshops: 120, marketplaceMerchants: 60, referralAgents: 25 },
+      { month: '2024-02', vehicles: 1050, users: 780, workshops: 125, marketplaceMerchants: 62, referralAgents: 27 },
+      { month: '2024-03', vehicles: 1120, users: 820, workshops: 135, marketplaceMerchants: 68, referralAgents: 29 },
+      { month: '2024-04', vehicles: 1180, users: 850, workshops: 145, marketplaceMerchants: 72, referralAgents: 31 },
+      { month: '2024-05', vehicles: 1210, users: 870, workshops: 150, marketplaceMerchants: 75, referralAgents: 32 },
+      { month: '2024-06', vehicles: 1245, users: 890, workshops: 156, marketplaceMerchants: 78, referralAgents: 34 }
+    ];
+  },
+
+  calculateGrowth: (current: number, previous: number): { growth: number; trend: 'up' | 'down' | 'stable' } => {
+    if (previous === 0) return { growth: 0, trend: 'stable' };
+    const growth = Math.round(((current - previous) / previous) * 100);
+    return {
+      growth: Math.abs(growth),
+      trend: growth > 0 ? 'up' : growth < 0 ? 'down' : 'stable'
+    };
+  }
+};
+
 export const fetchMonthlyAnalytics = async (): Promise<AnalyticsData> => {
   try {
-    // For now, return mock data since monthly_analytics table may not be fully set up
+    // Mock data since monthly_analytics table may not be fully set up
     const mockData: AnalyticsData = {
       userGrowth: [
         { month: '2024-01', users: 100, vehicles: 250 },
@@ -64,7 +123,6 @@ export const fetchMonthlyAnalytics = async (): Promise<AnalyticsData> => {
     return mockData;
   } catch (error) {
     console.error('Error fetching analytics data:', error);
-    // Return empty data structure on error
     return {
       userGrowth: [],
       revenueMetrics: [],

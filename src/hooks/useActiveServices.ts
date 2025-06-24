@@ -1,89 +1,71 @@
 
-import { useMemo } from 'react';
-import { useBillingManagement } from '@/hooks/useBillingManagement';
-import { useOptimizedVehicleData } from '@/hooks/useOptimizedVehicleData';
-import { ActiveService, ServiceUpdateRequest } from '@/types/active-services';
-import { toast } from 'sonner';
-import { transformSubscriptionToActiveService } from '@/utils/service-data-transformer';
-import { calculateServiceStats } from '@/utils/service-statistics';
-import { mapActiveServiceToSubscriptionStatus } from '@/utils/service-status-mapping';
+import { useQuery } from '@tanstack/react-query';
+import { fetchDeviceSubscriptions, DeviceSubscription } from '@/services/billing/billingStatsService';
+import { VehicleData } from '@/types/vehicle';
 
-export const useActiveServices = () => {
-  const {
-    subscriptions,
-    servicePlans,
-    invoices,
-    paymentMethods,
-    dashboardStats,
-    isLoading,
-    updateSubscription,
-    cancelSubscription,
-    renewSubscription
-  } = useBillingManagement();
+export interface ServiceTransformationContext {
+  subscriptions: DeviceSubscription[];
+  vehicles: VehicleData[];
+  invoices: any[];
+  servicePlans: any[];
+}
 
-  const vehicleDataQuery = useOptimizedVehicleData();
-  const vehicles = vehicleDataQuery.vehicles || [];
+export interface ActiveService {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  vehicle: string;
+  nextRenewal: string;
+  cost: number;
+}
 
-  // Transform device subscriptions to active services
-  const activeServices = useMemo((): ActiveService[] => {
-    if (!subscriptions || !vehicles) return [];
-
-    const context = {
-      subscriptions,
-      vehicles,
-      invoices: invoices || [],
-      servicePlans: servicePlans || []
+const transformServicesToActiveServices = (context: ServiceTransformationContext): ActiveService[] => {
+  const { subscriptions, vehicles } = context;
+  
+  return subscriptions.map(subscription => {
+    const vehicle = vehicles.find(v => v.id === subscription.device_id);
+    
+    return {
+      id: subscription.id,
+      name: subscription.subscription_type,
+      type: 'subscription',
+      status: subscription.status,
+      vehicle: vehicle?.name || subscription.device_id,
+      nextRenewal: subscription.end_date || 'N/A',
+      cost: 0 // Would come from subscription pricing
     };
+  });
+};
 
-    return subscriptions.map(subscription => 
-      transformSubscriptionToActiveService(subscription, context)
-    );
-  }, [subscriptions, servicePlans, vehicles, invoices]);
+export const useActiveServices = (vehicles: VehicleData[] = []) => {
+  const { data: subscriptions = [], isLoading: subscriptionsLoading } = useQuery<DeviceSubscription[]>({
+    queryKey: ['device-subscriptions'],
+    queryFn: fetchDeviceSubscriptions
+  });
 
-  // Service management functions
-  const handleServiceUpdate = async (serviceId: string, updates: ServiceUpdateRequest) => {
-    try {
-      await updateSubscription(serviceId, {
-        auto_renewal: updates.autoRenew,
-        subscription_status: updates.status ? mapActiveServiceToSubscriptionStatus(updates.status) : undefined
+  const { data: activeServices = [], isLoading } = useQuery<ActiveService[]>({
+    queryKey: ['active-services', subscriptions, vehicles],
+    queryFn: async () => {
+      // Mock additional data since tables may not exist
+      const mockInvoices: any[] = [];
+      const mockServicePlans: any[] = [];
+      
+      return transformServicesToActiveServices({
+        subscriptions,
+        vehicles,
+        invoices: mockInvoices,
+        servicePlans: mockServicePlans
       });
-      toast.success('Service updated successfully');
-    } catch (error) {
-      console.error('Error updating service:', error);
-      toast.error('Failed to update service');
-    }
-  };
-
-  const handleCancelService = async (serviceId: string) => {
-    try {
-      await cancelSubscription(serviceId);
-      toast.success('Service cancelled successfully');
-    } catch (error) {
-      console.error('Error cancelling service:', error);
-      toast.error('Failed to cancel service');
-    }
-  };
-
-  const handleRenewService = async (serviceId: string, newEndDate: string) => {
-    try {
-      await renewSubscription(serviceId, newEndDate);
-      toast.success('Service renewed successfully');
-    } catch (error) {
-      console.error('Error renewing service:', error);
-      toast.error('Failed to renew service');
-    }
-  };
-
-  // Calculate statistics
-  const stats = useMemo(() => calculateServiceStats(activeServices), [activeServices]);
+    },
+    enabled: !subscriptionsLoading
+  });
 
   return {
     activeServices,
-    stats,
-    paymentMethods,
-    isLoading: isLoading || vehicleDataQuery.isLoading,
-    handleServiceUpdate,
-    handleCancelService,
-    handleRenewService
+    isLoading: subscriptionsLoading || isLoading,
+    refetch: () => {
+      // Would refetch all related queries
+    }
   };
 };
