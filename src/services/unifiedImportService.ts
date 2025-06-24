@@ -69,6 +69,7 @@ class UnifiedImportService {
     try {
       console.log('🔍 Getting enhanced GP51 preview...');
       
+      // Use the correct action name that matches the edge function
       const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
         body: { action: 'get_import_preview' }
       });

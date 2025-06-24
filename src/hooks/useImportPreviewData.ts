@@ -2,8 +2,9 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 
-// Standardized interfaces
+// Standardized interfaces with proper Json type handling
 interface ImportPreviewSummary {
   totalRecords: number;
   totalUsers: number;
@@ -17,10 +18,10 @@ interface ImportPreviewSummary {
 interface ImportPreviewRecord {
   id: string;
   gp51_username: string;
-  raw_vehicle_data: any[];
+  raw_vehicle_data: Json; // Changed from any[] to Json to match Supabase type
   import_eligibility: string;
   review_status: string;
-  conflict_flags: any[];
+  conflict_flags: Json; // Changed from any[] to Json
   created_at: string;
   gp51_data_conflicts?: Array<{
     id: string;
@@ -28,6 +29,22 @@ interface ImportPreviewRecord {
     conflict_details: any;
     resolution_status: string;
   }>;
+}
+
+// Helper function to safely convert Json to array
+function jsonToArray(jsonData: Json): any[] {
+  if (Array.isArray(jsonData)) {
+    return jsonData;
+  }
+  if (typeof jsonData === 'string') {
+    try {
+      const parsed = JSON.parse(jsonData);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 export const useImportPreviewData = () => {
@@ -72,7 +89,7 @@ export const useImportPreviewData = () => {
     totalUsers: new Set(previewData.map(r => r.gp51_username)).size,
     totalVehicles: previewData.reduce((sum, r) => {
       try {
-        const vehicleData = Array.isArray(r.raw_vehicle_data) ? r.raw_vehicle_data : [];
+        const vehicleData = jsonToArray(r.raw_vehicle_data);
         return sum + vehicleData.length;
       } catch (err) {
         console.warn('⚠️ Error processing vehicle data for record:', r.id, err);

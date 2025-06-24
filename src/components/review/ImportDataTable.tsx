@@ -1,216 +1,186 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useImportPreviewData } from '@/hooks/useImportPreviewData';
-import DataPreviewModal from './DataPreviewModal';
-import ConflictIndicator from './ConflictIndicator';
-import { Search, Eye, MapPin, Clock, AlertTriangle } from 'lucide-react';
+import { useImportApproval } from '@/hooks/useImportApproval';
+import { CheckCircle, XCircle, AlertTriangle, Database } from 'lucide-react';
+import type { Json } from '@/integrations/supabase/types';
+
+// Helper function to safely convert Json to array
+function jsonToArray(jsonData: Json): any[] {
+  if (Array.isArray(jsonData)) {
+    return jsonData;
+  }
+  if (typeof jsonData === 'string') {
+    try {
+      const parsed = JSON.parse(jsonData);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 const ImportDataTable: React.FC = () => {
-  const { previewData, isLoading, error } = useImportPreviewData();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedRecord, setSelectedRecord] = useState(null);
-
-  // Handle error state
-  if (error) {
-    console.error('ImportDataTable error:', error);
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Import Data Review</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription>
-              Failed to load import data: {error instanceof Error ? error.message : 'Unknown error'}
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Safe filtering with null checks
-  const filteredData = previewData?.filter(record => {
-    if (!record) return false;
-    
-    try {
-      const vehicleData = Array.isArray(record.raw_vehicle_data) ? record.raw_vehicle_data : [];
-      const username = record.gp51_username || '';
-      
-      const matchesSearch = username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           vehicleData.some((vehicle: any) => 
-                             vehicle?.deviceid?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             vehicle?.devicename?.toLowerCase().includes(searchTerm.toLowerCase())
-                           );
-      
-      const matchesStatus = statusFilter === 'all' || record.review_status === statusFilter;
-      
-      return matchesSearch && matchesStatus;
-    } catch (err) {
-      console.warn('Error filtering record:', record.id, err);
-      return false;
-    }
-  }) || [];
-
-  const getStatusBadge = (status: string, eligibility: string) => {
-    if (eligibility === 'conflict') {
-      return <Badge variant="destructive">Conflict</Badge>;
-    }
-    
-    switch (status) {
-      case 'approved':
-        return <Badge variant="default" className="bg-green-500">Approved</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive">Rejected</Badge>;
-      case 'pending':
-        return <Badge variant="secondary">Pending Review</Badge>;
-      default:
-        return <Badge variant="outline">Unknown</Badge>;
-    }
-  };
+  const { previewData, isLoading, summary } = useImportPreviewData();
+  const { approveImport, rejectImport, isProcessing } = useImportApproval();
 
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Import Data Review</CardTitle>
+          <CardTitle>Loading Preview Data...</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="animate-pulse space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 bg-gray-200 rounded"></div>
-            ))}
+          <div className="flex items-center justify-center p-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
         </CardContent>
       </Card>
     );
   }
 
+  if (!previewData || previewData.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Import Preview Data
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center p-8">
+            <div className="text-gray-500 mb-4">No preview data available</div>
+            <p className="text-sm text-gray-400">
+              Generate a preview first to see importable data
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const handleApprove = async (recordId: string) => {
+    await approveImport([recordId]);
+  };
+
+  const handleReject = async (recordId: string) => {
+    await rejectImport([recordId]);
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Import Data Review</CardTitle>
-        <div className="flex flex-col sm:flex-row gap-4 mt-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by username, device ID, or name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Records</SelectItem>
-              <SelectItem value="pending">Pending Review</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <CardTitle className="flex items-center gap-2">
+          <Database className="h-5 w-5" />
+          Import Preview Data ({previewData.length} records)
+        </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
-          {filteredData.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {previewData?.length === 0 
-                ? "No import data available. Please fetch data from GP51 first."
-                : "No import data found matching your criteria."
-              }
+        {summary && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="text-center p-3 bg-blue-50 rounded-lg">
+              <div className="text-lg font-bold text-blue-600">{summary.totalRecords}</div>
+              <div className="text-xs text-gray-600">Total Records</div>
             </div>
-          ) : (
-            filteredData.map((record) => {
-              if (!record) return null;
-              
-              try {
-                const vehicleData = Array.isArray(record.raw_vehicle_data) ? record.raw_vehicle_data : [];
-                const conflictFlags = Array.isArray(record.conflict_flags) ? record.conflict_flags : [];
+            <div className="text-center p-3 bg-green-50 rounded-lg">
+              <div className="text-lg font-bold text-green-600">{summary.eligible}</div>
+              <div className="text-xs text-gray-600">Eligible</div>
+            </div>
+            <div className="text-center p-3 bg-yellow-50 rounded-lg">
+              <div className="text-lg font-bold text-yellow-600">{summary.conflicts}</div>
+              <div className="text-xs text-gray-600">Conflicts</div>
+            </div>
+            <div className="text-center p-3 bg-purple-50 rounded-lg">
+              <div className="text-lg font-bold text-purple-600">{summary.totalVehicles}</div>
+              <div className="text-xs text-gray-600">Total Vehicles</div>
+            </div>
+          </div>
+        )}
 
-                return (
-                  <div key={record.id} className="border rounded-lg p-4 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <div className="font-medium">{record.gp51_username || 'Unknown User'}</div>
-                        {getStatusBadge(record.review_status, record.import_eligibility)}
-                        <ConflictIndicator conflicts={conflictFlags} />
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedRecord(record)}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Details
-                      </Button>
+        <div className="space-y-3">
+          {previewData.map((record) => {
+            const vehicleData = jsonToArray(record.raw_vehicle_data);
+            const conflictFlags = jsonToArray(record.conflict_flags);
+            
+            return (
+              <div key={record.id} className="border rounded-lg p-4 bg-white">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="font-medium text-gray-900">{record.gp51_username}</div>
+                    <Badge 
+                      variant={record.import_eligibility === 'eligible' ? 'default' : 'destructive'}
+                    >
+                      {record.import_eligibility}
+                    </Badge>
+                    <Badge 
+                      variant={record.review_status === 'approved' ? 'default' : 'secondary'}
+                    >
+                      {record.review_status}
+                    </Badge>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    {record.review_status === 'pending' && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => handleApprove(record.id)}
+                          disabled={isProcessing || record.import_eligibility !== 'eligible'}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReject(record.id)}
+                          disabled={isProcessing}
+                        >
+                          <XCircle className="h-3 w-3 mr-1" />
+                          Reject
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium text-gray-600">Vehicles:</span>
+                    <span className="ml-2">{vehicleData.length}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">Conflicts:</span>
+                    <span className="ml-2">{conflictFlags.length}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-600">Created:</span>
+                    <span className="ml-2">{new Date(record.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {conflictFlags.length > 0 && (
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                    <div className="flex items-center gap-2 text-yellow-800">
+                      <AlertTriangle className="h-4 w-4" />
+                      <span className="font-medium">Conflicts Detected</span>
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
-                      {vehicleData.slice(0, 3).map((vehicle: any, index) => (
-                        <div key={index} className="border rounded p-3 space-y-2">
-                          <div className="font-medium">{vehicle?.devicename || vehicle?.deviceid || 'Unknown Device'}</div>
-                          <div className="text-muted-foreground">ID: {vehicle?.deviceid || 'N/A'}</div>
-                          
-                          {vehicle?.lastactivetime && (
-                            <div className="flex items-center gap-1 text-xs">
-                              <Clock className="h-3 w-3" />
-                              {new Date(vehicle.lastactivetime * 1000).toLocaleDateString()}
-                            </div>
-                          )}
-                          
-                          {vehicle?.callat && vehicle?.callon && (
-                            <div className="flex items-center gap-1 text-xs">
-                              <MapPin className="h-3 w-3" />
-                              {vehicle.callat.toFixed(4)}, {vehicle.callon.toFixed(4)}
-                            </div>
-                          )}
-                          
-                          <Badge variant="outline" className="text-xs">
-                            Status: {vehicle?.status || 'Unknown'}
-                          </Badge>
-                        </div>
-                      ))}
-                      
-                      {vehicleData.length > 3 && (
-                        <div className="border rounded p-3 flex items-center justify-center text-muted-foreground">
-                          +{vehicleData.length - 3} more vehicles
-                        </div>
-                      )}
+                    <div className="text-sm text-yellow-700 mt-1">
+                      {conflictFlags.length} conflict(s) need resolution before import
                     </div>
                   </div>
-                );
-              } catch (err) {
-                console.warn('Error rendering record:', record.id, err);
-                return (
-                  <div key={record.id} className="border rounded-lg p-4 bg-red-50">
-                    <div className="text-red-600 text-sm">
-                      Error displaying record {record.id}
-                    </div>
-                  </div>
-                );
-              }
-            })
-          )}
+                )}
+              </div>
+            );
+          })}
         </div>
       </CardContent>
-      
-      {selectedRecord && (
-        <DataPreviewModal
-          record={selectedRecord}
-          onClose={() => setSelectedRecord(null)}
-        />
-      )}
     </Card>
   );
 };
