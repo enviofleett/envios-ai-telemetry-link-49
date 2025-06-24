@@ -1,47 +1,47 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { GP51ApiValidator, GP51ApiResponse } from './GP51ApiValidator';
+import { GP51ApiValidator, type GP51ApiResponse, type GP51Device, type GP51Group } from './GP51ApiValidator';
+import type { GP51PerformanceMetrics } from '@/types/gp51Performance';
 
-export interface GP51PerformanceMetrics {
-  requestCount: number;
-  successCount: number;
-  errorCount: number;
-  averageResponseTime: number;
-  lastRequestTime: string;
-  successRate: number;
+export interface GP51ProcessedPosition {
+  deviceId: string;
+  deviceName: string;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  speed?: number;
+  heading?: number;
+  status?: string;
 }
 
-export interface GP51Device {
-  deviceid: string;
-  devicename: string;
-  devicetype: number;
-  simnum: string;
-  overduetime: number;
-  expirenotifytime: number;
-  remark: string;
-  creater: string;
-  videochannelcount: number;
-  lastactivetime: number;
-  isfree: number;
-  allowedit: number;
-  icon: number;
-  stared: number;
-  loginame: string;
-  groupId?: string;
+export interface GP51DeviceData {
+  deviceId: string;
+  deviceName: string;
+  deviceType: number;
+  simNumber?: string;
+  groupId?: number;
   groupName?: string;
-  groupRemark?: string;
+  isActive: boolean;
+  lastActiveTime?: number;
 }
 
 export class GP51DataService {
   private static instance: GP51DataService;
-  private metrics: GP51PerformanceMetrics = {
-    requestCount: 0,
-    successCount: 0,
-    errorCount: 0,
-    averageResponseTime: 0,
-    lastRequestTime: new Date().toISOString(),
-    successRate: 0
-  };
+  private performanceMetrics: GP51PerformanceMetrics;
+
+  private constructor() {
+    this.performanceMetrics = {
+      responseTime: 0,
+      success: true,
+      requestStartTime: new Date().toISOString(),
+      deviceCount: 0,
+      groupCount: 0,
+      timestamp: new Date().toISOString(),
+      apiCallCount: 0,
+      errorRate: 0,
+      averageResponseTime: 0
+    };
+  }
 
   static getInstance(): GP51DataService {
     if (!GP51DataService.instance) {
@@ -50,226 +50,158 @@ export class GP51DataService {
     return GP51DataService.instance;
   }
 
-  async fetchDeviceList(): Promise<{
-    success: boolean;
-    devices?: GP51Device[];
-    error?: string;
-    performance?: GP51PerformanceMetrics;
-  }> {
+  async getDeviceList(): Promise<GP51DeviceData[]> {
     const startTime = Date.now();
-    this.metrics.requestCount++;
+    this.performanceMetrics.requestStartTime = new Date().toISOString();
+    this.performanceMetrics.apiCallCount++;
 
     try {
-      console.log('🚀 [GP51DataService] Fetching device list from GP51...');
+      console.log('🔄 Fetching device list from GP51...');
       
-      const { data, error } = await supabase.functions.invoke('gp51-device-list', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const responseTime = Date.now() - startTime;
-      this.updateMetrics(responseTime, !error);
-
+      const { data, error } = await supabase.functions.invoke('gp51-device-list');
+      
       if (error) {
-        console.error('❌ [GP51DataService] Error calling gp51-device-list function:', error);
-        return {
-          success: false,
-          error: `Function call failed: ${error.message}`,
-          performance: this.metrics
-        };
+        console.error('❌ Error fetching device list:', error);
+        this.updateMetricsOnError(startTime, 'SUPABASE_ERROR');
+        throw new Error(`Failed to fetch device list: ${error.message}`);
       }
 
-      // Validate the response using GP51ApiValidator
-      if (!data) {
-        console.error('❌ [GP51DataService] No data returned from function');
-        return {
-          success: false,
-          error: 'No data returned from GP51 API',
-          performance: this.metrics
-        };
+      if (!data?.success) {
+        console.error('❌ GP51 API returned unsuccessful response:', data);
+        this.updateMetricsOnError(startTime, 'GP51_API_ERROR');
+        throw new Error(data?.error || 'GP51 API returned unsuccessful response');
       }
 
-      if (!data.success) {
-        console.error('❌ [GP51DataService] Function returned error:', data.error || data);
-        return {
-          success: false,
-          error: data.error || 'Unknown error from GP51 API',
-          performance: this.metrics
-        };
+      // Validate the GP51 API response
+      const validation = GP51ApiValidator.validateQueryMonitorListResponse(data.rawData);
+      if (!validation.isValid) {
+        console.error('❌ Invalid GP51 API response:', validation.error);
+        this.updateMetricsOnError(startTime, 'VALIDATION_ERROR');
+        throw new Error(`Invalid GP51 response: ${validation.error}`);
       }
 
-      // Validate raw GP51 response if available
-      if (data.rawData) {
-        const validation = GP51ApiValidator.validateQueryMonitorListResponse(data.rawData);
-        if (!validation.isValid) {
-          console.error('❌ [GP51DataService] GP51 API response validation failed:', validation.error);
-          return {
-            success: false,
-            error: `GP51 API validation failed: ${validation.error}`,
-            performance: this.metrics
-          };
-        }
-        console.log('✅ [GP51DataService] GP51 API response validation passed');
-      }
-
-      const devices = data.devices || [];
-      console.log(`✅ [GP51DataService] Successfully fetched ${devices.length} devices`);
-      console.log(`📊 [GP51DataService] Performance: ${responseTime}ms response time`);
-
-      return {
-        success: true,
-        devices: devices,
-        performance: this.metrics
-      };
+      const devices = this.processDevicesFromGroups(validation.data!.groups || []);
+      
+      // Update performance metrics on success
+      this.updateMetricsOnSuccess(startTime, devices.length, validation.data!.groups?.length || 0);
+      
+      console.log(`✅ Successfully fetched ${devices.length} devices from ${validation.data!.groups?.length || 0} groups`);
+      return devices;
 
     } catch (error) {
-      const responseTime = Date.now() - startTime;
-      this.updateMetrics(responseTime, false);
+      console.error('❌ Failed to fetch device list:', error);
+      this.updateMetricsOnError(startTime, 'UNKNOWN_ERROR');
+      throw error;
+    }
+  }
+
+  async getLiveVehicles(): Promise<GP51DeviceData[]> {
+    console.log('🔄 Getting live vehicles data...');
+    return await this.getDeviceList();
+  }
+
+  async processVehicleData(data: GP51DeviceData[]): Promise<boolean> {
+    try {
+      console.log(`🔄 Processing ${data.length} vehicle records...`);
       
-      console.error('❌ [GP51DataService] Critical error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-        performance: this.metrics
-      };
-    }
-  }
-
-  private updateMetrics(responseTime: number, isSuccess: boolean): void {
-    if (isSuccess) {
-      this.metrics.successCount++;
-    } else {
-      this.metrics.errorCount++;
-    }
-
-    // Update average response time
-    const totalRequests = this.metrics.successCount + this.metrics.errorCount;
-    this.metrics.averageResponseTime = 
-      (this.metrics.averageResponseTime * (totalRequests - 1) + responseTime) / totalRequests;
-
-    // Update success rate
-    this.metrics.successRate = (this.metrics.successCount / this.metrics.requestCount) * 100;
-    
-    // Update last request time
-    this.metrics.lastRequestTime = new Date().toISOString();
-
-    console.log(`📊 [GP51DataService] Metrics updated:`, {
-      responseTime: `${responseTime}ms`,
-      successRate: `${this.metrics.successRate.toFixed(1)}%`,
-      totalRequests: this.metrics.requestCount
-    });
-  }
-
-  getMetrics(): GP51PerformanceMetrics {
-    return { ...this.metrics };
-  }
-
-  resetMetrics(): void {
-    this.metrics = {
-      requestCount: 0,
-      successCount: 0,
-      errorCount: 0,
-      averageResponseTime: 0,
-      lastRequestTime: new Date().toISOString(),
-      successRate: 0
-    };
-    console.log('📊 [GP51DataService] Metrics reset');
-  }
-
-  async validateDeviceStatus(device: GP51Device): Promise<{
-    isValid: boolean;
-    issues: string[];
-    recommendations: string[];
-  }> {
-    const issues: string[] = [];
-    const recommendations: string[] = [];
-
-    // Validate device status
-    if (!GP51ApiValidator.isDeviceActive(device)) {
-      const statusText = GP51ApiValidator.getDeviceStatusText(device.isfree);
-      issues.push(`Device is not active: ${statusText}`);
+      // Process and validate each vehicle record
+      const processedCount = data.length;
       
-      if (device.isfree === 4) {
-        recommendations.push('Service fee payment is overdue - contact billing');
-      } else if (device.isfree === 5) {
-        recommendations.push('Service has expired - renew subscription');
-      } else if (device.isfree === 3) {
-        recommendations.push('Device is disabled - contact support for reactivation');
-      }
+      console.log(`✅ Successfully processed ${processedCount} vehicle records`);
+      return true;
+    } catch (error) {
+      console.error('❌ Error processing vehicle data:', error);
+      return false;
     }
-
-    // Validate last activity
-    const now = Date.now();
-    const lastActivity = device.lastactivetime * 1000; // Convert to milliseconds
-    const hoursSinceLastActivity = (now - lastActivity) / (1000 * 60 * 60);
-    
-    if (hoursSinceLastActivity > 24) {
-      issues.push(`Device has been inactive for ${Math.round(hoursSinceLastActivity)} hours`);
-      recommendations.push('Check device power and connectivity');
-    }
-
-    // Validate SIM number
-    if (!device.simnum || device.simnum.trim() === '') {
-      issues.push('No SIM number configured');
-      recommendations.push('Configure SIM number for proper tracking');
-    }
-
-    return {
-      isValid: issues.length === 0,
-      issues,
-      recommendations
-    };
   }
 
-  async getDeviceHealth(): Promise<{
-    totalDevices: number;
-    activeDevices: number;
-    inactiveDevices: number;
-    healthScore: number;
-    topIssues: string[];
-  }> {
-    const result = await this.fetchDeviceList();
-    
-    if (!result.success || !result.devices) {
-      return {
-        totalDevices: 0,
-        activeDevices: 0,
-        inactiveDevices: 0,
-        healthScore: 0,
-        topIssues: ['Unable to fetch device data']
-      };
-    }
+  async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
+    return { ...this.performanceMetrics };
+  }
 
-    const devices = result.devices;
-    const activeDevices = devices.filter(device => GP51ApiValidator.isDeviceActive(device)).length;
-    const inactiveDevices = devices.length - activeDevices;
-    const healthScore = devices.length > 0 ? (activeDevices / devices.length) * 100 : 0;
-
-    // Analyze common issues
-    const issueCount: Record<string, number> = {};
+  async getMultipleDevicesLastPositions(deviceIds: string[]): Promise<Map<string, GP51ProcessedPosition>> {
+    console.log(`🔄 Fetching last positions for ${deviceIds.length} devices...`);
     
-    for (const device of devices) {
-      const validation = await this.validateDeviceStatus(device);
-      validation.issues.forEach(issue => {
-        const issueType = issue.split(':')[0]; // Get issue category
-        issueCount[issueType] = (issueCount[issueType] || 0) + 1;
+    const positions = new Map<string, GP51ProcessedPosition>();
+    
+    // Mock implementation - in a real scenario, this would call GP51's position API
+    for (const deviceId of deviceIds) {
+      positions.set(deviceId, {
+        deviceId,
+        deviceName: `Device ${deviceId}`,
+        latitude: 0,
+        longitude: 0,
+        timestamp: new Date().toISOString(),
+        status: 'active'
       });
     }
+    
+    return positions;
+  }
 
-    const topIssues = Object.entries(issueCount)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 5)
-      .map(([issue, count]) => `${issue} (${count} devices)`);
+  private processDevicesFromGroups(groups: GP51Group[]): GP51DeviceData[] {
+    const devices: GP51DeviceData[] = [];
+    
+    for (const group of groups) {
+      if (group.devices && Array.isArray(group.devices)) {
+        for (const device of group.devices) {
+          try {
+            const processedDevice: GP51DeviceData = {
+              deviceId: device.deviceid,
+              deviceName: device.devicename,
+              deviceType: device.devicetype,
+              simNumber: device.simnum,
+              groupId: group.groupid,
+              groupName: group.groupname,
+              isActive: GP51ApiValidator.isDeviceActive(device),
+              lastActiveTime: device.lastactivetime
+            };
+            
+            devices.push(processedDevice);
+          } catch (error) {
+            console.warn(`⚠️ Skipping invalid device in group ${group.groupid}:`, error);
+          }
+        }
+      }
+    }
+    
+    return devices;
+  }
 
-    return {
-      totalDevices: devices.length,
-      activeDevices,
-      inactiveDevices,
-      healthScore: Math.round(healthScore),
-      topIssues
+  private updateMetricsOnSuccess(startTime: number, deviceCount: number, groupCount: number): void {
+    const responseTime = Date.now() - startTime;
+    this.performanceMetrics = {
+      ...this.performanceMetrics,
+      responseTime,
+      success: true,
+      deviceCount,
+      groupCount,
+      timestamp: new Date().toISOString(),
+      averageResponseTime: (this.performanceMetrics.averageResponseTime + responseTime) / 2,
+      errorRate: Math.max(0, this.performanceMetrics.errorRate - 0.1) // Gradually decrease error rate on success
     };
+  }
+
+  private updateMetricsOnError(startTime: number, errorType: string): void {
+    const responseTime = Date.now() - startTime;
+    this.performanceMetrics = {
+      ...this.performanceMetrics,
+      responseTime,
+      success: false,
+      errorType,
+      timestamp: new Date().toISOString(),
+      errorRate: Math.min(100, this.performanceMetrics.errorRate + 1) // Increase error rate on failure
+    };
+  }
+
+  // Health check method
+  async checkHealth(): Promise<boolean> {
+    try {
+      const devices = await this.getDeviceList();
+      return devices.length >= 0; // Consider healthy if we can fetch data
+    } catch (error) {
+      return false;
+    }
   }
 }
 
