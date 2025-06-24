@@ -1,6 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { enhancedGP51SessionManager } from './enhancedGP51SessionManager';
+import { enhancedGP51SessionManager } from '@/services/security/enhancedGP51SessionManager';
 
 export interface SessionHealth {
   isHealthy: boolean;
