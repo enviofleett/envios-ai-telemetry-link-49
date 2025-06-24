@@ -2,6 +2,23 @@
 import { supabase } from '@/integrations/supabase/client';
 import { PaymentMethod } from '@/types/billing';
 
+// Transform database payment method to application payment method
+const transformPaymentMethod = (dbPaymentMethod: any): PaymentMethod => ({
+  id: dbPaymentMethod.id,
+  customer_id: dbPaymentMethod.customer_id,
+  method_type: dbPaymentMethod.method_type,
+  stripe_payment_method_id: dbPaymentMethod.stripe_payment_method_id,
+  card_last_four: dbPaymentMethod.card_last_four,
+  card_brand: dbPaymentMethod.card_brand,
+  card_exp_month: dbPaymentMethod.card_exp_month,
+  card_exp_year: dbPaymentMethod.card_exp_year,
+  billing_address: dbPaymentMethod.billing_address,
+  is_default: dbPaymentMethod.is_default,
+  is_active: dbPaymentMethod.is_active,
+  created_at: dbPaymentMethod.created_at,
+  updated_at: dbPaymentMethod.updated_at
+});
+
 export const paymentMethodsApi = {
   async getPaymentMethods(): Promise<PaymentMethod[]> {
     const { data, error } = await supabase
@@ -11,7 +28,7 @@ export const paymentMethodsApi = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return (data || []) as PaymentMethod[];
+    return (data || []).map(transformPaymentMethod);
   },
 
   async addPaymentMethod(paymentMethod: Partial<PaymentMethod>): Promise<PaymentMethod> {
@@ -38,7 +55,7 @@ export const paymentMethodsApi = {
       .single();
 
     if (error) throw error;
-    return data as PaymentMethod;
+    return transformPaymentMethod(data);
   },
 
   async setDefaultPaymentMethod(id: string): Promise<void> {

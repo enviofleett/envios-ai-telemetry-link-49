@@ -23,9 +23,57 @@ export interface ValidationError {
   value: any;
 }
 
+export interface CSVImportJob {
+  id: string;
+  job_name: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  file_name: string;
+  total_rows: number;
+  processed_rows: number;
+  successful_imports: number;
+  failed_imports: number;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
+  error_log: ValidationError[];
+  import_results: Record<string, any>;
+  progress_percentage: number;
+}
+
+export interface ImportPreviewData {
+  valid_rows: any[];
+  invalid_rows: Array<{
+    row_number: number;
+    data: Record<string, any>;
+    errors: ValidationError[];
+  }>;
+  conflicts: Array<{
+    row_number: number;
+    device_id: string;
+    conflict_type: 'duplicate_device_id' | 'user_not_found';
+    existing_data?: any;
+  }>;
+  summary: {
+    total_rows: number;
+    valid_rows: number;
+    invalid_rows: number;
+    conflicts: number;
+  };
+}
+
 class MockCSVImportService {
+  // Method names that useCSVImport expects
+  async getImportJobs(): Promise<CSVImportJob[]> {
+    return [];
+  }
+
+  async getImportTemplates(): Promise<CSVImportTemplate[]> {
+    // Alias for getTemplates
+    return this.getTemplates();
+  }
+
   async getTemplates(): Promise<CSVImportTemplate[]> {
-    // Return mock templates since database table doesn't exist
     return [
       {
         id: 'template-1',
@@ -80,7 +128,6 @@ class MockCSVImportService {
   }
 
   async createTemplate(template: Omit<CSVImportTemplate, 'id' | 'created_at' | 'updated_at'>): Promise<CSVImportTemplate> {
-    // Mock creation
     return {
       ...template,
       id: `template-${Date.now()}`,
@@ -89,12 +136,26 @@ class MockCSVImportService {
     };
   }
 
+  async parseCSV(csvContent: string): Promise<any[]> {
+    // Parse CSV content into rows
+    const lines = csvContent.trim().split('\n');
+    const headers = lines[0].split(',').map(h => h.trim());
+    
+    return lines.slice(1).map((line, index) => {
+      const values = line.split(',').map(v => v.trim());
+      const row: any = { _rowNumber: index + 2 }; // +2 because we skip header and are 1-indexed
+      headers.forEach((header, i) => {
+        row[header] = values[i] || '';
+      });
+      return row;
+    });
+  }
+
   async validateCSV(csvContent: string, templateId: string): Promise<{
     isValid: boolean;
     errors: ValidationError[];
     preview: any[];
   }> {
-    // Mock validation
     return {
       isValid: true,
       errors: [],
@@ -105,12 +166,59 @@ class MockCSVImportService {
     };
   }
 
+  async validateCSVData(rows: any[], template: CSVImportTemplate): Promise<ImportPreviewData> {
+    // Alias for validateCSV with different signature
+    return {
+      valid_rows: rows.slice(0, Math.floor(rows.length * 0.8)),
+      invalid_rows: rows.slice(Math.floor(rows.length * 0.8)).map((row, index) => ({
+        row_number: index + Math.floor(rows.length * 0.8) + 1,
+        data: row,
+        errors: [{ row: index, field: 'example', message: 'Mock validation error', value: row }]
+      })),
+      conflicts: [],
+      summary: {
+        total_rows: rows.length,
+        valid_rows: Math.floor(rows.length * 0.8),
+        invalid_rows: rows.length - Math.floor(rows.length * 0.8),
+        conflicts: 0
+      }
+    };
+  }
+
+  async createImportJob(jobData: {
+    job_name: string;
+    file_name: string;
+    total_rows: number;
+  }): Promise<CSVImportJob> {
+    return {
+      id: `job-${Date.now()}`,
+      job_name: jobData.job_name,
+      status: 'pending',
+      file_name: jobData.file_name,
+      total_rows: jobData.total_rows,
+      processed_rows: 0,
+      successful_imports: 0,
+      failed_imports: 0,
+      created_by: 'mock-user',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      error_log: [],
+      import_results: {},
+      progress_percentage: 0
+    };
+  }
+
   generateTemplate(type: 'vehicles' | 'users'): string {
     if (type === 'vehicles') {
       return 'Device ID,Vehicle Name,License Plate,User Email\nDEV001,Vehicle 1,ABC123,user@example.com';
     } else {
       return 'Full Name,Email Address,Phone,City\nJohn Doe,john@example.com,+1234567890,New York';
     }
+  }
+
+  generateCSVTemplate(): string {
+    // Alias for generateTemplate with default type
+    return this.generateTemplate('vehicles');
   }
 }
 

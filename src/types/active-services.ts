@@ -2,6 +2,14 @@
 import { DeviceSubscription, ServicePlan } from '@/types/billing';
 import { Car, Shield, Package, Settings } from 'lucide-react';
 
+// Enhanced DeviceSubscription for UI use with computed properties
+export interface EnhancedDeviceSubscription extends DeviceSubscription {
+  subscription_status: 'active' | 'paused' | 'cancelled' | 'expired';
+  billing_cycle: 'monthly' | 'quarterly' | 'annually';
+  auto_renewal: boolean;
+  discount_percentage?: number;
+}
+
 export interface ActiveService {
   id: string;
   name: string; // Legacy property for compatibility
@@ -33,7 +41,7 @@ export interface ActiveService {
     amount: number;
   }[];
   // Link to original billing data
-  deviceSubscription?: DeviceSubscription;
+  deviceSubscription?: EnhancedDeviceSubscription;
   servicePlan?: ServicePlan;
 }
 

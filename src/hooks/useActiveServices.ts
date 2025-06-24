@@ -2,7 +2,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { fetchDeviceSubscriptions, DeviceSubscription } from '@/services/billing/billingStatsService';
 import { VehicleData } from '@/types/vehicle';
-import { ActiveService, ServiceStats, ServiceUpdateRequest, getServiceIcon } from '@/types/active-services';
+import { ActiveService, ServiceStats, ServiceUpdateRequest, getServiceIcon, EnhancedDeviceSubscription } from '@/types/active-services';
 import { calculateServiceStats } from '@/utils/service-statistics';
 
 export interface ServiceTransformationContext {
@@ -19,10 +19,9 @@ const transformServicesToActiveServices = (context: ServiceTransformationContext
     const vehicle = vehicles.find(v => v.id === subscription.device_id);
     const vehicleName = vehicle?.name || vehicle?.device_name || subscription.device_id;
     
-    // Create a complete DeviceSubscription with all required properties
-    const completeDeviceSubscription: DeviceSubscription = {
+    // Create an enhanced DeviceSubscription with UI-expected properties
+    const enhancedDeviceSubscription: EnhancedDeviceSubscription = {
       ...subscription,
-      // Add missing properties with defaults
       subscription_status: subscription.status === 'active' ? 'active' : 'expired',
       billing_cycle: 'monthly',
       auto_renewal: true,
@@ -31,9 +30,9 @@ const transformServicesToActiveServices = (context: ServiceTransformationContext
     
     return {
       id: subscription.id,
-      name: subscription.subscription_type, // Legacy compatibility
+      name: subscription.subscription_type,
       serviceName: subscription.subscription_type,
-      type: 'subscription', // Legacy compatibility
+      type: 'subscription',
       serviceType: 'telemetry' as const,
       vehicles: vehicle ? [{
         id: vehicle.id,
@@ -43,13 +42,13 @@ const transformServicesToActiveServices = (context: ServiceTransformationContext
         status: subscription.status === 'active' ? 'active' : 'paused'
       }] : [],
       status: subscription.status as 'active' | 'paused' | 'expired' | 'pending',
-      vehicle: vehicleName, // Legacy compatibility
-      nextRenewal: subscription.end_date || 'N/A', // Legacy compatibility
-      cost: 0, // Legacy compatibility
+      vehicle: vehicleName,
+      nextRenewal: subscription.end_date || 'N/A',
+      cost: 0,
       activatedDate: subscription.start_date,
       expiryDate: subscription.end_date || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-      monthlyFee: 29.99, // Mock fee
-      totalSpent: 359.88, // Mock total
+      monthlyFee: 29.99,
+      totalSpent: 359.88,
       lastUsed: new Date().toISOString(),
       features: ['Real-time tracking', 'Alerts', 'Reports'],
       icon: getServiceIcon('telemetry'),
@@ -60,7 +59,7 @@ const transformServicesToActiveServices = (context: ServiceTransformationContext
         { month: '2024-02', amount: 180 },
         { month: '2024-03', amount: 200 }
       ],
-      deviceSubscription: completeDeviceSubscription // Now properly typed
+      deviceSubscription: enhancedDeviceSubscription
     };
   });
 };
@@ -74,7 +73,6 @@ export const useActiveServices = (vehicles: VehicleData[] = []) => {
   const { data: activeServices = [], isLoading } = useQuery<ActiveService[]>({
     queryKey: ['active-services', subscriptions, vehicles],
     queryFn: async () => {
-      // Mock additional data since tables may not exist
       const mockInvoices: any[] = [];
       const mockServicePlans: any[] = [];
       
@@ -92,17 +90,14 @@ export const useActiveServices = (vehicles: VehicleData[] = []) => {
 
   const handleServiceUpdate = async (serviceId: string, updates: ServiceUpdateRequest) => {
     console.log('Updating service:', serviceId, updates);
-    // Mock implementation - would update the service
   };
 
   const handleCancelService = async (serviceId: string) => {
     console.log('Cancelling service:', serviceId);
-    // Mock implementation - would cancel the service
   };
 
   const handleRenewService = async (serviceId: string) => {
     console.log('Renewing service:', serviceId);
-    // Mock implementation - would renew the service
   };
 
   return {

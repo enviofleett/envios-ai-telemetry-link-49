@@ -9,43 +9,51 @@ export interface DeviceSubscription {
   end_date?: string;
   created_at: string;
   updated_at: string;
-  // Missing properties that were causing errors
-  subscription_status: 'active' | 'paused' | 'cancelled' | 'expired';
-  billing_cycle: 'monthly' | 'quarterly' | 'annually';
-  auto_renewal: boolean;
-  discount_percentage?: number;
 }
 
 export interface ServicePlan {
   id: string;
-  name: string;
+  plan_name: string;
   description?: string;
-  price: number;
-  billing_cycle: string;
-  features: string[];
+  plan_code: string;
+  price_1_year: number;
+  price_3_year: number;
+  price_5_year: number;
+  price_10_year: number;
+  features: any;
   is_active: boolean;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }
 
 export interface Invoice {
   id: string;
-  user_id: string;
-  subscription_id: string;
-  amount: number;
+  customer_id: string;
+  billing_cycle_id: string;
+  total_amount: number;
   currency: string;
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   due_date: string;
+  invoice_date: string;
+  invoice_number: string;
+  payment_date?: string;
   created_at: string;
   updated_at: string;
 }
 
 export interface PaymentMethod {
   id: string;
-  user_id: string;
-  type: 'card' | 'bank' | 'wallet';
-  last_four?: string;
+  customer_id: string;
+  method_type: 'card' | 'bank' | 'wallet';
+  stripe_payment_method_id?: string;
+  card_last_four?: string;
+  card_brand?: string;
+  card_exp_month?: number;
+  card_exp_year?: number;
+  billing_address?: any;
   is_default: boolean;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
