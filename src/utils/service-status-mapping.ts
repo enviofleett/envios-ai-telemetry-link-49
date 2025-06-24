@@ -5,9 +5,9 @@ export const mapSubscriptionToActiveServiceStatus = (status: string): ActiveServ
   switch (status) {
     case 'active': return 'active';
     case 'suspended': return 'paused';
+    case 'paused': return 'paused';
     case 'cancelled': return 'expired';
     case 'expired': return 'expired';
-    case 'paused': return 'paused';
     default: return 'pending';
   }
 };
@@ -15,7 +15,7 @@ export const mapSubscriptionToActiveServiceStatus = (status: string): ActiveServ
 export const mapActiveServiceToSubscriptionStatus = (status: ActiveServiceStatus): SubscriptionStatus => {
   switch (status) {
     case 'active': return 'active';
-    case 'paused': return 'suspended';
+    case 'paused': return 'paused';
     case 'expired': return 'expired';
     case 'pending': return 'suspended';
     default: return 'active';

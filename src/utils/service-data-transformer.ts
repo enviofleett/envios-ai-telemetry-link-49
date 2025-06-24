@@ -42,16 +42,6 @@ export const calculateMonthlyFee = (subscription: DeviceSubscription, servicePla
     }
   }
 
-  // Override with custom pricing if set (commented out as these properties don't exist)
-  // if (subscription.price_override) {
-  //   monthlyFee = subscription.price_override;
-  // }
-
-  // Apply discount (commented out as these properties don't exist)
-  // if (subscription.discount_percentage > 0) {
-  //   monthlyFee = monthlyFee * (1 - subscription.discount_percentage / 100);
-  // }
-
   return monthlyFee;
 };
 
@@ -92,7 +82,7 @@ export const extractFeatures = (servicePlan: any): string[] => {
 };
 
 export const transformSubscriptionToActiveService = (
-  subscription: DeviceSubscription,
+  subscription: DeviceSubscription & { service_plan?: any },
   context: ServiceTransformationContext
 ): ActiveService => {
   const { vehicles, invoices } = context;
@@ -105,26 +95,22 @@ export const transformSubscriptionToActiveService = (
   const nextBillingDate = calculateNextBillingDate(subscription);
   const features = extractFeatures(servicePlan);
 
+  const vehicleData = subscriptionVehicles.map(v => ({
+    id: v.id,
+    plateNumber: v.device_name || v.device_id,
+    model: 'Unknown Model',
+    activatedDate: subscription.start_date,
+    status: subscription.subscription_status === 'active' ? 'active' as const : 'paused' as const
+  }));
+
   return {
     id: subscription.id,
     name: servicePlan?.plan_name || 'Unknown Service',
     serviceName: servicePlan?.plan_name || 'Unknown Service',
     serviceType,
     type: serviceType,
-    vehicle: subscriptionVehicles[0] ? {
-      id: subscriptionVehicles[0].id,
-      plateNumber: subscriptionVehicles[0].device_name || subscriptionVehicles[0].device_id,
-      model: 'Unknown Model',
-      activatedDate: subscription.start_date,
-      status: subscription.subscription_status === 'active' ? 'active' : 'paused'
-    } : undefined,
-    vehicles: subscriptionVehicles.map(v => ({
-      id: v.id,
-      plateNumber: v.device_name || v.device_id,
-      model: 'Unknown Model',
-      activatedDate: subscription.start_date,
-      status: subscription.subscription_status === 'active' ? 'active' : 'paused'
-    })),
+    vehicle: vehicleData[0],
+    vehicles: vehicleData,
     status: mapSubscriptionToActiveServiceStatus(subscription.subscription_status as any),
     activatedDate: subscription.start_date,
     expiryDate: subscription.end_date,

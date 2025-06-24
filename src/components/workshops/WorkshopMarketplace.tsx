@@ -13,7 +13,9 @@ const WorkshopMarketplace: React.FC = () => {
   const { workshops, connectToWorkshop, searchWorkshops, isConnecting, isLoading } = useWorkshops();
 
   const handleSearch = () => {
-    searchWorkshops(searchCity, searchCountry);
+    // Combine city and country into a single search query
+    const searchQuery = [searchCity, searchCountry].filter(Boolean).join(', ');
+    searchWorkshops(searchQuery);
   };
 
   return (

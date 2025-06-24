@@ -9,5 +9,5 @@ export interface ServiceTransformationContext {
   servicePlans: any[];
 }
 
-export type SubscriptionStatus = 'active' | 'suspended' | 'cancelled' | 'expired';
+export type SubscriptionStatus = 'active' | 'suspended' | 'cancelled' | 'expired' | 'paused';
 export type ActiveServiceStatus = ActiveService['status'];
