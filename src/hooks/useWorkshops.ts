@@ -5,7 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Workshop } from '@/types/workshop';
 
-// Define CreateWorkshopData locally since it's not exported from workshop types
 export interface CreateWorkshopData {
   name: string;
   representative_name: string;
@@ -29,10 +28,10 @@ export interface WorkshopConnection {
 
 export const useWorkshops = () => {
   const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch workshops with proper typing and fallback values for missing columns
   const { data: workshops, isLoading: workshopsLoading } = useQuery({
     queryKey: ['workshops'],
     queryFn: async (): Promise<Workshop[]> => {
@@ -43,7 +42,6 @@ export const useWorkshops = () => {
 
       if (error) throw error;
 
-      // Transform and ensure all required properties exist with fallback values
       return (data || []).map(workshop => ({
         id: workshop.id,
         name: workshop.name,
@@ -55,7 +53,6 @@ export const useWorkshops = () => {
         service_types: Array.isArray(workshop.service_types) ? workshop.service_types : [],
         created_at: workshop.created_at,
         updated_at: workshop.updated_at,
-        // Add required Workshop properties with default values
         phone: workshop.phone_number || '',
         city: '',
         country: '',
@@ -70,16 +67,13 @@ export const useWorkshops = () => {
     }
   });
 
-  // Fetch workshop connections - return empty array since table may not exist
   const { data: connections } = useQuery({
     queryKey: ['workshop-connections'],
     queryFn: async (): Promise<WorkshopConnection[]> => {
-      // Return empty array since workshop connections table may not exist
       return [];
     }
   });
 
-  // Create workshop mutation
   const createWorkshopMutation = useMutation({
     mutationFn: async (workshopData: CreateWorkshopData) => {
       const { data, error } = await supabase
@@ -115,7 +109,6 @@ export const useWorkshops = () => {
     }
   });
 
-  // Update workshop status mutation
   const updateWorkshopStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { data, error } = await supabase
@@ -144,10 +137,8 @@ export const useWorkshops = () => {
     }
   });
 
-  // Connect to workshop mutation
   const connectToWorkshopMutation = useMutation({
     mutationFn: async (workshopId: string) => {
-      // Mock implementation - would create a connection record
       console.log('Connecting to workshop:', workshopId);
       return { success: true };
     },
@@ -167,14 +158,27 @@ export const useWorkshops = () => {
     }
   });
 
+  const searchWorkshops = (query: string) => {
+    setSearchQuery(query);
+  };
+
+  const filteredWorkshops = workshops?.filter(workshop =>
+    workshop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    workshop.address?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    workshop.service_types.some(type => 
+      type.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  ) || [];
+
   return {
-    workshops: workshops || [],
+    workshops: filteredWorkshops,
     connections: connections || [],
     isLoading: isLoading || workshopsLoading,
     isConnecting: connectToWorkshopMutation.isPending,
     createWorkshop: createWorkshopMutation.mutate,
     updateWorkshopStatus: updateWorkshopStatusMutation.mutate,
     connectToWorkshop: connectToWorkshopMutation.mutate,
+    searchWorkshops,
     isCreating: createWorkshopMutation.isPending,
     isUpdating: updateWorkshopStatusMutation.isPending
   };

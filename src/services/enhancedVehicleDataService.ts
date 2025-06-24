@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface VehicleData {
   id: string;
-  name: string; // Add the missing 'name' property
+  name: string;
   device_id: string;
   device_name: string;
   user_id: string;
@@ -26,7 +26,18 @@ export interface EnhancedVehicleStats {
   averageUpdateFrequency: number;
 }
 
+export interface VehicleMetrics {
+  totalVehicles: number;
+  activeVehicles: number;
+  onlineVehicles: number;
+  offlineVehicles: number;
+  averageSpeed: number;
+  lastSyncTime: Date;
+}
+
 class EnhancedVehicleDataService {
+  private subscribers: Set<(data: VehicleData[]) => void> = new Set();
+
   async getVehicleData(): Promise<VehicleData[]> {
     try {
       const { data: vehicles, error } = await supabase
@@ -36,12 +47,11 @@ class EnhancedVehicleDataService {
 
       if (error) throw error;
 
-      // Transform the data to include the missing 'name' property and ensure type compatibility
       return (vehicles || []).map(vehicle => ({
         id: vehicle.id,
-        name: vehicle.device_name || vehicle.device_id || 'Unknown Vehicle', // Use device_name or device_id as name
-        device_id: vehicle.device_id,
-        device_name: vehicle.device_name,
+        name: vehicle.device_name || vehicle.gp51_device_id || 'Unknown Vehicle',
+        device_id: vehicle.gp51_device_id || '',
+        device_name: vehicle.device_name || '',
         user_id: vehicle.user_id,
         sim_number: vehicle.sim_number,
         created_at: vehicle.created_at,
@@ -57,6 +67,14 @@ class EnhancedVehicleDataService {
       console.error('Error fetching vehicle data:', error);
       return [];
     }
+  }
+
+  async getVehicles(): Promise<VehicleData[]> {
+    return this.getVehicleData();
+  }
+
+  async getEnhancedVehicles(): Promise<VehicleData[]> {
+    return this.getVehicleData();
   }
 
   async getEnhancedStats(): Promise<EnhancedVehicleStats> {
@@ -77,7 +95,7 @@ class EnhancedVehicleDataService {
         averageUpdateFrequency: vehicles.length > 0 ? 
           vehicles.reduce((sum, v) => {
             return sum + (now - new Date(v.updated_at).getTime());
-          }, 0) / vehicles.length / (1000 * 60) : 0 // Average minutes since last update
+          }, 0) / vehicles.length / (1000 * 60) : 0
       };
 
       return stats;
@@ -93,6 +111,27 @@ class EnhancedVehicleDataService {
     }
   }
 
+  async getMetrics(): Promise<VehicleMetrics> {
+    const vehicles = await this.getVehicleData();
+    const activeVehicles = vehicles.filter(v => v.is_active);
+    
+    return {
+      totalVehicles: vehicles.length,
+      activeVehicles: activeVehicles.length,
+      onlineVehicles: vehicles.filter(v => v.status === 'online').length,
+      offlineVehicles: vehicles.filter(v => v.status === 'offline').length,
+      averageSpeed: 0, // Mock value
+      lastSyncTime: new Date()
+    };
+  }
+
+  async getLastSyncMetrics(): Promise<{ lastSync: Date; syncStatus: string }> {
+    return {
+      lastSync: new Date(),
+      syncStatus: 'success'
+    };
+  }
+
   async getVehicleById(vehicleId: string): Promise<VehicleData | null> {
     try {
       const { data: vehicle, error } = await supabase
@@ -106,9 +145,9 @@ class EnhancedVehicleDataService {
 
       return {
         id: vehicle.id,
-        name: vehicle.device_name || vehicle.device_id || 'Unknown Vehicle',
-        device_id: vehicle.device_id,
-        device_name: vehicle.device_name,
+        name: vehicle.device_name || vehicle.gp51_device_id || 'Unknown Vehicle',
+        device_id: vehicle.gp51_device_id || '',
+        device_name: vehicle.device_name || '',
         user_id: vehicle.user_id,
         sim_number: vehicle.sim_number,
         created_at: vehicle.created_at,
@@ -124,6 +163,24 @@ class EnhancedVehicleDataService {
       console.error('Error fetching vehicle by ID:', error);
       return null;
     }
+  }
+
+  subscribe(callback: (data: VehicleData[]) => void): () => void {
+    this.subscribers.add(callback);
+    return () => {
+      this.subscribers.delete(callback);
+    };
+  }
+
+  async forceSync(): Promise<void> {
+    // Mock implementation - in real scenario would trigger sync
+    console.log('Force sync initiated');
+    const vehicles = await this.getVehicleData();
+    this.notifySubscribers(vehicles);
+  }
+
+  private notifySubscribers(data: VehicleData[]): void {
+    this.subscribers.forEach(callback => callback(data));
   }
 }
 

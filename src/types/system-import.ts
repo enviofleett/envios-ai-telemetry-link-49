@@ -1,41 +1,4 @@
 
-export interface SystemImportJob {
-  id: string;
-  import_type: string;
-  status: string;
-  current_phase?: string;
-  phase_details?: string;
-  progress_percentage?: number;
-  total_users?: number;
-  successful_users?: number;
-  total_devices?: number;
-  successful_devices?: number;
-  backup_tables?: any;
-  rollback_data?: any;
-  error_log?: any;
-  created_at: string;
-  updated_at: string;
-  completed_at?: string;
-}
-
-export interface SystemImportOptions {
-  importType: 'complete_system' | 'users_only' | 'vehicles_only' | 'selective';
-  performCleanup?: boolean;
-  preserveAdminEmail?: string;
-  batchSize?: number;
-  selectedUsernames?: string[];
-}
-
-export interface ImportProgress {
-  phase: string;
-  percentage: number;
-  message: string;
-  overallProgress?: number;
-  phaseProgress?: number;
-  currentOperation?: string;
-  details?: string;
-}
-
 export interface GP51ImportPreview {
   summary: {
     vehicles: number;
@@ -43,17 +6,8 @@ export interface GP51ImportPreview {
     groups: number;
   };
   sampleData: {
-    vehicles: Array<{
-      deviceId: string;
-      deviceName: string;
-      status: string;
-      lastActive?: string;
-    }>;
-    users: Array<{
-      username: string;
-      email?: string;
-      userType: number;
-    }>;
+    vehicles: any[];
+    users: any[];
   };
   conflicts: {
     existingUsers: string[];
@@ -72,7 +26,7 @@ export interface GP51ImportPreview {
 export interface GP51ImportOptions {
   importUsers: boolean;
   importDevices: boolean;
-  conflictResolution: 'skip' | 'update' | 'replace';
+  conflictResolution: 'skip' | 'overwrite' | 'merge';
   usernames?: string[];
   batchSize?: number;
 }
@@ -89,4 +43,23 @@ export interface GP51ImportResult {
   message: string;
   errors: string[];
   duration: number;
+}
+
+export interface SystemImportProgress {
+  phase: string;
+  phaseProgress: number;
+  overallProgress: number;
+  currentOperation: string;
+  details?: string;
+}
+
+export interface SystemImportResult {
+  importId: string;
+  success: boolean;
+  totalUsers: number;
+  successfulUsers: number;
+  totalVehicles: number;
+  successfulVehicles: number;
+  conflicts: number;
+  backupTables: string[];
 }
