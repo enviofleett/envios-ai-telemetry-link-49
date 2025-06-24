@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, MapPin, Car, DollarSign } from 'lucide-react';
-import { WorkshopAppointment } from '@/types/workshop-appointment';
+import { WorkshopAppointment } from '@/types/workshop';
 import { format } from 'date-fns';
 
 interface AppointmentCardProps {

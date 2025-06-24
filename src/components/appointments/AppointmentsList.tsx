@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, Plus, Filter } from 'lucide-react';
-import { WorkshopAppointment } from '@/types/workshop-appointment';
+import { WorkshopAppointment } from '@/types/workshop';
 import AppointmentCard from './AppointmentCard';
 import { useAppointments } from '@/hooks/useAppointments';
 

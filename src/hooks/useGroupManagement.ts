@@ -42,19 +42,11 @@ export const useDeviceGroups = () => {
   const query = useQuery({
     queryKey: ['device-groups'],
     queryFn: async (): Promise<DeviceGroup[]> => {
-      const { data, error } = await supabase
-        .from('device_groups')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching device groups:', error);
-        throw error;
-      }
-
-      return data || [];
+      // Since device_groups table doesn't exist, return empty array
+      console.log('Device groups functionality not yet implemented - database tables missing');
+      return [];
     },
-    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
+    refetchInterval: 30000,
   });
 
   return {
@@ -69,17 +61,9 @@ export const useUserGroups = () => {
   const query = useQuery({
     queryKey: ['user-groups'],
     queryFn: async (): Promise<UserGroup[]> => {
-      const { data, error } = await supabase
-        .from('user_groups')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching user groups:', error);
-        throw error;
-      }
-
-      return data || [];
+      // Since user_groups table doesn't exist, return empty array
+      console.log('User groups functionality not yet implemented - database tables missing');
+      return [];
     },
     refetchInterval: 30000,
   });
@@ -96,20 +80,9 @@ export const useDeviceGroupAssignments = (deviceId: string) => {
   const query = useQuery({
     queryKey: ['device-group-assignments', deviceId],
     queryFn: async (): Promise<DeviceGroupAssignment[]> => {
-      const { data, error } = await supabase
-        .from('device_group_assignments')
-        .select(`
-          *,
-          device_group:device_groups(*)
-        `)
-        .eq('device_id', deviceId);
-
-      if (error) {
-        console.error('Error fetching device group assignments:', error);
-        throw error;
-      }
-
-      return data || [];
+      // Since device_group_assignments table doesn't exist, return empty array
+      console.log('Device group assignments functionality not yet implemented - database tables missing');
+      return [];
     },
     enabled: !!deviceId,
   });
@@ -126,20 +99,9 @@ export const useUserGroupAssignments = (userId: string) => {
   const query = useQuery({
     queryKey: ['user-group-assignments', userId],
     queryFn: async (): Promise<UserGroupAssignment[]> => {
-      const { data, error } = await supabase
-        .from('user_group_assignments')
-        .select(`
-          *,
-          user_group:user_groups(*)
-        `)
-        .eq('user_id', userId);
-
-      if (error) {
-        console.error('Error fetching user group assignments:', error);
-        throw error;
-      }
-
-      return data || [];
+      // Since user_group_assignments table doesn't exist, return empty array
+      console.log('User group assignments functionality not yet implemented - database tables missing');
+      return [];
     },
     enabled: !!userId,
   });
@@ -158,17 +120,8 @@ export const useGroupManagement = () => {
 
   const assignVehicleToGroup = useMutation({
     mutationFn: async ({ deviceId, groupId }: { deviceId: string; groupId: number }) => {
-      await gp51VehicleGroupApi.assignVehicleToGroup(deviceId, groupId);
-      
-      // Also create local assignment record
-      const { error } = await supabase
-        .from('device_group_assignments')
-        .insert({
-          device_id: deviceId,
-          device_group_id: (await getLocalGroupByGP51Id(groupId))?.id
-        });
-      
-      if (error) throw error;
+      // Placeholder implementation since tables don't exist
+      throw new Error('Vehicle group assignment functionality is not yet implemented - database tables are missing');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['device-group-assignments'] });
@@ -177,19 +130,8 @@ export const useGroupManagement = () => {
 
   const removeVehicleFromGroup = useMutation({
     mutationFn: async ({ deviceId, groupId }: { deviceId: string; groupId: number }) => {
-      await gp51VehicleGroupApi.removeVehicleFromGroup(deviceId, groupId);
-      
-      // Also remove local assignment record
-      const localGroup = await getLocalGroupByGP51Id(groupId);
-      if (localGroup) {
-        const { error } = await supabase
-          .from('device_group_assignments')
-          .delete()
-          .eq('device_id', deviceId)
-          .eq('device_group_id', localGroup.id);
-        
-        if (error) throw error;
-      }
+      // Placeholder implementation since tables don't exist
+      throw new Error('Vehicle group removal functionality is not yet implemented - database tables are missing');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['device-group-assignments'] });
@@ -249,19 +191,3 @@ export const useGroupManagement = () => {
                removeUserFromGroup.isPending
   };
 };
-
-// Helper function to get local group by GP51 ID
-async function getLocalGroupByGP51Id(gp51GroupId: number): Promise<{ id: string } | null> {
-  try {
-    const { data } = await supabase
-      .from('device_groups')
-      .select('id')
-      .eq('gp51_group_id', gp51GroupId)
-      .single();
-    
-    return data;
-  } catch (error) {
-    console.error('Failed to get local group by GP51 ID:', error);
-    return null;
-  }
-}

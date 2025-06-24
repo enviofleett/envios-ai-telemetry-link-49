@@ -33,22 +33,27 @@ export interface WorkshopConnection {
   workshop?: Workshop;
 }
 
-// Simplified appointment types that don't rely on database tables
+// Unified WorkshopAppointment interface
 export interface WorkshopAppointment {
   id: string;
   workshop_id: string;
   user_id: string;
-  vehicle_id?: string;
-  appointment_type: string;
-  appointment_status: 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
+  vehicle_id: string; // Made required to match component expectations
+  appointment_type: 'maintenance' | 'inspection' | 'repair' | 'diagnostic' | 'consultation';
+  appointment_status: 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
   scheduled_date: string;
   duration_minutes: number;
   service_description?: string;
+  estimated_cost?: number;
+  actual_cost?: number;
   notes?: string;
-  cancellation_reason?: string;
   created_at: string;
   updated_at: string;
-  created_by: string;
+  created_by?: string;
+  confirmed_at?: string;
+  completed_at?: string;
+  cancelled_at?: string;
+  cancellation_reason?: string;
   workshops?: {
     name: string;
     phone: string;
@@ -70,10 +75,11 @@ export interface WorkshopAvailability {
 
 export interface CreateAppointmentData {
   workshop_id: string;
-  vehicle_id?: string;
-  appointment_type: string;
+  vehicle_id: string; // Made required
+  appointment_type: WorkshopAppointment['appointment_type'];
   scheduled_date: string;
-  duration_minutes: number;
+  duration_minutes: number; // Made required to match component usage
   service_description?: string;
+  estimated_cost?: number;
   notes?: string;
 }
