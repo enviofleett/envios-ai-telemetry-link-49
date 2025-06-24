@@ -1,458 +1,566 @@
 
-import { getSupabaseClient } from "./supabase_client.ts";
-import { createErrorResponse } from "./response_utils.ts";
-import { authenticateWithGP51 } from "../settings-management/gp51-auth.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
+import { jsonResponse, errorResponse } from './response_utils.ts';
+import { getGP51ApiUrl } from './constants.ts';
+import { md5_for_gp51_only } from './crypto_utils.ts';
 
+// Database interfaces
 export interface GP51Session {
   id: string;
   envio_user_id: string;
   username: string;
-  gp51_token: string;
+  gp51_token: string | any;
   token_expires_at: string;
+  api_url: string;
+  is_active: boolean;
   created_at: string;
+  last_activity_at: string;
   last_validated_at?: string;
-  auth_method?: string;
-  api_url?: string;
-}
-
-export interface SessionValidationResult {
-  session: GP51Session | null;
-  errorResponse: Response | null;
 }
 
 export interface GP51Credentials {
   username: string;
-  password_hash: string;
+  password: string;
   api_url?: string;
 }
 
-// Token validation and parsing utilities
-function parseGP51Token(tokenData: any): string | null {
-  console.log('🔍 [GP51SessionUtils] Parsing token data:', typeof tokenData);
-  
-  if (!tokenData) {
-    console.log('❌ [GP51SessionUtils] Token data is null or undefined');
-    return null;
-  }
-  
-  // If it's already a string, return it directly
-  if (typeof tokenData === 'string') {
-    console.log('✅ [GP51SessionUtils] Token is already a string');
-    return tokenData.trim();
-  }
-  
-  // If it's an object, try to parse it
-  if (typeof tokenData === 'object') {
-    console.log('🔄 [GP51SessionUtils] Token is an object, parsing...');
-    
-    // Check if it has a direct token property
-    if (tokenData.token && typeof tokenData.token === 'string') {
-      console.log('✅ [GP51SessionUtils] Found token property in object');
-      return tokenData.token.trim();
-    }
-    
-    // Check if status indicates success
-    if (tokenData.status !== undefined && tokenData.status !== 0) {
-      console.log('❌ [GP51SessionUtils] Token object has error status:', tokenData.status);
-      return null;
-    }
-    
-    // Try to stringify and parse if it looks like JSON
-    try {
-      const tokenStr = JSON.stringify(tokenData);
-      const parsed = JSON.parse(tokenStr);
-      if (parsed.token && typeof parsed.token === 'string') {
-        console.log('✅ [GP51SessionUtils] Extracted token from JSON object');
-        return parsed.token.trim();
-      }
-    } catch (error) {
-      console.log('⚠️ [GP51SessionUtils] Failed to parse token object as JSON:', error);
-    }
-  }
-  
-  console.log('❌ [GP51SessionUtils] Could not extract valid token from data');
-  return null;
+// Authentication result interface
+export interface GP51AuthResult {
+  success: boolean;
+  token?: string;
+  username?: string;
+  apiUrl?: string;
+  error?: string;
+  method?: string;
+  hashedPassword?: string;
 }
 
-function isValidTokenFormat(token: string): boolean {
-  if (!token || typeof token !== 'string') {
-    return false;
+// Create Supabase client for database operations
+function createSupabaseClient() {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    throw new Error('Missing Supabase environment variables');
   }
   
-  const trimmed = token.trim();
-  // GP51 tokens should be at least 8 characters and not contain obvious error indicators
-  return trimmed.length >= 8 && 
-         !trimmed.toLowerCase().includes('error') && 
-         !trimmed.toLowerCase().includes('fail') &&
-         !trimmed.toLowerCase().includes('null');
+  return createClient(supabaseUrl, supabaseServiceKey);
 }
 
-async function getStoredCredentials(userId: string): Promise<GP51Credentials | null> {
-  console.log('🔑 [GP51SessionUtils] Fetching stored credentials for user:', userId);
+/**
+ * Authenticates with GP51 API using provided credentials
+ */
+async function authenticateWithGP51(credentials: GP51Credentials): Promise<GP51AuthResult> {
+  const { username, password, apiUrl = 'https://www.gps51.com' } = credentials;
+  
+  console.log(`🔐 [GP51-AUTH] Starting GP51 credential validation for user: ${username}`);
   
   try {
-    const supabase = getSupabaseClient();
+    // Environment check
+    const globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+    console.log(`🌐 [GP51-AUTH] Environment check:`);
+    console.log(`  - Raw Base URL: ${apiUrl}`);
+    console.log(`  - Global token: ${globalToken ? 'SET (length: ' + globalToken.length + ')' : 'NOT SET'}`);
     
-    // Get credentials from gp51_secure_credentials table
-    const { data: credentials, error } = await supabase
-      .from('gp51_secure_credentials')
-      .select('username, credential_vault_id, api_url')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .order('updated_at', { ascending: false })
-      .limit(1);
-
-    if (error || !credentials || credentials.length === 0) {
-      console.log('❌ [GP51SessionUtils] No stored credentials found:', error?.message);
-      return null;
-    }
-
-    const credential = credentials[0];
+    // Generate MD5 hash for password
+    console.log(`🔄 [GP51-AUTH] Generating MD5 hash for password`);
+    const hashedPassword = await md5_for_gp51_only(password);
+    console.log(`🔐 [GP51-AUTH] Password hashed successfully`);
     
-    // Get password from vault
-    const { data: vaultData, error: vaultError } = await supabase
-      .from('vault.decrypted_secrets')
-      .select('decrypted_secret')
-      .eq('id', credential.credential_vault_id)
-      .single();
-
-    if (vaultError || !vaultData?.decrypted_secret) {
-      console.log('❌ [GP51SessionUtils] Failed to retrieve password from vault:', vaultError?.message);
-      return null;
+    // Construct the API URL with proper query parameters
+    const urlParams: Record<string, string> = {};
+    if (globalToken) {
+      urlParams.token = globalToken;
     }
-
-    console.log('✅ [GP51SessionUtils] Successfully retrieved stored credentials');
-    return {
-      username: credential.username,
-      password_hash: vaultData.decrypted_secret,
-      api_url: credential.api_url || 'https://www.gps51.com'
+    
+    const url = buildGP51ActionUrl(apiUrl, 'login', urlParams);
+    
+    console.log(`🔧 [URL] Final constructed URL: "${url}"`);
+    
+    // Prepare request body with credentials
+    const requestBody = {
+      username: username.trim(),
+      password: hashedPassword,
+      from: 'WEB',
+      type: 'USER'
     };
-  } catch (error) {
-    console.error('❌ [GP51SessionUtils] Error fetching stored credentials:', error);
-    return null;
-  }
-}
-
-async function performReAuthentication(userId: string): Promise<{ success: boolean; token?: string; error?: string }> {
-  console.log('🔄 [GP51SessionUtils] Starting re-authentication for user:', userId);
-  
-  try {
-    const credentials = await getStoredCredentials(userId);
-    if (!credentials) {
-      return { success: false, error: 'No stored credentials found for re-authentication' };
-    }
-
-    console.log('🔐 [GP51SessionUtils] Re-authenticating with GP51...');
-    const authResult = await authenticateWithGP51({
-      username: credentials.username,
-      password: credentials.password_hash,
-      apiUrl: credentials.api_url
+    
+    console.log(`🔄 [GP51-AUTH] Making HTTP POST request to GP51 API`);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/plain',
+        'User-Agent': 'FleetIQ/1.0'
+      },
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(15000)
     });
-
-    if (!authResult.success || !authResult.token) {
-      console.log('❌ [GP51SessionUtils] Re-authentication failed:', authResult.error);
-      return { success: false, error: authResult.error || 'Re-authentication failed' };
+    
+    console.log(`📊 [HTTP] GP51 Response received: Status ${response.status}`);
+    
+    const responseText = await response.text();
+    console.log(`📊 [HTTP] Response body length: ${responseText.length}`);
+    
+    if (!response.ok) {
+      throw new Error(`GP51 API Error: ${response.status} - ${responseText}`);
     }
-
-    console.log('✅ [GP51SessionUtils] Re-authentication successful');
-    return { success: true, token: authResult.token };
+    
+    if (!responseText || responseText.trim().length === 0) {
+      console.error(`❌ [GP51-AUTH] GP51 API returned empty response`);
+      throw new Error('GP51 authentication failed: Empty response received. Check credentials or API behavior.');
+    }
+    
+    // Try to parse as JSON first, fallback to treating as plain text token
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+      console.log(`📋 [GP51-AUTH] Parsed JSON response:`, responseData);
+      
+      if (responseData.status === 0 && responseData.token) {
+        console.log(`✅ [GP51-AUTH] Authentication successful via JSON response`);
+        return {
+          success: true,
+          token: responseData.token,
+          username,
+          apiUrl: getGP51ApiUrl(apiUrl),
+          method: 'POST_JSON',
+          hashedPassword
+        };
+      } else {
+        const errorMsg = responseData.cause || responseData.message || `Authentication failed with status ${responseData.status}`;
+        console.error(`❌ [GP51-AUTH] Authentication failed:`, errorMsg);
+        return {
+          success: false,
+          error: errorMsg
+        };
+      }
+    } catch (parseError) {
+      // Treat as plain text token
+      const token = responseText.trim();
+      if (token && token.length > 0 && !token.includes('error') && !token.includes('fail')) {
+        console.log(`✅ [GP51-AUTH] Authentication successful via plain text token`);
+        return {
+          success: true,
+          token,
+          username,
+          apiUrl: getGP51ApiUrl(apiUrl),
+          method: 'POST_TEXT',
+          hashedPassword
+        };
+      } else {
+        console.error(`❌ [GP51-AUTH] Invalid token response:`, token);
+        return {
+          success: false,
+          error: `Invalid authentication response: ${token}`
+        };
+      }
+    }
+    
   } catch (error) {
-    console.error('❌ [GP51SessionUtils] Re-authentication error:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Re-authentication failed' 
+    console.error(`❌ [GP51-AUTH] Authentication request failed:`, error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Network error during authentication'
     };
   }
 }
 
-async function refreshSessionWithNewToken(sessionId: string, newToken: string): Promise<boolean> {
-  console.log('🔄 [GP51SessionUtils] Updating session with new token:', sessionId);
+/**
+ * Builds a GP51 API URL with proper query parameters
+ */
+function buildGP51ActionUrl(baseUrl: string, action: string, params: Record<string, string> = {}): string {
+  const apiUrl = getGP51ApiUrl(baseUrl);
+  const url = new URL(apiUrl);
+  url.searchParams.set('action', action);
   
-  try {
-    const supabase = getSupabaseClient();
-    
-    const { error } = await supabase
-      .from('gp51_sessions')
-      .update({
-        gp51_token: newToken,
-        token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-        last_validated_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', sessionId);
-
-    if (error) {
-      console.error('❌ [GP51SessionUtils] Failed to update session:', error);
-      return false;
-    }
-
-    console.log('✅ [GP51SessionUtils] Session updated with new token');
-    return true;
-  } catch (error) {
-    console.error('❌ [GP51SessionUtils] Error updating session:', error);
-    return false;
-  }
+  Object.entries(params).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+  
+  return url.toString();
 }
 
-export async function getValidGp51Session(): Promise<SessionValidationResult> {
-  console.log('🔍 [GP51SessionUtils] Validating GP51 session...');
-  
+/**
+ * Enhanced function to get and validate GP51 session with automatic re-authentication
+ */
+export async function getValidGp51Session(): Promise<{
+  session: GP51Session | null;
+  errorResponse: Response | null;
+}> {
   try {
-    const supabase = getSupabaseClient();
-
+    console.log('🔍 [SESSION] Getting valid GP51 session...');
+    
+    const supabase = createSupabaseClient();
+    
     // Get the most recent active session
     const { data: sessions, error: sessionError } = await supabase
       .from('gp51_sessions')
       .select('*')
-      .order('created_at', { ascending: false })
+      .eq('is_active', true)
+      .order('last_activity_at', { ascending: false })
       .limit(1);
 
     if (sessionError) {
-      console.error('❌ [GP51SessionUtils] Database error:', sessionError);
+      console.error('❌ [SESSION] Database error:', sessionError);
       return {
         session: null,
-        errorResponse: createErrorResponse(
-          'Failed to retrieve GP51 session',
-          sessionError.message,
-          500
-        )
+        errorResponse: errorResponse('Failed to retrieve session data', 500)
       };
     }
 
     if (!sessions || sessions.length === 0) {
-      console.log('📝 [GP51SessionUtils] No GP51 sessions found');
+      console.log('⚠️ [SESSION] No active sessions found');
       return {
         session: null,
-        errorResponse: createErrorResponse(
-          'No GP51 configuration found',
-          'Please authenticate with GP51 first',
-          401
-        )
+        errorResponse: errorResponse('No active GP51 sessions found. Please authenticate first.', 401)
       };
     }
 
     const session = sessions[0] as GP51Session;
-    console.log('🔍 [GP51SessionUtils] Found session:', {
-      id: session.id,
-      username: session.username,
-      userId: session.envio_user_id,
-      expiresAt: session.token_expires_at
-    });
+    console.log(`🔍 [SESSION] Found session for user: ${session.username}`);
 
     // Parse and validate the token
-    const parsedToken = parseGP51Token(session.gp51_token);
-    if (!parsedToken || !isValidTokenFormat(parsedToken)) {
-      console.log('❌ [GP51SessionUtils] Invalid token format, attempting re-authentication');
+    const { isValid, parsedToken, error: tokenError } = parseAndValidateToken(session.gp51_token);
+    
+    if (!isValid || !parsedToken) {
+      console.error(`❌ [SESSION] Invalid token for session ${session.id}:`, tokenError);
       
       // Attempt re-authentication
-      const reAuthResult = await performReAuthentication(session.envio_user_id);
-      if (reAuthResult.success && reAuthResult.token) {
-        // Update session with new token
-        const updateSuccess = await refreshSessionWithNewToken(session.id, reAuthResult.token);
-        if (updateSuccess) {
-          // Return updated session
-          const updatedSession = {
-            ...session,
-            gp51_token: reAuthResult.token,
-            token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            last_validated_at: new Date().toISOString()
-          };
-          
-          console.log('✅ [GP51SessionUtils] Session refreshed with new token');
-          return { session: updatedSession, errorResponse: null };
-        }
+      const refreshResult = await attemptSessionRefresh(session);
+      if (refreshResult.success && refreshResult.session) {
+        return {
+          session: refreshResult.session,
+          errorResponse: null
+        };
       }
       
       return {
         session: null,
-        errorResponse: createErrorResponse(
-          'Invalid GP51 token',
-          reAuthResult.error || 'Token is invalid and re-authentication failed',
-          401
-        )
+        errorResponse: errorResponse(`Invalid session token: ${tokenError}`, 401)
       };
     }
 
-    // Check if session is expired
+    // Check if token is expired
     const now = new Date();
     const expiresAt = new Date(session.token_expires_at);
-    const timeUntilExpiry = expiresAt.getTime() - now.getTime();
     
     if (expiresAt <= now) {
-      console.log('⏰ [GP51SessionUtils] Session expired, attempting refresh');
+      console.log(`⏰ [SESSION] Token expired at ${expiresAt}, attempting refresh...`);
       
-      // Attempt re-authentication for expired session
-      const reAuthResult = await performReAuthentication(session.envio_user_id);
-      if (reAuthResult.success && reAuthResult.token) {
-        const updateSuccess = await refreshSessionWithNewToken(session.id, reAuthResult.token);
-        if (updateSuccess) {
-          const refreshedSession = {
-            ...session,
-            gp51_token: reAuthResult.token,
-            token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            last_validated_at: new Date().toISOString()
-          };
-          
-          console.log('✅ [GP51SessionUtils] Expired session refreshed');
-          return { session: refreshedSession, errorResponse: null };
-        }
+      const refreshResult = await attemptSessionRefresh(session);
+      if (refreshResult.success && refreshResult.session) {
+        return {
+          session: refreshResult.session,
+          errorResponse: null
+        };
       }
       
       return {
         session: null,
-        errorResponse: createErrorResponse(
-          'GP51 session expired',
-          reAuthResult.error || 'Session expired and refresh failed',
-          401
-        )
+        errorResponse: errorResponse('Session expired and refresh failed', 401)
       };
     }
 
-    // Check if session is near expiry (within 2 hours) and proactively refresh
-    const twoHoursInMs = 2 * 60 * 60 * 1000;
-    if (timeUntilExpiry <= twoHoursInMs) {
-      console.log('⚠️ [GP51SessionUtils] Session expires soon, proactively refreshing');
-      
-      // Attempt proactive refresh (non-blocking)
-      performReAuthentication(session.envio_user_id).then(reAuthResult => {
-        if (reAuthResult.success && reAuthResult.token) {
-          refreshSessionWithNewToken(session.id, reAuthResult.token);
-        }
-      }).catch(error => {
-        console.warn('⚠️ [GP51SessionUtils] Proactive refresh failed:', error);
-      });
-    }
-
-    // Validate required fields
-    if (!session.username || !session.envio_user_id) {
-      console.error('❌ [GP51SessionUtils] Invalid session data:', {
-        hasToken: !!parsedToken,
-        hasUsername: !!session.username,
-        hasUserId: !!session.envio_user_id
-      });
-      
-      return {
-        session: null,
-        errorResponse: createErrorResponse(
-          'Invalid GP51 session data',
-          'Session is missing required fields',
-          400
-        )
-      };
-    }
-
-    // Update last validated timestamp
-    updateSessionActivity(session.id);
-
-    const minutesUntilExpiry = Math.round(timeUntilExpiry / (1000 * 60));
-    console.log('✅ [GP51SessionUtils] Valid session found:', {
-      sessionId: session.id,
-      username: session.username,
-      userId: session.envio_user_id,
-      minutesUntilExpiry,
-      authMethod: session.auth_method || 'unknown'
-    });
-
-    // Update session with parsed token for consistency
+    // Update the parsed token in the session object for consistency
     const validSession = {
       ...session,
-      gp51_token: parsedToken
+      gp51_token: parsedToken,
+      last_validated_at: now.toISOString()
     };
 
+    // Update last validated timestamp in database
+    await supabase
+      .from('gp51_sessions')
+      .update({ last_validated_at: now.toISOString() })
+      .eq('id', session.id);
+
+    console.log(`✅ [SESSION] Session validated successfully for ${session.username}`);
+    
     return {
       session: validSession,
       errorResponse: null
     };
 
   } catch (error) {
-    console.error('❌ [GP51SessionUtils] Session validation failed:', error);
+    console.error('❌ [SESSION] Critical error in getValidGp51Session:', error);
     return {
       session: null,
-      errorResponse: createErrorResponse(
-        'Session validation failed',
-        error instanceof Error ? error.message : 'Unknown error',
+      errorResponse: errorResponse(
+        `Session validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         500
       )
     };
   }
 }
 
-export async function updateSessionActivity(sessionId: string): Promise<boolean> {
+/**
+ * Parses and validates GP51 token from various formats
+ */
+function parseAndValidateToken(tokenData: any): {
+  isValid: boolean;
+  parsedToken: string | null;
+  error: string | null;
+} {
   try {
-    const supabase = getSupabaseClient();
+    console.log('🔍 [TOKEN] Parsing token data:', typeof tokenData);
     
-    const { error } = await supabase
-      .from('gp51_sessions')
-      .update({
-        last_validated_at: new Date().toISOString()
-      })
-      .eq('id', sessionId);
-
-    if (error) {
-      console.error('❌ [GP51SessionUtils] Failed to update session activity:', error);
-      return false;
+    let token: string | null = null;
+    
+    // Handle different token formats
+    if (typeof tokenData === 'string') {
+      // Try to parse as JSON first
+      try {
+        const parsed = JSON.parse(tokenData);
+        if (parsed && typeof parsed === 'object') {
+          if (parsed.status === 0 && parsed.token) {
+            token = parsed.token;
+            console.log('✅ [TOKEN] Extracted token from JSON string');
+          } else {
+            return {
+              isValid: false,
+              parsedToken: null,
+              error: `Invalid JSON token: status=${parsed.status}, has token=${!!parsed.token}`
+            };
+          }
+        } else {
+          // Treat as direct token string
+          token = tokenData.trim();
+          console.log('✅ [TOKEN] Using direct token string');
+        }
+      } catch {
+        // Not JSON, treat as direct token
+        token = tokenData.trim();
+        console.log('✅ [TOKEN] Using non-JSON token string');
+      }
+    } else if (typeof tokenData === 'object' && tokenData !== null) {
+      // Direct object
+      if (tokenData.status === 0 && tokenData.token) {
+        token = tokenData.token;
+        console.log('✅ [TOKEN] Extracted token from object');
+      } else {
+        return {
+          isValid: false,
+          parsedToken: null,
+          error: `Invalid token object: status=${tokenData.status}, has token=${!!tokenData.token}`
+        };
+      }
+    } else {
+      return {
+        isValid: false,
+        parsedToken: null,
+        error: `Invalid token type: ${typeof tokenData}`
+      };
     }
-
-    return true;
+    
+    // Validate the extracted token
+    if (!token || token.length === 0) {
+      return {
+        isValid: false,
+        parsedToken: null,
+        error: 'Token is empty or null'
+      };
+    }
+    
+    // Basic token format validation
+    if (token.length < 10) {
+      return {
+        isValid: false,
+        parsedToken: null,
+        error: `Token too short: ${token.length} characters`
+      };
+    }
+    
+    // Check for obvious error patterns
+    if (token.toLowerCase().includes('error') || 
+        token.toLowerCase().includes('fail') ||
+        token.toLowerCase().includes('invalid')) {
+      return {
+        isValid: false,
+        parsedToken: null,
+        error: `Token contains error indication: ${token.substring(0, 50)}`
+      };
+    }
+    
+    console.log(`✅ [TOKEN] Token validation successful, length: ${token.length}`);
+    
+    return {
+      isValid: true,
+      parsedToken: token,
+      error: null
+    };
+    
   } catch (error) {
-    console.error('❌ [GP51SessionUtils] Error updating session activity:', error);
-    return false;
+    console.error('❌ [TOKEN] Token parsing failed:', error);
+    return {
+      isValid: false,
+      parsedToken: null,
+      error: `Token parsing error: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
   }
 }
 
-// Health monitoring function
-export async function monitorSessionHealth(): Promise<{
-  totalSessions: number;
-  validSessions: number;
-  expiredSessions: number;
-  invalidTokens: number;
+/**
+ * Attempts to refresh a session by re-authenticating with stored credentials
+ */
+async function attemptSessionRefresh(session: GP51Session): Promise<{
+  success: boolean;
+  session?: GP51Session;
+  error?: string;
 }> {
-  console.log('🔍 [GP51SessionUtils] Monitoring session health...');
-  
   try {
-    const supabase = getSupabaseClient();
+    console.log(`🔄 [REFRESH] Attempting to refresh session for ${session.username}`);
     
-    const { data: sessions, error } = await supabase
-      .from('gp51_sessions')
-      .select('id, gp51_token, token_expires_at');
+    const supabase = createSupabaseClient();
+    
+    // Get stored credentials for this user
+    const { data: credentials, error: credError } = await supabase
+      .from('gp51_secure_credentials')
+      .select(`
+        username,
+        api_url,
+        credential_vault_id
+      `)
+      .eq('user_id', session.envio_user_id)
+      .eq('username', session.username)
+      .eq('is_active', true)
+      .single();
 
-    if (error || !sessions) {
-      console.error('❌ [GP51SessionUtils] Failed to fetch sessions for health check:', error);
-      return { totalSessions: 0, validSessions: 0, expiredSessions: 0, invalidTokens: 0 };
+    if (credError || !credentials) {
+      console.error('❌ [REFRESH] No stored credentials found:', credError);
+      return {
+        success: false,
+        error: 'No stored credentials available for re-authentication'
+      };
     }
 
+    // Get password from vault
+    const { data: vaultData, error: vaultError } = await supabase
+      .from('vault.decrypted_secrets')
+      .select('decrypted_secret')
+      .eq('id', credentials.credential_vault_id)
+      .single();
+
+    if (vaultError || !vaultData) {
+      console.error('❌ [REFRESH] Failed to retrieve password from vault:', vaultError);
+      return {
+        success: false,
+        error: 'Failed to retrieve stored password'
+      };
+    }
+
+    // Attempt re-authentication
+    const authResult = await authenticateWithGP51({
+      username: credentials.username,
+      password: vaultData.decrypted_secret,
+      apiUrl: credentials.api_url
+    });
+
+    if (!authResult.success || !authResult.token) {
+      console.error('❌ [REFRESH] Re-authentication failed:', authResult.error);
+      return {
+        success: false,
+        error: authResult.error || 'Re-authentication failed'
+      };
+    }
+
+    // Update session with new token
     const now = new Date();
+    const expiresAt = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
+
+    const { data: updatedSession, error: updateError } = await supabase
+      .from('gp51_sessions')
+      .update({
+        gp51_token: authResult.token,
+        token_expires_at: expiresAt.toISOString(),
+        last_activity_at: now.toISOString(),
+        last_validated_at: now.toISOString()
+      })
+      .eq('id', session.id)
+      .select()
+      .single();
+
+    if (updateError || !updatedSession) {
+      console.error('❌ [REFRESH] Failed to update session:', updateError);
+      return {
+        success: false,
+        error: 'Failed to update session with new token'
+      };
+    }
+
+    console.log(`✅ [REFRESH] Session refreshed successfully for ${session.username}`);
+    
+    return {
+      success: true,
+      session: updatedSession as GP51Session
+    };
+
+  } catch (error) {
+    console.error('❌ [REFRESH] Session refresh failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown refresh error'
+    };
+  }
+}
+
+/**
+ * Monitors session health and provides recommendations
+ */
+export async function monitorSessionHealth(): Promise<any> {
+  try {
+    console.log('📊 [HEALTH] Monitoring GP51 session health...');
+    
+    const supabase = createSupabaseClient();
+    
+    // Get all sessions
+    const { data: sessions, error: sessionError } = await supabase
+      .from('gp51_sessions')
+      .select('*')
+      .eq('is_active', true);
+
+    if (sessionError) {
+      console.error('❌ [HEALTH] Failed to fetch sessions:', sessionError);
+      throw new Error('Failed to fetch session data');
+    }
+
+    const totalSessions = sessions?.length || 0;
     let validSessions = 0;
     let expiredSessions = 0;
     let invalidTokens = 0;
 
-    for (const session of sessions) {
-      const parsedToken = parseGP51Token(session.gp51_token);
-      
-      if (!parsedToken || !isValidTokenFormat(parsedToken)) {
-        invalidTokens++;
-        continue;
-      }
+    const now = new Date();
 
-      const expiresAt = new Date(session.token_expires_at);
-      if (expiresAt <= now) {
-        expiredSessions++;
-      } else {
-        validSessions++;
+    if (sessions) {
+      for (const session of sessions) {
+        const { isValid } = parseAndValidateToken(session.gp51_token);
+        const expiresAt = new Date(session.token_expires_at);
+        
+        if (!isValid) {
+          invalidTokens++;
+        } else if (expiresAt <= now) {
+          expiredSessions++;
+        } else {
+          validSessions++;
+        }
       }
     }
 
     const healthReport = {
-      totalSessions: sessions.length,
+      totalSessions,
       validSessions,
       expiredSessions,
-      invalidTokens
+      invalidTokens,
+      lastChecked: now.toISOString()
     };
 
-    console.log('📊 [GP51SessionUtils] Session health report:', healthReport);
+    console.log('✅ [HEALTH] Session health check completed:', healthReport);
+    
     return healthReport;
+
   } catch (error) {
-    console.error('❌ [GP51SessionUtils] Session health monitoring failed:', error);
-    return { totalSessions: 0, validSessions: 0, expiredSessions: 0, invalidTokens: 0 };
+    console.error('❌ [HEALTH] Session health monitoring failed:', error);
+    throw error;
   }
 }
