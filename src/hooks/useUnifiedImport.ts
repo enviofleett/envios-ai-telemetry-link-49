@@ -10,19 +10,54 @@ export const useUnifiedImport = () => {
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importJob, setImportJob] = useState<UnifiedImportJob | null>(null);
+  const [operationProgress, setOperationProgress] = useState<{
+    isActive: boolean;
+    currentOperation?: string;
+    progress?: number;
+    estimatedTime?: string;
+  }>({ isActive: false });
   const { toast } = useToast();
 
   const fetchPreview = useCallback(async () => {
     setIsLoadingPreview(true);
     setPreview(null);
+    setOperationProgress({
+      isActive: true,
+      currentOperation: 'Connecting to GP51 API...',
+      progress: 10,
+      estimatedTime: '2-5 minutes for large datasets'
+    });
 
     try {
-      console.log('🔍 Fetching enhanced GP51 preview...');
+      console.log('🔍 Fetching enhanced GP51 preview with extended timeout...');
+      
+      // Update progress
+      setOperationProgress(prev => ({
+        ...prev,
+        currentOperation: 'Querying GP51 device tree...',
+        progress: 30
+      }));
       
       const previewResult = await unifiedImportService.getEnhancedPreview();
       
+      // Update progress
+      setOperationProgress(prev => ({
+        ...prev,
+        currentOperation: 'Processing response data...',
+        progress: 80
+      }));
+      
       if (previewResult.success) {
         setPreview(previewResult);
+        setOperationProgress({
+          isActive: true,
+          currentOperation: 'Preview completed successfully',
+          progress: 100
+        });
+        
+        // Clear progress after a short delay
+        setTimeout(() => setOperationProgress({ isActive: false }), 2000);
+        
         toast({
           title: "Preview Generated Successfully",
           description: `Found ${previewResult.data.summary.users} users and ${previewResult.data.summary.vehicles} vehicles available for import.`
@@ -30,20 +65,34 @@ export const useUnifiedImport = () => {
       } else {
         console.error('❌ Preview failed:', previewResult.connectionStatus.error);
         setPreview(previewResult); // Still set it to show the error state
+        setOperationProgress({ isActive: false });
+        
+        const isTimeoutError = previewResult.connectionStatus.error?.includes('timeout');
+        
         toast({
-          title: "Preview Generation Failed",
-          description: previewResult.connectionStatus.error || "Unable to fetch preview data from GP51",
-          variant: "destructive"
+          title: isTimeoutError ? "Large Dataset Processing" : "Preview Generation Failed",
+          description: isTimeoutError 
+            ? "GP51 has a large dataset (3000+ vehicles). Processing may take several minutes. Please try again shortly."
+            : previewResult.connectionStatus.error || "Unable to fetch preview data from GP51",
+          variant: isTimeoutError ? "default" : "destructive",
+          duration: isTimeoutError ? 8000 : 5000
         });
       }
     } catch (error) {
       console.error('❌ Preview fetch exception:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
+      setOperationProgress({ isActive: false });
+      
+      const isTimeout = errorMessage.includes('timeout');
+      
       toast({
-        title: "Preview Error",
-        description: errorMessage,
-        variant: "destructive"
+        title: isTimeout ? "Large Dataset Timeout" : "Preview Error",
+        description: isTimeout 
+          ? "Large dataset processing is taking longer than expected. This is normal for 3000+ vehicles. Please try again in a few minutes."
+          : errorMessage,
+        variant: isTimeout ? "default" : "destructive",
+        duration: isTimeout ? 10000 : 5000
       });
 
       // Set error state
@@ -55,7 +104,7 @@ export const useUnifiedImport = () => {
           conflicts: { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
           authentication: { connected: false, error: errorMessage },
           estimatedDuration: '0 minutes',
-          warnings: ['Failed to connect to preview service']
+          warnings: [isTimeout ? 'Large dataset timeout - processing may take several minutes' : 'Failed to connect to preview service']
         },
         connectionStatus: { connected: false, error: errorMessage },
         timestamp: new Date().toISOString()
@@ -178,6 +227,7 @@ export const useUnifiedImport = () => {
     isImporting,
     importJob,
     currentJob: importJob, // Add alias for compatibility
+    operationProgress, // Add progress tracking
     fetchPreview,
     startImport,
     validateConnection,
