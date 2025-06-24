@@ -1,6 +1,5 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { gp51ImportService } from './gp51/gp51ImportService';
 import type { GP51ImportPreview, GP51ImportOptions, GP51ImportResult } from '@/types/system-import';
 
 export interface UnifiedImportPreview {
@@ -40,39 +39,53 @@ class UnifiedImportService {
    */
   async getEnhancedPreview(): Promise<UnifiedImportPreview> {
     try {
-      console.log('🔍 Starting enhanced GP51 preview...');
+      console.log('🔍 Starting enhanced GP51 preview via edge function...');
 
-      // First test authentication
-      const authStatus = await gp51ImportService.testAuthentication();
-      
-      if (!authStatus.connected) {
+      const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
+        body: { action: 'fetch_available_data' }
+      });
+
+      if (error) {
+        console.error('❌ Enhanced preview edge function error:', error);
+        throw new Error(`Preview service error: ${error.message}`);
+      }
+
+      if (!data.success) {
+        console.error('❌ GP51 enhanced preview failed:', data.error);
         return {
           success: false,
           data: {
             summary: { vehicles: 0, users: 0, groups: 0 },
             sampleData: { vehicles: [], users: [] },
             conflicts: { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
-            authentication: authStatus,
+            authentication: { connected: false, error: data.error },
             estimatedDuration: '0 minutes',
-            warnings: ['GP51 authentication failed']
+            warnings: [data.error || 'Preview failed']
           },
-          connectionStatus: authStatus,
+          connectionStatus: { connected: false, error: data.error },
           timestamp: new Date().toISOString()
         };
       }
 
-      // Get comprehensive preview data
-      const previewData = await gp51ImportService.getImportPreview();
-      
+      // Transform the response to match our interface
+      const transformedPreview: GP51ImportPreview = {
+        summary: data.summary || { vehicles: 0, users: 0, groups: 0 },
+        sampleData: data.sampleData || { vehicles: [], users: [] },
+        conflicts: data.conflicts || { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
+        authentication: data.authentication || { connected: true },
+        estimatedDuration: this.estimateImportDuration(data.summary?.vehicles || 0, data.summary?.users || 0),
+        warnings: data.warnings || []
+      };
+
       return {
         success: true,
-        data: previewData,
-        connectionStatus: authStatus,
+        data: transformedPreview,
+        connectionStatus: data.authentication || { connected: true },
         timestamp: new Date().toISOString()
       };
 
     } catch (error) {
-      console.error('❌ Enhanced preview failed:', error);
+      console.error('❌ Enhanced preview exception:', error);
       return {
         success: false,
         data: {
@@ -94,7 +107,7 @@ class UnifiedImportService {
    */
   async startUnifiedImport(options: GP51ImportOptions): Promise<UnifiedImportJob> {
     try {
-      console.log('🚀 Starting unified GP51 import...');
+      console.log('🚀 Starting unified GP51 import via edge function...');
 
       const jobId = `import_${Date.now()}`;
       
@@ -108,26 +121,54 @@ class UnifiedImportService {
         errors: []
       };
 
-      // Start the actual import
-      const importResult = await gp51ImportService.startImport(options);
+      // Start the actual import via edge function
+      const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
+        body: { 
+          action: 'start_import',
+          options: {
+            importUsers: options.importUsers,
+            importDevices: options.importDevices,
+            conflictResolution: options.conflictResolution,
+            usernames: options.usernames,
+            batchSize: options.batchSize || 50
+          }
+        }
+      });
 
-      if (importResult.success) {
+      if (error) {
+        console.error('❌ Import edge function error:', error);
+        throw new Error(`Import service error: ${error.message}`);
+      }
+
+      if (data.success) {
         job.status = 'completed';
         job.progress = 100;
         job.currentPhase = 'Completed';
         job.completedAt = new Date().toISOString();
-        job.results = importResult;
+        job.results = {
+          success: true,
+          statistics: data.statistics || {
+            usersProcessed: 0,
+            usersImported: 0,
+            devicesProcessed: 0,
+            devicesImported: 0,
+            conflicts: 0
+          },
+          message: data.message || 'Import completed successfully',
+          errors: data.errors || [],
+          duration: data.duration || 0
+        };
       } else {
         job.status = 'failed';
         job.currentPhase = 'Failed';
         job.completedAt = new Date().toISOString();
-        job.errors = importResult.errors || ['Import failed'];
+        job.errors = data.errors || [data.message || 'Import failed'];
       }
 
       return job;
 
     } catch (error) {
-      console.error('❌ Unified import failed:', error);
+      console.error('❌ Unified import exception:', error);
       return {
         id: `import_${Date.now()}`,
         status: 'failed',
@@ -151,54 +192,101 @@ class UnifiedImportService {
   }> {
     try {
       const startTime = Date.now();
-      const authStatus = await gp51ImportService.testAuthentication();
+      
+      // Test connection by attempting to get a preview
+      const preview = await this.getEnhancedPreview();
       const endTime = Date.now();
 
       const issues: string[] = [];
       const recommendations: string[] = [];
 
-      if (!authStatus.connected) {
+      if (!preview.connectionStatus.connected) {
         issues.push('GP51 authentication failed');
         recommendations.push('Check GP51 credentials in admin settings');
       }
 
       const latency = endTime - startTime;
-      if (latency > 5000) {
+      if (latency > 10000) {
         issues.push('High latency detected');
         recommendations.push('Check network connection to GP51 servers');
       }
 
       return {
-        healthy: authStatus.connected && issues.length === 0,
+        healthy: preview.connectionStatus.connected && issues.length === 0,
         latency,
         issues,
-        recommendations
+        recommendations: issues.length > 0 ? recommendations : ['Connection is healthy']
       };
 
     } catch (error) {
       return {
         healthy: false,
         issues: ['Connection validation failed'],
-        recommendations: ['Check GP51 service availability']
+        recommendations: ['Check GP51 service availability and network connection']
       };
     }
   }
 
+  private estimateImportDuration(vehicles: number, users: number): string {
+    const totalItems = vehicles + users;
+    const itemsPerMinute = 100; // Conservative estimate
+    const minutes = Math.ceil(totalItems / itemsPerMinute);
+    
+    if (minutes < 1) return '< 1 minute';
+    if (minutes === 1) return '1 minute';
+    if (minutes < 60) return `${minutes} minutes`;
+    
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    
+    if (hours === 1 && remainingMinutes === 0) return '1 hour';
+    if (remainingMinutes === 0) return `${hours} hours`;
+    
+    return `${hours}h ${remainingMinutes}m`;
+  }
+
   /**
-   * Get import job status
+   * Get import job status from database
    */
   async getJobStatus(jobId: string): Promise<UnifiedImportJob | null> {
-    // In a real implementation, this would query the database
-    // For now, return mock data
-    return {
-      id: jobId,
-      status: 'completed',
-      progress: 100,
-      currentPhase: 'Completed',
-      startedAt: new Date(Date.now() - 60000).toISOString(),
-      completedAt: new Date().toISOString(),
-      errors: []
-    };
+    try {
+      const { data, error } = await supabase
+        .from('gp51_system_imports')
+        .select('*')
+        .eq('id', jobId)
+        .single();
+
+      if (error || !data) {
+        console.error('Failed to fetch job status:', error);
+        return null;
+      }
+
+      return {
+        id: data.id,
+        status: data.status as 'pending' | 'running' | 'completed' | 'failed',
+        progress: data.progress_percentage || 0,
+        currentPhase: data.current_phase || 'Unknown',
+        startedAt: data.created_at,
+        completedAt: data.completed_at || undefined,
+        results: data.import_results ? {
+          success: data.status === 'completed',
+          statistics: data.import_results.statistics || {
+            usersProcessed: data.total_users || 0,
+            usersImported: data.successful_users || 0,
+            devicesProcessed: data.total_devices || 0,
+            devicesImported: data.successful_devices || 0,
+            conflicts: 0
+          },
+          message: data.import_results.message || '',
+          errors: Array.isArray(data.error_log) ? data.error_log.map((e: any) => e.error || e) : [],
+          duration: 0
+        } : undefined,
+        errors: Array.isArray(data.error_log) ? data.error_log.map((e: any) => e.error || e) : []
+      };
+    } catch (error) {
+      console.error('Exception fetching job status:', error);
+      return null;
+    }
   }
 }
 
