@@ -18,12 +18,41 @@ export const SessionSecurityIndicator: React.FC = () => {
   const checkSessionHealth = async () => {
     setIsChecking(true);
     try {
+      // Get current session health
       const health = enhancedGP51SessionManager.getSessionHealth();
-      setSessionHealth(health);
+      
+      // If we have a current session, also validate it
+      const session = enhancedGP51SessionManager.getCurrentSession();
+      if (session) {
+        const validation = await enhancedGP51SessionManager.validateCurrentSession();
+        setSessionHealth({
+          isHealthy: validation.isValid,
+          riskLevel: validation.riskLevel,
+          lastValidated: session.lastValidated,
+          issues: validation.reasons
+        });
+      } else {
+        setSessionHealth(health);
+      }
     } catch (error) {
       console.error('Failed to check session health:', error);
+      setSessionHealth({
+        isHealthy: false,
+        riskLevel: 'high',
+        lastValidated: null,
+        issues: ['Health check failed']
+      });
     } finally {
       setIsChecking(false);
+    }
+  };
+
+  const handleInvalidateSession = async () => {
+    try {
+      await enhancedGP51SessionManager.invalidateSession();
+      await checkSessionHealth(); // Refresh health status
+    } catch (error) {
+      console.error('Failed to invalidate session:', error);
     }
   };
 
@@ -144,7 +173,7 @@ export const SessionSecurityIndicator: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => enhancedGP51SessionManager.invalidateSession()}
+              onClick={handleInvalidateSession}
               className="w-full"
             >
               <Shield className="h-4 w-4 mr-2" />
