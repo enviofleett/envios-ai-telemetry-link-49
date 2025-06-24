@@ -4,36 +4,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Shield, AlertTriangle, CheckCircle, RefreshCw } from 'lucide-react';
-import { enhancedGP51SessionManager } from '@/services/security/enhancedGP51SessionManager';
+import { enhancedGP51SessionManager, SessionHealth } from '@/services/security/enhancedGP51SessionManager';
 
 export const SessionSecurityIndicator: React.FC = () => {
-  const [sessionHealth, setSessionHealth] = useState<{
-    isHealthy: boolean;
-    riskLevel: 'low' | 'medium' | 'high';
-    lastValidated: Date | null;
-    issues: string[];
-  } | null>(null);
+  const [sessionHealth, setSessionHealth] = useState<SessionHealth | null>(null);
   const [isChecking, setIsChecking] = useState(false);
 
   const checkSessionHealth = async () => {
     setIsChecking(true);
     try {
-      // Get current session health
-      const health = enhancedGP51SessionManager.getSessionHealth();
-      
-      // If we have a current session, also validate it
-      const session = enhancedGP51SessionManager.getCurrentSession();
-      if (session) {
-        const validation = await enhancedGP51SessionManager.validateCurrentSession();
-        setSessionHealth({
-          isHealthy: validation.isValid,
-          riskLevel: validation.riskLevel,
-          lastValidated: session.lastValidated,
-          issues: validation.reasons
-        });
-      } else {
-        setSessionHealth(health);
-      }
+      const health = await enhancedGP51SessionManager.getSessionHealth();
+      setSessionHealth(health);
     } catch (error) {
       console.error('Failed to check session health:', error);
       setSessionHealth({

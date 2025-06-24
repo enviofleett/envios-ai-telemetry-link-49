@@ -152,7 +152,7 @@ export class EnhancedGP51SessionManager {
     return this.currentSession;
   }
 
-  getSessionHealth(): SessionHealth {
+  async getSessionHealth(): Promise<SessionHealth> {
     if (!this.currentSession) {
       return {
         isHealthy: false,
@@ -162,13 +162,13 @@ export class EnhancedGP51SessionManager {
       };
     }
 
-    const validation = this.validateCurrentSession();
+    const validation = await this.validateCurrentSession();
     
     return {
-      isHealthy: validation.then ? false : validation.isValid, // Handle async case
-      riskLevel: this.currentSession.riskLevel,
+      isHealthy: validation.isValid,
+      riskLevel: validation.riskLevel,
       lastValidated: this.currentSession.lastValidated,
-      issues: validation.then ? ['Validation in progress'] : validation.reasons
+      issues: validation.reasons
     };
   }
 
