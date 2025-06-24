@@ -98,6 +98,10 @@ export class EnhancedGP51SessionManager {
     }
   }
 
+  getCurrentSession(): SecureGP51Session | null {
+    return this.currentSession;
+  }
+
   async validateCurrentSession(): Promise<SessionValidationResult> {
     if (!this.currentSession) {
       return {
@@ -146,10 +150,6 @@ export class EnhancedGP51SessionManager {
       reasons,
       actionRequired
     };
-  }
-
-  getCurrentSession(): SecureGP51Session | null {
-    return this.currentSession;
   }
 
   async getSessionHealth(): Promise<SessionHealth> {
