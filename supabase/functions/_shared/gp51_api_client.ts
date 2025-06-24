@@ -29,16 +29,19 @@ export async function fetchFromGP51(
   }
   
   try {
-    console.log(`📡 Using unified client for action: ${action}`);
+    console.log(`📡 [GP51-CLIENT] Using unified client for action: ${action}`);
     
     let result;
     
     // Use specific methods for known actions, fallback to generic for others
     switch (action) {
       case 'querymonitorlist':
+      case 'getmonitorlist': // Legacy support
+        console.log('🔄 [GP51-CLIENT] Using queryMonitorList method');
         result = await gp51ApiClient.queryMonitorList(session.gp51_token, session.username);
         break;
       case 'lastposition':
+        console.log('🔄 [GP51-CLIENT] Using getLastPosition method');
         // Handle device IDs from additionalParams
         const deviceIds = additionalParams.deviceids ? 
           (Array.isArray(additionalParams.deviceids) ? additionalParams.deviceids : [additionalParams.deviceids]) :
@@ -50,6 +53,7 @@ export async function fetchFromGP51(
         );
         break;
       default:
+        console.log(`🔄 [GP51-CLIENT] Using generic callAction for: ${action}`);
         // For other actions, prepare parameters with token
         const parameters: Record<string, any> = {
           token: session.gp51_token,
@@ -60,10 +64,11 @@ export async function fetchFromGP51(
         break;
     }
 
+    console.log(`✅ [GP51-CLIENT] Successfully fetched data for action: ${action}`);
     return { data: result, status: 200 };
     
   } catch (error) {
-    console.error(`❌ Unified client error for ${action}:`, error);
+    console.error(`❌ [GP51-CLIENT] Unified client error for ${action}:`, error);
     
     const errorMessage = error instanceof Error ? error.message : `${action} failed`;
     
@@ -77,6 +82,11 @@ export async function fetchFromGP51(
       const statusMatch = errorMessage.match(/HTTP error: (\d+)/);
       const status = statusMatch ? parseInt(statusMatch[1]) : 502;
       return { error: errorMessage, status };
+    }
+    
+    // Check if it's a token validation error
+    if (errorMessage.includes('Token') || errorMessage.includes('token')) {
+      return { error: `Token validation failed: ${errorMessage}`, status: 401 };
     }
     
     return { 
