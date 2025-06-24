@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { DataIntegrityReport, DataIntegrityIssue, ConsistencyCheck } from '@/types/dataIntegrity';
 
@@ -24,6 +23,10 @@ export interface SyncOperation {
   conflicts: SyncConflict[];
   startedAt?: string;
   completedAt?: string;
+  totalItems?: number;
+  progress?: number;
+  failedItems?: number;
+  type?: 'initial_sync' | 'daily_update' | 'manual_sync' | 'full_sync';
 }
 
 export class GP51DataSyncManager {
