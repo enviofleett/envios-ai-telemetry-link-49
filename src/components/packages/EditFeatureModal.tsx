@@ -61,10 +61,14 @@ const EditFeatureModal: React.FC<EditFeatureModalProps> = ({
 
     setIsLoading(true);
     try {
-      await subscriberPackageApi.updateFeature({
+      // Ensure required fields are present
+      const updateData = {
         id: feature.id,
-        ...data,
-      });
+        feature_name: data.feature_name, // This is required
+        description: data.description,
+      };
+
+      await subscriberPackageApi.updateFeature(updateData);
 
       toast({
         title: "Success",
