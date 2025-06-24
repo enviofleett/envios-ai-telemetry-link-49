@@ -1,178 +1,296 @@
 
-import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
-import { getValidGp51Session, monitorSessionHealth } from "../_shared/gp51_session_utils.ts";
-import { jsonResponse, errorResponse } from "../_shared/response_utils.ts";
-import { fetchFromGP51 } from "../_shared/gp51_api_client.ts";
-import { handleCorsOptionsRequest } from "../_shared/cors.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { corsHeaders } from '../_shared/cors.ts';
+import { getValidGp51Session } from '../_shared/gp51_session_utils.ts';
+import { gp51ApiClient } from '../_shared/gp51_api_client_unified.ts';
+import { createSuccessResponse, createErrorResponse, calculateLatency } from '../_shared/response_utils.ts';
+
+// Standardized interfaces for GP51 responses
+interface GP51ImportPreview {
+  summary: {
+    vehicles: number;
+    users: number;
+    groups: number;
+  };
+  sampleData: {
+    vehicles: any[];
+    users: any[];
+  };
+  conflicts: {
+    existingUsers: string[];
+    existingDevices: string[];
+    potentialDuplicates: number;
+  };
+  authentication: {
+    connected: boolean;
+    username?: string;
+    error?: string;
+  };
+  estimatedDuration: string;
+  warnings: string[];
+}
+
+interface GP51ImportResult {
+  success: boolean;
+  statistics: {
+    usersProcessed: number;
+    usersImported: number;
+    devicesProcessed: number;
+    devicesImported: number;
+    conflicts: number;
+  };
+  message: string;
+  errors: string[];
+  duration: number;
+}
 
 serve(async (req) => {
-  const corsResponse = handleCorsOptionsRequest(req);
-  if (corsResponse) {
-    return corsResponse;
+  const startTime = Date.now();
+
+  // Handle CORS preflight requests
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { action } = await req.json();
-    console.log(`🔄 [enhanced-bulk-import] Processing action: ${action}`);
+    console.log('🚀 [enhanced-bulk-import] Starting request processing...');
 
-    // Handle session health monitoring
-    if (action === 'monitor_session_health') {
-      console.log('📊 [enhanced-bulk-import] Monitoring session health...');
-      const healthReport = await monitorSessionHealth();
-      return jsonResponse({
-        success: true,
-        health: healthReport,
-        recommendations: generateHealthRecommendations(healthReport)
-      });
+    // Parse request body with error handling
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error('❌ [enhanced-bulk-import] Failed to parse request body:', parseError);
+      return createErrorResponse(
+        'Invalid request body',
+        'Request body must be valid JSON',
+        400,
+        calculateLatency(startTime)
+      );
     }
 
-    // Get and validate GP51 session with automatic re-authentication
-    const { session, errorResponse: sessionError } = await getValidGp51Session();
-    if (sessionError) {
-      console.error("❌ [enhanced-bulk-import] Session validation failed");
-      return sessionError;
+    const { action, options } = body;
+    console.log(`🔄 [enhanced-bulk-import] Processing action: ${action}`);
+
+    // Get valid GP51 session
+    const { session, errorResponse } = await getValidGp51Session();
+    if (errorResponse) {
+      console.error('❌ [enhanced-bulk-import] Session validation failed');
+      return errorResponse;
     }
 
     if (!session) {
-      return errorResponse("No valid GP51 session found", 401);
+      console.error('❌ [enhanced-bulk-import] No valid session found');
+      return createErrorResponse(
+        'No valid GP51 session found',
+        'Please configure GP51 credentials',
+        401,
+        calculateLatency(startTime)
+      );
     }
 
     console.log(`✅ [enhanced-bulk-import] Using valid session for user: ${session.username}`);
 
     switch (action) {
-      case 'fetch_available_data':
-        return await handleFetchAvailableData(session);
+      case 'get_import_preview':
+        return await handleGetImportPreview(session, startTime);
       
       case 'start_import':
-        return await handleStartImport(session);
-      
-      case 'get_import_status':
-        return await handleGetImportStatus();
+        return await handleStartImport(session, options || {}, startTime);
       
       default:
-        return errorResponse(`Unknown action: ${action}`, 400);
+        console.warn(`❌ [enhanced-bulk-import] Unknown action: ${action}`);
+        return createErrorResponse(
+          `Unknown action: ${action}`,
+          'Supported actions: get_import_preview, start_import',
+          400,
+          calculateLatency(startTime)
+        );
     }
 
   } catch (error) {
-    console.error("❌ [enhanced-bulk-import] Critical error:", error);
-    return errorResponse(
-      `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      500
+    console.error('❌ [enhanced-bulk-import] Unexpected error:', error);
+    return createErrorResponse(
+      'Internal server error',
+      error instanceof Error ? error.message : 'Unknown error occurred',
+      500,
+      calculateLatency(startTime)
     );
   }
 });
 
-function generateHealthRecommendations(health: any): string[] {
-  const recommendations: string[] = [];
-  
-  if (health.invalidTokens > 0) {
-    recommendations.push(`${health.invalidTokens} sessions have invalid tokens and need re-authentication`);
-  }
-  
-  if (health.expiredSessions > 0) {
-    recommendations.push(`${health.expiredSessions} sessions are expired and will be automatically refreshed`);
-  }
-  
-  if (health.validSessions === 0 && health.totalSessions > 0) {
-    recommendations.push('No valid sessions found. Please check GP51 credentials and re-authenticate');
-  }
-  
-  if (health.totalSessions === 0) {
-    recommendations.push('No GP51 sessions configured. Please authenticate with GP51 first');
-  }
-  
-  if (recommendations.length === 0) {
-    recommendations.push('All sessions are healthy');
-  }
-  
-  return recommendations;
-}
-
-async function handleFetchAvailableData(session: any) {
-  console.log('🔄 [enhanced-bulk-import] Fetching available data from GP51...');
-  
+async function handleGetImportPreview(session: any, startTime: number): Promise<Response> {
   try {
-    // Fetch device/monitor list using the corrected API
-    const deviceListResult = await fetchFromGP51({
-      action: "querymonitorlist",
-      session: session,
-      additionalParams: {
-        username: session.username,
-      },
-    });
+    console.log('🔄 [enhanced-bulk-import] Fetching available data from GP51...');
 
-    if (deviceListResult.error) {
-      console.error("❌ [enhanced-bulk-import] Failed to fetch device list:", deviceListResult);
-      return errorResponse(
-        `GP51 API error: ${deviceListResult.error}`,
-        deviceListResult.status || 400
-      );
+    // Fetch device/vehicle data from GP51
+    const devicesResponse = await gp51ApiClient.queryMonitorList(session.gp51_token, session.username);
+    
+    if (devicesResponse.status !== 0) {
+      console.error('❌ [enhanced-bulk-import] Failed to fetch device data:', devicesResponse.cause);
+      
+      const failedPreview: GP51ImportPreview = {
+        summary: { vehicles: 0, users: 0, groups: 0 },
+        sampleData: { vehicles: [], users: [] },
+        conflicts: { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
+        authentication: { 
+          connected: false, 
+          error: devicesResponse.cause || 'Failed to connect to GP51' 
+        },
+        estimatedDuration: '0 minutes',
+        warnings: ['Failed to fetch data from GP51', devicesResponse.cause || 'Unknown error'].filter(Boolean)
+      };
+
+      return createSuccessResponse({
+        success: false,
+        error: devicesResponse.cause || 'Failed to fetch GP51 data',
+        ...failedPreview
+      }, calculateLatency(startTime));
     }
 
     console.log('✅ [enhanced-bulk-import] Successfully fetched device data');
-    
-    // Process and structure the response data
-    const deviceData = deviceListResult.data;
-    const devices = deviceData?.groups?.flatMap((g: any) => g.devices || []) || [];
-    
-    // Calculate import preview statistics
-    const importPreview = {
-      totalDevices: devices.length,
-      totalGroups: deviceData?.groups?.length || 0,
-      devicesByGroup: deviceData?.groups?.map((g: any) => ({
-        groupName: g.groupname || 'Unknown Group',
-        deviceCount: g.devices?.length || 0,
-        devices: g.devices?.map((d: any) => ({
-          deviceId: d.deviceid,
-          deviceName: d.devicename || d.deviceid,
-          lastUpdate: d.lastupdate
-        })) || []
-      })) || [],
-      estimatedImportTime: Math.ceil(devices.length / 10), // Rough estimate: 10 devices per minute
-      lastFetched: new Date().toISOString()
-    };
 
-    return jsonResponse({
-      success: true,
-      preview: importPreview,
-      rawData: deviceData,
-      session: {
-        username: session.username,
-        expiresAt: session.token_expires_at,
-        lastValidated: session.last_validated_at
+    // Parse and validate the response
+    const devices = Array.isArray(devicesResponse.records) ? devicesResponse.records : [];
+    const groups = Array.isArray(devicesResponse.groups) ? devicesResponse.groups : [];
+    
+    console.log(`📊 [enhanced-bulk-import] Found ${devices.length} devices and ${groups.length} groups`);
+
+    // Extract unique users from device data
+    const uniqueUsers = new Set();
+    devices.forEach((device: any) => {
+      if (device.creater) {
+        uniqueUsers.add(device.creater);
       }
     });
 
+    // Create sample data (first 5 items for preview)
+    const sampleVehicles = devices.slice(0, 5).map((device: any) => ({
+      deviceId: device.deviceid || device.id || 'unknown',
+      deviceName: device.devicename || device.name || 'Unnamed Device',
+      creator: device.creater || 'unknown',
+      lastActive: device.lastactivetime ? new Date(device.lastactivetime * 1000).toISOString() : null,
+      status: device.isfree ? 'inactive' : 'active'
+    }));
+
+    const sampleUsers = Array.from(uniqueUsers).slice(0, 5).map(username => ({
+      username,
+      hasDevices: true
+    }));
+
+    // Estimate import duration
+    const totalItems = devices.length + uniqueUsers.size;
+    const estimatedMinutes = Math.ceil(totalItems / 100); // Conservative estimate: 100 items per minute
+    const estimatedDuration = estimatedMinutes < 1 ? '< 1 minute' : 
+                            estimatedMinutes === 1 ? '1 minute' : 
+                            estimatedMinutes < 60 ? `${estimatedMinutes} minutes` : 
+                            `${Math.floor(estimatedMinutes / 60)}h ${estimatedMinutes % 60}m`;
+
+    // Build successful preview response
+    const successfulPreview: GP51ImportPreview = {
+      summary: {
+        vehicles: devices.length,
+        users: uniqueUsers.size,
+        groups: groups.length
+      },
+      sampleData: {
+        vehicles: sampleVehicles,
+        users: sampleUsers
+      },
+      conflicts: {
+        existingUsers: [], // Would need database check to populate
+        existingDevices: [], // Would need database check to populate
+        potentialDuplicates: 0
+      },
+      authentication: {
+        connected: true,
+        username: session.username
+      },
+      estimatedDuration,
+      warnings: devices.length === 0 ? ['No vehicles found in GP51 account'] : []
+    };
+
+    console.log('✅ [enhanced-bulk-import] Preview generated successfully');
+
+    return createSuccessResponse({
+      success: true,
+      data: successfulPreview,
+      connectionStatus: { connected: true, username: session.username },
+      timestamp: new Date().toISOString()
+    }, calculateLatency(startTime));
+
   } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Error fetching available data:', error);
-    return errorResponse(
-      `Failed to fetch available data: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      500
-    );
+    console.error('❌ [enhanced-bulk-import] Preview generation failed:', error);
+    
+    const errorPreview: GP51ImportPreview = {
+      summary: { vehicles: 0, users: 0, groups: 0 },
+      sampleData: { vehicles: [], users: [] },
+      conflicts: { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
+      authentication: { 
+        connected: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      },
+      estimatedDuration: '0 minutes',
+      warnings: ['Failed to generate preview', error instanceof Error ? error.message : 'Unknown error']
+    };
+
+    return createSuccessResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Preview generation failed',
+      data: errorPreview,
+      connectionStatus: { connected: false, error: error instanceof Error ? error.message : 'Unknown error' },
+      timestamp: new Date().toISOString()
+    }, calculateLatency(startTime));
   }
 }
 
-async function handleStartImport(session: any) {
-  console.log('🔄 [enhanced-bulk-import] Starting bulk import process...');
-  
-  // This would implement the actual import logic
-  // For now, return a placeholder response
-  return jsonResponse({
-    success: true,
-    message: 'Import process started',
-    importId: crypto.randomUUID(),
-    status: 'in_progress'
-  });
-}
+async function handleStartImport(session: any, options: any, startTime: number): Promise<Response> {
+  try {
+    console.log('🚀 [enhanced-bulk-import] Starting import process...');
+    console.log('📋 [enhanced-bulk-import] Import options:', options);
 
-async function handleGetImportStatus() {
-  console.log('📊 [enhanced-bulk-import] Getting import status...');
-  
-  // This would check the status of ongoing imports
-  // For now, return a placeholder response
-  return jsonResponse({
-    success: true,
-    imports: [],
-    activeImports: 0
-  });
+    // For now, return a placeholder response since full import logic would be complex
+    const importResult: GP51ImportResult = {
+      success: true,
+      statistics: {
+        usersProcessed: 0,
+        usersImported: 0,
+        devicesProcessed: 0,
+        devicesImported: 0,
+        conflicts: 0
+      },
+      message: 'Import functionality is being rebuilt',
+      errors: [],
+      duration: calculateLatency(startTime)
+    };
+
+    console.log('✅ [enhanced-bulk-import] Import placeholder completed');
+
+    return createSuccessResponse({
+      success: true,
+      ...importResult
+    }, calculateLatency(startTime));
+
+  } catch (error) {
+    console.error('❌ [enhanced-bulk-import] Import failed:', error);
+    
+    const failedImportResult: GP51ImportResult = {
+      success: false,
+      statistics: {
+        usersProcessed: 0,
+        usersImported: 0,
+        devicesProcessed: 0,
+        devicesImported: 0,
+        conflicts: 0
+      },
+      message: error instanceof Error ? error.message : 'Import failed',
+      errors: [error instanceof Error ? error.message : 'Unknown error'],
+      duration: calculateLatency(startTime)
+    };
+
+    return createSuccessResponse({
+      success: false,
+      ...failedImportResult
+    }, calculateLatency(startTime));
+  }
 }
