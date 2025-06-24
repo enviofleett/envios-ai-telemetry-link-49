@@ -1,427 +1,331 @@
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUnifiedImport } from '@/hooks/useUnifiedImport';
-import { Download, Upload, Users, Car, AlertCircle, CheckCircle, Clock, RefreshCw } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Loader2, Database, Users, Car, Clock } from 'lucide-react';
 import type { GP51ImportOptions } from '@/types/system-import';
 
 const GP51ImportManager: React.FC = () => {
-  const [importOptions, setImportOptions] = useState<GP51ImportOptions>({
-    importUsers: true,
-    importDevices: true,
-    conflictResolution: 'overwrite',
-    batchSize: 50
-  });
-  
-  const [usernames, setUsernames] = useState('');
-  const { 
-    preview, 
-    isLoadingPreview, 
-    isImporting, 
+  const {
+    preview,
+    isLoadingPreview,
+    isImporting,
     importJob,
-    fetchPreview, 
-    startImport, 
-    validateConnection 
+    fetchPreview,
+    startImport,
+    validateConnection,
+    clearPreview,
+    clearJob
   } = useUnifiedImport();
 
-  const handleImportOptionsChange = (key: keyof GP51ImportOptions, value: any) => {
-    setImportOptions(prev => ({
-      ...prev,
-      [key]: value
-    }));
-  };
-
   const handleStartImport = async () => {
-    const selectedOptions = {
-      importUsers: importOptions.importUsers,
-      importDevices: importOptions.importDevices,
-      conflictResolution: importOptions.conflictResolution,
-      selectedUsernames: usernames ? usernames.split('\n').map(u => u.trim()).filter(Boolean) : undefined
-    };
+    if (!preview?.success) {
+      return;
+    }
 
-    const options: GP51ImportOptions = {
-      importUsers: selectedOptions.importUsers,
-      importDevices: selectedOptions.importDevices,
-      conflictResolution: selectedOptions.conflictResolution,
-      usernames: selectedOptions.selectedUsernames,
+    const importOptions: GP51ImportOptions = {
+      importUsers: true,
+      importDevices: true,
+      conflictResolution: 'skip',
       batchSize: 50
     };
 
-    await startImport(options);
+    await startImport(importOptions);
   };
 
-  const getConnectionStatusBadge = () => {
-    if (!preview) return null;
-    
-    if (preview.connectionStatus.connected) {
-      return (
-        <Badge className="bg-green-100 text-green-800">
-          <CheckCircle className="h-3 w-3 mr-1" />
-          Connected
-        </Badge>
-      );
-    } else {
-      return (
-        <Badge variant="destructive">
-          <AlertCircle className="h-3 w-3 mr-1" />
-          Disconnected
-        </Badge>
-      );
+  const handleValidateConnection = async () => {
+    await validateConnection();
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return <CheckCircle className="h-5 w-5 text-green-600" />;
+      case 'failed':
+        return <XCircle className="h-5 w-5 text-red-600" />;
+      case 'running':
+        return <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />;
+      default:
+        return <Clock className="h-5 w-5 text-gray-600" />;
     }
   };
 
-  const getImportStatusBadge = () => {
-    if (!importJob) return null;
-    
-    switch (importJob.status) {
-      case 'running':
-        return (
-          <Badge className="bg-blue-100 text-blue-800">
-            <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-            Running
-          </Badge>
-        );
+  const getStatusColor = (status: string) => {
+    switch (status) {
       case 'completed':
-        return (
-          <Badge className="bg-green-100 text-green-800">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Completed
-          </Badge>
-        );
+        return 'bg-green-50 text-green-700 border-green-200';
       case 'failed':
-        return (
-          <Badge variant="destructive">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            Failed
-          </Badge>
-        );
+        return 'bg-red-50 text-red-700 border-red-200';
+      case 'running':
+        return 'bg-blue-50 text-blue-700 border-blue-200';
       default:
-        return (
-          <Badge variant="outline">
-            <Clock className="h-3 w-3 mr-1" />
-            Pending
-          </Badge>
-        );
+        return 'bg-gray-50 text-gray-700 border-gray-200';
     }
   };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">GP51 Import Manager</h2>
+          <p className="text-gray-600">Import and synchronize data from GP51 platform</p>
+        </div>
+        <Button onClick={handleValidateConnection} variant="outline">
+          <Database className="h-4 w-4 mr-2" />
+          Test Connection
+        </Button>
+      </div>
+
+      {/* Connection Status */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            GP51 Data Import
-            {getConnectionStatusBadge()}
+            <Database className="h-5 w-5" />
+            Connection Status
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Connection Status */}
-          {preview && !preview.success && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <strong>Connection Error:</strong> {preview.connectionStatus.error}
-                <div className="mt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={validateConnection}
-                    className="flex items-center gap-2"
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                    Test Connection
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Import Options */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Import Options</h3>
-              
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="importUsers"
-                    checked={importOptions.importUsers}
-                    onCheckedChange={(checked) => handleImportOptionsChange('importUsers', checked)}
-                  />
-                  <Label htmlFor="importUsers" className="flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Import Users
-                  </Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="importDevices"
-                    checked={importOptions.importDevices}
-                    onCheckedChange={(checked) => handleImportOptionsChange('importDevices', checked)}
-                  />
-                  <Label htmlFor="importDevices" className="flex items-center gap-2">
-                    <Car className="h-4 w-4" />
-                    Import Devices
-                  </Label>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="conflictResolution">Conflict Resolution</Label>
-                <Select 
-                  value={importOptions.conflictResolution} 
-                  onValueChange={(value: 'skip' | 'overwrite' | 'merge') => 
-                    handleImportOptionsChange('conflictResolution', value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="skip">Skip existing records</SelectItem>
-                    <SelectItem value="overwrite">Overwrite existing records</SelectItem>
-                    <SelectItem value="merge">Merge data where possible</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="batchSize">Batch Size</Label>
-                <Input
-                  id="batchSize"
-                  type="number"
-                  min="10"
-                  max="100"
-                  value={importOptions.batchSize || 50}
-                  onChange={(e) => handleImportOptionsChange('batchSize', Number(e.target.value))}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Specific Users (Optional)</h3>
-              <div className="space-y-2">
-                <Label htmlFor="usernames">GP51 Usernames</Label>
-                <textarea
-                  id="usernames"
-                  className="w-full min-h-[120px] p-3 border rounded-md"
-                  placeholder="Enter usernames, one per line"
-                  value={usernames}
-                  onChange={(e) => setUsernames(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Leave empty to import all users, or specify usernames to import only those users
+        <CardContent>
+          {preview && preview.success ? (
+            <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <div>
+                <h4 className="font-medium text-green-800">Connected</h4>
+                <p className="text-sm text-green-700">
+                  GP51 connection is healthy and ready for import
                 </p>
               </div>
             </div>
-          </div>
+          ) : preview && !preview.success ? (
+            <div className="flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-lg">
+              <XCircle className="h-5 w-5 text-red-600" />
+              <div>
+                <h4 className="font-medium text-red-800">Connection Failed</h4>
+                <p className="text-sm text-red-700">
+                  {preview.connectionStatus.error || 'Unable to connect to GP51'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+              <Database className="h-5 w-5 text-gray-600" />
+              <div>
+                <h4 className="font-medium text-gray-800">Not Connected</h4>
+                <p className="text-sm text-gray-700">
+                  Click "Generate Preview" to test the connection
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4 border-t">
-            <Button
-              onClick={fetchPreview}
+      {/* Preview Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Import Preview
+          </CardTitle>
+          <CardDescription>
+            Preview the data that will be imported from GP51
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {preview && preview.success && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{preview.data.summary.users}</div>
+                <div className="text-sm text-gray-600">Users</div>
+              </div>
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{preview.data.summary.vehicles}</div>
+                <div className="text-sm text-gray-600">Vehicles</div>
+              </div>
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <div className="text-2xl font-bold text-purple-600">{preview.data.summary.groups}</div>
+                <div className="text-sm text-gray-600">Groups</div>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <Button 
+              onClick={fetchPreview} 
               disabled={isLoadingPreview}
               variant="outline"
-              className="flex items-center gap-2"
             >
               {isLoadingPreview ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating Preview...
+                </>
               ) : (
-                <Download className="h-4 w-4" />
+                'Generate Preview'
               )}
-              {isLoadingPreview ? 'Loading Preview...' : 'Fetch Available Data'}
             </Button>
             
-            <Button
-              onClick={handleStartImport}
+            {preview && (
+              <Button 
+                onClick={clearPreview}
+                variant="ghost"
+                size="sm"
+              >
+                Clear Preview
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Import Controls */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Car className="h-5 w-5" />
+            Import Control
+          </CardTitle>
+          <CardDescription>
+            Start the import process to synchronize GP51 data
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleStartImport} 
               disabled={isImporting || !preview?.success}
-              className="flex items-center gap-2"
+              className="bg-blue-600 hover:bg-blue-700"
             >
               {isImporting ? (
-                <RefreshCw className="h-4 w-4 animate-spin" />
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Importing...
+                </>
               ) : (
-                <Upload className="h-4 w-4" />
+                'Start Import'
               )}
-              {isImporting ? 'Importing...' : 'Start Import'}
             </Button>
-
-            <Button
-              onClick={validateConnection}
-              variant="ghost"
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className="h-4 w-4" />
-              Test Connection
-            </Button>
+            
+            {importJob && (
+              <Button 
+                onClick={clearJob}
+                variant="ghost"
+                size="sm"
+              >
+                Clear Job
+              </Button>
+            )}
           </div>
 
-          {/* Preview Data */}
-          {preview && preview.success && (
-            <Card className="bg-muted/50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  Import Preview
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-blue-600" />
-                    <span>Users: <strong>{preview.data.summary.users}</strong></span>
+          {!preview?.success && (
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Please generate a successful preview before starting the import process.
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Import Progress */}
+      {importJob && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {getStatusIcon(importJob.status)}
+              Import Progress
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Overall Progress</span>
+              <Badge className={getStatusColor(importJob.status)}>
+                {importJob.status}
+              </Badge>
+            </div>
+            
+            <Progress value={importJob.progress} className="w-full" />
+            
+            <div className="text-sm text-gray-600">
+              <p>Current Phase: {importJob.currentPhase}</p>
+              <p>Started: {new Date(importJob.startedAt).toLocaleString()}</p>
+              {importJob.completedAt && (
+                <p>Completed: {new Date(importJob.completedAt).toLocaleString()}</p>
+              )}
+            </div>
+
+            {/* Results Summary */}
+            {importJob.results && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div className="p-3 bg-blue-50 rounded-lg">
+                  <div className="text-lg font-semibold text-blue-600">
+                    {importJob.results.statistics.usersImported} / {importJob.results.statistics.usersImported}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Car className="h-4 w-4 text-green-600" />
-                    <span>Vehicles: <strong>{preview.data.summary.vehicles}</strong></span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-orange-600" />
-                    <span>Duration: <strong>{preview.data.estimatedDuration}</strong></span>
-                  </div>
+                  <div className="text-sm text-gray-600">Users Imported</div>
                 </div>
                 
-                {preview.data.warnings.length > 0 && (
-                  <Alert className="mt-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>Warnings:</strong>
-                      <ul className="list-disc list-inside mt-1">
-                        {preview.data.warnings.map((warning, index) => (
-                          <li key={index}>{warning}</li>
-                        ))}
-                      </ul>
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Import Progress */}
-          {importJob && (
-            <Card className="bg-muted/50">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  {getImportStatusBadge()}
-                  Import Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span>Current Phase: {importJob.currentPhase}</span>
-                    <span>{importJob.progress}%</span>
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <div className="text-lg font-semibold text-green-600">
+                    {importJob.results.statistics.devicesImported} / {importJob.results.statistics.devicesImported}
                   </div>
-                  <Progress value={importJob.progress} className="h-2" />
+                  <div className="text-sm text-gray-600">Devices Imported</div>
                 </div>
+              </div>
+            )}
 
-                {importJob.results && (
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-600">Users Imported:</span>
-                      <span className="ml-2 font-medium">
-                        {importJob.results.statistics.usersImported}/{importJob.results.statistics.usersProcessed}
-                      </span>
+            {/* Error Display */}
+            {importJob.errors && importJob.errors.length > 0 && (
+              <div className="mt-4">
+                <h4 className="font-medium text-red-600 mb-2">Errors Encountered:</h4>
+                <div className="space-y-1">
+                  {importJob.errors.map((error, index) => (
+                    <div key={index} className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                      {error}
                     </div>
-                    <div>
-                      <span className="text-gray-600">Devices Imported:</span>
-                      <span className="ml-2 font-medium">
-                        {importJob.results.statistics.devicesImported}/{importJob.results.statistics.devicesProcessed}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {importJob.errors.length > 0 && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      <strong>Errors:</strong>
-                      <ul className="list-disc list-inside mt-1">
-                        {importJob.errors.map((error, index) => (
-                          <li key={index}>{error}</li>
-                        ))}
-                      </ul>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <div className="text-xs text-gray-500">
-                  Started: {new Date(importJob.startedAt).toLocaleString()}
-                  {importJob.completedAt && (
-                    <span className="ml-4">
-                      Completed: {new Date(importJob.completedAt).toLocaleString()}
-                    </span>
-                  )}
+                  ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-          {/* Import Results */}
-          {currentJob?.results && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  Import Results
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center p-4 bg-blue-50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {currentJob.results.statistics.usersImported}
-                    </div>
-                    <div className="text-sm text-gray-600">Users Imported</div>
-                  </div>
-                  
-                  <div className="text-center p-4 bg-green-50 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">
-                      {currentJob.results.statistics.devicesImported}
-                    </div>
-                    <div className="text-sm text-gray-600">Devices Imported</div>
-                  </div>
-                  
-                  <div className="text-center p-4 bg-purple-50 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {currentJob.results.statistics.groupsImported || 0}
-                    </div>
-                    <div className="text-sm text-gray-600">Groups Imported</div>
-                  </div>
-                  
-                  <div className="text-center p-4 bg-red-50 rounded-lg">
-                    <div className="text-2xl font-bold text-red-600">
-                      {currentJob.results.statistics.errorsEncountered}
-                    </div>
-                    <div className="text-sm text-gray-600">Errors</div>
+      {/* Import History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Import Jobs</CardTitle>
+          <CardDescription>
+            View the status and results of recent import operations
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {importJob ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 border rounded-lg">
+                <div className="flex items-center gap-3">
+                  {getStatusIcon(importJob.status)}
+                  <div>
+                    <div className="font-medium">Import Job {importJob.id.slice(0, 8)}</div>
+                    <div className="text-sm text-gray-600">{importJob.currentPhase}</div>
                   </div>
                 </div>
-
-                {currentJob.results.errors && currentJob.results.errors.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="font-medium text-red-600 mb-2">Import Errors:</h4>
-                    <div className="bg-red-50 p-3 rounded-md">
-                      <ul className="list-disc list-inside text-sm text-red-700">
-                        {currentJob.results.errors.map((error, index) => (
-                          <li key={index}>{error}</li>
-                        ))}
-                      </ul>
-                    </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium">{importJob.progress}%</div>
+                  <div className="text-xs text-gray-500">
+                    {importJob.completedAt ? 'Completed' : 'In Progress'}
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              No import jobs found. Start an import to see the history.
+            </div>
           )}
         </CardContent>
       </Card>
