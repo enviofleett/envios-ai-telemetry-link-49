@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GP51ErrorReport {
@@ -6,7 +5,7 @@ export interface GP51ErrorReport {
   message: string;
   details?: any;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  timestamp: Date;
+  timestamp?: Date; // Made optional since it's added automatically
   username?: string;
   endpoint?: string;
   stackTrace?: string;
@@ -31,7 +30,7 @@ export class GP51ErrorReporter {
     this.errorQueue.push({
       ...error,
       stackTrace: error.stackTrace || new Error().stack,
-      timestamp: new Date()
+      timestamp: error.timestamp || new Date() // Add timestamp if not provided
     });
 
     // Process queue if not already processing
@@ -69,7 +68,7 @@ export class GP51ErrorReporter {
   }
 
   private logErrorToConsole(error: GP51ErrorReport): void {
-    const timestamp = error.timestamp.toISOString();
+    const timestamp = error.timestamp!.toISOString();
     const severity = error.severity.toUpperCase();
     
     console.group(`🚨 GP51 Error Report [${severity}] - ${timestamp}`);
