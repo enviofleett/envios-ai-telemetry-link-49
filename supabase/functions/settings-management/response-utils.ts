@@ -16,6 +16,13 @@ export function createResponse(data: any, latency?: number, status: number = 200
   });
 }
 
+export function createSuccessResponse(data: any, latency?: number): Response {
+  return createResponse({
+    success: true,
+    ...data
+  }, latency, 200);
+}
+
 export function createErrorResponse(
   message: string, 
   details?: string, 
