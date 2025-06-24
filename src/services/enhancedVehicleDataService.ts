@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import type { VehicleData, VehicleStatus } from '@/types/vehicle';
+import type { VehicleData, VehicleStatus, VehiclePosition } from '@/types/vehicle';
 
 export interface EnhancedVehicleStats {
   totalVehicles: number;
@@ -35,6 +35,38 @@ export interface LastSyncMetrics {
   errorMessage?: string;
 }
 
+// Helper function to safely parse JSON position data
+function parseVehiclePosition(positionData: any): VehiclePosition | undefined {
+  if (!positionData) return undefined;
+  
+  if (typeof positionData === 'string') {
+    try {
+      const parsed = JSON.parse(positionData);
+      return {
+        latitude: parsed.latitude || parsed.lat || 0,
+        longitude: parsed.longitude || parsed.lng || 0,
+        speed: parsed.speed,
+        course: parsed.course,
+        timestamp: parsed.timestamp
+      };
+    } catch {
+      return undefined;
+    }
+  }
+  
+  if (typeof positionData === 'object') {
+    return {
+      latitude: positionData.latitude || positionData.lat || 0,
+      longitude: positionData.longitude || positionData.lng || 0,
+      speed: positionData.speed,
+      course: positionData.course,
+      timestamp: positionData.timestamp
+    };
+  }
+  
+  return undefined;
+}
+
 class EnhancedVehicleDataService {
   private subscribers: Set<(data: VehicleData[]) => void> = new Set();
 
@@ -59,7 +91,7 @@ class EnhancedVehicleDataService {
         vin: undefined,
         license_plate: undefined,
         is_active: true,
-        last_position: vehicle.last_position,
+        last_position: parseVehiclePosition(vehicle.last_position),
         status: (vehicle.status || 'active') as VehicleStatus,
         lastUpdate: new Date(vehicle.updated_at),
         // Required compatibility properties
@@ -167,7 +199,7 @@ class EnhancedVehicleDataService {
         vin: undefined,
         license_plate: undefined,
         is_active: true,
-        last_position: vehicle.last_position,
+        last_position: parseVehiclePosition(vehicle.last_position),
         status: (vehicle.status || 'active') as VehicleStatus,
         lastUpdate: new Date(vehicle.updated_at),
         // Required compatibility properties
