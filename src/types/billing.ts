@@ -1,4 +1,3 @@
-
 export interface DeviceSubscription {
   id: string;
   device_id: string;
@@ -10,6 +9,8 @@ export interface DeviceSubscription {
   auto_renewal: boolean;
   start_date: string;
   end_date?: string;
+  price_override?: number;
+  discount_percentage?: number;
   created_at: string;
   updated_at: string;
 }
