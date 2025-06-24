@@ -13,6 +13,9 @@ export interface ImportProgress {
   details?: string;
 }
 
+// Re-export SystemImportOptions for backwards compatibility
+export { SystemImportOptions };
+
 export class FullSystemImportService {
   private errorHandler = new EnhancedErrorHandler();
   private currentImportId: string | null = null;

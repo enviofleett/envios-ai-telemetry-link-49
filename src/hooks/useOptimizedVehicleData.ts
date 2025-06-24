@@ -39,11 +39,11 @@ export const useOptimizedVehicleData = () => {
   }, []);
 
   // Optimized subscription handler
-  const handleVehicleUpdate = useCallback(() => {
+  const handleVehicleUpdate = useCallback(async () => {
     if (!isMountedRef.current) return;
     
     try {
-      const updatedVehicles = enhancedVehicleDataService.getEnhancedVehicles();
+      const updatedVehicles = await enhancedVehicleDataService.getEnhancedVehicles();
       debouncedUpdate(updatedVehicles);
       setError(null);
     } catch (err) {
@@ -69,7 +69,7 @@ export const useOptimizedVehicleData = () => {
     
     try {
       await enhancedVehicleDataService.forceSync();
-      handleVehicleUpdate();
+      await handleVehicleUpdate();
     } catch (err) {
       console.error('Error refreshing vehicles:', err);
       if (isMountedRef.current) {

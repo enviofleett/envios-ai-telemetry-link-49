@@ -23,11 +23,11 @@ export const useVehicleMetrics = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = enhancedVehicleDataService.subscribe(() => {
+    const unsubscribe = enhancedVehicleDataService.subscribe(async () => {
       try {
-        const vehicles = enhancedVehicleDataService.getEnhancedVehicles();
+        const vehicles = await enhancedVehicleDataService.getEnhancedVehicles();
         const serviceMetrics = enhancedVehicleDataService.getMetrics();
-        const syncMetrics = enhancedVehicleDataService.getLastSyncMetrics();
+        const syncMetrics = await enhancedVehicleDataService.getLastSyncMetrics();
         
         const expandedMetrics: VehicleDataMetrics = {
           total: serviceMetrics.total,
@@ -42,7 +42,7 @@ export const useVehicleMetrics = () => {
           lastSyncTime: serviceMetrics.lastSyncTime,
           positionsUpdated: syncMetrics.positionsUpdated,
           errors: syncMetrics.errors,
-          syncStatus: syncMetrics.syncStatus,
+          syncStatus: syncMetrics.syncStatus as 'success' | 'error' | 'syncing',
           errorMessage: syncMetrics.errorMessage
         };
         
@@ -57,33 +57,37 @@ export const useVehicleMetrics = () => {
     });
 
     // Initial load
-    try {
-      const vehicles = enhancedVehicleDataService.getEnhancedVehicles();
-      const serviceMetrics = enhancedVehicleDataService.getMetrics();
-      const syncMetrics = enhancedVehicleDataService.getLastSyncMetrics();
-      
-      setMetrics({
-        total: serviceMetrics.total,
-        online: serviceMetrics.online,
-        offline: serviceMetrics.offline,
-        idle: serviceMetrics.idle,
-        alerts: serviceMetrics.alerts,
-        totalVehicles: serviceMetrics.totalVehicles,
-        onlineVehicles: serviceMetrics.onlineVehicles,
-        offlineVehicles: serviceMetrics.offlineVehicles,
-        recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
-        lastSyncTime: serviceMetrics.lastSyncTime,
-        positionsUpdated: syncMetrics.positionsUpdated,
-        errors: syncMetrics.errors,
-        syncStatus: syncMetrics.syncStatus,
-        errorMessage: syncMetrics.errorMessage
-      });
-      setIsLoading(false);
-    } catch (err) {
-      console.error('Error loading initial vehicle metrics:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load initial data');
-      setIsLoading(false);
-    }
+    const loadInitialData = async () => {
+      try {
+        const vehicles = await enhancedVehicleDataService.getEnhancedVehicles();
+        const serviceMetrics = enhancedVehicleDataService.getMetrics();
+        const syncMetrics = await enhancedVehicleDataService.getLastSyncMetrics();
+        
+        setMetrics({
+          total: serviceMetrics.total,
+          online: serviceMetrics.online,
+          offline: serviceMetrics.offline,
+          idle: serviceMetrics.idle,
+          alerts: serviceMetrics.alerts,
+          totalVehicles: serviceMetrics.totalVehicles,
+          onlineVehicles: serviceMetrics.onlineVehicles,
+          offlineVehicles: serviceMetrics.offlineVehicles,
+          recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
+          lastSyncTime: serviceMetrics.lastSyncTime,
+          positionsUpdated: syncMetrics.positionsUpdated,
+          errors: syncMetrics.errors,
+          syncStatus: syncMetrics.syncStatus as 'success' | 'error' | 'syncing',
+          errorMessage: syncMetrics.errorMessage
+        });
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error loading initial vehicle metrics:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load initial data');
+        setIsLoading(false);
+      }
+    };
+
+    loadInitialData();
 
     return unsubscribe;
   }, []);

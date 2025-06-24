@@ -16,6 +16,10 @@ export interface VehicleData {
   created_at: string;
   updated_at: string;
   lastUpdate: Date;
+  // Required properties for compatibility with other VehicleData types
+  isOnline: boolean;
+  isMoving: boolean;
+  alerts: number;
 }
 
 export interface EnhancedVehicleStats {
@@ -43,6 +47,14 @@ export interface VehicleMetrics {
   errorMessage?: string;
 }
 
+export interface LastSyncMetrics {
+  lastSync: Date;
+  syncStatus: string;
+  positionsUpdated: number;
+  errors: number;
+  errorMessage?: string;
+}
+
 class EnhancedVehicleDataService {
   private subscribers: Set<(data: VehicleData[]) => void> = new Set();
 
@@ -64,12 +76,16 @@ class EnhancedVehicleDataService {
         sim_number: vehicle.sim_number,
         created_at: vehicle.created_at,
         updated_at: vehicle.updated_at,
-        vin: vehicle.vin,
-        license_plate: vehicle.license_plate,
+        vin: vehicle.vin || undefined,
+        license_plate: vehicle.license_plate || undefined,
         is_active: true,
         last_position: vehicle.last_position,
         status: vehicle.status || 'active',
-        lastUpdate: new Date(vehicle.updated_at)
+        lastUpdate: new Date(vehicle.updated_at),
+        // Required compatibility properties
+        isOnline: vehicle.status === 'online',
+        isMoving: vehicle.status === 'moving',
+        alerts: 0
       }));
     } catch (error) {
       console.error('Error fetching vehicle data:', error);
@@ -139,10 +155,12 @@ class EnhancedVehicleDataService {
     }
   }
 
-  async getLastSyncMetrics(): Promise<{ lastSync: Date; syncStatus: string }> {
+  async getLastSyncMetrics(): Promise<LastSyncMetrics> {
     return {
       lastSync: new Date(),
-      syncStatus: 'success'
+      syncStatus: 'success',
+      positionsUpdated: 0,
+      errors: 0
     };
   }
 
@@ -166,12 +184,16 @@ class EnhancedVehicleDataService {
         sim_number: vehicle.sim_number,
         created_at: vehicle.created_at,
         updated_at: vehicle.updated_at,
-        vin: vehicle.vin,
-        license_plate: vehicle.license_plate,
+        vin: vehicle.vin || undefined,
+        license_plate: vehicle.license_plate || undefined,
         is_active: true,
         last_position: vehicle.last_position,
         status: vehicle.status || 'active',
-        lastUpdate: new Date(vehicle.updated_at)
+        lastUpdate: new Date(vehicle.updated_at),
+        // Required compatibility properties
+        isOnline: vehicle.status === 'online',
+        isMoving: vehicle.status === 'moving',
+        alerts: 0
       };
     } catch (error) {
       console.error('Error fetching vehicle by ID:', error);

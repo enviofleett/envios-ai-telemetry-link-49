@@ -34,6 +34,7 @@ export const useEnhancedVehicleData = () => {
 
         // Get metrics
         const serviceMetrics = enhancedVehicleDataService.getMetrics();
+        const syncMetrics = await enhancedVehicleDataService.getLastSyncMetrics();
         
         // Convert service metrics to the full VehicleDataMetrics interface
         const expandedMetrics: VehicleDataMetrics = {
@@ -47,20 +48,20 @@ export const useEnhancedVehicleData = () => {
           offlineVehicles: serviceMetrics.offlineVehicles,
           recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
           lastSyncTime: serviceMetrics.lastSyncTime,
-          positionsUpdated: vehicleData.length,
-          errors: serviceMetrics.syncStatus === 'error' ? 1 : 0,
-          syncStatus: serviceMetrics.syncStatus,
-          errorMessage: serviceMetrics.errorMessage
+          positionsUpdated: syncMetrics.positionsUpdated,
+          errors: syncMetrics.errors,
+          syncStatus: syncMetrics.syncStatus as 'success' | 'error' | 'syncing',
+          errorMessage: syncMetrics.errorMessage
         };
         
         setMetrics(expandedMetrics);
         setIsLoading(false);
 
         // Show error toast if sync failed
-        if (serviceMetrics.syncStatus === 'error' && serviceMetrics.errorMessage) {
+        if (syncMetrics.syncStatus === 'error' && syncMetrics.errorMessage) {
           toast({
             title: "Vehicle Data Sync Failed",
-            description: serviceMetrics.errorMessage,
+            description: syncMetrics.errorMessage,
             variant: "destructive"
           });
         }
@@ -81,6 +82,7 @@ export const useEnhancedVehicleData = () => {
       setVehicles(newVehicles);
       
       const serviceMetrics = enhancedVehicleDataService.getMetrics();
+      const syncMetrics = await enhancedVehicleDataService.getLastSyncMetrics();
       
       // Convert service metrics to the full VehicleDataMetrics interface
       const expandedMetrics: VehicleDataMetrics = {
@@ -94,20 +96,20 @@ export const useEnhancedVehicleData = () => {
         offlineVehicles: serviceMetrics.offlineVehicles,
         recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
         lastSyncTime: serviceMetrics.lastSyncTime,
-        positionsUpdated: newVehicles.length,
-        errors: serviceMetrics.syncStatus === 'error' ? 1 : 0,
-        syncStatus: serviceMetrics.syncStatus,
-        errorMessage: serviceMetrics.errorMessage
+        positionsUpdated: syncMetrics.positionsUpdated,
+        errors: syncMetrics.errors,
+        syncStatus: syncMetrics.syncStatus as 'success' | 'error' | 'syncing',
+        errorMessage: syncMetrics.errorMessage
       };
       
       setMetrics(expandedMetrics);
       setIsLoading(false);
 
       // Show error toast if sync failed
-      if (serviceMetrics.syncStatus === 'error' && serviceMetrics.errorMessage) {
+      if (syncMetrics.syncStatus === 'error' && syncMetrics.errorMessage) {
         toast({
           title: "Vehicle Data Sync Failed",
-          description: serviceMetrics.errorMessage,
+          description: syncMetrics.errorMessage,
           variant: "destructive"
         });
       }

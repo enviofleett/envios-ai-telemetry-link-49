@@ -104,6 +104,7 @@ export interface ImportProgress {
   overallProgress: number;
   currentOperation: string;
   details?: string;
-  // Additional property used in some components
+  // Additional properties used in some components
   percentage?: number;
+  message?: string;
 }
