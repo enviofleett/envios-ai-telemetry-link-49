@@ -18,6 +18,47 @@ export async function md5_for_gp51_only(message: string): Promise<string> {
   }
 }
 
+// Input sanitization function for security
+export function sanitizeInput(input: string): string {
+  if (!input || typeof input !== 'string') {
+    return '';
+  }
+  
+  // Trim whitespace
+  let sanitized = input.trim();
+  
+  // Remove null bytes and control characters
+  sanitized = sanitized.replace(/[\x00-\x1f\x7f-\x9f]/g, '');
+  
+  // Limit length to prevent excessive input
+  if (sanitized.length > 1000) {
+    sanitized = sanitized.substring(0, 1000);
+  }
+  
+  return sanitized;
+}
+
+// Rate limiting helper
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+
+export function checkRateLimit(clientId: string, maxRequests: number, windowMs: number): boolean {
+  const now = Date.now();
+  const clientData = rateLimitStore.get(clientId);
+  
+  if (!clientData || now > clientData.resetTime) {
+    // Reset or initialize rate limit for client
+    rateLimitStore.set(clientId, { count: 1, resetTime: now + windowMs });
+    return true;
+  }
+  
+  if (clientData.count >= maxRequests) {
+    return false; // Rate limit exceeded
+  }
+  
+  clientData.count++;
+  return true;
+}
+
 // Fallback MD5 implementation
 function fallbackMD5(message: string): string {
   // Simple MD5 implementation for GP51 compatibility
