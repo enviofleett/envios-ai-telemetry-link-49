@@ -2,10 +2,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { corsHeaders } from './cors.ts';
 import { authenticateRequest } from './auth.ts';
-import { handleGP51Authentication } from './gp51-operations.ts';
-import { handleGetGP51Status, handleClearGP51Sessions } from './session-management.ts';
+import { handleGP51Authentication, refreshGP51Credentials } from './gp51-operations.ts';
+import { handleGetGP51Status, handleClearGP51Sessions, handleSessionHealthCheck } from './session-management.ts';
 import { handleGP51UserMappingOperations } from './gp51-user-mapping.ts';
 import { createErrorResponse, calculateLatency } from './response-utils.ts';
+import { GP51TokenValidator } from './token-validation.ts';
 import type { SettingsRequest } from './types.ts';
 
 serve(async (req) => {
@@ -62,6 +63,20 @@ serve(async (req) => {
       
       case 'clear-gp51-sessions':
         return await handleClearGP51Sessions(adminSupabase, envioUser.id);
+      
+      case 'refresh-gp51-credentials':
+        const refreshResult = await refreshGP51Credentials(adminSupabase, envioUser.id);
+        return createResponse(refreshResult, calculateLatency(startTime));
+      
+      case 'session-health-check':
+        return await handleSessionHealthCheck(adminSupabase, envioUser.id);
+      
+      case 'cleanup-invalid-sessions':
+        await GP51TokenValidator.cleanupInvalidSessions(adminSupabase, envioUser.id);
+        return createResponse({
+          success: true,
+          message: 'Invalid sessions cleaned up successfully'
+        }, calculateLatency(startTime));
       
       // GP51 User Mapping operations
       case 'get-user-mappings':
