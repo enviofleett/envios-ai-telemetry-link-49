@@ -1,184 +1,140 @@
 
-import { createErrorResponse, createResponse } from './response-utils.ts';
+export interface GP51TokenResponse {
+  status: number;
+  token?: string;
+  cause?: string;
+  message?: string;
+}
 
 export interface TokenValidationResult {
   isValid: boolean;
-  token?: string;
   error?: string;
-  requiresReauth?: boolean;
-  shouldCleanup?: boolean;
+  recommendations?: string[];
 }
 
 export class GP51TokenValidator {
-  static validateTokenResponse(responseData: any): TokenValidationResult {
+  private static readonly VALID_STATUS_CODE = 0;
+  private static readonly MIN_TOKEN_LENGTH = 8;
+  private static readonly MAX_TOKEN_LENGTH = 128;
+
+  static validateTokenResponse(response: GP51TokenResponse): TokenValidationResult {
     console.log('🔍 [TOKEN-VALIDATOR] Validating GP51 token response:', {
-      status: responseData?.status,
-      hasToken: !!responseData?.token,
-      tokenLength: responseData?.token?.length || 0,
-      responseType: typeof responseData
+      status: response.status,
+      hasToken: !!response.token,
+      tokenLength: response.token?.length || 0,
+      responseType: typeof response
     });
 
-    // Check if response exists and has required structure
-    if (!responseData || typeof responseData !== 'object') {
-      console.error('❌ [TOKEN-VALIDATOR] Invalid response structure:', responseData);
+    // Check if response status indicates success
+    if (response.status !== this.VALID_STATUS_CODE) {
+      const error = response.cause || response.message || `Invalid status code: ${response.status}`;
+      console.error('❌ [TOKEN-VALIDATOR] Invalid status code:', error);
       return {
         isValid: false,
-        error: 'Invalid or missing response from GP51 API',
-        requiresReauth: true,
-        shouldCleanup: true
+        error,
+        recommendations: [
+          'Verify GP51 credentials are correct',
+          'Check if GP51 account is active',
+          'Ensure API URL is correct'
+        ]
       };
     }
 
-    // GP51 API returns status=0 for success, status=1 for failure
-    if (responseData.status !== 0) {
-      console.error('❌ [TOKEN-VALIDATOR] GP51 API returned error status:', {
-        status: responseData.status,
-        message: responseData.message || responseData.cause,
-        response: responseData
-      });
-      
+    // Check if token exists
+    if (!response.token) {
+      console.error('❌ [TOKEN-VALIDATOR] No token in response');
       return {
         isValid: false,
-        error: responseData.message || responseData.cause || `GP51 API error (status=${responseData.status})`,
-        requiresReauth: true,
-        shouldCleanup: true
+        error: 'No authentication token received from GP51',
+        recommendations: [
+          'Check GP51 server status',
+          'Verify authentication request format',
+          'Contact GP51 support if issue persists'
+        ]
       };
     }
 
-    // Check if token is present and valid
-    if (!responseData.token || typeof responseData.token !== 'string') {
-      console.error('❌ [TOKEN-VALIDATOR] Invalid or missing token in response:', {
-        hasToken: !!responseData.token,
-        tokenType: typeof responseData.token,
-        tokenValue: responseData.token
-      });
-      
+    // Validate token format
+    const token = response.token.trim();
+    if (token.length < this.MIN_TOKEN_LENGTH || token.length > this.MAX_TOKEN_LENGTH) {
+      console.error('❌ [TOKEN-VALIDATOR] Invalid token length:', token.length);
       return {
         isValid: false,
-        error: 'No valid token received from GP51 API',
-        requiresReauth: true,
-        shouldCleanup: true
+        error: `Invalid token length: ${token.length}. Expected between ${this.MIN_TOKEN_LENGTH} and ${this.MAX_TOKEN_LENGTH} characters`,
+        recommendations: [
+          'Check GP51 API response format',
+          'Verify token is not truncated'
+        ]
       };
     }
 
-    // Basic token format validation (should be a non-empty string)
-    const trimmedToken = responseData.token.trim();
-    if (trimmedToken.length < 10) {
-      console.error('❌ [TOKEN-VALIDATOR] Token too short or invalid format:', {
-        tokenLength: trimmedToken.length,
-        token: trimmedToken
-      });
-      
+    // Check for valid token characters (alphanumeric)
+    const tokenPattern = /^[a-zA-Z0-9]+$/;
+    if (!tokenPattern.test(token)) {
+      console.error('❌ [TOKEN-VALIDATOR] Invalid token format');
       return {
         isValid: false,
-        error: 'Received invalid token format from GP51',
-        requiresReauth: true,
-        shouldCleanup: true
+        error: 'Token contains invalid characters. Expected alphanumeric only.',
+        recommendations: [
+          'Check GP51 API response encoding',
+          'Verify token is not corrupted during transmission'
+        ]
       };
     }
 
     console.log('✅ [TOKEN-VALIDATOR] Token validation passed successfully');
     return {
-      isValid: true,
-      token: trimmedToken
+      isValid: true
     };
   }
 
-  static async cleanupInvalidSessions(supabase: any, userId?: string): Promise<void> {
+  static async cleanupInvalidSessions(adminSupabase: any, userId: string): Promise<void> {
     try {
-      console.log('🧹 [TOKEN-VALIDATOR] Starting comprehensive session cleanup...');
+      console.log('🧹 [TOKEN-VALIDATOR] Cleaning up invalid sessions for user:', userId);
       
-      let query = supabase
+      // Mark expired sessions as inactive
+      const { error: updateError } = await adminSupabase
         .from('gp51_sessions')
         .update({
           is_active: false,
-          gp51_token: null,
           updated_at: new Date().toISOString()
-        });
+        })
+        .eq('envio_user_id', userId)
+        .lt('token_expires_at', new Date().toISOString());
 
-      // If userId provided, clean only that user's sessions, otherwise clean all invalid sessions
-      if (userId) {
-        query = query.eq('envio_user_id', userId);
-        console.log('🧹 [TOKEN-VALIDATOR] Cleaning sessions for user:', userId);
-      } else {
-        // Clean sessions that are clearly invalid
-        query = query.or('gp51_token.is.null,token_expires_at.lt.' + new Date().toISOString());
-        console.log('🧹 [TOKEN-VALIDATOR] Cleaning all expired/invalid sessions');
+      if (updateError) {
+        console.error('❌ [TOKEN-VALIDATOR] Failed to cleanup sessions:', updateError);
+        throw updateError;
       }
 
-      const { error, count } = await query.select('id', { count: 'exact' });
-
-      if (error) {
-        console.error('❌ [TOKEN-VALIDATOR] Failed to cleanup sessions:', error);
-      } else {
-        console.log(`✅ [TOKEN-VALIDATOR] Successfully cleaned ${count || 0} invalid sessions`);
-      }
+      console.log('✅ [TOKEN-VALIDATOR] Invalid sessions cleaned up successfully');
     } catch (error) {
       console.error('❌ [TOKEN-VALIDATOR] Cleanup error:', error);
+      throw error;
     }
   }
 
-  static createReauthResponse(message: string, sessionId?: string): Response {
-    console.log('🔄 [TOKEN-VALIDATOR] Creating re-authentication response:', message);
+  static validateStoredToken(token: string, expiresAt: string): TokenValidationResult {
+    if (!token || token.trim().length === 0) {
+      return {
+        isValid: false,
+        error: 'Token is empty or missing'
+      };
+    }
+
+    const expiry = new Date(expiresAt);
+    const now = new Date();
     
-    return createErrorResponse(
-      'Authentication required',
-      message,
-      401,
-      undefined,
-      {
-        requiresReauth: true,
-        sessionId,
-        action: 'redirect_to_settings',
-        userMessage: 'Please re-authenticate with your GP51 credentials in Settings.'
-      }
-    );
-  }
-
-  static async validateStoredSession(supabase: any, sessionId: string): Promise<boolean> {
-    try {
-      console.log('🔍 [TOKEN-VALIDATOR] Validating stored session:', sessionId);
-      
-      const { data: session, error } = await supabase
-        .from('gp51_sessions')
-        .select('gp51_token, token_expires_at, is_active')
-        .eq('id', sessionId)
-        .single();
-
-      if (error || !session) {
-        console.error('❌ [TOKEN-VALIDATOR] Session not found:', sessionId);
-        return false;
-      }
-
-      // Check if session is active
-      if (!session.is_active) {
-        console.error('❌ [TOKEN-VALIDATOR] Session is inactive:', sessionId);
-        return false;
-      }
-
-      // Check if token exists
-      if (!session.gp51_token) {
-        console.error('❌ [TOKEN-VALIDATOR] Session has no token:', sessionId);
-        return false;
-      }
-
-      // Check if token has expired
-      const expiresAt = new Date(session.token_expires_at);
-      const now = new Date();
-      if (expiresAt <= now) {
-        console.error('❌ [TOKEN-VALIDATOR] Session token has expired:', {
-          sessionId,
-          expiresAt: expiresAt.toISOString(),
-          now: now.toISOString()
-        });
-        return false;
-      }
-
-      console.log('✅ [TOKEN-VALIDATOR] Stored session is valid');
-      return true;
-    } catch (error) {
-      console.error('❌ [TOKEN-VALIDATOR] Error validating stored session:', error);
-      return false;
+    if (expiry <= now) {
+      return {
+        isValid: false,
+        error: 'Token has expired',
+        recommendations: ['Re-authenticate to get a new token']
+      };
     }
+
+    return {
+      isValid: true
+    };
   }
 }

@@ -1,7 +1,7 @@
-
 import { createSuccessResponse, createErrorResponse, calculateLatency } from './response-utils.ts';
 import { authenticateWithGP51 } from './gp51-auth.ts';
 import { GP51TokenValidator } from './token-validation.ts';
+import { md5_sync } from '../_shared/crypto_utils.ts';
 
 export async function handleGP51Authentication(
   adminSupabase: any,
@@ -13,6 +13,10 @@ export async function handleGP51Authentication(
 ) {
   try {
     console.log(`🔐 [GP51-OPERATIONS] Starting authentication for user ${userId}, username: ${username}`);
+
+    // Generate MD5 hash of the password for storage
+    const passwordHash = md5_sync(password);
+    console.log(`🔐 [GP51-OPERATIONS] Generated password hash for storage: ${passwordHash.substring(0, 8)}...`);
 
     // Authenticate with GP51
     const authResult = await authenticateWithGP51({
@@ -56,22 +60,31 @@ export async function handleGP51Authentication(
       })
       .eq('envio_user_id', userId);
 
-    // Create new session
+    // Create new session with password hash
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 23); // GP51 tokens typically last 24 hours
 
+    const sessionData = {
+      envio_user_id: userId,
+      username: authResult.username,
+      password_hash: passwordHash, // Include the password hash
+      gp51_token: authResult.token,
+      api_url: authResult.apiUrl,
+      token_expires_at: expiresAt.toISOString(),
+      is_active: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    console.log('📝 [GP51-OPERATIONS] Creating session with data:', {
+      ...sessionData,
+      password_hash: `${passwordHash.substring(0, 8)}...`,
+      gp51_token: `${authResult.token.substring(0, 8)}...`
+    });
+
     const { data: session, error: sessionError } = await adminSupabase
       .from('gp51_sessions')
-      .insert({
-        envio_user_id: userId,
-        username: authResult.username,
-        gp51_token: authResult.token,
-        api_url: authResult.apiUrl,
-        token_expires_at: expiresAt.toISOString(),
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
+      .insert(sessionData)
       .select()
       .single();
 
