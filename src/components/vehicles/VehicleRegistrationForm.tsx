@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { VehicleRegistrationActions, type VehicleRegistrationData } from '@/lib/vehicleRegistrationActions';
 
@@ -21,7 +22,10 @@ const VehicleRegistrationForm: React.FC<VehicleRegistrationFormProps> = ({
     deviceId: '',
     deviceName: '',
     simNumber: '',
-    userId: userId
+    userId: userId,
+    deviceType: 1,
+    groupId: '0',
+    enableGP51Integration: true
   });
   const { toast } = useToast();
 
@@ -30,6 +34,13 @@ const VehicleRegistrationForm: React.FC<VehicleRegistrationFormProps> = ({
     setFormData(prev => ({
       ...prev,
       [name]: value
+    }));
+  };
+
+  const handleSwitchChange = (checked: boolean) => {
+    setFormData(prev => ({
+      ...prev,
+      enableGP51Integration: checked
     }));
   };
 
@@ -53,7 +64,10 @@ const VehicleRegistrationForm: React.FC<VehicleRegistrationFormProps> = ({
         deviceId: formData.deviceId,
         deviceName: formData.deviceName,
         userId: formData.userId,
-        simNumber: formData.simNumber || undefined
+        simNumber: formData.simNumber || undefined,
+        deviceType: formData.deviceType,
+        groupId: formData.groupId,
+        enableGP51Integration: formData.enableGP51Integration
       };
 
       const result = await VehicleRegistrationActions.registerVehicle(registrationData);
@@ -61,7 +75,9 @@ const VehicleRegistrationForm: React.FC<VehicleRegistrationFormProps> = ({
       if (result.success) {
         toast({
           title: 'Success',
-          description: 'Vehicle registered successfully',
+          description: formData.enableGP51Integration 
+            ? 'Vehicle registered successfully with GP51 integration'
+            : 'Vehicle registered successfully (local only)',
         });
         
         // Reset form
@@ -69,7 +85,10 @@ const VehicleRegistrationForm: React.FC<VehicleRegistrationFormProps> = ({
           deviceId: '',
           deviceName: '',
           simNumber: '',
-          userId: userId
+          userId: userId,
+          deviceType: 1,
+          groupId: '0',
+          enableGP51Integration: true
         });
 
         if (onSuccess && result.vehicleId) {
@@ -147,6 +166,24 @@ const VehicleRegistrationForm: React.FC<VehicleRegistrationFormProps> = ({
               placeholder="Enter SIM number (optional)"
             />
           </div>
+
+          <div className="flex items-center space-x-2">
+            <Switch
+              id="gp51Integration"
+              checked={formData.enableGP51Integration}
+              onCheckedChange={handleSwitchChange}
+            />
+            <Label htmlFor="gp51Integration">
+              Enable GP51 Integration
+            </Label>
+          </div>
+
+          {formData.enableGP51Integration && (
+            <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-md">
+              <p>✅ Vehicle will be registered with GP51 for real-time tracking</p>
+              <p>📡 Requires active GP51 session to function properly</p>
+            </div>
+          )}
 
           <Button 
             type="submit" 
