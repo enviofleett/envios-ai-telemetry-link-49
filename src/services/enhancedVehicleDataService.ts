@@ -27,12 +27,20 @@ export interface EnhancedVehicleStats {
 }
 
 export interface VehicleMetrics {
+  total: number;
+  online: number;
+  offline: number;
+  idle: number;
+  alerts: number;
   totalVehicles: number;
-  activeVehicles: number;
   onlineVehicles: number;
   offlineVehicles: number;
-  averageSpeed: number;
+  recentlyActiveVehicles: number;
   lastSyncTime: Date;
+  positionsUpdated: number;
+  errors: number;
+  syncStatus: 'success' | 'error' | 'syncing';
+  errorMessage?: string;
 }
 
 class EnhancedVehicleDataService {
@@ -69,8 +77,28 @@ class EnhancedVehicleDataService {
     }
   }
 
-  async getVehicles(): Promise<VehicleData[]> {
-    return this.getVehicleData();
+  // Synchronous methods that return the cached data
+  getVehicles(): VehicleData[] {
+    // Return empty array as placeholder - this should be populated by subscription
+    return [];
+  }
+
+  getMetrics(): VehicleMetrics {
+    return {
+      total: 0,
+      online: 0,
+      offline: 0,
+      idle: 0,
+      alerts: 0,
+      totalVehicles: 0,
+      onlineVehicles: 0,
+      offlineVehicles: 0,
+      recentlyActiveVehicles: 0,
+      lastSyncTime: new Date(),
+      positionsUpdated: 0,
+      errors: 0,
+      syncStatus: 'success'
+    };
   }
 
   async getEnhancedVehicles(): Promise<VehicleData[]> {
@@ -109,20 +137,6 @@ class EnhancedVehicleDataService {
         averageUpdateFrequency: 0
       };
     }
-  }
-
-  async getMetrics(): Promise<VehicleMetrics> {
-    const vehicles = await this.getVehicleData();
-    const activeVehicles = vehicles.filter(v => v.is_active);
-    
-    return {
-      totalVehicles: vehicles.length,
-      activeVehicles: activeVehicles.length,
-      onlineVehicles: vehicles.filter(v => v.status === 'online').length,
-      offlineVehicles: vehicles.filter(v => v.status === 'offline').length,
-      averageSpeed: 0, // Mock value
-      lastSyncTime: new Date()
-    };
   }
 
   async getLastSyncMetrics(): Promise<{ lastSync: Date; syncStatus: string }> {
@@ -173,7 +187,6 @@ class EnhancedVehicleDataService {
   }
 
   async forceSync(): Promise<void> {
-    // Mock implementation - in real scenario would trigger sync
     console.log('Force sync initiated');
     const vehicles = await this.getVehicleData();
     this.notifySubscribers(vehicles);

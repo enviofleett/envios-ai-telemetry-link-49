@@ -1,23 +1,25 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Database, 
   Users, 
   Car, 
   CheckCircle, 
-  XCircle, 
-  AlertTriangle,
+  AlertTriangle, 
   RefreshCw,
-  Play,
-  Eye
+  Settings,
+  Activity
 } from 'lucide-react';
 import { useUnifiedImport } from '@/hooks/useUnifiedImport';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const UnifiedImportPanel: React.FC = () => {
   const {
@@ -28,294 +30,397 @@ const UnifiedImportPanel: React.FC = () => {
     fetchPreview,
     startImport,
     validateConnection,
-    clearPreview
+    clearPreview,
+    clearJob
   } = useUnifiedImport();
 
-  const [selectedOptions, setSelectedOptions] = useState({
+  const [importOptions, setImportOptions] = useState<{
+    importUsers: boolean;
+    importDevices: boolean;
+    conflictResolution: 'skip' | 'overwrite' | 'merge';
+    usernames: string[];
+    batchSize: number;
+  }>({
     importUsers: true,
     importDevices: true,
-    conflictResolution: 'skip' as const,
-    usernames: [] as string[],
+    conflictResolution: 'skip',
+    usernames: [],
     batchSize: 50
   });
 
-  const handleStartImport = async () => {
-    if (!preview?.success) {
-      return;
-    }
+  const [activeTab, setActiveTab] = useState('preview');
 
-    await startImport(selectedOptions);
+  useEffect(() => {
+    // Auto-fetch preview on component mount
+    fetchPreview();
+  }, [fetchPreview]);
+
+  const handleStartImport = async () => {
+    try {
+      await startImport(importOptions);
+      setActiveTab('monitoring');
+    } catch (error) {
+      console.error('Import failed:', error);
+    }
+  };
+
+  const getStatusColor = (connected: boolean) => {
+    return connected ? 'text-green-600' : 'text-red-600';
+  };
+
+  const getStatusIcon = (connected: boolean) => {
+    return connected ? CheckCircle : AlertTriangle;
   };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Unified GP51 Import System</h2>
-          <p className="text-gray-600">Professional data import with comprehensive validation and monitoring</p>
+          <h1 className="text-3xl font-bold">GP51 Data Import System</h1>
+          <p className="text-muted-foreground">Professional bulk import and synchronization</p>
         </div>
-        
-        {preview?.connectionStatus.connected && (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            GP51 Connected
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={validateConnection}>
+            <Activity className="w-4 h-4 mr-2" />
+            Test Connection
+          </Button>
+          <Button variant="outline" onClick={clearPreview}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Reset
+          </Button>
+        </div>
       </div>
 
-      <Tabs defaultValue="preview" className="w-full">
+      {/* Connection Status */}
+      {preview && (
+        <Alert className={preview.connectionStatus.connected ? 'border-green-200' : 'border-red-200'}>
+          <div className="flex items-center gap-2">
+            {React.createElement(getStatusIcon(preview.connectionStatus.connected), { 
+              className: `w-4 h-4 ${getStatusColor(preview.connectionStatus.connected)}` 
+            })}
+            <span className="font-medium">
+              GP51 Connection: {preview.connectionStatus.connected ? 'Connected' : 'Disconnected'}
+            </span>
+          </div>
+          {preview.connectionStatus.username && (
+            <p className="text-sm mt-1">Authenticated as: {preview.connectionStatus.username}</p>
+          )}
+          {preview.connectionStatus.error && (
+            <AlertDescription className="mt-2">
+              {preview.connectionStatus.error}
+            </AlertDescription>
+          )}
+        </Alert>
+      )}
+
+      {/* Main Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="preview" className="flex items-center gap-2">
-            <Eye className="h-4 w-4" />
-            Preview Data
-          </TabsTrigger>
-          <TabsTrigger value="import" disabled={!preview?.success} className="flex items-center gap-2">
-            <Play className="h-4 w-4" />
-            Import Configuration
-          </TabsTrigger>
-          <TabsTrigger value="monitor" disabled={!currentJob} className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
-            Monitor Progress
-          </TabsTrigger>
+          <TabsTrigger value="preview">Data Preview</TabsTrigger>
+          <TabsTrigger value="configuration">Import Configuration</TabsTrigger>
+          <TabsTrigger value="monitoring">Import Monitoring</TabsTrigger>
         </TabsList>
 
+        {/* Preview Tab */}
         <TabsContent value="preview" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Data Preview & Validation
+                <Database className="w-5 h-5" />
+                GP51 Data Overview
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex gap-2">
-                <Button 
-                  onClick={fetchPreview}
-                  disabled={isLoadingPreview}
-                  className="flex items-center gap-2"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isLoadingPreview ? 'animate-spin' : ''}`} />
-                  {isLoadingPreview ? 'Generating Preview...' : 'Generate Preview'}
-                </Button>
-                
-                <Button 
-                  variant="outline"
-                  onClick={validateConnection}
-                  className="flex items-center gap-2"
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  Test Connection
-                </Button>
-
-                {preview && (
-                  <Button 
-                    variant="outline"
-                    onClick={clearPreview}
-                    className="flex items-center gap-2"
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Clear Preview
-                  </Button>
-                )}
-              </div>
-
-              {preview && (
+            <CardContent>
+              {isLoadingPreview ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+                  <span>Loading GP51 data preview...</span>
+                </div>
+              ) : preview?.success ? (
                 <div className="space-y-4">
-                  {!preview.success ? (
-                    <Alert variant="destructive">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription>
-                        {preview.connectionStatus.error || 'Failed to generate preview'}
-                      </AlertDescription>
-                    </Alert>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm font-medium">Users Available</span>
-                          </div>
-                          <div className="text-2xl font-bold text-blue-900 mt-1">
-                            {preview.data.summary.users}
-                          </div>
-                          <div className="text-xs text-gray-500">Ready for import</div>
-                        </CardContent>
-                      </Card>
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-blue-600" />
+                          <span className="text-sm font-medium">Users Available</span>
+                        </div>
+                        <div className="text-2xl font-bold text-gray-900 mt-1">
+                          {preview.data.summary.users.toLocaleString()}
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-2">
-                            <Car className="h-4 w-4 text-green-600" />
-                            <span className="text-sm font-medium">Vehicles Available</span>
-                          </div>
-                          <div className="text-2xl font-bold text-green-900 mt-1">
-                            {preview.data.summary.vehicles}
-                          </div>
-                          <div className="text-xs text-gray-500">Ready for import</div>
-                        </CardContent>
-                      </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2">
+                          <Car className="w-4 h-4 text-green-600" />
+                          <span className="text-sm font-medium">Vehicles Available</span>
+                        </div>
+                        <div className="text-2xl font-bold text-gray-900 mt-1">
+                          {preview.data.summary.vehicles.toLocaleString()}
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                      <Card>
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-amber-600" />
-                            <span className="text-sm font-medium">Potential Conflicts</span>
-                          </div>
-                          <div className="text-2xl font-bold text-amber-900 mt-1">
-                            {preview.data.conflicts.potentialDuplicates}
-                          </div>
-                          <div className="text-xs text-gray-500">Require review</div>
-                        </CardContent>
-                      </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-orange-600" />
+                          <span className="text-sm font-medium">Potential Conflicts</span>
+                        </div>
+                        <div className="text-2xl font-bold text-gray-900 mt-1">
+                          {preview.data.conflicts.potentialDuplicates}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Estimated Duration */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Database className="w-4 h-4 text-blue-600" />
+                      <span className="font-medium text-blue-800">Import Estimation</span>
                     </div>
-                  )}
+                    <p className="text-sm text-blue-700">
+                      Estimated import time: {preview.data.estimatedDuration}
+                    </p>
+                  </div>
 
+                  {/* Warnings */}
                   {preview.data.warnings.length > 0 && (
                     <Alert>
-                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTriangle className="w-4 h-4" />
                       <AlertDescription>
-                        <div className="space-y-1">
+                        <div className="font-medium mb-2">Please review these warnings:</div>
+                        <ul className="list-disc list-inside text-sm space-y-1">
                           {preview.data.warnings.map((warning, index) => (
-                            <div key={index}>• {warning}</div>
+                            <li key={index}>{warning}</li>
                           ))}
-                        </div>
+                        </ul>
                       </AlertDescription>
                     </Alert>
                   )}
 
-                  <div className="text-sm text-gray-500">
-                    Estimated Duration: {preview.data.estimatedDuration} | 
-                    Preview Generated: {new Date(preview.timestamp).toLocaleString()}
+                  <div className="flex gap-2">
+                    <Button onClick={() => setActiveTab('configuration')}>
+                      <Settings className="w-4 h-4 mr-2" />
+                      Configure Import
+                    </Button>
+                    <Button variant="outline" onClick={fetchPreview}>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Refresh Preview
+                    </Button>
                   </div>
                 </div>
+              ) : (
+                <Alert variant="destructive">
+                  <AlertTriangle className="w-4 h-4" />
+                  <AlertDescription>
+                    Failed to load GP51 data preview. Please check your connection settings.
+                  </AlertDescription>
+                </Alert>
               )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="import" className="space-y-4">
+        {/* Configuration Tab */}
+        <TabsContent value="configuration" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Import Configuration</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedOptions.importUsers}
-                    onChange={(e) => setSelectedOptions(prev => ({
-                      ...prev,
-                      importUsers: e.target.checked
-                    }))}
+            <CardContent className="space-y-6">
+              {/* Import Options */}
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="import-users"
+                    checked={importOptions.importUsers}
+                    onCheckedChange={(checked) =>
+                      setImportOptions(prev => ({ ...prev, importUsers: checked }))
+                    }
                   />
-                  <span>Import Users ({preview?.data.summary.users || 0})</span>
-                </label>
+                  <Label htmlFor="import-users">Import Users</Label>
+                </div>
 
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedOptions.importDevices}
-                    onChange={(e) => setSelectedOptions(prev => ({
-                      ...prev,
-                      importDevices: e.target.checked
-                    }))}
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="import-devices"
+                    checked={importOptions.importDevices}
+                    onCheckedChange={(checked) =>
+                      setImportOptions(prev => ({ ...prev, importDevices: checked }))
+                    }
                   />
-                  <span>Import Vehicles ({preview?.data.summary.vehicles || 0})</span>
-                </label>
+                  <Label htmlFor="import-devices">Import Vehicles/Devices</Label>
+                </div>
               </div>
 
+              {/* Conflict Resolution */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Conflict Resolution</label>
-                <select
-                  value={selectedOptions.conflictResolution}
-                  onChange={(e) => setSelectedOptions(prev => ({
-                    ...prev,
-                    conflictResolution: e.target.value as 'skip' | 'overwrite' | 'merge'
-                  }))}
-                  className="w-full p-2 border rounded"
+                <Label htmlFor="conflict-resolution">Conflict Resolution Strategy</Label>
+                <Select
+                  value={importOptions.conflictResolution}
+                  onValueChange={(value: 'skip' | 'overwrite' | 'merge') =>
+                    setImportOptions(prev => ({ ...prev, conflictResolution: value }))
+                  }
                 >
-                  <option value="skip">Skip Conflicting Records</option>
-                  <option value="overwrite">Overwrite Existing Records</option>
-                  <option value="merge">Merge Where Possible</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select conflict resolution" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="skip">Skip - Leave existing data unchanged</SelectItem>
+                    <SelectItem value="overwrite">Overwrite - Replace existing data</SelectItem>
+                    <SelectItem value="merge">Merge - Combine data intelligently</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
-              <Button 
-                onClick={handleStartImport}
-                disabled={isImporting || !preview?.success}
-                className="w-full flex items-center gap-2"
-              >
-                <Play className="h-4 w-4" />
-                {isImporting ? 'Starting Import...' : 'Start Import'}
-              </Button>
+              {/* Batch Size */}
+              <div className="space-y-2">
+                <Label htmlFor="batch-size">Batch Size (records per batch)</Label>
+                <Select
+                  value={importOptions.batchSize.toString()}
+                  onValueChange={(value) =>
+                    setImportOptions(prev => ({ ...prev, batchSize: parseInt(value) }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="25">25 records</SelectItem>
+                    <SelectItem value="50">50 records</SelectItem>
+                    <SelectItem value="100">100 records</SelectItem>
+                    <SelectItem value="200">200 records</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleStartImport}
+                  disabled={isImporting || !preview?.success}
+                >
+                  <Database className="w-4 h-4 mr-2" />
+                  {isImporting ? 'Starting Import...' : 'Start Import'}
+                </Button>
+                <Button variant="outline" onClick={() => setActiveTab('preview')}>
+                  Back to Preview
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="monitor" className="space-y-4">
-          {currentJob && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  Import Progress
-                  <Badge variant={
-                    currentJob.status === 'completed' ? 'default' :
-                    currentJob.status === 'failed' ? 'destructive' : 'secondary'
-                  }>
-                    {currentJob.status}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Current Phase: {currentJob.currentPhase}</span>
-                    <span>{currentJob.progress}%</span>
+        {/* Monitoring Tab */}
+        <TabsContent value="monitoring" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Import Monitoring</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {currentJob ? (
+                <div className="space-y-4">
+                  {/* Status Badge */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Status:</span>
+                    <Badge variant={
+                      currentJob.status === 'completed' ? 'default' :
+                      currentJob.status === 'failed' ? 'destructive' :
+                      'secondary'
+                    }>
+                      {currentJob.status.toUpperCase()}
+                    </Badge>
                   </div>
-                  <Progress value={currentJob.progress} />
-                </div>
 
-                {currentJob.results && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <div className="text-sm font-medium">Users Imported</div>
-                      <div className="text-2xl font-bold text-green-600">
-                        {currentJob.results.statistics.usersImported}
+                  {/* Progress */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Progress</span>
+                      <span>{currentJob.progress}%</span>
+                    </div>
+                    <Progress value={currentJob.progress} />
+                  </div>
+
+                  {/* Current Phase */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="font-medium text-blue-800">Current Phase</div>
+                    <div className="text-sm text-blue-700">{currentJob.currentPhase}</div>
+                  </div>
+
+                  {/* Results */}
+                  {currentJob.results && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">
+                          {currentJob.results.statistics.usersImported}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Users Imported</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">
+                          {currentJob.results.statistics.devicesImported}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Devices Imported</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-orange-600">
+                          {currentJob.results.statistics.conflicts}
+                        </div>
+                        <div className="text-sm text-muted-foreground">Conflicts</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {Math.round(currentJob.results.duration / 1000)}s
+                        </div>
+                        <div className="text-sm text-muted-foreground">Duration</div>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      <div className="text-sm font-medium">Vehicles Imported</div>
-                      <div className="text-2xl font-bold text-blue-600">
-                        {currentJob.results.statistics.devicesImported}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {currentJob.errors.length > 0 && (
-                  <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      <div className="space-y-1">
-                        {currentJob.errors.map((error, index) => (
-                          <div key={index}>• {error}</div>
-                        ))}
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                <div className="text-sm text-gray-500">
-                  Started: {new Date(currentJob.startedAt).toLocaleString()}
-                  {currentJob.completedAt && (
-                    <> | Completed: {new Date(currentJob.completedAt).toLocaleString()}</>
                   )}
+
+                  {/* Errors */}
+                  {currentJob.errors.length > 0 && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="w-4 h-4" />
+                      <AlertDescription>
+                        <div className="font-medium mb-2">Import Errors:</div>
+                        <ul className="list-disc list-inside text-sm space-y-1">
+                          {currentJob.errors.map((error, index) => (
+                            <li key={index}>{error}</li>
+                          ))}
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={clearJob}>
+                      Clear Job
+                    </Button>
+                    <Button variant="outline" onClick={() => setActiveTab('configuration')}>
+                      Start New Import
+                    </Button>
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <div className="text-center py-8">
+                  <Database className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No active import job</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setActiveTab('configuration')}
+                  >
+                    Start New Import
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

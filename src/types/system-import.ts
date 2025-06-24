@@ -63,3 +63,31 @@ export interface SystemImportResult {
   conflicts: number;
   backupTables: string[];
 }
+
+// Add missing type exports
+export interface SystemImportOptions {
+  importUsers: boolean;
+  importDevices: boolean;
+  conflictResolution: 'skip' | 'overwrite' | 'merge';
+  usernames?: string[];
+  batchSize?: number;
+}
+
+export interface SystemImportJob {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  progress: number;
+  currentPhase: string;
+  startedAt: string;
+  completedAt?: string;
+  results?: GP51ImportResult;
+  errors: string[];
+}
+
+export interface ImportProgress {
+  phase: string;
+  phaseProgress: number;
+  overallProgress: number;
+  currentOperation: string;
+  details?: string;
+}

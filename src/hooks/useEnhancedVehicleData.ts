@@ -26,6 +26,50 @@ export const useEnhancedVehicleData = () => {
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load initial data
+        const vehicleData = await enhancedVehicleDataService.getVehicleData();
+        setVehicles(vehicleData);
+
+        // Get metrics
+        const serviceMetrics = enhancedVehicleDataService.getMetrics();
+        
+        // Convert service metrics to the full VehicleDataMetrics interface
+        const expandedMetrics: VehicleDataMetrics = {
+          total: serviceMetrics.total,
+          online: serviceMetrics.online,
+          offline: serviceMetrics.offline,
+          idle: serviceMetrics.idle,
+          alerts: serviceMetrics.alerts,
+          totalVehicles: serviceMetrics.totalVehicles,
+          onlineVehicles: serviceMetrics.onlineVehicles,
+          offlineVehicles: serviceMetrics.offlineVehicles,
+          recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
+          lastSyncTime: serviceMetrics.lastSyncTime,
+          positionsUpdated: vehicleData.length,
+          errors: serviceMetrics.syncStatus === 'error' ? 1 : 0,
+          syncStatus: serviceMetrics.syncStatus,
+          errorMessage: serviceMetrics.errorMessage
+        };
+        
+        setMetrics(expandedMetrics);
+        setIsLoading(false);
+
+        // Show error toast if sync failed
+        if (serviceMetrics.syncStatus === 'error' && serviceMetrics.errorMessage) {
+          toast({
+            title: "Vehicle Data Sync Failed",
+            description: serviceMetrics.errorMessage,
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error('Error loading vehicle data:', error);
+        setIsLoading(false);
+      }
+    };
+
     // Clean up any existing subscription
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
@@ -33,11 +77,10 @@ export const useEnhancedVehicleData = () => {
     }
 
     // Subscribe to vehicle data updates
-    const unsubscribe = enhancedVehicleDataService.subscribe(() => {
-      const newVehicles = enhancedVehicleDataService.getVehicles();
-      const serviceMetrics = enhancedVehicleDataService.getMetrics();
-      
+    const unsubscribe = enhancedVehicleDataService.subscribe(async (newVehicles) => {
       setVehicles(newVehicles);
+      
+      const serviceMetrics = enhancedVehicleDataService.getMetrics();
       
       // Convert service metrics to the full VehicleDataMetrics interface
       const expandedMetrics: VehicleDataMetrics = {
@@ -72,25 +115,8 @@ export const useEnhancedVehicleData = () => {
 
     unsubscribeRef.current = unsubscribe;
 
-    // Initial data load
-    setVehicles(enhancedVehicleDataService.getVehicles());
-    const initialMetrics = enhancedVehicleDataService.getMetrics();
-    setMetrics({
-      total: initialMetrics.total,
-      online: initialMetrics.online,
-      offline: initialMetrics.offline,
-      idle: initialMetrics.idle,
-      alerts: initialMetrics.alerts,
-      totalVehicles: initialMetrics.totalVehicles,
-      onlineVehicles: initialMetrics.onlineVehicles,
-      offlineVehicles: initialMetrics.offlineVehicles,
-      recentlyActiveVehicles: initialMetrics.recentlyActiveVehicles,
-      lastSyncTime: initialMetrics.lastSyncTime,
-      positionsUpdated: 0,
-      errors: 0,
-      syncStatus: initialMetrics.syncStatus
-    });
-    setIsLoading(false);
+    // Load initial data
+    loadData();
 
     // Cleanup function
     return () => {

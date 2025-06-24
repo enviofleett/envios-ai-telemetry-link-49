@@ -104,3 +104,6 @@ class GP51VehicleGroupManagementApi {
 }
 
 export const gp51VehicleGroupManagementApi = new GP51VehicleGroupManagementApi();
+
+// Add the missing export
+export const gp51VehicleGroupApi = gp51VehicleGroupManagementApi;
