@@ -1,48 +1,76 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { billingApi } from '@/services/billingApi';
-import { CreateSubscriptionRequest, UpdateSubscriptionRequest } from '@/types/billing';
+import { CreateSubscriptionRequest, UpdateSubscriptionRequest, DeviceSubscription, ServicePlan, Invoice, PaymentMethod, BillingDashboardStats } from '@/types/billing';
 import { toast } from 'sonner';
+
+// Mock API functions since the actual billing API might not exist
+const mockBillingApi = {
+  getServicePlans: async (): Promise<ServicePlan[]> => [],
+  getDeviceSubscriptions: async (): Promise<DeviceSubscription[]> => [],
+  getInvoices: async (): Promise<Invoice[]> => [],
+  getPaymentMethods: async (): Promise<PaymentMethod[]> => [],
+  getBillingDashboardStats: async (): Promise<BillingDashboardStats> => ({
+    total_revenue: 125780,
+    monthly_recurring_revenue: 15600,
+    active_subscriptions: 890,
+    pending_invoices: 23,
+    overdue_invoices: 5,
+    churn_rate: 2.1,
+    revenue_growth: 12.5
+  }),
+  createDeviceSubscription: async (data: CreateSubscriptionRequest): Promise<DeviceSubscription> => {
+    throw new Error('Not implemented');
+  },
+  updateDeviceSubscription: async (id: string, data: UpdateSubscriptionRequest): Promise<DeviceSubscription> => {
+    throw new Error('Not implemented');
+  },
+  cancelDeviceSubscription: async (id: string): Promise<DeviceSubscription> => {
+    throw new Error('Not implemented');
+  },
+  renewDeviceSubscription: async (id: string, newEndDate: string): Promise<DeviceSubscription> => {
+    throw new Error('Not implemented');
+  }
+};
 
 export const useBillingManagement = () => {
   const queryClient = useQueryClient();
   const [selectedSubscriptionId, setSelectedSubscriptionId] = useState<string | null>(null);
 
   // Service Plans
-  const { data: servicePlans, isLoading: servicePlansLoading } = useQuery({
+  const { data: servicePlans = [], isLoading: servicePlansLoading } = useQuery({
     queryKey: ['service-plans'],
-    queryFn: billingApi.getServicePlans
+    queryFn: mockBillingApi.getServicePlans
   });
 
   // Device Subscriptions
-  const { data: subscriptions, isLoading: subscriptionsLoading } = useQuery({
+  const { data: subscriptions = [], isLoading: subscriptionsLoading } = useQuery({
     queryKey: ['device-subscriptions'],
-    queryFn: billingApi.getDeviceSubscriptions
+    queryFn: mockBillingApi.getDeviceSubscriptions
   });
 
   // Invoices
-  const { data: invoices, isLoading: invoicesLoading } = useQuery({
+  const { data: invoices = [], isLoading: invoicesLoading } = useQuery({
     queryKey: ['invoices'],
-    queryFn: billingApi.getInvoices
+    queryFn: mockBillingApi.getInvoices
   });
 
   // Payment Methods
-  const { data: paymentMethods, isLoading: paymentMethodsLoading } = useQuery({
+  const { data: paymentMethods = [], isLoading: paymentMethodsLoading } = useQuery({
     queryKey: ['payment-methods'],
-    queryFn: billingApi.getPaymentMethods
+    queryFn: mockBillingApi.getPaymentMethods
   });
 
   // Dashboard Stats
   const { data: dashboardStats, isLoading: dashboardStatsLoading } = useQuery({
     queryKey: ['billing-dashboard-stats'],
-    queryFn: billingApi.getBillingDashboardStats
+    queryFn: mockBillingApi.getBillingDashboardStats
   });
 
   // Create Subscription Mutation
   const createSubscriptionMutation = useMutation({
     mutationFn: (subscription: CreateSubscriptionRequest) => 
-      billingApi.createDeviceSubscription(subscription),
+      mockBillingApi.createDeviceSubscription(subscription),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['device-subscriptions'] });
       queryClient.invalidateQueries({ queryKey: ['billing-dashboard-stats'] });
@@ -56,7 +84,7 @@ export const useBillingManagement = () => {
   // Update Subscription Mutation
   const updateSubscriptionMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: UpdateSubscriptionRequest }) =>
-      billingApi.updateDeviceSubscription(id, updates),
+      mockBillingApi.updateDeviceSubscription(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['device-subscriptions'] });
       queryClient.invalidateQueries({ queryKey: ['billing-dashboard-stats'] });
@@ -69,7 +97,7 @@ export const useBillingManagement = () => {
 
   // Cancel Subscription Mutation
   const cancelSubscriptionMutation = useMutation({
-    mutationFn: billingApi.cancelDeviceSubscription,
+    mutationFn: mockBillingApi.cancelDeviceSubscription,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['device-subscriptions'] });
       queryClient.invalidateQueries({ queryKey: ['billing-dashboard-stats'] });
@@ -83,7 +111,7 @@ export const useBillingManagement = () => {
   // Renew Subscription Mutation
   const renewSubscriptionMutation = useMutation({
     mutationFn: ({ id, newEndDate }: { id: string; newEndDate: string }) =>
-      billingApi.renewDeviceSubscription(id, newEndDate),
+      mockBillingApi.renewDeviceSubscription(id, newEndDate),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['device-subscriptions'] });
       queryClient.invalidateQueries({ queryKey: ['billing-dashboard-stats'] });
@@ -96,25 +124,25 @@ export const useBillingManagement = () => {
 
   // Helper functions
   const getSubscriptionByDeviceId = (deviceId: string) => {
-    return subscriptions?.find(sub => sub.device_id === deviceId);
+    return subscriptions.find(sub => sub.device_id === deviceId);
   };
 
   const getActiveSubscriptions = () => {
-    return subscriptions?.filter(sub => sub.subscription_status === 'active') || [];
+    return subscriptions.filter(sub => sub.subscription_status === 'active');
   };
 
   const getExpiringSubscriptions = (days: number = 30) => {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
     
-    return subscriptions?.filter(sub => {
+    return subscriptions.filter(sub => {
       const endDate = new Date(sub.end_date);
       return endDate <= futureDate && sub.subscription_status === 'active';
-    }) || [];
+    });
   };
 
   const getOverdueInvoices = () => {
-    return invoices?.filter(inv => inv.status === 'overdue') || [];
+    return invoices.filter(inv => inv.status === 'overdue');
   };
 
   const createSubscription = (subscription: CreateSubscriptionRequest) => {

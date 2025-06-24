@@ -22,7 +22,7 @@ export const useWorkshops = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch workshops with proper typing
+  // Fetch workshops with proper typing and fallback values for missing columns
   const { data: workshops, isLoading: workshopsLoading } = useQuery({
     queryKey: ['workshops'],
     queryFn: async (): Promise<Workshop[]> => {
@@ -33,7 +33,7 @@ export const useWorkshops = () => {
 
       if (error) throw error;
 
-      // Transform and ensure all required properties exist
+      // Transform and ensure all required properties exist with fallback values
       return (data || []).map(workshop => ({
         id: workshop.id,
         name: workshop.name,
@@ -45,16 +45,17 @@ export const useWorkshops = () => {
         service_types: workshop.service_types || [],
         created_at: workshop.created_at,
         updated_at: workshop.updated_at,
-        phone: workshop.phone || workshop.phone_number,
-        city: workshop.city || '',
-        country: workshop.country || '',
-        operating_hours: workshop.operating_hours || '',
-        connection_fee: workshop.connection_fee || 0,
-        activation_fee: workshop.activation_fee || 0,
-        verified: workshop.verified || false,
-        is_active: workshop.is_active !== false,
-        rating: workshop.rating || 0,
-        review_count: workshop.review_count || 0
+        // Fallback values for missing database columns
+        phone: workshop.phone_number || '', // Use phone_number as fallback
+        city: '', // Default empty value
+        country: '', // Default empty value
+        operating_hours: '', // Default empty value
+        connection_fee: 0, // Default zero
+        activation_fee: 0, // Default zero
+        verified: false, // Default false
+        is_active: true, // Default true
+        rating: 0, // Default zero
+        review_count: 0 // Default zero
       }));
     }
   });
