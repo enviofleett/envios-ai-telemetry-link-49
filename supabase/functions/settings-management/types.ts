@@ -4,44 +4,24 @@ export interface SettingsRequest {
   username?: string;
   password?: string;
   apiUrl?: string;
-  testOnly?: boolean;
+  [key: string]: any;
 }
 
-export interface AuthResult {
+export interface GP51AuthResult {
   success: boolean;
+  error?: string;
   token?: string;
-  username?: string;
-  password?: string;
-  hashedPassword?: string;
-  apiUrl?: string;
-  method?: string;
-  error?: string;
-}
-
-export interface ImportResult {
-  success: boolean;
-  importedVehicles?: number;
   message?: string;
+  status?: number;
 }
 
-export interface SessionData {
-  username: string;
-  expiresAt: string;
-  method?: string;
+export interface SessionCleanupResult {
+  cleaned: number;
+  errors: string[];
 }
 
-export interface ApiResponse {
-  success: boolean;
-  message?: string;
-  session?: SessionData;
-  importResult?: ImportResult;
-  importError?: string;
-  error?: string;
-  details?: string;
-  latency?: number;
-  connected?: boolean;
-  username?: string;
-  apiUrl?: string;
-  lastValidated?: string;
-  isExpired?: boolean;
+export interface ValidationResult {
+  isValid: boolean;
+  reasons: string[];
+  riskLevel: 'low' | 'medium' | 'high';
 }
