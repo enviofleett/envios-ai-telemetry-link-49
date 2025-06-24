@@ -1,39 +1,41 @@
 import { supabase } from '@/integrations/supabase/client';
-import { SecurityService } from './SecurityService';
-import { crossBrowserMD5 } from '@/utils/crossBrowserMD5';
+import { SessionEncryption } from './sessionEncryption';
 
 export interface SecureGP51Session {
-  id: string;
+  sessionId: string;
   username: string;
-  token: string;
+  encryptedToken: string;
   expiresAt: string;
-  sessionFingerprint: string;
+  createdAt: string;
+  lastValidated: string;
   riskLevel: 'low' | 'medium' | 'high';
-  lastValidated: Date;
-  deviceInfo: Record<string, any>;
+  securityFlags: string[];
 }
 
 export interface SessionValidationResult {
   isValid: boolean;
   riskLevel: 'low' | 'medium' | 'high';
   reasons: string[];
-  actionRequired?: 'challenge' | 'reauth' | 'block';
+  actionRequired?: 'none' | 'refresh' | 'reauth';
 }
 
-export interface SessionHealth {
-  isHealthy: boolean;
-  riskLevel: 'low' | 'medium' | 'high';
-  lastValidated: Date | null;
-  issues: string[];
+export interface SecureSessionCreationResult {
+  success: boolean;
+  session?: SecureGP51Session;
+  error?: string;
 }
 
-class EnhancedGP51SessionManager {
+export class EnhancedGP51SessionManager {
   private static instance: EnhancedGP51SessionManager;
   private currentSession: SecureGP51Session | null = null;
-  private sessionStorage = new Map<string, SecureGP51Session>();
-  private subscribers: Array<(session: SecureGP51Session | null) => void> = [];
+  private encryptionKey: CryptoKey | null = null;
+  private sessionListeners: ((session: SecureGP51Session | null) => void)[] = [];
+  private validationTimer: NodeJS.Timeout | null = null;
 
-  private constructor() {}
+  private constructor() {
+    this.initializeEncryption();
+    this.startPeriodicValidation();
+  }
 
   static getInstance(): EnhancedGP51SessionManager {
     if (!EnhancedGP51SessionManager.instance) {
@@ -42,92 +44,134 @@ class EnhancedGP51SessionManager {
     return EnhancedGP51SessionManager.instance;
   }
 
-  subscribe(callback: (session: SecureGP51Session | null) => void): () => void {
-    this.subscribers.push(callback);
-    
-    // Return unsubscribe function
-    return () => {
-      const index = this.subscribers.indexOf(callback);
-      if (index > -1) {
-        this.subscribers.splice(index, 1);
-      }
-    };
-  }
-
-  private notifySubscribers(): void {
-    this.subscribers.forEach(callback => {
-      try {
-        callback(this.currentSession);
-      } catch (error) {
-        console.error('Error in session subscriber:', error);
-      }
-    });
-  }
-
-  async createSecureSession(username: string, password: string): Promise<{ success: boolean; session?: SecureGP51Session; error?: string }> {
+  private async initializeEncryption(): Promise<void> {
     try {
-      console.log('🔐 Creating secure GP51 session...');
-      
-      const passwordHash = await crossBrowserMD5(password);
-      const sessionFingerprint = await this.generateSessionFingerprint();
-      
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 8);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        return { success: false, error: 'User not authenticated' };
+      this.encryptionKey = await SessionEncryption.generateKey();
+      console.log('🔐 Session encryption initialized');
+    } catch (error) {
+      console.error('❌ Failed to initialize session encryption:', error);
+    }
+  }
+
+  async createSecureSession(username: string, token: string): Promise<SecureSessionCreationResult> {
+    try {
+      if (!this.encryptionKey) {
+        await this.initializeEncryption();
       }
 
-      const { data: sessionData, error: sessionError } = await supabase
-        .from('gp51_sessions')
-        .insert({
-          envio_user_id: user.id,
-          username,
-          password_hash: passwordHash,
-          gp51_token: `secure_token_${Date.now()}`,
-          token_expires_at: expiresAt.toISOString()
-        })
-        .select()
-        .single();
-
-      if (sessionError) {
-        return { success: false, error: sessionError.message };
+      if (!this.encryptionKey) {
+        throw new Error('Encryption key not available');
       }
+
+      console.log('🔒 Creating secure GP51 session...');
+
+      const sessionId = await SessionEncryption.generateSecureSessionId();
+      const encryptedToken = await SessionEncryption.encryptSessionToken(token, this.encryptionKey);
+      const now = new Date().toISOString();
+      
+      // Calculate initial risk level
+      const riskAssessment = await this.assessInitialRisk(username, sessionId);
 
       const secureSession: SecureGP51Session = {
-        id: sessionData.id,
+        sessionId,
         username,
-        token: sessionData.gp51_token,
-        expiresAt: sessionData.token_expires_at,
-        sessionFingerprint,
-        riskLevel: 'low',
-        lastValidated: new Date(),
-        deviceInfo: await this.collectDeviceInfo()
+        encryptedToken,
+        expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(), // 8 hours
+        createdAt: now,
+        lastValidated: now,
+        riskLevel: riskAssessment.riskLevel,
+        securityFlags: riskAssessment.flags
       };
 
+      // Store session securely
+      await this.storeSecureSession(secureSession);
+      
       this.currentSession = secureSession;
-      this.sessionStorage.set(secureSession.id, secureSession);
-      this.notifySubscribers();
+      this.notifyListeners();
 
-      console.log('✅ Secure GP51 session created successfully');
-      return { success: true, session: secureSession };
+      // Log security event
+      await this.logSecurityEvent('SESSION_CREATED', {
+        sessionId,
+        username,
+        riskLevel: secureSession.riskLevel,
+        securityFlags: secureSession.securityFlags
+      });
+
+      console.log('✅ Secure session created successfully');
+
+      return {
+        success: true,
+        session: secureSession
+      };
 
     } catch (error) {
       console.error('❌ Failed to create secure session:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Session creation failed' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create secure session'
       };
     }
   }
 
-  async validateSession(sessionId?: string): Promise<boolean> {
-    const targetSessionId = sessionId || this.currentSession?.id;
-    if (!targetSessionId) return false;
+  private async assessInitialRisk(username: string, sessionId: string): Promise<{
+    riskLevel: 'low' | 'medium' | 'high';
+    flags: string[];
+  }> {
+    const flags: string[] = [];
+    let riskLevel: 'low' | 'medium' | 'high' = 'low';
 
-    const result = await this.validateSessionDetailed(targetSessionId);
-    return result.isValid;
+    try {
+      // Check for concurrent sessions
+      const { data: activeSessions } = await supabase
+        .from('gp51_sessions')
+        .select('id')
+        .eq('username', username)
+        .eq('is_active', true);
+
+      if (activeSessions && activeSessions.length > 2) {
+        flags.push('MULTIPLE_ACTIVE_SESSIONS');
+        riskLevel = 'medium';
+      }
+
+      // Check recent failed attempts (would need additional table)
+      // For now, we'll keep it simple
+      
+      // Check for admin accounts
+      if (username === 'octopus' || username.toLowerCase().includes('admin')) {
+        flags.push('ADMIN_ACCOUNT');
+        riskLevel = riskLevel === 'high' ? 'high' : 'medium';
+      }
+
+    } catch (error) {
+      console.warn('⚠️ Risk assessment failed:', error);
+      flags.push('RISK_ASSESSMENT_FAILED');
+      riskLevel = 'medium';
+    }
+
+    return { riskLevel, flags };
+  }
+
+  private async storeSecureSession(session: SecureGP51Session): Promise<void> {
+    try {
+      // Store session metadata (not the encrypted token) in database
+      await supabase.from('gp51_sessions').upsert({
+        id: session.sessionId,
+        username: session.username,
+        gp51_token: '[ENCRYPTED]', // Don't store actual token
+        token_expires_at: session.expiresAt,
+        is_active: true,
+        created_at: session.createdAt,
+        updated_at: new Date().toISOString(),
+        last_activity_at: session.lastValidated
+      });
+
+      // Store encrypted token separately in secure storage if available
+      // For now, keep it in memory only for maximum security
+      
+    } catch (error) {
+      console.error('❌ Failed to store secure session:', error);
+      throw error;
+    }
   }
 
   async validateCurrentSession(): Promise<SessionValidationResult> {
@@ -140,162 +184,191 @@ class EnhancedGP51SessionManager {
       };
     }
 
-    return await this.validateSessionDetailed(this.currentSession.id);
-  }
-
-  async validateSessionDetailed(sessionId: string): Promise<SessionValidationResult> {
     try {
-      const session = this.sessionStorage.get(sessionId);
-      if (!session) {
-        return {
-          isValid: false,
-          riskLevel: 'high',
-          reasons: ['Session not found'],
-          actionRequired: 'reauth'
-        };
+      const reasons: string[] = [];
+      let riskLevel: 'low' | 'medium' | 'high' = this.currentSession.riskLevel;
+
+      // Check expiration
+      const now = new Date();
+      const expiresAt = new Date(this.currentSession.expiresAt);
+      
+      if (expiresAt <= now) {
+        reasons.push('Session expired');
+        riskLevel = 'high';
       }
 
-      if (new Date(session.expiresAt) <= new Date()) {
-        return {
-          isValid: false,
-          riskLevel: 'medium',
-          reasons: ['Session expired'],
-          actionRequired: 'reauth'
-        };
+      // Check if session has been inactive too long
+      const lastValidated = new Date(this.currentSession.lastValidated);
+      const inactiveTime = now.getTime() - lastValidated.getTime();
+      const maxInactiveTime = 2 * 60 * 60 * 1000; // 2 hours
+
+      if (inactiveTime > maxInactiveTime) {
+        reasons.push('Session inactive too long');
+        riskLevel = riskLevel === 'high' ? 'high' : 'medium';
       }
 
-      const currentFingerprint = await this.generateSessionFingerprint();
-      if (currentFingerprint !== session.sessionFingerprint) {
-        return {
-          isValid: false,
-          riskLevel: 'high',
-          reasons: ['Device fingerprint mismatch'],
-          actionRequired: 'challenge'
-        };
+      // Check for security flags
+      if (this.currentSession.securityFlags.length > 0) {
+        reasons.push(`Security flags: ${this.currentSession.securityFlags.join(', ')}`);
+        riskLevel = riskLevel === 'high' ? 'high' : 'medium';
       }
+
+      // Test actual token validity with GP51
+      const tokenValid = await this.validateTokenWithGP51();
+      if (!tokenValid) {
+        reasons.push('Token invalid with GP51');
+        riskLevel = 'high';
+      }
+
+      const isValid = reasons.length === 0 || riskLevel !== 'high';
+      let actionRequired: 'none' | 'refresh' | 'reauth' = 'none';
+
+      if (riskLevel === 'high') {
+        actionRequired = 'reauth';
+      } else if (riskLevel === 'medium') {
+        actionRequired = 'refresh';
+      }
+
+      // Update validation timestamp
+      this.currentSession.lastValidated = now.toISOString();
 
       return {
-        isValid: true,
-        riskLevel: 'low',
-        reasons: []
+        isValid,
+        riskLevel,
+        reasons,
+        actionRequired
       };
 
     } catch (error) {
-      console.error('Session validation failed:', error);
+      console.error('❌ Session validation failed:', error);
       return {
         isValid: false,
         riskLevel: 'high',
         reasons: ['Validation error'],
-        actionRequired: 'block'
+        actionRequired: 'reauth'
       };
     }
   }
 
-  async invalidateSession(): Promise<void> {
+  private async validateTokenWithGP51(): Promise<boolean> {
     try {
-      if (this.currentSession) {
-        await this.clearSession(this.currentSession.id);
-        console.log('✅ Session invalidated successfully');
+      if (!this.currentSession || !this.encryptionKey) {
+        return false;
       }
+
+      const decryptedToken = await SessionEncryption.decryptSessionToken(
+        this.currentSession.encryptedToken,
+        this.encryptionKey
+      );
+
+      // Test token with a lightweight GP51 operation
+      const { data, error } = await supabase.functions.invoke('gp51-service', {
+        body: {
+          action: 'test_token',
+          token: decryptedToken
+        }
+      });
+
+      return !error && data?.success;
+
     } catch (error) {
-      console.error('❌ Failed to invalidate session:', error);
-      throw error;
+      console.error('❌ Token validation with GP51 failed:', error);
+      return false;
     }
+  }
+
+  private startPeriodicValidation(): void {
+    // Validate session every 5 minutes
+    this.validationTimer = setInterval(async () => {
+      if (this.currentSession) {
+        const validation = await this.validateCurrentSession();
+        
+        if (!validation.isValid) {
+          console.warn('⚠️ Session validation failed during periodic check:', validation.reasons);
+          
+          if (validation.actionRequired === 'reauth') {
+            await this.terminateSession();
+          }
+        }
+      }
+    }, 5 * 60 * 1000);
   }
 
   async terminateSession(): Promise<void> {
-    try {
-      if (this.currentSession) {
-        await this.clearSession(this.currentSession.id);
-        console.log('✅ Session terminated successfully');
+    if (this.currentSession) {
+      // Log termination
+      await this.logSecurityEvent('SESSION_TERMINATED', {
+        sessionId: this.currentSession.sessionId,
+        username: this.currentSession.username,
+        reason: 'Manual termination'
+      });
+
+      // Mark as inactive in database
+      try {
+        await supabase
+          .from('gp51_sessions')
+          .update({ 
+            is_active: false,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', this.currentSession.sessionId);
+      } catch (error) {
+        console.warn('⚠️ Failed to update session status in database:', error);
       }
-    } catch (error) {
-      console.error('❌ Failed to terminate session:', error);
-      throw error;
+
+      this.currentSession = null;
+      this.notifyListeners();
     }
-  }
-
-  getSessionHealth(sessionId?: string): SessionHealth {
-    const targetSession = sessionId ? 
-      this.sessionStorage.get(sessionId) : 
-      this.currentSession;
-
-    if (!targetSession) {
-      return {
-        isHealthy: false,
-        riskLevel: 'high',
-        lastValidated: null,
-        issues: ['Session not found']
-      };
-    }
-
-    const issues: string[] = [];
-    let riskLevel: 'low' | 'medium' | 'high' = 'low';
-
-    const timeUntilExpiry = new Date(targetSession.expiresAt).getTime() - Date.now();
-    if (timeUntilExpiry <= 0) {
-      issues.push('Session expired');
-      riskLevel = 'high';
-    } else if (timeUntilExpiry < 60 * 60 * 1000) {
-      issues.push('Session expires soon');
-      riskLevel = 'medium';
-    }
-
-    return {
-      isHealthy: issues.length === 0,
-      riskLevel,
-      lastValidated: targetSession.lastValidated,
-      issues
-    };
-  }
-
-  private async generateSessionFingerprint(): Promise<string> {
-    const fingerprint = {
-      userAgent: navigator.userAgent,
-      timestamp: Date.now(),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      language: navigator.language
-    };
-    
-    return await crossBrowserMD5(JSON.stringify(fingerprint));
-  }
-
-  private async collectDeviceInfo(): Promise<Record<string, any>> {
-    return {
-      userAgent: navigator.userAgent,
-      platform: navigator.platform,
-      language: navigator.language,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      screen: {
-        width: screen.width,
-        height: screen.height
-      }
-    };
   }
 
   getCurrentSession(): SecureGP51Session | null {
     return this.currentSession;
   }
 
-  async clearSession(sessionId: string): Promise<void> {
-    try {
-      await supabase
-        .from('gp51_sessions')
-        .delete()
-        .eq('id', sessionId);
+  subscribe(callback: (session: SecureGP51Session | null) => void): () => void {
+    this.sessionListeners.push(callback);
+    
+    // Immediately call with current session
+    callback(this.currentSession);
+    
+    return () => {
+      this.sessionListeners = this.sessionListeners.filter(listener => listener !== callback);
+    };
+  }
 
-      this.sessionStorage.delete(sessionId);
-      
-      if (this.currentSession?.id === sessionId) {
-        this.currentSession = null;
-        this.notifySubscribers();
+  private notifyListeners(): void {
+    this.sessionListeners.forEach(listener => {
+      try {
+        listener(this.currentSession);
+      } catch (error) {
+        console.error('Error in session listener:', error);
       }
+    });
+  }
 
-      console.log('Secure session cleared');
+  private async logSecurityEvent(eventType: string, details: any): Promise<void> {
+    try {
+      // For now, log to console. In production, this would go to a security audit log
+      console.log(`🔐 [SECURITY] ${eventType}:`, details);
+      
+      // TODO: When security_audit_logs table is available, uncomment this:
+      // await supabase.from('security_audit_logs').insert({
+      //   event_type: eventType,
+      //   event_details: details,
+      //   created_at: new Date().toISOString()
+      // });
     } catch (error) {
-      console.error('Failed to clear secure session:', error);
+      console.error('Failed to log security event:', error);
     }
+  }
+
+  destroy(): void {
+    if (this.validationTimer) {
+      clearInterval(this.validationTimer);
+    }
+    this.terminateSession();
   }
 }
 
+// Export singleton instance
 export const enhancedGP51SessionManager = EnhancedGP51SessionManager.getInstance();
