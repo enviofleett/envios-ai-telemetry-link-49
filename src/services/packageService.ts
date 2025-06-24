@@ -38,6 +38,10 @@ class PackageService {
     }
   }
 
+  async getActivePackages(): Promise<SubscriberPackage[]> {
+    return this.getPackages();
+  }
+
   async getPackageById(packageId: string): Promise<SubscriberPackage | null> {
     try {
       const { data, error } = await supabase
@@ -55,6 +59,30 @@ class PackageService {
       } as SubscriberPackage;
     } catch (error) {
       console.error('Error fetching package by ID:', error);
+      return null;
+    }
+  }
+
+  async getUserPackage(userId: string): Promise<SubscriberPackage | null> {
+    try {
+      const { data, error } = await supabase
+        .from('user_subscriptions')
+        .select(`
+          *,
+          subscriber_packages (*)
+        `)
+        .eq('user_id', userId)
+        .eq('subscription_status', 'active')
+        .single();
+
+      if (error || !data || !data.subscriber_packages) return null;
+
+      return {
+        ...data.subscriber_packages,
+        user_type: this.normalizeUserType(data.subscriber_packages.user_type)
+      } as SubscriberPackage;
+    } catch (error) {
+      console.error('Error fetching user package:', error);
       return null;
     }
   }
@@ -112,6 +140,49 @@ class PackageService {
     } catch (error) {
       console.error('Error deleting package:', error);
       return false;
+    }
+  }
+
+  async assignPackageToUser(userId: string, packageId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // First, deactivate any existing subscriptions
+      await supabase
+        .from('user_subscriptions')
+        .update({ subscription_status: 'cancelled' })
+        .eq('user_id', userId);
+
+      // Create new subscription
+      const { error } = await supabase
+        .from('user_subscriptions')
+        .insert([{
+          user_id: userId,
+          package_id: packageId,
+          subscription_status: 'active',
+          start_date: new Date().toISOString(),
+          billing_cycle: 'monthly'
+        }]);
+
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Error assigning package to user:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async autoAssignDefaultPackage(userId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Get the default package (lowest price)
+      const packages = await this.getPackages();
+      if (packages.length === 0) {
+        return { success: false, error: 'No packages available' };
+      }
+
+      const defaultPackage = packages[0]; // Already sorted by price
+      return this.assignPackageToUser(userId, defaultPackage.id);
+    } catch (error) {
+      console.error('Error auto-assigning default package:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 

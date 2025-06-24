@@ -27,8 +27,11 @@ const PackageUpgradeDialog: React.FC<PackageUpgradeDialogProps> = ({
   currentFeature
 }) => {
   const { user } = useUnifiedAuth();
-  const { packages, userPackage, assignPackage, isAssigning } = usePackageManagement();
+  const { packages, getUserPackage, assignPackage, isAssigning } = usePackageManagement();
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
+
+  // Get user's current package
+  const { data: userPackage } = user?.id ? getUserPackage(user.id) : { data: null };
 
   const handleUpgrade = () => {
     if (!user?.id || !selectedPackage) return;
@@ -68,7 +71,7 @@ const PackageUpgradeDialog: React.FC<PackageUpgradeDialogProps> = ({
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-          {packages?.map((pkg) => (
+          {Array.isArray(packages) && packages.map((pkg) => (
             <Card 
               key={pkg.id} 
               className={`cursor-pointer border-2 transition-colors ${

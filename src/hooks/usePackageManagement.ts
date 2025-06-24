@@ -1,66 +1,75 @@
 
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { packageService } from '@/services/packageService';
-import { useUnifiedAuth } from '@/contexts/UnifiedAuthContext';
-import { toast } from 'sonner';
+import { packageService, type SubscriberPackage } from '@/services/packageService';
+import { useToast } from '@/hooks/use-toast';
 
 export const usePackageManagement = () => {
+  const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user } = useUnifiedAuth();
 
-  // Get all active packages
-  const { data: packages, isLoading: packagesLoading } = useQuery({
-    queryKey: ['active-packages'],
-    queryFn: packageService.getActivePackages
+  // Query for getting all packages
+  const { data: packages, isLoading: isLoadingPackages, error: packagesError } = useQuery({
+    queryKey: ['packages'],
+    queryFn: () => packageService.getActivePackages(),
   });
 
-  // Get user's current package
-  const { data: userPackage, isLoading: userPackageLoading } = useQuery({
-    queryKey: ['user-package', user?.id],
-    queryFn: () => user?.id ? packageService.getUserPackage(user.id) : null,
-    enabled: !!user?.id
+  // Query for getting user's current package
+  const getUserPackageQuery = (userId: string) => useQuery({
+    queryKey: ['user-package', userId],
+    queryFn: () => packageService.getUserPackage(userId),
+    enabled: !!userId,
   });
 
-  // Assign package mutation
+  // Mutation for assigning package to user
   const assignPackageMutation = useMutation({
     mutationFn: ({ userId, packageId }: { userId: string; packageId: string }) =>
       packageService.assignPackageToUser(userId, packageId),
     onSuccess: (result) => {
       if (result.success) {
+        toast({
+          title: 'Success',
+          description: 'Package assigned successfully',
+        });
         queryClient.invalidateQueries({ queryKey: ['user-package'] });
-        toast.success('Package assigned successfully');
       } else {
-        toast.error(result.error || 'Failed to assign package');
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to assign package',
+          variant: 'destructive',
+        });
       }
     },
-    onError: (error: any) => {
-      toast.error('Failed to assign package: ' + error.message);
-    }
   });
 
-  // Auto-assign default package mutation
-  const autoAssignDefaultMutation = useMutation({
-    mutationFn: packageService.autoAssignDefaultPackage,
+  // Mutation for auto-assigning default package
+  const autoAssignMutation = useMutation({
+    mutationFn: (userId: string) => packageService.autoAssignDefaultPackage(userId),
     onSuccess: (result) => {
       if (result.success) {
+        toast({
+          title: 'Success',
+          description: 'Default package assigned successfully',
+        });
         queryClient.invalidateQueries({ queryKey: ['user-package'] });
-        toast.success('Default package assigned');
       } else {
-        console.error('Failed to auto-assign default package:', result.error);
+        toast({
+          title: 'Error',
+          description: result.error || 'Failed to assign default package',
+          variant: 'destructive',
+        });
       }
     },
-    onError: (error: any) => {
-      console.error('Auto-assign error:', error);
-    }
   });
 
   return {
-    packages,
-    userPackage,
-    isLoading: packagesLoading || userPackageLoading,
+    packages: packages || [],
+    isLoadingPackages,
+    packagesError,
+    getUserPackage: getUserPackageQuery,
     assignPackage: assignPackageMutation.mutate,
-    autoAssignDefault: autoAssignDefaultMutation.mutate,
     isAssigning: assignPackageMutation.isPending,
-    isAutoAssigning: autoAssignDefaultMutation.isPending
+    autoAssignDefaultPackage: autoAssignMutation.mutate,
+    isAutoAssigning: autoAssignMutation.isPending,
   };
 };
