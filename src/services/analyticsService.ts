@@ -15,7 +15,6 @@ export interface MonthlyMetric {
   metric_value: number;
 }
 
-// Add missing type definitions
 export interface MetricWithGrowth {
   current: number;
   growth: number;

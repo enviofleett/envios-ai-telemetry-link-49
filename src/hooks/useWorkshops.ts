@@ -3,7 +3,17 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Workshop, CreateWorkshopData } from '@/types/workshop';
+import { Workshop } from '@/types/workshop';
+
+// Define CreateWorkshopData locally since it's not exported from workshop types
+export interface CreateWorkshopData {
+  name: string;
+  representative_name: string;
+  email: string;
+  phone_number?: string;
+  address?: string;
+  service_types?: string[];
+}
 
 export interface WorkshopConnection {
   id: string;
@@ -42,29 +52,29 @@ export const useWorkshops = () => {
         phone_number: workshop.phone_number,
         address: workshop.address,
         status: workshop.status,
-        service_types: workshop.service_types || [],
+        service_types: Array.isArray(workshop.service_types) ? workshop.service_types : [],
         created_at: workshop.created_at,
         updated_at: workshop.updated_at,
-        // Fallback values for missing database columns
-        phone: workshop.phone_number || '', // Use phone_number as fallback
-        city: '', // Default empty value
-        country: '', // Default empty value
-        operating_hours: '', // Default empty value
-        connection_fee: 0, // Default zero
-        activation_fee: 0, // Default zero
-        verified: false, // Default false
-        is_active: true, // Default true
-        rating: 0, // Default zero
-        review_count: 0 // Default zero
+        // Add required Workshop properties with default values
+        phone: workshop.phone_number || '',
+        city: '',
+        country: '',
+        operating_hours: '',
+        connection_fee: 0,
+        activation_fee: 0,
+        verified: false,
+        is_active: true,
+        rating: 0,
+        review_count: 0
       }));
     }
   });
 
-  // Fetch workshop connections
+  // Fetch workshop connections - return empty array since table may not exist
   const { data: connections } = useQuery({
     queryKey: ['workshop-connections'],
     queryFn: async (): Promise<WorkshopConnection[]> => {
-      // Mock data since workshop connections table may not exist
+      // Return empty array since workshop connections table may not exist
       return [];
     }
   });
@@ -157,12 +167,6 @@ export const useWorkshops = () => {
     }
   });
 
-  // Search workshops function
-  const searchWorkshops = async (city: string, country: string) => {
-    // Mock implementation - would filter workshops
-    console.log('Searching workshops in:', city, country);
-  };
-
   return {
     workshops: workshops || [],
     connections: connections || [],
@@ -171,7 +175,6 @@ export const useWorkshops = () => {
     createWorkshop: createWorkshopMutation.mutate,
     updateWorkshopStatus: updateWorkshopStatusMutation.mutate,
     connectToWorkshop: connectToWorkshopMutation.mutate,
-    searchWorkshops,
     isCreating: createWorkshopMutation.isPending,
     isUpdating: updateWorkshopStatusMutation.isPending
   };
