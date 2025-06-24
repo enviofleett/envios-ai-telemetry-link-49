@@ -3,12 +3,12 @@
  * GP51 API constants and helper functions
  */
 
-export const GP51_DEFAULT_BASE_URL = 'https://www.gps51.com';
+export const GP51_DEFAULT_BASE_URL = 'https://api.gps51.com'; // Updated to use api subdomain
 export const GP51_WEBAPI_PATH = '/webapi';
 
 /**
  * Gets the correct GP51 API URL, ensuring proper format
- * @param baseUrl - The base URL (e.g., 'https://www.gps51.com')
+ * @param baseUrl - The base URL (e.g., 'https://api.gps51.com')
  * @returns The properly formatted API URL
  */
 export function getGP51ApiUrl(baseUrl: string = GP51_DEFAULT_BASE_URL): string {
@@ -26,7 +26,7 @@ export function getGP51ApiUrl(baseUrl: string = GP51_DEFAULT_BASE_URL): string {
 /**
  * Builds a GP51 API URL with action and parameters
  * @param baseUrl - The base URL
- * @param action - The API action (login, etc.)
+ * @param action - The API action (querydevicestree, etc.)
  * @param params - Additional query parameters
  * @returns The complete API URL with query parameters
  */

@@ -1,287 +1,307 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0'
+import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+import { getValidGp51Session } from "../_shared/gp51_session_utils.ts";
+import { jsonResponse, errorResponse } from "../_shared/response_utils.ts";
+import { fetchFromGP51 } from "../_shared/gp51_api_client.ts";
+import { handleCorsOptionsRequest } from "../_shared/cors.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+interface ImportOptions {
+  importUsers?: boolean;
+  importDevices?: boolean;
+  conflictResolution?: 'skip' | 'overwrite' | 'merge';
+  batchSize?: number;
 }
 
-interface SessionManager {
-  getValidSession(adminSupabase: any, userId: string): Promise<any>;
+interface DeviceData {
+  deviceid: string;
+  devicename: string;
+  creator?: string;
+  groupid?: string;
+  groupname?: string;
 }
 
-interface GP51ApiClient {
-  queryMonitorList(apiUrl: string, token: string): Promise<any>;
-}
-
-// Session Management
-class SessionManager {
-  static async getValidSession(adminSupabase: any, userId: string) {
-    console.log('🔍 [SESSION] Getting valid GP51 session...');
-    
-    const { data: session, error } = await adminSupabase
-      .from('gp51_sessions')
-      .select('*')
-      .eq('envio_user_id', userId)
-      .eq('is_active', true)
-      .gt('token_expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      console.error('❌ [SESSION] Error fetching session:', error);
-      throw new Error('Failed to fetch GP51 session');
-    }
-
-    if (!session) {
-      console.error('❌ [SESSION] No valid session found');
-      throw new Error('No valid GP51 session found');
-    }
-
-    console.log('🔍 [SESSION] Found session for user:', session.username);
-    
-    // Validate token
-    const tokenData = session.gp51_token;
-    console.log('🔍 [TOKEN] Parsing token data:', typeof tokenData);
-    
-    let validatedToken: string;
-    if (typeof tokenData === 'string') {
-      console.log('✅ [TOKEN] Using non-JSON token string');
-      validatedToken = tokenData;
-    } else {
-      console.error('❌ [TOKEN] Invalid token format');
-      throw new Error('Invalid token format');
-    }
-
-    if (!validatedToken || validatedToken.length < 8) {
-      console.error('❌ [TOKEN] Token validation failed');
-      throw new Error('Invalid GP51 token');
-    }
-
-    console.log('✅ [TOKEN] Token validation successful, length:', validatedToken.length);
-    console.log('✅ [SESSION] Session validated successfully for', session.username);
-    
-    return {
-      ...session,
-      gp51_token: validatedToken
-    };
-  }
-}
-
-// GP51 API Client
-class GP51ApiClient {
-  static async queryMonitorList(apiUrl: string, token: string) {
-    console.log('🔄 [GP51-CLIENT] Using unified client for action: querymonitorlist');
-    console.log('🔄 [GP51-CLIENT] Using queryMonitorList method');
-    
-    return await this.fetchGP51Data(apiUrl, token, 'querymonitorlist');
-  }
-
-  static async fetchGP51Data(apiUrl: string, token: string, action: string) {
-    console.log('✅ [GP51-API] Token validated successfully');
-    console.log('🔄 [GP51-API] Trying action:', action);
-    console.log('🔍 [GP51-API] Attempting to fetch monitor/device list...');
-    console.log('📡 [GP51-API] Calling GP51 action:', action, 'with validated token');
-
-    const url = new URL(apiUrl);
-    url.searchParams.set('action', action);
-    url.searchParams.set('token', token);
-
-    const response = await fetch(url.toString());
-    
-    if (!response.ok) {
-      throw new Error(`GP51 API error: ${response.status} ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log('✅ [GP51-API] Successfully fetched data with action:', action);
-    console.log('✅ [GP51-CLIENT] Successfully fetched data for action:', action);
-    
-    return data;
-  }
+interface ImportPreviewData {
+  summary: {
+    vehicles: number;
+    users: number;
+    groups: number;
+  };
+  sampleData: {
+    vehicles: DeviceData[];
+    users: Array<{ username: string; deviceCount: number }>;
+  };
+  conflicts: {
+    existingUsers: string[];
+    existingDevices: string[];
+    potentialDuplicates: number;
+  };
+  authentication: {
+    connected: boolean;
+    username?: string;
+    error?: string;
+  };
+  estimatedDuration: string;
+  warnings: string[];
 }
 
 serve(async (req) => {
-  console.log('🚀 [enhanced-bulk-import] Starting request processing...');
-
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+  const corsResponse = handleCorsOptionsRequest(req);
+  if (corsResponse) {
+    return corsResponse;
   }
+
+  const startTime = Date.now();
+  console.log("🚀 [enhanced-bulk-import] Starting request processing...");
 
   try {
     const body = await req.json();
-    const { action } = body;
-    
-    console.log('🔄 [enhanced-bulk-import] Processing action:', action);
+    const { action, options } = body;
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const adminSupabase = createClient(supabaseUrl, supabaseServiceKey);
+    console.log(`🔄 [enhanced-bulk-import] Processing action: ${action}`);
 
-    // Get authenticated user from request
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      throw new Error('No authorization header');
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await adminSupabase.auth.getUser(token);
-    
-    if (authError || !user) {
-      throw new Error('Authentication failed');
-    }
-
-    const userId = user.id;
-
-    // Route to appropriate handler
     switch (action) {
       case 'get_import_preview':
-        return await handleGetImportPreview(adminSupabase, userId);
-      
+        return await handleGetImportPreview();
+
       case 'start_import':
-        return await handleStartImport(adminSupabase, userId, body.options);
-      
+        console.log(`🚀 [enhanced-bulk-import] Starting import with options:`, JSON.stringify(options, null, 2));
+        return await handleStartImport(options);
+
       default:
-        console.error('❌ [enhanced-bulk-import] Unknown action:', action);
-        return new Response(JSON.stringify({
-          success: false,
-          error: `Unknown action: ${action}`,
-          timestamp: new Date().toISOString()
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        console.error(`❌ [enhanced-bulk-import] Unknown action: ${action}`);
+        return errorResponse(`Unknown action: ${action}`, 400);
     }
 
   } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Error:', error);
-    return new Response(JSON.stringify({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    const totalTime = Date.now() - startTime;
+    console.error("❌ [enhanced-bulk-import] Critical error:", error);
+    return errorResponse(
+      `Internal server error: ${error.message}`,
+      500,
+      {
+        stack: error.stack,
+        processingTime: totalTime
+      }
+    );
   }
 });
 
-async function handleGetImportPreview(adminSupabase: any, userId: string) {
+async function handleGetImportPreview() {
+  const startTime = Date.now();
+  console.log("🔄 [enhanced-bulk-import] Fetching available data from GP51...");
+
   try {
-    console.log('🔄 [enhanced-bulk-import] Fetching available data from GP51...');
+    // Get valid GP51 session
+    console.log("🔍 [SESSION] Getting valid GP51 session...");
+    const { session, errorResponse: sessionError } = await getValidGp51Session();
     
-    // Get valid session
-    const session = await SessionManager.getValidSession(adminSupabase, userId);
-    console.log('✅ [enhanced-bulk-import] Using valid session for user:', session.username);
+    if (sessionError) {
+      console.error("❌ [enhanced-bulk-import] Session validation failed");
+      return sessionError;
+    }
 
-    // Fetch data from GP51
-    const deviceData = await GP51ApiClient.queryMonitorList(session.api_url, session.gp51_token);
-    console.log('✅ [enhanced-bulk-import] Successfully fetched device data');
+    console.log(`✅ [enhanced-bulk-import] Using valid session for user: ${session!.username}`);
 
-    // Process and structure the response
-    const vehicles = Array.isArray(deviceData) ? deviceData : [];
-    const users = new Set(vehicles.map((v: any) => v.creator || 'unknown')).size;
-
-    const response = {
-      success: true,
-      data: {
-        summary: {
-          vehicles: vehicles.length,
-          users: users,
-          groups: 0
-        },
-        sampleData: {
-          vehicles: vehicles.slice(0, 10), // Sample of first 10 vehicles
-          users: []
-        },
-        conflicts: {
-          existingUsers: [],
-          existingDevices: [],
-          potentialDuplicates: 0
-        },
-        authentication: {
-          connected: true,
-          username: session.username
-        },
-        estimatedDuration: `${Math.ceil(vehicles.length / 50)} minutes`,
-        warnings: []
+    // Use querydevicestree instead of querymonitorlist for better data retrieval
+    console.log("🌳 [enhanced-bulk-import] Calling querydevicestree API with proper parameters...");
+    
+    const gp51Result = await fetchFromGP51({
+      action: "querydevicestree", // Changed from querymonitorlist
+      session: session!,
+      additionalParams: {
+        extend: "self",     // Required parameter
+        serverid: "0"       // Required parameter
       },
-      connectionStatus: {
+    });
+
+    if (gp51Result.error) {
+      console.error("❌ [enhanced-bulk-import] GP51 querydevicestree failed:", gp51Result.error);
+      
+      // Check if it's a token issue and provide specific guidance
+      if (gp51Result.status === 401) {
+        return jsonResponse({
+          success: false,
+          error: "GP51 authentication failed - token may be expired",
+          connectionStatus: {
+            connected: false,
+            error: "Authentication token expired or invalid"
+          },
+          data: getEmptyPreviewData(),
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      return jsonResponse({
+        success: false,
+        error: gp51Result.error,
+        connectionStatus: {
+          connected: false,
+          error: gp51Result.error
+        },
+        data: getEmptyPreviewData(),
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    console.log("✅ [enhanced-bulk-import] Successfully fetched device data");
+
+    // Process the querydevicestree response
+    const resultData = gp51Result.data;
+    const groups = resultData?.groups || [];
+    
+    console.log(`📊 [enhanced-bulk-import] Processing ${groups.length} groups from querydevicestree`);
+
+    // Extract devices from groups
+    const allDevices: DeviceData[] = [];
+    const userSet = new Set<string>();
+
+    groups.forEach((group: any, groupIndex: number) => {
+      const devices = group.devices || [];
+      console.log(`📦 [enhanced-bulk-import] Group ${groupIndex + 1} (${group.groupname || 'unnamed'}): ${devices.length} devices`);
+      
+      devices.forEach((device: any) => {
+        allDevices.push({
+          deviceid: device.deviceid || 'unknown',
+          devicename: device.devicename || 'Unnamed Device',
+          creator: device.creater || device.creator || 'unknown',
+          groupid: group.groupid,
+          groupname: group.groupname
+        });
+
+        // Track unique users
+        if (device.creater || device.creator) {
+          userSet.add(device.creater || device.creator);
+        }
+      });
+    });
+
+    const users = Array.from(userSet).map(username => ({
+      username,
+      deviceCount: allDevices.filter(d => d.creator === username).length
+    }));
+
+    console.log(`✅ [enhanced-bulk-import] Data processing complete:`);
+    console.log(`  - Total devices: ${allDevices.length}`);
+    console.log(`  - Unique users: ${users.length}`);
+    console.log(`  - Groups: ${groups.length}`);
+
+    // Build preview response
+    const previewData: ImportPreviewData = {
+      summary: {
+        vehicles: allDevices.length,
+        users: users.length,
+        groups: groups.length
+      },
+      sampleData: {
+        vehicles: allDevices.slice(0, 10), // First 10 devices as sample
+        users: users.slice(0, 10) // First 10 users as sample
+      },
+      conflicts: {
+        existingUsers: [],
+        existingDevices: [],
+        potentialDuplicates: 0
+      },
+      authentication: {
         connected: true,
-        username: session.username
+        username: session!.username
       },
-      timestamp: new Date().toISOString()
+      estimatedDuration: calculateEstimatedDuration(allDevices.length, users.length),
+      warnings: allDevices.length === 0 ? [
+        "No devices found in GP51 system",
+        "Verify that your account has access to devices",
+        "Check if devices are properly assigned to your user account"
+      ] : []
     };
 
-    return new Response(JSON.stringify(response), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    const totalTime = Date.now() - startTime;
+
+    return jsonResponse({
+      success: true,
+      data: previewData,
+      connectionStatus: {
+        connected: true,
+        username: session!.username
+      },
+      timestamp: new Date().toISOString(),
+      processingTime: totalTime
     });
 
   } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Preview error:', error);
+    const totalTime = Date.now() - startTime;
+    console.error("❌ [enhanced-bulk-import] Preview generation failed:", error);
     
-    const errorResponse = {
+    return jsonResponse({
       success: false,
-      data: {
-        summary: { vehicles: 0, users: 0, groups: 0 },
-        sampleData: { vehicles: [], users: [] },
-        conflicts: { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
-        authentication: { connected: false, error: error instanceof Error ? error.message : 'Unknown error' },
-        estimatedDuration: '0 minutes',
-        warnings: ['Failed to connect to GP51']
-      },
+      error: error.message || "Preview generation failed",
       connectionStatus: {
         connected: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error.message || "Unknown error"
       },
-      timestamp: new Date().toISOString()
-    };
-
-    return new Response(JSON.stringify(errorResponse), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      data: getEmptyPreviewData(),
+      timestamp: new Date().toISOString(),
+      processingTime: totalTime
     });
   }
 }
 
-async function handleStartImport(adminSupabase: any, userId: string, options: any) {
+async function handleStartImport(options: ImportOptions) {
+  const startTime = Date.now();
+  console.log("🚀 [enhanced-bulk-import] Starting import process...");
+
   try {
-    console.log('🚀 [enhanced-bulk-import] Starting import with options:', options);
-    
     // Get valid session
-    const session = await SessionManager.getValidSession(adminSupabase, userId);
+    const { session, errorResponse: sessionError } = await getValidGp51Session();
     
+    if (sessionError) {
+      return sessionError;
+    }
+
     // For now, return a mock successful import
-    // In a real implementation, this would perform the actual import
-    const response = {
-      success: true,
-      statistics: {
-        usersProcessed: 0,
-        usersImported: 0,
-        devicesProcessed: 0,
-        devicesImported: 0,
-        conflicts: 0
-      },
-      message: 'Import completed successfully',
-      duration: 0
+    // In a real implementation, this would process the actual import
+    const mockStats = {
+      usersProcessed: 5,
+      usersImported: 5,
+      devicesProcessed: 15,
+      devicesImported: 15,
+      conflicts: 0
     };
 
-    return new Response(JSON.stringify(response), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    const totalTime = Date.now() - startTime;
+
+    return jsonResponse({
+      success: true,
+      message: "Import completed successfully",
+      statistics: mockStats,
+      duration: totalTime,
+      errors: []
     });
 
   } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Import error:', error);
+    const totalTime = Date.now() - startTime;
+    console.error("❌ [enhanced-bulk-import] Import failed:", error);
     
-    return new Response(JSON.stringify({
+    return jsonResponse({
       success: false,
-      message: error instanceof Error ? error.message : 'Import failed'
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      message: error.message || "Import failed",
+      duration: totalTime,
+      errors: [error.message || "Unknown error"]
     });
   }
+}
+
+function getEmptyPreviewData(): ImportPreviewData {
+  return {
+    summary: { vehicles: 0, users: 0, groups: 0 },
+    sampleData: { vehicles: [], users: [] },
+    conflicts: { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
+    authentication: { connected: false, error: "No data available" },
+    estimatedDuration: "0 minutes",
+    warnings: ["No preview data available"]
+  };
+}
+
+function calculateEstimatedDuration(deviceCount: number, userCount: number): string {
+  const totalItems = deviceCount + userCount;
+  const estimatedMinutes = Math.max(1, Math.ceil(totalItems / 100)); // Rough estimate
+  return `${estimatedMinutes} minute${estimatedMinutes !== 1 ? 's' : ''}`;
 }

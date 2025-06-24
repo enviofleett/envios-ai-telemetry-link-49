@@ -36,9 +36,12 @@ export async function fetchFromGP51(
     // Use specific methods for known actions, fallback to generic for others
     switch (action) {
       case 'querymonitorlist':
-      case 'getmonitorlist': // Legacy support
-        console.log('🔄 [GP51-CLIENT] Using queryMonitorList method');
-        result = await gp51ApiClient.queryMonitorList(session.gp51_token, session.username);
+        console.log('🔄 [GP51-CLIENT] Redirecting querymonitorlist to queryDevicesTree');
+        result = await gp51ApiClient.queryDevicesTree(session.gp51_token, session.username);
+        break;
+      case 'querydevicestree':
+        console.log('🌳 [GP51-CLIENT] Using queryDevicesTree method');
+        result = await gp51ApiClient.queryDevicesTree(session.gp51_token, session.username);
         break;
       case 'lastposition':
         console.log('🔄 [GP51-CLIENT] Using getLastPosition method');
@@ -85,7 +88,7 @@ export async function fetchFromGP51(
     }
     
     // Check if it's a token validation error
-    if (errorMessage.includes('Token') || errorMessage.includes('token')) {
+    if (errorMessage.includes('Token') || errorMessage.includes('token') || errorMessage.includes('Authentication')) {
       return { error: `Token validation failed: ${errorMessage}`, status: 401 };
     }
     
