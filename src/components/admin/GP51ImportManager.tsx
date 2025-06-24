@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,11 +39,21 @@ const GP51ImportManager: React.FC = () => {
   };
 
   const handleStartImport = async () => {
-    const options: GP51ImportOptions = {
-      ...importOptions,
-      usernames: usernames ? usernames.split('\n').map(u => u.trim()).filter(Boolean) : undefined
+    const selectedOptions = {
+      importUsers: importOptions.importUsers,
+      importDevices: importOptions.importDevices,
+      conflictResolution: importOptions.conflictResolution,
+      selectedUsernames: usernames ? usernames.split('\n').map(u => u.trim()).filter(Boolean) : undefined
     };
-    
+
+    const options: GP51ImportOptions = {
+      importUsers: selectedOptions.importUsers,
+      importDevices: selectedOptions.importDevices,
+      conflictResolution: selectedOptions.conflictResolution,
+      usernames: selectedOptions.selectedUsernames,
+      batchSize: 50
+    };
+
     await startImport(options);
   };
 
@@ -355,6 +364,62 @@ const GP51ImportManager: React.FC = () => {
                     </span>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Import Results */}
+          {currentJob?.results && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  Import Results
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {currentJob.results.statistics.usersImported}
+                    </div>
+                    <div className="text-sm text-gray-600">Users Imported</div>
+                  </div>
+                  
+                  <div className="text-center p-4 bg-green-50 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600">
+                      {currentJob.results.statistics.devicesImported}
+                    </div>
+                    <div className="text-sm text-gray-600">Devices Imported</div>
+                  </div>
+                  
+                  <div className="text-center p-4 bg-purple-50 rounded-lg">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {currentJob.results.statistics.groupsImported || 0}
+                    </div>
+                    <div className="text-sm text-gray-600">Groups Imported</div>
+                  </div>
+                  
+                  <div className="text-center p-4 bg-red-50 rounded-lg">
+                    <div className="text-2xl font-bold text-red-600">
+                      {currentJob.results.statistics.errorsEncountered}
+                    </div>
+                    <div className="text-sm text-gray-600">Errors</div>
+                  </div>
+                </div>
+
+                {currentJob.results.errors && currentJob.results.errors.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="font-medium text-red-600 mb-2">Import Errors:</h4>
+                    <div className="bg-red-50 p-3 rounded-md">
+                      <ul className="list-disc list-inside text-sm text-red-700">
+                        {currentJob.results.errors.map((error, index) => (
+                          <li key={index}>{error}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}

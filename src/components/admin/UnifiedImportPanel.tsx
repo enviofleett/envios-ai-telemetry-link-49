@@ -1,324 +1,172 @@
-
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
-  Users, 
-  Car, 
-  Database,
-  AlertTriangle,
-  RefreshCw,
-  Play,
-  Eye
-} from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
 import { useUnifiedImport } from '@/hooks/useUnifiedImport';
+import { CheckCircle, XCircle, Database, Loader2, AlertTriangle } from 'lucide-react';
 import type { GP51ImportOptions } from '@/types/system-import';
 
-interface UnifiedImportPanelProps {
-  onImportComplete?: () => void;
-}
-
-const UnifiedImportPanel: React.FC<UnifiedImportPanelProps> = ({ onImportComplete }) => {
-  const {
-    preview,
-    isLoadingPreview,
-    isImporting,
-    importJob,
-    currentJob,
-    fetchPreview,
-    startImport,
-    validateConnection,
-    clearPreview,
-    clearJob
-  } = useUnifiedImport();
+const UnifiedImportPanel: React.FC = () => {
+  const [conflictResolution, setConflictResolution] = useState<string>('skip');
+  const { toast } = useToast();
+  const { preview, isLoadingPreview, fetchPreview, startImport, isImporting } = useUnifiedImport();
 
   const handleStartImport = async () => {
-    if (!preview?.success) return;
+    if (!preview?.success) {
+      toast({
+        title: "Import Error",
+        description: "Please generate a successful preview before starting import",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    const options: GP51ImportOptions = {
+    const importOptions: GP51ImportOptions = {
       importUsers: true,
-      importVehicles: true,
-      conflictResolution: 'skip',
-      createBackup: true,
-      validateData: true
+      importDevices: true,  // Fixed: was importVehicles
+      conflictResolution: conflictResolution as 'skip' | 'overwrite' | 'merge',
+      batchSize: 50
     };
 
-    try {
-      const result = await startImport(options);
-      if (result.status === 'completed' && onImportComplete) {
-        onImportComplete();
-      }
-    } catch (error) {
-      console.error('Import failed:', error);
-    }
+    console.log('🚀 Starting import with options:', importOptions);
+    await startImport(importOptions);
   };
 
-  const handleValidateConnection = async () => {
-    try {
-      await validateConnection();
-    } catch (error) {
-      console.error('Connection validation failed:', error);
-    }
-  };
-
-  const getStatusIcon = (connected: boolean, error?: string) => {
-    if (error) return <XCircle className="h-4 w-4 text-red-500" />;
-    if (connected) return <CheckCircle className="h-4 w-4 text-green-500" />;
-    return <Clock className="h-4 w-4 text-yellow-500" />;
-  };
-
-  const getStatusText = (connected: boolean, error?: string) => {
-    if (error) return 'Connection Error';
-    if (connected) return 'Connected';
-    return 'Not Connected';
-  };
+  const handleFetchPreview = useCallback(async () => {
+    await fetchPreview();
+  }, [fetchPreview]);
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Unified GP51 Import</h2>
-          <p className="text-muted-foreground">
-            Import users and vehicles from GP51 with enhanced conflict detection
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={handleValidateConnection}
-            disabled={isLoadingPreview || isImporting}
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Validate Connection
-          </Button>
-          <Button 
-            onClick={fetchPreview}
-            disabled={isLoadingPreview || isImporting}
-          >
-            <Eye className="h-4 w-4 mr-2" />
-            {isLoadingPreview ? 'Loading...' : 'Fetch Available Data'}
-          </Button>
-        </div>
-      </div>
-
-      {/* Connection Status */}
+      {/* Overview */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {preview?.connectionStatus ? 
-              getStatusIcon(preview.connectionStatus.connected, preview.connectionStatus.error) :
-              <Clock className="h-4 w-4 text-gray-400" />
-            }
-            GP51 Connection Status
-          </CardTitle>
+          <div className="flex items-center space-x-2">
+            <Database className="h-5 w-5 text-blue-600" />
+            <CardTitle>Unified Import System</CardTitle>
+          </div>
+          <CardDescription>
+            Import users and vehicles from GP51 with conflict resolution and preview capabilities.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium">
-                {preview?.connectionStatus ? 
-                  getStatusText(preview.connectionStatus.connected, preview.connectionStatus.error) :
-                  'Unknown'
-                }
-              </p>
-              {preview?.connectionStatus?.username && (
-                <p className="text-sm text-muted-foreground">
-                  Connected as: {preview.connectionStatus.username}
-                </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Preview Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Preview</h3>
+              {preview && preview.success ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    <div>
+                      <h4 className="font-medium text-green-800">Preview Ready</h4>
+                      <p className="text-sm text-green-700 mt-1">
+                        {preview.data.summary.users} users and {preview.data.summary.vehicles} vehicles found.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : preview && !preview.success ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-red-800">Preview Failed</h4>
+                      <p className="text-sm text-red-700 mt-1">
+                        {preview.connectionStatus.error || "Unable to fetch preview data from GP51"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center gap-3">
+                    <Database className="h-5 w-5 text-gray-600" />
+                    <div>
+                      <h4 className="font-medium text-gray-800">Preview</h4>
+                      <p className="text-sm text-gray-700 mt-1">
+                        Click the button below to generate a preview of the data to be imported.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               )}
-              {preview?.connectionStatus?.error && (
-                <Alert className="mt-2">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>{preview.connectionStatus.error}</AlertDescription>
-                </Alert>
-              )}
+
+              <Button onClick={handleFetchPreview} disabled={isLoadingPreview} className="w-full">
+                {isLoadingPreview ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating Preview...
+                  </>
+                ) : (
+                  'Generate Preview'
+                )}
+              </Button>
             </div>
-            <Badge variant={preview?.connectionStatus?.connected ? 'default' : 'destructive'}>
-              {preview?.connectionStatus?.connected ? 'Ready' : 'Not Ready'}
-            </Badge>
+
+            {/* Import Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Import</h3>
+              <Card className="bg-gray-50 border border-gray-200">
+                <CardHeader>
+                  <CardTitle>Import Options</CardTitle>
+                  <CardDescription>Configure import settings</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid w-full max-w-sm items-center gap-1.5">
+                    <Label htmlFor="conflict">Conflict Resolution</Label>
+                    <Select onValueChange={setConflictResolution}>
+                      <SelectTrigger id="conflict">
+                        <SelectValue placeholder="Select" />
+                      </SelectTrigger>
+                      <SelectContent position="popper">
+                        <SelectItem value="skip">Skip</SelectItem>
+                        <SelectItem value="overwrite">Overwrite</SelectItem>
+                        <SelectItem value="merge">Merge</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Button onClick={handleStartImport} disabled={isImporting || !preview?.success} className="w-full">
+                {isImporting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Importing...
+                  </>
+                ) : (
+                  'Start Import'
+                )}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Preview Data */}
-      {preview && (
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Users Available</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{preview.data.summary.users}</div>
-              <p className="text-xs text-muted-foreground">
-                Ready for import
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Vehicles Available</CardTitle>
-              <Car className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{preview.data.summary.vehicles}</div>
-              <p className="text-xs text-muted-foreground">
-                Devices ready for import
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Potential Conflicts</CardTitle>
-              <Database className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{preview.data.conflicts.potentialDuplicates}</div>
-              <p className="text-xs text-muted-foreground">
-                Duplicates to resolve
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* Warnings */}
-      {preview?.data.warnings && preview.data.warnings.length > 0 && (
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <div className="space-y-1">
-              <p className="font-medium">Warnings detected:</p>
-              <ul className="list-disc list-inside space-y-1">
-                {preview.data.warnings.map((warning, index) => (
-                  <li key={index} className="text-sm">{warning}</li>
-                ))}
-              </ul>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Import Controls */}
+      {/* Status Section */}
       {preview?.success && (
         <Card>
           <CardHeader>
-            <CardTitle>Start Import Process</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-green-600" />
+              Import Status
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Ready to import data</p>
-                <p className="text-sm text-muted-foreground">
-                  Estimated time: {preview.data.estimatedDuration}
-                </p>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{preview.data.summary.users}</div>
+                <div className="text-sm text-gray-600">Users</div>
               </div>
-              <Button 
-                onClick={handleStartImport}
-                disabled={isImporting || !preview.connectionStatus.connected}
-                size="lg"
-              >
-                <Play className="h-4 w-4 mr-2" />
-                {isImporting ? 'Importing...' : 'Start Import'}
-              </Button>
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-2xl font-bold text-green-600">{preview.data.summary.vehicles}</div>
+                <div className="text-sm text-gray-600">Vehicles</div>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Import Progress */}
-      {(importJob || currentJob) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Import Progress</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Progress</span>
-                <span>{(importJob || currentJob)?.progress || 0}%</span>
-              </div>
-              <Progress value={(importJob || currentJob)?.progress || 0} />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium">Current Phase</p>
-                <p className="text-sm text-muted-foreground">
-                  {(importJob || currentJob)?.currentPhase || 'Initializing...'}
-                </p>
-              </div>
-              <Badge variant={
-                (importJob || currentJob)?.status === 'completed' ? 'default' :
-                (importJob || currentJob)?.status === 'failed' ? 'destructive' :
-                'secondary'
-              }>
-                {(importJob || currentJob)?.status || 'running'}
-              </Badge>
-            </div>
-
-            {(importJob || currentJob)?.errors && (importJob || currentJob)!.errors.length > 0 && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="space-y-1">
-                    <p className="font-medium">Import errors:</p>
-                    <ul className="list-disc list-inside space-y-1">
-                      {(importJob || currentJob)!.errors.map((error, index) => (
-                        <li key={index} className="text-sm">{error}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {(importJob || currentJob)?.results && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <p className="text-sm font-medium">Import Statistics</p>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <p>Users imported: {(importJob || currentJob)!.results!.statistics.usersImported}</p>
-                    <p>Devices imported: {(importJob || currentJob)!.results!.statistics.devicesImported}</p>
-                    <p>Errors encountered: {(importJob || currentJob)!.results!.statistics.errorsEncountered}</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Conflict Resolution</p>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <p>Duplicate users: {(importJob || currentJob)!.results!.conflicts.duplicateUsers}</p>
-                    <p>Duplicate devices: {(importJob || currentJob)!.results!.conflicts.duplicateDevices}</p>
-                    <p>Conflicts resolved: {(importJob || currentJob)!.results!.conflicts.resolvedConflicts}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {(importJob || currentJob)?.status === 'completed' && (
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={clearJob}
-                >
-                  Clear Results
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={clearPreview}
-                >
-                  Reset Preview
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
