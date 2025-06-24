@@ -1,409 +1,274 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { getGP51ApiUrl } from '../_shared/constants.ts';
+import { md5_for_gp51_only, sanitizeInput } from '../_shared/crypto_utils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
 interface GP51AuthResponse {
-  success: boolean;
+  status: number;
   token?: string;
-  error?: string;
+  cause?: string;
 }
 
-interface GP51DataResponse {
-  success: boolean;
-  data?: any;
-  error?: string;
+/**
+ * Builds a GP51 API URL with proper query parameters
+ */
+function buildGP51ActionUrl(baseUrl: string, action: string, additionalParams: Record<string, string> = {}): string {
+  const url = new URL(getGP51ApiUrl(baseUrl));
+  url.searchParams.set('action', action);
+  
+  Object.entries(additionalParams).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+  
+  return url.toString();
+}
+
+/**
+ * Authenticate with GP51 using proper URL structure
+ */
+async function authenticateWithGP51(username: string, password: string): Promise<{ success: boolean; token?: string; error?: string }> {
+  try {
+    console.log('🔐 Authenticating with GP51...');
+    
+    const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
+    const hashedPassword = await md5_for_gp51_only(password);
+    
+    // Build the correct URL with action as query parameter
+    const loginUrl = buildGP51ActionUrl(gp51BaseUrl, 'login');
+    
+    console.log(`📡 Making login request to: ${loginUrl}`);
+    
+    const requestBody = {
+      username: sanitizeInput(username),
+      password: hashedPassword,
+      from: 'WEB',
+      type: 'USER'
+    };
+    
+    const response = await fetch(loginUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'EnhancedBulkImport/1.0'
+      },
+      body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(15000)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ GP51 auth failed: ${response.status} ${errorText}`);
+      throw new Error(`GP51 authentication failed: ${response.status} - ${errorText}`);
+    }
+    
+    const responseText = await response.text();
+    console.log(`📊 GP51 auth response length: ${responseText.length}`);
+    
+    if (!responseText || responseText.trim().length === 0) {
+      throw new Error('Empty response from GP51 authentication');
+    }
+    
+    let authResult: GP51AuthResponse;
+    try {
+      authResult = JSON.parse(responseText);
+    } catch (parseError) {
+      // Handle plain text token response
+      const token = responseText.trim();
+      if (token && !token.includes('error') && !token.includes('fail')) {
+        console.log('✅ GP51 authentication successful (plain text token)');
+        return { success: true, token };
+      } else {
+        throw new Error(`Invalid authentication response: ${token}`);
+      }
+    }
+    
+    if (authResult.status === 0 && authResult.token) {
+      console.log('✅ GP51 authentication successful (JSON response)');
+      return { success: true, token: authResult.token };
+    } else {
+      const errorMsg = authResult.cause || `Authentication failed with status ${authResult.status}`;
+      console.error(`❌ GP51 auth failed: ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+    
+  } catch (error) {
+    console.error('❌ GP51 authentication exception:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Authentication failed'
+    };
+  }
+}
+
+/**
+ * Fetch available data from GP51 for preview
+ */
+async function fetchAvailableData(token: string): Promise<any> {
+  try {
+    const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
+    
+    // Build URL with proper query parameters
+    const dataUrl = buildGP51ActionUrl(gp51BaseUrl, 'getmonitorlist', { token });
+    
+    console.log(`📡 Fetching data from: ${dataUrl}`);
+    
+    const response = await fetch(dataUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'EnhancedBulkImport/1.0'
+      },
+      signal: AbortSignal.timeout(30000)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Data fetch failed: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.status !== 0) {
+      throw new Error(`GP51 API error: ${data.cause || 'Unknown error'}`);
+    }
+    
+    return data;
+    
+  } catch (error) {
+    console.error('❌ Data fetch error:', error);
+    throw error;
+  }
 }
 
 serve(async (req) => {
-  console.log(`🚀 Enhanced Bulk Import: ${req.method} ${req.url}`);
-
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseClient = createClient(
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { action, options } = await req.json();
-    console.log(`📋 Processing action: ${action}`);
+    console.log('🚀 Enhanced Bulk Import:', req.method, req.url);
 
-    switch (action) {
-      case 'get_import_preview':
-      case 'fetch_available_data':
-        return await handleGetImportPreview(supabaseClient);
+    const { action } = await req.json();
+
+    if (action === 'fetch_available_data') {
+      console.log('📋 Processing action: fetch_available_data');
       
-      case 'start_import':
-        return await handleStartImport(supabaseClient, options);
+      // Create import job
+      console.log('🔍 Fetching GP51 import preview...');
+      const { data: jobData, error: jobError } = await supabase
+        .from('gp51_system_imports')
+        .insert({
+          import_type: 'gp51_preview',
+          status: 'running',
+          current_phase: 'Fetching Data'
+        })
+        .select()
+        .single();
+
+      if (jobError) {
+        console.error('❌ Failed to create import job:', jobError);
+        throw new Error('Failed to create import job');
+      }
+
+      console.log('📝 Created import job:', jobData.id);
+
+      // Get admin credentials
+      const username = Deno.env.get('GP51_ADMIN_USERNAME');
+      const password = Deno.env.get('GP51_ADMIN_PASSWORD');
       
-      default:
-        console.warn(`❌ Unknown action: ${action}`);
-        return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: `Unknown action: ${action}` 
-          }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      if (!username || !password) {
+        throw new Error('GP51 admin credentials not configured');
+      }
+
+      // Authenticate with GP51
+      const authResult = await authenticateWithGP51(username, password);
+      
+      if (!authResult.success) {
+        await supabase
+          .from('gp51_system_imports')
+          .update({
+            status: 'failed',
+            error_log: [{ error: authResult.error, timestamp: new Date().toISOString() }]
+          })
+          .eq('id', jobData.id);
+          
+        throw new Error(authResult.error || 'GP51 authentication failed');
+      }
+
+      // Fetch available data
+      const availableData = await fetchAvailableData(authResult.token!);
+      
+      // Process the data structure
+      let totalUsers = 0;
+      let totalDevices = 0;
+      
+      if (availableData.groups && Array.isArray(availableData.groups)) {
+        for (const group of availableData.groups) {
+          if (group.devices && Array.isArray(group.devices)) {
+            totalDevices += group.devices.length;
           }
-        );
+        }
+      }
+
+      // Update job with results
+      await supabase
+        .from('gp51_system_imports')
+        .update({
+          status: 'completed',
+          total_users: totalUsers,
+          total_devices: totalDevices,
+          import_results: {
+            preview: true,
+            groups: availableData.groups?.length || 0,
+            devices: totalDevices,
+            users: totalUsers
+          },
+          completed_at: new Date().toISOString()
+        })
+        .eq('id', jobData.id);
+
+      return new Response(JSON.stringify({
+        success: true,
+        job_id: jobData.id,
+        preview: {
+          users: totalUsers,
+          devices: totalDevices,
+          groups: availableData.groups?.length || 0
+        },
+        data: availableData
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Unknown action'
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
   } catch (error) {
     console.error('❌ Enhanced bulk import error:', error);
-    return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
+    return new Response(JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
   }
 });
-
-async function handleGetImportPreview(supabaseClient: any) {
-  console.log('🔍 Fetching GP51 import preview...');
-
-  try {
-    // Create import job record
-    const { data: importJob, error: jobError } = await supabaseClient
-      .from('gp51_system_imports')
-      .insert({
-        import_type: 'gp51_preview',
-        status: 'running',
-        current_phase: 'Fetching preview data'
-      })
-      .select()
-      .single();
-
-    if (jobError) {
-      console.error('❌ Failed to create import job:', jobError);
-      throw new Error(`Failed to create import job: ${jobError.message}`);
-    }
-
-    console.log(`📝 Created import job: ${importJob.id}`);
-
-    // Get GP51 authentication
-    const authResult = await authenticateWithGP51();
-    
-    if (!authResult.success) {
-      await updateImportJob(supabaseClient, importJob.id, {
-        status: 'failed',
-        error_log: [{ error: authResult.error, timestamp: new Date().toISOString() }]
-      });
-      
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: authResult.error,
-          authentication: { connected: false, error: authResult.error }
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log('✅ GP51 authentication successful');
-
-    // Update job progress
-    await updateImportJob(supabaseClient, importJob.id, {
-      current_phase: 'Authenticating with GP51',
-      progress_percentage: 25
-    });
-
-    // Fetch preview data from GP51
-    const previewData = await fetchGP51PreviewData(authResult.token!);
-    
-    await updateImportJob(supabaseClient, importJob.id, {
-      current_phase: 'Processing preview data',
-      progress_percentage: 75
-    });
-
-    // Process and return preview data
-    const processedPreview = {
-      summary: {
-        vehicles: previewData.vehicles?.length || 0,
-        users: previewData.users?.length || 0,
-        groups: previewData.groups?.length || 0
-      },
-      sampleData: {
-        vehicles: previewData.vehicles?.slice(0, 5) || [],
-        users: previewData.users?.slice(0, 5) || []
-      },
-      conflicts: {
-        existingUsers: [],
-        existingDevices: [],
-        potentialDuplicates: 0
-      },
-      authentication: { 
-        connected: true, 
-        username: Deno.env.get('GP51_ADMIN_USERNAME') 
-      },
-      warnings: []
-    };
-
-    // Complete the job
-    await updateImportJob(supabaseClient, importJob.id, {
-      status: 'completed',
-      current_phase: 'Preview completed',
-      progress_percentage: 100,
-      total_users: processedPreview.summary.users,
-      total_devices: processedPreview.summary.vehicles,
-      import_results: processedPreview,
-      completed_at: new Date().toISOString()
-    });
-
-    console.log('✅ Preview generation completed successfully');
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        ...processedPreview
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error) {
-    console.error('❌ Preview generation failed:', error);
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : 'Preview generation failed',
-        summary: { vehicles: 0, users: 0, groups: 0 },
-        sampleData: { vehicles: [], users: [] },
-        conflicts: { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
-        authentication: { connected: false, error: error instanceof Error ? error.message : 'Unknown error' },
-        warnings: ['Failed to fetch preview data']
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-}
-
-async function handleStartImport(supabaseClient: any, options: any) {
-  console.log('🚀 Starting GP51 import with options:', options);
-
-  try {
-    // Create import job record
-    const { data: importJob, error: jobError } = await supabaseClient
-      .from('gp51_system_imports')
-      .insert({
-        import_type: 'gp51_full_import',
-        status: 'running',
-        current_phase: 'Starting import'
-      })
-      .select()
-      .single();
-
-    if (jobError) {
-      throw new Error(`Failed to create import job: ${jobError.message}`);
-    }
-
-    // Get GP51 authentication
-    const authResult = await authenticateWithGP51();
-    
-    if (!authResult.success) {
-      await updateImportJob(supabaseClient, importJob.id, {
-        status: 'failed',
-        error_log: [{ error: authResult.error, timestamp: new Date().toISOString() }]
-      });
-      
-      return new Response(
-        JSON.stringify({
-          success: false,
-          message: authResult.error,
-          statistics: { usersProcessed: 0, usersImported: 0, devicesProcessed: 0, devicesImported: 0, conflicts: 0 },
-          errors: [authResult.error || 'Authentication failed'],
-          duration: 0
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Simulate import process (replace with actual GP51 API calls)
-    await updateImportJob(supabaseClient, importJob.id, {
-      current_phase: 'Importing users',
-      progress_percentage: 30
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate work
-
-    await updateImportJob(supabaseClient, importJob.id, {
-      current_phase: 'Importing devices',
-      progress_percentage: 60
-    });
-
-    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate work
-
-    // Complete the import
-    const importResults = {
-      usersProcessed: options.usernames?.length || 100,
-      usersImported: options.usernames?.length || 95,
-      devicesProcessed: 200,
-      devicesImported: 195,
-      conflicts: 5
-    };
-
-    await updateImportJob(supabaseClient, importJob.id, {
-      status: 'completed',
-      current_phase: 'Import completed',
-      progress_percentage: 100,
-      successful_users: importResults.usersImported,
-      total_users: importResults.usersProcessed,
-      successful_devices: importResults.devicesImported,
-      total_devices: importResults.devicesProcessed,
-      import_results: importResults,
-      completed_at: new Date().toISOString()
-    });
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        message: 'Import completed successfully',
-        statistics: importResults,
-        errors: [],
-        duration: 2000
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-
-  } catch (error) {
-    console.error('❌ Import failed:', error);
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        message: error instanceof Error ? error.message : 'Import failed',
-        statistics: { usersProcessed: 0, usersImported: 0, devicesProcessed: 0, devicesImported: 0, conflicts: 0 },
-        errors: [error instanceof Error ? error.message : 'Unknown error'],
-        duration: 0
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-}
-
-async function authenticateWithGP51(): Promise<GP51AuthResponse> {
-  const username = Deno.env.get('GP51_ADMIN_USERNAME');
-  const password = Deno.env.get('GP51_ADMIN_PASSWORD');
-  const baseUrl = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com/webapi';
-
-  if (!username || !password) {
-    console.error('❌ Missing GP51 credentials');
-    return { 
-      success: false, 
-      error: 'GP51 credentials not configured. Please set GP51_ADMIN_USERNAME and GP51_ADMIN_PASSWORD.' 
-    };
-  }
-
-  try {
-    console.log('🔐 Authenticating with GP51...');
-    
-    const authResponse = await fetch(`${baseUrl}/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        username: username,
-        password: password
-      })
-    });
-
-    if (!authResponse.ok) {
-      const errorText = await authResponse.text();
-      console.error('❌ GP51 auth failed:', authResponse.status, errorText);
-      return { 
-        success: false, 
-        error: `GP51 authentication failed: ${authResponse.status} ${errorText}` 
-      };
-    }
-
-    const authData = await authResponse.json();
-    
-    if (authData.token || authData.access_token) {
-      console.log('✅ GP51 authentication successful');
-      return { 
-        success: true, 
-        token: authData.token || authData.access_token 
-      };
-    } else {
-      console.error('❌ No token in GP51 response:', authData);
-      return { 
-        success: false, 
-        error: 'No authentication token received from GP51' 
-      };
-    }
-  } catch (error) {
-    console.error('❌ GP51 authentication error:', error);
-    return { 
-      success: false, 
-      error: `GP51 connection failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
-    };
-  }
-}
-
-async function fetchGP51PreviewData(token: string): Promise<any> {
-  const baseUrl = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com/webapi';
-  
-  try {
-    console.log('📊 Fetching preview data from GP51...');
-    
-    // Fetch users and vehicles in parallel
-    const [usersResponse, vehiclesResponse] = await Promise.all([
-      fetch(`${baseUrl}/users?limit=100`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
-      }),
-      fetch(`${baseUrl}/devices?limit=100`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/json'
-        }
-      })
-    ]);
-
-    const users = usersResponse.ok ? await usersResponse.json() : [];
-    const vehicles = vehiclesResponse.ok ? await vehiclesResponse.json() : [];
-
-    console.log(`📊 Fetched ${users.length || 0} users and ${vehicles.length || 0} vehicles`);
-
-    return {
-      users: Array.isArray(users) ? users : (users.data || []),
-      vehicles: Array.isArray(vehicles) ? vehicles : (vehicles.data || []),
-      groups: [] // GP51 might not have groups endpoint
-    };
-  } catch (error) {
-    console.error('❌ Failed to fetch GP51 preview data:', error);
-    return { users: [], vehicles: [], groups: [] };
-  }
-}
-
-async function updateImportJob(supabaseClient: any, jobId: string, updates: any) {
-  try {
-    const { error } = await supabaseClient
-      .from('gp51_system_imports')
-      .update(updates)
-      .eq('id', jobId);
-
-    if (error) {
-      console.error('❌ Failed to update import job:', error);
-    }
-  } catch (error) {
-    console.error('❌ Error updating import job:', error);
-  }
-}

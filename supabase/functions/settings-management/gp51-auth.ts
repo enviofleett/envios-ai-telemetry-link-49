@@ -1,5 +1,6 @@
 
 import { md5_for_gp51_only } from '../_shared/crypto_utils.ts';
+import { getGP51ApiUrl } from '../_shared/constants.ts';
 
 export interface GP51AuthResult {
   success: boolean;
@@ -8,7 +9,22 @@ export interface GP51AuthResult {
   apiUrl?: string;
   error?: string;
   method?: string;
-  hashedPassword?: string; // Add this to pass the MD5 hash
+  hashedPassword?: string;
+}
+
+/**
+ * Builds a GP51 API URL with proper query parameters
+ */
+function buildGP51ActionUrl(baseUrl: string, action: string, params: Record<string, string> = {}): string {
+  const apiUrl = getGP51ApiUrl(baseUrl);
+  const url = new URL(apiUrl);
+  url.searchParams.set('action', action);
+  
+  Object.entries(params).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+  
+  return url.toString();
 }
 
 export async function authenticateWithGP51(credentials: {
@@ -40,27 +56,22 @@ export async function authenticateWithGP51(credentials: {
     console.log(`🔐 [GP51-AUTH] Password hashed successfully: ${hashedPassword}`);
     console.log(`🔍 [GP51-AUTH] Hash length: ${hashedPassword.length} chars, format: ${/^[a-f0-9]{32}$/.test(hashedPassword) ? "✅ valid" : "❌ invalid"}`);
     
-    // Construct the API URL with query parameters
-    const baseUrl = apiUrl.replace(/\/webapi\/?$/, '');
-    const apiEndpoint = `${baseUrl}/webapi`;
-    
-    console.log(`🔧 [URL] Starting URL construction with base: "${baseUrl}", endpoint: "/webapi"`);
-    
-    const url = new URL(apiEndpoint);
-    url.searchParams.set('action', 'login');
-    
+    // Construct the API URL with proper query parameters
+    const urlParams: Record<string, string> = {};
     if (globalToken) {
-      url.searchParams.set('token', globalToken);
+      urlParams.token = globalToken;
     }
     
-    console.log(`🔧 [URL] Final constructed URL: "${url.toString()}"`);
+    const url = buildGP51ActionUrl(apiUrl, 'login', urlParams);
     
-    // Prepare request body with credentials (FIXED: Using uppercase values)
+    console.log(`🔧 [URL] Final constructed URL: "${url}"`);
+    
+    // Prepare request body with credentials
     const requestBody = {
       username: username.trim(),
       password: hashedPassword,
-      from: 'WEB',     // Changed from 'web' to 'WEB' (uppercase)
-      type: 'USER'     // Changed from 'user' to 'USER' (uppercase)
+      from: 'WEB',
+      type: 'USER'
     };
     
     // Log the request body for debugging (with password redacted)
@@ -72,12 +83,12 @@ export async function authenticateWithGP51(credentials: {
     console.log(`🔄 [GP51-AUTH] Step 4: Making HTTP POST request to GP51 API`);
     console.log(`📡 [HTTP] Request details:`);
     console.log(`  - Method: POST`);
-    console.log(`  - URL: ${url.toString()}`);
+    console.log(`  - URL: ${url}`);
     console.log(`  - Headers: Content-Type=application/json, Accept=text/plain, User-Agent=FleetIQ/1.0`);
     console.log(`  - Body: ${JSON.stringify({ ...requestBody, password: '[REDACTED]' })}`);
     console.log(`  - Timeout: 15000ms`);
     
-    const response = await fetch(url.toString(), {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -110,7 +121,7 @@ export async function authenticateWithGP51(credentials: {
       console.error(`  3. Incorrect request parameters (from/type)`);
       console.error(`  4. GP51 API behavior change`);
       console.error(`🧪 [CURL_TEST] Test with this curl command:`);
-      console.error(`curl -X POST "${url.toString()}" -H "Content-Type: application/json" -H "Accept: text/plain" -H "User-Agent: FleetIQ/1.0" -d '${JSON.stringify(requestBody)}' -v`);
+      console.error(`curl -X POST "${url}" -H "Content-Type: application/json" -H "Accept: text/plain" -H "User-Agent: FleetIQ/1.0" -d '${JSON.stringify(requestBody)}' -v`);
       
       throw new Error('GP51 authentication failed: Empty response received. Check credentials or API behavior.');
     }
@@ -127,9 +138,9 @@ export async function authenticateWithGP51(credentials: {
           success: true,
           token: responseData.token,
           username,
-          apiUrl: apiEndpoint,
+          apiUrl: getGP51ApiUrl(apiUrl),
           method: 'POST_JSON',
-          hashedPassword // Include the hashed password in the result
+          hashedPassword
         };
       } else {
         const errorMsg = responseData.cause || responseData.message || `Authentication failed with status ${responseData.status}`;
@@ -155,9 +166,9 @@ export async function authenticateWithGP51(credentials: {
           success: true,
           token,
           username,
-          apiUrl: apiEndpoint,
+          apiUrl: getGP51ApiUrl(apiUrl),
           method: 'POST_TEXT',
-          hashedPassword // Include the hashed password in the result
+          hashedPassword
         };
       } else {
         console.error(`❌ [GP51-AUTH] Invalid token response:`, token);
