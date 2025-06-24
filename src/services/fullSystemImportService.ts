@@ -1,14 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedErrorHandler } from './systemImport/enhancedErrorHandler';
-
-export interface SystemImportOptions {
-  importType: 'complete_system' | 'users_only' | 'vehicles_only' | 'selective';
-  performCleanup?: boolean;
-  preserveAdminEmail?: string;
-  batchSize?: number;
-  selectedUsernames?: string[];
-}
+import { SystemImportOptions } from '@/types/system-import';
 
 export interface ImportProgress {
   phase: string;

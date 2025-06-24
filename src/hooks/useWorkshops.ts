@@ -149,7 +149,7 @@ export const useWorkshops = () => {
         description: "Connection request sent to workshop."
       });
     },
-    onError: (error) => {
+    onError: () => {
       toast({
         title: "Error",
         description: "Failed to connect to workshop.",

@@ -64,13 +64,18 @@ export interface SystemImportResult {
   backupTables: string[];
 }
 
-// Add missing type exports
+// Unified SystemImportOptions interface that includes all properties used across components
 export interface SystemImportOptions {
   importUsers: boolean;
   importDevices: boolean;
   conflictResolution: 'skip' | 'overwrite' | 'merge';
   usernames?: string[];
   batchSize?: number;
+  // Additional properties needed by various components
+  importType?: 'complete_system' | 'users_only' | 'vehicles_only' | 'selective';
+  performCleanup?: boolean;
+  preserveAdminEmail?: string;
+  selectedUsernames?: string[];
 }
 
 export interface SystemImportJob {
@@ -82,6 +87,15 @@ export interface SystemImportJob {
   completedAt?: string;
   results?: GP51ImportResult;
   errors: string[];
+  // Additional properties from database
+  import_type?: string;
+  current_phase?: string;
+  progress_percentage?: number;
+  successful_users?: number;
+  total_users?: number;
+  successful_devices?: number;
+  total_devices?: number;
+  created_at?: string;
 }
 
 export interface ImportProgress {
@@ -90,4 +104,6 @@ export interface ImportProgress {
   overallProgress: number;
   currentOperation: string;
   details?: string;
+  // Additional property used in some components
+  percentage?: number;
 }

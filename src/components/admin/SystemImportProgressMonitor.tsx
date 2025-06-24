@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,7 +27,28 @@ const SystemImportProgressMonitor: React.FC<SystemImportProgressMonitorProps> = 
         .limit(10);
 
       if (error) throw error;
-      setImports((data || []) as SystemImportJob[]);
+      
+      // Map database fields to SystemImportJob interface
+      const mappedImports = (data || []).map(item => ({
+        id: item.id,
+        status: item.status as 'pending' | 'running' | 'completed' | 'failed',
+        progress: item.progress_percentage || 0,
+        currentPhase: item.current_phase || 'Unknown',
+        startedAt: item.created_at,
+        completedAt: item.completed_at || undefined,
+        errors: [],
+        // Keep original database fields for display
+        import_type: item.import_type,
+        current_phase: item.current_phase,
+        progress_percentage: item.progress_percentage,
+        successful_users: item.successful_users,
+        total_users: item.total_users,
+        successful_devices: item.successful_devices,
+        total_devices: item.total_devices,
+        created_at: item.created_at
+      })) as SystemImportJob[];
+      
+      setImports(mappedImports);
     } catch (error) {
       console.error('Failed to load system imports:', error);
       toast({
@@ -128,7 +148,7 @@ const SystemImportProgressMonitor: React.FC<SystemImportProgressMonitorProps> = 
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     {getStatusIcon(importJob.status)}
-                    <span className="font-medium">{importJob.import_type}</span>
+                    <span className="font-medium">{importJob.import_type || 'System Import'}</span>
                   </div>
                   <Badge className={getStatusColor(importJob.status)}>
                     {importJob.status}
@@ -163,7 +183,7 @@ const SystemImportProgressMonitor: React.FC<SystemImportProgressMonitorProps> = 
                 </div>
                 
                 <div className="text-xs text-gray-500 mt-2">
-                  Started: {new Date(importJob.created_at).toLocaleString()}
+                  Started: {new Date(importJob.created_at || importJob.startedAt).toLocaleString()}
                 </div>
               </div>
             ))}
