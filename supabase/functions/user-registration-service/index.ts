@@ -34,13 +34,15 @@ async function createGP51User(adminToken: string, userDetails: any, userType: st
     const gp51UserType = gp51UserTypeMap[userType] ?? 0;
 
     const body = {
-        action: 'create_user',
+        action: 'createuser',
         token: adminToken,
         username: sanitizeInput(userDetails.email),
         password: md5_for_gp51_only(userDetails.password), // Only for GP51 compatibility
         email: userDetails.email,
         phone: userDetails.phone_number,
         usertype: gp51UserType,
+        showname: userDetails.name,
+        multilogin: 0
     };
     
     console.log('[user-registration-service] Creating GP51 user with payload:', { ...body, password: '***', token: '***' });
@@ -148,8 +150,9 @@ serve(async (req) => {
     // Get GP51 Admin Token
     const adminToken = await getGP51AdminToken(supabase);
 
-    // Create user in GP51
-    const gp51User = await createGP51User(adminToken, body, user_type);
+    // Create user in GP51 FIRST using the new service
+    console.log(`[user-registration-service] Creating GP51 user for: ${email}`);
+    const gp51User = await createGP51User(adminToken, { ...body, name }, user_type);
     const gp51_username = gp51User.username || email;
 
     // Create user in Supabase Auth
@@ -182,15 +185,40 @@ serve(async (req) => {
         });
     if (envioUserError) throw envioUserError;
 
-    console.log(`[user-registration-service] Successfully registered user ${email}`);
-    return new Response(JSON.stringify({ success: true, user }), {
+    // Store GP51 user mapping
+    const { error: mappingError } = await supabase
+        .from('gp51_user_mappings')
+        .insert({
+            envio_user_id: user.id,
+            gp51_username,
+            gp51_user_type: user_type === 'end_user' ? 3 : 1,
+            sync_status: 'completed',
+            created_at: new Date().toISOString()
+        });
+    
+    if (mappingError) {
+        console.warn(`[user-registration-service] Failed to store GP51 mapping:`, mappingError);
+        // Don't fail the entire registration for mapping errors
+    }
+
+    console.log(`[user-registration-service] Successfully registered user ${email} with GP51 integration`);
+    return new Response(JSON.stringify({ 
+      success: true, 
+      user,
+      gp51_username,
+      message: 'User registered successfully with GP51 integration'
+    }), {
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       status: 200,
     });
 
   } catch (error) {
-    console.error(`[user-registration-service] Top-level error: ${error.message}`);
-    return new Response(JSON.stringify({ success: false, error: error.message }), {
+    console.error(`[user-registration-service] Registration error: ${error.message}`);
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: error.message,
+      details: 'User registration failed during GP51 integration'
+    }), {
       headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
       status: 400,
     });
