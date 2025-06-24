@@ -1,357 +1,289 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { getGP51ApiUrl } from '../_shared/constants.ts';
-import { md5_for_gp51_only, sanitizeInput } from '../_shared/crypto_utils.ts';
+import { getGP51ApiUrl, isValidGP51BaseUrl } from '../_shared/constants.ts';
+import { md5_for_gp51_only, checkRateLimit } from '../_shared/crypto_utils.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface GP51Device {
-  deviceid: string;
-  devicename: string;
-  devicetype: number;
-  simnum?: string;
-  creater: string;
-  lastactivetime: number;
+// Simple input sanitization function for edge function use
+function sanitizeInput(input: string): string {
+  if (!input || typeof input !== 'string') return '';
+  return input.trim().slice(0, 100); // Basic sanitization
 }
 
 interface GP51User {
   username: string;
-  nickname?: string;
   email?: string;
-  usertype: number;
+  userType: number;
+  loginame?: string;
 }
 
-class GP51ImportService {
-  private supabase: any;
-  private token: string | null = null;
-  private username: string | null = null;
+interface GP51Device {
+  deviceid: string;
+  devicename: string;
+  devicetype: number;
+  simnum: string;
+  overduetime: number;
+  expirenotifytime: number;
+  remark: string;
+  creater: string;
+  videochannelcount: number;
+  lastactivetime: number;
+  isfree: number;
+  allowedit: number;
+  icon: number;
+  stared: number;
+  loginame: string;
+}
 
-  constructor() {
-    this.supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
+async function getGP51Token(): Promise<string> {
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+
+  // Try to get existing valid token
+  const { data: sessions, error } = await supabase
+    .from('gp51_sessions')
+    .select('*')
+    .gt('token_expires_at', new Date().toISOString())
+    .order('last_validated_at', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    throw new Error(`Failed to get GP51 session: ${error.message}`);
   }
 
-  async authenticate(): Promise<boolean> {
-    try {
-      const username = Deno.env.get('GP51_ADMIN_USERNAME');
-      const password = Deno.env.get('GP51_ADMIN_PASSWORD');
-      const globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
-      
-      if (!username || !password || !globalToken) {
-        throw new Error('GP51 credentials not configured');
+  if (sessions && sessions.length > 0) {
+    return sessions[0].gp51_token;
+  }
+
+  // Get admin credentials and create new token
+  const username = Deno.env.get('GP51_ADMIN_USERNAME');
+  const password = Deno.env.get('GP51_ADMIN_PASSWORD');
+  
+  if (!username || !password) {
+    throw new Error('GP51 admin credentials not configured');
+  }
+
+  const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
+  const gp51ApiUrl = getGP51ApiUrl(gp51BaseUrl);
+  
+  console.log(`🌐 [GP51-IMPORT] Using API URL: ${gp51ApiUrl}`);
+
+  const hashedPassword = await md5_for_gp51_only(password);
+  
+  const loginUrl = new URL(gp51ApiUrl);
+  loginUrl.searchParams.set('action', 'login');
+  loginUrl.searchParams.set('username', sanitizeInput(username));
+  loginUrl.searchParams.set('password', hashedPassword);
+  loginUrl.searchParams.set('from', 'WEB');
+  loginUrl.searchParams.set('type', 'USER');
+
+  const globalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+  if (globalToken) {
+    loginUrl.searchParams.set('token', globalToken);
+  }
+
+  const authResponse = await fetch(loginUrl.toString(), {
+    signal: AbortSignal.timeout(10000)
+  });
+
+  if (!authResponse.ok) {
+    throw new Error(`GP51 authentication failed: ${authResponse.statusText}`);
+  }
+
+  const authResult = await authResponse.json();
+  if (authResult.status !== 0 || !authResult.token) {
+    throw new Error(`GP51 authentication failed: ${authResult.cause || 'Unknown error'}`);
+  }
+
+  // Store the new session
+  await supabase
+    .from('gp51_sessions')
+    .upsert({
+      username: sanitizeInput(username),
+      password_hash: hashedPassword,
+      gp51_token: authResult.token,
+      token_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      auth_method: 'ADMIN_AUTO',
+      last_validated_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
+    }, {
+      onConflict: 'username'
+    });
+
+  return authResult.token;
+}
+
+async function getImportPreview(token: string) {
+  const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
+  const gp51ApiUrl = getGP51ApiUrl(gp51BaseUrl);
+  
+  console.log('🔍 [GP51-IMPORT] Getting lightweight preview...');
+
+  // Get device count first
+  const devicesUrl = new URL(gp51ApiUrl);
+  devicesUrl.searchParams.set('action', 'getmonitorlist');
+  devicesUrl.searchParams.set('token', token);
+
+  const devicesResponse = await fetch(devicesUrl.toString(), {
+    signal: AbortSignal.timeout(15000)
+  });
+
+  if (!devicesResponse.ok) {
+    throw new Error(`Failed to fetch devices: ${devicesResponse.statusText}`);
+  }
+
+  const devicesResult = await devicesResponse.json();
+  if (devicesResult.status !== 0) {
+    throw new Error(`GP51 devices fetch failed: ${devicesResult.cause || 'Unknown error'}`);
+  }
+
+  const devices: GP51Device[] = [];
+  if (devicesResult.groups && Array.isArray(devicesResult.groups)) {
+    for (const group of devicesResult.groups) {
+      if (group.devices && Array.isArray(group.devices)) {
+        devices.push(...group.devices);
       }
-
-      console.log('🔐 [GP51ImportService] Starting authentication...');
-      
-      const hashedPassword = await md5_for_gp51_only(password);
-      const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
-      const apiUrl = getGP51ApiUrl(gp51BaseUrl);
-      
-      const loginUrl = new URL(apiUrl);
-      loginUrl.searchParams.set('action', 'login');
-      loginUrl.searchParams.set('token', globalToken);
-
-      console.log('📤 [GP51ImportService] Making login request to:', loginUrl.toString());
-      
-      const response = await fetch(loginUrl.toString(), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'text/plain',
-          'User-Agent': 'FleetIQ/1.0'
-        },
-        body: JSON.stringify({
-          username: sanitizeInput(username),
-          password: hashedPassword,
-          from: 'WEB',
-          type: 'USER'
-        }),
-        signal: AbortSignal.timeout(15000)
-      });
-
-      console.log('📊 [GP51ImportService] Response status:', response.status);
-      
-      const responseText = await response.text();
-      
-      if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status} - ${responseText}`);
-      }
-
-      let authResult;
-      try {
-        authResult = JSON.parse(responseText);
-      } catch {
-        // Treat as plain text token
-        if (responseText.trim() && !responseText.includes('error')) {
-          this.token = responseText.trim();
-          this.username = username;
-          return true;
-        }
-        throw new Error('Invalid authentication response');
-      }
-
-      if (authResult.status === 0 && authResult.token) {
-        this.token = authResult.token;
-        this.username = authResult.username || username;
-        console.log('✅ [GP51ImportService] Authentication successful');
-        return true;
-      }
-
-      throw new Error(authResult.cause || 'Authentication failed');
-
-    } catch (error) {
-      console.error('❌ [GP51ImportService] Authentication failed:', error);
-      return false;
     }
   }
 
-  async getDataCounts(): Promise<{ devices: number; users: number }> {
-    if (!this.token) {
-      throw new Error('Not authenticated');
-    }
+  // Get sample devices (first 5)
+  const sampleDevices = devices.slice(0, 5).map(device => ({
+    deviceId: device.deviceid,
+    deviceName: device.devicename || '',
+    status: device.isfree === 1 ? 'Free' : 'Active',
+    lastActive: device.lastactivetime ? new Date(device.lastactivetime * 1000).toISOString() : null
+  }));
 
-    try {
-      const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
-      const apiUrl = getGP51ApiUrl(gp51BaseUrl);
-      
-      // Get device count
-      const deviceUrl = new URL(apiUrl);
-      deviceUrl.searchParams.set('action', 'querymonitorlist');
-      deviceUrl.searchParams.set('token', this.token);
+  // Get users count and sample
+  const usersUrl = new URL(gp51ApiUrl);
+  usersUrl.searchParams.set('action', 'getuserlist');
+  usersUrl.searchParams.set('token', token);
 
-      const deviceResponse = await fetch(deviceUrl.toString(), {
-        signal: AbortSignal.timeout(10000)
-      });
+  const usersResponse = await fetch(usersUrl.toString(), {
+    signal: AbortSignal.timeout(10000)
+  });
 
-      let deviceCount = 0;
-      if (deviceResponse.ok) {
-        const deviceResult = await deviceResponse.json();
-        if (deviceResult.status === 0 && deviceResult.groups) {
-          deviceCount = deviceResult.groups.reduce((total: number, group: any) => {
-            return total + (group.devices ? group.devices.length : 0);
-          }, 0);
-        }
-      }
+  let users: GP51User[] = [];
+  let sampleUsers: any[] = [];
 
-      // Get user count (simplified - in real implementation you'd call user list API)
-      const userCount = 1; // For now, just the authenticated user
-
-      return { devices: deviceCount, users: userCount };
-
-    } catch (error) {
-      console.error('❌ [GP51ImportService] Failed to get counts:', error);
-      return { devices: 0, users: 0 };
+  if (usersResponse.ok) {
+    const usersResult = await usersResponse.json();
+    if (usersResult.status === 0 && usersResult.users) {
+      users = usersResult.users;
+      sampleUsers = users.slice(0, 5).map(user => ({
+        username: user.username,
+        email: user.email || '',
+        userType: user.userType || 0
+      }));
     }
   }
 
-  async getSampleData(): Promise<{ devices: GP51Device[]; users: GP51User[] }> {
-    if (!this.token) {
-      throw new Error('Not authenticated');
-    }
+  return {
+    success: true,
+    summary: {
+      vehicles: devices.length,
+      users: users.length,
+      groups: devicesResult.groups?.length || 0
+    },
+    sampleData: {
+      vehicles: sampleDevices,
+      users: sampleUsers
+    },
+    conflicts: {
+      existingUsers: [],
+      existingDevices: [],
+      potentialDuplicates: 0
+    },
+    authenticationStatus: {
+      connected: true,
+      username: Deno.env.get('GP51_ADMIN_USERNAME')
+    },
+    warnings: []
+  };
+}
 
-    try {
-      const gp51BaseUrl = Deno.env.get('GP51_BASE_URL') || 'https://www.gps51.com';
-      const apiUrl = getGP51ApiUrl(gp51BaseUrl);
-      
-      // Get sample devices (first 5)
-      const deviceUrl = new URL(apiUrl);
-      deviceUrl.searchParams.set('action', 'querymonitorlist');
-      deviceUrl.searchParams.set('token', this.token);
-
-      const deviceResponse = await fetch(deviceUrl.toString(), {
-        signal: AbortSignal.timeout(10000)
-      });
-
-      const devices: GP51Device[] = [];
-      if (deviceResponse.ok) {
-        const deviceResult = await deviceResponse.json();
-        if (deviceResult.status === 0 && deviceResult.groups) {
-          for (const group of deviceResult.groups) {
-            if (group.devices && devices.length < 5) {
-              devices.push(...group.devices.slice(0, 5 - devices.length));
-            }
-            if (devices.length >= 5) break;
-          }
-        }
-      }
-
-      // Sample users (for now, just return the authenticated user info)
-      const users: GP51User[] = [
-        {
-          username: this.username || 'unknown',
-          usertype: 3,
-          email: 'authenticated_user@example.com'
-        }
-      ];
-
-      return { devices, users };
-
-    } catch (error) {
-      console.error('❌ [GP51ImportService] Failed to get sample data:', error);
-      return { devices: [], users: [] };
-    }
-  }
-
-  async performFullImport(options: any): Promise<any> {
-    // This would contain the actual import logic
-    // For now, return mock data to avoid the performance issues
-    console.log('🚀 [GP51ImportService] Starting full import with options:', options);
-    
-    // Simulate import processing
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    return {
-      success: true,
-      statistics: {
-        usersProcessed: 1,
-        usersImported: options.conflictResolution === 'skip' ? 0 : 1,
-        devicesProcessed: 100,
-        devicesImported: options.conflictResolution === 'skip' ? 0 : 100,
-        conflicts: 0
-      },
-      message: options.conflictResolution === 'skip' 
-        ? 'Preview completed - no data imported'
-        : 'Import completed successfully',
-      errors: [],
-      duration: 1000
-    };
-  }
+async function startImport(token: string, options: any) {
+  console.log('🚀 [GP51-IMPORT] Starting full import process...');
+  
+  // This would contain the actual import logic
+  // For now, return a placeholder response
+  return {
+    success: true,
+    statistics: {
+      usersProcessed: 0,
+      usersImported: 0,
+      devicesProcessed: 0,
+      devicesImported: 0,
+      conflicts: 0
+    },
+    message: 'Import started - this is a placeholder response',
+    errors: [],
+    duration: 0
+  };
 }
 
 serve(async (req) => {
-  console.log(`🚀 [enhanced-bulk-import] ${req.method} ${req.url}`);
-
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+  
+  // Rate limiting
+  if (!checkRateLimit(clientIP, 10, 60 * 1000)) { // 10 requests per minute
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: 'Too many requests. Please try again later.' 
+    }), {
+      status: 429,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
   try {
-    const body = await req.json();
-    const { action, options } = body;
+    const { action, options } = await req.json();
+    console.log(`📝 [GP51-IMPORT] Processing action: ${action}`);
 
-    console.log(`🔧 [enhanced-bulk-import] Action: ${action}`);
+    // Get GP51 token
+    const token = await getGP51Token();
+    console.log('✅ [GP51-IMPORT] GP51 token obtained');
 
-    const importService = new GP51ImportService();
-
-    switch (action) {
-      case 'get_import_preview': {
-        console.log('📊 [enhanced-bulk-import] Getting lightweight import preview...');
-        
-        const authSuccess = await importService.authenticate();
-        if (!authSuccess) {
-          return new Response(JSON.stringify({
-            success: false,
-            summary: { vehicles: 0, users: 0, groups: 0 },
-            sampleData: { vehicles: [], users: [] },
-            conflicts: { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
-            authenticationStatus: { connected: false, error: 'Authentication failed' },
-            warnings: ['Failed to authenticate with GP51']
-          }), {
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        const counts = await importService.getDataCounts();
-        const sampleData = await importService.getSampleData();
-
-        return new Response(JSON.stringify({
-          success: true,
-          summary: {
-            vehicles: counts.devices,
-            users: counts.users,
-            groups: 1 // Assuming default group
-          },
-          sampleData: {
-            vehicles: sampleData.devices.map(device => ({
-              deviceId: device.deviceid,
-              deviceName: device.devicename,
-              status: device.lastactivetime > 0 ? 'active' : 'inactive',
-              lastActive: device.lastactivetime > 0 
-                ? new Date(device.lastactivetime * 1000).toISOString() 
-                : undefined
-            })),
-            users: sampleData.users.map(user => ({
-              username: user.username,
-              email: user.email,
-              userType: user.usertype
-            }))
-          },
-          conflicts: {
-            existingUsers: [], // Would check database in real implementation
-            existingDevices: [], // Would check database in real implementation
-            potentialDuplicates: 0
-          },
-          authenticationStatus: {
-            connected: true,
-            username: importService.username
-          },
-          warnings: counts.devices === 0 ? ['No devices found in GP51 account'] : []
-        }), {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      case 'start_import': {
-        console.log('🎯 [enhanced-bulk-import] Starting actual import process...');
-        
-        const authSuccess = await importService.authenticate();
-        if (!authSuccess) {
-          return new Response(JSON.stringify({
-            success: false,
-            statistics: {
-              usersProcessed: 0,
-              usersImported: 0,
-              devicesProcessed: 0,
-              devicesImported: 0,
-              conflicts: 0
-            },
-            message: 'Authentication failed',
-            errors: ['Failed to authenticate with GP51'],
-            duration: 0
-          }), {
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-
-        const result = await importService.performFullImport(options);
-
-        return new Response(JSON.stringify({
-          success: result.success,
-          statistics: result.statistics,
-          message: result.message,
-          errors: result.errors,
-          duration: result.duration
-        }), {
-          status: result.success ? 200 : 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      default:
-        return new Response(JSON.stringify({
-          success: false,
-          error: `Unknown action: ${action}`
-        }), {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+    if (action === 'get_import_preview') {
+      const preview = await getImportPreview(token);
+      return new Response(JSON.stringify(preview), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-  } catch (error) {
-    console.error('❌ [enhanced-bulk-import] Request processing failed:', error);
+    if (action === 'start_import') {
+      const result = await startImport(token, options);
+      return new Response(JSON.stringify(result), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     return new Response(JSON.stringify({
       success: false,
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Invalid action specified'
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ [GP51-IMPORT] Error:', error);
+    return new Response(JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : 'Import operation failed'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
