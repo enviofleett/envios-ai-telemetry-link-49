@@ -1,422 +1,279 @@
-import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+
+import React, { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Users, Car, AlertTriangle, Clock, CheckCircle, XCircle } from 'lucide-react';
-import { SystemImportOptions } from '@/types/system-import';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  Download, 
+  Upload, 
+  CheckCircle, 
+  XCircle, 
+  AlertTriangle,
+  RefreshCw,
+  Database
+} from 'lucide-react';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
+import type { GP51DeviceData, GP51ProcessResult } from '@/types/gp51';
 
-interface ImportPreviewData {
-  summary: {
-    totalRecords: number;
-    newRecords: number;
-    conflicts: number;
-    estimatedDuration: string;
-    warnings: string[];
-  };
-  users: {
-    total: number;
-    new: number;
-    conflicts: number;
-    userList: Array<{
-      username: string;
-      email: string;
-      conflict: boolean;
-    }>;
-  };
-  vehicles: {
-    total: number;
-    new: number;
-    conflicts: number;
-    vehicleList: Array<{
-      deviceId: string;
-      deviceName: string;
-      username: string;
-      conflict: boolean;
-    }>;
-  };
-  settings: {
-    importType: string;
-    batchSize: number;
-    performCleanup: boolean;
-    preserveAdminEmail: string;
-  };
-  conflicts: any[]; // Add missing conflicts property
-}
-
-interface ImportPreviewModalProps {
+interface GP51ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
-  options: SystemImportOptions;
 }
 
-const ImportPreviewModal: React.FC<ImportPreviewModalProps> = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  options
-}) => {
-  const [previewData, setPreviewData] = useState<ImportPreviewData | null>(null);
-  const [loading, setLoading] = useState(false);
+const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) => {
+  const [step, setStep] = useState<'preview' | 'importing' | 'complete'>('preview');
+  const [previewData, setPreviewData] = useState<GP51DeviceData[]>([]);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResults, setImportResults] = useState<GP51ProcessResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      generatePreview();
-    }
-  }, [isOpen, options]);
-
-  const generatePreview = async () => {
-    setLoading(true);
+  const fetchPreviewData = async () => {
+    setIsLoading(true);
     setError(null);
     
     try {
-      // Use the GP51DataService to get live data
-      const liveDataResult = await gp51DataService.getLiveVehicles();
+      console.log('🔄 Fetching GP51 live vehicles data...');
+      const response = await gp51DataService.getLiveVehicles();
       
-      if (!liveDataResult.success) {
-        throw new Error(liveDataResult.error || 'Failed to fetch GP51 data');
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to fetch live vehicles data');
       }
 
-      const liveData = liveDataResult.data;
-      if (!liveData) {
-        throw new Error('No data received from GP51');
-      }
-
-      // Process the data for preview
-      const processResult = await gp51DataService.processVehicleData(
-        liveData.devices, 
-        liveData.telemetry
-      );
-
-      // Create preview data based on the processing result
-      const previewData: ImportPreviewData = {
-        summary: {
-          totalRecords: liveData.devices.length,
-          newRecords: processResult.created,
-          conflicts: processResult.errors.length,
-          estimatedDuration: `${Math.ceil(liveData.devices.length / 10)} minutes`,
-          warnings: processResult.errors.slice(0, 5) // Show first 5 errors as warnings
-        },
-        users: {
-          total: 0,
-          new: 0,
-          conflicts: 0,
-          userList: []
-        },
-        vehicles: {
-          total: liveData.devices.length,
-          new: processResult.created,
-          conflicts: processResult.errors.length,
-          vehicleList: liveData.devices.map(device => ({
-            deviceId: device.deviceId,
-            deviceName: device.deviceName,
-            username: 'N/A',
-            conflict: processResult.errors.some(error => error.includes(device.deviceId))
-          }))
-        },
-        settings: {
-          importType: options.importType,
-          batchSize: options.batchSize || 10,
-          performCleanup: options.performCleanup,
-          preserveAdminEmail: options.preserveAdminEmail || 'Default admin'
-        },
-        conflicts: processResult.errors.map(error => ({ message: error })) // Add conflicts property
-      };
+      // Extract devices array from the response data
+      const devices = response.data.devices || [];
+      console.log(`✅ Successfully fetched ${devices.length} devices`);
+      setPreviewData(devices);
       
-      setPreviewData(previewData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate preview');
+    } catch (error) {
+      console.error('❌ Error fetching preview data:', error);
+      setError(error instanceof Error ? error.message : 'Unknown error occurred');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const getStatusIcon = (hasConflicts: boolean) => {
-    return hasConflicts ? (
-      <AlertTriangle className="h-4 w-4 text-amber-500" />
-    ) : (
-      <CheckCircle className="h-4 w-4 text-green-500" />
-    );
+  const startImport = async () => {
+    if (!previewData || previewData.length === 0) {
+      setError('No data available for import');
+      return;
+    }
+
+    setStep('importing');
+    setImportProgress(0);
+    
+    try {
+      console.log(`🚀 Starting import of ${previewData.length} devices...`);
+      
+      // Process the preview data with import options
+      const results = await gp51DataService.processVehicleData(previewData, {
+        importMode: 'full',
+        validateData: true
+      });
+      
+      setImportProgress(100);
+      setImportResults(results);
+      setStep('complete');
+      
+      console.log(`✅ Import completed: ${results.created} created, ${results.errors} errors`);
+      
+    } catch (error) {
+      console.error('❌ Import failed:', error);
+      setError(error instanceof Error ? error.message : 'Import failed');
+      setStep('preview');
+    }
   };
 
-  const getImportTypeLabel = (type: string) => {
-    const labels = {
-      users_only: 'Users Only',
-      vehicles_only: 'Vehicles Only',
-      complete_system: 'Complete System',
-      selective: 'Selective Import'
-    };
-    return labels[type as keyof typeof labels] || type;
+  const resetModal = () => {
+    setStep('preview');
+    setPreviewData([]);
+    setImportProgress(0);
+    setImportResults(null);
+    setError(null);
+    setIsLoading(false);
   };
 
-  if (!isOpen) return null;
+  const handleClose = () => {
+    resetModal();
+    onClose();
+  };
+
+  React.useEffect(() => {
+    if (isOpen && step === 'preview' && previewData.length === 0) {
+      fetchPreviewData();
+    }
+  }, [isOpen, step]);
+
+  const renderPreviewStep = () => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 mb-4">
+        <Database className="h-5 w-5 text-blue-600" />
+        <h3 className="text-lg font-semibold">Import Preview</h3>
+      </div>
+
+      {error && (
+        <Alert className="border-red-200 bg-red-50">
+          <AlertTriangle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8">
+          <RefreshCw className="h-6 w-6 animate-spin text-blue-600 mr-2" />
+          <span>Loading preview data...</span>
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-2xl font-bold text-blue-600">{previewData.length}</div>
+                <div className="text-sm text-gray-600">Total Devices</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-2xl font-bold text-green-600">
+                  {previewData.slice(0, 10).length}
+                </div>
+                <div className="text-sm text-gray-600">Preview Items</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div className="text-2xl font-bold text-orange-600">{previewData.length}</div>
+                <div className="text-sm text-gray-600">Ready to Import</div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {previewData.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="font-medium">Sample Data ({previewData.some(device => device.deviceName) ? 'Valid' : 'Needs Review'})</h4>
+              <div className="max-h-60 overflow-y-auto border rounded-md">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="p-2 text-left">Device ID</th>
+                      <th className="p-2 text-left">Name</th>
+                      <th className="p-2 text-left">Type</th>
+                      <th className="p-2 text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {previewData.map((device, index) => (
+                      <tr key={index} className="border-t">
+                        <td className="p-2 font-mono text-xs">{device.deviceId}</td>
+                        <td className="p-2">{device.deviceName || 'N/A'}</td>
+                        <td className="p-2">{device.deviceType || 'Unknown'}</td>
+                        <td className="p-2">
+                          <Badge variant={device.isActive ? 'default' : 'secondary'}>
+                            {device.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-2 pt-4">
+            <Button 
+              onClick={startImport} 
+              disabled={previewData.length === 0 || isLoading}
+              className="flex-1"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Start Import ({previewData.length} items)
+            </Button>
+            <Button variant="outline" onClick={fetchPreviewData} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  const renderImportingStep = () => (
+    <div className="space-y-6 text-center">
+      <div className="flex items-center gap-2 justify-center mb-4">
+        <Upload className="h-5 w-5 text-blue-600" />
+        <h3 className="text-lg font-semibold">Importing Data</h3>
+      </div>
+      
+      <div className="space-y-2">
+        <Progress value={importProgress} className="w-full" />
+        <p className="text-sm text-gray-600">Processing {previewData.length} devices...</p>
+      </div>
+      
+      <div className="flex items-center justify-center">
+        <RefreshCw className="h-6 w-6 animate-spin text-blue-600 mr-2" />
+        <span>Import in progress...</span>
+      </div>
+    </div>
+  );
+
+  const renderCompleteStep = () => (
+    <div className="space-y-6 text-center">
+      <div className="flex items-center gap-2 justify-center mb-4">
+        <CheckCircle className="h-5 w-5 text-green-600" />
+        <h3 className="text-lg font-semibold">Import Complete</h3>
+      </div>
+
+      {importResults && (
+        <div className="grid grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-green-600">{importResults.created}</div>
+              <div className="text-sm text-gray-600">Successfully Imported</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-red-600">{importResults.errors}</div>
+              <div className="text-sm text-gray-600">Errors</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="flex gap-2 pt-4">
+        <Button onClick={handleClose} className="flex-1">
+          <CheckCircle className="h-4 w-4 mr-2" />
+          Close
+        </Button>
+        <Button variant="outline" onClick={resetModal}>
+          Import More
+        </Button>
+      </div>
+    </div>
+  );
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={handleClose}>
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Car className="h-5 w-5" />
-            Import Preview: {getImportTypeLabel(options.importType)}
+            <Download className="h-5 w-5" />
+            GP51 Data Import
           </DialogTitle>
         </DialogHeader>
 
-        {loading && (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin mr-2" />
-            Analyzing import data...
-          </div>
-        )}
-
-        {error && (
-          <Alert variant="destructive">
-            <XCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
-        {previewData && (
-          <div className="space-y-6">
-            {/* Summary Section */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-blue-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-blue-600">{previewData.summary.totalRecords}</div>
-                <div className="text-sm text-blue-600">Total Records</div>
-              </div>
-              <div className="bg-green-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-green-600">{previewData.summary.newRecords}</div>
-                <div className="text-sm text-green-600">New Records</div>
-              </div>
-              <div className="bg-amber-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-amber-600">{previewData.summary.conflicts}</div>
-                <div className="text-sm text-amber-600">Conflicts</div>
-              </div>
-              <div className="bg-purple-50 p-4 rounded-lg text-center">
-                <div className="text-2xl font-bold text-purple-600">{previewData.summary.estimatedDuration}</div>
-                <div className="text-sm text-purple-600">Est. Duration</div>
-              </div>
-            </div>
-
-            {/* Warnings */}
-            {previewData.summary.warnings.length > 0 && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="font-medium">Warnings:</div>
-                  <ul className="mt-1 list-disc list-inside">
-                    {previewData.summary.warnings.map((warning, index) => (
-                      <li key={index}>{warning}</li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Detailed Tabs */}
-            <Tabs defaultValue="users" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="users" className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Users ({previewData.users.total})
-                </TabsTrigger>
-                <TabsTrigger value="vehicles" className="flex items-center gap-2">
-                  <Car className="h-4 w-4" />
-                  Vehicles ({previewData.vehicles.total})
-                </TabsTrigger>
-                <TabsTrigger value="settings" className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Settings
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="users" className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">User Import Preview</h3>
-                  <div className="flex items-center gap-2">
-                    {getStatusIcon(previewData.users.conflicts > 0)}
-                    <span className="text-sm">
-                      {previewData.users.conflicts > 0 ? 'Conflicts Detected' : 'Ready to Import'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div className="text-center">
-                    <div className="text-xl font-bold">{previewData.users.total}</div>
-                    <div className="text-sm text-gray-600">Total Users</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-green-600">{previewData.users.new}</div>
-                    <div className="text-sm text-gray-600">New Users</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-amber-600">{previewData.users.conflicts}</div>
-                    <div className="text-sm text-gray-600">Conflicts</div>
-                  </div>
-                </div>
-
-                {previewData.users.userList.length > 0 && (
-                  <div className="border rounded-lg max-h-64 overflow-y-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th className="px-4 py-2 text-left">Username</th>
-                          <th className="px-4 py-2 text-left">Email</th>
-                          <th className="px-4 py-2 text-left">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewData.users.userList.slice(0, 50).map((user, index) => (
-                          <tr key={index} className="border-t">
-                            <td className="px-4 py-2">{user.username}</td>
-                            <td className="px-4 py-2">{user.email}</td>
-                            <td className="px-4 py-2">
-                              {user.conflict ? (
-                                <Badge variant="destructive">Conflict</Badge>
-                              ) : (
-                                <Badge variant="outline">New</Badge>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {previewData.users.userList.length > 50 && (
-                      <div className="p-2 text-center text-sm text-gray-500">
-                        ... and {previewData.users.userList.length - 50} more users
-                      </div>
-                    )}
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="vehicles" className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Vehicle Import Preview</h3>
-                  <div className="flex items-center gap-2">
-                    {getStatusIcon(previewData.vehicles.conflicts > 0)}
-                    <span className="text-sm">
-                      {previewData.vehicles.conflicts > 0 ? 'Conflicts Detected' : 'Ready to Import'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div className="text-center">
-                    <div className="text-xl font-bold">{previewData.vehicles.total}</div>
-                    <div className="text-sm text-gray-600">Total Vehicles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-green-600">{previewData.vehicles.new}</div>
-                    <div className="text-sm text-gray-600">New Vehicles</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-amber-600">{previewData.vehicles.conflicts}</div>
-                    <div className="text-sm text-gray-600">Conflicts</div>
-                  </div>
-                </div>
-
-                {previewData.vehicles.vehicleList.length > 0 && (
-                  <div className="border rounded-lg max-h-64 overflow-y-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th className="px-4 py-2 text-left">Device ID</th>
-                          <th className="px-4 py-2 text-left">Device Name</th>
-                          <th className="px-4 py-2 text-left">Owner</th>
-                          <th className="px-4 py-2 text-left">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {previewData.vehicles.vehicleList.slice(0, 50).map((vehicle, index) => (
-                          <tr key={index} className="border-t">
-                            <td className="px-4 py-2">{vehicle.deviceId}</td>
-                            <td className="px-4 py-2">{vehicle.deviceName}</td>
-                            <td className="px-4 py-2">{vehicle.username}</td>
-                            <td className="px-4 py-2">
-                              {vehicle.conflict ? (
-                                <Badge variant="destructive">Conflict</Badge>
-                              ) : (
-                                <Badge variant="outline">New</Badge>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {previewData.vehicles.vehicleList.length > 50 && (
-                      <div className="p-2 text-center text-sm text-gray-500">
-                        ... and {previewData.vehicles.vehicleList.length - 50} more vehicles
-                      </div>
-                    )}
-                  </div>
-                )}
-              </TabsContent>
-
-              <TabsContent value="settings" className="space-y-4">
-                <h3 className="text-lg font-medium">Import Configuration</h3>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="font-medium">Import Type:</label>
-                    <p>{getImportTypeLabel(options.importType)}</p>
-                  </div>
-                  <div>
-                    <label className="font-medium">Batch Size:</label>
-                    <p>{options.batchSize || 10} records per batch</p>
-                  </div>
-                  <div>
-                    <label className="font-medium">Data Cleanup:</label>
-                    <p>{options.performCleanup ? 'Yes' : 'No'}</p>
-                  </div>
-                  <div>
-                    <label className="font-medium">Preserve Admin:</label>
-                    <p>{options.preserveAdminEmail || 'Default admin'}</p>
-                  </div>
-                </div>
-
-                {options.importType === 'selective' && options.selectedUsernames && (
-                  <div>
-                    <label className="font-medium">Selected Users:</label>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {options.selectedUsernames.map((username, index) => (
-                        <Badge key={index} variant="outline">{username}</Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={onConfirm} 
-            disabled={loading || !previewData}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                Generating Preview...
-              </>
-            ) : (
-              'Start Import'
-            )}
-          </Button>
-        </DialogFooter>
+        <div className="mt-6">
+          {step === 'preview' && renderPreviewStep()}
+          {step === 'importing' && renderImportingStep()}
+          {step === 'complete' && renderCompleteStep()}
+        </div>
       </DialogContent>
     </Dialog>
   );
 };
 
-export default ImportPreviewModal;
+export default GP51ImportModal;
