@@ -35,6 +35,7 @@ const ConflictResolutionDialog: React.FC<ConflictResolutionDialogProps> = ({
       case 'high': return 'bg-red-100 text-red-800';
       case 'medium': return 'bg-yellow-100 text-yellow-800';
       case 'low': return 'bg-blue-100 text-blue-800';
+      case 'critical': return 'bg-red-200 text-red-900';
     }
   };
 
@@ -42,6 +43,7 @@ const ConflictResolutionDialog: React.FC<ConflictResolutionDialogProps> = ({
     switch (entityType) {
       case 'user': return <Users className="h-4 w-4" />;
       case 'vehicle': return <Car className="h-4 w-4" />;
+      default: return <AlertTriangle className="h-4 w-4" />;
     }
   };
 

@@ -1,6 +1,7 @@
 
 import { useState, useEffect } from 'react';
-import { gp51DataSyncManager, SyncOperation, DataIntegrityReport } from '@/services/gp51/GP51DataSyncManager';
+import { gp51DataSyncManager, SyncOperation } from '@/services/gp51/GP51DataSyncManager';
+import { DataIntegrityReport } from '@/types/dataIntegrity';
 
 export interface UseDataSyncReturn {
   syncOperations: SyncOperation[];
