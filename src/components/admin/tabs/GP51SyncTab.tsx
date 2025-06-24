@@ -7,6 +7,7 @@ import GP51SyncMonitor from '../GP51SyncMonitor';
 import GP51SyncControlPanel from '../GP51SyncControlPanel';
 import GP51RealTimeMonitor from '../GP51RealTimeMonitor';
 import GP51PerformanceOptimizer from '../GP51PerformanceOptimizer';
+import GP51PerformanceMonitor from '../GP51PerformanceMonitor';
 
 const GP51SyncTab: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -28,22 +29,22 @@ const GP51SyncTab: React.FC = () => {
             <div className="flex items-center p-4 bg-blue-50 rounded-lg">
               <Database className="h-8 w-8 text-blue-600 mr-3" />
               <div>
-                <div className="font-semibold text-blue-800">Production Sync</div>
-                <div className="text-sm text-blue-600">Enterprise-grade reliability</div>
+                <div className="font-semibold text-blue-800">Enhanced API Validation</div>
+                <div className="text-sm text-blue-600">Validated querymonitorlist responses</div>
               </div>
             </div>
             <div className="flex items-center p-4 bg-green-50 rounded-lg">
               <Clock className="h-8 w-8 text-green-600 mr-3" />
               <div>
-                <div className="font-semibold text-green-800">Real-Time Monitoring</div>
-                <div className="text-sm text-green-600">Live status with alerts</div>
+                <div className="font-semibold text-green-800">Performance Monitoring</div>
+                <div className="text-sm text-green-600">Real-time metrics & alerts</div>
               </div>
             </div>
             <div className="flex items-center p-4 bg-purple-50 rounded-lg">
               <Shield className="h-8 w-8 text-purple-600 mr-3" />
               <div>
-                <div className="font-semibold text-purple-800">Production Hardened</div>
-                <div className="text-sm text-purple-600">Error recovery & monitoring</div>
+                <div className="font-semibold text-purple-800">Error Reporting</div>
+                <div className="text-sm text-purple-600">Comprehensive error tracking</div>
               </div>
             </div>
           </div>
@@ -51,7 +52,7 @@ const GP51SyncTab: React.FC = () => {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview" className="flex items-center space-x-2">
             <Settings className="h-4 w-4" />
             <span>Overview</span>
@@ -63,6 +64,10 @@ const GP51SyncTab: React.FC = () => {
           <TabsTrigger value="performance" className="flex items-center space-x-2">
             <BarChart3 className="h-4 w-4" />
             <span>Performance</span>
+          </TabsTrigger>
+          <TabsTrigger value="monitoring" className="flex items-center space-x-2">
+            <Clock className="h-4 w-4" />
+            <span>Monitoring</span>
           </TabsTrigger>
         </TabsList>
 
@@ -79,6 +84,10 @@ const GP51SyncTab: React.FC = () => {
 
         <TabsContent value="performance" className="space-y-6">
           <GP51PerformanceOptimizer />
+        </TabsContent>
+
+        <TabsContent value="monitoring" className="space-y-6">
+          <GP51PerformanceMonitor />
         </TabsContent>
       </Tabs>
     </div>
