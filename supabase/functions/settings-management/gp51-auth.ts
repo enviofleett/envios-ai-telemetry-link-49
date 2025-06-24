@@ -1,6 +1,5 @@
 
 import { md5_for_gp51_only } from '../_shared/crypto_utils.ts';
-import { getGP51ApiUrl } from '../_shared/constants.ts';
 
 export interface GP51AuthResult {
   success: boolean;
@@ -16,7 +15,10 @@ export interface GP51AuthResult {
  * Builds a GP51 API URL with proper query parameters
  */
 function buildGP51ActionUrl(baseUrl: string, action: string, params: Record<string, string> = {}): string {
-  const apiUrl = getGP51ApiUrl(baseUrl);
+  // Remove any trailing slashes and ensure we don't double up on /webapi
+  const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
+  const apiUrl = cleanBaseUrl.endsWith('/webapi') ? cleanBaseUrl : `${cleanBaseUrl}/webapi`;
+  
   const url = new URL(apiUrl);
   url.searchParams.set('action', action);
   
@@ -25,6 +27,14 @@ function buildGP51ActionUrl(baseUrl: string, action: string, params: Record<stri
   });
   
   return url.toString();
+}
+
+/**
+ * Gets the correct GP51 API base URL
+ */
+function getGP51ApiUrl(baseUrl: string): string {
+  const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
+  return cleanBaseUrl.endsWith('/webapi') ? cleanBaseUrl : `${cleanBaseUrl}/webapi`;
 }
 
 export async function authenticateWithGP51(credentials: {
@@ -56,7 +66,7 @@ export async function authenticateWithGP51(credentials: {
     console.log(`🔐 [GP51-AUTH] Password hashed successfully: ${hashedPassword}`);
     console.log(`🔍 [GP51-AUTH] Hash length: ${hashedPassword.length} chars, format: ${/^[a-f0-9]{32}$/.test(hashedPassword) ? "✅ valid" : "❌ invalid"}`);
     
-    // Construct the API URL with proper query parameters
+    // Construct the API URL with proper query parameters - FIX: Use correct URL construction
     const urlParams: Record<string, string> = {};
     if (globalToken) {
       urlParams.token = globalToken;
@@ -65,6 +75,7 @@ export async function authenticateWithGP51(credentials: {
     const url = buildGP51ActionUrl(apiUrl, 'login', urlParams);
     
     console.log(`🔧 [URL] Final constructed URL: "${url}"`);
+    console.log(`🔧 [URL] Expected format should be: ${apiUrl}/webapi?action=login`);
     
     // Prepare request body with credentials
     const requestBody = {
@@ -80,7 +91,7 @@ export async function authenticateWithGP51(credentials: {
       password: '[REDACTED]'
     }));
     
-    console.log(`🔄 [GP51-AUTH] Step 4: Making HTTP POST request to GP51 API`);
+    console.log(`🔄 [GP51-AUTH] Making HTTP POST request to GP51 API`);
     console.log(`📡 [HTTP] Request details:`);
     console.log(`  - Method: POST`);
     console.log(`  - URL: ${url}`);
@@ -107,7 +118,7 @@ export async function authenticateWithGP51(credentials: {
     const responseText = await response.text();
     console.log(`📊 [HTTP] Response body length: ${responseText.length}`);
     
-    console.log(`🔄 [GP51-AUTH] Step 5: Validating GP51 response`);
+    console.log(`🔄 [GP51-AUTH] Validating GP51 response`);
     
     if (!response.ok) {
       throw new Error(`GP51 API Error: ${response.status} - ${responseText}`);
@@ -145,45 +156,45 @@ export async function authenticateWithGP51(credentials: {
       } else {
         const errorMsg = responseData.cause || responseData.message || `Authentication failed with status ${responseData.status}`;
         console.error(`❌ [GP51-AUTH] Authentication failed:`, errorMsg);
-        
-        // Log additional details for debugging
-        if (responseData.lockoutattempts !== undefined) {
-          console.error(`🔒 [GP51-AUTH] Lockout attempts: ${responseData.lockoutattempts}`);
-          console.error(`🔑 [GP51-AUTH] This suggests password hash mismatch - check MD5 implementation`);
-        }
-        
         return {
           success: false,
-          error: errorMsg
+          error: errorMsg,
+          method: 'POST_JSON',
+          hashedPassword
         };
       }
     } catch (parseError) {
       // Treat as plain text token
-      const token = responseText.trim();
-      if (token && token.length > 0 && !token.includes('error') && !token.includes('fail')) {
-        console.log(`✅ [GP51-AUTH] Authentication successful via plain text token`);
+      console.log(`📋 [GP51-AUTH] Response is plain text, treating as token: ${responseText.substring(0, 50)}...`);
+      
+      if (responseText.includes('error') || responseText.includes('fail') || responseText.includes('invalid')) {
+        console.error(`❌ [GP51-AUTH] Authentication failed - error in response: ${responseText}`);
         return {
-          success: true,
-          token,
-          username,
-          apiUrl: getGP51ApiUrl(apiUrl),
+          success: false,
+          error: `Authentication failed: ${responseText.substring(0, 100)}`,
           method: 'POST_TEXT',
           hashedPassword
         };
-      } else {
-        console.error(`❌ [GP51-AUTH] Invalid token response:`, token);
-        return {
-          success: false,
-          error: `Invalid authentication response: ${token}`
-        };
       }
+      
+      console.log(`✅ [GP51-AUTH] Authentication successful via plain text response`);
+      return {
+        success: true,
+        token: responseText.trim(),
+        username,
+        apiUrl: getGP51ApiUrl(apiUrl),
+        method: 'POST_TEXT',
+        hashedPassword
+      };
     }
     
   } catch (error) {
-    console.error(`❌ [GP51-AUTH] Authentication request failed:`, error);
+    console.error(`❌ [GP51-AUTH] Authentication error:`, error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Network error during authentication'
+      error: error instanceof Error ? error.message : 'Authentication failed',
+      method: 'ERROR',
+      hashedPassword: '[ERROR]'
     };
   }
 }

@@ -1,44 +1,48 @@
 
-export const GP51_BASE_URL = "https://api.gps51.com"; // Updated to new endpoint
-export const REQUEST_TIMEOUT = 5000; // 5 seconds
-export const MAX_RETRIES = 2;
+/**
+ * GP51 API constants and helper functions
+ */
+
+export const GP51_DEFAULT_BASE_URL = 'https://www.gps51.com';
+export const GP51_WEBAPI_PATH = '/webapi';
 
 /**
- * Constructs the GP51 API URL by intelligently appending /webapi to the base URL
- * Handles various base URL formats and prevents duplication
- * @param baseUrl - The GP51 base URL (defaults to GP51_BASE_URL)
- * @returns The complete GP51 API URL with /webapi endpoint
+ * Gets the correct GP51 API URL, ensuring proper format
+ * @param baseUrl - The base URL (e.g., 'https://www.gps51.com')
+ * @returns The properly formatted API URL
  */
-export function getGP51ApiUrl(baseUrl?: string): string {
-  // Use environment variable first, then parameter, then default
-  const envBaseUrl = Deno.env.get('GP51_API_BASE_URL');
-  const url = envBaseUrl || baseUrl || GP51_BASE_URL;
+export function getGP51ApiUrl(baseUrl: string = GP51_DEFAULT_BASE_URL): string {
+  // Remove any trailing slashes
+  const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
   
-  // Remove trailing slash if present
-  const cleanUrl = url.replace(/\/$/, '');
-  
-  // Only append /webapi if it's not already present
-  if (!cleanUrl.endsWith('/webapi')) {
-    return cleanUrl + '/webapi';
+  // Ensure we don't double up on /webapi
+  if (cleanBaseUrl.endsWith('/webapi')) {
+    return cleanBaseUrl;
   }
   
-  return cleanUrl;
+  return `${cleanBaseUrl}${GP51_WEBAPI_PATH}`;
 }
 
 /**
- * Validates if a GP51 base URL is properly formatted
- * Updated to accept both old and new GP51 domains
- * @param url - The URL to validate
- * @returns true if the URL is valid for GP51 usage
+ * Builds a GP51 API URL with action and parameters
+ * @param baseUrl - The base URL
+ * @param action - The API action (login, etc.)
+ * @param params - Additional query parameters
+ * @returns The complete API URL with query parameters
  */
-export function isValidGP51BaseUrl(url: string): boolean {
-  try {
-    const urlObj = new URL(url);
-    return urlObj.protocol === 'https:' && (
-      urlObj.hostname.includes('gps51.com') || 
-      urlObj.hostname.includes('api.gps51.com')
-    );
-  } catch {
-    return false;
-  }
+export function buildGP51ApiUrl(
+  baseUrl: string = GP51_DEFAULT_BASE_URL,
+  action: string,
+  params: Record<string, string> = {}
+): string {
+  const apiUrl = getGP51ApiUrl(baseUrl);
+  const url = new URL(apiUrl);
+  
+  url.searchParams.set('action', action);
+  
+  Object.entries(params).forEach(([key, value]) => {
+    url.searchParams.set(key, value);
+  });
+  
+  return url.toString();
 }
