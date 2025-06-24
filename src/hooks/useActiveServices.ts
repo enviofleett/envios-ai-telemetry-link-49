@@ -19,6 +19,16 @@ const transformServicesToActiveServices = (context: ServiceTransformationContext
     const vehicle = vehicles.find(v => v.id === subscription.device_id);
     const vehicleName = vehicle?.name || vehicle?.device_name || subscription.device_id;
     
+    // Create a complete DeviceSubscription with all required properties
+    const completeDeviceSubscription: DeviceSubscription = {
+      ...subscription,
+      // Add missing properties with defaults
+      subscription_status: subscription.status === 'active' ? 'active' : 'expired',
+      billing_cycle: 'monthly',
+      auto_renewal: true,
+      discount_percentage: 0
+    };
+    
     return {
       id: subscription.id,
       name: subscription.subscription_type, // Legacy compatibility
@@ -50,7 +60,7 @@ const transformServicesToActiveServices = (context: ServiceTransformationContext
         { month: '2024-02', amount: 180 },
         { month: '2024-03', amount: 200 }
       ],
-      deviceSubscription: subscription
+      deviceSubscription: completeDeviceSubscription // Now properly typed
     };
   });
 };

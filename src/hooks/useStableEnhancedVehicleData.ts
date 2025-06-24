@@ -1,4 +1,3 @@
-
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -56,6 +55,7 @@ export const useStableEnhancedVehicleData = () => {
           id: dbVehicle.id,
           device_id: dbVehicle.gp51_device_id,
           device_name: dbVehicle.name,
+          name: dbVehicle.name, // FIXED: Add the required name property
           sim_number: dbVehicle.sim_number,
           user_id: dbVehicle.user_id,
           created_at: dbVehicle.created_at,

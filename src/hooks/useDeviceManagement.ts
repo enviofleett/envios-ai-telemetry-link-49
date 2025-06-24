@@ -14,6 +14,7 @@ const mapDbToDisplayVehicle = (dbVehicle: VehicleDbRecord): VehicleData => {
         id: dbVehicle.id,
         device_id: dbVehicle.gp51_device_id,
         device_name: dbVehicle.name,
+        name: dbVehicle.name, // FIXED: Add the required name property
         user_id: dbVehicle.user_id,
         sim_number: dbVehicle.sim_number,
         created_at: dbVehicle.created_at,

@@ -74,6 +74,7 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
             id: vehicle.id || vehicle.gp51_device_id || '',
             device_id: vehicle.gp51_device_id || '',
             device_name: vehicle.name || 'Unknown Vehicle',
+            name: vehicle.name || 'Unknown Vehicle', // FIXED: Add the required name property
             user_id: vehicle.user_id,
             sim_number: vehicle.sim_number,
             created_at: vehicle.created_at,

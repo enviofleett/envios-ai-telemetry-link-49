@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData } from '@/types/vehicle';
@@ -48,6 +47,7 @@ export const useRealtimeVehicleData = () => {
           id: vehicle.id,
           device_id: vehicle.gp51_device_id || '',
           device_name: vehicle.name || 'Unknown Device',
+          name: vehicle.name || 'Unknown Device', // FIXED: Add the required name property
           user_id: vehicle.user_id,
           sim_number: vehicle.sim_number,
           created_at: vehicle.created_at,
@@ -150,6 +150,7 @@ export const useRealtimeVehicleData = () => {
         id: vehicle.id,
         device_id: vehicle.gp51_device_id || '',
         device_name: vehicle.name || 'Unknown Device',
+        name: vehicle.name || 'Unknown Device', // FIXED: Add the required name property
         user_id: vehicle.user_id,
         sim_number: vehicle.sim_number,
         created_at: vehicle.created_at,

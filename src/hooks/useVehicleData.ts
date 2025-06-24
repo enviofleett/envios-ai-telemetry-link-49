@@ -59,6 +59,7 @@ export const useVehicleData = (filters: VehicleDataFilters = {}) => {
         id: vehicle.id,
         device_id: vehicle.gp51_device_id,
         device_name: vehicle.name,
+        name: vehicle.name, // FIXED: Add the required name property
         user_id: vehicle.user_id,
         sim_number: vehicle.sim_number,
         created_at: vehicle.created_at,

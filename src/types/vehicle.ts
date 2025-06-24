@@ -1,4 +1,3 @@
-
 export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
 export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading' | 'idle' | 'completed' | 'running';
@@ -15,7 +14,7 @@ export interface VehicleData {
   id: string;
   device_id: string;
   device_name: string;
-  name: string; // Added missing name property
+  name: string; // REQUIRED: Canonical name property
   user_id?: string;
   sim_number?: string;
   created_at: string;
@@ -52,6 +51,7 @@ export interface VehicleData {
     longitude: number;
     address?: string;
   };
+  vehicleName?: string; // Additional compatibility property
 }
 
 export interface VehicleDataMetrics {

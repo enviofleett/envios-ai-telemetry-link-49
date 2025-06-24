@@ -3,7 +3,8 @@ import { servicePlansApi } from './servicePlansApi';
 import { deviceSubscriptionsApi } from './deviceSubscriptionsApi';
 import { invoicesApi } from './invoicesApi';
 import { paymentMethodsApi } from './paymentMethodsApi';
-import { dashboardStatsApi } from './dashboardStatsApi';
+// Fix: Import the correct export name
+import { fetchDashboardStats, fetchRevenueGrowth } from './dashboardStatsApi';
 
 export const billingApi = {
   // Service Plans
@@ -18,6 +19,7 @@ export const billingApi = {
   // Payment Methods
   ...paymentMethodsApi,
   
-  // Dashboard Stats
-  ...dashboardStatsApi
+  // Dashboard Stats - Fix: Use the correct function names
+  fetchDashboardStats,
+  fetchRevenueGrowth
 };
