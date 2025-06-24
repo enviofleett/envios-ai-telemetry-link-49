@@ -25,10 +25,19 @@ export const getServiceIcon = (type: ActiveService['serviceType']) => {
   }
 };
 
-export const calculateMonthlyFee = (subscription: DeviceSubscription, servicePlan: any): number => {
+export const calculateMonthlyFee = (subscription: DeviceSubscription & { service_plan?: any }, servicePlan: any): number => {
   let monthlyFee = 0;
   
-  if (servicePlan) {
+  // Check for subscription-level price override first
+  if (subscription.price_override) {
+    return subscription.price_override;
+  }
+
+  // Apply discount if available
+  if (subscription.discount_percentage && servicePlan?.price_1_year) {
+    const discountMultiplier = 1 - (subscription.discount_percentage / 100);
+    monthlyFee = servicePlan.price_1_year * discountMultiplier;
+  } else if (servicePlan) {
     switch (subscription.billing_cycle) {
       case 'monthly':
         monthlyFee = servicePlan.price_1_year ? servicePlan.price_1_year / 12 : 0;
@@ -103,13 +112,16 @@ export const transformSubscriptionToActiveService = (
     status: subscription.subscription_status === 'active' ? 'active' as const : 'paused' as const
   }));
 
+  // Get the first vehicle for legacy compatibility
+  const firstVehicle = vehicleData[0];
+
   return {
     id: subscription.id,
     name: servicePlan?.plan_name || 'Unknown Service',
     serviceName: servicePlan?.plan_name || 'Unknown Service',
     serviceType,
     type: serviceType,
-    vehicle: vehicleData[0],
+    vehicle: firstVehicle ? firstVehicle.plateNumber : 'No Vehicle',
     vehicles: vehicleData,
     status: mapSubscriptionToActiveServiceStatus(subscription.subscription_status as any),
     activatedDate: subscription.start_date,
