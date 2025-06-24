@@ -24,11 +24,16 @@ serve(async (req) => {
       body = await req.json();
     } catch (parseError) {
       console.error('❌ Failed to parse request body:', parseError);
-      return createErrorResponse('Invalid JSON in request body', undefined, 400);
+      return createErrorResponse(
+        'Invalid JSON in request body', 
+        parseError instanceof Error ? parseError.message : 'JSON parse error',
+        400,
+        calculateLatency(startTime)
+      );
     }
 
     const { action, username, password, apiUrl } = body;
-    console.log(`🔧 Settings Management API: ${action}`);
+    console.log(`🔧 Settings Management API Action: ${action}`);
 
     // Authenticate request
     const authHeader = req.headers.get('Authorization');
@@ -39,8 +44,9 @@ serve(async (req) => {
       console.error('❌ Authentication failed:', authError);
       return createErrorResponse(
         authError instanceof Error ? authError.message : 'Authentication failed',
-        undefined,
-        401
+        'Please check your authentication credentials',
+        401,
+        calculateLatency(startTime)
       );
     }
 
@@ -49,11 +55,19 @@ serve(async (req) => {
     // Route to appropriate handler
     switch (action) {
       case 'save-gp51-credentials':
+        if (!username || !password) {
+          return createErrorResponse(
+            'Missing required credentials',
+            'Username and password are required',
+            400,
+            calculateLatency(startTime)
+          );
+        }
         return await handleGP51Authentication(
           adminSupabase, 
           envioUser.id, 
-          username!, 
-          password!, 
+          username, 
+          password, 
           apiUrl, 
           startTime
         );
@@ -88,14 +102,19 @@ serve(async (req) => {
       
       default:
         console.warn(`❌ Unknown action: ${action}`);
-        return createErrorResponse(`Unknown action: ${action}`, undefined, 400);
+        return createErrorResponse(
+          `Unknown action: ${action}`,
+          'Please check the action parameter and try again',
+          400,
+          calculateLatency(startTime)
+        );
     }
   } catch (error) {
     const latency = calculateLatency(startTime);
     console.error('❌ Settings Management error:', error);
     return createErrorResponse(
       'Internal server error',
-      error instanceof Error ? error.message : 'Unknown error',
+      error instanceof Error ? error.message : 'Unknown error occurred',
       500,
       latency
     );

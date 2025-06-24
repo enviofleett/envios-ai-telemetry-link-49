@@ -1,323 +1,154 @@
 
-import { createResponse, createErrorResponse, calculateLatency } from './response-utils.ts';
-import { GP51ErrorHandler } from './error-handling.ts';
+import { createSuccessResponse, createErrorResponse, calculateLatency } from './response-utils.ts';
+import { authenticateWithGP51 } from './gp51-auth.ts';
 import { GP51TokenValidator } from './token-validation.ts';
 
 export async function handleGP51Authentication(
-  supabase: any,
+  adminSupabase: any,
   userId: string,
   username: string,
   password: string,
   apiUrl: string = 'https://www.gps51.com',
   startTime: number
 ) {
-  console.log(`🔐 [GP51Auth] Starting enhanced authentication for user: ${userId}, username: ${username}`);
-  
   try {
-    // First, cleanup any existing invalid sessions for this user
-    await GP51TokenValidator.cleanupInvalidSessions(supabase, userId);
+    console.log(`🔐 [GP51-OPERATIONS] Starting authentication for user ${userId}, username: ${username}`);
 
-    // Prepare GP51 API request
-    const gp51ApiUrl = `${apiUrl}/webapi`;
-    const authPayload = {
-      email: username,
-      password: password
-    };
-
-    console.log(`🌐 [GP51Auth] Calling GP51 API: ${gp51ApiUrl}`);
-
-    // Call GP51 authentication API with timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-    let response;
-    try {
-      response = await fetch(`${gp51ApiUrl}/Account/Login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(authPayload),
-        signal: controller.signal
-      });
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      if (fetchError.name === 'AbortError') {
-        throw new Error('GP51 API request timed out after 15 seconds');
-      }
-      throw fetchError;
-    }
-    
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      console.error(`❌ [GP51Auth] HTTP error: ${response.status} ${response.statusText}`);
-      return createErrorResponse(
-        'GP51 API request failed',
-        `HTTP ${response.status}: ${response.statusText}`,
-        500,
-        calculateLatency(startTime)
-      );
-    }
-
-    let responseData;
-    try {
-      responseData = await response.json();
-    } catch (parseError) {
-      console.error('❌ [GP51Auth] Failed to parse JSON response:', parseError);
-      return createErrorResponse(
-        'Invalid response from GP51 API',
-        'Unable to parse authentication response',
-        500,
-        calculateLatency(startTime)
-      );
-    }
-
-    console.log(`📨 [GP51Auth] GP51 API response:`, {
-      status: responseData?.status,
-      hasToken: !!responseData?.token,
-      message: responseData?.message || responseData?.cause,
-      responseType: typeof responseData
+    // Authenticate with GP51
+    const authResult = await authenticateWithGP51({
+      username,
+      password,
+      apiUrl
     });
 
-    // Validate the token response using enhanced validator
-    const validation = GP51TokenValidator.validateTokenResponse(responseData);
-    
-    if (!validation.isValid) {
-      console.error('❌ [GP51Auth] Token validation failed:', validation.error);
-      
-      // Store the failed authentication attempt for audit
-      await logAuthenticationAttempt(supabase, userId, username, false, validation.error);
-      
-      return GP51TokenValidator.createReauthResponse(
-        validation.error || 'Invalid authentication response from GP51'
+    if (!authResult.success) {
+      console.error('❌ [GP51-OPERATIONS] GP51 authentication failed:', authResult.error);
+      return createErrorResponse(
+        'GP51 authentication failed',
+        authResult.error || 'Invalid credentials',
+        401,
+        calculateLatency(startTime)
       );
     }
 
-    // Store credentials securely before storing session
-    const credentialResult = await storeSecureCredentials(supabase, userId, username, password, apiUrl);
-    if (!credentialResult.success) {
-      console.warn('⚠️ [GP51Auth] Failed to store credentials, continuing with session creation');
+    // Validate the received token
+    const tokenValidation = GP51TokenValidator.validateTokenResponse({
+      status: 0,
+      token: authResult.token
+    });
+
+    if (!tokenValidation.isValid) {
+      console.error('❌ [GP51-OPERATIONS] Token validation failed:', tokenValidation.error);
+      return createErrorResponse(
+        'Token validation failed',
+        tokenValidation.error || 'Invalid token received',
+        400,
+        calculateLatency(startTime)
+      );
     }
 
-    // Store the validated session
-    const sessionResult = await storeValidatedSession(
-      supabase,
-      userId,
-      username,
-      validation.token!,
-      apiUrl
-    );
+    // Clear any existing sessions for this user
+    await adminSupabase
+      .from('gp51_sessions')
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('envio_user_id', userId);
 
-    if (!sessionResult.success) {
+    // Create new session
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 23); // GP51 tokens typically last 24 hours
+
+    const { data: session, error: sessionError } = await adminSupabase
+      .from('gp51_sessions')
+      .insert({
+        envio_user_id: userId,
+        username: authResult.username,
+        gp51_token: authResult.token,
+        api_url: authResult.apiUrl,
+        token_expires_at: expiresAt.toISOString(),
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (sessionError) {
+      console.error('❌ [GP51-OPERATIONS] Failed to store session:', sessionError);
       return createErrorResponse(
-        'Failed to store session',
-        sessionResult.error,
+        'Failed to store GP51 session',
+        sessionError.message,
         500,
         calculateLatency(startTime)
       );
     }
 
-    // Verify the stored session works
-    const isValidSession = await GP51TokenValidator.validateStoredSession(supabase, sessionResult.sessionId);
-    
-    // Log successful authentication
-    await logAuthenticationAttempt(supabase, userId, username, true);
+    console.log('✅ [GP51-OPERATIONS] Authentication successful, session created:', session.id);
 
-    console.log(`✅ [GP51Auth] Authentication completed successfully for ${username}`);
-    
-    return createResponse({
-      success: true,
+    return createSuccessResponse({
       message: 'GP51 authentication successful',
-      session: {
-        id: sessionResult.sessionId,
-        username,
-        expiresAt: sessionResult.expiresAt,
-        tokenLength: validation.token!.length,
-        apiUrl,
-        isValid: isValidSession
-      },
-      credentialsStored: credentialResult.success
+      username: authResult.username,
+      apiUrl: authResult.apiUrl,
+      sessionId: session.id,
+      expiresAt: expiresAt.toISOString()
     }, calculateLatency(startTime));
 
   } catch (error) {
-    console.error('❌ [GP51Auth] Authentication error:', error);
-    
-    // Log failed authentication attempt
-    await logAuthenticationAttempt(supabase, userId, username, false, error.message);
-    
-    GP51ErrorHandler.logError(error, { userId, username, apiUrl });
-    
+    console.error('❌ [GP51-OPERATIONS] Authentication error:', error);
     return createErrorResponse(
       'GP51 authentication failed',
-      error instanceof Error ? error.message : 'Unknown authentication error',
+      error instanceof Error ? error.message : 'Unknown error',
       500,
       calculateLatency(startTime)
     );
   }
 }
 
-async function storeSecureCredentials(
-  supabase: any,
-  userId: string,
-  username: string,
-  password: string,
-  apiUrl: string
-): Promise<{ success: boolean; error?: string }> {
+export async function refreshGP51Credentials(adminSupabase: any, userId: string) {
   try {
-    console.log('🔐 [GP51Auth] Storing secure credentials...');
-    
-    // Use the RPC function to store credentials securely
-    const { data, error } = await supabase.rpc('store_gp51_credentials', {
-      p_username: username,
-      p_password: password,
-      p_api_url: apiUrl
-    });
+    console.log(`🔄 [GP51-OPERATIONS] Refreshing credentials for user: ${userId}`);
 
-    if (error) {
-      console.error('❌ [GP51Auth] Failed to store credentials:', error);
-      return { success: false, error: error.message };
-    }
-
-    console.log('✅ [GP51Auth] Credentials stored securely');
-    return { success: true };
-  } catch (error) {
-    console.error('❌ [GP51Auth] Error storing credentials:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to store credentials' 
-    };
-  }
-}
-
-async function storeValidatedSession(
-  supabase: any,
-  userId: string,
-  username: string,
-  token: string,
-  apiUrl: string
-): Promise<{ success: boolean; sessionId?: string; expiresAt?: string; error?: string }> {
-  try {
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 8); // GP51 tokens typically last 8 hours
-
-    console.log('💾 [GP51Auth] Storing validated session:', {
-      userId,
-      username,
-      tokenLength: token.length,
-      expiresAt: expiresAt.toISOString()
-    });
-
-    const { data, error } = await supabase
+    // Get the most recent session
+    const { data: session, error: sessionError } = await adminSupabase
       .from('gp51_sessions')
-      .upsert({
-        envio_user_id: userId,
-        username,
-        gp51_token: token,
-        api_url: apiUrl,
-        token_expires_at: expiresAt.toISOString(),
-        is_active: true,
-        auth_method: 'credentials',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'envio_user_id,username'
-      })
-      .select('id')
-      .single();
+      .select('*')
+      .eq('envio_user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (error) {
-      console.error('❌ [GP51Auth] Failed to store session:', error);
-      return { success: false, error: error.message };
-    }
-
-    console.log('✅ [GP51Auth] Session stored successfully');
-    return {
-      success: true,
-      sessionId: data.id,
-      expiresAt: expiresAt.toISOString()
-    };
-  } catch (error) {
-    console.error('❌ [GP51Auth] Store session error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to store session'
-    };
-  }
-}
-
-async function logAuthenticationAttempt(
-  supabase: any,
-  userId: string,
-  username: string,
-  success: boolean,
-  errorMessage?: string
-): Promise<void> {
-  try {
-    await supabase
-      .from('gp51_security_audit')
-      .insert({
-        user_id: userId,
-        operation_type: success ? 'LOGIN_SUCCESS' : 'LOGIN_FAILED',
-        operation_details: {
-          username,
-          timestamp: new Date().toISOString(),
-          error: errorMessage
-        },
-        success
-      });
-  } catch (error) {
-    console.error('❌ [GP51Auth] Failed to log authentication attempt:', error);
-  }
-}
-
-// Enhanced credential refresh function
-export async function refreshGP51Credentials(supabase: any, userId: string): Promise<{ success: boolean; error?: string }> {
-  try {
-    console.log('🔄 [GP51Auth] Starting credential refresh for user:', userId);
-    
-    // Get stored credentials
-    const { data: credentials, error: credError } = await supabase.rpc('get_gp51_credentials', {
-      p_user_id: userId
-    });
-
-    if (credError || !credentials || credentials.length === 0) {
-      console.error('❌ [GP51Auth] No stored credentials found for refresh:', credError);
-      return { 
-        success: false, 
-        error: 'No stored credentials found. Please re-authenticate in Settings.' 
+    if (sessionError || !session) {
+      console.error('❌ [GP51-OPERATIONS] No session found for refresh:', sessionError);
+      return {
+        success: false,
+        error: 'No GP51 session found to refresh'
       };
     }
 
-    const credential = credentials[0];
-    console.log('🔍 [GP51Auth] Found stored credentials for refresh:', {
-      username: credential.username,
-      hasPassword: !!credential.password,
-      apiUrl: credential.api_url
-    });
+    // Mark current session as inactive
+    await adminSupabase
+      .from('gp51_sessions')
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', session.id);
 
-    // Re-authenticate with stored credentials
-    const authResult = await handleGP51Authentication(
-      supabase,
-      userId,
-      credential.username,
-      credential.password,
-      credential.api_url,
-      Date.now()
-    );
+    console.log('🔄 [GP51-OPERATIONS] Session marked as inactive, requires re-authentication');
 
-    const authData = await authResult.json();
-    return { 
-      success: authData.success, 
-      error: authData.success ? undefined : authData.error 
+    return {
+      success: true,
+      message: 'Session refresh initiated. Re-authentication required.',
+      requiresReauth: true
     };
 
   } catch (error) {
-    console.error('❌ [GP51Auth] Credential refresh failed:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Credential refresh failed' 
+    console.error('❌ [GP51-OPERATIONS] Refresh error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Refresh failed'
     };
   }
 }
