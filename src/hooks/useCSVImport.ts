@@ -48,15 +48,15 @@ export const useCSVImport = () => {
       setIsProcessing(true);
       
       const content = await file.text();
-      const rows = csvImportService.parseCSV(content);
+      const rows = await csvImportService.parseCSV(content);
       
       if (templates.length === 0) {
         await loadTemplates();
       }
       
-      const template = templates.find(t => t.template_type === 'vehicle_import');
+      const template = templates.find(t => t.template_type === 'vehicle_import') || templates[0];
       if (!template) {
-        throw new Error('Vehicle import template not found');
+        throw new Error('No import template available');
       }
 
       const preview = await csvImportService.validateCSVData(rows, template);
@@ -67,7 +67,7 @@ export const useCSVImport = () => {
       console.error('Error validating CSV:', error);
       toast({
         title: "Validation Error",
-        description: error.message || "Failed to validate CSV file",
+        description: error instanceof Error ? error.message : "Failed to validate CSV file",
         variant: "destructive"
       });
       throw error;

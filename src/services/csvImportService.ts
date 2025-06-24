@@ -1,75 +1,12 @@
 
-// Mock CSV Import Service - Database table not yet implemented
-export interface CSVImportTemplate {
-  id: string;
-  template_name: string;
-  template_type: string;
-  column_mappings: Record<string, any>;
-  validation_rules: {
-    required_fields: string[];
-    field_types: Record<string, string>;
-    custom_validations: any[];
-  };
-  is_system_template: boolean;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ValidationError {
-  row: number;
-  field: string;
-  message: string;
-  value: any;
-}
-
-export interface CSVImportJob {
-  id: string;
-  job_name: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  file_name: string;
-  total_rows: number;
-  processed_rows: number;
-  successful_imports: number;
-  failed_imports: number;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  completed_at?: string;
-  error_log: ValidationError[];
-  import_results: Record<string, any>;
-  progress_percentage: number;
-}
-
-export interface ImportPreviewData {
-  valid_rows: any[];
-  invalid_rows: Array<{
-    row_number: number;
-    data: Record<string, any>;
-    errors: ValidationError[];
-  }>;
-  conflicts: Array<{
-    row_number: number;
-    device_id: string;
-    conflict_type: 'duplicate_device_id' | 'user_not_found';
-    existing_data?: any;
-  }>;
-  summary: {
-    total_rows: number;
-    valid_rows: number;
-    invalid_rows: number;
-    conflicts: number;
-  };
-}
+import { CSVImportTemplate, ValidationError, CSVImportJob, ImportPreviewData } from '@/types/csv-import';
 
 class MockCSVImportService {
-  // Method names that useCSVImport expects
   async getImportJobs(): Promise<CSVImportJob[]> {
     return [];
   }
 
   async getImportTemplates(): Promise<CSVImportTemplate[]> {
-    // Alias for getTemplates
     return this.getTemplates();
   }
 
@@ -80,9 +17,19 @@ class MockCSVImportService {
         template_name: 'Vehicle Import',
         template_type: 'vehicles',
         column_mappings: {
-          'device_id': 'Device ID',
-          'name': 'Vehicle Name',
-          'license_plate': 'License Plate'
+          'device_id': {
+            required: true,
+            type: 'string',
+            unique: true
+          },
+          'name': {
+            required: true,
+            type: 'string'
+          },
+          'license_plate': {
+            required: false,
+            type: 'string'
+          }
         },
         validation_rules: {
           required_fields: ['device_id', 'name'],
@@ -90,7 +37,10 @@ class MockCSVImportService {
             'device_id': 'string',
             'name': 'string'
           },
-          custom_validations: []
+          custom_validations: [],
+          max_rows: 1000,
+          allowed_formats: ['csv', 'xlsx'],
+          required_columns: ['device_id', 'name']
         },
         is_system_template: true,
         created_by: 'system',
@@ -102,9 +52,19 @@ class MockCSVImportService {
         template_name: 'User Import',
         template_type: 'users',
         column_mappings: {
-          'name': 'Full Name',
-          'email': 'Email Address',
-          'phone_number': 'Phone'
+          'name': {
+            required: true,
+            type: 'string'
+          },
+          'email': {
+            required: true,
+            type: 'email',
+            unique: true
+          },
+          'phone_number': {
+            required: false,
+            type: 'string'
+          }
         },
         validation_rules: {
           required_fields: ['name', 'email'],
@@ -112,7 +72,10 @@ class MockCSVImportService {
             'name': 'string',
             'email': 'email'
           },
-          custom_validations: []
+          custom_validations: [],
+          max_rows: 1000,
+          allowed_formats: ['csv', 'xlsx'],
+          required_columns: ['name', 'email']
         },
         is_system_template: true,
         created_by: 'system',
@@ -137,13 +100,12 @@ class MockCSVImportService {
   }
 
   async parseCSV(csvContent: string): Promise<any[]> {
-    // Parse CSV content into rows
     const lines = csvContent.trim().split('\n');
     const headers = lines[0].split(',').map(h => h.trim());
     
     return lines.slice(1).map((line, index) => {
       const values = line.split(',').map(v => v.trim());
-      const row: any = { _rowNumber: index + 2 }; // +2 because we skip header and are 1-indexed
+      const row: any = { _rowNumber: index + 2 };
       headers.forEach((header, i) => {
         row[header] = values[i] || '';
       });
@@ -167,19 +129,26 @@ class MockCSVImportService {
   }
 
   async validateCSVData(rows: any[], template: CSVImportTemplate): Promise<ImportPreviewData> {
-    // Alias for validateCSV with different signature
-    return {
-      valid_rows: rows.slice(0, Math.floor(rows.length * 0.8)),
-      invalid_rows: rows.slice(Math.floor(rows.length * 0.8)).map((row, index) => ({
+    const validRows = rows.slice(0, Math.floor(rows.length * 0.8));
+    const invalidRows = rows.slice(Math.floor(rows.length * 0.8)).map((row, index) => ({
+      row_number: index + Math.floor(rows.length * 0.8) + 1,
+      data: row,
+      errors: [{
         row_number: index + Math.floor(rows.length * 0.8) + 1,
-        data: row,
-        errors: [{ row: index, field: 'example', message: 'Mock validation error', value: row }]
-      })),
+        field_name: 'example',
+        error_message: 'Mock validation error',
+        raw_data: row
+      }] as ValidationError[]
+    }));
+
+    return {
+      valid_rows: validRows,
+      invalid_rows: invalidRows,
       conflicts: [],
       summary: {
         total_rows: rows.length,
-        valid_rows: Math.floor(rows.length * 0.8),
-        invalid_rows: rows.length - Math.floor(rows.length * 0.8),
+        valid_rows: validRows.length,
+        invalid_rows: invalidRows.length,
         conflicts: 0
       }
     };
@@ -217,7 +186,6 @@ class MockCSVImportService {
   }
 
   generateCSVTemplate(): string {
-    // Alias for generateTemplate with default type
     return this.generateTemplate('vehicles');
   }
 }

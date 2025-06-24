@@ -22,17 +22,11 @@ export interface ValidationError {
   field_name?: string;
   error_message: string;
   raw_data?: Record<string, any>;
-}
-
-export interface CSVValidationLog {
-  id: string;
-  import_job_id: string;
-  row_number: number;
-  validation_type: string;
-  field_name?: string;
-  error_message: string;
-  raw_data?: Record<string, any>;
-  created_at: string;
+  // Legacy properties for backward compatibility
+  row?: number;
+  field?: string;
+  message?: string;
+  value?: any;
 }
 
 export interface CSVImportTemplate {
@@ -55,6 +49,9 @@ export interface ColumnMapping {
 }
 
 export interface ValidationRules {
+  required_fields: string[];
+  field_types: Record<string, string>;
+  custom_validations: any[];
   max_rows: number;
   allowed_formats: string[];
   required_columns: string[];
@@ -90,4 +87,15 @@ export interface ImportPreviewData {
     invalid_rows: number;
     conflicts: number;
   };
+}
+
+export interface CSVValidationLog {
+  id: string;
+  import_job_id: string;
+  row_number: number;
+  validation_type: string;
+  field_name?: string;
+  error_message: string;
+  raw_data?: Record<string, any>;
+  created_at: string;
 }

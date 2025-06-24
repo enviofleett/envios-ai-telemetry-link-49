@@ -5,6 +5,9 @@ export interface DeviceSubscription {
   user_id: string;
   subscription_type: string;
   status: string;
+  subscription_status: 'active' | 'paused' | 'cancelled' | 'expired';
+  billing_cycle: 'monthly' | 'quarterly' | 'annually';
+  auto_renewal: boolean;
   start_date: string;
   end_date?: string;
   created_at: string;

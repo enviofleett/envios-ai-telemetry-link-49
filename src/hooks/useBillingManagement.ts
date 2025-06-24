@@ -7,7 +7,22 @@ import { toast } from 'sonner';
 // Mock API functions since the actual billing API might not exist
 const mockBillingApi = {
   getServicePlans: async (): Promise<ServicePlan[]> => [],
-  getDeviceSubscriptions: async (): Promise<DeviceSubscription[]> => [],
+  getDeviceSubscriptions: async (): Promise<DeviceSubscription[]> => [
+    {
+      id: 'sub-1',
+      device_id: 'DEV001',
+      user_id: 'user-1',
+      subscription_type: 'Premium',
+      status: 'active',
+      subscription_status: 'active',
+      billing_cycle: 'monthly',
+      auto_renewal: true,
+      start_date: new Date().toISOString(),
+      end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  ],
   getInvoices: async (): Promise<Invoice[]> => [],
   getPaymentMethods: async (): Promise<PaymentMethod[]> => [],
   getBillingDashboardStats: async (): Promise<BillingDashboardStats> => ({
@@ -136,6 +151,7 @@ export const useBillingManagement = () => {
     futureDate.setDate(futureDate.getDate() + days);
     
     return subscriptions.filter(sub => {
+      if (!sub.end_date) return false;
       const endDate = new Date(sub.end_date);
       return endDate <= futureDate && sub.subscription_status === 'active';
     });
