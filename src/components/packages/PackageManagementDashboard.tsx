@@ -53,7 +53,10 @@ const PackageManagementDashboard: React.FC = () => {
         <TabsContent value="create" className="space-y-6">
           <StableErrorBoundary>
             <Suspense fallback={<TabLoader />}>
-              <CreatePackageForm onSuccess={() => setActiveTab('packages')} />
+              <CreatePackageForm 
+                onSuccess={() => setActiveTab('packages')} 
+                onCancel={() => setActiveTab('packages')}
+              />
             </Suspense>
           </StableErrorBoundary>
         </TabsContent>
