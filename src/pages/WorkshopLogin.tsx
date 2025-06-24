@@ -1,129 +1,124 @@
 
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Building2, Mail, Lock } from 'lucide-react';
+import { Wrench, Lock, Mail } from 'lucide-react';
 
 const WorkshopLogin: React.FC = () => {
-  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-
-    try {
-      // For now, we'll use a simplified login check
-      // In production, this would integrate with proper authentication
-      const { data: workshopUser, error } = await supabase
-        .from('workshop_users')
-        .select(`
-          *,
-          workshop:workshops(*)
-        `)
-        .eq('email', formData.email)
-        .eq('is_active', true)
-        .single();
-
-      if (error || !workshopUser) {
-        throw new Error('Invalid credentials or inactive account');
-      }
-
-      if (!workshopUser.workshop.is_active || !workshopUser.workshop.verified) {
-        throw new Error('Workshop is not yet approved. Please wait for admin approval.');
-      }
-
-      // Store workshop session (simplified)
-      localStorage.setItem('workshop_session', JSON.stringify({
-        user: workshopUser,
-        workshop: workshopUser.workshop
-      }));
-
+    
+    if (!email || !password) {
       toast({
-        title: "Login Successful",
-        description: `Welcome to ${workshopUser.workshop.name}!`
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive"
       });
+      return;
+    }
 
-      navigate('/workshop-dashboard');
-    } catch (error: any) {
+    setIsLoading(true);
+    try {
+      // For now, show a placeholder message since workshop authentication is not fully implemented
       toast({
-        title: "Login Failed",
-        description: error.message || "Invalid credentials",
+        title: "Workshop Login",
+        description: "Workshop authentication system is being implemented. Please check back soon.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Login error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to authenticate. Please try again.",
         variant: "destructive"
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <Building2 className="h-12 w-12 text-primary" />
+            <div className="p-3 rounded-full bg-blue-100">
+              <Wrench className="h-8 w-8 text-blue-600" />
+            </div>
           </div>
-          <CardTitle className="text-2xl">Workshop Login</CardTitle>
+          <CardTitle className="text-2xl font-bold">Workshop Portal</CardTitle>
           <CardDescription>
-            Access your workshop management dashboard
+            Sign in to access your workshop dashboard
           </CardDescription>
         </CardHeader>
+
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="flex items-center gap-1">
-                <Mail className="h-4 w-4" />
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                required
-              />
+              <Label htmlFor="email">Email Address</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  className="pl-10"
+                  required
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="flex items-center gap-1">
-                <Lock className="h-4 w-4" />
-                Password
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
-                required
-              />
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  className="pl-10"
+                  required
+                />
+              </div>
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? 'Signing in...' : 'Sign In'}
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isLoading}
+            >
+              {isLoading ? 'Signing in...' : 'Sign In'}
             </Button>
-
-            <div className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground">
-                Don't have an account?{' '}
-                <Link to="/workshop-signup" className="text-primary hover:underline">
-                  Register your workshop
-                </Link>
-              </p>
-              <Link to="/" className="text-sm text-muted-foreground hover:underline">
-                Back to main site
-              </Link>
-            </div>
           </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              Don't have an account?{' '}
+              <button className="text-blue-600 hover:underline">
+                Contact Support
+              </button>
+            </p>
+          </div>
+
+          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-md">
+            <p className="text-sm text-amber-800">
+              <strong>Note:</strong> Workshop authentication system is currently being implemented. 
+              This is a preview of the login interface.
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

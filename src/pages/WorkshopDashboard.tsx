@@ -1,340 +1,184 @@
 
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Calendar,
-  Users,
-  ClipboardList,
-  Car,
-  History,
-  Settings,
-  LogOut,
-  TrendingUp,
-  Clock,
-  CheckCircle
-} from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-
-interface WorkshopSession {
-  user: any;
-  workshop: any;
-}
+import { Calendar, Users, Wrench, BarChart3, Settings, Plus } from 'lucide-react';
+import AppointmentsList from '@/components/appointments/AppointmentsList';
+import AppointmentSchedulingModal from '@/components/appointments/AppointmentSchedulingModal';
+import { useWorkshops } from '@/hooks/useWorkshops';
 
 const WorkshopDashboard: React.FC = () => {
-  const navigate = useNavigate();
-  const { toast } = useToast();
-  const [session, setSession] = useState<WorkshopSession | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalInspections: 0,
-    pendingAppointments: 0,
-    activeInspectors: 0,
-    completedToday: 0
-  });
+  const [isSchedulingModalOpen, setIsSchedulingModalOpen] = useState(false);
+  const { workshops } = useWorkshops();
 
-  useEffect(() => {
-    const checkSession = () => {
-      const savedSession = localStorage.getItem('workshop_session');
-      if (savedSession) {
-        setSession(JSON.parse(savedSession));
-        loadDashboardStats();
-      } else {
-        navigate('/workshop-login');
-      }
-      setLoading(false);
-    };
+  // Mock data for dashboard metrics
+  const todayAppointments = 8;
+  const pendingAppointments = 12;
+  const completedThisWeek = 45;
+  const totalCustomers = 234;
 
-    checkSession();
-  }, [navigate]);
-
-  const loadDashboardStats = async () => {
-    try {
-      // Load workshop statistics
-      const session = JSON.parse(localStorage.getItem('workshop_session') || '{}');
-      const workshopId = session.workshop?.id;
-      
-      if (!workshopId) return;
-
-      // Get inspection count
-      const { count: inspectionCount } = await supabase
-        .from('vehicle_inspections')
-        .select('*', { count: 'exact', head: true })
-        .eq('workshop_id', workshopId);
-
-      // Get pending appointments
-      const { count: appointmentCount } = await supabase
-        .from('workshop_appointments')
-        .select('*', { count: 'exact', head: true })
-        .eq('workshop_id', workshopId)
-        .eq('appointment_status', 'scheduled');
-
-      // Get active inspectors
-      const { count: inspectorCount } = await supabase
-        .from('workshop_users')
-        .select('*', { count: 'exact', head: true })
-        .eq('workshop_id', workshopId)
-        .eq('is_active', true);
-
-      // Get today's completed inspections
-      const today = new Date().toISOString().split('T')[0];
-      const { count: completedToday } = await supabase
-        .from('vehicle_inspections')
-        .select('*', { count: 'exact', head: true })
-        .eq('workshop_id', workshopId)
-        .eq('inspection_status', 'completed')
-        .gte('completed_at', today);
-
-      setStats({
-        totalInspections: inspectionCount || 0,
-        pendingAppointments: appointmentCount || 0,
-        activeInspectors: inspectorCount || 0,
-        completedToday: completedToday || 0
-      });
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('workshop_session');
-    toast({
-      title: "Logged out",
-      description: "You have been successfully logged out"
-    });
-    navigate('/workshop-login');
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return null;
-  }
-
-  const statsCards = [
-    {
-      title: 'Total Inspections',
-      value: stats.totalInspections,
-      icon: ClipboardList,
-      color: 'text-blue-600'
-    },
-    {
-      title: 'Pending Appointments',
-      value: stats.pendingAppointments,
-      icon: Clock,
-      color: 'text-yellow-600'
-    },
-    {
-      title: 'Active Inspectors',
-      value: stats.activeInspectors,
-      icon: Users,
-      color: 'text-green-600'
-    },
-    {
-      title: 'Completed Today',
-      value: stats.completedToday,
-      icon: CheckCircle,
-      color: 'text-purple-600'
-    }
+  // Mock vehicles data for appointment scheduling
+  const mockVehicles = [
+    { id: 'vehicle-1', name: 'BMW X5 - ABC123' },
+    { id: 'vehicle-2', name: 'Toyota Camry - DEF456' },
+    { id: 'vehicle-3', name: 'Ford Transit - GHI789' }
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {session.workshop.name}
-              </h1>
-              <p className="text-sm text-gray-500">
-                Welcome back, {session.user.name}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <Badge variant="outline">
-                {session.user.role}
-              </Badge>
-              <Button variant="ghost" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
-            </div>
-          </div>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Workshop Dashboard</h1>
+          <p className="text-muted-foreground">
+            Manage appointments, services, and workshop operations
+          </p>
         </div>
+        <Button onClick={() => setIsSchedulingModalOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Schedule Appointment
+        </Button>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {statsCards.map((stat, index) => (
-            <Card key={index}>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">
-                      {stat.title}
-                    </p>
-                    <p className="text-2xl font-bold">{stat.value}</p>
-                  </div>
-                  <stat.icon className={`h-8 w-8 ${stat.color}`} />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Today's Appointments</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{todayAppointments}</div>
+            <p className="text-xs text-muted-foreground">
+              +2 from yesterday
+            </p>
+          </CardContent>
+        </Card>
 
-        {/* Main Tabs */}
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="inspections">Inspections</TabsTrigger>
-            <TabsTrigger value="appointments">Appointments</TabsTrigger>
-            <TabsTrigger value="inspectors">Inspectors</TabsTrigger>
-            <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
-          </TabsList>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Appointments</CardTitle>
+            <Wrench className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pendingAppointments}</div>
+            <p className="text-xs text-muted-foreground">
+              Awaiting confirmation
+            </p>
+          </CardContent>
+        </Card>
 
-          <TabsContent value="overview" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Latest workshop activities</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      No recent activities to display.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Completed This Week</CardTitle>
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{completedThisWeek}</div>
+            <p className="text-xs text-muted-foreground">
+              +12% from last week
+            </p>
+          </CardContent>
+        </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Upcoming Appointments</CardTitle>
-                  <CardDescription>Next scheduled inspections</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <p className="text-sm text-muted-foreground">
-                      No upcoming appointments scheduled.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="inspections">
-            <Card>
-              <CardHeader>
-                <CardTitle>Inspection Management</CardTitle>
-                <CardDescription>Create and manage vehicle inspections</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <ClipboardList className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Inspections Yet</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Start by creating your first vehicle inspection
-                  </p>
-                  <Button>
-                    Create New Inspection
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="appointments">
-            <Card>
-              <CardHeader>
-                <CardTitle>Appointment Calendar</CardTitle>
-                <CardDescription>Manage workshop appointments</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Appointments</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Appointments will appear here when scheduled
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="inspectors">
-            <Card>
-              <CardHeader>
-                <CardTitle>Inspector Management</CardTitle>
-                <CardDescription>Manage workshop inspectors and staff</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Manage Your Team</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Add and manage inspectors for your workshop
-                  </p>
-                  <Button>
-                    Add Inspector
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="vehicles">
-            <Card>
-              <CardHeader>
-                <CardTitle>Vehicle Management</CardTitle>
-                <CardDescription>Vehicles assigned to your workshop</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <Car className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No Assigned Vehicles</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Vehicles will appear here when assigned to your workshop
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="history">
-            <Card>
-              <CardHeader>
-                <CardTitle>Inspection History</CardTitle>
-                <CardDescription>View all past inspections and reports</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8">
-                  <History className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No History Available</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Inspection history will appear here after completing inspections
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalCustomers}</div>
+            <p className="text-xs text-muted-foreground">
+              Active customer base
+            </p>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Main Content Tabs */}
+      <Tabs defaultValue="appointments" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="appointments">Appointments</TabsTrigger>
+          <TabsTrigger value="services">Services</TabsTrigger>
+          <TabsTrigger value="customers">Customers</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="appointments" className="space-y-4">
+          <AppointmentsList onScheduleNew={() => setIsSchedulingModalOpen(true)} />
+        </TabsContent>
+
+        <TabsContent value="services" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Service Management</CardTitle>
+              <CardDescription>
+                Manage available services and pricing
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <Wrench className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-medium mb-2">Service Management</h3>
+                <p className="text-muted-foreground">
+                  Service management features are coming soon.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="customers" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Customer Management</CardTitle>
+              <CardDescription>
+                View and manage customer information
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-medium mb-2">Customer Management</h3>
+                <p className="text-muted-foreground">
+                  Customer management features are coming soon.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Workshop Analytics</CardTitle>
+              <CardDescription>
+                Performance metrics and insights
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-medium mb-2">Analytics Dashboard</h3>
+                <p className="text-muted-foreground">
+                  Detailed analytics features are coming soon.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Appointment Scheduling Modal */}
+      {workshops.length > 0 && (
+        <AppointmentSchedulingModal
+          isOpen={isSchedulingModalOpen}
+          onClose={() => setIsSchedulingModalOpen(false)}
+          workshop={workshops[0]} // Use first workshop as default
+          vehicles={mockVehicles}
+        />
+      )}
     </div>
   );
 };

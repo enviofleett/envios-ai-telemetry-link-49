@@ -83,3 +83,13 @@ export interface CreateAppointmentData {
   estimated_cost?: number;
   notes?: string;
 }
+
+// Add the missing CreateWorkshopData export
+export interface CreateWorkshopData {
+  name: string;
+  representative_name: string;
+  email: string;
+  phone_number?: string;
+  address?: string;
+  service_types?: string[];
+}

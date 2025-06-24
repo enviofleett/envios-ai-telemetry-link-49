@@ -1,58 +1,65 @@
 
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Workshop, WorkshopConnection, CreateWorkshopData } from '@/types/workshop';
+import { Workshop, CreateWorkshopData } from '@/types/workshop';
 
 export const useWorkshops = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch all active workshops
+  // Fetch workshops with proper typing
   const { data: workshops, isLoading: workshopsLoading } = useQuery({
     queryKey: ['workshops'],
-    queryFn: async () => {
+    queryFn: async (): Promise<Workshop[]> => {
       const { data, error } = await supabase
         .from('workshops')
         .select('*')
-        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as Workshop[];
-    }
-  });
 
-  // Fetch user's workshop connections
-  const { data: connections, isLoading: connectionsLoading } = useQuery({
-    queryKey: ['workshop-connections'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('workshop_connections')
-        .select(`
-          *,
-          workshops(*)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data;
+      // Transform and ensure all required properties exist
+      return (data || []).map(workshop => ({
+        id: workshop.id,
+        name: workshop.name,
+        representative_name: workshop.representative_name,
+        email: workshop.email,
+        phone_number: workshop.phone_number,
+        address: workshop.address,
+        status: workshop.status,
+        service_types: workshop.service_types || [],
+        created_at: workshop.created_at,
+        updated_at: workshop.updated_at,
+        phone: workshop.phone || workshop.phone_number,
+        city: workshop.city || '',
+        country: workshop.country || '',
+        operating_hours: workshop.operating_hours || '',
+        connection_fee: workshop.connection_fee || 0,
+        activation_fee: workshop.activation_fee || 0,
+        verified: workshop.verified || false,
+        is_active: workshop.is_active !== false, // Default to true if undefined
+        rating: workshop.rating || 0,
+        review_count: workshop.review_count || 0
+      }));
     }
   });
 
   // Create workshop mutation
   const createWorkshopMutation = useMutation({
     mutationFn: async (workshopData: CreateWorkshopData) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
       const { data, error } = await supabase
         .from('workshops')
         .insert([{
-          ...workshopData,
-          created_by: user.id
+          name: workshopData.name,
+          representative_name: workshopData.representative_name,
+          email: workshopData.email,
+          phone_number: workshopData.phone_number,
+          address: workshopData.address,
+          service_types: workshopData.service_types || [],
+          status: 'pending'
         }])
         .select()
         .single();
@@ -64,7 +71,7 @@ export const useWorkshops = () => {
       queryClient.invalidateQueries({ queryKey: ['workshops'] });
       toast({
         title: "Workshop Created",
-        description: "Your workshop has been successfully registered."
+        description: "Workshop has been successfully created and is pending approval."
       });
     },
     onError: (error) => {
@@ -76,19 +83,13 @@ export const useWorkshops = () => {
     }
   });
 
-  // Connect to workshop mutation
-  const connectToWorkshopMutation = useMutation({
-    mutationFn: async (workshopId: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-
+  // Update workshop status mutation
+  const updateWorkshopStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { data, error } = await supabase
-        .from('workshop_connections')
-        .insert([{
-          workshop_id: workshopId,
-          user_id: user.id,
-          connection_status: 'pending'
-        }])
+        .from('workshops')
+        .update({ status, updated_at: new Date().toISOString() })
+        .eq('id', id)
         .select()
         .single();
 
@@ -96,61 +97,27 @@ export const useWorkshops = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workshop-connections'] });
+      queryClient.invalidateQueries({ queryKey: ['workshops'] });
       toast({
-        title: "Connection Request Sent",
-        description: "Your connection request has been sent to the workshop."
+        title: "Workshop Updated",
+        description: "Workshop status has been updated."
       });
     },
     onError: (error) => {
       toast({
         title: "Error",
-        description: `Failed to connect to workshop: ${error.message}`,
+        description: `Failed to update workshop: ${error.message}`,
         variant: "destructive"
       });
     }
   });
 
-  // Search workshops by location
-  const searchWorkshops = useCallback(async (city?: string, country?: string) => {
-    setIsLoading(true);
-    try {
-      let query = supabase
-        .from('workshops')
-        .select('*')
-        .eq('is_active', true);
-
-      if (city) {
-        query = query.ilike('city', `%${city}%`);
-      }
-      if (country) {
-        query = query.ilike('country', `%${country}%`);
-      }
-
-      const { data, error } = await query.order('rating', { ascending: false });
-      
-      if (error) throw error;
-      return data as Workshop[];
-    } catch (error) {
-      toast({
-        title: "Search Error",
-        description: "Failed to search workshops",
-        variant: "destructive"
-      });
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
-
   return {
-    workshops,
-    connections,
-    isLoading: isLoading || workshopsLoading || connectionsLoading,
+    workshops: workshops || [],
+    isLoading: isLoading || workshopsLoading,
     createWorkshop: createWorkshopMutation.mutate,
-    connectToWorkshop: connectToWorkshopMutation.mutate,
-    searchWorkshops,
-    isCreatingWorkshop: createWorkshopMutation.isPending,
-    isConnecting: connectToWorkshopMutation.isPending
+    updateWorkshopStatus: updateWorkshopStatusMutation.mutate,
+    isCreating: createWorkshopMutation.isPending,
+    isUpdating: updateWorkshopStatusMutation.isPending
   };
 };
