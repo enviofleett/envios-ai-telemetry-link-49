@@ -1,5 +1,5 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import type { GP51ImportOptions } from '@/types/system-import';
 
 export interface UnifiedImportPreview {
   success: boolean;
@@ -10,8 +10,18 @@ export interface UnifiedImportPreview {
       groups: number;
     };
     sampleData: {
-      vehicles: any[];
-      users: any[];
+      vehicles: Array<{
+        id: string;
+        name: string;
+        status: string;
+        lastSeen?: string;
+      }>;
+      users: Array<{
+        id: string;
+        name: string;
+        email: string;
+        vehicleCount: number;
+      }>;
     };
     conflicts: {
       existingUsers: string[];
@@ -28,6 +38,7 @@ export interface UnifiedImportPreview {
   };
   connectionStatus: {
     connected: boolean;
+    username?: string;
     error?: string;
   };
   timestamp: string;
@@ -35,7 +46,7 @@ export interface UnifiedImportPreview {
 
 export interface UnifiedImportJob {
   id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   currentPhase: string;
   startedAt: string;
@@ -44,52 +55,121 @@ export interface UnifiedImportJob {
     statistics: {
       usersImported: number;
       devicesImported: number;
-      usersProcessed: number;
-      devicesProcessed: number;
-      conflicts: number;
+      groupsImported: number;
+      errorsEncountered: number;
     };
-    message: string;
-    duration: number;
+    conflicts: {
+      duplicateUsers: number;
+      duplicateDevices: number;
+      resolvedConflicts: number;
+    };
   };
   errors: string[];
 }
 
-export interface ConnectionHealth {
+export interface ValidationHealth {
   healthy: boolean;
-  latency?: number;
   issues: string[];
   recommendations: string[];
+  latency?: string;
 }
 
 class UnifiedImportService {
+  private static instance: UnifiedImportService;
+
+  static getInstance(): UnifiedImportService {
+    if (!UnifiedImportService.instance) {
+      UnifiedImportService.instance = new UnifiedImportService();
+    }
+    return UnifiedImportService.instance;
+  }
+
   async getEnhancedPreview(): Promise<UnifiedImportPreview> {
+    console.log('🔍 UnifiedImportService: Getting enhanced preview...');
+    
     try {
-      console.log('📡 Calling enhanced-bulk-import edge function for preview...');
-      
       const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: { 
-          action: 'fetch_available_data',
-          options: {
-            includePreview: true,
-            batchSize: 100
-          }
-        }
+        body: { action: 'fetch_available_data' }
       });
 
       if (error) {
-        console.error('❌ Edge function error:', error);
-        throw new Error(`Edge function error: ${error.message}`);
+        console.error('❌ Enhanced preview error:', error);
+        throw new Error(error.message || 'Failed to fetch enhanced preview');
       }
 
-      if (!data) {
-        throw new Error('No data returned from edge function');
+      if (!data.success) {
+        console.error('❌ Enhanced preview failed:', data.error);
+        return {
+          success: false,
+          data: {
+            summary: { vehicles: 0, users: 0, groups: 0 },
+            sampleData: { vehicles: [], users: [] },
+            conflicts: { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
+            authentication: { connected: false, error: data.error || 'Unknown error' },
+            estimatedDuration: '0 minutes',
+            warnings: data.error ? [data.error] : ['Failed to fetch preview data']
+          },
+          connectionStatus: { connected: false, error: data.error || 'Unknown error' },
+          timestamp: new Date().toISOString()
+        };
       }
 
-      console.log('✅ Preview data received:', data);
-      return data as UnifiedImportPreview;
+      // Transform the response to match our interface
+      const transformedData: UnifiedImportPreview = {
+        success: true,
+        data: {
+          summary: {
+            vehicles: data.preview?.vehicles?.length || 0,
+            users: data.preview?.users?.length || 0,
+            groups: data.preview?.groups?.length || 0
+          },
+          sampleData: {
+            vehicles: (data.preview?.vehicles || []).slice(0, 5).map((v: any) => ({
+              id: v.id || v.device_id || 'unknown',
+              name: v.name || v.device_name || 'Unknown Device',
+              status: v.status || 'active',
+              lastSeen: v.last_seen || v.updated_at
+            })),
+            users: (data.preview?.users || []).slice(0, 5).map((u: any) => ({
+              id: u.id || 'unknown',
+              name: u.name || u.username || 'Unknown User',
+              email: u.email || 'unknown@example.com',
+              vehicleCount: u.vehicle_count || 0
+            }))
+          },
+          conflicts: {
+            existingUsers: Array.isArray(data.conflicts?.existing_users) 
+              ? (data.conflicts.existing_users as any[]).map(u => String(u)) 
+              : [],
+            existingDevices: Array.isArray(data.conflicts?.existing_devices) 
+              ? (data.conflicts.existing_devices as any[]).map(d => String(d)) 
+              : [],
+            potentialDuplicates: data.conflicts?.potential_duplicates || 0
+          },
+          authentication: {
+            connected: data.authentication?.connected || false,
+            username: data.authentication?.username,
+            error: data.authentication?.error
+          },
+          estimatedDuration: data.estimated_duration || '5-10 minutes',
+          warnings: Array.isArray(data.warnings) 
+            ? (data.warnings as any[]).map(w => String(w))
+            : []
+        },
+        connectionStatus: {
+          connected: data.authentication?.connected || false,
+          username: data.authentication?.username,
+          error: data.authentication?.error
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      console.log('✅ Enhanced preview successful:', transformedData);
+      return transformedData;
+
     } catch (error) {
-      console.error('❌ Preview service error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('❌ Enhanced preview exception:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
       return {
         success: false,
@@ -99,7 +179,7 @@ class UnifiedImportService {
           conflicts: { existingUsers: [], existingDevices: [], potentialDuplicates: 0 },
           authentication: { connected: false, error: errorMessage },
           estimatedDuration: '0 minutes',
-          warnings: [`Preview failed: ${errorMessage}`]
+          warnings: [errorMessage]
         },
         connectionStatus: { connected: false, error: errorMessage },
         timestamp: new Date().toISOString()
@@ -107,60 +187,91 @@ class UnifiedImportService {
     }
   }
 
-  async startUnifiedImport(options: GP51ImportOptions): Promise<UnifiedImportJob> {
+  async startUnifiedImport(options: any): Promise<UnifiedImportJob> {
+    console.log('🚀 UnifiedImportService: Starting unified import...');
+    
     try {
-      console.log('🚀 Starting unified import with options:', options);
-      
       const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
         body: { 
           action: 'start_import',
-          options
+          options: options
         }
       });
 
       if (error) {
-        console.error('❌ Import edge function error:', error);
-        throw new Error(`Import failed: ${error.message}`);
+        console.error('❌ Import start error:', error);
+        throw new Error(error.message || 'Failed to start import');
       }
 
-      if (!data) {
-        throw new Error('No response from import service');
+      if (!data.success) {
+        console.error('❌ Import start failed:', data.error);
+        return {
+          id: `failed_${Date.now()}`,
+          status: 'failed',
+          progress: 0,
+          currentPhase: 'Failed to start',
+          startedAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+          errors: [data.error || 'Unknown error occurred']
+        };
       }
 
-      console.log('✅ Import started:', data);
-      
-      // Create import job record in database
-      const jobRecord = await this.createImportJob(data);
-      
-      return {
-        id: jobRecord.id,
-        status: jobRecord.status as any,
-        progress: jobRecord.progress_percentage || 0,
-        currentPhase: jobRecord.current_phase || 'Starting',
-        startedAt: jobRecord.created_at,
-        completedAt: jobRecord.completed_at || undefined,
-        results: data.results ? {
+      // Create a database record to track the import
+      const { data: importRecord, error: dbError } = await supabase
+        .from('gp51_system_imports')
+        .insert({
+          import_type: 'unified_import',
+          status: 'running',
+          current_phase: 'Starting import',
+          progress_percentage: 0,
+          total_users: data.job?.total_users || 0,
+          total_devices: data.job?.total_devices || 0
+        })
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('❌ Database record creation failed:', dbError);
+      }
+
+      // Transform the response to match our interface
+      const transformedJob: UnifiedImportJob = {
+        id: importRecord?.id || data.job?.id || `import_${Date.now()}`,
+        status: data.job?.status || 'running',
+        progress: data.job?.progress || 0,
+        currentPhase: data.job?.current_phase || 'Starting import',
+        startedAt: data.job?.started_at || new Date().toISOString(),
+        completedAt: data.job?.completed_at,
+        results: data.job?.results ? {
           statistics: {
-            usersImported: data.results.statistics?.usersImported || 0,
-            devicesImported: data.results.statistics?.devicesImported || 0,
-            usersProcessed: data.results.statistics?.usersProcessed || 0,
-            devicesProcessed: data.results.statistics?.devicesProcessed || 0,
-            conflicts: data.results.statistics?.conflicts || 0
+            usersImported: data.job.results.users_imported || 0,
+            devicesImported: data.job.results.devices_imported || 0,
+            groupsImported: data.job.results.groups_imported || 0,
+            errorsEncountered: data.job.results.errors_encountered || 0
           },
-          message: data.results.message || '',
-          duration: data.results.duration || 0
+          conflicts: {
+            duplicateUsers: data.job.results.duplicate_users || 0,
+            duplicateDevices: data.job.results.duplicate_devices || 0,
+            resolvedConflicts: data.job.results.resolved_conflicts || 0
+          }
         } : undefined,
-        errors: Array.isArray(jobRecord.error_log) ? jobRecord.error_log : []
+        errors: Array.isArray(data.job?.errors) 
+          ? (data.job.errors as any[]).map(e => String(e))
+          : []
       };
+
+      console.log('✅ Import started successfully:', transformedJob);
+      return transformedJob;
+
     } catch (error) {
-      console.error('❌ Import service error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('❌ Import start exception:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       
       return {
         id: `failed_${Date.now()}`,
         status: 'failed',
         progress: 0,
-        currentPhase: 'Failed',
+        currentPhase: 'Failed to start',
         startedAt: new Date().toISOString(),
         completedAt: new Date().toISOString(),
         errors: [errorMessage]
@@ -168,107 +279,45 @@ class UnifiedImportService {
     }
   }
 
-  async validateConnection(): Promise<ConnectionHealth> {
+  async validateConnection(): Promise<ValidationHealth> {
+    console.log('🔍 UnifiedImportService: Validating connection...');
+    
     try {
-      console.log('🔍 Validating GP51 connection...');
-      
-      const startTime = Date.now();
       const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: { 
-          action: 'validate_connection'
-        }
+        body: { action: 'validate_connection' }
       });
-      const latency = Date.now() - startTime;
 
       if (error) {
+        console.error('❌ Connection validation error:', error);
         return {
           healthy: false,
-          latency,
-          issues: [`Connection error: ${error.message}`],
-          recommendations: ['Check GP51 credentials', 'Verify network connectivity']
+          issues: [error.message || 'Connection validation failed'],
+          recommendations: ['Check GP51 credentials and network connectivity']
         };
       }
 
       return {
-        healthy: data?.healthy || false,
-        latency,
-        issues: data?.issues || [],
-        recommendations: data?.recommendations || []
+        healthy: data.healthy || false,
+        issues: Array.isArray(data.issues) 
+          ? (data.issues as any[]).map(i => String(i))
+          : [],
+        recommendations: Array.isArray(data.recommendations) 
+          ? (data.recommendations as any[]).map(r => String(r))
+          : [],
+        latency: data.latency
       };
+
     } catch (error) {
-      console.error('❌ Connection validation error:', error);
+      console.error('❌ Connection validation exception:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
       return {
         healthy: false,
-        issues: [`Validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`],
-        recommendations: ['Check service availability', 'Verify configuration']
+        issues: [errorMessage],
+        recommendations: ['Check GP51 service availability and credentials']
       };
-    }
-  }
-
-  private async createImportJob(importData: any) {
-    const { data, error } = await supabase
-      .from('gp51_system_imports')
-      .insert({
-        import_type: 'unified_import',
-        status: importData.status || 'pending',
-        current_phase: importData.currentPhase || 'Starting',
-        progress_percentage: importData.progress || 0,
-        total_users: importData.totalUsers || 0,
-        successful_users: importData.successfulUsers || 0,
-        total_devices: importData.totalDevices || 0,
-        successful_devices: importData.successfulDevices || 0,
-        error_log: importData.errors || [],
-        import_results: importData.results || {}
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('❌ Failed to create import job record:', error);
-      throw new Error(`Failed to create import job: ${error.message}`);
-    }
-
-    return data;
-  }
-
-  async getImportJob(jobId: string): Promise<UnifiedImportJob | null> {
-    try {
-      const { data, error } = await supabase
-        .from('gp51_system_imports')
-        .select('*')
-        .eq('id', jobId)
-        .single();
-
-      if (error) {
-        console.error('❌ Failed to fetch import job:', error);
-        return null;
-      }
-
-      return {
-        id: data.id,
-        status: data.status as any,
-        progress: data.progress_percentage || 0,
-        currentPhase: data.current_phase || 'Unknown',
-        startedAt: data.created_at,
-        completedAt: data.completed_at || undefined,
-        results: data.import_results ? {
-          statistics: {
-            usersImported: data.successful_users || 0,
-            devicesImported: data.successful_devices || 0,
-            usersProcessed: data.total_users || 0,
-            devicesProcessed: data.total_devices || 0,
-            conflicts: 0
-          },
-          message: 'Import completed',
-          duration: 0
-        } : undefined,
-        errors: Array.isArray(data.error_log) ? data.error_log : []
-      };
-    } catch (error) {
-      console.error('❌ Error fetching import job:', error);
-      return null;
     }
   }
 }
 
-export const unifiedImportService = new UnifiedImportService();
+export const unifiedImportService = UnifiedImportService.getInstance();
