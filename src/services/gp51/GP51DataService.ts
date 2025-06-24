@@ -11,7 +11,11 @@ export interface GP51ProcessedPosition {
   timestamp: string;
   speed?: number;
   heading?: number;
+  course: number;
   status?: string;
+  statusText: string;
+  isOnline: boolean;
+  isMoving: boolean;
 }
 
 export interface GP51DeviceData {
@@ -23,6 +27,18 @@ export interface GP51DeviceData {
   groupName?: string;
   isActive: boolean;
   lastActiveTime?: number;
+}
+
+export interface GP51LiveVehiclesResponse {
+  success: boolean;
+  error?: string;
+  data: GP51DeviceData[];
+}
+
+export interface GP51ProcessResult {
+  created: number;
+  errors: number;
+  errorDetails?: { itemId: string; message: string }[];
 }
 
 export class GP51DataService {
@@ -95,23 +111,63 @@ export class GP51DataService {
     }
   }
 
-  async getLiveVehicles(): Promise<GP51DeviceData[]> {
-    console.log('🔄 Getting live vehicles data...');
-    return await this.getDeviceList();
+  async getLiveVehicles(): Promise<GP51LiveVehiclesResponse> {
+    try {
+      console.log('🔄 Getting live vehicles data...');
+      const devices = await this.getDeviceList();
+      return {
+        success: true,
+        data: devices
+      };
+    } catch (error) {
+      console.error('❌ Failed to get live vehicles:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        data: []
+      };
+    }
   }
 
-  async processVehicleData(data: GP51DeviceData[]): Promise<boolean> {
+  async processVehicleData(data: GP51DeviceData[], options?: any): Promise<GP51ProcessResult> {
     try {
       console.log(`🔄 Processing ${data.length} vehicle records...`);
       
+      let created = 0;
+      let errors = 0;
+      const errorDetails: { itemId: string; message: string }[] = [];
+
       // Process and validate each vehicle record
-      const processedCount = data.length;
+      for (const vehicle of data) {
+        try {
+          // Simulate processing logic
+          if (vehicle.deviceId && vehicle.deviceName) {
+            created++;
+          } else {
+            errors++;
+            errorDetails.push({
+              itemId: vehicle.deviceId || 'unknown',
+              message: 'Missing required fields'
+            });
+          }
+        } catch (error) {
+          errors++;
+          errorDetails.push({
+            itemId: vehicle.deviceId || 'unknown',
+            message: error instanceof Error ? error.message : 'Processing error'
+          });
+        }
+      }
       
-      console.log(`✅ Successfully processed ${processedCount} vehicle records`);
-      return true;
+      console.log(`✅ Successfully processed ${created} vehicle records, ${errors} errors`);
+      return { created, errors, errorDetails };
     } catch (error) {
       console.error('❌ Error processing vehicle data:', error);
-      return false;
+      return { 
+        created: 0, 
+        errors: data.length, 
+        errorDetails: [{ itemId: 'batch', message: error instanceof Error ? error.message : 'Batch processing failed' }]
+      };
     }
   }
 
@@ -132,6 +188,10 @@ export class GP51DataService {
         latitude: 0,
         longitude: 0,
         timestamp: new Date().toISOString(),
+        course: 0,
+        statusText: 'active',
+        isOnline: true,
+        isMoving: false,
         status: 'active'
       });
     }
