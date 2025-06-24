@@ -18,3 +18,25 @@ export interface ConsistencyReport {
   recommendations: string[];
   dataHealth: 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
 }
+
+export interface DataIntegrityIssue {
+  id: string;
+  type: string;
+  description: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  autoFixable: boolean;
+  count?: number;
+  details?: any;
+}
+
+export interface DataIntegrityReport {
+  timestamp: string;
+  status: 'ok' | 'warning' | 'critical' | 'unknown';
+  overallScore: number;
+  totalRecords: number;
+  validRecords: number;
+  invalidRecords: number;
+  issues: DataIntegrityIssue[];
+  recommendations: string[];
+  checks: ConsistencyCheck[];
+}

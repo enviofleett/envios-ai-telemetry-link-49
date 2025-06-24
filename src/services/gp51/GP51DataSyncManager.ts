@@ -1,24 +1,22 @@
 
-import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { DataIntegrityReport, DataIntegrityIssue } from '@/types/dataIntegrity';
 
 export interface SyncConflict {
   id: string;
-  entityType: 'user' | 'vehicle';
-  conflictType: 'update_conflict' | 'duplicate_data' | 'missing_reference';
-  localData: Record<string, any>;
-  remoteData: Record<string, any>;
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  detectedAt: Date;
-  autoResolvable: boolean;
+  type: string;
+  description: string;
+  localData: any;
+  remoteData: any;
+  resolution?: 'prefer_local' | 'prefer_remote' | 'merge';
 }
 
 export interface SyncOperation {
   id: string;
+  type: 'full_sync' | 'incremental_sync' | 'conflict_resolution';
   status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
-  type: 'full_sync' | 'incremental_sync' | 'user_sync' | 'vehicle_sync';
-  startedAt: Date;
-  completedAt?: Date;
+  startTime: Date;
+  endTime?: Date;
   progress: number;
   totalItems: number;
   processedItems: number;
@@ -28,63 +26,40 @@ export interface SyncOperation {
   logs: string[];
 }
 
-export interface DataIntegrityIssue {
-  id: string;
-  type: 'corrupted' | 'missing_relation' | 'duplicate' | 'inconsistent';
-  severity: 'low' | 'medium' | 'high' | 'critical';
-  description: string;
-  entityType: 'user' | 'vehicle';
-  entityId?: string;
-  details?: any;
-  detectedAt: Date;
-  resolved: boolean;
-}
+type SyncOperationListener = (operation: SyncOperation) => void;
 
-export interface DataIntegrityReport {
-  score: number;
-  totalRecords: number;
-  corruptedRecords: number;
-  missingRelations: number;
-  duplicateRecords: number;
-  inconsistentData: number;
-  issues: DataIntegrityIssue[];
-  timestamp: Date;
-  recommendations: string[];
-}
+export class GP51DataSyncManager {
+  private static instance: GP51DataSyncManager;
+  private syncOperations: Map<string, SyncOperation> = new Map();
+  private listeners: SyncOperationListener[] = [];
 
-class GP51DataSyncManager {
-  private subscribers: ((operation: SyncOperation) => void)[] = [];
-  private activeOperations: Map<string, SyncOperation> = new Map();
+  private constructor() {}
 
-  // Subscribe to sync updates
-  subscribe(callback: (operation: SyncOperation) => void): () => void {
-    this.subscribers.push(callback);
+  static getInstance(): GP51DataSyncManager {
+    if (!GP51DataSyncManager.instance) {
+      GP51DataSyncManager.instance = new GP51DataSyncManager();
+    }
+    return GP51DataSyncManager.instance;
+  }
+
+  subscribe(listener: SyncOperationListener): () => void {
+    this.listeners.push(listener);
     return () => {
-      const index = this.subscribers.indexOf(callback);
-      if (index > -1) {
-        this.subscribers.splice(index, 1);
-      }
+      this.listeners = this.listeners.filter(l => l !== listener);
     };
   }
 
-  // Notify subscribers of operation updates
-  private notifySubscribers(operation: SyncOperation): void {
-    this.subscribers.forEach(callback => callback(operation));
+  private notifyListeners(operation: SyncOperation): void {
+    this.listeners.forEach(listener => listener(operation));
   }
 
-  // Get all sync operations
-  getAllSyncOperations(): SyncOperation[] {
-    return Array.from(this.activeOperations.values());
-  }
-
-  // Start a full synchronization
   async startFullSync(): Promise<string> {
-    const operationId = crypto.randomUUID();
+    const operationId = `sync_${Date.now()}`;
     const operation: SyncOperation = {
       id: operationId,
-      status: 'pending',
       type: 'full_sync',
-      startedAt: new Date(),
+      status: 'pending',
+      startTime: new Date(),
       progress: 0,
       totalItems: 0,
       processedItems: 0,
@@ -93,250 +68,269 @@ class GP51DataSyncManager {
       logs: []
     };
 
-    this.activeOperations.set(operationId, operation);
-    this.notifySubscribers(operation);
+    this.syncOperations.set(operationId, operation);
+    this.notifyListeners(operation);
 
     // Start the sync process
-    this.executeSync(operationId);
+    this.executeFullSync(operationId);
 
     return operationId;
   }
 
-  // Execute synchronization
-  private async executeSync(operationId: string): Promise<void> {
-    const operation = this.activeOperations.get(operationId);
+  private async executeFullSync(operationId: string): Promise<void> {
+    const operation = this.syncOperations.get(operationId);
     if (!operation) return;
 
     try {
-      // Update status to running
       operation.status = 'running';
-      operation.logs.push(`Started sync operation at ${new Date().toISOString()}`);
-      this.notifySubscribers(operation);
+      operation.logs.push('Starting full synchronization...');
+      this.notifyListeners(operation);
 
-      // Simulate sync process
-      await this.syncVehicles(operation);
-      await this.syncUsers(operation);
+      // Step 1: Get total count for progress tracking
+      const { count: totalVehicles, error: countError } = await supabase
+        .from('vehicles')
+        .select('*', { count: 'exact', head: true });
 
-      // Complete the operation
-      operation.status = 'completed';
-      operation.completedAt = new Date();
-      operation.progress = 100;
-      operation.logs.push(`Completed sync operation at ${new Date().toISOString()}`);
-      this.notifySubscribers(operation);
+      if (countError) {
+        throw new Error(`Failed to get vehicle count: ${countError.message}`);
+      }
+
+      operation.totalItems = totalVehicles || 0;
+      operation.logs.push(`Found ${operation.totalItems} vehicles to sync`);
+      this.notifyListeners(operation);
+
+      // Step 2: Sync vehicles in batches
+      const batchSize = 50;
+      let offset = 0;
+
+      while (offset < operation.totalItems && operation.status === 'running') {
+        try {
+          const { data: vehicles, error: fetchError } = await supabase
+            .from('vehicles')
+            .select('id, name, gp51_device_id, user_id')
+            .range(offset, offset + batchSize - 1);
+
+          if (fetchError) {
+            operation.logs.push(`Batch sync error at offset ${offset}: ${fetchError.message}`);
+            operation.failedItems += batchSize;
+          } else if (vehicles) {
+            // Process each vehicle in the batch
+            for (const vehicle of vehicles) {
+              if (operation.status !== 'running') break;
+              
+              try {
+                // Simulate sync processing
+                await this.syncVehicleData(vehicle);
+                operation.processedItems++;
+              } catch (error) {
+                operation.failedItems++;
+                operation.logs.push(`Failed to sync vehicle ${vehicle.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              }
+            }
+          }
+
+          offset += batchSize;
+          operation.progress = Math.round((offset / operation.totalItems) * 100);
+          this.notifyListeners(operation);
+
+          // Small delay to prevent overwhelming the database
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          operation.logs.push(`Batch processing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          operation.failedItems += batchSize;
+        }
+      }
+
+      if (operation.status === 'running') {
+        operation.status = 'completed';
+        operation.endTime = new Date();
+        operation.logs.push(`Sync completed. Processed: ${operation.processedItems}, Failed: ${operation.failedItems}`);
+      }
 
     } catch (error) {
       operation.status = 'failed';
+      operation.endTime = new Date();
       operation.errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      operation.logs.push(`Failed sync operation: ${operation.errorMessage}`);
-      this.notifySubscribers(operation);
+      operation.logs.push(`Sync failed: ${operation.errorMessage}`);
+    }
+
+    this.notifyListeners(operation);
+  }
+
+  private async syncVehicleData(vehicle: any): Promise<void> {
+    // Simulate vehicle data synchronization
+    // This would normally involve calling GP51 API and updating vehicle data
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Check for potential conflicts (simplified example)
+    if (Math.random() < 0.1) { // 10% chance of conflict
+      const operation = Array.from(this.syncOperations.values()).find(op => op.status === 'running');
+      if (operation) {
+        const conflict: SyncConflict = {
+          id: `conflict_${Date.now()}_${vehicle.id}`,
+          type: 'data_mismatch',
+          description: `Data mismatch detected for vehicle ${vehicle.name || vehicle.id}`,
+          localData: vehicle,
+          remoteData: { ...vehicle, lastSync: new Date() }
+        };
+        operation.conflicts.push(conflict);
+      }
     }
   }
 
-  // Sync vehicles
-  private async syncVehicles(operation: SyncOperation): Promise<void> {
-    try {
-      const { data: vehicles, error } = await supabase
-        .from('vehicles')
-        .select('id, make, model, year');
-
-      if (error) {
-        throw error;
-      }
-
-      operation.totalItems = vehicles?.length || 0;
-      operation.logs.push(`Found ${operation.totalItems} vehicles to sync`);
-
-      for (const vehicle of vehicles || []) {
-        // Process vehicle
-        operation.processedItems++;
-        operation.progress = Math.round((operation.processedItems / operation.totalItems) * 100);
-        this.notifySubscribers(operation);
-
-        // Simulate processing time
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-    } catch (error) {
-      operation.failedItems++;
-      operation.logs.push(`Vehicle sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      throw error;
-    }
-  }
-
-  // Sync users
-  private async syncUsers(operation: SyncOperation): Promise<void> {
-    try {
-      const { data: users, error } = await supabase
-        .from('envio_users')
-        .select('id, name, email');
-
-      if (error) {
-        throw error;
-      }
-
-      const userCount = users?.length || 0;
-      operation.totalItems += userCount;
-      operation.logs.push(`Found ${userCount} users to sync`);
-
-      for (const user of users || []) {
-        // Process user
-        operation.processedItems++;
-        operation.progress = Math.round((operation.processedItems / operation.totalItems) * 100);
-        this.notifySubscribers(operation);
-
-        // Simulate processing time
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-    } catch (error) {
-      operation.failedItems++;
-      operation.logs.push(`User sync failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      throw error;
-    }
-  }
-
-  // Pause sync operation
   async pauseSync(operationId: string): Promise<void> {
-    const operation = this.activeOperations.get(operationId);
+    const operation = this.syncOperations.get(operationId);
     if (operation && operation.status === 'running') {
       operation.status = 'paused';
-      operation.logs.push(`Paused sync operation at ${new Date().toISOString()}`);
-      this.notifySubscribers(operation);
+      operation.logs.push('Sync paused by user');
+      this.notifyListeners(operation);
     }
   }
 
-  // Resume sync operation
   async resumeSync(operationId: string): Promise<void> {
-    const operation = this.activeOperations.get(operationId);
+    const operation = this.syncOperations.get(operationId);
     if (operation && operation.status === 'paused') {
       operation.status = 'running';
-      operation.logs.push(`Resumed sync operation at ${new Date().toISOString()}`);
-      this.notifySubscribers(operation);
+      operation.logs.push('Sync resumed by user');
+      this.notifyListeners(operation);
       // Continue the sync process
-      this.executeSync(operationId);
+      this.executeFullSync(operationId);
     }
   }
 
-  // Cancel sync operation
   async cancelSync(operationId: string): Promise<void> {
-    const operation = this.activeOperations.get(operationId);
+    const operation = this.syncOperations.get(operationId);
     if (operation && (operation.status === 'running' || operation.status === 'paused')) {
       operation.status = 'cancelled';
-      operation.logs.push(`Cancelled sync operation at ${new Date().toISOString()}`);
-      this.notifySubscribers(operation);
+      operation.endTime = new Date();
+      operation.logs.push('Sync cancelled by user');
+      this.notifyListeners(operation);
     }
   }
 
-  // Generate data integrity report
   async generateIntegrityReport(): Promise<DataIntegrityReport> {
+    const report: DataIntegrityReport = {
+      timestamp: new Date().toISOString(),
+      status: 'unknown',
+      overallScore: 0,
+      totalRecords: 0,
+      validRecords: 0,
+      invalidRecords: 0,
+      issues: [],
+      recommendations: [],
+      checks: []
+    };
+
     try {
-      // Simulate integrity checks
-      const issues: DataIntegrityIssue[] = [];
-      
-      // Check for potential duplicates
-      const duplicateCount = await this.checkForDuplicates();
-      if (duplicateCount > 0) {
-        issues.push({
-          id: crypto.randomUUID(),
-          type: 'duplicate',
-          severity: 'medium',
-          description: `Found ${duplicateCount} potential duplicate records`,
-          entityType: 'vehicle',
-          detectedAt: new Date(),
-          resolved: false
-        });
-      }
-
-      // Calculate integrity score
-      const totalRecords = 1000; // Simulated total
-      const corruptedRecords = issues.filter(i => i.type === 'corrupted').length;
-      const score = Math.max(0, 100 - (issues.length * 10));
-
-      return {
-        score,
-        totalRecords,
-        corruptedRecords,
-        missingRelations: issues.filter(i => i.type === 'missing_relation').length,
-        duplicateRecords: issues.filter(i => i.type === 'duplicate').length,
-        inconsistentData: issues.filter(i => i.type === 'inconsistent').length,
-        issues,
-        timestamp: new Date(),
-        recommendations: this.generateRecommendations(issues)
-      };
-
-    } catch (error) {
-      console.error('Failed to generate integrity report:', error);
-      throw error;
-    }
-  }
-
-  // Check for duplicates
-  private async checkForDuplicates(): Promise<number> {
-    try {
-      // Simple duplicate detection based on available columns
-      const { data: vehicles, error } = await supabase
+      // Get vehicle count
+      const { count: totalVehicles, error: countError } = await supabase
         .from('vehicles')
-        .select('make, model, year');
+        .select('*', { count: 'exact', head: true });
 
-      if (error) {
-        console.error('Error checking for duplicates:', error);
-        return 0;
+      if (countError) {
+        throw new Error(`Failed to get vehicle count: ${countError.message}`);
       }
 
-      // Group by make, model, year to find potential duplicates
-      const groups = new Map<string, number>();
-      vehicles?.forEach(vehicle => {
-        const key = `${vehicle.make}-${vehicle.model}-${vehicle.year}`;
-        groups.set(key, (groups.get(key) || 0) + 1);
-      });
+      report.totalRecords = totalVehicles || 0;
 
-      // Count groups with more than one item
-      return Array.from(groups.values()).filter(count => count > 1).length;
+      // Check for vehicles without GP51 device IDs
+      const { count: vehiclesWithoutDeviceId, error: noDeviceError } = await supabase
+        .from('vehicles')
+        .select('*', { count: 'exact', head: true })
+        .is('gp51_device_id', null);
+
+      if (!noDeviceError && vehiclesWithoutDeviceId) {
+        const issue: DataIntegrityIssue = {
+          id: 'missing_device_ids',
+          type: 'missing_data',
+          description: `${vehiclesWithoutDeviceId} vehicles missing GP51 device IDs`,
+          severity: vehiclesWithoutDeviceId > 10 ? 'high' : 'medium',
+          autoFixable: false,
+          count: vehiclesWithoutDeviceId
+        };
+        report.issues.push(issue);
+        report.invalidRecords += vehiclesWithoutDeviceId;
+      }
+
+      // Check for vehicles without user assignments
+      const { count: vehiclesWithoutUser, error: noUserError } = await supabase
+        .from('vehicles')
+        .select('*', { count: 'exact', head: true })
+        .is('user_id', null);
+
+      if (!noUserError && vehiclesWithoutUser) {
+        const issue: DataIntegrityIssue = {
+          id: 'missing_user_assignments',
+          type: 'missing_assignment',
+          description: `${vehiclesWithoutUser} vehicles not assigned to users`,
+          severity: vehiclesWithoutUser > 5 ? 'high' : 'medium',
+          autoFixable: true,
+          count: vehiclesWithoutUser
+        };
+        report.issues.push(issue);
+        report.invalidRecords += vehiclesWithoutUser;
+      }
+
+      // Calculate valid records
+      report.validRecords = report.totalRecords - report.invalidRecords;
+
+      // Calculate overall score
+      if (report.totalRecords > 0) {
+        report.overallScore = Math.round((report.validRecords / report.totalRecords) * 100);
+      } else {
+        report.overallScore = 100;
+      }
+
+      // Determine status based on score
+      if (report.overallScore >= 95) {
+        report.status = 'ok';
+      } else if (report.overallScore >= 80) {
+        report.status = 'warning';
+      } else {
+        report.status = 'critical';
+      }
+
+      // Add recommendations
+      if (report.issues.length > 0) {
+        report.recommendations.push('Review and resolve data integrity issues');
+        if (report.issues.some(issue => issue.autoFixable)) {
+          report.recommendations.push('Run auto-fix for resolvable issues');
+        }
+      }
 
     } catch (error) {
-      console.error('Error in duplicate check:', error);
-      return 0;
+      report.status = 'critical';
+      report.issues.push({
+        id: 'report_generation_error',
+        type: 'system_error',
+        description: `Failed to generate integrity report: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        severity: 'critical',
+        autoFixable: false
+      });
     }
+
+    return report;
   }
 
-  // Generate recommendations based on issues
-  private generateRecommendations(issues: DataIntegrityIssue[]): string[] {
-    const recommendations: string[] = [];
-
-    if (issues.some(i => i.type === 'duplicate')) {
-      recommendations.push('Review and merge duplicate records');
-    }
-    if (issues.some(i => i.type === 'corrupted')) {
-      recommendations.push('Restore corrupted data from backup');
-    }
-    if (issues.some(i => i.type === 'missing_relation')) {
-      recommendations.push('Fix broken relationships between entities');
-    }
-    if (issues.some(i => i.type === 'inconsistent')) {
-      recommendations.push('Standardize data formats and values');
-    }
-
-    if (recommendations.length === 0) {
-      recommendations.push('Data integrity is good - no immediate action required');
-    }
-
-    return recommendations;
-  }
-
-  // Resolve conflict
   async resolveConflict(conflictId: string, resolution: 'prefer_local' | 'prefer_remote' | 'merge'): Promise<void> {
-    // Find the conflict across all operations
-    for (const operation of this.activeOperations.values()) {
-      const conflictIndex = operation.conflicts.findIndex(c => c.id === conflictId);
-      if (conflictIndex > -1) {
-        // Remove the resolved conflict
-        operation.conflicts.splice(conflictIndex, 1);
-        operation.logs.push(`Resolved conflict ${conflictId} with strategy: ${resolution}`);
-        this.notifySubscribers(operation);
+    for (const operation of this.syncOperations.values()) {
+      const conflict = operation.conflicts.find(c => c.id === conflictId);
+      if (conflict) {
+        conflict.resolution = resolution;
+        operation.logs.push(`Conflict ${conflictId} resolved with strategy: ${resolution}`);
+        this.notifyListeners(operation);
         break;
       }
     }
   }
+
+  getAllSyncOperations(): SyncOperation[] {
+    return Array.from(this.syncOperations.values());
+  }
+
+  getSyncOperation(operationId: string): SyncOperation | undefined {
+    return this.syncOperations.get(operationId);
+  }
 }
 
-export const gp51DataSyncManager = new GP51DataSyncManager();
+export const gp51DataSyncManager = GP51DataSyncManager.getInstance();
