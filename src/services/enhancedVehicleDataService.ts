@@ -1,26 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-
-export interface VehicleData {
-  id: string;
-  name: string;
-  device_id: string;
-  device_name: string;
-  user_id: string;
-  sim_number?: string;
-  vin?: string;
-  license_plate?: string;
-  is_active: boolean;
-  last_position?: any;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  lastUpdate: Date;
-  // Required properties for compatibility with other VehicleData types
-  isOnline: boolean;
-  isMoving: boolean;
-  alerts: number;
-}
+import type { VehicleData, VehicleStatus } from '@/types/vehicle';
 
 export interface EnhancedVehicleStats {
   totalVehicles: number;
@@ -76,16 +56,16 @@ class EnhancedVehicleDataService {
         sim_number: vehicle.sim_number,
         created_at: vehicle.created_at,
         updated_at: vehicle.updated_at,
-        vin: vehicle.vin || undefined,
-        license_plate: vehicle.license_plate || undefined,
+        vin: undefined,
+        license_plate: undefined,
         is_active: true,
         last_position: vehicle.last_position,
-        status: vehicle.status || 'active',
+        status: (vehicle.status || 'active') as VehicleStatus,
         lastUpdate: new Date(vehicle.updated_at),
         // Required compatibility properties
         isOnline: vehicle.status === 'online',
         isMoving: vehicle.status === 'moving',
-        alerts: 0
+        alerts: []
       }));
     } catch (error) {
       console.error('Error fetching vehicle data:', error);
@@ -134,7 +114,7 @@ class EnhancedVehicleDataService {
           new Date(v.updated_at).getTime() > oneHourAgo
         ).length,
         withIssues: vehicles.filter(v => 
-          v.status === 'error' || v.status === 'offline'
+          v.status === 'maintenance' || v.status === 'offline'
         ).length,
         averageUpdateFrequency: vehicles.length > 0 ? 
           vehicles.reduce((sum, v) => {
@@ -184,16 +164,16 @@ class EnhancedVehicleDataService {
         sim_number: vehicle.sim_number,
         created_at: vehicle.created_at,
         updated_at: vehicle.updated_at,
-        vin: vehicle.vin || undefined,
-        license_plate: vehicle.license_plate || undefined,
+        vin: undefined,
+        license_plate: undefined,
         is_active: true,
         last_position: vehicle.last_position,
-        status: vehicle.status || 'active',
+        status: (vehicle.status || 'active') as VehicleStatus,
         lastUpdate: new Date(vehicle.updated_at),
         // Required compatibility properties
         isOnline: vehicle.status === 'online',
         isMoving: vehicle.status === 'moving',
-        alerts: 0
+        alerts: []
       };
     } catch (error) {
       console.error('Error fetching vehicle by ID:', error);

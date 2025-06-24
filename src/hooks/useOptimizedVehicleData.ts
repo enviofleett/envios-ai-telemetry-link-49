@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { VehicleData } from '@/types/vehicle';
+import type { VehicleData } from '@/types/vehicle';
 import { enhancedVehicleDataService } from '@/services/enhancedVehicleDataService';
 import { useToast } from '@/hooks/use-toast';
 

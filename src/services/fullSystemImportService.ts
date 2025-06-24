@@ -1,7 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { EnhancedErrorHandler } from './systemImport/enhancedErrorHandler';
-import { SystemImportOptions } from '@/types/system-import';
+import type { SystemImportOptions } from '@/types/system-import';
 
 export interface ImportProgress {
   phase: string;
@@ -14,7 +14,7 @@ export interface ImportProgress {
 }
 
 // Re-export SystemImportOptions for backwards compatibility
-export { SystemImportOptions };
+export type { SystemImportOptions };
 
 export class FullSystemImportService {
   private errorHandler = new EnhancedErrorHandler();
