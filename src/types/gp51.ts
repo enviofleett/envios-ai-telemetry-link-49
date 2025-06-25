@@ -1,88 +1,88 @@
 
-export interface GP51ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
+export interface GPS51Device {
+  id: string;
+  device_id: string;
+  device_name: string;
+  group_id?: string;
+  device_type?: string;
+  sim_number?: string;
+  login_name?: string;
+  creator?: string;
+  status_code?: number;
+  status_text?: string;
+  last_active_time?: string;
+  is_active: boolean;
+  is_expired: boolean;
+  days_since_active?: number;
+  created_at: string;
+  updated_at: string;
+  last_sync: string;
+  gps51_groups?: {
+    group_name: string;
+  };
 }
 
-export interface GP51Device {
-  deviceId: string;
-  deviceName: string;
-  deviceType: string;
-  groupId: string;
-  isOnline: boolean;
-  lastUpdate?: Date;
+export interface GPS51Group {
+  id: string;
+  group_id: string;
+  group_name: string;
+  remark?: string;
+  device_count: number;
+  created_at: string;
+  updated_at: string;
+  last_sync: string;
 }
 
-export interface GP51ProcessedPosition {
-  deviceId: string;
-  deviceName?: string;
-  latitude: number;
-  longitude: number;
-  speed: number; // Required, not optional
-  course: number;
-  timestamp: Date;
-  status?: number;
-  statusText: string;
-  isOnline: boolean;
-  isMoving: boolean;
+export interface GPS51User {
+  id: string;
+  username: string;
+  display_name?: string;
+  user_type?: number;
+  user_type_text?: string;
+  company_name?: string;
+  email?: string;
+  phone?: string;
+  device_count: number;
+  created_at: string;
+  updated_at: string;
+  last_sync: string;
 }
 
-export interface VehicleGP51Metadata {
+export interface GPS51Position {
+  id: string;
+  device_id: string;
   latitude?: number;
   longitude?: number;
   speed?: number;
   course?: number;
-  status?: number;
-  statusText?: string;
-  timestamp?: string;
-  isMoving?: boolean;
-  vehicleStatus?: 'online' | 'offline' | 'inactive' | 'idle' | 'moving';
-  lastGP51Sync?: string;
-  importSource?: string;
-  imei?: string;
-  [key: string]: any;
+  update_time?: string;
+  moving: boolean;
+  address?: string;
+  created_at: string;
 }
 
-export interface GP51DeviceData {
-  deviceId: string;
-  deviceName: string;
-  deviceType?: string;
-  simNumber?: string;
-  groupId?: string;
-  groupName?: string;
-  isActive: boolean;
-  lastActiveTime?: number;
+export interface GPS51DashboardSummary {
+  total_devices: number;
+  active_devices: number;
+  expired_devices: number;
+  total_groups: number;
+  total_users: number;
 }
 
-export interface GP51TelemetryData {
-  deviceId: string;
-  timestamp: string;
-  latitude: number;
-  longitude: number;
-  speed: number;
-  course: number;
-  status: string;
-}
-
-export interface GP51LiveVehiclesResponseData {
-  devices: GP51DeviceData[];
-  telemetry: GP51TelemetryData[];
-  metadata?: {
-    totalDevices: number;
-    activeDevices: number;
-    lastSync: string;
-  };
-}
-
-export interface GP51LiveVehiclesResponse {
+export interface GPS51DataResponse {
   success: boolean;
+  data?: {
+    groups: GPS51Group[];
+    devices: GPS51Device[];
+    users: GPS51User[];
+    summary: GPS51DashboardSummary;
+  };
   error?: string;
-  data: GP51LiveVehiclesResponseData;
 }
 
-export interface GP51ProcessResult {
-  created: number;
-  errors: number;
-  errorDetails?: { itemId: string; message: string }[];
+export interface GPS51TestResult {
+  name: string;
+  success: boolean;
+  data: number;
+  error?: string;
 }

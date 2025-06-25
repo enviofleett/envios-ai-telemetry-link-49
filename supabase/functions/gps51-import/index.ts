@@ -61,7 +61,6 @@ serve(async (req) => {
         console.log(`📦 Importing ${mockData.groups.length} groups...`);
         for (const group of mockData.groups) {
           try {
-            // FIXED: Using upsert without onConflict
             const { error } = await supabase
               .from('gps51_groups')
               .upsert({
@@ -70,8 +69,6 @@ serve(async (req) => {
                 device_count: group.devices?.length || 0,
                 remark: group.remark || null,
                 last_sync: new Date().toISOString()
-              }, {
-                onConflict: 'group_id'
               });
 
             if (error) {
@@ -92,7 +89,6 @@ serve(async (req) => {
         console.log(`🚗 Importing ${mockData.devices.length} devices...`);
         for (const device of mockData.devices) {
           try {
-            // FIXED: Using upsert with proper onConflict
             const { error } = await supabase
               .from('gps51_devices')
               .upsert({
@@ -105,8 +101,6 @@ serve(async (req) => {
                 is_expired: device.isexpired === 1,
                 last_active_time: device.lastactivetime ? new Date(device.lastactivetime * 1000).toISOString() : null,
                 last_sync: new Date().toISOString()
-              }, {
-                onConflict: 'device_id'
               });
 
             if (error) {
@@ -118,6 +112,37 @@ serve(async (req) => {
           } catch (error) {
             console.error(`❌ Device processing error:`, error);
             results.devices.errors++;
+          }
+        }
+      }
+
+      // Import users
+      if (mockData.users?.length > 0) {
+        console.log(`👥 Importing ${mockData.users.length} users...`);
+        for (const user of mockData.users) {
+          try {
+            const { error } = await supabase
+              .from('gps51_users')
+              .upsert({
+                username: user.username,
+                display_name: user.showname,
+                user_type: user.usertype,
+                company_name: user.companyname,
+                email: user.email,
+                phone: user.phone,
+                device_count: user.devicecount || 0,
+                last_sync: new Date().toISOString()
+              });
+
+            if (error) {
+              console.error(`❌ User import error:`, error);
+              results.users.errors++;
+            } else {
+              results.users.imported++;
+            }
+          } catch (error) {
+            console.error(`❌ User processing error:`, error);
+            results.users.errors++;
           }
         }
       }
@@ -140,7 +165,7 @@ serve(async (req) => {
         success: true,
         importId: importLog.id,
         results,
-        message: `Import completed successfully. Imported: ${results.groups.imported + results.devices.imported} items`
+        message: `Import completed successfully. Imported: ${results.groups.imported} groups, ${results.devices.imported} devices, ${results.users.imported} users`
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
@@ -189,6 +214,12 @@ async function getMockGP51Data() {
         groupname: 'Fleet B',
         remark: 'Secondary fleet vehicles',
         devices: []
+      },
+      {
+        groupid: 'group_003',
+        groupname: 'Construction Vehicles',
+        remark: 'Heavy machinery and construction equipment',
+        devices: []
       }
     ],
     devices: [
@@ -221,6 +252,46 @@ async function getMockGP51Data() {
         isfree: 0,
         isexpired: 1,
         lastactivetime: Math.floor(Date.now() / 1000) - 7200
+      },
+      {
+        deviceid: 'dev_004',
+        devicename: 'Excavator 001',
+        devicetype: 3,
+        simnum: '1234567893',
+        groupid: 'group_003',
+        isfree: 0,
+        isexpired: 0,
+        lastactivetime: Math.floor(Date.now() / 1000) - 1800
+      },
+      {
+        deviceid: 'dev_005',
+        devicename: 'Truck 001',
+        devicetype: 1,
+        simnum: '1234567894',
+        groupid: 'group_003',
+        isfree: 0,
+        isexpired: 0,
+        lastactivetime: Math.floor(Date.now() / 1000) - 900
+      }
+    ],
+    users: [
+      {
+        username: 'fleet_manager_001',
+        showname: 'John Doe',
+        usertype: 4,
+        companyname: 'Fleet Management Inc',
+        email: 'john@fleetmgmt.com',
+        phone: '+1234567890',
+        devicecount: 3
+      },
+      {
+        username: 'operator_001',
+        showname: 'Jane Smith',
+        usertype: 11,
+        companyname: 'Construction Co',
+        email: 'jane@construction.com',
+        phone: '+1234567891',
+        devicecount: 2
       }
     ]
   };

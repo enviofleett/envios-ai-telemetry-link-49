@@ -34,7 +34,8 @@ export class GPS51DataService {
   }
 
   async callDataAPI(type: string, params: Record<string, any> = {}) {
-    const url = new URL(`${supabase.supabaseUrl}/functions/v1/gps51-data`);
+    const supabaseUrl = 'https://bjkqxmvjuewshomihjqm.supabase.co';
+    const url = new URL(`${supabaseUrl}/functions/v1/gps51-data`);
     url.searchParams.set('type', type);
     
     Object.keys(params).forEach(key => {
@@ -43,10 +44,13 @@ export class GPS51DataService {
       }
     });
 
+    const { data: session } = await supabase.auth.getSession();
+    const token = session?.session?.access_token;
+
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${supabase.supabaseKey}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
     });
@@ -99,12 +103,21 @@ export class GPS51DataService {
         .from('gps51_devices')
         .select(`
           *,
-          gps51_groups(group_name)
+          gps51_groups!inner(group_name)
         `)
         .order('device_name')
         .limit(100);
 
       if (devicesError) throw devicesError;
+
+      // Get users
+      const { data: users, error: usersError } = await supabase
+        .from('gps51_users')
+        .select('*')
+        .order('username')
+        .limit(100);
+
+      if (usersError) throw usersError;
 
       // Get summary stats
       const { data: deviceStats, error: statsError } = await supabase
@@ -116,7 +129,9 @@ export class GPS51DataService {
       const summary = {
         total_devices: deviceStats?.length || 0,
         active_devices: deviceStats?.filter(d => d.is_active)?.length || 0,
-        expired_devices: deviceStats?.filter(d => d.is_expired)?.length || 0
+        expired_devices: deviceStats?.filter(d => d.is_expired)?.length || 0,
+        total_groups: groups?.length || 0,
+        total_users: users?.length || 0
       };
 
       return {
@@ -124,6 +139,7 @@ export class GPS51DataService {
         data: {
           groups: groups || [],
           devices: devices || [],
+          users: users || [],
           summary
         }
       };
