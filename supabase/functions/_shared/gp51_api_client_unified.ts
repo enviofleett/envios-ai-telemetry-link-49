@@ -1,222 +1,195 @@
 
-import { getGP51ApiUrl } from "./constants.ts";
-import type { GP51Session } from "./gp51_session_utils.ts";
+import { md5_sync } from './crypto_utils.ts';
 
-export interface GP51ApiClientConfig {
-  defaultTimeout: number;
-  maxRetries: number;
-  retryDelay: number;
-  largeDatasetTimeout: number;
+export interface GP51ApiResult {
+  success: boolean;
+  data?: any;
+  error?: string;
+  status?: number;
 }
 
-const DEFAULT_CONFIG: GP51ApiClientConfig = {
-  defaultTimeout: 30000, // 30 seconds for normal operations
-  maxRetries: 3,
-  retryDelay: 2000, // 2 seconds base delay
-  largeDatasetTimeout: 120000, // 2 minutes for large datasets like querydevicestree
-};
+export class GP51ApiClient {
+  private baseUrl: string = 'https://api.gps51.com/webapi';
+  private timeout: number = 30000; // 30 seconds
 
-export class GP51ApiClientUnified {
-  private config: GP51ApiClientConfig;
-
-  constructor(config: Partial<GP51ApiClientConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
-  }
-
-  private getTimeoutForAction(action: string): number {
-    // Use longer timeout for operations that fetch large datasets
-    const largeDatasetActions = ['querydevicestree', 'querymonitorlist', 'queryalldevices'];
-    return largeDatasetActions.includes(action.toLowerCase()) 
-      ? this.config.largeDatasetTimeout 
-      : this.config.defaultTimeout;
-  }
-
-  private async makeApiCallWithRetry<T>(
-    url: string, 
-    action: string,
-    attempt: number = 1
-  ): Promise<T> {
-    const timeout = this.getTimeoutForAction(action);
-    const controller = new AbortController();
+  /**
+   * Query devices tree using GET method (corrected for GP51 API)
+   */
+  async queryDevicesTree(token: string, username?: string): Promise<any> {
+    console.log('🌳 [GP51-UNIFIED] Starting queryDevicesTree with GET method');
     
-    // Progressive timeout: increase timeout on retries
-    const adjustedTimeout = timeout + (attempt - 1) * 30000; // Add 30s per retry
-    const timeoutId = setTimeout(() => controller.abort(), adjustedTimeout);
-
     try {
-      console.log(`📡 [GP51-UNIFIED] Attempt ${attempt}/${this.config.maxRetries + 1} for ${action} (timeout: ${adjustedTimeout}ms)`);
-      console.log(`📡 [GP51-UNIFIED] Request URL: ${url.replace(/token=[^&]+/, 'token=[TOKEN_MASKED]')}`);
+      // Build URL with query parameters - GP51 expects GET for querydevicestree
+      const url = new URL(this.baseUrl);
+      url.searchParams.set('action', 'querydevicestree');
+      url.searchParams.set('token', token);
+      url.searchParams.set('extend', 'self');
+      url.searchParams.set('serverid', '0');
 
-      const startTime = Date.now();
-      const response = await fetch(url, {
-        method: 'POST',
+      console.log(`🌳 [GP51-UNIFIED] Making GET request to: ${url.toString()}`);
+
+      const response = await fetch(url.toString(), {
+        method: 'GET', // Changed from POST to GET
         headers: {
-          'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'User-Agent': 'EnvioFleet-GP51/1.0'
+          'User-Agent': 'Envio-GP51-Client/1.0'
         },
-        signal: controller.signal
+        signal: AbortSignal.timeout(this.timeout)
       });
 
-      clearTimeout(timeoutId);
-      const responseTime = Date.now() - startTime;
-      
-      console.log(`📡 [GP51-UNIFIED] Response received in ${responseTime}ms (status: ${response.status})`);
+      console.log(`🌳 [GP51-UNIFIED] Response status: ${response.status}`);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ [GP51-UNIFIED] HTTP ${response.status}: ${errorText}`);
-        
-        // Retry on server errors (5xx) but not client errors (4xx)
-        if (response.status >= 500 && attempt <= this.config.maxRetries) {
-          const delay = this.config.retryDelay * Math.pow(2, attempt - 1); // Exponential backoff
-          console.log(`⏳ [GP51-UNIFIED] Retrying ${action} in ${delay}ms due to server error`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return this.makeApiCallWithRetry<T>(url, action, attempt + 1);
-        }
-        
-        throw new Error(`HTTP error: ${response.status} - ${errorText}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
       const responseText = await response.text();
-      console.log(`📊 [GP51-UNIFIED] Response size: ${responseText.length} characters`);
+      console.log(`🌳 [GP51-UNIFIED] Raw response: ${responseText.substring(0, 200)}...`);
 
-      if (!responseText || responseText.trim().length === 0) {
-        console.warn(`⚠️ [GP51-UNIFIED] Empty response for ${action}`);
-        return null as T;
-      }
-
-      let jsonResponse;
+      // Try to parse as JSON
+      let parsedResponse;
       try {
-        jsonResponse = JSON.parse(responseText);
+        parsedResponse = JSON.parse(responseText);
       } catch (parseError) {
-        console.error(`❌ [GP51-UNIFIED] JSON parse error for ${action}:`, parseError);
-        console.error(`❌ [GP51-UNIFIED] Raw response: ${responseText.substring(0, 500)}...`);
-        throw new Error(`Invalid JSON response: ${parseError.message}`);
+        console.error('🌳 [GP51-UNIFIED] JSON parse error:', parseError);
+        throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`);
       }
 
-      // Log response structure for debugging
-      console.log(`📋 [GP51-UNIFIED] Response structure:`, {
-        status: jsonResponse.status,
-        hasData: !!jsonResponse.data,
-        dataType: Array.isArray(jsonResponse.data) ? 'array' : typeof jsonResponse.data,
-        dataLength: Array.isArray(jsonResponse.data) ? jsonResponse.data.length : 'N/A'
-      });
-
-      if (jsonResponse.status !== 0) {
-        const errorMsg = jsonResponse.cause || jsonResponse.message || 'Unknown GP51 API error';
-        console.error(`❌ [GP51-UNIFIED] GP51 API error ${jsonResponse.status}: ${errorMsg}`);
-        
-        // Retry on certain GP51 errors
-        if (attempt <= this.config.maxRetries && this.shouldRetryOnError(jsonResponse.status)) {
-          const delay = this.config.retryDelay * Math.pow(2, attempt - 1);
-          console.log(`⏳ [GP51-UNIFIED] Retrying ${action} in ${delay}ms due to GP51 error`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return this.makeApiCallWithRetry<T>(url, action, attempt + 1);
-        }
-        
-        throw new Error(`GP51 API Error ${jsonResponse.status}: ${errorMsg}`);
+      // Check for GP51 API errors
+      if (parsedResponse.status !== undefined && parsedResponse.status !== 0) {
+        const errorMsg = parsedResponse.cause || parsedResponse.message || `GP51 API error: ${parsedResponse.status}`;
+        console.error(`🌳 [GP51-UNIFIED] GP51 API error: ${errorMsg}`);
+        throw new Error(errorMsg);
       }
 
-      console.log(`✅ [GP51-UNIFIED] ${action} completed successfully in ${responseTime}ms`);
-      return jsonResponse as T;
+      console.log('🌳 [GP51-UNIFIED] Successfully retrieved devices tree');
+      return parsedResponse;
 
     } catch (error) {
-      clearTimeout(timeoutId);
-      
-      if (error.name === 'AbortError') {
-        console.error(`❌ [GP51-UNIFIED] ${action} timed out after ${adjustedTimeout}ms`);
-        
-        // Retry timeouts with increased timeout
-        if (attempt <= this.config.maxRetries) {
-          const delay = this.config.retryDelay * attempt;
-          console.log(`⏳ [GP51-UNIFIED] Retrying ${action} in ${delay}ms with extended timeout`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return this.makeApiCallWithRetry<T>(url, action, attempt + 1);
-        }
-        
-        throw new Error(`Request timeout after ${adjustedTimeout}ms (attempt ${attempt})`);
-      }
-
-      console.error(`❌ [GP51-UNIFIED] ${action} failed after ${Date.now() - (Date.now())}ms:`, error);
-      
-      // Retry on network errors
-      if (attempt <= this.config.maxRetries && this.isRetryableError(error)) {
-        const delay = this.config.retryDelay * Math.pow(2, attempt - 1);
-        console.log(`⏳ [GP51-UNIFIED] Retrying ${action} in ${delay}ms due to network error`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return this.makeApiCallWithRetry<T>(url, action, attempt + 1);
-      }
-
-      throw error;
+      const errorMsg = `queryDevicesTree failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(`❌ [GP51-UNIFIED] ${errorMsg}`);
+      throw new Error(errorMsg);
     }
   }
 
-  private shouldRetryOnError(status: number): boolean {
-    // Retry on temporary server errors but not authentication/authorization errors
-    return status >= 500 || status === 429; // 5xx server errors or rate limiting
-  }
-
-  private isRetryableError(error: any): boolean {
-    // Retry on network errors but not parsing errors
-    return error.name === 'TypeError' && error.message.includes('fetch');
-  }
-
-  async queryDevicesTree(token: string, username: string): Promise<any> {
-    console.log(`🌳 [GP51-UNIFIED] Starting querydevicestree for user: ${username}`);
-    
-    const apiUrl = getGP51ApiUrl();
-    const url = new URL(apiUrl);
-    url.searchParams.set('action', 'querydevicestree');
-    url.searchParams.set('token', token);
-    url.searchParams.set('extend', 'self');
-    url.searchParams.set('serverid', '0');
-
-    console.log(`📡 [GP51-UNIFIED] Parameters: extend=self, serverid=0`);
-
-    return this.makeApiCallWithRetry(url.toString(), 'querydevicestree');
-  }
-
+  /**
+   * Get last position data
+   */
   async getLastPosition(token: string, deviceIds: string[] = [], lastQueryTime?: string): Promise<any> {
-    console.log(`📍 [GP51-UNIFIED] Getting last position for ${deviceIds.length} devices`);
+    console.log('📍 [GP51-UNIFIED] Starting getLastPosition');
     
-    const apiUrl = getGP51ApiUrl();
-    const url = new URL(apiUrl);
-    url.searchParams.set('action', 'lastposition');
-    url.searchParams.set('token', token);
-    
-    if (deviceIds.length > 0) {
-      url.searchParams.set('deviceids', deviceIds.join(','));
-    }
-    
-    if (lastQueryTime) {
-      url.searchParams.set('lastquerypositiontime', lastQueryTime);
-    }
+    try {
+      const url = new URL(this.baseUrl);
+      url.searchParams.set('action', 'lastposition');
+      url.searchParams.set('token', token);
 
-    return this.makeApiCallWithRetry(url.toString(), 'lastposition');
-  }
-
-  async callAction(action: string, parameters: Record<string, any>): Promise<any> {
-    console.log(`🔄 [GP51-UNIFIED] Generic action call: ${action}`);
-    
-    const apiUrl = getGP51ApiUrl();
-    const url = new URL(apiUrl);
-    url.searchParams.set('action', action);
-    
-    Object.entries(parameters).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        url.searchParams.set(key, String(value));
+      const payload: any = {};
+      if (deviceIds.length > 0) {
+        payload.deviceids = deviceIds;
       }
-    });
+      if (lastQueryTime) {
+        payload.lastquerypositiontime = lastQueryTime;
+      }
 
-    return this.makeApiCallWithRetry(url.toString(), action);
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(this.timeout)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.status !== undefined && result.status !== 0) {
+        throw new Error(result.cause || result.message || `GP51 API error: ${result.status}`);
+      }
+
+      return result;
+
+    } catch (error) {
+      const errorMsg = `getLastPosition failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(`❌ [GP51-UNIFIED] ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+  }
+
+  /**
+   * Generic action caller for other GP51 actions
+   */
+  async callAction(action: string, parameters: Record<string, any>): Promise<any> {
+    console.log(`🔄 [GP51-UNIFIED] Starting callAction: ${action}`);
+    
+    try {
+      const url = new URL(this.baseUrl);
+      url.searchParams.set('action', action);
+      
+      // Add parameters to URL for GET-style actions
+      Object.entries(parameters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          url.searchParams.set(key, String(value));
+        }
+      });
+
+      console.log(`🔄 [GP51-UNIFIED] Making request to: ${url.toString()}`);
+
+      const response = await fetch(url.toString(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(parameters),
+        signal: AbortSignal.timeout(this.timeout)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.status !== undefined && result.status !== 0) {
+        throw new Error(result.cause || result.message || `GP51 API error: ${result.status}`);
+      }
+
+      return result;
+
+    } catch (error) {
+      const errorMsg = `${action} failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      console.error(`❌ [GP51-UNIFIED] ${errorMsg}`);
+      throw new Error(errorMsg);
+    }
+  }
+
+  /**
+   * Test token validity with a simple API call
+   */
+  async testToken(token: string): Promise<GP51ApiResult> {
+    console.log('🔍 [GP51-UNIFIED] Testing token validity');
+    
+    try {
+      const result = await this.queryDevicesTree(token);
+      return {
+        success: true,
+        data: result,
+        status: 200
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Token test failed',
+        status: 400
+      };
+    }
   }
 }
 
-// Export singleton instance with default config
-export const gp51ApiClient = new GP51ApiClientUnified();
-
-// Export factory function for custom configurations
-export function createGP51ApiClient(config: Partial<GP51ApiClientConfig>): GP51ApiClientUnified {
-  return new GP51ApiClientUnified(config);
-}
+// Export singleton instance
+export const gp51ApiClient = new GP51ApiClient();

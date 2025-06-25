@@ -51,11 +51,24 @@ serve(async (req) => {
 
     console.log(`✅ [GP51-DIAGNOSTIC] Using session for user: ${session.username}`);
 
-    // Define comprehensive test scenarios
+    // Use the specific token format provided by user
+    const testToken = '3508e1e100a0030baa887cd7d92e279a';
+    console.log(`🔍 [GP51-DIAGNOSTIC] Testing with provided token: ${testToken.substring(0, 8)}...`);
+
+    // Define comprehensive test scenarios with the specific endpoint
     const tests: DiagnosticTest[] = [
       {
-        name: "Basic querydevicestree (current implementation)",
-        url: `https://api.gps51.com/webapi?action=querydevicestree&token=${session.gp51_token}&extend=self&serverid=0`,
+        name: "GET querydevicestree (corrected method)",
+        url: `https://api.gps51.com/webapi?action=querydevicestree&token=${testToken}&extend=self&serverid=0`,
+        method: "GET",
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Envio-GP51-Client/1.0'
+        }
+      },
+      {
+        name: "POST querydevicestree (original method)",
+        url: `https://api.gps51.com/webapi?action=querydevicestree&token=${testToken}&extend=self&serverid=0`,
         method: "POST",
         headers: {
           'Content-Type': 'application/json',
@@ -64,26 +77,17 @@ serve(async (req) => {
         }
       },
       {
-        name: "Minimal querydevicestree (no extra params)",
-        url: `https://api.gps51.com/webapi?action=querydevicestree&token=${session.gp51_token}`,
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      },
-      {
-        name: "Alternative querymonitorlist (for comparison)",
-        url: `https://api.gps51.com/webapi?action=querymonitorlist&token=${session.gp51_token}`,
-        method: "POST",
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      },
-      {
-        name: "GET method test (querydevicestree)",
+        name: "GET with stored session token",
         url: `https://api.gps51.com/webapi?action=querydevicestree&token=${session.gp51_token}&extend=self&serverid=0`,
+        method: "GET",
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'Envio-GP51-Client/1.0'
+        }
+      },
+      {
+        name: "GET querymonitorlist (alternative)",
+        url: `https://api.gps51.com/webapi?action=querymonitorlist&token=${testToken}`,
         method: "GET",
         headers: {
           'Accept': 'application/json'
@@ -96,7 +100,7 @@ serve(async (req) => {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         },
-        body: `action=querydevicestree&token=${session.gp51_token}&extend=self&serverid=0`
+        body: `action=querydevicestree&token=${testToken}&extend=self&serverid=0`
       }
     ];
 
@@ -108,7 +112,7 @@ serve(async (req) => {
       const startTime = Date.now();
       let result: any = {
         testName: test.name,
-        url: test.url.replace(session.gp51_token, '[TOKEN_MASKED]'),
+        url: test.url.replace(testToken, '[TOKEN_MASKED]').replace(session.gp51_token, '[SESSION_TOKEN_MASKED]'),
         method: test.method,
         requestHeaders: test.headers,
         requestBody: test.body || null,
@@ -154,7 +158,22 @@ serve(async (req) => {
         // Try to parse as JSON if it looks like JSON
         if (result.isJsonResponse || responseText.trim().startsWith('{')) {
           try {
-            result.responseBodyParsed = JSON.parse(responseText);
+            const parsedResponse = JSON.parse(responseText);
+            result.responseBodyParsed = parsedResponse;
+            
+            // Check for GP51 API status
+            if (parsedResponse.status !== undefined) {
+              result.gp51Status = parsedResponse.status;
+              result.gp51StatusMessage = parsedResponse.cause || parsedResponse.message || 'No message';
+              
+              if (parsedResponse.status === 0) {
+                result.gp51Success = true;
+                console.log(`✅ [GP51-DIAGNOSTIC] Test "${test.name}" - GP51 API success!`);
+              } else {
+                result.gp51Success = false;
+                console.log(`⚠️ [GP51-DIAGNOSTIC] Test "${test.name}" - GP51 API error: ${result.gp51StatusMessage}`);
+              }
+            }
           } catch (parseError) {
             result.jsonParseError = parseError.message;
           }
@@ -188,6 +207,11 @@ serve(async (req) => {
         apiUrl: session.api_url,
         sessionAge: Math.floor((Date.now() - new Date(session.created_at).getTime()) / 1000 / 60) // minutes
       },
+      testTokenInfo: {
+        providedToken: testToken,
+        tokenLength: testToken.length,
+        tokenFormat: 'hex-md5-like'
+      },
       networkInfo: {
         userAgent: req.headers.get('user-agent'),
         origin: req.headers.get('origin'),
@@ -197,18 +221,19 @@ serve(async (req) => {
 
     const response = {
       success: true,
-      message: 'GP51 diagnostic tests completed',
+      message: 'GP51 diagnostic tests completed with improved token and method testing',
       diagnosticInfo,
       testResults: results,
       summary: {
         totalTests: results.length,
         successfulTests: results.filter(r => r.success).length,
         failedTests: results.filter(r => !r.success).length,
-        timeoutTests: results.filter(r => r.timedOut).length
+        timeoutTests: results.filter(r => r.timedOut).length,
+        gp51SuccessfulTests: results.filter(r => r.gp51Success).length
       }
     };
 
-    console.log(`📋 [GP51-DIAGNOSTIC] All tests completed. Success: ${response.summary.successfulTests}/${response.summary.totalTests}`);
+    console.log(`📋 [GP51-DIAGNOSTIC] All tests completed. Success: ${response.summary.successfulTests}/${response.summary.totalTests}, GP51 Success: ${response.summary.gp51SuccessfulTests}`);
 
     return new Response(JSON.stringify(response, null, 2), {
       status: 200,
