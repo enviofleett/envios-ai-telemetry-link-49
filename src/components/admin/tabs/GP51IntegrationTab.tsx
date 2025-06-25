@@ -1,43 +1,34 @@
-
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import GP51AuthenticationPanel from '@/components/admin/GP51AuthenticationPanel';
-import GP51EndpointTester from '@/components/admin/GP51EndpointTester';
-import { Shield, CheckCircle, AlertTriangle, TestTube } from 'lucide-react';
+import GP51Settings from '../GP51Settings';
+import GP51ConnectionTester from '../GP51ConnectionTester';
+import GP51DiagnosticsPanel from '../GP51DiagnosticsPanel';
+import GP51DebugPanel from '../GP51DebugPanel';
+import GP51HealthIndicator from '../GP51HealthIndicator';
+import UnifiedImportPanel from '../UnifiedImportPanel';
+import GP51RawDiagnosticPanel from '../GP51RawDiagnosticPanel';
+
+interface GP51IntegrationTabProps {
+  // Define any props if needed
+}
 
 const GP51IntegrationTab: React.FC = () => {
+  // Define any state or handlers if needed
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center space-x-2">
-            <Shield className="h-5 w-5 text-blue-600" />
-            <CardTitle>GP51 Platform Integration</CardTitle>
-          </div>
-          <CardDescription>
-            Configure and manage your GPS51 platform connection for vehicle tracking and fleet management.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GP51AuthenticationPanel />
-        </CardContent>
-      </Card>
+      <GP51HealthIndicator />
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <GP51Settings />
+        <GP51ConnectionTester />
+      </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center space-x-2">
-            <TestTube className="h-5 w-5 text-orange-600" />
-            <CardTitle>Endpoint Migration Testing</CardTitle>
-          </div>
-          <CardDescription>
-            Test the new GP51 API endpoint to ensure proper connectivity and authentication after migration.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GP51EndpointTester />
-        </CardContent>
-      </Card>
+      {/* Add the new diagnostic panel */}
+      <GP51RawDiagnosticPanel />
+
+      <GP51DiagnosticsPanel />
+      <GP51DebugPanel />
+      <UnifiedImportPanel />
     </div>
   );
 };
