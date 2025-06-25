@@ -3,29 +3,29 @@ export interface GPS51Device {
   id: string;
   device_id: string;
   device_name: string;
-  group_id: number; // Changed from string to number
+  group_id: number;
   device_type: number;
   device_tag: string;
-  car_tag_color: number;
+  car_tag_color: number | null;
   sim_number: string | null;
   login_name: string | null;
   creator: string;
-  status_code: number | null;
-  status_text: string | null;
+  status_code?: number | null; // Optional as it may not exist in DB
+  status_text?: string | null; // Optional as it may not exist in DB
   last_active_time: number | null;
   overdue_time: number | null;
   expire_notify_time: number;
-  allow_edit: number;
-  starred: boolean | null;
+  allow_edit: number; // This is a number in DB, not boolean
+  starred: number | null; // This is a number in DB (0/1), not boolean
   icon: number | null;
   remark: string | null;
   video_channel_count: number | null;
   is_active: boolean;
-  days_since_active: number | null;
-  create_time: number;
+  days_since_active?: number | null; // Computed field
+  create_time: number | null;
   created_at: string;
   updated_at: string;
-  last_sync_at: string | null; // Using actual database field name
+  last_sync_at: string | null;
   gps51_groups?: {
     group_name: string;
   };
@@ -33,7 +33,7 @@ export interface GPS51Device {
 
 export interface GPS51Group {
   id: string;
-  group_id: number; // Changed from string to number
+  group_id: number;
   group_name: string;
   remark: string | null;
   device_count: number | null;
@@ -41,7 +41,7 @@ export interface GPS51Group {
   shared: number | null;
   created_at: string;
   updated_at: string;
-  last_sync_at: string | null; // Using actual database field name
+  last_sync_at: string | null;
 }
 
 export interface GPS51User {
@@ -58,7 +58,7 @@ export interface GPS51User {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  last_sync_at: string | null; // Using actual database field name
+  last_sync_at: string | null;
 }
 
 export interface GPS51Position {
@@ -79,7 +79,7 @@ export interface GPS51DashboardSummary {
   active_devices: number;
   total_groups: number;
   devices_with_positions: number;
-  total_users?: number; // Added missing property
+  total_users?: number;
 }
 
 export interface GPS51DataResponse {

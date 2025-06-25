@@ -35,6 +35,10 @@ const DeviceTable: React.FC<DeviceTableProps> = ({ devices, loading, onRefresh }
     return new Date(timestamp).toLocaleString();
   };
 
+  const getStarredIcon = (starred: number | null) => {
+    return starred && starred > 0 ? '⭐' : '';
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -102,7 +106,10 @@ const DeviceTable: React.FC<DeviceTableProps> = ({ devices, loading, onRefresh }
                       {device.device_id}
                     </TableCell>
                     <TableCell className="font-medium">
-                      {device.device_name}
+                      <div className="flex items-center gap-1">
+                        {device.device_name}
+                        {getStarredIcon(device.starred)}
+                      </div>
                     </TableCell>
                     <TableCell>
                       {device.gps51_groups?.group_name || 'No Group'}
