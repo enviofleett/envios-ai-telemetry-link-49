@@ -1,3 +1,4 @@
+
 import React from 'react';
 import GP51Settings from '../GP51Settings';
 import GP51ConnectionTester from '../GP51ConnectionTester';
@@ -6,29 +7,49 @@ import GP51DebugPanel from '../GP51DebugPanel';
 import GP51HealthIndicator from '../GP51HealthIndicator';
 import UnifiedImportPanel from '../UnifiedImportPanel';
 import GP51RawDiagnosticPanel from '../GP51RawDiagnosticPanel';
-
-interface GP51IntegrationTabProps {
-  // Define any props if needed
-}
+import GP51UserManagement from '../GP51UserManagement';
+import GP51HistoricalData from '../GP51HistoricalData';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const GP51IntegrationTab: React.FC = () => {
-  // Define any state or handlers if needed
-
   return (
     <div className="space-y-6">
       <GP51HealthIndicator />
       
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <GP51Settings />
-        <GP51ConnectionTester />
-      </div>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="users">User Management</TabsTrigger>
+          <TabsTrigger value="historical">Historical Data</TabsTrigger>
+          <TabsTrigger value="import">Import</TabsTrigger>
+          <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
+        </TabsList>
 
-      {/* Add the new diagnostic panel */}
-      <GP51RawDiagnosticPanel />
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <GP51Settings />
+            <GP51ConnectionTester />
+          </div>
+          <GP51DiagnosticsPanel />
+        </TabsContent>
 
-      <GP51DiagnosticsPanel />
-      <GP51DebugPanel />
-      <UnifiedImportPanel />
+        <TabsContent value="users" className="space-y-6">
+          <GP51UserManagement />
+        </TabsContent>
+
+        <TabsContent value="historical" className="space-y-6">
+          <GP51HistoricalData />
+        </TabsContent>
+
+        <TabsContent value="import" className="space-y-6">
+          <UnifiedImportPanel />
+        </TabsContent>
+
+        <TabsContent value="diagnostics" className="space-y-6">
+          <GP51RawDiagnosticPanel />
+          <GP51DebugPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

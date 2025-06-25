@@ -1,300 +1,387 @@
 
 import { md5_sync } from './crypto_utils.ts';
 
-export interface GP51ApiResponse<T = any> {
+export interface GP51ApiResponse {
   status: number;
   cause?: string;
+  message?: string;
   [key: string]: any;
 }
 
-export interface DeviceInfo {
-  deviceid: string;
-  devicename: string;
-  devicetype: number;
-  simnum: string;
-  overduetime: number;
-  expirenotifytime: number;
-  remark: string;
-  creater: string;
-  videochannelcount: number;
-  lastactivetime: number;
-  isfree: number;
-  allowedit: number;
-  icon: number;
-  stared: number;
-  loginame: string;
+export interface GP51LoginResponse extends GP51ApiResponse {
+  token?: string;
+  username?: string;
+  usertype?: number;
+  nickname?: string;
+  email?: string;
 }
 
-export interface GroupInfo {
-  groupid: number;
-  groupname: string;
-  remark: string;
-  devices: DeviceInfo[];
+export interface GP51MonitorListResponse extends GP51ApiResponse {
+  groups?: Array<{
+    groupid: number;
+    groupname: string;
+    remark?: string;
+    shared: number;
+    devices: Array<{
+      deviceid: string;
+      devicename: string;
+      devicetype: number;
+      simnum?: string;
+      createtime: number;
+      lastactivetime: number;
+      isfree: number;
+      creater: string;
+      [key: string]: any;
+    }>;
+  }>;
 }
 
-export interface MonitorListResponse extends GP51ApiResponse {
-  groups: GroupInfo[];
+export interface GP51UserDetailResponse extends GP51ApiResponse {
+  username?: string;
+  showname?: string;
+  usertype?: number;
+  companyname?: string;
+  email?: string;
+  phone?: string;
+  qq?: string;
+  wechat?: string;
+  multilogin?: number;
 }
 
-export class GP51ApiClient {
+export interface GP51TracksResponse extends GP51ApiResponse {
+  records?: Array<{
+    deviceid: string;
+    timestamp: number;
+    lat: number;
+    lon: number;
+    speed: number;
+    course: number;
+    altitude?: number;
+    [key: string]: any;
+  }>;
+}
+
+export interface GP51TripsResponse extends GP51ApiResponse {
+  trips?: Array<{
+    deviceid: string;
+    starttime: number;
+    endtime: number;
+    startlat: number;
+    startlon: number;
+    endlat: number;
+    endlon: number;
+    distance: number;
+    duration: number;
+    maxspeed: number;
+    avgspeed: number;
+    [key: string]: any;
+  }>;
+}
+
+export class GP51UnifiedClient {
   private baseUrl = 'https://www.gps51.com/webapi';
-  private token: string = '';
+  private username: string;
+  private password: string;
+  private token: string | null = null;
 
-  constructor(private username: string, private password: string) {}
+  constructor(username: string, password: string) {
+    this.username = username;
+    this.password = password;
+  }
 
-  /**
-   * Login to GP51 API and get token
-   */
-  async login(): Promise<boolean> {
-    console.log(`🔐 [GP51-FIXED] Starting login for user: ${this.username}`);
-    
+  private async makeRequest(action: string, params: Record<string, any> = {}): Promise<GP51ApiResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}?action=login&token=`, {
+      const url = `${this.baseUrl}?action=${action}&token=${this.token || ''}`;
+      
+      console.log(`🔄 [GP51-FIXED] Making ${action} request to: ${url}`);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`📊 [GP51-FIXED] ${action} response:`, data);
+      
+      return data;
+    } catch (error) {
+      console.error(`❌ [GP51-FIXED] ${action} request failed:`, error);
+      throw error;
+    }
+  }
+
+  async login(): Promise<{ success: boolean; token?: string; message?: string }> {
+    try {
+      console.log(`🔐 [GP51-FIXED] Starting login for user: ${this.username}`);
+      
+      const hashedPassword = md5_sync(this.password);
+      const loginUrl = `${this.baseUrl}?action=login&token=6c1f1207c35d97a744837a19663ecdbe`;
+      
+      const response = await fetch(loginUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           username: this.username,
-          password: md5_sync(this.password), // Password must be MD5 hashed
+          password: hashedPassword,
           from: 'WEB',
-          type: 'USER'
-        })
+          type: 'USER',
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`Login HTTP error! status: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data: GP51LoginResponse = await response.json();
       console.log(`🔐 [GP51-FIXED] Login response:`, data);
-      
+
       if (data.status === 0 && data.token) {
         this.token = data.token;
-        console.log(`✅ [GP51-FIXED] Login successful, token length: ${this.token.length}`);
-        return true;
+        console.log(`✅ [GP51-FIXED] Login successful, token length: ${data.token.length}`);
+        return { success: true, token: data.token };
       } else {
-        console.error(`❌ [GP51-FIXED] Login failed:`, data.cause || 'Unknown error');
-        return false;
+        console.error(`❌ [GP51-FIXED] Login failed:`, data.cause || data.message);
+        return { success: false, message: data.cause || data.message || 'Login failed' };
       }
     } catch (error) {
       console.error(`❌ [GP51-FIXED] Login error:`, error);
-      return false;
+      return { success: false, message: error instanceof Error ? error.message : 'Login failed' };
     }
   }
 
-  /**
-   * CORRECT METHOD: Query devices list (replaces queryDevicesTree)
-   * This is the actual GP51 API method for getting device hierarchy
-   */
-  async queryDevicesList(username?: string): Promise<MonitorListResponse | null> {
+  async queryMonitorList(): Promise<GP51MonitorListResponse> {
     if (!this.token) {
-      console.error('❌ [GP51-FIXED] Not authenticated. Call login() first.');
-      return null;
+      const loginResult = await this.login();
+      if (!loginResult.success) {
+        throw new Error(loginResult.message || 'Login failed');
+      }
     }
 
-    console.log(`📡 [GP51-FIXED] Querying monitor list for user: ${username || this.username}`);
-
-    try {
-      const response = await fetch(`${this.baseUrl}?action=querymonitorlist&token=${this.token}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: username || this.username
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data: MonitorListResponse = await response.json();
-      console.log(`📊 [GP51-FIXED] Monitor list response:`, data);
-      
-      if (data.status === 0) {
-        console.log(`✅ [GP51-FIXED] Query successful, found ${data.groups?.length || 0} groups`);
-        return data;
-      } else {
-        console.error(`❌ [GP51-FIXED] Query devices list failed:`, data.cause);
-        return null;
-      }
-    } catch (error) {
-      console.error(`❌ [GP51-FIXED] Query devices list error:`, error);
-      return null;
-    }
-  }
-
-  /**
-   * Get flattened device tree structure
-   * This provides the tree-like structure you were probably looking for
-   */
-  async getDevicesTree(username?: string): Promise<{
-    groups: GroupInfo[];
-    flatDevices: DeviceInfo[];
-    deviceCount: number;
-    groupCount: number;
-  } | null> {
-    const result = await this.queryDevicesList(username);
-    
-    if (!result) return null;
-
-    const flatDevices: DeviceInfo[] = [];
-    
-    // Flatten all devices from all groups
-    result.groups.forEach(group => {
-      if (group.devices) {
-        flatDevices.push(...group.devices);
-      }
+    console.log(`📡 [GP51-FIXED] Querying monitor list for user: ${this.username}`);
+    const response = await this.makeRequest('querymonitorlist', {
+      username: this.username,
     });
 
-    return {
-      groups: result.groups,
-      flatDevices,
-      deviceCount: flatDevices.length,
-      groupCount: result.groups.length
-    };
+    if (response.status === 0) {
+      console.log(`✅ [GP51-FIXED] Query successful, found ${response.groups?.length || 0} groups`);
+    } else {
+      console.error(`❌ [GP51-FIXED] Query failed:`, response.cause);
+    }
+
+    return response as GP51MonitorListResponse;
   }
 
-  /**
-   * Get devices with their last positions (more complete device info)
-   */
-  async getDevicesWithLastPosition(deviceIds?: string[]): Promise<any> {
+  async queryUserDetail(targetUsername?: string): Promise<GP51UserDetailResponse> {
     if (!this.token) {
-      console.error('❌ [GP51-FIXED] Not authenticated. Call login() first.');
-      return null;
+      const loginResult = await this.login();
+      if (!loginResult.success) {
+        throw new Error(loginResult.message || 'Login failed');
+      }
     }
 
-    console.log(`📍 [GP51-FIXED] Querying last position for ${deviceIds?.length || 'all'} devices`);
+    const username = targetUsername || this.username;
+    console.log(`👤 [GP51-FIXED] Querying user details for: ${username}`);
+    
+    const response = await this.makeRequest('queryuserdetail', {
+      username: username,
+    });
 
-    try {
-      const response = await fetch(`${this.baseUrl}?action=lastposition&token=${this.token}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          deviceids: deviceIds || [], // Empty array means all devices
-          lastquerypositiontime: 0 // First time query
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      console.log(`📍 [GP51-FIXED] Last position response:`, data);
-      
-      if (data.status === 0) {
-        console.log(`✅ [GP51-FIXED] Position query successful`);
-        return data;
-      } else {
-        console.error(`❌ [GP51-FIXED] Query last position failed:`, data.cause);
-        return null;
-      }
-    } catch (error) {
-      console.error(`❌ [GP51-FIXED] Query last position error:`, error);
-      return null;
+    if (response.status === 0) {
+      console.log(`✅ [GP51-FIXED] User detail query successful for: ${username}`);
+    } else {
+      console.error(`❌ [GP51-FIXED] User detail query failed:`, response.cause);
     }
-  }
-}
 
-// Usage Example and Migration Guide
-export class GP51UnifiedClient {
-  private client: GP51ApiClient;
-
-  constructor(username: string, password: string) {
-    this.client = new GP51ApiClient(username, password);
+    return response as GP51UserDetailResponse;
   }
 
-  /**
-   * FIXED: Replace your queryDevicesTree calls with this method
-   */
-  async getDevicesHierarchy(): Promise<any> {
-    try {
-      console.log(`🚀 [GP51-UNIFIED] Starting devices hierarchy fetch`);
-      
-      // First, authenticate
-      const loginSuccess = await this.client.login();
-      if (!loginSuccess) {
-        throw new Error('Authentication failed');
+  async queryTracks(deviceId: string, beginTime: string, endTime: string, timezone: number = 8): Promise<GP51TracksResponse> {
+    if (!this.token) {
+      const loginResult = await this.login();
+      if (!loginResult.success) {
+        throw new Error(loginResult.message || 'Login failed');
       }
-
-      // Get the devices tree (this replaces queryDevicesTree)
-      const devicesTree = await this.client.getDevicesTree();
-      if (!devicesTree) {
-        throw new Error('Failed to fetch devices tree');
-      }
-
-      console.log(`✅ [GP51-UNIFIED] Devices hierarchy retrieved successfully`);
-      return {
-        success: true,
-        data: devicesTree,
-        message: 'Devices tree retrieved successfully'
-      };
-    } catch (error) {
-      console.error(`❌ [GP51-UNIFIED] GetDevicesHierarchy error:`, error);
-      return {
-        success: false,
-        data: null,
-        message: error instanceof Error ? error.message : 'Unknown error occurred'
-      };
     }
+
+    console.log(`🛣️ [GP51-FIXED] Querying tracks for device: ${deviceId} from ${beginTime} to ${endTime}`);
+    
+    const response = await this.makeRequest('querytracks', {
+      deviceid: deviceId,
+      begintime: beginTime,
+      endtime: endTime,
+      timezone: timezone,
+    });
+
+    if (response.status === 0) {
+      console.log(`✅ [GP51-FIXED] Tracks query successful, found ${response.records?.length || 0} records`);
+    } else {
+      console.error(`❌ [GP51-FIXED] Tracks query failed:`, response.cause);
+    }
+
+    return response as GP51TracksResponse;
   }
 
-  /**
-   * Enhanced version with device positions
-   */
-  async getDevicesWithPositions(): Promise<any> {
-    try {
-      console.log(`🚀 [GP51-UNIFIED] Starting devices with positions fetch`);
-      
-      const loginSuccess = await this.client.login();
-      if (!loginSuccess) {
-        throw new Error('Authentication failed');
+  async queryTrips(deviceId: string, beginTime: string, endTime: string, timezone: number = 8): Promise<GP51TripsResponse> {
+    if (!this.token) {
+      const loginResult = await this.login();
+      if (!loginResult.success) {
+        throw new Error(loginResult.message || 'Login failed');
       }
+    }
 
-      // Get basic device list first
-      const devicesList = await this.client.queryDevicesList();
-      if (!devicesList) {
-        throw new Error('Failed to fetch devices list');
+    console.log(`🚗 [GP51-FIXED] Querying trips for device: ${deviceId} from ${beginTime} to ${endTime}`);
+    
+    const response = await this.makeRequest('querytrips', {
+      deviceid: deviceId,
+      begintime: beginTime,
+      endtime: endTime,
+      timezone: timezone,
+    });
+
+    if (response.status === 0) {
+      console.log(`✅ [GP51-FIXED] Trips query successful, found ${response.trips?.length || 0} trips`);
+    } else {
+      console.error(`❌ [GP51-FIXED] Trips query failed:`, response.cause);
+    }
+
+    return response as GP51TripsResponse;
+  }
+
+  async queryLastPosition(deviceIds: string[] = []): Promise<GP51ApiResponse> {
+    if (!this.token) {
+      const loginResult = await this.login();
+      if (!loginResult.success) {
+        throw new Error(loginResult.message || 'Login failed');
+      }
+    }
+
+    console.log(`📍 [GP51-FIXED] Querying last position for devices:`, deviceIds);
+    
+    const response = await this.makeRequest('lastposition', {
+      deviceids: deviceIds,
+      lastquerypositiontime: 0,
+    });
+
+    if (response.status === 0) {
+      console.log(`✅ [GP51-FIXED] Position query successful, found ${response.records?.length || 0} positions`);
+    } else {
+      console.error(`❌ [GP51-FIXED] Position query failed:`, response.cause);
+    }
+
+    return response;
+  }
+
+  // Combined method for getting devices with their current positions
+  async getDevicesWithPositions(): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      // First get the device list
+      const monitorListResponse = await this.queryMonitorList();
+      
+      if (monitorListResponse.status !== 0) {
+        return {
+          success: false,
+          message: monitorListResponse.cause || 'Failed to get device list'
+        };
       }
 
       // Extract all device IDs
       const deviceIds: string[] = [];
-      devicesList.groups.forEach(group => {
-        if (group.devices) {
-          deviceIds.push(...group.devices.map(device => device.deviceid));
-        }
+      const devices: any[] = [];
+      
+      monitorListResponse.groups?.forEach(group => {
+        group.devices?.forEach(device => {
+          deviceIds.push(device.deviceid);
+          devices.push({
+            ...device,
+            groupId: group.groupid,
+            groupName: group.groupname,
+          });
+        });
       });
 
-      console.log(`📍 [GP51-UNIFIED] Found ${deviceIds.length} devices, fetching positions...`);
+      // Get current positions for all devices
+      let positions: any[] = [];
+      if (deviceIds.length > 0) {
+        const positionResponse = await this.queryLastPosition(deviceIds);
+        if (positionResponse.status === 0 && positionResponse.records) {
+          positions = positionResponse.records;
+        }
+      }
 
-      // Get positions for all devices
-      const devicesWithPositions = await this.client.getDevicesWithLastPosition(deviceIds);
-      
-      console.log(`✅ [GP51-UNIFIED] Devices with positions retrieved successfully`);
-      
       return {
         success: true,
         data: {
-          hierarchy: devicesList,
-          positions: devicesWithPositions,
-          summary: {
-            totalGroups: devicesList.groups.length,
-            totalDevices: deviceIds.length
-          }
-        },
-        message: 'Devices with positions retrieved successfully'
+          groups: monitorListResponse.groups,
+          devices,
+          positions,
+          deviceCount: devices.length,
+          groupCount: monitorListResponse.groups?.length || 0,
+        }
       };
     } catch (error) {
-      console.error(`❌ [GP51-UNIFIED] GetDevicesWithPositions error:`, error);
+      console.error('❌ [GP51-FIXED] getDevicesWithPositions failed:', error);
       return {
         success: false,
-        data: null,
-        message: error instanceof Error ? error.message : 'Unknown error occurred'
+        message: error instanceof Error ? error.message : 'Failed to get devices with positions'
+      };
+    }
+  }
+
+  // Method for getting devices hierarchy (used by unified client)
+  async getDevicesHierarchy(): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      console.log('🚀 [GP51-UNIFIED] Starting devices hierarchy fetch');
+      
+      const monitorResponse = await this.queryMonitorList();
+      
+      if (monitorResponse.status !== 0) {
+        return {
+          success: false,
+          message: monitorResponse.cause || 'Failed to fetch devices hierarchy'
+        };
+      }
+
+      // Transform the data into a consistent format
+      const groups = monitorResponse.groups || [];
+      const flatDevices: any[] = [];
+      
+      groups.forEach(group => {
+        group.devices?.forEach(device => {
+          flatDevices.push({
+            ...device,
+            groupId: group.groupid,
+            groupName: group.groupname,
+          });
+        });
+      });
+
+      const hierarchyData = {
+        groups,
+        flatDevices,
+        deviceCount: flatDevices.length,
+        groupCount: groups.length,
+      };
+
+      console.log('✅ [GP51-UNIFIED] Devices hierarchy retrieved successfully');
+      
+      return {
+        success: true,
+        data: hierarchyData
+      };
+    } catch (error) {
+      console.error('❌ [GP51-UNIFIED] Devices hierarchy fetch failed:', error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to fetch devices hierarchy'
       };
     }
   }
