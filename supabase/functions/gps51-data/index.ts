@@ -34,7 +34,7 @@ serve(async (req) => {
           console.error('Groups count error:', groupsError);
         }
 
-        // Get devices count and stats
+        // Get devices count and stats - handle both is_active and is_expired columns
         const { data: devices, count: devicesCount, error: devicesError } = await supabase
           .from('gps51_devices')
           .select('is_active, is_expired', { count: 'exact' });

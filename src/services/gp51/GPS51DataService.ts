@@ -119,12 +119,29 @@ export class GPS51DataService {
 
       if (usersError) throw usersError;
 
-      // Get summary stats - fix column names to match database
+      // Get summary stats - handle the database schema properly
       const { data: deviceStats, error: statsError } = await supabase
         .from('gps51_devices')
         .select('is_active, is_expired');
 
       if (statsError) throw statsError;
+
+      // Transform the data to match TypeScript interfaces
+      const transformedGroups = (groups || []).map(group => ({
+        ...group,
+        last_sync: group.last_sync || group.last_sync_at || new Date().toISOString()
+      }));
+
+      const transformedDevices = (devices || []).map(device => ({
+        ...device,
+        last_sync: device.last_sync || device.last_sync_at || new Date().toISOString(),
+        is_expired: device.is_expired || false
+      }));
+
+      const transformedUsers = (users || []).map(user => ({
+        ...user,
+        last_sync: user.last_sync || user.last_sync_at || new Date().toISOString()
+      }));
 
       const summary = {
         total_devices: deviceStats?.length || 0,
@@ -137,9 +154,9 @@ export class GPS51DataService {
       return {
         success: true,
         data: {
-          groups: groups || [],
-          devices: devices || [],
-          users: users || [],
+          groups: transformedGroups,
+          devices: transformedDevices,
+          users: transformedUsers,
           summary
         }
       };

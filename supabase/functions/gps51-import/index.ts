@@ -23,56 +23,124 @@ serve(async (req) => {
     if (importType === 'test' || importType === 'full') {
       console.log('🧪 Creating sample GPS51 data...');
 
-      // Sample groups
+      // Sample groups with correct schema
       const sampleGroups = [
-        { group_id: 'group_001', group_name: 'Fleet Alpha', device_count: 5, remark: 'Primary delivery fleet' },
-        { group_id: 'group_002', group_name: 'Fleet Beta', device_count: 3, remark: 'Secondary fleet' },
-        { group_id: 'group_003', group_name: 'Fleet Gamma', device_count: 2, remark: 'Test vehicles' }
+        { 
+          group_id: 'group_001', 
+          group_name: 'Fleet Alpha', 
+          device_count: 5, 
+          remark: 'Primary delivery fleet',
+          last_sync: new Date().toISOString()
+        },
+        { 
+          group_id: 'group_002', 
+          group_name: 'Fleet Beta', 
+          device_count: 3, 
+          remark: 'Secondary fleet',
+          last_sync: new Date().toISOString()
+        },
+        { 
+          group_id: 'group_003', 
+          group_name: 'Fleet Gamma', 
+          device_count: 2, 
+          remark: 'Test vehicles',
+          last_sync: new Date().toISOString()
+        }
       ];
 
-      // Sample devices
+      // Sample devices with correct schema
       const sampleDevices = [
-        { device_id: 'DEV001', device_name: 'Vehicle Alpha-1', group_id: 'group_001', device_type: 'GPS Tracker', sim_number: '1234567890', is_active: true, is_expired: false },
-        { device_id: 'DEV002', device_name: 'Vehicle Alpha-2', group_id: 'group_001', device_type: 'GPS Tracker', sim_number: '1234567891', is_active: true, is_expired: false },
-        { device_id: 'DEV003', device_name: 'Vehicle Beta-1', group_id: 'group_002', device_type: 'GPS Tracker', sim_number: '1234567892', is_active: false, is_expired: false },
-        { device_id: 'DEV004', device_name: 'Vehicle Gamma-1', group_id: 'group_003', device_type: 'GPS Tracker', sim_number: '1234567893', is_active: true, is_expired: true }
+        { 
+          device_id: 'DEV001', 
+          device_name: 'Vehicle Alpha-1', 
+          group_id: 'group_001', 
+          device_type: 'GPS Tracker', 
+          sim_number: '1234567890', 
+          is_active: true, 
+          is_expired: false,
+          last_sync: new Date().toISOString()
+        },
+        { 
+          device_id: 'DEV002', 
+          device_name: 'Vehicle Alpha-2', 
+          group_id: 'group_001', 
+          device_type: 'GPS Tracker', 
+          sim_number: '1234567891', 
+          is_active: true, 
+          is_expired: false,
+          last_sync: new Date().toISOString()
+        },
+        { 
+          device_id: 'DEV003', 
+          device_name: 'Vehicle Beta-1', 
+          group_id: 'group_002', 
+          device_type: 'GPS Tracker', 
+          sim_number: '1234567892', 
+          is_active: false, 
+          is_expired: false,
+          last_sync: new Date().toISOString()
+        },
+        { 
+          device_id: 'DEV004', 
+          device_name: 'Vehicle Gamma-1', 
+          group_id: 'group_003', 
+          device_type: 'GPS Tracker', 
+          sim_number: '1234567893', 
+          is_active: true, 
+          is_expired: true,
+          last_sync: new Date().toISOString()
+        }
       ];
 
-      // Sample users
+      // Sample users with correct schema
       const sampleUsers = [
-        { username: 'admin_user', display_name: 'System Administrator', user_type: 1, user_type_text: 'Admin', device_count: 10 },
-        { username: 'fleet_manager', display_name: 'Fleet Manager', user_type: 2, user_type_text: 'Manager', device_count: 8 }
+        { 
+          username: 'admin_user', 
+          display_name: 'System Administrator', 
+          user_type: 1, 
+          user_type_text: 'Admin', 
+          device_count: 10,
+          last_sync: new Date().toISOString()
+        },
+        { 
+          username: 'fleet_manager', 
+          display_name: 'Fleet Manager', 
+          user_type: 2, 
+          user_type_text: 'Manager', 
+          device_count: 8,
+          last_sync: new Date().toISOString()
+        }
       ];
 
       let groupsInserted = 0;
       let devicesInserted = 0;
       let usersInserted = 0;
 
-      // Insert groups using upsert
+      // Insert groups using upsert with correct syntax
       for (const group of sampleGroups) {
         const { error } = await supabase
           .from('gps51_groups')
-          .upsert(group, { onConflict: 'group_id' });
+          .upsert(group);
         
         if (!error) groupsInserted++;
         else console.error('Group insert error:', error);
       }
 
-      // Insert devices using upsert
+      // Insert devices using upsert with correct syntax
       for (const device of sampleDevices) {
         const { error } = await supabase
           .from('gps51_devices')
-          .upsert(device, { onConflict: 'device_id' });
+          .upsert(device);
         
         if (!error) devicesInserted++;
         else console.error('Device insert error:', error);
       }
 
-      // Insert users using upsert
+      // Insert users using upsert with correct syntax
       for (const user of sampleUsers) {
         const { error } = await supabase
           .from('gps51_users')
-          .upsert(user, { onConflict: 'username' });
+          .upsert(user);
         
         if (!error) usersInserted++;
         else console.error('User insert error:', error);
