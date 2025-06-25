@@ -3,20 +3,29 @@ export interface GPS51Device {
   id: string;
   device_id: string;
   device_name: string;
-  group_id?: string;
-  device_type?: string;
-  sim_number?: string;
-  login_name?: string;
-  creator?: string;
-  status_code?: number;
-  status_text?: string;
-  last_active_time?: string;
+  group_id: number; // Changed from string to number
+  device_type: number;
+  device_tag: string;
+  car_tag_color: number;
+  sim_number: string | null;
+  login_name: string | null;
+  creator: string;
+  status_code: number | null;
+  status_text: string | null;
+  last_active_time: number | null;
+  overdue_time: number | null;
+  expire_notify_time: number;
+  allow_edit: number;
+  starred: boolean | null;
+  icon: number | null;
+  remark: string | null;
+  video_channel_count: number | null;
   is_active: boolean;
-  is_expired: boolean;
-  days_since_active?: number;
+  days_since_active: number | null;
+  create_time: number;
   created_at: string;
   updated_at: string;
-  last_sync: string;
+  last_sync_at: string | null; // Using actual database field name
   gps51_groups?: {
     group_name: string;
   };
@@ -24,28 +33,32 @@ export interface GPS51Device {
 
 export interface GPS51Group {
   id: string;
-  group_id: string;
+  group_id: number; // Changed from string to number
   group_name: string;
-  remark?: string;
-  device_count: number;
+  remark: string | null;
+  device_count: number | null;
+  is_active: boolean | null;
+  shared: number | null;
   created_at: string;
   updated_at: string;
-  last_sync: string;
+  last_sync_at: string | null; // Using actual database field name
 }
 
 export interface GPS51User {
   id: string;
-  username: string;
-  display_name?: string;
-  user_type?: number;
-  user_type_text?: string;
-  company_name?: string;
-  email?: string;
-  phone?: string;
-  device_count: number;
+  envio_user_id: string;
+  gp51_username: string;
+  nickname: string;
+  company_name: string;
+  email: string;
+  phone: string;
+  qq: string;
+  wechat: string;
+  multi_login: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
-  last_sync: string;
+  last_sync_at: string | null; // Using actual database field name
 }
 
 export interface GPS51Position {
@@ -64,9 +77,8 @@ export interface GPS51Position {
 export interface GPS51DashboardSummary {
   total_devices: number;
   active_devices: number;
-  expired_devices: number;
   total_groups: number;
-  total_users: number;
+  devices_with_positions: number;
 }
 
 export interface GPS51DataResponse {

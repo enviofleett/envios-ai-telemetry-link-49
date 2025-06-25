@@ -98,7 +98,7 @@ export class GPS51DataService {
 
       if (groupsError) throw groupsError;
 
-      // Get devices with group info - fix column names to match database
+      // Get devices with group info
       const { data: devices, error: devicesError } = await supabase
         .from('gps51_devices')
         .select(`
@@ -114,41 +114,39 @@ export class GPS51DataService {
       const { data: users, error: usersError } = await supabase
         .from('gps51_users')
         .select('*')
-        .order('username')
+        .order('gp51_username')
         .limit(100);
 
       if (usersError) throw usersError;
 
-      // Get summary stats - handle the database schema properly
+      // Get summary stats
       const { data: deviceStats, error: statsError } = await supabase
         .from('gps51_devices')
-        .select('is_active, is_expired');
+        .select('is_active');
 
       if (statsError) throw statsError;
 
       // Transform the data to match TypeScript interfaces
       const transformedGroups = (groups || []).map(group => ({
         ...group,
-        last_sync: group.last_sync || group.last_sync_at || new Date().toISOString()
+        last_sync_at: group.last_sync_at || new Date().toISOString()
       }));
 
       const transformedDevices = (devices || []).map(device => ({
         ...device,
-        last_sync: device.last_sync || device.last_sync_at || new Date().toISOString(),
-        is_expired: device.is_expired || false
+        last_sync_at: device.last_sync_at || new Date().toISOString()
       }));
 
       const transformedUsers = (users || []).map(user => ({
         ...user,
-        last_sync: user.last_sync || user.last_sync_at || new Date().toISOString()
+        last_sync_at: user.last_sync_at || new Date().toISOString()
       }));
 
       const summary = {
         total_devices: deviceStats?.length || 0,
         active_devices: deviceStats?.filter(d => d.is_active)?.length || 0,
-        expired_devices: deviceStats?.filter(d => d.is_expired)?.length || 0,
         total_groups: groups?.length || 0,
-        total_users: users?.length || 0
+        devices_with_positions: 0
       };
 
       return {

@@ -18,13 +18,109 @@ const GPS51Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [diagnosticInfo, setDiagnosticInfo] = useState<any>(null);
+  const [connectionTest, setConnectionTest] = useState<any>(null);
+  const [dataMode, setDataMode] = useState<'api' | 'mock'>('api');
 
   // Load data on component mount
   useEffect(() => {
     loadDashboardData();
-  }, []);
+  }, [dataMode]);
 
   const loadDashboardData = async () => {
+    if (dataMode === 'mock') {
+      // Mock data for testing
+      setData({
+        success: true,
+        data: {
+          groups: [
+            {
+              id: '1',
+              group_id: 1,
+              group_name: 'Fleet A',
+              remark: 'Primary fleet vehicles',
+              device_count: 25,
+              is_active: true,
+              shared: 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              last_sync_at: new Date().toISOString()
+            },
+            {
+              id: '2',
+              group_id: 2,
+              group_name: 'Fleet B',
+              remark: 'Secondary fleet',
+              device_count: 18,
+              is_active: true,
+              shared: 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              last_sync_at: new Date().toISOString()
+            }
+          ],
+          devices: [
+            {
+              id: '1',
+              device_id: 'DEV001',
+              device_name: 'Vehicle Alpha',
+              group_id: 1,
+              device_type: 92,
+              device_tag: 'ALPHA',
+              car_tag_color: 1,
+              sim_number: '1234567890',
+              login_name: 'alpha_login',
+              creator: 'admin',
+              status_code: 1,
+              status_text: 'Normal',
+              last_active_time: Date.now(),
+              overdue_time: null,
+              expire_notify_time: Date.now() + 86400000,
+              allow_edit: 1,
+              starred: false,
+              icon: 1,
+              remark: 'Test vehicle',
+              video_channel_count: 4,
+              is_active: true,
+              days_since_active: 0,
+              create_time: Date.now(),
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              last_sync_at: new Date().toISOString(),
+              gps51_groups: { group_name: 'Fleet A' }
+            }
+          ],
+          users: [
+            {
+              id: '1',
+              envio_user_id: 'env001',
+              gp51_username: 'admin',
+              nickname: 'Administrator',
+              company_name: 'Test Company',
+              email: 'admin@example.com',
+              phone: '1234567890',
+              qq: '123456',
+              wechat: 'admin_wechat',
+              multi_login: 1,
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              last_sync_at: new Date().toISOString()
+            }
+          ],
+          summary: {
+            total_devices: 1,
+            active_devices: 1,
+            total_groups: 2,
+            devices_with_positions: 0
+          }
+        }
+      });
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -72,6 +168,21 @@ const GPS51Dashboard: React.FC = () => {
     }
   };
 
+  const runDiagnostic = async () => {
+    try {
+      const result = await gps51DataService.testConnections();
+      setDiagnosticInfo(result);
+    } catch (error) {
+      console.error('❌ Diagnostic failed:', error);
+      setDiagnosticInfo([{
+        name: 'Diagnostic Error',
+        success: false,
+        data: 0,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }]);
+    }
+  };
+
   if (loading && !data) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -100,6 +211,20 @@ const GPS51Dashboard: React.FC = () => {
         </div>
         <div className="flex gap-2">
           <Button
+            variant={dataMode === 'api' ? 'default' : 'outline'}
+            onClick={() => setDataMode('api')}
+            size="sm"
+          >
+            Live Data
+          </Button>
+          <Button
+            variant={dataMode === 'mock' ? 'default' : 'outline'}
+            onClick={() => setDataMode('mock')}
+            size="sm"
+          >
+            Mock Data
+          </Button>
+          <Button
             variant="outline"
             onClick={handleRefresh}
             disabled={loading}
@@ -116,6 +241,15 @@ const GPS51Dashboard: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Data Mode Indicator */}
+      {dataMode === 'mock' && (
+        <Alert>
+          <AlertDescription>
+            <strong>Mock Data Mode:</strong> Displaying sample data for testing. Switch to "Live Data" to see real GPS51 data.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Error Alert */}
       {error && (
@@ -182,8 +316,38 @@ const GPS51Dashboard: React.FC = () => {
                   <Database className="h-4 w-4 mr-2" />
                   Import from GPS51
                 </Button>
+                <Button variant="outline" onClick={runDiagnostic}>
+                  <Activity className="h-4 w-4 mr-2" />
+                  Run Diagnostic
+                </Button>
               </CardContent>
             </Card>
+
+            {/* Diagnostic Results */}
+            {diagnosticInfo && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Diagnostic Results</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {diagnosticInfo.map((test: GPS51TestResult, index: number) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                        <span className="font-medium">{test.name}</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={test.success ? "default" : "destructive"}>
+                            {test.success ? "✅ Pass" : "❌ Fail"}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            {test.data} records
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
 
