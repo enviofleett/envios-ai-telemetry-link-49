@@ -1,7 +1,7 @@
 
 import React from 'react';
 import GP51Settings from '../GP51Settings';
-import GP51ConnectionTester from '../GP51ConnectionTester';
+import { GP51ConnectionTester } from '../GP51ConnectionTester';
 import GP51DiagnosticsPanel from '../GP51DiagnosticsPanel';
 import GP51DebugPanel from '../GP51DebugPanel';
 import GP51HealthIndicator from '../GP51HealthIndicator';
