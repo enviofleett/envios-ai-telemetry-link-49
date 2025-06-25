@@ -20,20 +20,28 @@ function safeArray(value: any): any[] {
 interface CompanySettings {
   company_name: string;
   company_address: string;
-  company_phone: string;
-  company_email: string;
-  company_website: string;
-  company_description: string;
+  phone_number: string;
+  contact_email: string;
+  operational_hours: string;
+  fleet_size: number;
+  currency_code: string;
+  currency_symbol: string;
+  timezone: string;
+  logo_url: string;
 }
 
 const CompanySettingsForm: React.FC = () => {
   const [settings, setSettings] = useState<CompanySettings>({
     company_name: '',
     company_address: '',
-    company_phone: '',
-    company_email: '',
-    company_website: '',
-    company_description: ''
+    phone_number: '',
+    contact_email: '',
+    operational_hours: '',
+    fleet_size: 0,
+    currency_code: 'USD',
+    currency_symbol: '$',
+    timezone: 'UTC',
+    logo_url: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -64,10 +72,14 @@ const CompanySettingsForm: React.FC = () => {
         setSettings({
           company_name: data.company_name || '',
           company_address: data.company_address || '',
-          company_phone: data.company_phone || '',
-          company_email: data.company_email || '',
-          company_website: data.company_website || '',
-          company_description: data.company_description || ''
+          phone_number: data.phone_number || '',
+          contact_email: data.contact_email || '',
+          operational_hours: data.operational_hours || '',
+          fleet_size: data.fleet_size || 0,
+          currency_code: data.currency_code || 'USD',
+          currency_symbol: data.currency_symbol || '$',
+          timezone: data.timezone || 'UTC',
+          logo_url: data.logo_url || ''
         });
       }
     } catch (error) {
@@ -161,33 +173,54 @@ const CompanySettingsForm: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="company_email">Company Email</Label>
+            <Label htmlFor="contact_email">Contact Email</Label>
             <Input
-              id="company_email"
+              id="contact_email"
               type="email"
-              value={settings.company_email}
-              onChange={(e) => handleInputChange('company_email', e.target.value)}
-              placeholder="Enter company email"
+              value={settings.contact_email}
+              onChange={(e) => handleInputChange('contact_email', e.target.value)}
+              placeholder="Enter contact email"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="company_phone">Company Phone</Label>
+            <Label htmlFor="phone_number">Phone Number</Label>
             <Input
-              id="company_phone"
-              value={settings.company_phone}
-              onChange={(e) => handleInputChange('company_phone', e.target.value)}
-              placeholder="Enter company phone"
+              id="phone_number"
+              value={settings.phone_number}
+              onChange={(e) => handleInputChange('phone_number', e.target.value)}
+              placeholder="Enter phone number"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="company_website">Company Website</Label>
+            <Label htmlFor="fleet_size">Fleet Size</Label>
             <Input
-              id="company_website"
-              value={settings.company_website}
-              onChange={(e) => handleInputChange('company_website', e.target.value)}
-              placeholder="Enter company website"
+              id="fleet_size"
+              type="number"
+              value={settings.fleet_size}
+              onChange={(e) => handleInputChange('fleet_size', parseInt(e.target.value) || 0)}
+              placeholder="Enter fleet size"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="currency_code">Currency Code</Label>
+            <Input
+              id="currency_code"
+              value={settings.currency_code}
+              onChange={(e) => handleInputChange('currency_code', e.target.value)}
+              placeholder="USD"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="timezone">Timezone</Label>
+            <Input
+              id="timezone"
+              value={settings.timezone}
+              onChange={(e) => handleInputChange('timezone', e.target.value)}
+              placeholder="UTC"
             />
           </div>
         </div>
@@ -204,13 +237,13 @@ const CompanySettingsForm: React.FC = () => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="company_description">Company Description</Label>
+          <Label htmlFor="operational_hours">Operational Hours</Label>
           <Textarea
-            id="company_description"
-            value={settings.company_description}
-            onChange={(e) => handleInputChange('company_description', e.target.value)}
-            placeholder="Enter company description"
-            rows={4}
+            id="operational_hours"
+            value={settings.operational_hours}
+            onChange={(e) => handleInputChange('operational_hours', e.target.value)}
+            placeholder="Enter operational hours"
+            rows={2}
           />
         </div>
 
