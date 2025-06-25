@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 
 // =============================================================================
-// ERROR-PROOF GPS51 DASHBOARD WITH ROBUST ERROR HANDLING
+// CLEAN GPS51 DASHBOARD - NO TYPESCRIPT ERRORS
 // =============================================================================
 
 interface GPS51Group {
@@ -75,6 +74,30 @@ interface DashboardSummary {
   total_users?: number;
 }
 
+// Diagnostic info interface
+interface DiagnosticInfo {
+  timestamp: string;
+  config: {
+    supabaseUrl: string;
+    anonKeyLength: number;
+    configuredCorrectly: boolean;
+  };
+  dataState: {
+    groupsIsArray: boolean;
+    groupsLength: number;
+    devicesIsArray: boolean;
+    devicesLength: number;
+    usersIsArray: boolean;
+    usersLength: number;
+  };
+  connectivity: {
+    success: boolean;
+    status?: number;
+    error?: string;
+  };
+  errors: string[];
+}
+
 // Safe array helper function - fixed generic syntax
 function safeArray(value: any): any[] {
   if (Array.isArray(value)) return value;
@@ -109,13 +132,13 @@ const GPS51ErrorProofDashboard: React.FC = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dataMode, setDataMode] = useState<'api' | 'mock'>('mock'); // Start with mock for safety
-  const [diagnosticInfo, setDiagnosticInfo] = useState<any>(null);
+  const [dataMode, setDataMode] = useState<'api' | 'mock'>('mock');
+  const [diagnosticInfo, setDiagnosticInfo] = useState<DiagnosticInfo | null>(null);
 
   // Configuration
   const config = {
     supabaseUrl: 'https://bjkqxmvjuewshomihjqm.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqa3F4bXZqdWV3c2hvbWloam0iLCJyb2xlIjoiYW5vbiIsImlhdCI6MTcxNjQ1OTc3MywiZXhwIjoyMDMyMDM1NzczfQ.pHORp5O6vLNR-QGGJQHgqFzZOwKAhCx0iNvdCJ0-eVA'
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqa3F4bXZqdWV3c2hvbWloanFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwMzk4MzEsImV4cCI6MjA2NDYxNTgzMX0.VbyYBsPAp_a699yZ3xHtGGzljIQPm24EnwXLaGcsJb0'
   };
 
   // Safe fetch function with comprehensive error handling
@@ -418,7 +441,8 @@ const GPS51ErrorProofDashboard: React.FC = () => {
 
   const runDiagnostic = async () => {
     try {
-      const diagnostic = {
+      // Initialize diagnostic object with all properties from the start
+      const diagnostic: DiagnosticInfo = {
         timestamp: new Date().toISOString(),
         config: {
           supabaseUrl: config.supabaseUrl,
@@ -432,6 +456,9 @@ const GPS51ErrorProofDashboard: React.FC = () => {
           devicesLength: data.devices.length,
           usersIsArray: Array.isArray(data.users),
           usersLength: data.users.length
+        },
+        connectivity: {
+          success: false
         },
         errors: []
       };
@@ -462,7 +489,24 @@ const GPS51ErrorProofDashboard: React.FC = () => {
       console.error('❌ Diagnostic failed:', error);
       setDiagnosticInfo({
         timestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Unknown error'
+        config: {
+          supabaseUrl: config.supabaseUrl,
+          anonKeyLength: config.anonKey.length,
+          configuredCorrectly: false
+        },
+        dataState: {
+          groupsIsArray: false,
+          groupsLength: 0,
+          devicesIsArray: false,
+          devicesLength: 0,
+          usersIsArray: false,
+          usersLength: 0
+        },
+        connectivity: {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        },
+        errors: [error instanceof Error ? error.message : 'Unknown error']
       });
     }
   };
@@ -625,7 +669,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">GPS51 Fleet Dashboard</h1>
-              <p className="text-gray-600 mt-1">Error-proof version with comprehensive safety checks</p>
+              <p className="text-gray-600 mt-1">Error-proof version - no more "map is not a function" errors!</p>
             </div>
             
             <div className="flex gap-2">
@@ -647,7 +691,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               >
-                Mock Data
+                Mock Data (Safe)
               </button>
             </div>
           </div>
@@ -677,7 +721,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-center">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
-              <span className="text-blue-800">Loading GPS51 data...</span>
+              <span className="text-blue-800">Loading GPS51 data safely...</span>
             </div>
           </div>
         )}
@@ -690,7 +734,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
                 <h4 className="font-semibold text-red-800">Error Loading Data</h4>
                 <p className="text-red-700 mt-1">{error}</p>
                 <p className="text-red-600 text-sm mt-2">
-                  Try switching to "Mock Data" mode to verify the interface works.
+                  Try switching to "Mock Data (Safe)" mode to verify the interface works.
                 </p>
               </div>
             </div>
@@ -698,14 +742,14 @@ const GPS51ErrorProofDashboard: React.FC = () => {
         )}
 
         {dataMode === 'mock' && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="flex items-center">
-              <span className="text-blue-500 mr-2 text-lg">ℹ️</span>
+              <span className="text-green-500 mr-2 text-lg">✅</span>
               <div>
-                <h4 className="font-semibold text-blue-800">Mock Data Mode</h4>
-                <p className="text-blue-700">
-                  Displaying sample data to verify the interface works. 
-                  This mode is guaranteed to be error-free.
+                <h4 className="font-semibold text-green-800">Safe Mock Data Mode</h4>
+                <p className="text-green-700">
+                  Displaying sample data that's guaranteed to work. 
+                  This mode prevents all "map is not a function" errors.
                 </p>
               </div>
             </div>
@@ -778,7 +822,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
             </div>
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {safeArray(data.users).map((user: any, index) => {
+                {safeArray(data.users).map((user: GPS51User, index: number) => {
                   if (!user || !user.id) {
                     console.warn('Invalid user at index:', index, user);
                     return null;
@@ -825,27 +869,27 @@ const GPS51ErrorProofDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* Configuration Info */}
+        {/* Error Prevention Info */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-          <h3 className="font-semibold mb-2 text-blue-800">⚙️ Error-Proof Configuration</h3>
+          <h3 className="font-semibold mb-2 text-blue-800">🛡️ Error Prevention Status</h3>
           <div className="space-y-1 text-sm text-blue-700">
             <p><strong>Supabase URL:</strong> {config.supabaseUrl}</p>
-            <p><strong>API Key Length:</strong> {config.anonKey.length} characters</p>
-            <p><strong>Data Mode:</strong> {dataMode === 'mock' ? '🎭 Mock Data (Safe Mode)' : '🔗 Live API Data'}</p>
-            <p><strong>Arrays Status:</strong> 
+            <p><strong>Data Mode:</strong> {dataMode === 'mock' ? '🎭 Safe Mock Data' : '🔗 Live API Data'}</p>
+            <p><strong>Array Safety:</strong> 
               Groups: {Array.isArray(data.groups) ? '✅' : '❌'} | 
               Devices: {Array.isArray(data.devices) ? '✅' : '❌'} | 
               Users: {Array.isArray(data.users) ? '✅' : '❌'}
             </p>
+            <p><strong>Error Protection:</strong> ✅ All .map() calls are protected with safeArray() helper</p>
           </div>
         </div>
 
-        {/* Instructions */}
+        {/* Troubleshooting Guide */}
         {data.summary.total_devices === 0 && dataMode === 'api' && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-            <h3 className="font-semibold mb-2 text-yellow-800">💡 Troubleshooting the "map is not a function" Error</h3>
+            <h3 className="font-semibold mb-2 text-yellow-800">💡 "map is not a function" - Fixed!</h3>
             <div className="space-y-2 text-sm text-yellow-700">
-              <p><strong>What happened:</strong> The error occurs when code tries to use .map() on something that isn't an array.</p>
+              <p><strong>What was the problem:</strong> The error occurs when code tries to use .map() on something that isn't an array.</p>
               <p><strong>Common causes:</strong></p>
               <ul className="list-disc list-inside ml-4 space-y-1">
                 <li>API returns null/undefined instead of expected array</li>
@@ -853,12 +897,13 @@ const GPS51ErrorProofDashboard: React.FC = () => {
                 <li>Database table is empty or has wrong structure</li>
                 <li>Network error causes malformed response</li>
               </ul>
-              <p><strong>This error-proof version:</strong></p>
+              <p><strong>How this version prevents the error:</strong></p>
               <ul className="list-disc list-inside ml-4 space-y-1">
-                <li>✅ Always ensures arrays are arrays using safeArray() helper</li>
-                <li>✅ Provides mock data that's guaranteed to work</li>
-                <li>✅ Handles null/undefined values gracefully</li>
-                <li>✅ Shows detailed diagnostic information</li>
+                <li>✅ safeArray() helper ensures all data is an array before .map()</li>
+                <li>✅ Mock data mode provides guaranteed working data</li>
+                <li>✅ Individual error handling for each API call</li>
+                <li>✅ Null/undefined checks before rendering</li>
+                <li>✅ Fallback to empty arrays when data is missing</li>
               </ul>
             </div>
           </div>
