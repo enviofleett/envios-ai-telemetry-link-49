@@ -75,23 +75,23 @@ interface DashboardSummary {
   total_users?: number;
 }
 
-// Safe array helper function
-const safeArray = <T>(value: any): T[] => {
+// Safe array helper function - fixed generic syntax
+function safeArray(value: any): any[] {
   if (Array.isArray(value)) return value;
   if (value === null || value === undefined) return [];
   console.warn('Expected array but got:', typeof value, value);
   return [];
-};
+}
 
 // Safe number helper function
-const safeNumber = (value: any): number => {
+function safeNumber(value: any): number {
   if (typeof value === 'number' && !isNaN(value)) return value;
   if (typeof value === 'string') {
     const parsed = parseInt(value, 10);
     return isNaN(parsed) ? 0 : parsed;
   }
   return 0;
-};
+}
 
 const GPS51ErrorProofDashboard: React.FC = () => {
   const [data, setData] = useState({
@@ -115,7 +115,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
   // Configuration
   const config = {
     supabaseUrl: 'https://bjkqxmvjuewshomihjqm.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqa3F4bXZqdWV3c2hvbWloanFtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkwMzk4MzEsImV4cCI6MjA2NDYxNTgzMX0.VbyYBsPAp_a699yZ3xHtGGzljIQPm24EnwXLaGcsJb0'
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJqa3F4bXZqdWV3c2hvbWloam0iLCJyb2xlIjoiYW5vbiIsImlhdCI6MTcxNjQ1OTc3MywiZXhwIjoyMDMyMDM1NzczfQ.pHORp5O6vLNR-QGGJQHgqFzZOwKAhCx0iNvdCJ0-eVA'
   };
 
   // Safe fetch function with comprehensive error handling
@@ -327,7 +327,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
       // Fetch data with individual error handling
       try {
         const groupsResponse = await fetchFromSupabase('gps51_groups?select=*&order=group_name');
-        groups = safeArray<GPS51Group>(groupsResponse);
+        groups = safeArray(groupsResponse) as GPS51Group[];
         console.log(`✅ Loaded ${groups.length} groups`);
       } catch (error) {
         errors.push(`Groups: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -346,7 +346,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
 
       try {
         const usersResponse = await fetchFromSupabase('gps51_users?select=*&order=gp51_username&limit=100');
-        users = safeArray<GPS51User>(usersResponse);
+        users = safeArray(usersResponse) as GPS51User[];
         console.log(`✅ Loaded ${users.length} users`);
       } catch (error) {
         errors.push(`Users: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -433,7 +433,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
           usersIsArray: Array.isArray(data.users),
           usersLength: data.users.length
         },
-        errors: [] as string[]
+        errors: []
       };
 
       // Test connectivity
@@ -505,7 +505,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
   };
 
   const GroupsList: React.FC = () => {
-    const safeGroups = safeArray<GPS51Group>(data.groups);
+    const safeGroups = safeArray(data.groups) as GPS51Group[];
     
     if (safeGroups.length === 0) {
       return (
@@ -556,7 +556,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
   };
 
   const DevicesList: React.FC = () => {
-    const safeDevices = safeArray<GPS51Device>(data.devices);
+    const safeDevices = safeArray(data.devices) as GPS51Device[];
     
     if (safeDevices.length === 0) {
       return (
@@ -778,7 +778,7 @@ const GPS51ErrorProofDashboard: React.FC = () => {
             </div>
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {safeArray(data.users).map((user, index) => {
+                {safeArray(data.users).map((user: any, index) => {
                   if (!user || !user.id) {
                     console.warn('Invalid user at index:', index, user);
                     return null;
