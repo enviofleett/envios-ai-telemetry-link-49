@@ -5,145 +5,68 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Building2, Save } from 'lucide-react';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
 
-// Safe array helper - prevents "map is not a function" errors
-function safeArray(value: any): any[] {
-  if (Array.isArray(value)) return value;
-  if (value === null || value === undefined) return [];
-  console.warn('Expected array but got:', typeof value, value);
-  return [];
-}
-
-interface CompanySettings {
-  company_name: string;
-  company_address: string;
-  phone_number: string;
-  contact_email: string;
-  operational_hours: string;
-  fleet_size: number;
-  currency_code: string;
-  currency_symbol: string;
-  timezone: string;
-  logo_url: string;
-}
+const timezones = [
+  { value: 'UTC', label: 'UTC (Coordinated Universal Time)' },
+  { value: 'America/New_York', label: 'Eastern Time (US & Canada)' },
+  { value: 'America/Chicago', label: 'Central Time (US & Canada)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (US & Canada)' },
+  { value: 'Europe/London', label: 'London' },
+  { value: 'Europe/Paris', label: 'Paris' },
+  { value: 'Asia/Tokyo', label: 'Tokyo' },
+  { value: 'Africa/Lagos', label: 'Lagos' },
+  { value: 'Africa/Cairo', label: 'Cairo' }
+];
 
 const CompanySettingsForm: React.FC = () => {
-  const [settings, setSettings] = useState<CompanySettings>({
+  const { settings, isLoading, updateSettings, isUpdating } = useCompanySettings();
+  const [formData, setFormData] = useState({
     company_name: '',
+    contact_email: '',
     company_address: '',
     phone_number: '',
-    contact_email: '',
+    fleet_size: '',  // Keep as string for input field
     operational_hours: '',
-    fleet_size: 0,
-    currency_code: 'USD',
-    currency_symbol: '$',
-    timezone: 'UTC',
-    logo_url: ''
+    timezone: 'UTC'
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
-    try {
-      setIsLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('company_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error loading settings:', error);
-        return;
-      }
-
-      if (data) {
-        setSettings({
-          company_name: data.company_name || '',
-          company_address: data.company_address || '',
-          phone_number: data.phone_number || '',
-          contact_email: data.contact_email || '',
-          operational_hours: data.operational_hours || '',
-          fleet_size: data.fleet_size || 0,
-          currency_code: data.currency_code || 'USD',
-          currency_symbol: data.currency_symbol || '$',
-          timezone: data.timezone || 'UTC',
-          logo_url: data.logo_url || ''
-        });
-      }
-    } catch (error) {
-      console.error('Error in loadSettings:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      setIsSaving(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { error } = await supabase
-        .from('company_settings')
-        .upsert({
-          user_id: user.id,
-          ...settings,
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) {
-        console.error('Error saving settings:', error);
-        toast({
-          title: "Error",
-          description: "Failed to save company settings",
-          variant: "destructive"
-        });
-      } else {
-        toast({
-          title: "Success",
-          description: "Company settings saved successfully"
-        });
-      }
-    } catch (error) {
-      console.error('Error in handleSave:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save company settings",
-        variant: "destructive"
+    if (settings) {
+      setFormData({
+        company_name: settings.company_name || '',
+        contact_email: settings.contact_email || '',
+        company_address: settings.company_address || '',
+        phone_number: settings.phone_number || '',
+        fleet_size: settings.fleet_size?.toString() || '0',  // Convert number to string
+        operational_hours: settings.operational_hours || '',
+        timezone: settings.timezone || 'UTC'
       });
-    } finally {
-      setIsSaving(false);
     }
-  };
+  }, [settings]);
 
-  const handleInputChange = (field: keyof CompanySettings, value: string) => {
-    setSettings(prev => ({
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({
       ...prev,
       [field]: value
     }));
   };
 
+  const handleSave = () => {
+    // Convert fleet_size back to number when saving
+    const dataToSave = {
+      ...formData,
+      fleet_size: parseInt(formData.fleet_size) || 0
+    };
+    updateSettings(dataToSave);
+  };
+
   if (isLoading) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-          </div>
+        <CardContent className="flex items-center justify-center p-8">
+          <LoadingSpinner />
         </CardContent>
       </Card>
     );
@@ -152,110 +75,99 @@ const CompanySettingsForm: React.FC = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Building2 className="h-5 w-5" />
-          Company Information
-        </CardTitle>
-        <CardDescription>
-          Update your company details and contact information
-        </CardDescription>
+        <CardTitle>Company & Fleet Information</CardTitle>
+        <CardDescription>Update your company's fleet management details</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="company_name">Company Name</Label>
+          <div>
+            <Label htmlFor="company-name">Company Name *</Label>
             <Input
-              id="company_name"
-              value={settings.company_name}
+              id="company-name"
+              value={formData.company_name}
               onChange={(e) => handleInputChange('company_name', e.target.value)}
               placeholder="Enter company name"
+              required
             />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="contact_email">Contact Email</Label>
+          <div>
+            <Label htmlFor="contact-email">Contact Email</Label>
             <Input
-              id="contact_email"
+              id="contact-email"
               type="email"
-              value={settings.contact_email}
+              value={formData.contact_email}
               onChange={(e) => handleInputChange('contact_email', e.target.value)}
-              placeholder="Enter contact email"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="phone_number">Phone Number</Label>
-            <Input
-              id="phone_number"
-              value={settings.phone_number}
-              onChange={(e) => handleInputChange('phone_number', e.target.value)}
-              placeholder="Enter phone number"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="fleet_size">Fleet Size</Label>
-            <Input
-              id="fleet_size"
-              type="number"
-              value={settings.fleet_size}
-              onChange={(e) => handleInputChange('fleet_size', parseInt(e.target.value) || 0)}
-              placeholder="Enter fleet size"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="currency_code">Currency Code</Label>
-            <Input
-              id="currency_code"
-              value={settings.currency_code}
-              onChange={(e) => handleInputChange('currency_code', e.target.value)}
-              placeholder="USD"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="timezone">Timezone</Label>
-            <Input
-              id="timezone"
-              value={settings.timezone}
-              onChange={(e) => handleInputChange('timezone', e.target.value)}
-              placeholder="UTC"
+              placeholder="contact@company.com"
             />
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="company_address">Company Address</Label>
+        <div>
+          <Label htmlFor="company-address">Company Address</Label>
           <Textarea
-            id="company_address"
-            value={settings.company_address}
+            id="company-address"
+            value={formData.company_address}
             onChange={(e) => handleInputChange('company_address', e.target.value)}
-            placeholder="Enter company address"
+            placeholder="Enter full company address"
             rows={3}
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="operational_hours">Operational Hours</Label>
-          <Textarea
-            id="operational_hours"
-            value={settings.operational_hours}
-            onChange={(e) => handleInputChange('operational_hours', e.target.value)}
-            placeholder="Enter operational hours"
-            rows={2}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="phone">Phone Number</Label>
+            <Input
+              id="phone"
+              value={formData.phone_number}
+              onChange={(e) => handleInputChange('phone_number', e.target.value)}
+              placeholder="+1 (555) 123-4567"
+            />
+          </div>
+          <div>
+            <Label htmlFor="fleet-size">Fleet Size</Label>
+            <Input
+              id="fleet-size"
+              type="number"
+              min="0"
+              value={formData.fleet_size}
+              onChange={(e) => handleInputChange('fleet_size', e.target.value)}
+              placeholder="Number of vehicles"
+            />
+          </div>
         </div>
 
-        <div className="flex justify-end">
-          <Button 
-            onClick={handleSave} 
-            disabled={isSaving}
-            className="flex items-center gap-2"
-          >
-            <Save className="h-4 w-4" />
-            {isSaving ? 'Saving...' : 'Save Settings'}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="operational-hours">Operational Hours</Label>
+            <Input
+              id="operational-hours"
+              value={formData.operational_hours}
+              onChange={(e) => handleInputChange('operational_hours', e.target.value)}
+              placeholder="e.g., 24/7 Operations, Mon-Fri 9AM-5PM"
+            />
+          </div>
+          <div>
+            <Label htmlFor="timezone">Timezone</Label>
+            <select
+              id="timezone"
+              value={formData.timezone}
+              onChange={(e) => handleInputChange('timezone', e.target.value)}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {timezones.map((tz) => (
+                <option key={tz.value} value={tz.value}>
+                  {tz.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 pt-4">
+          <Button onClick={handleSave} disabled={isUpdating}>
+            {isUpdating ? 'Saving...' : 'Save Company Settings'}
           </Button>
+          {isUpdating && <LoadingSpinner />}
         </div>
       </CardContent>
     </Card>
