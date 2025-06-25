@@ -1,16 +1,17 @@
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Play, RefreshCw, Database, AlertCircle, CheckCircle } from 'lucide-react';
-import { gps51DataService } from '@/services/gp51/GPS51DataService';
+import { gps51DataService, type DiagnosticInfo } from '@/services/gp51/GPS51DataService';
 import type { GPS51TestResult } from '@/types/gp51';
 
 const DiagnosticPanel: React.FC = () => {
   const [testResults, setTestResults] = useState<GPS51TestResult[]>([]);
+  const [diagnosticInfo, setDiagnosticInfo] = useState<DiagnosticInfo | null>(null);
   const [testing, setTesting] = useState(false);
 
   const runDiagnostics = async () => {
@@ -18,8 +19,11 @@ const DiagnosticPanel: React.FC = () => {
     try {
       console.log('🔍 Running GPS51 diagnostics...');
       const results = await gps51DataService.testConnections();
+      const info = await gps51DataService.runDiagnostic();
+      
       setTestResults(results);
-      console.log('✅ Diagnostics completed:', results);
+      setDiagnosticInfo(info);
+      console.log('✅ Diagnostics completed:', { results, info });
     } catch (error) {
       console.error('❌ Diagnostics failed:', error);
       setTestResults([
@@ -30,6 +34,18 @@ const DiagnosticPanel: React.FC = () => {
           error: error instanceof Error ? error.message : 'Unknown error'
         }
       ]);
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const testConnection = async () => {
+    setTesting(true);
+    try {
+      const result = await gps51DataService.testConnection();
+      console.log('Connection test result:', result);
+    } catch (error) {
+      console.error('Connection test failed:', error);
     } finally {
       setTesting(false);
     }
@@ -59,70 +75,90 @@ const DiagnosticPanel: React.FC = () => {
                 <Database className="h-5 w-5" />
                 System Diagnostics
               </CardTitle>
-              <CardDescription>
+              <p className="text-sm text-gray-600 mt-1">
                 Test GPS51 data connections and system health
-              </CardDescription>
+              </p>
             </div>
-            <Button onClick={runDiagnostics} disabled={testing}>
-              <Play className={`h-4 w-4 mr-2 ${testing ? 'animate-spin' : ''}`} />
-              Run Tests
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={testConnection} disabled={testing} variant="outline">
+                <RefreshCw className={`h-4 w-4 mr-2 ${testing ? 'animate-spin' : ''}`} />
+                Test Connection
+              </Button>
+              <Button onClick={runDiagnostics} disabled={testing}>
+                <Play className={`h-4 w-4 mr-2 ${testing ? 'animate-spin' : ''}`} />
+                Run Full Diagnostic
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          {testResults.length === 0 ? (
+          {testResults.length === 0 && !diagnosticInfo ? (
             <div className="text-center py-8 text-muted-foreground">
-              Click "Run Tests" to start system diagnostics
+              Click "Run Full Diagnostic" to start system diagnostics
             </div>
           ) : (
             <div className="space-y-4">
               {/* Overall Status */}
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  {testResults.every(r => r.success) ? (
-                    <span className="text-green-600">All tests passed! System is healthy.</span>
-                  ) : (
-                    <span className="text-red-600">Some tests failed. Check details below.</span>
-                  )}
-                </AlertDescription>
-              </Alert>
+              {testResults.length > 0 && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    {testResults.every(r => r.success) ? (
+                      <span className="text-green-600">All tests passed! System is healthy.</span>
+                    ) : (
+                      <span className="text-red-600">Some tests failed. Check details below.</span>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
 
               {/* Test Results Table */}
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Test Name</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Data Count</TableHead>
-                      <TableHead>Error Details</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {testResults.map((result, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">
-                          {result.name}
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(result.success)}
-                        </TableCell>
-                        <TableCell>
-                          {result.data}
-                        </TableCell>
-                        <TableCell className="max-w-xs">
-                          {result.error && (
-                            <span className="text-sm text-red-600 break-words">
-                              {result.error}
-                            </span>
-                          )}
-                        </TableCell>
+              {testResults.length > 0 && (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Test Name</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Data Count</TableHead>
+                        <TableHead>Error Details</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {testResults.map((result, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">
+                            {result.name}
+                          </TableCell>
+                          <TableCell>
+                            {getStatusBadge(result.success)}
+                          </TableCell>
+                          <TableCell>
+                            {result.data}
+                          </TableCell>
+                          <TableCell className="max-w-xs">
+                            {result.error && (
+                              <span className="text-sm text-red-600 break-words">
+                                {result.error}
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Diagnostic Information */}
+              {diagnosticInfo && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="font-semibold mb-2">Detailed Diagnostic Info</h4>
+                  <pre className="text-sm overflow-x-auto whitespace-pre-wrap">
+                    {JSON.stringify(diagnosticInfo, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -132,9 +168,9 @@ const DiagnosticPanel: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Database Health Check</CardTitle>
-          <CardDescription>
+          <p className="text-sm text-gray-600">
             Quick overview of database table status
-          </CardDescription>
+          </p>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

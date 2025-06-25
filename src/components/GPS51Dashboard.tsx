@@ -51,7 +51,7 @@ const GPS51Dashboard: React.FC = () => {
         setLastUpdated(new Date());
         toast.success('Dashboard data loaded successfully');
       } else {
-        throw new Error('Failed to load data');
+        throw new Error(result.error || 'Failed to load data');
       }
       
     } catch (err) {
