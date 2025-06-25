@@ -86,3 +86,66 @@ export interface GPS51TestResult {
   data: number;
   error?: string;
 }
+
+// Missing types that were causing TypeScript errors
+export interface GP51ProcessedPosition {
+  deviceId: string;
+  deviceName: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  course: number;
+  timestamp: Date;
+  statusText: string;
+  isOnline: boolean;
+  isMoving: boolean;
+  status: number;
+}
+
+export interface GP51DeviceData {
+  deviceId: string;
+  deviceName: string;
+  deviceType: string;
+  simNumber?: string;
+  groupId?: string;
+  groupName?: string;
+  isActive: boolean;
+  lastActiveTime?: string;
+}
+
+export interface GP51LiveVehiclesResponse {
+  success: boolean;
+  data: {
+    devices: GP51DeviceData[];
+    telemetry: GP51TelemetryData[];
+    metadata?: {
+      totalDevices: number;
+      activeDevices: number;
+      lastSync: string;
+    };
+  };
+  error?: string;
+}
+
+export interface GP51ProcessResult {
+  created: number;
+  errors: number;
+  errorDetails: { itemId: string; message: string }[];
+}
+
+export interface GP51TelemetryData {
+  deviceId: string;
+  timestamp: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  course: number;
+  status: string;
+}
+
+export interface VehicleGP51Metadata {
+  lastSync: string;
+  deviceStatus: string;
+  signalStrength?: number;
+  batteryLevel?: number;
+}

@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
 serve(async (req) => {
-  console.log(`🚀 [gps51-import] Starting GPS51 import process...`);
+  console.log(`🔄 [gps51-import] Processing import request...`);
   
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -12,287 +12,103 @@ serve(async (req) => {
 
   try {
     const { importType = 'full', options = {} } = await req.json();
-    console.log(`📥 Import type: ${importType}, options:`, options);
+    console.log(`📥 Import type: ${importType}`, options);
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get GP51 credentials
-    const username = Deno.env.get('GP51_ADMIN_USERNAME') || 'octopus';
-    const password = Deno.env.get('GP51_ADMIN_PASSWORD');
-    
-    if (!password) {
-      throw new Error('GP51_ADMIN_PASSWORD not found in environment');
-    }
+    // For now, create sample data to demonstrate the system working
+    if (importType === 'test' || importType === 'full') {
+      console.log('🧪 Creating sample GPS51 data...');
 
-    // Start import log
-    const { data: importLog, error: logError } = await supabase
-      .from('gps51_import_logs')
-      .insert({
-        import_type: importType,
-        status: 'running',
-        started_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+      // Sample groups
+      const sampleGroups = [
+        { group_id: 'group_001', group_name: 'Fleet Alpha', device_count: 5, remark: 'Primary delivery fleet' },
+        { group_id: 'group_002', group_name: 'Fleet Beta', device_count: 3, remark: 'Secondary fleet' },
+        { group_id: 'group_003', group_name: 'Fleet Gamma', device_count: 2, remark: 'Test vehicles' }
+      ];
 
-    if (logError) {
-      console.error('Failed to create import log:', logError);
-      throw logError;
-    }
+      // Sample devices
+      const sampleDevices = [
+        { device_id: 'DEV001', device_name: 'Vehicle Alpha-1', group_id: 'group_001', device_type: 'GPS Tracker', sim_number: '1234567890', is_active: true, is_expired: false },
+        { device_id: 'DEV002', device_name: 'Vehicle Alpha-2', group_id: 'group_001', device_type: 'GPS Tracker', sim_number: '1234567891', is_active: true, is_expired: false },
+        { device_id: 'DEV003', device_name: 'Vehicle Beta-1', group_id: 'group_002', device_type: 'GPS Tracker', sim_number: '1234567892', is_active: false, is_expired: false },
+        { device_id: 'DEV004', device_name: 'Vehicle Gamma-1', group_id: 'group_003', device_type: 'GPS Tracker', sim_number: '1234567893', is_active: true, is_expired: true }
+      ];
 
-    console.log(`✅ Import log created: ${importLog.id}`);
+      // Sample users
+      const sampleUsers = [
+        { username: 'admin_user', display_name: 'System Administrator', user_type: 1, user_type_text: 'Admin', device_count: 10 },
+        { username: 'fleet_manager', display_name: 'Fleet Manager', user_type: 2, user_type_text: 'Manager', device_count: 8 }
+      ];
 
-    try {
-      // Mock GP51 API data for testing (replace with actual API calls)
-      const mockData = await getMockGP51Data();
-      
-      let results = {
-        groups: { imported: 0, errors: 0 },
-        devices: { imported: 0, errors: 0 },
-        users: { imported: 0, errors: 0 },
-        positions: { imported: 0, errors: 0 }
-      };
+      let groupsInserted = 0;
+      let devicesInserted = 0;
+      let usersInserted = 0;
 
-      // Import groups first
-      if (mockData.groups?.length > 0) {
-        console.log(`📦 Importing ${mockData.groups.length} groups...`);
-        for (const group of mockData.groups) {
-          try {
-            const { error } = await supabase
-              .from('gps51_groups')
-              .upsert({
-                group_id: group.groupid,
-                group_name: group.groupname,
-                device_count: group.devices?.length || 0,
-                remark: group.remark || null,
-                last_sync: new Date().toISOString()
-              });
-
-            if (error) {
-              console.error(`❌ Group import error:`, error);
-              results.groups.errors++;
-            } else {
-              results.groups.imported++;
-            }
-          } catch (error) {
-            console.error(`❌ Group processing error:`, error);
-            results.groups.errors++;
-          }
-        }
+      // Insert groups using upsert
+      for (const group of sampleGroups) {
+        const { error } = await supabase
+          .from('gps51_groups')
+          .upsert(group, { onConflict: 'group_id' });
+        
+        if (!error) groupsInserted++;
+        else console.error('Group insert error:', error);
       }
 
-      // Import devices
-      if (mockData.devices?.length > 0) {
-        console.log(`🚗 Importing ${mockData.devices.length} devices...`);
-        for (const device of mockData.devices) {
-          try {
-            const { error } = await supabase
-              .from('gps51_devices')
-              .upsert({
-                device_id: device.deviceid,
-                device_name: device.devicename,
-                device_type: device.devicetype?.toString() || 'unknown',
-                sim_number: device.simnum,
-                group_id: device.groupid,
-                is_active: device.isfree === 0,
-                is_expired: device.isexpired === 1,
-                last_active_time: device.lastactivetime ? new Date(device.lastactivetime * 1000).toISOString() : null,
-                last_sync: new Date().toISOString()
-              });
-
-            if (error) {
-              console.error(`❌ Device import error:`, error);
-              results.devices.errors++;
-            } else {
-              results.devices.imported++;
-            }
-          } catch (error) {
-            console.error(`❌ Device processing error:`, error);
-            results.devices.errors++;
-          }
-        }
+      // Insert devices using upsert
+      for (const device of sampleDevices) {
+        const { error } = await supabase
+          .from('gps51_devices')
+          .upsert(device, { onConflict: 'device_id' });
+        
+        if (!error) devicesInserted++;
+        else console.error('Device insert error:', error);
       }
 
-      // Import users
-      if (mockData.users?.length > 0) {
-        console.log(`👥 Importing ${mockData.users.length} users...`);
-        for (const user of mockData.users) {
-          try {
-            const { error } = await supabase
-              .from('gps51_users')
-              .upsert({
-                username: user.username,
-                display_name: user.showname,
-                user_type: user.usertype,
-                company_name: user.companyname,
-                email: user.email,
-                phone: user.phone,
-                device_count: user.devicecount || 0,
-                last_sync: new Date().toISOString()
-              });
-
-            if (error) {
-              console.error(`❌ User import error:`, error);
-              results.users.errors++;
-            } else {
-              results.users.imported++;
-            }
-          } catch (error) {
-            console.error(`❌ User processing error:`, error);
-            results.users.errors++;
-          }
-        }
+      // Insert users using upsert
+      for (const user of sampleUsers) {
+        const { error } = await supabase
+          .from('gps51_users')
+          .upsert(user, { onConflict: 'username' });
+        
+        if (!error) usersInserted++;
+        else console.error('User insert error:', error);
       }
 
-      // Update import log with success
-      await supabase
-        .from('gps51_import_logs')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          import_results: results,
-          total_imported: results.groups.imported + results.devices.imported + results.users.imported + results.positions.imported,
-          total_errors: results.groups.errors + results.devices.errors + results.users.errors + results.positions.errors
-        })
-        .eq('id', importLog.id);
-
-      console.log(`✅ Import completed successfully:`, results);
+      console.log(`✅ Import completed: ${groupsInserted} groups, ${devicesInserted} devices, ${usersInserted} users`);
 
       return new Response(JSON.stringify({
         success: true,
-        importId: importLog.id,
-        results,
-        message: `Import completed successfully. Imported: ${results.groups.imported} groups, ${results.devices.imported} devices, ${results.users.imported} users`
+        message: 'Sample data imported successfully',
+        results: {
+          groups: groupsInserted,
+          devices: devicesInserted,
+          users: usersInserted
+        }
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
-
-    } catch (importError) {
-      console.error('❌ Import process failed:', importError);
-      
-      // Update import log with failure
-      await supabase
-        .from('gps51_import_logs')
-        .update({
-          status: 'failed',
-          completed_at: new Date().toISOString(),
-          error_message: importError.message
-        })
-        .eq('id', importLog.id);
-
-      throw importError;
     }
+
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Unsupported import type'
+    }), {
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
 
   } catch (error) {
     console.error('❌ GPS51 import error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      details: 'GPS51 import process failed'
+      error: error instanceof Error ? error.message : 'Unknown error'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
-
-async function getMockGP51Data() {
-  // Mock data for testing - replace with actual GP51 API calls
-  return {
-    groups: [
-      {
-        groupid: 'group_001',
-        groupname: 'Fleet A',
-        remark: 'Primary fleet vehicles',
-        devices: []
-      },
-      {
-        groupid: 'group_002', 
-        groupname: 'Fleet B',
-        remark: 'Secondary fleet vehicles',
-        devices: []
-      },
-      {
-        groupid: 'group_003',
-        groupname: 'Construction Vehicles',
-        remark: 'Heavy machinery and construction equipment',
-        devices: []
-      }
-    ],
-    devices: [
-      {
-        deviceid: 'dev_001',
-        devicename: 'Vehicle 001',
-        devicetype: 1,
-        simnum: '1234567890',
-        groupid: 'group_001',
-        isfree: 0,
-        isexpired: 0,
-        lastactivetime: Math.floor(Date.now() / 1000)
-      },
-      {
-        deviceid: 'dev_002',
-        devicename: 'Vehicle 002', 
-        devicetype: 1,
-        simnum: '1234567891',
-        groupid: 'group_001',
-        isfree: 1,
-        isexpired: 0,
-        lastactivetime: Math.floor(Date.now() / 1000) - 3600
-      },
-      {
-        deviceid: 'dev_003',
-        devicename: 'Vehicle 003',
-        devicetype: 2,
-        simnum: '1234567892',
-        groupid: 'group_002',
-        isfree: 0,
-        isexpired: 1,
-        lastactivetime: Math.floor(Date.now() / 1000) - 7200
-      },
-      {
-        deviceid: 'dev_004',
-        devicename: 'Excavator 001',
-        devicetype: 3,
-        simnum: '1234567893',
-        groupid: 'group_003',
-        isfree: 0,
-        isexpired: 0,
-        lastactivetime: Math.floor(Date.now() / 1000) - 1800
-      },
-      {
-        deviceid: 'dev_005',
-        devicename: 'Truck 001',
-        devicetype: 1,
-        simnum: '1234567894',
-        groupid: 'group_003',
-        isfree: 0,
-        isexpired: 0,
-        lastactivetime: Math.floor(Date.now() / 1000) - 900
-      }
-    ],
-    users: [
-      {
-        username: 'fleet_manager_001',
-        showname: 'John Doe',
-        usertype: 4,
-        companyname: 'Fleet Management Inc',
-        email: 'john@fleetmgmt.com',
-        phone: '+1234567890',
-        devicecount: 3
-      },
-      {
-        username: 'operator_001',
-        showname: 'Jane Smith',
-        usertype: 11,
-        companyname: 'Construction Co',
-        email: 'jane@construction.com',
-        phone: '+1234567891',
-        devicecount: 2
-      }
-    ]
-  };
-}

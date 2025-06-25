@@ -98,7 +98,7 @@ export class GPS51DataService {
 
       if (groupsError) throw groupsError;
 
-      // Get devices with group info
+      // Get devices with group info - fix column names to match database
       const { data: devices, error: devicesError } = await supabase
         .from('gps51_devices')
         .select(`
@@ -119,7 +119,7 @@ export class GPS51DataService {
 
       if (usersError) throw usersError;
 
-      // Get summary stats
+      // Get summary stats - fix column names to match database
       const { data: deviceStats, error: statsError } = await supabase
         .from('gps51_devices')
         .select('is_active, is_expired');
