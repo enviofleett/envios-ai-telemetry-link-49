@@ -14,6 +14,14 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 
+// Safe array helper - prevents "map is not a function" errors
+function safeArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return [];
+  console.warn('Expected array but got:', typeof value, value);
+  return [];
+}
+
 const UsersTab: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -25,11 +33,11 @@ const UsersTab: React.FC = () => {
     enabled: true
   });
 
-  const users = usersData?.users || [];
+  const users = safeArray(usersData?.users || []);
   const pagination = usersData?.pagination;
 
   const getRoleIcon = (userRoles: Array<{ role: string }>) => {
-    const role = userRoles?.[0]?.role || 'user';
+    const role = safeArray(userRoles)?.[0]?.role || 'user';
     return role === 'admin' ? <Shield className="h-4 w-4" /> : <Users className="h-4 w-4" />;
   };
 
@@ -115,7 +123,7 @@ const UsersTab: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {users.map((user) => (
+              {safeArray(users).map((user) => (
                 <Card key={user.id} className="border border-gray-200">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
@@ -134,8 +142,8 @@ const UsersTab: React.FC = () => {
                       
                       <div className="text-right">
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                          <span>Vehicles: {user.assigned_vehicles?.length || 0}</span>
-                          <span>Role: {user.user_roles?.[0]?.role || 'user'}</span>
+                          <span>Vehicles: {safeArray(user.assigned_vehicles).length}</span>
+                          <span>Role: {safeArray(user.user_roles)?.[0]?.role || 'user'}</span>
                           <span>GP51: {user.gp51_username || 'Not linked'}</span>
                         </div>
                         <div className="flex gap-2 mt-2">

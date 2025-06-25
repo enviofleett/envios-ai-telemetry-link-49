@@ -1,32 +1,54 @@
-import React, { useState } from 'react';
-import { Search, Filter, Plus, MoreHorizontal } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 
-interface User {
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import { Search, Plus, MoreHorizontal, Edit, Trash2 } from 'lucide-react';
+
+// Safe array helper - prevents "map is not a function" errors
+function safeArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return [];
+  console.warn('Expected array but got:', typeof value, value);
+  return [];
+}
+
+interface LocalUser {
   id: string;
   name: string;
   email: string;
   phone_number?: string;
   user_roles: Array<{ role: string }>;
   registration_status?: string;
+  assigned_vehicles?: Array<{
+    id: string;
+    device_id?: string;
+    status: string;
+    last_update: string;
+  }>;
 }
 
 interface SimpleUserManagementTableProps {
-  users: User[];
+  users: LocalUser[];
   onAddUser: () => void;
-  onUserClick: (user: User) => void;
-  onEditUser: (user: User) => void;
-  onDeleteUser: (user: User) => void;
-  isLoading?: boolean;
+  onUserClick: (user: LocalUser) => void;
+  onEditUser: (user: LocalUser) => void;
+  onDeleteUser: (user: LocalUser) => void;
 }
 
 const SimpleUserManagementTable: React.FC<SimpleUserManagementTableProps> = ({
@@ -34,209 +56,141 @@ const SimpleUserManagementTable: React.FC<SimpleUserManagementTableProps> = ({
   onAddUser,
   onUserClick,
   onEditUser,
-  onDeleteUser,
-  isLoading = false
+  onDeleteUser
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = React.useState('');
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const getUserRole = (user: User) => {
-    const role = user.user_roles?.[0]?.role || 'user';
-    const roleAbbrev = {
-      'admin': 'Adm',
-      'manager': 'Mgr', 
-      'operator': 'Ops',
-      'driver': 'Drvr',
-      'user': 'User'
-    };
-    return roleAbbrev[role as keyof typeof roleAbbrev] || role.slice(0, 3);
-  };
-
-  const getStatusVariant = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-      case 'active':
-        return 'default';
-      case 'pending':
-        return 'secondary';
-      case 'inactive':
-        return 'outline';
-      default:
-        return 'default';
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'completed':
-        return 'Active';
-      case 'pending':
-        return 'Pending';
-      case 'inactive':
-        return 'Inactive';
-      default:
-        return 'Active';
-    }
-  };
-
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedUsers(filteredUsers.map(user => user.id));
-    } else {
-      setSelectedUsers([]);
-    }
-  };
-
-  const handleSelectUser = (userId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedUsers([...selectedUsers, userId]);
-    } else {
-      setSelectedUsers(selectedUsers.filter(id => id !== userId));
-    }
-  };
-
-  if (isLoading) {
+  const filteredUsers = safeArray(users).filter(user => {
+    if (!user) return false;
+    
+    const searchLower = searchTerm.toLowerCase();
     return (
-      <div className="bg-white border border-gray-lighter rounded-lg shadow-sm">
-        <div className="flex items-center justify-between p-6 border-b border-gray-lighter">
-          <h2 className="text-lg font-semibold text-primary-dark">User Management</h2>
-          <Button disabled className="bg-primary-dark text-white">
-            <Plus className="w-4 h-4 mr-2" />
+      (user.name || '').toLowerCase().includes(searchLower) ||
+      (user.email || '').toLowerCase().includes(searchLower) ||
+      (user.phone_number || '').toLowerCase().includes(searchLower)
+    );
+  });
+
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'completed':
+        return <Badge variant="default">Active</Badge>;
+      case 'pending':
+        return <Badge variant="secondary">Pending</Badge>;
+      case 'suspended':
+        return <Badge variant="destructive">Suspended</Badge>;
+      default:
+        return <Badge variant="outline">Unknown</Badge>;
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-center">
+          <CardTitle>User Management</CardTitle>
+          <Button onClick={onAddUser}>
+            <Plus className="h-4 w-4 mr-2" />
             Add User
           </Button>
         </div>
-        <div className="p-8 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-gray-mid">Loading users...</p>
+        <div className="flex items-center space-x-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input
+              placeholder="Search users..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="text-sm text-muted-foreground">
+            {safeArray(filteredUsers).length} users
+          </div>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-white border border-gray-lighter rounded-lg shadow-sm">
-      {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-gray-lighter">
-        <h2 className="text-lg font-semibold text-primary-dark">User Management</h2>
-        <Button
-          onClick={onAddUser}
-          className="bg-primary-dark text-white hover:bg-gray-darker flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Add User
-        </Button>
-      </div>
-
-      {/* Search and Filter */}
-      <div className="flex items-center gap-4 p-6 border-b border-gray-lighter">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-mid" />
-          <Input
-            placeholder="Search users..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 h-10 border-gray-lighter"
-          />
-        </div>
-        <Button variant="outline" className="border-gray-lighter text-primary-dark hover:bg-gray-background">
-          <Filter className="w-4 h-4 mr-2" />
-          Filter
-        </Button>
-      </div>
-
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-background">
-            <tr className="h-12 border-b border-gray-lighter">
-              <th className="px-4 text-left">
-                <Checkbox
-                  checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
-                  onCheckedChange={handleSelectAll}
-                  className="border-gray-lighter"
-                />
-              </th>
-              <th className="px-4 text-left text-sm font-medium text-gray-dark">User</th>
-              <th className="px-4 text-left text-sm font-medium text-gray-dark">Email</th>
-              <th className="px-4 text-left text-sm font-medium text-gray-dark">Phone</th>
-              <th className="px-4 text-left text-sm font-medium text-gray-dark">Role</th>
-              <th className="px-4 text-left text-sm font-medium text-gray-dark">Status</th>
-              <th className="px-4 text-left text-sm font-medium text-gray-dark w-16"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredUsers.map((user) => (
-              <tr 
-                key={user.id} 
-                className="h-14 border-b border-gray-lighter hover:bg-gray-background cursor-pointer"
-                onClick={() => onUserClick(user)}
-              >
-                <td className="px-4">
-                  <Checkbox
-                    checked={selectedUsers.includes(user.id)}
-                    onCheckedChange={(checked) => handleSelectUser(user.id, checked as boolean)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="border-gray-lighter"
-                  />
-                </td>
-                <td className="px-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-teal-primary/20 rounded-full flex items-center justify-center">
-                      <span className="text-sm font-medium text-teal-primary">
-                        {user.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <span className="text-sm text-primary-dark">{user.name}</span>
-                  </div>
-                </td>
-                <td className="px-4 text-sm text-primary-dark">{user.email}</td>
-                <td className="px-4 text-sm text-primary-dark">{user.phone_number || '-'}</td>
-                <td className="px-4 text-sm text-primary-dark">{getUserRole(user)}</td>
-                <td className="px-4">
-                  <Badge variant={getStatusVariant(user.registration_status || 'active')}>
-                    {getStatusLabel(user.registration_status || 'active')}
-                  </Badge>
-                </td>
-                <td className="px-4">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                      <Button variant="ghost" size="sm" className="w-8 h-8 p-0 hover:bg-gray-background">
-                        <MoreHorizontal className="w-4 h-4 text-gray-mid" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-white border border-gray-lighter">
-                      <DropdownMenuItem onClick={() => onUserClick(user)}>
-                        View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onEditUser(user)}>
-                        Edit User
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => onDeleteUser(user)}
-                        className="text-red-600"
-                      >
-                        Delete User
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {filteredUsers.length === 0 && (
-        <div className="text-center py-8 text-gray-mid">
-          {searchTerm ? 'No users found matching your search' : 'No users found'}
-        </div>
-      )}
-    </div>
+      </CardHeader>
+      <CardContent>
+        {safeArray(filteredUsers).length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">
+              {searchTerm ? 'No users match your search.' : 'No users found.'}
+            </p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Vehicles</TableHead>
+                <TableHead className="w-[100px]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {safeArray(filteredUsers).map((user) => {
+                if (!user || !user.id) return null;
+                
+                return (
+                  <TableRow 
+                    key={user.id} 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => onUserClick(user)}
+                  >
+                    <TableCell className="font-medium">
+                      {user.name || 'Unknown User'}
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {user.user_roles?.[0]?.role || 'user'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {getStatusBadge(user.registration_status)}
+                    </TableCell>
+                    <TableCell>
+                      {safeArray(user.assigned_vehicles).length}
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 w-8 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditUser(user);
+                            }}
+                          >
+                            <Edit className="h-4 w-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteUser(user);
+                            }}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

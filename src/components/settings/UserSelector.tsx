@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -7,6 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { Search, User } from 'lucide-react';
 import { fetchSelectableUsers, SelectableUser } from '@/services/user-selection-api';
 import { useToast } from '@/hooks/use-toast';
+
+// Safe array helper - prevents "map is not a function" errors
+function safeArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return [];
+  console.warn('Expected array but got:', typeof value, value);
+  return [];
+}
 
 interface UserSelectorProps {
   selectedUserId?: string;
@@ -27,9 +36,10 @@ const UserSelector: React.FC<UserSelectorProps> = ({
       try {
         setIsLoading(true);
         const fetchedUsers = await fetchSelectableUsers();
-        setUsers(fetchedUsers);
+        setUsers(safeArray(fetchedUsers));
       } catch (error) {
         console.error('Error fetching users:', error);
+        setUsers([]); // Fallback to empty array
         toast({
           title: "Error",
           description: "Failed to load users.",
@@ -43,12 +53,14 @@ const UserSelector: React.FC<UserSelectorProps> = ({
     loadUsers();
   }, [toast]);
 
-  const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = safeArray(users).filter(user =>
+    user && (
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    )
   );
 
-  const selectedUser = users.find(user => user.id === selectedUserId);
+  const selectedUser = safeArray(users).find(user => user.id === selectedUserId);
 
   return (
     <Card>
@@ -84,7 +96,7 @@ const UserSelector: React.FC<UserSelectorProps> = ({
               <SelectValue placeholder="Select a user to manage their branding..." />
             </SelectTrigger>
             <SelectContent>
-              {filteredUsers.map((user) => (
+              {safeArray(filteredUsers).map((user) => (
                 <SelectItem key={user.id} value={user.id}>
                   <div className="flex items-center justify-between w-full">
                     <div className="flex flex-col">
