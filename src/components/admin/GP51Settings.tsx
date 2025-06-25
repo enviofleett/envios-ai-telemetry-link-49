@@ -4,49 +4,28 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Switch } from "@/components/ui/switch"
-import { supabase } from '@/integrations/supabase/client';
-import { GP51SessionManager } from '@/services/gp51/sessionManager';
+import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
 import { GP51_BASE_URL } from '@/services/gp51/urlHelpers';
 
 export default function GP51Settings() {
   const [credentials, setCredentials] = useState({
     username: '',
     password: '',
-    apiUrl: GP51_BASE_URL // Use standardized base URL
+    apiUrl: GP51_BASE_URL
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<{
-    connected: boolean;
-    username?: string;
-    error?: string;
-    lastCheck?: Date;
-  } | null>(null);
   
+  const {
+    session,
+    isConnected,
+    isLoading,
+    error,
+    authenticate,
+    clearError
+  } = useUnifiedGP51Service();
+
   const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      const { data, error } = await supabase.functions.invoke('settings-management', {
-        body: { action: 'get-gp51-status' }
-      });
-
-      if (error) {
-        console.error('Failed to fetch GP51 status:', error);
-        return;
-      }
-
-      setConnectionStatus({
-        connected: data.connected || false,
-        username: data.username,
-        error: data.error,
-        lastCheck: new Date()
-      });
-    };
-
-    fetchStatus();
-  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -54,6 +33,11 @@ export default function GP51Settings() {
       ...prev,
       [name]: value
     }));
+    
+    // Clear any existing errors when user starts typing
+    if (error) {
+      clearError();
+    }
   };
 
   const handleSave = async () => {
@@ -66,67 +50,61 @@ export default function GP51Settings() {
       return;
     }
 
-    setIsLoading(true);
-    try {
-      // Clear existing sessions first
-      await GP51SessionManager.clearAllSessions();
-      
-      const { data, error } = await supabase.functions.invoke('settings-management', {
-        body: {
-          action: 'save-gp51-credentials',
-          username: credentials.username,
-          password: credentials.password,
-          apiUrl: credentials.apiUrl
-        }
-      });
+    const success = await authenticate({
+      username: credentials.username,
+      password: credentials.password,
+      apiUrl: credentials.apiUrl
+    });
 
-      if (error) throw error;
-
-      if (data.success) {
-        toast({
-          title: "Settings Saved",
-          description: "GP51 credentials have been saved and tested successfully",
-        });
-        
-        setConnectionStatus({
-          connected: true,
-          username: credentials.username,
-          lastCheck: new Date()
-        });
-        
-        // Clear form after successful save
-        setCredentials({
-          username: '',
-          password: '',
-          apiUrl: GP51_BASE_URL // Reset to standardized base URL
-        });
-      } else {
-        throw new Error(data.error || 'Failed to save credentials');
-      }
-    } catch (error) {
-      console.error('Failed to save GP51 credentials:', error);
-      toast({
-        title: "Save Failed",
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
-        variant: "destructive"
+    if (success) {
+      // Clear form after successful authentication
+      setCredentials({
+        username: '',
+        password: '',
+        apiUrl: GP51_BASE_URL
       });
-      
-      setConnectionStatus({
-        connected: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
-        lastCheck: new Date()
-      });
-    } finally {
-      setIsLoading(false);
     }
+  };
+
+  const getConnectionStatusBadge = () => {
+    if (isLoading) {
+      return <Badge variant="outline">Connecting...</Badge>;
+    }
+    
+    if (isConnected && session) {
+      const isExpiringSoon = new Date(session.expiresAt).getTime() - Date.now() < 2 * 60 * 60 * 1000; // 2 hours
+      
+      if (isExpiringSoon) {
+        return <Badge variant="outline">Expires Soon</Badge>;
+      }
+      
+      return <Badge variant="default">Connected</Badge>;
+    }
+    
+    return <Badge variant="destructive">Disconnected</Badge>;
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>GP51 Integration Settings</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>GP51 Integration Settings</CardTitle>
+          {getConnectionStatusBadge()}
+        </div>
+        {session && (
+          <p className="text-sm text-muted-foreground">
+            Connected as: {session.username} | Expires: {new Date(session.expiresAt).toLocaleString()}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
+        {error && (
+          <div className="p-3 bg-red-50 text-red-800 rounded-md text-sm">
+            <p className="font-medium">❌ Connection Error</p>
+            <p>{error}</p>
+          </div>
+        )}
+        
         <div className="space-y-2">
           <Label htmlFor="username">Username</Label>
           <Input
@@ -136,8 +114,10 @@ export default function GP51Settings() {
             value={credentials.username}
             onChange={handleChange}
             placeholder="GP51 Username"
+            disabled={isLoading}
           />
         </div>
+        
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
           <Input
@@ -147,8 +127,10 @@ export default function GP51Settings() {
             value={credentials.password}
             onChange={handleChange}
             placeholder="GP51 Password"
+            disabled={isLoading}
           />
         </div>
+        
         <div className="space-y-2">
           <Label htmlFor="apiUrl">API Base URL</Label>
           <Input
@@ -158,16 +140,30 @@ export default function GP51Settings() {
             value={credentials.apiUrl}
             onChange={handleChange}
             placeholder="GP51 API Base URL"
+            disabled={isLoading}
           />
           <p className="text-xs text-muted-foreground">
             Base URL for GP51 API (webapi endpoint will be automatically appended)
           </p>
         </div>
+        
         <div>
-          <Button onClick={handleSave} disabled={isLoading}>
-            {isLoading ? "Saving..." : "Save Credentials"}
+          <Button 
+            onClick={handleSave} 
+            disabled={isLoading}
+            className="w-full"
+          >
+            {isLoading ? "Connecting..." : "Save & Test Credentials"}
           </Button>
         </div>
+
+        {isConnected && (
+          <div className="p-3 bg-green-50 text-green-800 rounded-md text-sm">
+            <p className="font-medium">✅ Connection Successful</p>
+            <p>GP51 credentials have been saved and tested successfully</p>
+            <p>You can now use the Connection Testing tab to verify full functionality</p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

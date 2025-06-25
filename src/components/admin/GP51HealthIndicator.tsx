@@ -3,19 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, AlertCircle, XCircle, RefreshCw, Wifi, WifiOff } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-
-interface HealthStatus {
-  isConnected: boolean;
-  isAuthenticated: boolean;
-  sessionHealth: 'healthy' | 'expired' | 'invalid';
-  lastCheck: string;
-  error?: string;
-  username?: string;
-}
+import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
 
 interface GP51HealthIndicatorProps {
-  onStatusChange?: (status: HealthStatus) => void;
+  onStatusChange?: (status: any) => void;
   compact?: boolean;
 }
 
@@ -23,162 +14,177 @@ const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({
   onStatusChange, 
   compact = false 
 }) => {
-  const [status, setStatus] = useState<HealthStatus>({
-    isConnected: false,
-    isAuthenticated: false,
-    sessionHealth: 'invalid',
-    lastCheck: new Date().toISOString()
-  });
-  const [isChecking, setIsChecking] = useState(false);
+  const [healthStatus, setHealthStatus] = useState<any>(null);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  
+  const { session, isConnected, getConnectionHealth } = useUnifiedGP51Service();
 
   const checkHealth = async () => {
-    setIsChecking(true);
+    setIsCheckingHealth(true);
+    
     try {
-      console.log('🏥 Checking GP51 health status...');
+      const health = await getConnectionHealth();
+      setHealthStatus(health);
       
-      // Check connection status
-      const { data: statusData, error: statusError } = await supabase.functions.invoke('settings-management', {
-        body: { action: 'get-gp51-status' }
-      });
-
-      if (statusError) {
-        throw new Error(`Status check failed: ${statusError.message}`);
+      if (onStatusChange) {
+        onStatusChange({
+          isConnected: health.isConnected,
+          isAuthenticated: health.sessionValid,
+          sessionHealth: health.sessionValid ? 'healthy' : 'invalid',
+          lastCheck: health.lastCheck.toISOString(),
+          username: session?.username,
+          error: health.errorMessage
+        });
       }
-
-      // Test actual API connectivity
-      const { data: testData, error: testError } = await supabase.functions.invoke('gp51-service-management', {
-        body: { action: 'test_gp51_api' }
-      });
-
-      const now = new Date();
-      const expiresAt = statusData.expiresAt ? new Date(statusData.expiresAt) : null;
-      const isExpired = expiresAt && expiresAt <= now;
-      
-      const healthStatus: HealthStatus = {
-        isConnected: !testError && testData?.success === true,
-        isAuthenticated: statusData.connected && !isExpired,
-        sessionHealth: !statusData.connected ? 'invalid' : (isExpired ? 'expired' : 'healthy'),
-        lastCheck: now.toISOString(),
-        error: testError?.message || statusData.error,
-        username: statusData.username
-      };
-
-      setStatus(healthStatus);
-      onStatusChange?.(healthStatus);
-
-      console.log('✅ GP51 health check completed:', healthStatus);
     } catch (error) {
-      console.error('❌ GP51 health check failed:', error);
-      const errorStatus: HealthStatus = {
+      console.error('❌ Health check failed:', error);
+      const errorStatus = {
         isConnected: false,
-        isAuthenticated: false,
-        sessionHealth: 'invalid',
-        lastCheck: new Date().toISOString(),
-        error: error instanceof Error ? error.message : 'Health check failed'
+        isReallyConnected: false,
+        sessionValid: false,
+        apiReachable: false,
+        dataFlowing: false,
+        errorMessage: error instanceof Error ? error.message : 'Health check failed',
+        lastCheck: new Date()
       };
-      setStatus(errorStatus);
-      onStatusChange?.(errorStatus);
+      
+      setHealthStatus(errorStatus);
+      
+      if (onStatusChange) {
+        onStatusChange({
+          isConnected: false,
+          isAuthenticated: false,
+          sessionHealth: 'invalid',
+          lastCheck: new Date().toISOString(),
+          error: errorStatus.errorMessage
+        });
+      }
     } finally {
-      setIsChecking(false);
+      setIsCheckingHealth(false);
     }
   };
 
+  // Auto-check health on mount and when session changes
   useEffect(() => {
-    checkHealth();
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(checkHealth, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (session) {
+      checkHealth();
+    }
+  }, [session]);
 
-  const getStatusIcon = () => {
-    if (isChecking) {
+  // Auto-refresh every 2 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (session) {
+        checkHealth();
+      }
+    }, 120000); // 2 minutes
+
+    return () => clearInterval(interval);
+  }, [session]);
+
+  const getHealthIcon = () => {
+    if (isCheckingHealth) {
       return <RefreshCw className="h-4 w-4 animate-spin" />;
     }
     
-    if (status.isConnected && status.isAuthenticated && status.sessionHealth === 'healthy') {
+    if (!healthStatus) {
+      return <AlertCircle className="h-4 w-4 text-gray-400" />;
+    }
+    
+    if (healthStatus.isReallyConnected) {
       return <CheckCircle className="h-4 w-4 text-green-500" />;
     }
     
-    if (status.sessionHealth === 'expired') {
+    if (healthStatus.sessionValid && healthStatus.apiReachable) {
       return <AlertCircle className="h-4 w-4 text-yellow-500" />;
     }
     
     return <XCircle className="h-4 w-4 text-red-500" />;
   };
 
-  const getStatusColor = () => {
-    if (status.isConnected && status.isAuthenticated && status.sessionHealth === 'healthy') {
-      return 'bg-green-100 text-green-800 border-green-200';
+  const getHealthBadge = () => {
+    if (isCheckingHealth) {
+      return <Badge variant="outline">Checking...</Badge>;
     }
     
-    if (status.sessionHealth === 'expired') {
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+    if (!healthStatus) {
+      return <Badge variant="secondary">Unknown</Badge>;
     }
     
-    return 'bg-red-100 text-red-800 border-red-200';
+    if (healthStatus.isReallyConnected) {
+      return <Badge variant="default" className="bg-green-500">Healthy</Badge>;
+    }
+    
+    if (healthStatus.sessionValid && healthStatus.apiReachable) {
+      return <Badge variant="outline" className="border-yellow-500 text-yellow-700">Degraded</Badge>;
+    }
+    
+    return <Badge variant="destructive">Disconnected</Badge>;
   };
 
   const getStatusText = () => {
-    if (isChecking) return 'Checking...';
-    
-    if (status.isConnected && status.isAuthenticated && status.sessionHealth === 'healthy') {
-      return 'Healthy';
+    if (!healthStatus) {
+      return "Status unknown - click refresh to check";
     }
     
-    if (status.sessionHealth === 'expired') {
-      return 'Session Expired';
+    if (healthStatus.isReallyConnected) {
+      return `Connected with ${healthStatus.deviceCount || 0} devices`;
     }
     
-    if (!status.isAuthenticated) {
-      return 'Not Authenticated';
+    if (healthStatus.sessionValid && healthStatus.apiReachable) {
+      return "API reachable but data flow issues detected";
     }
     
-    return 'Disconnected';
+    if (healthStatus.sessionValid && !healthStatus.apiReachable) {
+      return "Session valid but API unreachable";
+    }
+    
+    return healthStatus.errorMessage || "Connection failed";
   };
 
   if (compact) {
     return (
-      <div className="flex items-center space-x-2">
-        {getStatusIcon()}
-        <Badge className={getStatusColor()}>
-          {getStatusText()}
-        </Badge>
+      <div className="flex items-center gap-2">
+        {getHealthIcon()}
+        {getHealthBadge()}
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-between p-3 bg-white border rounded-lg">
-      <div className="flex items-center space-x-3">
-        {status.isConnected ? (
-          <Wifi className="h-5 w-5 text-green-500" />
-        ) : (
-          <WifiOff className="h-5 w-5 text-red-500" />
-        )}
-        <div>
-          <div className="flex items-center space-x-2">
-            <span className="font-medium">GP51 Status</span>
-            <Badge className={getStatusColor()}>
-              {getStatusText()}
-            </Badge>
-          </div>
-          {status.username && (
-            <p className="text-sm text-gray-600">User: {status.username}</p>
-          )}
-          {status.error && (
-            <p className="text-xs text-red-600">Error: {status.error}</p>
-          )}
+    <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {session ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+          <span className="font-medium">GP51 Connection Status</span>
         </div>
+        {getHealthBadge()}
       </div>
       
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={checkHealth}
-        disabled={isChecking}
-      >
-        <RefreshCw className={`h-4 w-4 ${isChecking ? 'animate-spin' : ''}`} />
-      </Button>
+      <div className="flex items-center gap-3">
+        <div className="text-right">
+          <p className="text-sm font-medium">
+            {session ? session.username : 'Not Connected'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {getStatusText()}
+          </p>
+          {healthStatus?.lastCheck && (
+            <p className="text-xs text-muted-foreground">
+              Last check: {new Date(healthStatus.lastCheck).toLocaleTimeString()}
+            </p>
+          )}
+        </div>
+        
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={checkHealth}
+          disabled={isCheckingHealth}
+        >
+          {getHealthIcon()}
+        </Button>
+      </div>
     </div>
   );
 };
