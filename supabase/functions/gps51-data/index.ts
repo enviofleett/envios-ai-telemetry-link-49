@@ -3,74 +3,54 @@ import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
-interface DataRequest {
-  action: 'analytics' | 'devices' | 'groups' | 'positions' | 'users' | 'export';
-  filters?: {
-    dateRange?: {
-      start: string;
-      end: string;
-    };
-    deviceIds?: string[];
-    groupIds?: number[];
-    activeOnly?: boolean;
-    limit?: number;
-    offset?: number;
-  };
-  exportFormat?: 'json' | 'csv';
-}
-
 serve(async (req) => {
-  console.log(`📊 [gps51-data] Starting request processing...`);
+  console.log(`📊 [gps51-data] Processing data request...`);
   
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const requestBody: DataRequest = await req.json();
-    const { action, filters = {}, exportFormat = 'json' } = requestBody;
+    const url = new URL(req.url);
+    const type = url.searchParams.get('type') || 'dashboard_summary';
+    const limit = parseInt(url.searchParams.get('limit') || '100');
+    const offset = parseInt(url.searchParams.get('offset') || '0');
     
-    console.log(`🔄 [gps51-data] Processing action: ${action}`);
+    console.log(`🔍 Query type: ${type}, limit: ${limit}, offset: ${offset}`);
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    let result;
-    switch (action) {
-      case 'analytics':
-        result = await getAnalytics(supabase, filters);
-        break;
-      case 'devices':
-        result = await getDevices(supabase, filters);
-        break;
-      case 'groups':
-        result = await getGroups(supabase, filters);
-        break;
-      case 'positions':
-        result = await getPositions(supabase, filters);
-        break;
-      case 'users':
-        result = await getUsers(supabase, filters);
-        break;
-      case 'export':
-        result = await exportData(supabase, filters, exportFormat);
-        break;
+    switch (type) {
+      case 'dashboard_summary':
+        return await handleDashboardSummary(supabase);
+        
+      case 'device_list':
+        return await handleDeviceList(supabase, limit, offset, url.searchParams);
+        
+      case 'group_list':
+        return await handleGroupList(supabase, limit, offset);
+        
+      case 'import_status':
+        return await handleImportStatus(supabase);
+        
+      case 'diagnostic':
+        return await handleDiagnostic(supabase);
+        
       default:
-        throw new Error(`Unknown action: ${action}`);
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Unknown query type: ${type}`
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
     }
 
-    return new Response(JSON.stringify({
-      success: true,
-      data: result,
-      message: `${action} data retrieved successfully`
-    }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
-
   } catch (error) {
-    console.error('❌ [gps51-data] Error:', error);
+    console.error('❌ GPS51 data error:', error);
     return new Response(JSON.stringify({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
@@ -81,253 +61,225 @@ serve(async (req) => {
   }
 });
 
-async function getAnalytics(supabase: any, filters: any) {
-  console.log(`📈 [gps51-data] Fetching analytics...`);
+async function handleDashboardSummary(supabase: any) {
+  try {
+    console.log('📈 Generating dashboard summary...');
+    
+    // Get device statistics
+    const { data: devices, error: devicesError } = await supabase
+      .from('gps51_devices')
+      .select('is_active, is_expired');
 
-  // Get current counts
-  const [devicesCount, groupsCount, usersCount] = await Promise.all([
-    supabase.from('gps51_devices').select('*', { count: 'exact', head: true }),
-    supabase.from('gps51_groups').select('*', { count: 'exact', head: true }),
-    supabase.from('gps51_users').select('*', { count: 'exact', head: true })
-  ]);
+    if (devicesError) throw devicesError;
 
-  // Get active devices count
-  const { count: activeDevicesCount } = await supabase
-    .from('gps51_devices')
-    .select('*', { count: 'exact', head: true })
-    .eq('is_free', 0);
+    // Get group count
+    const { count: groupCount, error: groupError } = await supabase
+      .from('gps51_groups')
+      .select('*', { count: 'exact', head: true });
 
-  // Get recent positions count
-  const dateFilter = filters.dateRange?.start || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count: recentPositionsCount } = await supabase
-    .from('gps51_positions')
-    .select('*', { count: 'exact', head: true })
-    .gte('created_at', dateFilter);
+    if (groupError) throw groupError;
 
-  // Get historical analytics
-  const { data: historicalAnalytics } = await supabase
-    .from('gps51_analytics')
-    .select('*')
-    .eq('metric_type', 'daily_summary')
-    .order('metric_date', { ascending: false })
-    .limit(30);
+    // Get latest import status
+    const { data: latestImport, error: importError } = await supabase
+      .from('gps51_import_logs')
+      .select('*')
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-  // Get import logs summary
-  const { data: importLogs } = await supabase
-    .from('gps51_import_logs')
-    .select('*')
-    .order('started_at', { ascending: false })
-    .limit(10);
+    // Calculate statistics
+    const totalDevices = devices?.length || 0;
+    const activeDevices = devices?.filter(d => d.is_active)?.length || 0;
+    const expiredDevices = devices?.filter(d => d.is_expired)?.length || 0;
 
-  return {
-    summary: {
-      totalDevices: devicesCount.count || 0,
-      activeDevices: activeDevicesCount || 0,
-      totalGroups: groupsCount.count || 0,
-      totalUsers: usersCount.count || 0,
-      recentPositions: recentPositionsCount || 0
-    },
-    historical: historicalAnalytics || [],
-    recentImports: importLogs || []
-  };
-}
-
-async function getDevices(supabase: any, filters: any) {
-  console.log(`📱 [gps51-data] Fetching devices...`);
-
-  let query = supabase
-    .from('gps51_devices')
-    .select(`
-      *,
-      gps51_groups (
-        group_name,
-        remark
-      )
-    `);
-
-  if (filters.activeOnly) {
-    query = query.eq('is_free', 0);
-  }
-
-  if (filters.groupIds && filters.groupIds.length > 0) {
-    query = query.in('group_id', filters.groupIds);
-  }
-
-  if (filters.deviceIds && filters.deviceIds.length > 0) {
-    query = query.in('device_id', filters.deviceIds);
-  }
-
-  if (filters.limit) {
-    query = query.limit(filters.limit);
-  }
-
-  if (filters.offset) {
-    query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1);
-  }
-
-  const { data, error } = await query.order('device_name');
-
-  if (error) {
-    throw new Error(`Failed to fetch devices: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function getGroups(supabase: any, filters: any) {
-  console.log(`📁 [gps51-data] Fetching groups...`);
-
-  let query = supabase
-    .from('gps51_groups')
-    .select(`
-      *,
-      devices:gps51_devices(count)
-    `);
-
-  if (filters.groupIds && filters.groupIds.length > 0) {
-    query = query.in('group_id', filters.groupIds);
-  }
-
-  if (filters.limit) {
-    query = query.limit(filters.limit);
-  }
-
-  const { data, error } = await query.order('group_name');
-
-  if (error) {
-    throw new Error(`Failed to fetch groups: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function getPositions(supabase: any, filters: any) {
-  console.log(`📍 [gps51-data] Fetching positions...`);
-
-  let query = supabase
-    .from('gps51_positions')
-    .select(`
-      *,
-      gps51_devices (
-        device_name,
-        device_type,
-        group_id
-      )
-    `);
-
-  if (filters.deviceIds && filters.deviceIds.length > 0) {
-    query = query.in('device_id', filters.deviceIds);
-  }
-
-  if (filters.dateRange) {
-    if (filters.dateRange.start) {
-      query = query.gte('created_at', filters.dateRange.start);
-    }
-    if (filters.dateRange.end) {
-      query = query.lte('created_at', filters.dateRange.end);
-    }
-  }
-
-  if (filters.limit) {
-    query = query.limit(filters.limit);
-  }
-
-  if (filters.offset) {
-    query = query.range(filters.offset, filters.offset + (filters.limit || 100) - 1);
-  }
-
-  const { data, error } = await query.order('created_at', { ascending: false });
-
-  if (error) {
-    throw new Error(`Failed to fetch positions: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function getUsers(supabase: any, filters: any) {
-  console.log(`👥 [gps51-data] Fetching users...`);
-
-  let query = supabase
-    .from('gps51_users')
-    .select(`
-      *,
-      envio_users (
-        name,
-        email
-      )
-    `);
-
-  if (filters.activeOnly) {
-    query = query.eq('is_active', true);
-  }
-
-  if (filters.limit) {
-    query = query.limit(filters.limit);
-  }
-
-  const { data, error } = await query.order('gp51_username');
-
-  if (error) {
-    throw new Error(`Failed to fetch users: ${error.message}`);
-  }
-
-  return data;
-}
-
-async function exportData(supabase: any, filters: any, format: string) {
-  console.log(`📤 [gps51-data] Exporting data in ${format} format...`);
-
-  const [devices, groups, positions, users] = await Promise.all([
-    getDevices(supabase, { ...filters, limit: null }),
-    getGroups(supabase, { ...filters, limit: null }),
-    getPositions(supabase, { ...filters, limit: filters.limit || 1000 }),
-    getUsers(supabase, { ...filters, limit: null })
-  ]);
-
-  const exportData = {
-    devices,
-    groups,
-    positions,
-    users,
-    exportTimestamp: new Date().toISOString(),
-    summary: {
-      totalDevices: devices.length,
-      totalGroups: groups.length,
-      totalPositions: positions.length,
-      totalUsers: users.length
-    }
-  };
-
-  if (format === 'csv') {
-    // Convert to CSV format
-    const csvData = {
-      devices: convertToCSV(devices),
-      groups: convertToCSV(groups),
-      positions: convertToCSV(positions),
-      users: convertToCSV(users)
+    const summary = {
+      total_devices: totalDevices,
+      active_devices: activeDevices,
+      expired_devices: expiredDevices,
+      inactive_devices: totalDevices - activeDevices,
+      total_groups: groupCount || 0,
+      last_import: latestImport ? {
+        status: latestImport.status,
+        started_at: latestImport.started_at,
+        completed_at: latestImport.completed_at,
+        total_imported: latestImport.total_imported || 0,
+        total_errors: latestImport.total_errors || 0
+      } : null
     };
-    return csvData;
-  }
 
-  return exportData;
+    return new Response(JSON.stringify({
+      success: true,
+      data: summary
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Dashboard summary error:', error);
+    throw error;
+  }
 }
 
-function convertToCSV(data: any[]): string {
-  if (!data || data.length === 0) return '';
-  
-  const headers = Object.keys(data[0]);
-  const csvRows = [
-    headers.join(','),
-    ...data.map(row => 
-      headers.map(header => {
-        const value = row[header];
-        if (value === null || value === undefined) return '';
-        if (typeof value === 'object') return JSON.stringify(value);
-        return `"${String(value).replace(/"/g, '""')}"`;
-      }).join(',')
-    )
-  ];
-  
-  return csvRows.join('\n');
+async function handleDeviceList(supabase: any, limit: number, offset: number, params: URLSearchParams) {
+  try {
+    console.log(`🚗 Fetching device list (limit: ${limit}, offset: ${offset})...`);
+    
+    let query = supabase
+      .from('gps51_devices')
+      .select(`
+        *,
+        gps51_groups(group_name)
+      `)
+      .order('device_name')
+      .range(offset, offset + limit - 1);
+
+    // Apply filters
+    const groupId = params.get('group_id');
+    const isActive = params.get('is_active');
+    
+    if (groupId) {
+      query = query.eq('group_id', groupId);
+    }
+    
+    if (isActive !== null) {
+      query = query.eq('is_active', isActive === 'true');
+    }
+
+    const { data: devices, error } = await query;
+
+    if (error) throw error;
+
+    return new Response(JSON.stringify({
+      success: true,
+      data: devices || [],
+      pagination: {
+        limit,
+        offset,
+        total: devices?.length || 0
+      }
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Device list error:', error);
+    throw error;
+  }
+}
+
+async function handleGroupList(supabase: any, limit: number, offset: number) {
+  try {
+    console.log(`📦 Fetching group list (limit: ${limit}, offset: ${offset})...`);
+    
+    const { data: groups, error } = await supabase
+      .from('gps51_groups')
+      .select('*')
+      .order('group_name')
+      .range(offset, offset + limit - 1);
+
+    if (error) throw error;
+
+    return new Response(JSON.stringify({
+      success: true,
+      data: groups || [],
+      pagination: {
+        limit,
+        offset,
+        total: groups?.length || 0
+      }
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Group list error:', error);
+    throw error;
+  }
+}
+
+async function handleImportStatus(supabase: any) {
+  try {
+    console.log('📊 Fetching import status...');
+    
+    const { data: imports, error } = await supabase
+      .from('gps51_import_logs')
+      .select('*')
+      .order('started_at', { ascending: false })
+      .limit(10);
+
+    if (error) throw error;
+
+    return new Response(JSON.stringify({
+      success: true,
+      data: imports || []
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Import status error:', error);
+    throw error;
+  }
+}
+
+async function handleDiagnostic(supabase: any) {
+  try {
+    console.log('🔍 Running diagnostic checks...');
+    
+    // Check table existence and row counts
+    const tableChecks = [];
+    const tables = ['gps51_groups', 'gps51_devices', 'gps51_positions', 'gps51_users'];
+    
+    for (const table of tables) {
+      try {
+        const { count, error } = await supabase
+          .from(table)
+          .select('*', { count: 'exact', head: true });
+        
+        tableChecks.push({
+          table,
+          exists: !error,
+          count: count || 0,
+          error: error?.message
+        });
+      } catch (e) {
+        tableChecks.push({
+          table,
+          exists: false,
+          count: 0,
+          error: e.message
+        });
+      }
+    }
+
+    // Get recent import logs
+    const { data: recentImports, error: importError } = await supabase
+      .from('gps51_import_logs')
+      .select('*')
+      .order('started_at', { ascending: false })
+      .limit(5);
+
+    const diagnostic = {
+      timestamp: new Date().toISOString(),
+      tables: tableChecks,
+      recentImports: recentImports || [],
+      importError: importError?.message,
+      summary: {
+        totalTables: tables.length,
+        existingTables: tableChecks.filter(t => t.exists).length,
+        totalRecords: tableChecks.reduce((sum, t) => sum + (t.count || 0), 0)
+      }
+    };
+
+    return new Response(JSON.stringify({
+      success: true,
+      data: diagnostic
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+
+  } catch (error) {
+    console.error('❌ Diagnostic error:', error);
+    throw error;
+  }
 }
