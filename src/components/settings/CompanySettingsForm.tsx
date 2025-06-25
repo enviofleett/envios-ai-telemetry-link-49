@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,27 +9,31 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Building2, Save } from 'lucide-react';
 
+// Safe array helper - prevents "map is not a function" errors
+function safeArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return [];
+  console.warn('Expected array but got:', typeof value, value);
+  return [];
+}
+
 interface CompanySettings {
   company_name: string;
   company_address: string;
-  contact_email: string;
-  phone_number: string;
-  timezone: string;
-  currency_code: string;
-  fleet_size: number;
-  user_id: string;
+  company_phone: string;
+  company_email: string;
+  company_website: string;
+  company_description: string;
 }
 
 const CompanySettingsForm: React.FC = () => {
   const [settings, setSettings] = useState<CompanySettings>({
     company_name: '',
     company_address: '',
-    contact_email: '',
-    phone_number: '',
-    timezone: 'UTC',
-    currency_code: 'USD',
-    fleet_size: 0,
-    user_id: ''
+    company_phone: '',
+    company_email: '',
+    company_website: '',
+    company_description: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -39,60 +44,68 @@ const CompanySettingsForm: React.FC = () => {
   }, []);
 
   const loadSettings = async () => {
-    setIsLoading(true);
     try {
+      setIsLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
+      if (!user) return;
 
       const { data, error } = await supabase
         .from('company_settings')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
-      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading settings:', error);
+        return;
+      }
+
       if (data) {
-        setSettings({ ...data, user_id: user.id });
-      } else {
-        setSettings(prev => ({ ...prev, user_id: user.id }));
+        setSettings({
+          company_name: data.company_name || '',
+          company_address: data.company_address || '',
+          company_phone: data.company_phone || '',
+          company_email: data.company_email || '',
+          company_website: data.company_website || '',
+          company_description: data.company_description || ''
+        });
       }
     } catch (error) {
-      console.error('Error loading company settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load company settings",
-        variant: "destructive"
-      });
+      console.error('Error in loadSettings:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const saveSettings = async () => {
-    setIsSaving(true);
+  const handleSave = async () => {
     try {
+      setIsSaving(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
-
-      const settingsWithUserId = { ...settings, user_id: user.id };
+      if (!user) return;
 
       const { error } = await supabase
         .from('company_settings')
-        .upsert(settingsWithUserId, { onConflict: 'user_id' });
+        .upsert({
+          user_id: user.id,
+          ...settings,
+          updated_at: new Date().toISOString()
+        });
 
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Company settings saved successfully"
-      });
+      if (error) {
+        console.error('Error saving settings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save company settings",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Company settings saved successfully"
+        });
+      }
     } catch (error) {
-      console.error('Error saving company settings:', error);
+      console.error('Error in handleSave:', error);
       toast({
         title: "Error",
         description: "Failed to save company settings",
@@ -103,98 +116,116 @@ const CompanySettingsForm: React.FC = () => {
     }
   };
 
-  const handleInputChange = (field: keyof CompanySettings, value: string | number) => {
-    setSettings(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (field: keyof CompanySettings, value: string) => {
+    setSettings(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   if (isLoading) {
-    return <div className="text-center py-8">Loading company settings...</div>;
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Building2 className="h-5 w-5" />
+          Company Information
+        </CardTitle>
+        <CardDescription>
+          Update your company details and contact information
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="company_name">Company Name</Label>
+            <Input
+              id="company_name"
+              value={settings.company_name}
+              onChange={(e) => handleInputChange('company_name', e.target.value)}
+              placeholder="Enter company name"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="company_email">Company Email</Label>
+            <Input
+              id="company_email"
+              type="email"
+              value={settings.company_email}
+              onChange={(e) => handleInputChange('company_email', e.target.value)}
+              placeholder="Enter company email"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="company_phone">Company Phone</Label>
+            <Input
+              id="company_phone"
+              value={settings.company_phone}
+              onChange={(e) => handleInputChange('company_phone', e.target.value)}
+              placeholder="Enter company phone"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="company_website">Company Website</Label>
+            <Input
+              id="company_website"
+              value={settings.company_website}
+              onChange={(e) => handleInputChange('company_website', e.target.value)}
+              placeholder="Enter company website"
+            />
+          </div>
+        </div>
+
         <div className="space-y-2">
-          <Label htmlFor="company_name">Company Name</Label>
-          <Input
-            id="company_name"
-            value={settings.company_name}
-            onChange={(e) => handleInputChange('company_name', e.target.value)}
-            placeholder="Enter company name"
+          <Label htmlFor="company_address">Company Address</Label>
+          <Textarea
+            id="company_address"
+            value={settings.company_address}
+            onChange={(e) => handleInputChange('company_address', e.target.value)}
+            placeholder="Enter company address"
+            rows={3}
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="contact_email">Contact Email</Label>
-          <Input
-            id="contact_email"
-            type="email"
-            value={settings.contact_email}
-            onChange={(e) => handleInputChange('contact_email', e.target.value)}
-            placeholder="Enter contact email"
+          <Label htmlFor="company_description">Company Description</Label>
+          <Textarea
+            id="company_description"
+            value={settings.company_description}
+            onChange={(e) => handleInputChange('company_description', e.target.value)}
+            placeholder="Enter company description"
+            rows={4}
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="phone_number">Phone Number</Label>
-          <Input
-            id="phone_number"
-            value={settings.phone_number}
-            onChange={(e) => handleInputChange('phone_number', e.target.value)}
-            placeholder="Enter phone number"
-          />
+        <div className="flex justify-end">
+          <Button 
+            onClick={handleSave} 
+            disabled={isSaving}
+            className="flex items-center gap-2"
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? 'Saving...' : 'Save Settings'}
+          </Button>
         </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="fleet_size">Fleet Size</Label>
-          <Input
-            id="fleet_size"
-            type="number"
-            value={settings.fleet_size}
-            onChange={(e) => handleInputChange('fleet_size', parseInt(e.target.value) || 0)}
-            placeholder="Number of vehicles"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="timezone">Timezone</Label>
-          <Input
-            id="timezone"
-            value={settings.timezone}
-            onChange={(e) => handleInputChange('timezone', e.target.value)}
-            placeholder="UTC"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="currency_code">Currency Code</Label>
-          <Input
-            id="currency_code"
-            value={settings.currency_code}
-            onChange={(e) => handleInputChange('currency_code', e.target.value)}
-            placeholder="USD"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="company_address">Company Address</Label>
-        <Textarea
-          id="company_address"
-          value={settings.company_address}
-          onChange={(e) => handleInputChange('company_address', e.target.value)}
-          placeholder="Enter company address"
-          rows={3}
-        />
-      </div>
-
-      <div className="flex justify-end">
-        <Button onClick={saveSettings} disabled={isSaving}>
-          <Save className="h-4 w-4 mr-2" />
-          {isSaving ? 'Saving...' : 'Save Settings'}
-        </Button>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 

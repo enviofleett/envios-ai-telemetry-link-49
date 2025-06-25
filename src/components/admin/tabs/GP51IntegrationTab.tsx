@@ -11,6 +11,14 @@ import GP51UserManagement from '../GP51UserManagement';
 import GP51HistoricalData from '../GP51HistoricalData';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+// Safe array helper - prevents "map is not a function" errors
+function safeArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return [];
+  console.warn('Expected array but got:', typeof value, value);
+  return [];
+}
+
 const GP51IntegrationTab: React.FC = () => {
   return (
     <div className="space-y-6">

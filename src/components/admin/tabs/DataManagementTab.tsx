@@ -5,6 +5,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import EnhancedBulkImportTab from './EnhancedBulkImportTab';
 import { Database, Download, RefreshCw, Shield } from 'lucide-react';
 
+// Safe array helper - prevents "map is not a function" errors
+function safeArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return [];
+  console.warn('Expected array but got:', typeof value, value);
+  return [];
+}
+
 const DataManagementTab: React.FC = () => {
   return (
     <div className="space-y-6">

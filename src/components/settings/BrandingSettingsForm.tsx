@@ -1,35 +1,38 @@
 
 import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Palette, Save } from 'lucide-react';
+import { Palette, Save, Upload } from 'lucide-react';
+
+// Safe array helper - prevents "map is not a function" errors
+function safeArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return [];
+  console.warn('Expected array but got:', typeof value, value);
+  return [];
+}
 
 interface BrandingSettings {
-  company_name: string;
-  logo_url: string;
   primary_color: string;
   secondary_color: string;
-  background_color: string;
-  text_color: string;
-  font_family_heading: string;
-  font_family_body: string;
-  user_id: string;
+  accent_color: string;
+  logo_url: string;
+  favicon_url: string;
+  brand_name: string;
 }
 
 const BrandingSettingsForm: React.FC = () => {
   const [settings, setSettings] = useState<BrandingSettings>({
-    company_name: 'FleetIQ',
+    primary_color: '#3B82F6',
+    secondary_color: '#64748B',
+    accent_color: '#10B981',
     logo_url: '',
-    primary_color: '#3b82f6',
-    secondary_color: '#6366f1',
-    background_color: '#ffffff',
-    text_color: '#1f2937',
-    font_family_heading: 'Inter',
-    font_family_body: 'Inter',
-    user_id: ''
+    favicon_url: '',
+    brand_name: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -40,60 +43,68 @@ const BrandingSettingsForm: React.FC = () => {
   }, []);
 
   const loadSettings = async () => {
-    setIsLoading(true);
     try {
+      setIsLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
+      if (!user) return;
 
       const { data, error } = await supabase
         .from('branding_settings')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
-      
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading branding settings:', error);
+        return;
+      }
+
       if (data) {
-        setSettings({ ...data, user_id: user.id });
-      } else {
-        setSettings(prev => ({ ...prev, user_id: user.id }));
+        setSettings({
+          primary_color: data.primary_color || '#3B82F6',
+          secondary_color: data.secondary_color || '#64748B',
+          accent_color: data.accent_color || '#10B981',
+          logo_url: data.logo_url || '',
+          favicon_url: data.favicon_url || '',
+          brand_name: data.brand_name || ''
+        });
       }
     } catch (error) {
-      console.error('Error loading branding settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load branding settings",
-        variant: "destructive"
-      });
+      console.error('Error in loadSettings:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const saveSettings = async () => {
-    setIsSaving(true);
+  const handleSave = async () => {
     try {
+      setIsSaving(true);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
-
-      const settingsWithUserId = { ...settings, user_id: user.id };
+      if (!user) return;
 
       const { error } = await supabase
         .from('branding_settings')
-        .upsert(settingsWithUserId, { onConflict: 'user_id' });
+        .upsert({
+          user_id: user.id,
+          ...settings,
+          updated_at: new Date().toISOString()
+        });
 
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Branding settings saved successfully"
-      });
+      if (error) {
+        console.error('Error saving branding settings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save branding settings",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Branding settings saved successfully"
+        });
+      }
     } catch (error) {
-      console.error('Error saving branding settings:', error);
+      console.error('Error in handleSave:', error);
       toast({
         title: "Error",
         description: "Failed to save branding settings",
@@ -105,132 +116,174 @@ const BrandingSettingsForm: React.FC = () => {
   };
 
   const handleInputChange = (field: keyof BrandingSettings, value: string) => {
-    setSettings(prev => ({ ...prev, [field]: value }));
+    setSettings(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
   if (isLoading) {
-    return <div className="text-center py-8">Loading branding settings...</div>;
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Palette className="h-5 w-5" />
+          Branding Settings
+        </CardTitle>
+        <CardDescription>
+          Customize your application's visual identity and branding
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
         <div className="space-y-2">
-          <Label htmlFor="company_name">Company Name</Label>
+          <Label htmlFor="brand_name">Brand Name</Label>
           <Input
-            id="company_name"
-            value={settings.company_name}
-            onChange={(e) => handleInputChange('company_name', e.target.value)}
-            placeholder="Enter company name"
+            id="brand_name"
+            value={settings.brand_name}
+            onChange={(e) => handleInputChange('brand_name', e.target.value)}
+            placeholder="Enter brand name"
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="logo_url">Logo URL</Label>
-          <Input
-            id="logo_url"
-            value={settings.logo_url}
-            onChange={(e) => handleInputChange('logo_url', e.target.value)}
-            placeholder="Enter logo URL"
-          />
-        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="primary_color">Primary Color</Label>
+            <div className="flex gap-2">
+              <Input
+                id="primary_color"
+                type="color"
+                value={settings.primary_color}
+                onChange={(e) => handleInputChange('primary_color', e.target.value)}
+                className="w-16 h-10 p-1 border rounded"
+              />
+              <Input
+                value={settings.primary_color}
+                onChange={(e) => handleInputChange('primary_color', e.target.value)}
+                placeholder="#3B82F6"
+                className="flex-1"
+              />
+            </div>
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="primary_color">Primary Color</Label>
-          <div className="flex gap-2">
-            <Input
-              type="color"
-              value={settings.primary_color}
-              onChange={(e) => handleInputChange('primary_color', e.target.value)}
-              className="w-20"
-            />
-            <Input
-              value={settings.primary_color}
-              onChange={(e) => handleInputChange('primary_color', e.target.value)}
-              placeholder="#3b82f6"
-            />
+          <div className="space-y-2">
+            <Label htmlFor="secondary_color">Secondary Color</Label>
+            <div className="flex gap-2">
+              <Input
+                id="secondary_color"
+                type="color"
+                value={settings.secondary_color}
+                onChange={(e) => handleInputChange('secondary_color', e.target.value)}
+                className="w-16 h-10 p-1 border rounded"
+              />
+              <Input
+                value={settings.secondary_color}
+                onChange={(e) => handleInputChange('secondary_color', e.target.value)}
+                placeholder="#64748B"
+                className="flex-1"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="accent_color">Accent Color</Label>
+            <div className="flex gap-2">
+              <Input
+                id="accent_color"
+                type="color"
+                value={settings.accent_color}
+                onChange={(e) => handleInputChange('accent_color', e.target.value)}
+                className="w-16 h-10 p-1 border rounded"
+              />
+              <Input
+                value={settings.accent_color}
+                onChange={(e) => handleInputChange('accent_color', e.target.value)}
+                placeholder="#10B981"
+                className="flex-1"
+              />
+            </div>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="secondary_color">Secondary Color</Label>
-          <div className="flex gap-2">
-            <Input
-              type="color"
-              value={settings.secondary_color}
-              onChange={(e) => handleInputChange('secondary_color', e.target.value)}
-              className="w-20"
-            />
-            <Input
-              value={settings.secondary_color}
-              onChange={(e) => handleInputChange('secondary_color', e.target.value)}
-              placeholder="#6366f1"
-            />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="logo_url">Logo URL</Label>
+            <div className="flex gap-2">
+              <Input
+                id="logo_url"
+                value={settings.logo_url}
+                onChange={(e) => handleInputChange('logo_url', e.target.value)}
+                placeholder="Enter logo URL"
+                className="flex-1"
+              />
+              <Button variant="outline" size="sm">
+                <Upload className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="favicon_url">Favicon URL</Label>
+            <div className="flex gap-2">
+              <Input
+                id="favicon_url"
+                value={settings.favicon_url}
+                onChange={(e) => handleInputChange('favicon_url', e.target.value)}
+                placeholder="Enter favicon URL"
+                className="flex-1"
+              />
+              <Button variant="outline" size="sm">
+                <Upload className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="background_color">Background Color</Label>
-          <div className="flex gap-2">
-            <Input
-              type="color"
-              value={settings.background_color}
-              onChange={(e) => handleInputChange('background_color', e.target.value)}
-              className="w-20"
-            />
-            <Input
-              value={settings.background_color}
-              onChange={(e) => handleInputChange('background_color', e.target.value)}
-              placeholder="#ffffff"
-            />
+        <div className="border rounded-lg p-4 bg-gray-50">
+          <h4 className="font-medium mb-2">Preview</h4>
+          <div className="flex items-center gap-3">
+            <div 
+              className="w-8 h-8 rounded"
+              style={{ backgroundColor: settings.primary_color }}
+            ></div>
+            <div 
+              className="w-8 h-8 rounded"
+              style={{ backgroundColor: settings.secondary_color }}
+            ></div>
+            <div 
+              className="w-8 h-8 rounded"
+              style={{ backgroundColor: settings.accent_color }}
+            ></div>
+            <span className="text-sm text-gray-600">
+              {settings.brand_name || 'Your Brand Name'}
+            </span>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="text_color">Text Color</Label>
-          <div className="flex gap-2">
-            <Input
-              type="color"
-              value={settings.text_color}
-              onChange={(e) => handleInputChange('text_color', e.target.value)}
-              className="w-20"
-            />
-            <Input
-              value={settings.text_color}
-              onChange={(e) => handleInputChange('text_color', e.target.value)}
-              placeholder="#1f2937"
-            />
-          </div>
+        <div className="flex justify-end">
+          <Button 
+            onClick={handleSave} 
+            disabled={isSaving}
+            className="flex items-center gap-2"
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? 'Saving...' : 'Save Settings'}
+          </Button>
         </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="font_family_heading">Heading Font</Label>
-          <Input
-            id="font_family_heading"
-            value={settings.font_family_heading}
-            onChange={(e) => handleInputChange('font_family_heading', e.target.value)}
-            placeholder="Inter"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="font_family_body">Body Font</Label>
-          <Input
-            id="font_family_body"
-            value={settings.font_family_body}
-            onChange={(e) => handleInputChange('font_family_body', e.target.value)}
-            placeholder="Inter"
-          />
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <Button onClick={saveSettings} disabled={isSaving}>
-          <Save className="h-4 w-4 mr-2" />
-          {isSaving ? 'Saving...' : 'Save Settings'}
-        </Button>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 
