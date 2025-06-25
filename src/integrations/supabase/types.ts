@@ -3258,6 +3258,446 @@ export type Database = {
           },
         ]
       }
+      gps51_analytics: {
+        Row: {
+          active_devices: number | null
+          avg_response_time_ms: number | null
+          created_at: string
+          data_volume_mb: number | null
+          device_count: number | null
+          error_rate: number | null
+          id: string
+          metric_date: string
+          metric_type: string
+          position_updates: number | null
+          sync_success_rate: number | null
+        }
+        Insert: {
+          active_devices?: number | null
+          avg_response_time_ms?: number | null
+          created_at?: string
+          data_volume_mb?: number | null
+          device_count?: number | null
+          error_rate?: number | null
+          id?: string
+          metric_date: string
+          metric_type: string
+          position_updates?: number | null
+          sync_success_rate?: number | null
+        }
+        Update: {
+          active_devices?: number | null
+          avg_response_time_ms?: number | null
+          created_at?: string
+          data_volume_mb?: number | null
+          device_count?: number | null
+          error_rate?: number | null
+          id?: string
+          metric_date?: string
+          metric_type?: string
+          position_updates?: number | null
+          sync_success_rate?: number | null
+        }
+        Relationships: []
+      }
+      gps51_devices: {
+        Row: {
+          allow_edit: number | null
+          car_tag_color: number | null
+          create_time: number | null
+          created_at: string
+          creator: string | null
+          device_id: string
+          device_name: string
+          device_tag: string | null
+          device_type: number
+          expire_notify_time: number | null
+          first_loc_time: number | null
+          forward_id: string | null
+          group_id: number | null
+          icon: number | null
+          id: string
+          init_loc_time: number | null
+          is_active: boolean | null
+          is_free: number | null
+          last_active_time: number | null
+          last_sync_at: string | null
+          login_name: string | null
+          need_alarm_str: string | null
+          notify_phone_num_is_open: number | null
+          offline_delay: number | null
+          overdue_time: number | null
+          package_ids: number | null
+          precharge_years: number | null
+          remark: string | null
+          remark2: string | null
+          sim_iccid: string | null
+          sim_number: string | null
+          starred: number | null
+          updated_at: string
+          video_channel_count: number | null
+          video_channel_setting: string | null
+        }
+        Insert: {
+          allow_edit?: number | null
+          car_tag_color?: number | null
+          create_time?: number | null
+          created_at?: string
+          creator?: string | null
+          device_id: string
+          device_name: string
+          device_tag?: string | null
+          device_type: number
+          expire_notify_time?: number | null
+          first_loc_time?: number | null
+          forward_id?: string | null
+          group_id?: number | null
+          icon?: number | null
+          id?: string
+          init_loc_time?: number | null
+          is_active?: boolean | null
+          is_free?: number | null
+          last_active_time?: number | null
+          last_sync_at?: string | null
+          login_name?: string | null
+          need_alarm_str?: string | null
+          notify_phone_num_is_open?: number | null
+          offline_delay?: number | null
+          overdue_time?: number | null
+          package_ids?: number | null
+          precharge_years?: number | null
+          remark?: string | null
+          remark2?: string | null
+          sim_iccid?: string | null
+          sim_number?: string | null
+          starred?: number | null
+          updated_at?: string
+          video_channel_count?: number | null
+          video_channel_setting?: string | null
+        }
+        Update: {
+          allow_edit?: number | null
+          car_tag_color?: number | null
+          create_time?: number | null
+          created_at?: string
+          creator?: string | null
+          device_id?: string
+          device_name?: string
+          device_tag?: string | null
+          device_type?: number
+          expire_notify_time?: number | null
+          first_loc_time?: number | null
+          forward_id?: string | null
+          group_id?: number | null
+          icon?: number | null
+          id?: string
+          init_loc_time?: number | null
+          is_active?: boolean | null
+          is_free?: number | null
+          last_active_time?: number | null
+          last_sync_at?: string | null
+          login_name?: string | null
+          need_alarm_str?: string | null
+          notify_phone_num_is_open?: number | null
+          offline_delay?: number | null
+          overdue_time?: number | null
+          package_ids?: number | null
+          precharge_years?: number | null
+          remark?: string | null
+          remark2?: string | null
+          sim_iccid?: string | null
+          sim_number?: string | null
+          starred?: number | null
+          updated_at?: string
+          video_channel_count?: number | null
+          video_channel_setting?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gps51_devices_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "gps51_groups"
+            referencedColumns: ["group_id"]
+          },
+        ]
+      }
+      gps51_groups: {
+        Row: {
+          created_at: string
+          device_count: number | null
+          group_id: number
+          group_name: string
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          remark: string | null
+          shared: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          device_count?: number | null
+          group_id: number
+          group_name: string
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          remark?: string | null
+          shared?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          device_count?: number | null
+          group_id?: number
+          group_name?: string
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          remark?: string | null
+          shared?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      gps51_import_logs: {
+        Row: {
+          batch_id: string | null
+          completed_at: string | null
+          created_by: string | null
+          error_details: Json | null
+          failed_records: number | null
+          id: string
+          import_summary: Json | null
+          import_type: string
+          source_system: string | null
+          started_at: string
+          status: string
+          successful_records: number | null
+          total_records: number | null
+        }
+        Insert: {
+          batch_id?: string | null
+          completed_at?: string | null
+          created_by?: string | null
+          error_details?: Json | null
+          failed_records?: number | null
+          id?: string
+          import_summary?: Json | null
+          import_type: string
+          source_system?: string | null
+          started_at?: string
+          status?: string
+          successful_records?: number | null
+          total_records?: number | null
+        }
+        Update: {
+          batch_id?: string | null
+          completed_at?: string | null
+          created_by?: string | null
+          error_details?: Json | null
+          failed_records?: number | null
+          id?: string
+          import_summary?: Json | null
+          import_type?: string
+          source_system?: string | null
+          started_at?: string
+          status?: string
+          successful_records?: number | null
+          total_records?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gps51_import_logs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gps51_positions: {
+        Row: {
+          address: string | null
+          altitude: number | null
+          course: number | null
+          created_at: string
+          device_id: string
+          fuel_level: number | null
+          gps_time: number | null
+          id: string
+          is_valid: boolean | null
+          latitude: number | null
+          longitude: number | null
+          mileage: number | null
+          satellites: number | null
+          server_time: number | null
+          signal_strength: number | null
+          speed: number | null
+          status_code: number | null
+          status_text: string | null
+          temperature: number | null
+          voltage: number | null
+        }
+        Insert: {
+          address?: string | null
+          altitude?: number | null
+          course?: number | null
+          created_at?: string
+          device_id: string
+          fuel_level?: number | null
+          gps_time?: number | null
+          id?: string
+          is_valid?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
+          mileage?: number | null
+          satellites?: number | null
+          server_time?: number | null
+          signal_strength?: number | null
+          speed?: number | null
+          status_code?: number | null
+          status_text?: string | null
+          temperature?: number | null
+          voltage?: number | null
+        }
+        Update: {
+          address?: string | null
+          altitude?: number | null
+          course?: number | null
+          created_at?: string
+          device_id?: string
+          fuel_level?: number | null
+          gps_time?: number | null
+          id?: string
+          is_valid?: boolean | null
+          latitude?: number | null
+          longitude?: number | null
+          mileage?: number | null
+          satellites?: number | null
+          server_time?: number | null
+          signal_strength?: number | null
+          speed?: number | null
+          status_code?: number | null
+          status_text?: string | null
+          temperature?: number | null
+          voltage?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gps51_positions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "gps51_devices"
+            referencedColumns: ["device_id"]
+          },
+        ]
+      }
+      gps51_sync_status: {
+        Row: {
+          created_at: string
+          error_count: number | null
+          id: string
+          last_error: string | null
+          last_sync_time: string
+          next_sync_time: string | null
+          status: string
+          sync_details: Json | null
+          sync_interval_minutes: number | null
+          sync_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error_count?: number | null
+          id?: string
+          last_error?: string | null
+          last_sync_time?: string
+          next_sync_time?: string | null
+          status?: string
+          sync_details?: Json | null
+          sync_interval_minutes?: number | null
+          sync_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error_count?: number | null
+          id?: string
+          last_error?: string | null
+          last_sync_time?: string
+          next_sync_time?: string | null
+          status?: string
+          sync_details?: Json | null
+          sync_interval_minutes?: number | null
+          sync_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      gps51_users: {
+        Row: {
+          company_name: string | null
+          created_at: string
+          email: string | null
+          envio_user_id: string | null
+          gp51_username: string
+          id: string
+          is_active: boolean | null
+          last_sync_at: string | null
+          multi_login: number | null
+          nickname: string | null
+          phone: string | null
+          qq: string | null
+          updated_at: string
+          user_type: number
+          wechat: string | null
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string
+          email?: string | null
+          envio_user_id?: string | null
+          gp51_username: string
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          multi_login?: number | null
+          nickname?: string | null
+          phone?: string | null
+          qq?: string | null
+          updated_at?: string
+          user_type: number
+          wechat?: string | null
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string
+          email?: string | null
+          envio_user_id?: string | null
+          gp51_username?: string
+          id?: string
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          multi_login?: number | null
+          nickname?: string | null
+          phone?: string | null
+          qq?: string | null
+          updated_at?: string
+          user_type?: number
+          wechat?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gps51_users_envio_user_id_fkey"
+            columns: ["envio_user_id"]
+            isOneToOne: false
+            referencedRelation: "envio_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_notifications: {
         Row: {
           created_at: string | null
@@ -9796,6 +10236,10 @@ export type Database = {
         Returns: string
       }
       update_agent_performance_snapshots: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      update_gps51_daily_analytics: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }

@@ -1,470 +1,476 @@
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Calendar, MapPin, Route, Download, Clock, TrendingUp } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { 
+  Download, 
+  Upload, 
+  RefreshCw, 
+  Database, 
+  Activity, 
+  Users, 
+  Car, 
+  MapPin,
+  Calendar,
+  Filter,
+  ExternalLink
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface ImportProgress {
+  batchId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  totalRecords: number;
+  processedRecords: number;
+  successfulRecords: number;
+  failedRecords: number;
+  errors: string[];
+  startedAt: string;
+  completedAt?: string;
+}
+
+interface Analytics {
+  summary: {
+    totalDevices: number;
+    activeDevices: number;
+    totalGroups: number;
+    totalUsers: number;
+    recentPositions: number;
+  };
+  historical: any[];
+  recentImports: any[];
+}
 
 const GP51HistoricalData: React.FC = () => {
-  const [deviceId, setDeviceId] = useState('');
-  const [deviceIds, setDeviceIds] = useState('');
-  const [beginTime, setBeginTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [timezone, setTimezone] = useState(8);
-  const [includeTrips, setIncludeTrips] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
+  const [exportFormat, setExportFormat] = useState<'json' | 'csv'>('json');
+  const [dateRange, setDateRange] = useState({
+    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
 
-  const formatDateTime = (dateString: string) => {
-    if (!dateString) return '';
-    return new Date(dateString).toISOString().slice(0, 16);
-  };
+  useEffect(() => {
+    loadAnalytics();
+  }, []);
 
-  const getDeviceTracks = async () => {
-    if (!deviceId.trim() || !beginTime || !endTime) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
-      return;
-    }
-
+  const loadAnalytics = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      console.log(`Getting tracks for device: ${deviceId}`);
-
-      const { data, error } = await supabase.functions.invoke('gp51-historical-data', {
+      const { data, error } = await supabase.functions.invoke('gps51-data', {
         body: {
-          action: 'get_device_tracks',
-          deviceId: deviceId.trim(),
-          beginTime,
-          endTime,
-          timezone
+          action: 'analytics',
+          filters: {
+            dateRange: {
+              start: `${dateRange.start}T00:00:00Z`,
+              end: `${dateRange.end}T23:59:59Z`
+            }
+          }
         }
       });
 
       if (error) throw error;
 
-      if (data.success) {
-        setResults({
-          type: 'tracks',
-          data: data.data
-        });
-        toast({
-          title: "Tracks Retrieved",
-          description: data.message
-        });
+      if (data?.success) {
+        setAnalytics(data.data);
       } else {
-        throw new Error(data.error || 'Failed to get tracks');
+        throw new Error(data?.error || 'Failed to load analytics');
       }
     } catch (error) {
-      console.error('Failed to get tracks:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to get tracks',
-        variant: "destructive"
-      });
+      console.error('Failed to load analytics:', error);
+      toast.error('Failed to load analytics data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getDeviceTrips = async () => {
-    if (!deviceId.trim() || !beginTime || !endTime) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
-      return;
-    }
-
+  const startImport = async (importType: string) => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      console.log(`Getting trips for device: ${deviceId}`);
-
-      const { data, error } = await supabase.functions.invoke('gp51-historical-data', {
+      const { data, error } = await supabase.functions.invoke('gps51-import', {
         body: {
-          action: 'get_device_trips',
-          deviceId: deviceId.trim(),
-          beginTime,
-          endTime,
-          timezone
+          action: importType,
+          options: {
+            skipExisting: false,
+            validateData: true,
+            syncPositions: importType === 'full_import'
+          }
         }
       });
 
       if (error) throw error;
 
-      if (data.success) {
-        setResults({
-          type: 'trips',
-          data: data.data
+      if (data?.success) {
+        setImportProgress({
+          batchId: data.batchId,
+          status: 'processing',
+          totalRecords: data.data.totalRecords || 0,
+          processedRecords: 0,
+          successfulRecords: data.data.successfulRecords || 0,
+          failedRecords: data.data.failedRecords || 0,
+          errors: data.data.errors || [],
+          startedAt: new Date().toISOString()
         });
-        toast({
-          title: "Trips Retrieved",
-          description: data.message
-        });
+        toast.success(`${importType} started successfully`);
+        
+        // Refresh analytics after import
+        setTimeout(() => {
+          loadAnalytics();
+          setImportProgress(null);
+        }, 2000);
       } else {
-        throw new Error(data.error || 'Failed to get trips');
+        throw new Error(data?.error || `Failed to start ${importType}`);
       }
     } catch (error) {
-      console.error('Failed to get trips:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to get trips',
-        variant: "destructive"
-      });
+      console.error(`Failed to start ${importType}:`, error);
+      toast.error(`Failed to start ${importType}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getMultiDeviceData = async () => {
-    if (!deviceIds.trim() || !beginTime || !endTime) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const deviceIdArray = deviceIds.split(',').map(id => id.trim()).filter(id => id);
-    if (deviceIdArray.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please enter at least one device ID",
-        variant: "destructive"
-      });
-      return;
-    }
-
+  const exportData = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      console.log(`Getting data for ${deviceIdArray.length} devices`);
-
-      const { data, error } = await supabase.functions.invoke('gp51-historical-data', {
+      const { data, error } = await supabase.functions.invoke('gps51-data', {
         body: {
-          action: 'get_multi_device_data',
-          deviceIds: deviceIdArray,
-          beginTime,
-          endTime,
-          timezone,
-          includeTrips
+          action: 'export',
+          filters: {
+            dateRange: {
+              start: `${dateRange.start}T00:00:00Z`,
+              end: `${dateRange.end}T23:59:59Z`
+            }
+          },
+          exportFormat
         }
       });
 
       if (error) throw error;
 
-      if (data.success) {
-        setResults({
-          type: 'multi_device',
-          data: data.data
-        });
-        toast({
-          title: "Multi-Device Data Retrieved",
-          description: data.message
-        });
-      } else {
-        throw new Error(data.error || 'Failed to get multi-device data');
-      }
-    } catch (error) {
-      console.error('Failed to get multi-device data:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to get multi-device data',
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const exportHistoricalData = async () => {
-    if (!deviceIds.trim() || !beginTime || !endTime) {
-      toast({
-        title: "Error",
-        description: "Please fill in all required fields for export",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const deviceIdArray = deviceIds.split(',').map(id => id.trim()).filter(id => id);
-    if (deviceIdArray.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please enter at least one device ID",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      console.log(`Exporting historical data for ${deviceIdArray.length} devices`);
-
-      const { data, error } = await supabase.functions.invoke('gp51-historical-data', {
-        body: {
-          action: 'export_historical_data',
-          deviceIds: deviceIdArray,
-          beginTime,
-          endTime,
-          timezone,
-          format: 'json'
-        }
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        // Create downloadable file
+      if (data?.success) {
+        // Create and download file
         const blob = new Blob([JSON.stringify(data.data, null, 2)], {
-          type: 'application/json'
+          type: exportFormat === 'csv' ? 'text/csv' : 'application/json'
         });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `gp51-historical-export-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gps51-export-${new Date().toISOString().split('T')[0]}.${exportFormat}`;
+        a.click();
         URL.revokeObjectURL(url);
-
-        toast({
-          title: "Export Complete",
-          description: data.message
-        });
+        
+        toast.success('Data exported successfully');
       } else {
-        throw new Error(data.error || 'Export failed');
+        throw new Error(data?.error || 'Failed to export data');
       }
     } catch (error) {
-      console.error('Failed to export historical data:', error);
-      toast({
-        title: "Export Error",
-        description: error instanceof Error ? error.message : 'Failed to export data',
-        variant: "destructive"
-      });
+      console.error('Failed to export data:', error);
+      toast.error('Failed to export data');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const formatTimestamp = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleString();
   };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5" />
-            GP51 Historical Data
-          </CardTitle>
-          <CardDescription>
-            Retrieve tracks, trips, and historical data from GP51 devices
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="beginTime">Begin Time</Label>
-              <Input
-                id="beginTime"
-                type="datetime-local"
-                value={formatDateTime(beginTime)}
-                onChange={(e) => setBeginTime(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="endTime">End Time</Label>
-              <Input
-                id="endTime"
-                type="datetime-local"
-                value={formatDateTime(endTime)}
-                onChange={(e) => setEndTime(e.target.value)}
-              />
-            </div>
-          </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">GPS51 Historical Data</h2>
+          <p className="text-gray-600">Manage and analyze GPS51 historical data and imports</p>
+        </div>
+        <Button onClick={loadAnalytics} variant="outline" size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
 
-          <div>
-            <Label htmlFor="timezone">Timezone Offset</Label>
-            <Input
-              id="timezone"
-              type="number"
-              value={timezone}
-              onChange={(e) => setTimezone(parseInt(e.target.value) || 8)}
-              placeholder="8"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Single Device Operations</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="singleDeviceId">Device ID</Label>
-            <Input
-              id="singleDeviceId"
-              placeholder="Enter device ID"
-              value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={getDeviceTracks} disabled={isLoading}>
-              <MapPin className="h-4 w-4 mr-2" />
-              Get Tracks
-            </Button>
-            <Button onClick={getDeviceTrips} disabled={isLoading}>
-              <Route className="h-4 w-4 mr-2" />
-              Get Trips
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Multi-Device Operations</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="multiDeviceIds">Device IDs (comma-separated)</Label>
-            <Textarea
-              id="multiDeviceIds"
-              placeholder="Enter device IDs separated by commas"
-              value={deviceIds}
-              onChange={(e) => setDeviceIds(e.target.value)}
-              rows={3}
-            />
-          </div>
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="includeTrips"
-              checked={includeTrips}
-              onCheckedChange={setIncludeTrips}
-            />
-            <Label htmlFor="includeTrips">Include trip data</Label>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={getMultiDeviceData} disabled={isLoading}>
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Get Multi-Device Data
-            </Button>
-            <Button onClick={exportHistoricalData} disabled={isLoading} variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Export Historical Data
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {results && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Results</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {results.type === 'tracks' && (
-              <div className="space-y-4">
-                <div className="flex gap-4">
-                  <Badge variant="outline">
-                    Device: {results.data.deviceId}
-                  </Badge>
-                  <Badge variant="outline">
-                    Points: {results.data.totalPoints}
-                  </Badge>
+      {/* Analytics Summary Cards */}
+      {analytics && (
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Devices</p>
+                  <p className="text-2xl font-bold">{analytics.summary.totalDevices}</p>
                 </div>
-                <div className="max-h-96 overflow-y-auto">
-                  <pre className="text-xs bg-muted p-4 rounded">
-                    {JSON.stringify(results.data.tracks.slice(0, 5), null, 2)}
-                    {results.data.tracks.length > 5 && '\n... and more'}
-                  </pre>
-                </div>
+                <Car className="h-8 w-8 text-blue-500" />
               </div>
-            )}
+            </CardContent>
+          </Card>
 
-            {results.type === 'trips' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{results.data.summary.totalTrips}</div>
-                    <div className="text-sm text-muted-foreground">Total Trips</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{results.data.summary.totalDistance}</div>
-                    <div className="text-sm text-muted-foreground">Distance</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{results.data.summary.maxSpeed}</div>
-                    <div className="text-sm text-muted-foreground">Max Speed</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{results.data.summary.avgSpeed}</div>
-                    <div className="text-sm text-muted-foreground">Avg Speed</div>
-                  </div>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Active Devices</p>
+                  <p className="text-2xl font-bold text-green-600">{analytics.summary.activeDevices}</p>
                 </div>
-                <div className="max-h-96 overflow-y-auto">
-                  <pre className="text-xs bg-muted p-4 rounded">
-                    {JSON.stringify(results.data.trips.slice(0, 3), null, 2)}
-                    {results.data.trips.length > 3 && '\n... and more'}
-                  </pre>
-                </div>
+                <Activity className="h-8 w-8 text-green-500" />
               </div>
-            )}
+            </CardContent>
+          </Card>
 
-            {results.type === 'multi_device' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{results.data.summary.totalDevices}</div>
-                    <div className="text-sm text-muted-foreground">Total Devices</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">{results.data.summary.successfulDevices}</div>
-                    <div className="text-sm text-muted-foreground">Successful</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">{results.data.summary.failedDevices}</div>
-                    <div className="text-sm text-muted-foreground">Failed</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold">{results.data.summary.totalTrackPoints}</div>
-                    <div className="text-sm text-muted-foreground">Track Points</div>
-                  </div>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Groups</p>
+                  <p className="text-2xl font-bold">{analytics.summary.totalGroups}</p>
                 </div>
-                <div className="space-y-2">
-                  {results.data.devices.map((device: any, index: number) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded">
-                      <div className="flex items-center gap-2">
-                        <Badge variant={device.success ? "default" : "destructive"}>
-                          {device.deviceId}
+                <Database className="h-8 w-8 text-purple-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Users</p>
+                  <p className="text-2xl font-bold">{analytics.summary.totalUsers}</p>
+                </div>
+                <Users className="h-8 w-8 text-orange-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Recent Positions</p>
+                  <p className="text-2xl font-bold">{analytics.summary.recentPositions}</p>
+                </div>
+                <MapPin className="h-8 w-8 text-red-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <Tabs defaultValue="import" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="import">Data Import</TabsTrigger>
+          <TabsTrigger value="export">Data Export</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="history">Import History</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="import" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Upload className="h-5 w-5 mr-2" />
+                Import GPS51 Data
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {importProgress && (
+                <Alert>
+                  <Activity className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span>Import Status: {importProgress.status}</span>
+                        <Badge variant={importProgress.status === 'completed' ? 'default' : 'secondary'}>
+                          {importProgress.status}
                         </Badge>
-                        <span className="text-sm">
-                          {device.success ? `${device.trackCount} points` : device.error}
-                        </span>
+                      </div>
+                      <Progress 
+                        value={(importProgress.successfulRecords / importProgress.totalRecords) * 100} 
+                        className="w-full"
+                      />
+                      <p className="text-sm">
+                        {importProgress.successfulRecords}/{importProgress.totalRecords} records processed
+                      </p>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Button 
+                  onClick={() => startImport('full_import')}
+                  disabled={isLoading}
+                  className="h-20 flex-col"
+                >
+                  <Database className="h-6 w-6 mb-2" />
+                  Full Import
+                </Button>
+                
+                <Button 
+                  onClick={() => startImport('devices')}
+                  disabled={isLoading}
+                  variant="outline"
+                  className="h-20 flex-col"
+                >
+                  <Car className="h-6 w-6 mb-2" />
+                  Devices Only
+                </Button>
+                
+                <Button 
+                  onClick={() => startImport('groups')}
+                  disabled={isLoading}
+                  variant="outline"
+                  className="h-20 flex-col"
+                >
+                  <Database className="h-6 w-6 mb-2" />
+                  Groups Only
+                </Button>
+                
+                <Button 
+                  onClick={() => startImport('users')}
+                  disabled={isLoading}
+                  variant="outline"
+                  className="h-20 flex-col"
+                >
+                  <Users className="h-6 w-6 mb-2" />
+                  Users Only
+                </Button>
+                
+                <Button 
+                  onClick={() => startImport('sync_positions')}
+                  disabled={isLoading}
+                  variant="outline"
+                  className="h-20 flex-col"
+                >
+                  <MapPin className="h-6 w-6 mb-2" />
+                  Sync Positions
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="export" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Download className="h-5 w-5 mr-2" />
+                Export GPS51 Data
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="start-date">Start Date</Label>
+                  <Input
+                    id="start-date"
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="end-date">End Date</Label>
+                  <Input
+                    id="end-date"
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Export Format</Label>
+                  <Select value={exportFormat} onValueChange={(value: 'json' | 'csv') => setExportFormat(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="json">JSON</SelectItem>
+                      <SelectItem value="csv">CSV</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <Button onClick={exportData} disabled={isLoading} className="w-full">
+                <Download className="h-4 w-4 mr-2" />
+                Export Data
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-4">
+          {analytics?.historical && analytics.historical.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Historical Analytics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {analytics.historical.map((day, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded">
+                      <div className="flex items-center space-x-4">
+                        <Calendar className="h-4 w-4 text-gray-500" />
+                        <span className="font-medium">{day.metric_date}</span>
+                      </div>
+                      <div className="flex space-x-6 text-sm">
+                        <span>Devices: {day.device_count}</span>
+                        <span>Active: {day.active_devices}</span>
+                        <span>Positions: {day.position_updates}</span>
                       </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
+          {analytics?.recentImports && analytics.recentImports.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Import History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {analytics.recentImports.map((importLog: any) => (
+                    <div key={importLog.id} className="flex items-center justify-between p-3 border rounded">
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <Badge variant={importLog.status === 'completed' ? 'default' : 
+                                        importLog.status === 'failed' ? 'destructive' : 'secondary'}>
+                            {importLog.status}
+                          </Badge>
+                          <span className="font-medium">{importLog.import_type}</span>
+                        </div>
+                        <p className="text-sm text-gray-600">
+                          {new Date(importLog.started_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm">
+                          {importLog.successful_records}/{importLog.total_records} successful
+                        </p>
+                        {importLog.failed_records > 0 && (
+                          <p className="text-sm text-red-600">
+                            {importLog.failed_records} failed
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

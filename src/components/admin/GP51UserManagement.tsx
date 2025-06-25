@@ -1,313 +1,362 @@
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { User, Download, Search, UserCheck, Building, Mail, Phone } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { 
+  Users, 
+  RefreshCw, 
+  Search, 
+  ExternalLink,
+  Download,
+  User,
+  Building,
+  Mail,
+  Phone
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
-interface UserDetails {
-  username: string;
-  displayName: string;
-  userType: number;
-  userTypeLabel: string;
-  company: string;
-  contact: {
+interface GPS51User {
+  id: string;
+  gp51_username: string;
+  user_type: number;
+  nickname: string;
+  company_name: string;
+  email: string;
+  phone: string;
+  qq: string;
+  wechat: string;
+  multi_login: number;
+  is_active: boolean;
+  last_sync_at: string;
+  envio_users?: {
+    name: string;
     email: string;
-    phone: string;
-    qq: string;
-    wechat: string;
-  };
-  permissions: {
-    multiLogin: boolean;
   };
 }
 
-const GP51UserManagement: React.FC = () => {
-  const [currentUserData, setCurrentUserData] = useState<UserDetails | null>(null);
-  const [targetUsername, setTargetUsername] = useState('');
-  const [targetUserData, setTargetUserData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
-
-  const getCurrentUserInfo = async () => {
-    try {
-      setIsLoading(true);
-      console.log('Getting current user info...');
-
-      const { data, error } = await supabase.functions.invoke('gp51-user-management', {
-        body: { action: 'get_current_user_info' }
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        setCurrentUserData(data.data);
-        toast({
-          title: "User Info Retrieved",
-          description: `Loaded details for ${data.data.displayName || data.data.username}`
-        });
-      } else {
-        throw new Error(data.error || 'Failed to get user info');
-      }
-    } catch (error) {
-      console.error('Failed to get current user info:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to get user info',
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
-    }
+const getUserTypeLabel = (userType: number): string => {
+  const types: Record<number, string> = {
+    3: 'Sub Admin',
+    4: 'Company Admin',
+    11: 'End User',
+    99: 'Device'
   };
+  return types[userType] || 'Unknown';
+};
 
-  const getUserDetails = async () => {
-    if (!targetUsername.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a username to search",
-        variant: "destructive"
-      });
-      return;
-    }
+const GP51UserManagement: React.FC = () => {
+  const [users, setUsers] = useState<GPS51User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<GPS51User[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentUserInfo, setCurrentUserInfo] = useState<any>(null);
 
+  useEffect(() => {
+    loadUsers();
+    loadCurrentUserInfo();
+  }, []);
+
+  useEffect(() => {
+    filterUsers();
+  }, [users, searchTerm]);
+
+  const loadUsers = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      console.log(`Getting user details for: ${targetUsername}`);
-
-      const { data, error } = await supabase.functions.invoke('gp51-user-management', {
-        body: { 
-          action: 'get_user_details',
-          targetUsername: targetUsername.trim()
+      const { data, error } = await supabase.functions.invoke('gps51-data', {
+        body: {
+          action: 'users',
+          filters: {
+            activeOnly: false
+          }
         }
       });
 
       if (error) throw error;
 
-      if (data.success) {
-        setTargetUserData(data.data);
-        toast({
-          title: "User Found",
-          description: `Retrieved details for ${data.data.showname || data.data.username}`
-        });
+      if (data?.success) {
+        setUsers(data.data || []);
       } else {
-        throw new Error(data.error || 'Failed to get user details');
+        throw new Error(data?.error || 'Failed to load users');
       }
     } catch (error) {
-      console.error('Failed to get user details:', error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : 'Failed to get user details',
-        variant: "destructive"
-      });
-      setTargetUserData(null);
+      console.error('Failed to load users:', error);
+      toast.error('Failed to load users');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const exportUserData = async () => {
+  const loadCurrentUserInfo = async () => {
     try {
-      setIsLoading(true);
-      console.log('Exporting complete user data...');
-
       const { data, error } = await supabase.functions.invoke('gp51-user-management', {
-        body: { action: 'export_user_data' }
+        body: {
+          action: 'get_current_user_info'
+        }
       });
 
       if (error) throw error;
 
-      if (data.success) {
-        // Create downloadable file
+      if (data?.success) {
+        setCurrentUserInfo(data.data);
+      }
+    } catch (error) {
+      console.error('Failed to load current user info:', error);
+    }
+  };
+
+  const filterUsers = () => {
+    if (!searchTerm) {
+      setFilteredUsers(users);
+      return;
+    }
+
+    const filtered = users.filter(user =>
+      user.gp51_username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.nickname?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredUsers(filtered);
+  };
+
+  const exportUserData = async (username?: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('gp51-user-management', {
+        body: {
+          action: 'export_user_data',
+          targetUsername: username
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
         const blob = new Blob([JSON.stringify(data.data, null, 2)], {
           type: 'application/json'
         });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `gp51-user-export-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gps51-user-export-${username || 'current'}-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
         URL.revokeObjectURL(url);
-
-        toast({
-          title: "Export Complete",
-          description: data.message
-        });
+        
+        toast.success('User data exported successfully');
       } else {
-        throw new Error(data.error || 'Export failed');
+        throw new Error(data?.error || 'Failed to export user data');
       }
     } catch (error) {
       console.error('Failed to export user data:', error);
-      toast({
-        title: "Export Error",
-        description: error instanceof Error ? error.message : 'Failed to export data',
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoading(false);
+      toast.error('Failed to export user data');
     }
   };
 
-  const getUserTypeBadgeColor = (userType: number) => {
-    switch (userType) {
-      case 3: return 'bg-blue-100 text-blue-800';
-      case 4: return 'bg-purple-100 text-purple-800';
-      case 11: return 'bg-green-100 text-green-800';
-      case 99: return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
+  const syncUsers = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('gps51-import', {
+        body: {
+          action: 'users',
+          options: {
+            skipExisting: false,
+            validateData: true
+          }
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success('Users synced successfully');
+        await loadUsers();
+      } else {
+        throw new Error(data?.error || 'Failed to sync users');
+      }
+    } catch (error) {
+      console.error('Failed to sync users:', error);
+      toast.error('Failed to sync users');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            GP51 User Management
-          </CardTitle>
-          <CardDescription>
-            Manage and retrieve user information from the GP51 platform
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Button 
-              onClick={getCurrentUserInfo} 
-              disabled={isLoading}
-              variant="outline"
-            >
-              <UserCheck className="h-4 w-4 mr-2" />
-              Get Current User Info
-            </Button>
-            <Button 
-              onClick={exportUserData} 
-              disabled={isLoading}
-              variant="outline"
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Export Complete Data
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">GPS51 User Management</h2>
+          <p className="text-gray-600">Manage GPS51 users and their information</p>
+        </div>
+        <div className="flex space-x-2">
+          <Button onClick={syncUsers} variant="outline" size="sm" disabled={isLoading}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Sync Users
+          </Button>
+          <Button onClick={loadUsers} variant="outline" size="sm" disabled={isLoading}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+      </div>
 
-      {currentUserData && (
+      {/* Current User Info */}
+      {currentUserInfo && (
         <Card>
           <CardHeader>
-            <CardTitle>Current User Information</CardTitle>
+            <CardTitle className="flex items-center">
+              <User className="h-5 w-5 mr-2" />
+              Current GPS51 User
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-2">
                 <Label className="text-sm font-medium">Username</Label>
-                <p className="text-sm text-muted-foreground">{currentUserData.username}</p>
+                <p className="text-sm">{currentUserInfo.username}</p>
               </div>
-              <div>
+              <div className="space-y-2">
                 <Label className="text-sm font-medium">Display Name</Label>
-                <p className="text-sm text-muted-foreground">{currentUserData.displayName || 'N/A'}</p>
+                <p className="text-sm">{currentUserInfo.displayName || 'N/A'}</p>
               </div>
-              <div>
+              <div className="space-y-2">
                 <Label className="text-sm font-medium">User Type</Label>
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge className={getUserTypeBadgeColor(currentUserData.userType)}>
-                    {currentUserData.userTypeLabel}
-                  </Badge>
-                </div>
+                <Badge variant="secondary">{currentUserInfo.userTypeLabel}</Badge>
               </div>
-              <div>
-                <Label className="text-sm font-medium flex items-center gap-1">
-                  <Building className="h-4 w-4" />
-                  Company
-                </Label>
-                <p className="text-sm text-muted-foreground">{currentUserData.company || 'N/A'}</p>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Company</Label>
+                <p className="text-sm">{currentUserInfo.company || 'N/A'}</p>
               </div>
-              <div>
-                <Label className="text-sm font-medium flex items-center gap-1">
-                  <Mail className="h-4 w-4" />
-                  Email
-                </Label>
-                <p className="text-sm text-muted-foreground">{currentUserData.contact.email || 'N/A'}</p>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Email</Label>
+                <p className="text-sm">{currentUserInfo.contact?.email || 'N/A'}</p>
               </div>
-              <div>
-                <Label className="text-sm font-medium flex items-center gap-1">
-                  <Phone className="h-4 w-4" />
-                  Phone
-                </Label>
-                <p className="text-sm text-muted-foreground">{currentUserData.contact.phone || 'N/A'}</p>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Phone</Label>
+                <p className="text-sm">{currentUserInfo.contact?.phone || 'N/A'}</p>
               </div>
             </div>
-            <div className="pt-2">
-              <Label className="text-sm font-medium">Permissions</Label>
-              <div className="flex gap-2 mt-1">
-                <Badge variant={currentUserData.permissions.multiLogin ? "default" : "secondary"}>
-                  Multi-Login: {currentUserData.permissions.multiLogin ? 'Enabled' : 'Disabled'}
-                </Badge>
-              </div>
+            <div className="mt-4">
+              <Button onClick={() => exportUserData()} variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export My Data
+              </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
+      {/* Users List */}
       <Card>
         <CardHeader>
-          <CardTitle>Search Other Users</CardTitle>
-          <CardDescription>
-            Query details for any user by username (requires appropriate permissions)
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                placeholder="Enter username to search"
-                value={targetUsername}
-                onChange={(e) => setTargetUsername(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && getUserDetails()}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button 
-                onClick={getUserDetails} 
-                disabled={isLoading || !targetUsername.trim()}
-              >
-                <Search className="h-4 w-4 mr-2" />
-                Search
-              </Button>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center">
+              <Users className="h-5 w-5 mr-2" />
+              GPS51 Users ({filteredUsers.length})
+            </CardTitle>
+            <div className="flex items-center space-x-2">
+              <div className="relative">
+                <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Input
+                  placeholder="Search users..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 w-64"
+                />
+              </div>
             </div>
           </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
+              <p>Loading users...</p>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <Alert>
+              <AlertDescription>
+                No users found. Try adjusting your search or sync users from GPS51.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <div className="space-y-4">
+              {filteredUsers.map((user) => (
+                <div key={user.id} className="border rounded-lg p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex-shrink-0">
+                        <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <User className="h-5 w-5 text-blue-600" />
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="font-medium text-gray-900">{user.gp51_username}</h3>
+                        {user.nickname && (
+                          <p className="text-sm text-gray-600">{user.nickname}</p>
+                        )}
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {getUserTypeLabel(user.user_type)}
+                          </Badge>
+                          {user.multi_login === 1 && (
+                            <Badge variant="outline" className="text-xs">
+                              Multi-login
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button 
+                        onClick={() => exportUserData(user.gp51_username)} 
+                        variant="outline" 
+                        size="sm"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
 
-          {targetUserData && (
-            <div className="mt-4 p-4 border rounded-lg bg-muted/50">
-              <h4 className="font-medium mb-3">User Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                <div>
-                  <span className="font-medium">Username:</span> {targetUserData.username}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+                    {user.company_name && (
+                      <div className="flex items-center space-x-2">
+                        <Building className="h-4 w-4 text-gray-400" />
+                        <span>{user.company_name}</span>
+                      </div>
+                    )}
+                    {user.email && (
+                      <div className="flex items-center space-x-2">
+                        <Mail className="h-4 w-4 text-gray-400" />
+                        <span>{user.email}</span>
+                      </div>
+                    )}
+                    {user.phone && (
+                      <div className="flex items-center space-x-2">
+                        <Phone className="h-4 w-4 text-gray-400" />
+                        <span>{user.phone}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {user.envio_users && (
+                    <div className="mt-3 p-2 bg-green-50 rounded border-l-4 border-green-400">
+                      <p className="text-sm text-green-800">
+                        <strong>Linked to Envio:</strong> {user.envio_users.name} ({user.envio_users.email})
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-3 text-xs text-gray-500">
+                    Last synced: {user.last_sync_at ? new Date(user.last_sync_at).toLocaleString() : 'Never'}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-medium">Display Name:</span> {targetUserData.showname || 'N/A'}
-                </div>
-                <div>
-                  <span className="font-medium">User Type:</span> {targetUserData.usertype}
-                </div>
-                <div>
-                  <span className="font-medium">Company:</span> {targetUserData.companyname || 'N/A'}
-                </div>
-                <div>
-                  <span className="font-medium">Email:</span> {targetUserData.email || 'N/A'}
-                </div>
-                <div>
-                  <span className="font-medium">Phone:</span> {targetUserData.phone || 'N/A'}
-                </div>
-              </div>
+              ))}
             </div>
           )}
         </CardContent>
