@@ -134,7 +134,11 @@ export class GPS51DataService {
 
       const transformedDevices = (devices || []).map(device => ({
         ...device,
-        last_sync_at: device.last_sync_at || new Date().toISOString()
+        last_sync_at: device.last_sync_at || new Date().toISOString(),
+        status_code: device.status_code || null,
+        status_text: device.status_text || this.getDeviceStatusText(device.status_code),
+        days_since_active: device.last_active_time ? 
+          Math.floor((Date.now() - device.last_active_time) / (1000 * 60 * 60 * 24)) : null
       }));
 
       const transformedUsers = (users || []).map(user => ({
@@ -146,7 +150,8 @@ export class GPS51DataService {
         total_devices: deviceStats?.length || 0,
         active_devices: deviceStats?.filter(d => d.is_active)?.length || 0,
         total_groups: groups?.length || 0,
-        devices_with_positions: 0
+        devices_with_positions: 0,
+        total_users: users?.length || 0
       };
 
       return {
@@ -163,6 +168,19 @@ export class GPS51DataService {
       console.error('❌ Direct data fetch error:', error);
       throw error;
     }
+  }
+
+  private getDeviceStatusText(statusCode: number | null): string {
+    if (statusCode === null) return 'Unknown';
+    
+    const statusMap: Record<number, string> = {
+      1: 'Normal',
+      2: 'Trial',
+      3: 'Disabled',
+      4: 'Service Fee Overdue',
+      5: 'Time Expired'
+    };
+    return statusMap[statusCode] || `Status ${statusCode}`;
   }
 
   // Import functions

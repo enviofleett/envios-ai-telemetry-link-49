@@ -21,7 +21,8 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
     (group.remark || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Never';
     return new Date(dateString).toLocaleString();
   };
 
@@ -96,7 +97,7 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
                     </div>
                     <div className="flex justify-between">
                       <span>Last Sync:</span>
-                      <span>{formatDate(group.last_sync)}</span>
+                      <span>{formatDate(group.last_sync_at)}</span>
                     </div>
                   </div>
                 </CardContent>

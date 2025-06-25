@@ -79,6 +79,7 @@ export interface GPS51DashboardSummary {
   active_devices: number;
   total_groups: number;
   devices_with_positions: number;
+  total_users?: number; // Added missing property
 }
 
 export interface GPS51DataResponse {

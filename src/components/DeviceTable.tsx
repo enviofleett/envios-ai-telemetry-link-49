@@ -24,18 +24,15 @@ const DeviceTable: React.FC<DeviceTableProps> = ({ devices, loading, onRefresh }
   );
 
   const getStatusBadge = (device: GPS51Device) => {
-    if (device.is_expired) {
-      return <Badge variant="destructive">Expired</Badge>;
-    }
     if (device.is_active) {
       return <Badge variant="default">Active</Badge>;
     }
     return <Badge variant="secondary">Inactive</Badge>;
   };
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleString();
+  const formatDate = (timestamp: number | null): string => {
+    if (!timestamp) return 'N/A';
+    return new Date(timestamp).toLocaleString();
   };
 
   return (
