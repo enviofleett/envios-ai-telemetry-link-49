@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { unifiedGP51Service, GP51ConnectionConfig, GP51Session, GP51ServiceResult } from '@/services/gp51/UnifiedGP51Service';
+import { unifiedGP51Service, GP51ConnectionConfig, GP51Session, GP51ServiceResult } from '@/services/gp51/unifiedGP51Service';
 import { useToast } from '@/hooks/use-toast';
 
 export interface UseUnifiedGP51ServiceReturn {

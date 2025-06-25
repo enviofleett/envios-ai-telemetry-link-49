@@ -1,284 +1,175 @@
-
 import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Activity as ActivityIconLucide, Zap, Database, RefreshCw, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { 
+  CheckCircle, 
+  XCircle, 
+  RefreshCw, 
+  Trash2,
+  AlertTriangle,
+  Wifi,
+  WifiOff
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
+import { unifiedGP51Service } from '@/services/gp51/unifiedGP51Service';
 
-const GP51ConnectionTester: React.FC = () => {
-  const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [isTestingData, setIsTestingData] = useState(false);
-  const [connectionResult, setConnectionResult] = useState<any>(null);
-  const [dataResult, setDataResult] = useState<any>(null);
-  const [sessionInfo, setSessionInfo] = useState<any>(null);
+export const GP51ConnectionTester: React.FC = () => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    message: string;
+    details?: any;
+    timestamp: Date;
+  } | null>(null);
   const { toast } = useToast();
 
-  // Load session info on mount
-  React.useEffect(() => {
-    const unsubscribe = unifiedGP51Service.subscribeToSession((session) => {
-      setSessionInfo(session);
-    });
-
-    return unsubscribe;
-  }, []);
-
-  const testApiConnection = async () => {
-    setIsTestingConnection(true);
-    setConnectionResult(null);
-
+  const testConnection = async () => {
+    setIsLoading(true);
+    
     try {
-      console.log('🧪 Testing GP51 API connection...');
       const result = await unifiedGP51Service.testConnection();
       
-      setConnectionResult(result);
-      
-      if (result.success) {
-        toast({
-          title: "Connection Test Successful",
-          description: `GP51 API is responding correctly. Found ${result.data?.deviceCount || 0} devices.`,
-        });
-      } else {
-        toast({
-          title: "Connection Test Failed",
-          description: result.error || "GP51 API is not responding",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Connection test failed';
-      setConnectionResult({ success: false, error: errorMsg });
+      setTestResult({
+        success: result.success,
+        message: result.success ? 'GP51 connection is working properly' : (result.error || 'Connection test failed'),
+        details: result.data,
+        timestamp: new Date()
+      });
+
       toast({
-        title: "Connection Test Error",
-        description: errorMsg,
-        variant: "destructive",
+        title: result.success ? "Connection Successful" : "Connection Failed",
+        description: result.success ? 
+          "GP51 connection is working properly" : 
+          (result.error || 'Unknown error occurred'),
+        variant: result.success ? "default" : "destructive"
+      });
+
+    } catch (error) {
+      console.error('❌ Connection test exception:', error);
+      setTestResult({
+        success: false,
+        message: `Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        details: { exception: true },
+        timestamp: new Date()
+      });
+
+      toast({
+        title: "Test Failed",
+        description: "Connection test encountered an error",
+        variant: "destructive"
       });
     } finally {
-      setIsTestingConnection(false);
+      setIsLoading(false);
     }
   };
 
-  const testDataFetch = async () => {
-    setIsTestingData(true);
-    setDataResult(null);
-
+  const clearSessions = async () => {
+    setIsLoading(true);
+    
     try {
-      console.log('📋 Testing GP51 data fetch with queryMonitorList...');
+      await unifiedGP51Service.disconnect();
+      setTestResult(null);
       
-      // This is the method that was missing and causing the original error
-      const result = await unifiedGP51Service.queryMonitorList();
-      
-      setDataResult(result);
-      
-      if (result.success) {
-        const deviceCount = Array.isArray(result.data) ? result.data.length : 0;
-        toast({
-          title: "Data Fetch Successful",
-          description: `Successfully retrieved ${deviceCount} devices from GP51.`,
-        });
-      } else {
-        toast({
-          title: "Data Fetch Failed",
-          description: result.error || "Failed to retrieve device data",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'Data fetch failed';
-      setDataResult({ success: false, error: errorMsg });
       toast({
-        title: "Data Fetch Error",
-        description: errorMsg,
-        variant: "destructive",
+        title: "Sessions Cleared",
+        description: "All GP51 sessions have been cleared. Please re-authenticate.",
+      });
+    } catch (error) {
+      console.error('Failed to clear sessions:', error);
+      toast({
+        title: "Clear Failed",
+        description: "Failed to clear sessions. Please try again.",
+        variant: "destructive"
       });
     } finally {
-      setIsTestingData(false);
+      setIsLoading(false);
     }
   };
 
-  const refreshSession = async () => {
-    try {
-      console.log('🔄 Refreshing GP51 session...');
-      const result = await unifiedGP51Service.refreshSession();
-      
-      if (result.success) {
-        toast({
-          title: "Session Refreshed",
-          description: "GP51 session has been refreshed successfully",
-        });
-      } else {
-        toast({
-          title: "Session Refresh Failed",
-          description: result.error || "Failed to refresh session",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Session Refresh Error",
-        description: error instanceof Error ? error.message : "Session refresh failed",
-        variant: "destructive",
-      });
-    }
+  const getStatusIcon = () => {
+    if (isLoading) return <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />;
+    if (testResult?.success) return <CheckCircle className="h-5 w-5 text-green-600" />;
+    if (testResult && !testResult.success) return <XCircle className="h-5 w-5 text-red-600" />;
+    return <Wifi className="h-5 w-5 text-gray-400" />;
   };
 
-  const getSessionStatusBadge = () => {
-    if (!sessionInfo) {
-      return <Badge variant="destructive">No Session</Badge>;
-    }
-
-    if (!sessionInfo.isValid) {
-      return <Badge variant="destructive">Invalid Session</Badge>;
-    }
-
-    const isExpiringSoon = new Date(sessionInfo.expiresAt).getTime() - Date.now() < 2 * 60 * 60 * 1000; // 2 hours
-    
-    if (isExpiringSoon) {
-      return <Badge variant="outline">Expires Soon</Badge>;
-    }
-
-    return <Badge variant="default">Active</Badge>;
-  };
-
-  const getTestStatusIcon = (result: any, isLoading: boolean) => {
-    if (isLoading) {
-      return <RefreshCw className="h-4 w-4 animate-spin" />;
-    }
-    
-    if (!result) {
-      return <AlertCircle className="h-4 w-4 text-gray-400" />;
-    }
-    
-    return result.success ? 
-      <CheckCircle className="h-4 w-4 text-green-500" /> : 
-      <XCircle className="h-4 w-4 text-red-500" />;
+  const getStatusText = () => {
+    if (isLoading) return 'Testing Connection...';
+    if (testResult?.success) return 'Connected';
+    if (testResult && !testResult.success) return 'Connection Failed';
+    return 'Not Tested';
   };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <ActivityIconLucide className="h-5 w-5" />
-          GP51 Connection Testing
+          <Wifi className="h-5 w-5" />
+          GP51 Connection Test
         </CardTitle>
-        <CardDescription>
-          Test your GP51 integration and verify live data connectivity using the unified service.
-        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Session Status */}
-        <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-          <div>
-            <h4 className="font-medium">Session Status</h4>
-            <p className="text-sm text-muted-foreground">
-              {sessionInfo ? `User: ${sessionInfo.username}` : 'No active session'}
-            </p>
-            {sessionInfo && (
-              <p className="text-xs text-muted-foreground">
-                Expires: {new Date(sessionInfo.expiresAt).toLocaleString()}
-              </p>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {getSessionStatusBadge()}
-            <Button variant="outline" size="sm" onClick={refreshSession}>
-              <RefreshCw className="h-4 w-4 mr-1" />
-              Refresh
-            </Button>
-          </div>
-        </div>
-
-        {/* API Connection Test */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h4 className="font-medium">API Connection Test</h4>
-              {getTestStatusIcon(connectionResult, isTestingConnection)}
-            </div>
-            <Button
-              onClick={testApiConnection}
-              disabled={!sessionInfo?.isValid || isTestingConnection}
-              variant="outline"
-              size="sm"
-            >
-              <Zap className="h-4 w-4 mr-1" />
-              {isTestingConnection ? 'Testing...' : 'Test Connection'}
-            </Button>
-          </div>
-          
-          {connectionResult && (
-            <div className={`p-3 rounded-md text-sm ${
-              connectionResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-            }`}>
-              {connectionResult.success ? (
-                <div>
-                  <p className="font-medium">✅ Connection Successful</p>
-                  <p>Found {connectionResult.data?.deviceCount || 0} devices</p>
-                  <p>Response time: {connectionResult.data?.latency || 'N/A'}ms</p>
-                </div>
-              ) : (
-                <div>
-                  <p className="font-medium">❌ Connection Failed</p>
-                  <p>{connectionResult.error}</p>
-                </div>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {getStatusIcon()}
+            <div>
+              <p className="font-medium">{getStatusText()}</p>
+              {testResult && (
+                <p className="text-sm text-muted-foreground">
+                  Last tested: {testResult.timestamp.toLocaleTimeString()}
+                </p>
               )}
             </div>
-          )}
-        </div>
-
-        {/* Data Fetch Test - This fixes the original queryMonitorList error */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h4 className="font-medium">Device Data Fetch Test</h4>
-              {getTestStatusIcon(dataResult, isTestingData)}
-            </div>
-            <Button
-              onClick={testDataFetch}
-              disabled={!sessionInfo?.isValid || isTestingData || !connectionResult?.success}
-              variant="outline"
-              size="sm"
-            >
-              <Database className="h-4 w-4 mr-1" />
-              {isTestingData ? 'Fetching...' : 'Fetch Device Data'}
-            </Button>
           </div>
           
-          {dataResult && (
-            <div className={`p-3 rounded-md text-sm ${
-              dataResult.success ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-            }`}>
-              {dataResult.success ? (
-                <div>
-                  <p className="font-medium">✅ Data Fetch Successful</p>
-                  <p>Retrieved {Array.isArray(dataResult.data) ? dataResult.data.length : 0} devices</p>
-                  <p>Monitor list query completed successfully</p>
-                </div>
-              ) : (
-                <div>
-                  <p className="font-medium">❌ Data Fetch Failed</p>
-                  <p>{dataResult.error}</p>
-                </div>
-              )}
-            </div>
-          )}
+          <Badge variant={testResult?.success ? "default" : "secondary"}>
+            {testResult?.success ? 'Online' : 'Offline'}
+          </Badge>
         </div>
 
-        {/* Testing Guide */}
-        <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-md">
-          <strong>Testing Guide:</strong>
-          <ul className="mt-1 space-y-1 list-disc list-inside">
-            <li>Ensure you have an active GP51 session via the Settings tab</li>
-            <li>First, test the API connection to verify credentials and connectivity</li>
-            <li>If successful, test device data fetch to verify the queryMonitorList functionality</li>
-            <li>Both tests should pass for complete GP51 functionality</li>
-            <li>Use the Refresh button if your session expires</li>
-          </ul>
+        {testResult && (
+          <Alert variant={testResult.success ? "default" : "destructive"}>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="space-y-2">
+                <p><strong>Status:</strong> {testResult.message}</p>
+                {testResult.details?.error && (
+                  <p><strong>Error:</strong> {testResult.details.error}</p>
+                )}
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="flex gap-2">
+          <Button
+            onClick={testConnection}
+            disabled={isLoading}
+            variant="outline"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Test Connection
+          </Button>
+
+          <Button
+            onClick={clearSessions}
+            disabled={isLoading}
+            variant="outline"
+            className="text-red-600 hover:text-red-700"
+          >
+            <Trash2 className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Clear Sessions
+          </Button>
+        </div>
+
+        <div className="text-xs text-muted-foreground space-y-1">
+          <p>• Test Connection: Verifies GP51 API connectivity</p>
+          <p>• Clear Sessions: Removes all stored GP51 sessions (requires re-authentication)</p>
+          <p>• Use "Clear Sessions" if you're experiencing persistent authentication issues</p>
         </div>
       </CardContent>
     </Card>
   );
 };
-
-export default GP51ConnectionTester;
