@@ -18,6 +18,14 @@ import {
   Settings as SettingsIcon 
 } from 'lucide-react';
 
+// Safe array helper - prevents "map is not a function" errors
+function safeArray(value: any): any[] {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return [];
+  console.warn('Expected array but got:', typeof value, value);
+  return [];
+}
+
 const Settings: React.FC = () => {
   const [activeTab, setActiveTab] = useState('company');
 
