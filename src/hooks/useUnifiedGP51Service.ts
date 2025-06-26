@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { unifiedGP51Service, type GP51Session, type GP51HealthStatus, type GP51User, type GP51Device } from '@/services/gp51';
 import { useToast } from '@/hooks/use-toast';
@@ -136,18 +135,11 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
     }
   }, []);
 
-  const getConnectionHealth = useCallback((): GP51HealthStatus => {
-    return health || {
-      isConnected: false,
-      lastPingTime: new Date(),
-      responseTime: -1,
-      tokenValid: false,
-      sessionValid: false,
-      activeDevices: 0,
-      errors: [],
-      lastCheck: new Date()
-    };
-  }, [health]);
+  const getConnectionHealth = useCallback(async (): Promise<GP51HealthStatus> => {
+    const healthStatus = await unifiedGP51Service.getConnectionHealth();
+    setHealth(healthStatus);
+    return healthStatus;
+  }, []);
 
   const testConnection = useCallback(async (): Promise<{ success: boolean; data?: any; error?: string }> => {
     try {

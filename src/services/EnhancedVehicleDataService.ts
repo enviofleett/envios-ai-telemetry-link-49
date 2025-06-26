@@ -38,6 +38,12 @@ export interface VehicleMetrics {
   lastSyncTime: Date;
   averageSpeed: number;
   totalDistance: number;
+  // Dashboard-compatible properties
+  total: number;
+  online: number;
+  offline: number;
+  idle: number;
+  alerts: number;
 }
 
 export interface SyncMetrics {
@@ -47,9 +53,6 @@ export interface SyncMetrics {
   totalRecords: number;
   syncDuration: number;
   errors: string[];
-  positionsUpdated: number;
-  syncStatus: 'success' | 'error' | 'syncing';
-  errorMessage?: string;
 }
 
 export interface VehicleEvent {
@@ -75,14 +78,18 @@ export interface EnhancedVehicleData {
     isSync: boolean;
   };
   forceSync: () => Promise<void>;
+  forceRefresh: () => Promise<void>; // Add missing property
+  isRefreshing: boolean; // Add missing property
   events: VehicleEvent[];
   acknowledgeEvent: (eventId: string) => Promise<void>;
+  metrics: VehicleMetrics; // Add missing property
 }
 
 export class EnhancedVehicleDataService {
   private vehicles: VehicleData[] = [];
   private subscribers: Map<string, (data: EnhancedVehicleData) => void> = new Map();
   private isLoading: boolean = false;
+  private isRefreshing: boolean = false;
   private error: Error | null = null;
   private lastUpdate: Date = new Date();
   private metrics: VehicleMetrics | null = null;
@@ -107,7 +114,13 @@ export class EnhancedVehicleDataService {
       offlineVehicles: 0,
       lastSyncTime: new Date(),
       averageSpeed: 0,
-      totalDistance: 0
+      totalDistance: 0,
+      // Dashboard-compatible properties
+      total: 0,
+      online: 0,
+      offline: 0,
+      idle: 0,
+      alerts: 0
     };
 
     this.syncMetrics = {
@@ -116,10 +129,7 @@ export class EnhancedVehicleDataService {
       failedSyncs: 0,
       totalRecords: 0,
       syncDuration: 0,
-      errors: [],
-      positionsUpdated: 0,
-      syncStatus: 'success',
-      errorMessage: undefined
+      errors: []
     };
   }
 
@@ -171,7 +181,7 @@ export class EnhancedVehicleDataService {
   }
 
   // Get sync metrics
-  async getLastSyncMetrics(): Promise<SyncMetrics | null> {
+  getLastSyncMetrics(): SyncMetrics | null {
     return this.syncMetrics;
   }
 
@@ -179,6 +189,7 @@ export class EnhancedVehicleDataService {
   async forceSync(): Promise<void> {
     try {
       this.syncStatus.isSync = true;
+      this.isRefreshing = true;
       this.notifySubscribers();
 
       const startTime = Date.now();
@@ -194,8 +205,6 @@ export class EnhancedVehicleDataService {
         this.syncMetrics.successfulSyncs++;
         this.syncMetrics.syncDuration = syncDuration;
         this.syncMetrics.totalRecords = this.vehicles.length;
-        this.syncMetrics.positionsUpdated = this.vehicles.length;
-        this.syncMetrics.syncStatus = 'success';
       }
 
       this.syncStatus.lastSync = new Date();
@@ -205,15 +214,19 @@ export class EnhancedVehicleDataService {
       if (this.syncMetrics) {
         this.syncMetrics.failedSyncs++;
         this.syncMetrics.errors.push(error instanceof Error ? error.message : 'Unknown sync error');
-        this.syncMetrics.syncStatus = 'error';
-        this.syncMetrics.errorMessage = error instanceof Error ? error.message : 'Unknown sync error';
       }
       this.syncStatus.isConnected = false;
       throw error;
     } finally {
       this.syncStatus.isSync = false;
+      this.isRefreshing = false;
       this.notifySubscribers();
     }
+  }
+
+  // Force refresh (alias for forceSync)
+  async forceRefresh(): Promise<void> {
+    await this.forceSync();
   }
 
   // Get vehicle by ID
@@ -235,13 +248,30 @@ export class EnhancedVehicleDataService {
     return {
       vehicles: this.vehicles,
       isLoading: this.isLoading,
+      isRefreshing: this.isRefreshing,
       error: this.error,
       lastUpdate: this.lastUpdate,
       refetch: () => this.getVehicleData(),
       syncStatus: this.syncStatus,
       forceSync: () => this.forceSync(),
+      forceRefresh: () => this.forceRefresh(),
       events: this.events,
-      acknowledgeEvent: (eventId: string) => this.acknowledgeEvent(eventId)
+      acknowledgeEvent: (eventId: string) => this.acknowledgeEvent(eventId),
+      metrics: this.metrics || {
+        totalVehicles: 0,
+        onlineVehicles: 0,
+        movingVehicles: 0,
+        idleVehicles: 0,
+        offlineVehicles: 0,
+        lastSyncTime: new Date(),
+        averageSpeed: 0,
+        totalDistance: 0,
+        total: 0,
+        online: 0,
+        offline: 0,
+        idle: 0,
+        alerts: 0
+      }
     };
   }
 
@@ -266,6 +296,13 @@ export class EnhancedVehicleDataService {
     this.metrics.idleVehicles = this.vehicles.filter(v => v.isOnline && !v.isMoving).length;
     this.metrics.offlineVehicles = this.vehicles.filter(v => !v.isOnline).length;
     this.metrics.lastSyncTime = new Date();
+    
+    // Dashboard-compatible properties
+    this.metrics.total = this.metrics.totalVehicles;
+    this.metrics.online = this.metrics.onlineVehicles;
+    this.metrics.offline = this.metrics.offlineVehicles;
+    this.metrics.idle = this.metrics.idleVehicles;
+    this.metrics.alerts = this.events.filter(e => !e.acknowledged).length;
     
     // Calculate average speed
     const movingVehicles = this.vehicles.filter(v => v.isMoving);
