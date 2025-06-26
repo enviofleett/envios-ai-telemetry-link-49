@@ -39,10 +39,10 @@ class RealAnalyticsService {
 
       if (usersError) throw usersError;
 
-      // Get vehicle statistics
+      // Get vehicle statistics - use basic fields that exist
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
-        .select('id, created_at, status, is_gp51_synced, last_gp51_sync');
+        .select('id, created_at, is_active, updated_at');
 
       if (vehiclesError) throw vehiclesError;
 
@@ -53,9 +53,8 @@ class RealAnalyticsService {
 
       // Calculate vehicle stats
       const totalVehicles = vehicles?.length || 0;
-      const activeVehicles = vehicles?.filter(v => v.status === 'active').length || 0;
-      const syncedVehicles = vehicles?.filter(v => v.is_gp51_synced).length || 0;
-      const inactiveVehicles = vehicles?.filter(v => v.status === 'inactive').length || 0;
+      const activeVehicles = vehicles?.filter(v => v.is_active).length || 0;
+      const inactiveVehicles = vehicles?.filter(v => !v.is_active).length || 0;
 
       // Calculate recent activity (last 7 days)
       const sevenDaysAgo = new Date();
@@ -67,10 +66,10 @@ class RealAnalyticsService {
       // Generate growth data for the last 30 days
       const growthData = this.generateGrowthData(users || [], vehicles || []);
 
-      // Find last sync time
+      // Find last sync time from vehicle updates
       const lastSyncTimes = vehicles
-        ?.filter(v => v.last_gp51_sync)
-        .map(v => new Date(v.last_gp51_sync))
+        ?.filter(v => v.updated_at)
+        .map(v => new Date(v.updated_at))
         .sort((a, b) => b.getTime() - a.getTime());
 
       const lastSync = lastSyncTimes && lastSyncTimes.length > 0 
@@ -91,12 +90,12 @@ class RealAnalyticsService {
         vehicleStatus: {
           active: activeVehicles,
           inactive: inactiveVehicles,
-          synced: syncedVehicles,
-          unsynced: totalVehicles - syncedVehicles
+          synced: 0, // Will be updated when GP51 sync is implemented
+          unsynced: totalVehicles
         },
         gp51Status: {
           importedUsers,
-          importedVehicles: syncedVehicles,
+          importedVehicles: 0, // Will be updated when GP51 sync is implemented
           lastSync
         }
       };
@@ -206,7 +205,7 @@ class RealAnalyticsService {
     try {
       const { data: vehicles, error } = await supabase
         .from('vehicles')
-        .select('status, is_gp51_synced, device_type, created_at');
+        .select('is_active, created_at');
 
       if (error) throw error;
 
@@ -219,15 +218,15 @@ class RealAnalyticsService {
 
       vehicles?.forEach(vehicle => {
         // By status
-        const status = vehicle.status || 'unknown';
+        const status = vehicle.is_active ? 'active' : 'inactive';
         breakdown.byStatus[status] = (breakdown.byStatus[status] || 0) + 1;
 
-        // By sync status
-        const syncStatus = vehicle.is_gp51_synced ? 'GP51 Synced' : 'Not Synced';
+        // By sync status - placeholder until GP51 integration
+        const syncStatus = 'Not Synced';
         breakdown.bySync[syncStatus] = (breakdown.bySync[syncStatus] || 0) + 1;
 
-        // By device type
-        const deviceType = vehicle.device_type || 'Unknown';
+        // By device type - placeholder
+        const deviceType = 'Unknown';
         breakdown.byDeviceType[deviceType] = (breakdown.byDeviceType[deviceType] || 0) + 1;
       });
 
