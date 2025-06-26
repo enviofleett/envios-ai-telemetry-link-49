@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,7 @@ import {
   WifiOff
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { unifiedGP51Service } from '@/services/gp51/unifiedGP51Service';
+import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
 
 export const GP51ConnectionTester: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -24,12 +25,13 @@ export const GP51ConnectionTester: React.FC = () => {
     timestamp: Date;
   } | null>(null);
   const { toast } = useToast();
+  const { testConnection, disconnect } = useUnifiedGP51Service();
 
-  const testConnection = async () => {
+  const handleTestConnection = async () => {
     setIsLoading(true);
     
     try {
-      const result = await unifiedGP51Service.testConnection();
+      const result = await testConnection();
       
       setTestResult({
         success: result.success,
@@ -69,7 +71,7 @@ export const GP51ConnectionTester: React.FC = () => {
     setIsLoading(true);
     
     try {
-      await unifiedGP51Service.disconnect();
+      await disconnect();
       setTestResult(null);
       
       toast({
@@ -145,7 +147,7 @@ export const GP51ConnectionTester: React.FC = () => {
 
         <div className="flex gap-2">
           <Button
-            onClick={testConnection}
+            onClick={handleTestConnection}
             disabled={isLoading}
             variant="outline"
           >
