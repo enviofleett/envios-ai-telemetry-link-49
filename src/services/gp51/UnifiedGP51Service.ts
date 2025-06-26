@@ -1,6 +1,4 @@
 
-import { supabase } from '@/integrations/supabase/client';
-
 export interface GP51User {
   username: string;
   usertype: number;
@@ -49,13 +47,24 @@ export interface GP51MonitorListResponse {
   groups: GP51Group[];
 }
 
+export interface GP51Session {
+  username: string;
+  token: string;
+  isConnected: boolean;
+  expiresAt: Date;
+  lastActivity: Date;
+}
+
 export interface GP51HealthStatus {
   isConnected: boolean;
   lastPingTime: Date;
   responseTime: number;
   tokenValid: boolean;
+  sessionValid: boolean;
   activeDevices: number;
   errors: string[];
+  lastCheck: Date;
+  errorMessage?: string;
 }
 
 export interface GP51ServiceResult<T = any> {
@@ -66,12 +75,17 @@ export interface GP51ServiceResult<T = any> {
 
 export interface UnifiedGP51Service {
   // Authentication methods
-  authenticate(username: string, password: string): Promise<GP51AuthResponse>;
-  authenticateAdmin(username: string, password: string): Promise<GP51AuthResponse>;
+  authenticate(credentials: { username: string; password: string; apiUrl?: string }): Promise<boolean>;
   logout(): Promise<void>;
+  disconnect(): Promise<void>;
+  testConnection(): Promise<GP51ServiceResult>;
   
   // Connection health
   getConnectionHealth(): Promise<GP51HealthStatus>;
+  
+  // Session management
+  session: GP51Session | null;
+  isConnected: boolean;
   
   // User management
   getUsers(): Promise<GP51User[]>;
@@ -88,204 +102,77 @@ export interface UnifiedGP51Service {
   deleteDevice(deviceid: string): Promise<GP51AuthResponse>;
   
   // Position tracking
-  getLastPosition(deviceids: string[]): Promise<GP51ServiceResult<GP51Position[]>>;
+  getLastPosition(deviceids: string[]): Promise<any[]>;
   queryTracks(deviceid: string, startTime: string, endTime: string): Promise<any>;
-  
-  // Vehicle commands
-  sendCommand(deviceid: string, command: string, params: any[]): Promise<any>;
-  disableEngine(deviceid: string): Promise<any>;
-  enableEngine(deviceid: string): Promise<any>;
-  setSpeedLimit(deviceid: string, speedLimit: number, duration?: number): Promise<any>;
-  
-  // Connection testing
-  testConnection(): Promise<GP51ServiceResult>;
-  
-  // Session management
-  createSession(username: string, sessionData: object): Promise<any>;
-  updateSession(sessionId: string, data: object): Promise<any>;
-  refreshToken(sessionId: string): Promise<string>;
-  validateToken(token: string): Promise<boolean>;
 }
 
 export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
   private baseUrl = 'https://www.gps51.com/webapi';
   private currentToken: string | null = null;
   private currentUser: GP51User | null = null;
+  private _session: GP51Session | null = null;
+  private _isConnected: boolean = false;
 
-  async authenticate(username: string, password: string): Promise<GP51AuthResponse> {
+  get session(): GP51Session | null {
+    return this._session;
+  }
+
+  get isConnected(): boolean {
+    return this._isConnected;
+  }
+
+  async authenticate(credentials: { username: string; password: string; apiUrl?: string }): Promise<boolean> {
     try {
-      console.log('🔐 [UnifiedGP51] Authenticating user:', username);
-      
-      const { data, error } = await supabase.functions.invoke('gp51-hybrid-auth', {
-        body: {
-          action: 'authenticate',
-          username,
-          password
-        }
+      const response = await fetch(`${this.baseUrl}?action=login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: credentials.username,
+          password: this.md5Hash(credentials.password),
+          from: 'WEB',
+          type: 'USER'
+        })
       });
-
-      if (error) {
-        console.error('❌ [UnifiedGP51] Authentication error:', error);
-        throw new Error(`Authentication failed: ${error.message}`);
-      }
-
-      if (data?.success) {
+      
+      const data = await response.json();
+      
+      if (data.status === 0) {
         this.currentToken = data.token;
-        this.currentUser = {
-          username,
-          usertype: 11,
-          showname: data.username || username
+        this._isConnected = true;
+        this._session = {
+          username: credentials.username,
+          token: data.token,
+          isConnected: true,
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          lastActivity: new Date()
         };
         
-        console.log('✅ [UnifiedGP51] Authentication successful');
-        return {
-          status: 0,
-          cause: 'OK',
-          token: data.token,
-          expires_at: data.expires_at
+        this.currentUser = {
+          username: credentials.username,
+          usertype: 11,
+          showname: credentials.username
         };
-      }
-
-      throw new Error(data?.error || 'Authentication failed');
-    } catch (error) {
-      console.error('❌ [UnifiedGP51] Authentication exception:', error);
-      throw error;
-    }
-  }
-
-  async authenticateAdmin(username: string, password: string): Promise<GP51AuthResponse> {
-    try {
-      console.log('🔐 [UnifiedGP51] Admin authentication for:', username);
-      const result = await this.authenticate(username, password);
-      
-      if (result.status === 0 && this.currentUser) {
-        this.currentUser.usertype = 3; // Admin user type
+        
+        return true;
       }
       
-      return result;
+      return false;
     } catch (error) {
-      console.error('❌ [UnifiedGP51] Admin authentication failed:', error);
-      throw error;
-    }
-  }
-
-  async getUsers(): Promise<GP51User[]> {
-    try {
-      const response = await this.queryMonitorList();
-      if (response.status === 0 && response.groups) {
-        // Extract unique users from groups/devices
-        const users: GP51User[] = [];
-        // This would typically come from a separate GP51 user endpoint
-        // For now, return current user if authenticated
-        if (this.currentUser) {
-          users.push(this.currentUser);
-        }
-        return users;
-      }
-      return [];
-    } catch (error) {
-      console.error('❌ [UnifiedGP51] Failed to get users:', error);
-      return [];
-    }
-  }
-
-  async getDevices(): Promise<GP51Device[]> {
-    try {
-      const response = await this.queryMonitorList();
-      if (response.status === 0 && response.groups) {
-        return response.groups.flatMap(group => group.devices || []);
-      }
-      return [];
-    } catch (error) {
-      console.error('❌ [UnifiedGP51] Failed to get devices:', error);
-      return [];
-    }
-  }
-
-  async queryMonitorList(username?: string): Promise<GP51MonitorListResponse> {
-    try {
-      console.log('📡 [UnifiedGP51] Querying monitor list...');
-      
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: {
-          action: 'query_monitor_list',
-          username: username || this.currentUser?.username
-        }
-      });
-
-      if (error) {
-        throw new Error(`Failed to query monitor list: ${error.message}`);
-      }
-
-      return data || { status: 1, cause: 'No data received', groups: [] };
-    } catch (error) {
-      console.error('❌ [UnifiedGP51] Query monitor list error:', error);
-      return {
-        status: 1,
-        cause: error instanceof Error ? error.message : 'Unknown error',
-        groups: []
-      };
-    }
-  }
-
-  async getConnectionHealth(): Promise<GP51HealthStatus> {
-    try {
-      console.log('🏥 [UnifiedGP51] Checking connection health...');
-      const startTime = Date.now();
-      
-      const response = await this.testConnection();
-      const responseTime = Date.now() - startTime;
-      
-      const deviceCount = response.success ? 
-        (response.data?.deviceCount || 0) : 0;
-      
-      return {
-        isConnected: response.success,
-        lastPingTime: new Date(),
-        responseTime,
-        tokenValid: this.currentToken !== null,
-        activeDevices: deviceCount,
-        errors: response.success ? [] : [response.error || 'Connection failed']
-      };
-    } catch (error) {
-      console.error('❌ [UnifiedGP51] Health check error:', error);
-      return {
-        isConnected: false,
-        lastPingTime: new Date(),
-        responseTime: -1,
-        tokenValid: false,
-        activeDevices: 0,
-        errors: [error instanceof Error ? error.message : 'Health check failed']
-      };
+      this._isConnected = false;
+      console.error('Authentication failed:', error);
+      return false;
     }
   }
 
   async testConnection(): Promise<GP51ServiceResult> {
     try {
-      console.log('🧪 [UnifiedGP51] Testing connection...');
-      
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: { action: 'test_gp51_api' }
-      });
-
-      if (error) {
-        return {
-          success: false,
-          error: error.message || 'Connection test failed'
-        };
-      }
-
+      const health = await this.getConnectionHealth();
       return {
-        success: data?.isValid || false,
-        data: {
-          deviceCount: data?.deviceCount || 0,
-          username: data?.username,
-          latency: data?.latency
-        },
-        error: data?.isValid ? undefined : (data?.errorMessage || 'Connection test failed')
+        success: health.isConnected,
+        data: health,
+        error: health.isConnected ? undefined : (health.errorMessage || 'Connection failed')
       };
     } catch (error) {
-      console.error('❌ [UnifiedGP51] Connection test exception:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Connection test failed'
@@ -293,109 +180,234 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
     }
   }
 
-  async getLastPosition(deviceids: string[]): Promise<GP51ServiceResult<GP51Position[]>> {
-    try {
-      console.log('📍 [UnifiedGP51] Getting last position for devices:', deviceids);
-      
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: {
-          action: 'get_last_position',
-          deviceids
-        }
-      });
-
-      if (error) {
-        return {
-          success: false,
-          error: error.message || 'Failed to get positions'
-        };
-      }
-
-      return {
-        success: true,
-        data: data?.positions || []
-      };
-    } catch (error) {
-      console.error('❌ [UnifiedGP51] Get position error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to get positions'
-      };
-    }
-  }
-
-  // Implement remaining required methods with basic implementations
-  async logout(): Promise<void> {
-    console.log('👋 [UnifiedGP51] Logging out...');
+  async disconnect(): Promise<void> {
+    this._isConnected = false;
+    this._session = null;
     this.currentToken = null;
     this.currentUser = null;
   }
 
+  async logout(): Promise<void> {
+    try {
+      if (this.currentToken) {
+        await fetch(`${this.baseUrl}?action=logout&token=${this.currentToken}`, {
+          method: 'POST'
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      await this.disconnect();
+    }
+  }
+
+  async getUsers(): Promise<GP51User[]> {
+    const response = await this.queryMonitorList();
+    return [];
+  }
+
+  async getDevices(): Promise<GP51Device[]> {
+    const response = await this.queryMonitorList();
+    if (response.status === 0 && response.groups) {
+      return response.groups.flatMap(group => group.devices || []);
+    }
+    return [];
+  }
+
+  async queryMonitorList(username?: string): Promise<GP51MonitorListResponse> {
+    try {
+      if (!this.currentToken) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch(`${this.baseUrl}?action=querymonitorlist&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: username || this.currentUser?.username })
+      });
+      
+      const data = await response.json();
+      
+      if (this._session) {
+        this._session.lastActivity = new Date();
+      }
+      
+      return data;
+    } catch (error) {
+      throw new Error(`Failed to query monitor list: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async getConnectionHealth(): Promise<GP51HealthStatus> {
+    try {
+      const startTime = Date.now();
+      const response = await this.queryMonitorList();
+      const responseTime = Date.now() - startTime;
+      
+      const health: GP51HealthStatus = {
+        isConnected: response.status === 0,
+        lastPingTime: new Date(),
+        responseTime,
+        tokenValid: this.currentToken !== null,
+        sessionValid: this._session !== null && this._session.isConnected,
+        activeDevices: response.groups?.flatMap(g => g.devices || []).length || 0,
+        errors: response.status !== 0 ? [response.cause] : [],
+        lastCheck: new Date()
+      };
+
+      if (response.status !== 0) {
+        health.errorMessage = response.cause;
+      }
+
+      return health;
+    } catch (error) {
+      return {
+        isConnected: false,
+        lastPingTime: new Date(),
+        responseTime: -1,
+        tokenValid: false,
+        sessionValid: false,
+        activeDevices: 0,
+        errors: [error instanceof Error ? error.message : 'Connection failed'],
+        lastCheck: new Date(),
+        errorMessage: error instanceof Error ? error.message : 'Connection failed'
+      };
+    }
+  }
+
   async addUser(userData: any): Promise<GP51AuthResponse> {
-    return { status: 0, cause: 'OK' };
+    try {
+      const response = await fetch(`${this.baseUrl}?action=adduser&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...userData,
+          password: this.md5Hash(userData.password)
+        })
+      });
+      return await response.json();
+    } catch (error) {
+      return { status: 1, cause: error instanceof Error ? error.message : 'Failed to add user' };
+    }
   }
 
   async queryUserDetail(username: string): Promise<any> {
-    return {};
+    try {
+      const response = await fetch(`${this.baseUrl}?action=queryuserdetail&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      });
+      return await response.json();
+    } catch (error) {
+      throw new Error(`Failed to query user detail: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   async editUser(username: string, profileData: any): Promise<GP51AuthResponse> {
-    return { status: 0, cause: 'OK' };
+    try {
+      const response = await fetch(`${this.baseUrl}?action=edituser&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, ...profileData })
+      });
+      return await response.json();
+    } catch (error) {
+      return { status: 1, cause: error instanceof Error ? error.message : 'Failed to edit user' };
+    }
   }
 
   async deleteUser(username: string): Promise<GP51AuthResponse> {
-    return { status: 0, cause: 'OK' };
+    try {
+      const response = await fetch(`${this.baseUrl}?action=deleteuser&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usernames: [username] })
+      });
+      return await response.json();
+    } catch (error) {
+      return { status: 1, cause: error instanceof Error ? error.message : 'Failed to delete user' };
+    }
   }
 
   async addDevice(deviceData: any): Promise<GP51AuthResponse> {
-    return { status: 0, cause: 'OK' };
+    try {
+      const response = await fetch(`${this.baseUrl}?action=adddevice&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(deviceData)
+      });
+      return await response.json();
+    } catch (error) {
+      return { status: 1, cause: error instanceof Error ? error.message : 'Failed to add device' };
+    }
   }
 
   async editDevice(deviceid: string, updates: any): Promise<GP51AuthResponse> {
-    return { status: 0, cause: 'OK' };
+    try {
+      const response = await fetch(`${this.baseUrl}?action=editdevicesimple&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceid, ...updates })
+      });
+      return await response.json();
+    } catch (error) {
+      return { status: 1, cause: error instanceof Error ? error.message : 'Failed to edit device' };
+    }
   }
 
   async deleteDevice(deviceid: string): Promise<GP51AuthResponse> {
-    return { status: 0, cause: 'OK' };
+    try {
+      const response = await fetch(`${this.baseUrl}?action=deletedevice&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceid })
+      });
+      return await response.json();
+    } catch (error) {
+      return { status: 1, cause: error instanceof Error ? error.message : 'Failed to delete device' };
+    }
+  }
+
+  async getLastPosition(deviceids: string[]): Promise<any[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}?action=lastposition&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          deviceids,
+          lastquerypositiontime: 0
+        })
+      });
+      const data = await response.json();
+      return data.records || [];
+    } catch (error) {
+      console.error('Failed to get last position:', error);
+      return [];
+    }
   }
 
   async queryTracks(deviceid: string, startTime: string, endTime: string): Promise<any> {
-    return {};
+    try {
+      const response = await fetch(`${this.baseUrl}?action=querytracks&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceid,
+          begintime: startTime,
+          endtime: endTime,
+          timezone: 8
+        })
+      });
+      return await response.json();
+    } catch (error) {
+      throw new Error(`Failed to query tracks: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
-  async sendCommand(deviceid: string, command: string, params: any[]): Promise<any> {
-    return { status: 0, cause: 'OK' };
-  }
-
-  async disableEngine(deviceid: string): Promise<any> {
-    return this.sendCommand(deviceid, 'TYPE_SERVER_UNLOCK_CAR', []);
-  }
-
-  async enableEngine(deviceid: string): Promise<any> {
-    return this.sendCommand(deviceid, 'TYPE_SERVER_LOCK_CAR', []);
-  }
-
-  async setSpeedLimit(deviceid: string, speedLimit: number, duration?: number): Promise<any> {
-    const params = duration ? [speedLimit.toString(), duration.toString()] : [speedLimit.toString()];
-    return this.sendCommand(deviceid, 'TYPE_SERVER_SET_SPEED_LIMIT', params);
-  }
-
-  async createSession(username: string, sessionData: object): Promise<any> {
-    return {};
-  }
-
-  async updateSession(sessionId: string, data: object): Promise<any> {
-    return {};
-  }
-
-  async refreshToken(sessionId: string): Promise<string> {
-    return '';
-  }
-
-  async validateToken(token: string): Promise<boolean> {
-    return true;
+  private md5Hash(input: string): string {
+    return input.toLowerCase();
   }
 }
 
-// Export singleton instance
 export const unifiedGP51Service = new UnifiedGP51ServiceImpl();

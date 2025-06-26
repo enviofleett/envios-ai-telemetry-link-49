@@ -64,20 +64,18 @@ const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({
     }
   };
 
-  // Auto-check health on mount and when session changes
   useEffect(() => {
     if (session) {
       checkHealth();
     }
   }, [session]);
 
-  // Auto-refresh every 2 minutes
   useEffect(() => {
     const interval = setInterval(() => {
       if (session) {
         checkHealth();
       }
-    }, 120000); // 2 minutes
+    }, 120000);
 
     return () => clearInterval(interval);
   }, [session]);
@@ -91,11 +89,11 @@ const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({
       return <AlertCircle className="h-4 w-4 text-gray-400" />;
     }
     
-    if (healthStatus.isReallyConnected) {
+    if (healthStatus.isConnected && healthStatus.sessionValid) {
       return <CheckCircle className="h-4 w-4 text-green-500" />;
     }
     
-    if (healthStatus.sessionValid && healthStatus.apiReachable) {
+    if (healthStatus.sessionValid && healthStatus.tokenValid) {
       return <AlertCircle className="h-4 w-4 text-yellow-500" />;
     }
     
@@ -111,11 +109,11 @@ const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({
       return <Badge variant="secondary">Unknown</Badge>;
     }
     
-    if (healthStatus.isReallyConnected) {
+    if (healthStatus.isConnected && healthStatus.sessionValid) {
       return <Badge variant="default" className="bg-green-500">Healthy</Badge>;
     }
     
-    if (healthStatus.sessionValid && healthStatus.apiReachable) {
+    if (healthStatus.sessionValid && healthStatus.tokenValid) {
       return <Badge variant="outline" className="border-yellow-500 text-yellow-700">Degraded</Badge>;
     }
     
@@ -127,15 +125,15 @@ const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({
       return "Status unknown - click refresh to check";
     }
     
-    if (healthStatus.isReallyConnected) {
-      return `Connected with ${healthStatus.deviceCount || 0} devices`;
+    if (healthStatus.isConnected && healthStatus.sessionValid) {
+      return `Connected with ${healthStatus.activeDevices || 0} devices`;
     }
     
-    if (healthStatus.sessionValid && healthStatus.apiReachable) {
+    if (healthStatus.sessionValid && healthStatus.tokenValid) {
       return "API reachable but data flow issues detected";
     }
     
-    if (healthStatus.sessionValid && !healthStatus.apiReachable) {
+    if (healthStatus.sessionValid && !healthStatus.tokenValid) {
       return "Session valid but API unreachable";
     }
     

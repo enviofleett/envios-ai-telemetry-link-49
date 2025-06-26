@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
-import { GP51_BASE_URL } from '@/services/gp51/urlHelpers';
+
+const GP51_BASE_URL = 'https://www.gps51.com';
 
 export default function GP51Settings() {
   const [credentials, setCredentials] = useState({
@@ -34,7 +35,6 @@ export default function GP51Settings() {
       [name]: value
     }));
     
-    // Clear any existing errors when user starts typing
     if (error) {
       clearError();
     }
@@ -57,11 +57,21 @@ export default function GP51Settings() {
     });
 
     if (success) {
-      // Clear form after successful authentication
       setCredentials({
         username: '',
         password: '',
         apiUrl: GP51_BASE_URL
+      });
+      
+      toast({
+        title: "Authentication Successful",
+        description: "GP51 credentials have been saved and tested successfully"
+      });
+    } else {
+      toast({
+        title: "Authentication Failed",
+        description: error || "Failed to authenticate with GP51",
+        variant: "destructive"
       });
     }
   };
@@ -72,7 +82,7 @@ export default function GP51Settings() {
     }
     
     if (isConnected && session) {
-      const isExpiringSoon = new Date(session.expiresAt).getTime() - Date.now() < 2 * 60 * 60 * 1000; // 2 hours
+      const isExpiringSoon = new Date(session.expiresAt).getTime() - Date.now() < 2 * 60 * 60 * 1000;
       
       if (isExpiringSoon) {
         return <Badge variant="outline">Expires Soon</Badge>;

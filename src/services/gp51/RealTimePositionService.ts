@@ -1,9 +1,17 @@
-
-import { unifiedGP51Service, GP51Position } from './UnifiedGP51Service';
+import { unifiedGP51Service } from './UnifiedGP51Service';
 
 export interface PositionUpdate {
   deviceId: string;
-  position: GP51Position;
+  position: {
+    deviceid: string;
+    latitude: number;
+    longitude: number;
+    speed: number;
+    course: number;
+    altitude: number;
+    timestamp: string;
+    status: string;
+  };
   timestamp: Date;
 }
 
@@ -17,7 +25,7 @@ export class RealTimePositionService {
   private static instance: RealTimePositionService;
   private subscriptions: Map<string, RealTimeSubscription> = new Map();
   private pollingInterval: NodeJS.Timeout | null = null;
-  private readonly POLLING_INTERVAL_MS = 5000; // 5 seconds
+  private readonly POLLING_INTERVAL_MS = 5000;
 
   private constructor() {}
 
@@ -33,7 +41,6 @@ export class RealTimePositionService {
     
     this.subscriptions.set(subscriptionId, subscription);
     
-    // Start polling if this is the first subscription
     if (this.subscriptions.size === 1) {
       this.startPolling();
     }
@@ -44,7 +51,6 @@ export class RealTimePositionService {
     
     this.subscriptions.delete(subscriptionId);
     
-    // Stop polling if no more subscriptions
     if (this.subscriptions.size === 0) {
       this.stopPolling();
     }
@@ -57,7 +63,6 @@ export class RealTimePositionService {
       await this.pollPositions();
     }, this.POLLING_INTERVAL_MS);
 
-    // Initial poll
     this.pollPositions();
   }
 
@@ -72,7 +77,6 @@ export class RealTimePositionService {
 
   private async pollPositions(): Promise<void> {
     try {
-      // Collect all unique device IDs from all subscriptions
       const allDeviceIds = new Set<string>();
       
       for (const subscription of this.subscriptions.values()) {
@@ -81,23 +85,21 @@ export class RealTimePositionService {
 
       if (allDeviceIds.size === 0) return;
 
-      // Fetch positions for all devices
       const result = await unifiedGP51Service.getLastPosition(Array.from(allDeviceIds));
       
-      if (!result.success) {
-        console.error('❌ [RealTime] Failed to fetch positions:', result.error);
-        this.notifyError(result.error || 'Failed to fetch positions');
+      if (!result) {
+        console.error('❌ [RealTime] Failed to fetch positions: No data returned');
+        this.notifyError('Failed to fetch positions');
         return;
       }
 
-      // Process position updates
-      const positions = result.data || [];
+      const positions = Array.isArray(result) ? result : [];
       const now = new Date();
 
       positions.forEach((positionData: any) => {
         const deviceId = positionData.deviceid;
         
-        const position: GP51Position = {
+        const position = {
           deviceid: deviceId,
           latitude: positionData.callat || 0,
           longitude: positionData.callon || 0,
@@ -114,7 +116,6 @@ export class RealTimePositionService {
           timestamp: now
         };
 
-        // Notify all subscriptions that include this device
         this.subscriptions.forEach((subscription) => {
           if (subscription.deviceIds.includes(deviceId)) {
             try {
@@ -142,7 +143,6 @@ export class RealTimePositionService {
     });
   }
 
-  // Get current status
   getStatus(): { 
     isActive: boolean; 
     subscriptionCount: number; 
