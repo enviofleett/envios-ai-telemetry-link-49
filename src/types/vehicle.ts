@@ -1,3 +1,4 @@
+
 export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
 export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading' | 'idle' | 'completed' | 'running';
@@ -13,6 +14,7 @@ export interface VehiclePosition {
 export interface VehicleData {
   id: string;
   device_id: string;
+  gp51_device_id: string; // Added missing property
   device_name: string;
   name: string; // REQUIRED: Canonical name property
   user_id?: string;
