@@ -1,4 +1,6 @@
 
+import { supabase } from '@/integrations/supabase/client';
+
 export interface GP51User {
   username: string;
   usertype: number;
@@ -103,20 +105,19 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
 
   async authenticate(username: string, password: string): Promise<GP51AuthResponse> {
     try {
-      const response = await fetch(`${this.baseUrl}?action=login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('gp51-hybrid-auth', {
+        body: {
+          action: 'authenticate',
           username,
-          password: this.md5Hash(password),
-          from: 'WEB',
-          type: 'USER'
-        })
+          password
+        }
       });
-      
-      const data = await response.json();
-      
-      if (data.status === 0) {
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data?.success) {
         this.currentToken = data.token;
         this._isConnected = true;
         this._session = {
@@ -127,13 +128,10 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
           lastActivity: new Date()
         };
         
-        await this.createSession(username, { 
-          token: data.token, 
-          loginTime: new Date()
-        });
+        return { status: 0, cause: 'OK', token: data.token };
+      } else {
+        return { status: -1, cause: data?.error || 'Authentication failed' };
       }
-      
-      return data;
     } catch (error) {
       this._isConnected = false;
       throw new Error(`Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -158,8 +156,8 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
   async logout(): Promise<void> {
     try {
       if (this.currentToken) {
-        await fetch(`${this.baseUrl}?action=logout&token=${this.currentToken}`, {
-          method: 'POST'
+        await supabase.functions.invoke('gp51-service-management', {
+          body: { action: 'logout', token: this.currentToken }
         });
       }
     } catch (error) {
@@ -187,19 +185,23 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch(`${this.baseUrl}?action=querymonitorlist&token=${this.currentToken}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username || this.currentUser?.username })
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: {
+          action: 'querymonitorlist',
+          token: this.currentToken,
+          username: username || this.currentUser?.username
+        }
       });
-      
-      const data = await response.json();
-      
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
       if (this._session) {
         this._session.lastActivity = new Date();
       }
       
-      return data;
+      return data || { status: -1, cause: 'No data received', groups: [] };
     } catch (error) {
       throw new Error(`Failed to query monitor list: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -208,22 +210,36 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
   async getConnectionHealth(): Promise<GP51HealthStatus> {
     try {
       const startTime = Date.now();
-      const response = await this.queryMonitorList();
+      const { data, error } = await supabase.functions.invoke('gp51-connection-check');
       const responseTime = Date.now() - startTime;
       
+      if (error) {
+        return {
+          isConnected: false,
+          lastPingTime: new Date(),
+          responseTime: -1,
+          tokenValid: false,
+          sessionValid: false,
+          activeDevices: 0,
+          errors: [error.message],
+          lastCheck: new Date(),
+          errorMessage: error.message
+        };
+      }
+
       const health: GP51HealthStatus = {
-        isConnected: response.status === 0,
+        isConnected: data?.success || false,
         lastPingTime: new Date(),
         responseTime,
         tokenValid: this.currentToken !== null,
         sessionValid: this._session !== null && this._session.isConnected,
-        activeDevices: response.groups?.flatMap(g => g.devices || []).length || 0,
-        errors: response.status !== 0 ? [response.cause] : [],
+        activeDevices: data?.deviceCount || 0,
+        errors: data?.success ? [] : [data?.error || 'Connection failed'],
         lastCheck: new Date()
       };
 
-      if (response.status !== 0) {
-        health.errorMessage = response.cause;
+      if (!data?.success) {
+        health.errorMessage = data?.error || 'Connection test failed';
       }
 
       return health;
@@ -242,7 +258,7 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
     }
   }
 
-  // Implement remaining methods with basic functionality
+  // Stub implementations for remaining methods
   async addUser(userData: any): Promise<GP51AuthResponse> {
     return { status: 0, cause: 'OK' };
   }
@@ -297,7 +313,6 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
   }
 
   async createSession(username: string, sessionData: object): Promise<any> {
-    console.log('Creating session for:', username, sessionData);
     return { success: true };
   }
 
@@ -311,10 +326,6 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
 
   async validateToken(token: string): Promise<boolean> {
     return true;
-  }
-
-  private md5Hash(input: string): string {
-    return input.toLowerCase();
   }
 }
 

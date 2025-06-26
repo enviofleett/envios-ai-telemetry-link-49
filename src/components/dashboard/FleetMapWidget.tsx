@@ -1,61 +1,67 @@
 
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Navigation, Maximize2, Filter } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import MapTilerMap from '@/components/map/MapTilerMap';
-import { useStableVehicleData } from '@/hooks/useStableVehicleData';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useCallback } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { MapPin, Navigation, RefreshCw, Car, Zap, AlertTriangle } from 'lucide-react';
+import { useEnhancedVehicleData } from '@/hooks/useEnhancedVehicleData';
 import type { VehicleData } from '@/types/vehicle';
 
-const FleetMapWidget: React.FC = () => {
-  const [showOfflineVehicles, setShowOfflineVehicles] = useState(true);
-  const navigate = useNavigate();
+export const FleetMapWidget: React.FC = () => {
+  const { 
+    vehicles, 
+    isLoading, 
+    error, 
+    forceSync, 
+    isRefreshing,
+    syncStatus 
+  } = useEnhancedVehicleData();
 
-  // Use stable vehicle data - fixed to use correct options
-  const { vehicles, allVehicles, isLoading } = useStableVehicleData({
-    status: showOfflineVehicles ? 'all' : 'online'
-  });
+  const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
 
-  const getVehicleStatus = (vehicle: VehicleData) => {
-    if (!vehicle.last_position?.timestamp) return 'offline';
-    
-    const lastUpdate = new Date(vehicle.last_position.timestamp);
-    const now = new Date();
-    const minutesSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60);
-    
-    if (minutesSinceUpdate <= 5) return 'online';
-    if (minutesSinceUpdate <= 30) return 'idle';
-    return 'offline';
-  };
+  const handleVehicleSelect = useCallback((vehicle: VehicleData) => {
+    setSelectedVehicle(vehicle);
+  }, []);
 
-  const statusCounts = allVehicles.reduce((acc, vehicle) => {
-    const status = getVehicleStatus(vehicle);
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
-
-  const handleVehicleSelect = (vehicle: VehicleData) => {
-    navigate('/tracking', { state: { selectedVehicle: vehicle } });
-  };
-
-  const handleViewFullMap = () => {
-    navigate('/tracking', { state: { viewMode: 'map' } });
-  };
+  const handleRefresh = useCallback(async () => {
+    await forceSync();
+  }, [forceSync]);
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="h-96">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Navigation className="h-5 w-5" />
-            Fleet Distribution
+            <MapPin className="h-5 w-5" />
+            Fleet Map
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="animate-pulse">
-            <div className="h-64 bg-gray-200 rounded-lg"></div>
+        <CardContent className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2" />
+            <p>Loading vehicles...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="h-96">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="h-5 w-5" />
+            Fleet Map
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="flex items-center justify-center h-64">
+          <div className="text-center text-red-600">
+            <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+            <p>Error loading map data</p>
+            <Button onClick={handleRefresh} variant="outline" size="sm" className="mt-2">
+              Retry
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -63,72 +69,85 @@ const FleetMapWidget: React.FC = () => {
   }
 
   return (
-    <Card>
+    <Card className="h-96">
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Navigation className="h-5 w-5" />
-            Fleet Distribution
-            <Badge variant="outline" className="ml-2">
-              {vehicles.length} trackable
+            <MapPin className="h-5 w-5" />
+            Fleet Map
+            <Badge variant="secondary">
+              {vehicles.length} vehicles
             </Badge>
           </CardTitle>
-          
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowOfflineVehicles(!showOfflineVehicles)}
-            >
-              <Filter className="h-4 w-4 mr-1" />
-              {showOfflineVehicles ? 'Hide' : 'Show'} Offline
-            </Button>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleViewFullMap}
-            >
-              <Maximize2 className="h-4 w-4 mr-1" />
-              Full Map
-            </Button>
-          </div>
+          <Button 
+            onClick={handleRefresh} 
+            disabled={isRefreshing}
+            variant="outline" 
+            size="sm"
+          >
+            {isRefreshing ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </CardHeader>
-      
       <CardContent>
-        {/* Status Summary */}
-        <div className="flex flex-wrap gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-            <span className="text-sm">Online: {statusCounts.online || 0}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-            <span className="text-sm">Idle: {statusCounts.idle || 0}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-            <span className="text-sm">Offline: {statusCounts.offline || 0}</span>
-          </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-sm font-medium">
-              Coverage: {allVehicles.length > 0 ? 
-                ((vehicles.length / allVehicles.length) * 100).toFixed(1) : 0}%
-            </span>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-64 overflow-y-auto">
+          {vehicles.map((vehicle) => (
+            <div
+              key={vehicle.id}
+              className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                selectedVehicle?.id === vehicle.id 
+                  ? 'border-blue-500 bg-blue-50' 
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => handleVehicleSelect(vehicle)}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Car className="h-4 w-4" />
+                  <span className="font-medium text-sm">
+                    {vehicle.name || vehicle.device_name}
+                  </span>
+                </div>
+                <Badge 
+                  variant={vehicle.isOnline ? "default" : "secondary"}
+                  className="text-xs"
+                >
+                  {vehicle.isOnline ? 'Online' : 'Offline'}
+                </Badge>
+              </div>
+              
+              <div className="text-xs text-gray-600 space-y-1">
+                <div className="flex items-center gap-1">
+                  <Navigation className="h-3 w-3" />
+                  <span>Speed: {vehicle.speed || 0} km/h</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  <span>
+                    {vehicle.latitude?.toFixed(4)}, {vehicle.longitude?.toFixed(4)}
+                  </span>
+                </div>
+                {vehicle.isMoving && (
+                  <div className="flex items-center gap-1 text-green-600">
+                    <Zap className="h-3 w-3" />
+                    <span>Moving</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-
-        <MapTilerMap
-          vehicles={vehicles}
-          height="300px"
-          onVehicleSelect={handleVehicleSelect}
-          defaultZoom={10}
-          showControls={false}
-        />
+        
+        {syncStatus.isConnected && (
+          <div className="mt-4 text-xs text-gray-500 text-center">
+            Last updated: {syncStatus.lastSync.toLocaleTimeString()}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
 };
-
-export default FleetMapWidget;

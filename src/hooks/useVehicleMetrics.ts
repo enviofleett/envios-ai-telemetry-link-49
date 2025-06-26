@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { enhancedVehicleDataService } from '@/services/EnhancedVehicleDataService';
-import type { VehicleMetrics, SyncMetrics } from '@/services/EnhancedVehicleDataService';
+import type { VehicleMetrics } from '@/services/EnhancedVehicleDataService';
 
 export const useVehicleMetrics = () => {
   const [metrics, setMetrics] = useState<VehicleMetrics>({
@@ -14,9 +14,14 @@ export const useVehicleMetrics = () => {
     lastSyncTime: new Date(),
     averageSpeed: 0,
     totalDistance: 0,
-    syncStatus: 'success',
+    syncStatus: 'pending',
     errors: [],
-    errorMessage: undefined
+    errorMessage: undefined,
+    total: 0,
+    online: 0,
+    offline: 0,
+    idle: 0,
+    alerts: 0
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +30,6 @@ export const useVehicleMetrics = () => {
     const unsubscribe = enhancedVehicleDataService.subscribe('metrics-hook', async (data) => {
       try {
         const serviceMetrics = enhancedVehicleDataService.getMetrics();
-        const syncMetrics = enhancedVehicleDataService.getLastSyncMetrics();
         
         if (serviceMetrics) {
           setMetrics(serviceMetrics);
