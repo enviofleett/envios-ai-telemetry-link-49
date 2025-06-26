@@ -1,332 +1,208 @@
 
-import { productionGP51Service, ProductionGP51Service } from './ProductionGP51Service';
-import { gp51CoreService } from '../GP51CoreService';
-
-export interface UnifiedGP51Response<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  status?: number;
-}
-
-// Export type definitions that were missing
-export interface GP51User {
-  username: string;
-  usertype: number;
-  showname: string;
-  companyname?: string;
-  email?: string;
-  phone?: string;
-}
-
-export interface GP51Device {
-  deviceid: string;
-  devicename: string;
-  devicetype: number;
-  status: string;
-  lastactivetime: number;
-  simnum?: string;
-}
-
-export interface GP51Session {
-  username: string;
-  token: string;
-  isConnected: boolean;
-  expiresAt: Date;
-  lastActivity: Date;
-}
-
-export interface GP51AuthResponse {
-  status: number;
-  cause: string;
-  token?: string;
-  expires_at?: string;
-}
-
-export interface GP51MonitorListResponse {
-  status: number;
-  cause: string;
-  groups: Array<{
-    groupid: number;
-    groupname: string;
-    devices: GP51Device[];
-  }>;
-}
-
-export interface GP51HealthStatus {
-  isConnected: boolean;
-  lastPingTime: Date;
-  responseTime: number;
-  tokenValid: boolean;
-  sessionValid: boolean;
-  activeDevices: number;
-  errors: string[];
-  lastCheck: Date;
-  errorMessage?: string;
-}
+import { productionGP51Service } from './ProductionGP51Service';
+import type { GP51User, GP51Device, GP51Session, GP51HealthStatus } from '@/services/gp51/index';
 
 export class UnifiedGP51Service {
-  private useProductionService = true;
-  private _session: GP51Session | null = null;
-  private _isConnected = false;
+  private static instance: UnifiedGP51Service;
 
-  constructor() {
-    // Initialize with production service by default
+  private constructor() {}
+
+  static getInstance(): UnifiedGP51Service {
+    if (!UnifiedGP51Service.instance) {
+      UnifiedGP51Service.instance = new UnifiedGP51Service();
+    }
+    return UnifiedGP51Service.instance;
   }
 
-  get session(): GP51Session | null {
-    return this._session;
-  }
-
-  get isConnected(): boolean {
-    return this._isConnected;
-  }
-
-  async authenticate(username: string, password: string): Promise<UnifiedGP51Response> {
+  // Authentication wrapper
+  async authenticate(username: string, password: string): Promise<UnifiedGP51Response<{ token: string; username: string }>> {
     try {
-      if (this.useProductionService) {
-        const response = await productionGP51Service.authenticate(username, password);
-        
-        this._isConnected = response.status === 0;
-        if (this._isConnected) {
-          this._session = {
-            username,
-            token: response.token || '',
-            isConnected: true,
-            expiresAt: new Date(response.expires_at || Date.now() + 24 * 60 * 60 * 1000),
-            lastActivity: new Date()
-          };
+      const result = await productionGP51Service.authenticate(username, password);
+      
+      if (result.status === 0) {
+        return {
+          success: true,
+          data: {
+            token: result.token!,
+            username: username
+          }
+        };
+      } else {
+        return {
+          success: false,
+          error: result.cause || 'Authentication failed'
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Authentication error'
+      };
+    }
+  }
+
+  // Monitor list wrapper
+  async queryMonitorList(): Promise<UnifiedGP51Response<{ users: GP51User[]; devices: GP51Device[] }>> {
+    try {
+      const users = await productionGP51Service.fetchAllUsers();
+      const devices = await productionGP51Service.fetchAllDevices();
+      
+      return {
+        success: true,
+        data: {
+          users,
+          devices
         }
-        
-        return {
-          success: response.status === 0,
-          data: response,
-          status: response.status,
-          error: response.status !== 0 ? response.cause : undefined
-        };
-      } else {
-        // Fallback to mock service
-        const response = await gp51CoreService.authenticate(username, password);
-        return {
-          success: response.status === 0,
-          data: response,
-          status: response.status
-        };
-      }
+      };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Authentication failed'
+        error: error instanceof Error ? error.message : 'Failed to fetch monitor list'
       };
     }
   }
 
-  async authenticateAdmin(username: string, password: string): Promise<UnifiedGP51Response> {
-    return this.authenticate(username, password);
-  }
-
-  async queryMonitorList(): Promise<UnifiedGP51Response> {
+  // Position updates wrapper
+  async getLastPositions(deviceIds?: string[]): Promise<UnifiedGP51Response<{ records: any[] }>> {
     try {
-      if (this.useProductionService) {
-        const devices = await productionGP51Service.fetchAllDevices();
-        
-        return {
-          success: true,
-          data: {
-            status: 0,
-            cause: 'OK',
-            groups: [{
-              groupid: 1,
-              groupname: 'Default Group',
-              devices: devices
-            }]
-          }
-        };
-      } else {
-        // Fallback to mock service
-        const response = await gp51CoreService.queryMonitorList();
-        return {
-          success: response.status === 0,
-          data: response,
-          status: response.status
-        };
-      }
+      const positions = await productionGP51Service.getLastPositions(deviceIds);
+      
+      return {
+        success: true,
+        data: {
+          records: positions
+        }
+      };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to query monitor list'
+        error: error instanceof Error ? error.message : 'Failed to fetch positions'
       };
     }
   }
 
-  async getLastPositions(deviceIds?: string[]): Promise<UnifiedGP51Response> {
+  // User registration wrapper
+  async registerUser(userData: {
+    username: string;
+    password: string;
+    email?: string;
+    companyname?: string;
+    cardname?: string;
+    phone?: string;
+  }): Promise<UnifiedGP51Response<any>> {
     try {
-      if (this.useProductionService) {
-        const positions = await productionGP51Service.getLastPositions(deviceIds);
-        
+      const result = await productionGP51Service.registerUser(userData);
+      
+      if (result.status === 0) {
         return {
           success: true,
-          data: {
-            status: 0,
-            cause: 'OK',
-            records: positions
-          }
+          data: result
         };
       } else {
-        // Mock implementation for development
         return {
-          success: true,
-          data: {
-            status: 0,
-            records: []
-          }
+          success: false,
+          error: result.cause || 'User registration failed'
         };
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to get positions'
+        error: error instanceof Error ? error.message : 'Registration error'
       };
     }
   }
 
-  async registerUser(userData: any): Promise<UnifiedGP51Response> {
+  // Device registration wrapper
+  async registerDevice(deviceData: {
+    deviceid: string;
+    devicename: string;
+    devicetype: number;
+    creater: string;
+  }): Promise<UnifiedGP51Response<any>> {
     try {
-      if (this.useProductionService) {
-        const response = await productionGP51Service.registerUser(userData);
-        
-        return {
-          success: response.status === 0,
-          data: response,
-          status: response.status,
-          error: response.status !== 0 ? response.cause : undefined
-        };
-      } else {
-        // Mock success for development
+      const result = await productionGP51Service.registerDevice(deviceData);
+      
+      if (result.status === 0) {
         return {
           success: true,
-          data: { status: 0, cause: 'OK' }
+          data: result
+        };
+      } else {
+        return {
+          success: false,
+          error: result.cause || 'Device registration failed'
         };
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'User registration failed'
+        error: error instanceof Error ? error.message : 'Device registration error'
       };
     }
   }
 
-  async registerDevice(deviceData: any): Promise<UnifiedGP51Response> {
+  // Vehicle command wrapper
+  async sendVehicleCommand(deviceId: string, command: string, parameters: any[] = []): Promise<UnifiedGP51Response<any>> {
     try {
-      if (this.useProductionService) {
-        const response = await productionGP51Service.registerDevice(deviceData);
-        
-        return {
-          success: response.status === 0,
-          data: response,
-          status: response.status,
-          error: response.status !== 0 ? response.cause : undefined
-        };
-      } else {
-        // Mock success for development
+      const result = await productionGP51Service.sendVehicleCommand(deviceId, command, parameters);
+      
+      if (result.status === 0) {
         return {
           success: true,
-          data: { status: 0, cause: 'OK' }
+          data: result
+        };
+      } else {
+        return {
+          success: false,
+          error: result.cause || 'Command execution failed'
         };
       }
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Device registration failed'
-      };
-    }
-  }
-
-  async sendCommand(deviceid: string, command: string, params: any[]): Promise<UnifiedGP51Response> {
-    try {
-      if (this.useProductionService) {
-        const response = await productionGP51Service.sendVehicleCommand(deviceid, command, params);
-        
-        return {
-          success: response.status === 0,
-          data: response,
-          status: response.status,
-          error: response.status !== 0 ? response.cause : undefined
-        };
-      } else {
-        // Mock success for development
-        return {
-          success: true,
-          data: { status: 0, cause: 'OK' }
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Command failed'
+        error: error instanceof Error ? error.message : 'Command error'
       };
     }
   }
 
   // Session management
   async loadExistingSession(username: string): Promise<boolean> {
-    if (this.useProductionService) {
-      return await productionGP51Service.loadExistingSession(username);
-    }
-    return false;
+    return await productionGP51Service.loadExistingSession(username);
   }
 
   async logout(): Promise<void> {
-    if (this.useProductionService) {
-      await productionGP51Service.logout();
-    }
-    this._session = null;
-    this._isConnected = false;
+    await productionGP51Service.logout();
   }
 
-  async disconnect(): Promise<void> {
-    await this.logout();
-  }
-
-  async getConnectionHealth(): Promise<GP51HealthStatus> {
-    return {
-      isConnected: this._isConnected,
-      lastPingTime: new Date(),
-      responseTime: 150,
-      tokenValid: this._session !== null,
-      sessionValid: this._session !== null,
-      activeDevices: 0,
-      errors: [],
-      lastCheck: new Date()
-    };
-  }
-
+  // Status checks
   get isAuthenticated(): boolean {
-    if (this.useProductionService) {
-      return productionGP51Service.isAuthenticated;
-    }
-    return gp51CoreService.isConnected;
+    return productionGP51Service.isAuthenticated;
   }
 
-  get currentUser(): string | null {
-    if (this.useProductionService) {
-      return productionGP51Service.currentUsername;
-    }
-    return gp51CoreService.session?.username || null;
+  get currentUsername(): string | null {
+    return productionGP51Service.currentUsername;
   }
 
-  // Development/testing methods
-  enableProductionMode(): void {
-    this.useProductionService = true;
-  }
-
-  enableDevelopmentMode(): void {
-    this.useProductionService = false;
-  }
-
-  get isProductionMode(): boolean {
-    return this.useProductionService;
+  // Health check
+  async getHealthStatus(): Promise<GP51HealthStatus> {
+    return {
+      status: this.isAuthenticated ? 'healthy' : 'disconnected',
+      lastCheck: new Date(),
+      isAuthenticated: this.isAuthenticated,
+      username: this.currentUsername,
+      connectionDetails: {
+        apiUrl: 'https://www.gps51.com/webapi',
+        lastSuccessfulAuth: null,
+        errorCount: 0
+      }
+    };
   }
 }
 
-export const unifiedGP51Service = new UnifiedGP51Service();
+export interface UnifiedGP51Response<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+export const unifiedGP51Service = UnifiedGP51Service.getInstance();

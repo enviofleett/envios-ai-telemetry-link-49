@@ -1,5 +1,5 @@
+import CryptoJS from 'crypto-js';
 import { supabase } from '@/integrations/supabase/client';
-import { crossBrowserMD5 } from '@/utils/crossBrowserMD5';
 
 interface GP51Config {
   baseUrl: string;
@@ -19,9 +19,18 @@ export class ProductionGP51Service {
   private currentToken: string | null = null;
   private currentUser: string | null = null;
 
+  // Add missing properties for compatibility
+  get isAuthenticated(): boolean {
+    return this.currentToken !== null;
+  }
+
+  get currentUsername(): string | null {
+    return this.currentUser;
+  }
+
   async authenticate(username: string, password: string, userType: 'USER' | 'DEVICE' = 'USER'): Promise<GP51AuthResponse> {
     try {
-      const hashedPassword = await crossBrowserMD5(password);
+      const hashedPassword = this.md5Hash(password);
       
       const response = await this.makeRequest('login', {
         username,
@@ -34,10 +43,10 @@ export class ProductionGP51Service {
         this.currentToken = response.token;
         this.currentUser = username;
         
-        // Store session using correct field names
-        await this.storeSession(username, {
-          gp51_token: response.token,
-          token_expires_at: response.expires_at,
+        // Store session in database using correct schema
+        await this.storeSession(username, hashedPassword, {
+          token: response.token,
+          expires_at: response.expires_at,
           login_time: new Date().toISOString(),
           user_type: userType,
           is_admin: username === 'octopus'
@@ -51,6 +60,41 @@ export class ProductionGP51Service {
       await this.logOperation('auth', username, { userType }, null, error);
       throw error;
     }
+  }
+
+  // Add missing methods for compatibility
+  async loadExistingSession(username: string): Promise<boolean> {
+    try {
+      const { data: session } = await supabase
+        .from('gp51_sessions')
+        .select('*')
+        .eq('username', username)
+        .eq('is_active', true)
+        .single();
+
+      if (session && session.gp51_token) {
+        this.currentToken = session.gp51_token;
+        this.currentUser = username;
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error loading existing session:', error);
+      return false;
+    }
+  }
+
+  async logout(): Promise<void> {
+    if (this.currentUser) {
+      await supabase
+        .from('gp51_sessions')
+        .update({ is_active: false })
+        .eq('username', this.currentUser);
+    }
+    
+    this.currentToken = null;
+    this.currentUser = null;
   }
 
   async fetchAllUsers(): Promise<GP51User[]> {
@@ -166,7 +210,7 @@ export class ProductionGP51Service {
     }
 
     try {
-      const hashedPassword = await crossBrowserMD5(userData.password);
+      const hashedPassword = this.md5Hash(userData.password);
       
       const response = await this.makeRequest('adduser', {
         creater: this.currentUser,
@@ -310,14 +354,19 @@ export class ProductionGP51Service {
     }
   }
 
-  private async storeSession(username: string, sessionData: any): Promise<void> {
+  private md5Hash(input: string): string {
+    return CryptoJS.MD5(input).toString().toLowerCase();
+  }
+
+  private async storeSession(username: string, passwordHash: string, sessionData: any): Promise<void> {
     try {
       const { error } = await supabase
         .from('gp51_sessions')
         .upsert({
           username,
-          gp51_token: sessionData.gp51_token,
-          token_expires_at: sessionData.token_expires_at,
+          password_hash: passwordHash,
+          gp51_token: sessionData.token,
+          token_expires_at: sessionData.expires_at || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
           last_activity_at: new Date().toISOString(),
           is_active: true
         }, {
@@ -404,11 +453,12 @@ export class ProductionGP51Service {
           altitude: position.altitude || 0,
           accuracy_radius: position.radius || 0,
           position_timestamp: new Date(position.updatetime || position.devicetime).toISOString(),
+          server_timestamp: new Date().toISOString(),
           status_code: position.status,
           status_description: position.strstatus,
           alarm_code: position.alarm,
           alarm_description: position.stralarm,
-          location_source: position.gotsrc,
+          location_source: position.gotsrc || 'gps',
           signal_strength: position.rxlevel,
           gps_satellite_count: position.gpsvalidnum,
           voltage: position.voltagev,
