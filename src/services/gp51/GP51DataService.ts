@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
+import { GP51DeviceData, GP51Position, GP51Group, GP51ServiceResponse } from '@/types/gp51-unified';
 
 export class GP51DataService {
   async queryMonitorList(): Promise<{
@@ -13,40 +13,24 @@ export class GP51DataService {
       console.log('🔍 Querying monitor list...');
       
       const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: { action: 'querymonitorlist' }
+        body: { action: 'query_devices' }
       });
-
+      
       if (error) {
-        console.error('Edge function error:', error);
-        throw error;
+        throw new Error(error.message);
       }
-
-      console.log('📊 Monitor list response:', data);
-
-      if (!data.success) {
-        return {
-          success: false,
-          error: data.error || 'Failed to query monitor list',
-          data: [],
-          groups: []
-        };
+      
+      if (!data?.success) {
+        throw new Error(data?.error || 'Failed to query devices');
       }
-
-      const groups = data?.groups || [];
-      const devices = data?.devices || groups.flatMap((group: any) => group.devices || []);
-
-      console.log('✅ Successfully fetched:', {
-        groupCount: groups.length,
-        deviceCount: devices.length
-      });
-
+      
       return {
         success: true,
-        data: devices,
-        groups: groups
+        data: data.data || [],
+        groups: data.groups || []
       };
     } catch (error) {
-      console.error('Failed to query monitor list:', error);
+      console.error('❌ Query monitor list error:', error);
       return {
         success: false,
         error: error.message,
@@ -56,39 +40,60 @@ export class GP51DataService {
     }
   }
 
-  async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
+  async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     try {
-      console.log('📍 Getting positions for devices:', deviceIds);
+      console.log('📍 Fetching last positions...');
       
       const { data, error } = await supabase.functions.invoke('gp51-service-management', {
         body: { 
-          action: 'getpositions',
+          action: 'get_positions',
           deviceIds: deviceIds 
         }
       });
-
-      if (error) throw error;
-
+      
+      if (error) {
+        throw new Error(error.message);
+      }
+      
       return data?.positions || [];
     } catch (error) {
-      console.error('Failed to get positions:', error);
+      console.error('❌ Get last positions error:', error);
       return [];
     }
   }
 
-  async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
-    return this.getPositions(deviceIds);
+  async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
+    return this.getLastPositions(deviceIds);
   }
 
   async getDevices(deviceIds?: string[]) {
-    const result = await this.queryMonitorList();
-    
-    return {
-      success: result.success,
-      data: result.data || [],
-      groups: result.groups || [],
-      error: result.error
-    };
+    try {
+      const result = await this.queryMonitorList();
+      
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+      
+      let devices = result.data || [];
+      
+      if (deviceIds && deviceIds.length > 0) {
+        devices = devices.filter(device => deviceIds.includes(device.deviceId));
+      }
+      
+      return {
+        success: true,
+        data: devices,
+        groups: result.groups || []
+      };
+    } catch (error) {
+      console.error('❌ Get devices error:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: [],
+        groups: []
+      };
+    }
   }
 
   /**
@@ -97,7 +102,6 @@ export class GP51DataService {
   async getLiveVehicles(): Promise<{
     success: boolean;
     data?: any[];
-    vehicles?: any[];
     error?: string;
   }> {
     try {
@@ -109,15 +113,11 @@ export class GP51DataService {
         throw new Error(result.error || 'Failed to fetch live vehicles');
       }
 
-      console.log('✅ Live vehicles loaded:', {
-        deviceCount: result.data?.length || 0,
-        groupCount: result.groups?.length || 0
-      });
+      console.log('✅ Live vehicles loaded:', result.data?.length || 0);
       
       return {
         success: true,
-        data: result.data || [],
-        vehicles: result.data || []
+        data: result.data || []
       };
 
     } catch (error) {
@@ -125,8 +125,7 @@ export class GP51DataService {
       return {
         success: false,
         error: error.message,
-        data: [],
-        vehicles: []
+        data: []
       };
     }
   }
@@ -167,88 +166,82 @@ export class GP51DataService {
   }
 
   /**
-   * Get performance metrics (used by GP51PerformanceMonitor)
+   * Get performance metrics - Return proper GP51PerformanceMetrics structure
    */
-  async getPerformanceMetrics(): Promise<{
-    success: boolean;
-    metrics?: any;
-    error?: string;
-  }> {
+  async getPerformanceMetrics(): Promise<import('@/types/gp51Performance').GP51PerformanceMetrics> {
     try {
       console.log('📈 Fetching performance metrics...');
       
       const deviceResponse = await this.getLiveVehicles();
+      const startTime = Date.now();
       
-      if (!deviceResponse.success) {
-        throw new Error('Failed to fetch device data for metrics');
-      }
-
       const devices = deviceResponse.data || [];
-      
-      // Calculate performance metrics
       const totalDevices = devices.length;
-      const activeDevices = devices.filter((d: any) => d.isActive).length;
-      const onlineDevices = devices.filter((d: any) => d.status === 'online').length;
-      const offlineDevices = totalDevices - onlineDevices;
+      const activeDevices = devices.filter(d => d.isActive).length;
+      const onlineDevices = devices.filter(d => d.status === 'online').length;
       
-      // Response time calculation (mock for now, could be enhanced)
-      const avgResponseTime = Math.random() * 1000 + 500; // 500-1500ms
+      // Calculate response time
+      const responseTime = Date.now() - startTime;
       
       const metrics = {
-        totalDevices,
-        activeDevices,
-        inactiveDevices: totalDevices - activeDevices,
-        onlineDevices,
-        offlineDevices,
-        connectionHealth: totalDevices > 0 ? onlineDevices / totalDevices : 0,
-        averageResponseTime: avgResponseTime,
-        dataFreshness: new Date().toISOString(),
-        systemStatus: totalDevices > 0 && onlineDevices > totalDevices * 0.8 ? 'healthy' : 'degraded'
+        responseTime,
+        success: deviceResponse.success,
+        requestStartTime: new Date(startTime).toISOString(),
+        errorType: deviceResponse.error,
+        deviceCount: totalDevices,
+        groupCount: 0, // Will be calculated from groups if available
+        timestamp: new Date().toISOString(),
+        apiCallCount: 1,
+        errorRate: deviceResponse.success ? 0 : 100,
+        averageResponseTime: responseTime
       };
 
       console.log('✅ Performance metrics calculated:', metrics);
       
-      return {
-        success: true,
-        metrics
-      };
+      return metrics;
 
     } catch (error) {
       console.error('❌ Performance metrics error:', error);
       return {
+        responseTime: 0,
         success: false,
-        error: error.message
+        requestStartTime: new Date().toISOString(),
+        errorType: error.message,
+        deviceCount: 0,
+        groupCount: 0,
+        timestamp: new Date().toISOString(),
+        apiCallCount: 1,
+        errorRate: 100,
+        averageResponseTime: 0
       };
     }
   }
 
   /**
-   * Get multiple devices last positions (used by services)
+   * Get multiple devices last positions - Return Map for compatibility
    */
-  async getMultipleDevicesLastPositions(deviceIds: string[] = []): Promise<{
-    success: boolean;
-    positions?: any[];
-    error?: string;
-  }> {
+  async getMultipleDevicesLastPositions(deviceIds: string[] = []): Promise<Map<string, any>> {
     try {
       console.log('📍 Fetching last positions for devices:', deviceIds.length || 'all');
       
-      const positions = await this.getPositions(deviceIds);
+      const positions = await this.getLastPositions(deviceIds);
       
-      console.log('✅ Positions loaded:', positions.length);
+      // Convert array to Map for compatibility with existing code
+      const positionMap = new Map();
       
-      return {
-        success: true,
-        positions: positions
-      };
+      positions.forEach(position => {
+        if (position.deviceId) {
+          positionMap.set(position.deviceId, position);
+        }
+      });
+
+      console.log('✅ Positions loaded as Map:', positionMap.size, 'devices');
+      
+      return positionMap;
 
     } catch (error) {
       console.error('❌ Position fetch error:', error);
-      return {
-        success: false,
-        error: error.message,
-        positions: []
-      };
+      return new Map(); // Return empty Map on error
     }
   }
 
@@ -264,25 +257,24 @@ export class GP51DataService {
     connectionStatus: string;
   }> {
     try {
-      const [deviceResponse, positionResponse] = await Promise.all([
+      const [deviceResponse, positionMap] = await Promise.all([
         this.getLiveVehicles(),
         this.getMultipleDevicesLastPositions()
       ]);
 
       const devices = deviceResponse.data || [];
-      const positions = positionResponse.positions || [];
       
       const totalDevices = devices.length;
-      const activeDevices = devices.filter((d: any) => d.isActive).length;
-      const onlineDevices = positions.filter((p: any) => p.status === 'online').length;
+      const activeDevices = devices.filter(d => d.isActive).length;
+      const onlineDevices = Array.from(positionMap.values()).filter(p => p.isOnline).length;
       
       return {
         totalDevices,
         activeDevices,
         onlineDevices,
         offlineDevices: totalDevices - onlineDevices,
-        groups: new Set(devices.map((d: any) => d.groupId)).size,
-        connectionStatus: totalDevices > 0 && onlineDevices > totalDevices * 0.8 ? 'healthy' : 'degraded'
+        groups: new Set(devices.map(d => d.groupId)).size,
+        connectionStatus: onlineDevices > totalDevices * 0.8 ? 'healthy' : 'degraded'
       };
 
     } catch (error) {
@@ -301,3 +293,7 @@ export class GP51DataService {
 
 // Create and export singleton instance
 export const gp51DataService = new GP51DataService();
+
+// Also export the class
+export { GP51DataService };
+export default GP51DataService;
