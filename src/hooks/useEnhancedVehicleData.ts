@@ -38,27 +38,27 @@ export const useEnhancedVehicleData = () => {
         
         // Convert service metrics to the full VehicleDataMetrics interface
         const expandedMetrics: VehicleDataMetrics = {
-          total: serviceMetrics.total,
-          online: serviceMetrics.online,
-          offline: serviceMetrics.offline,
-          idle: serviceMetrics.idle,
-          alerts: serviceMetrics.alerts,
-          totalVehicles: serviceMetrics.totalVehicles,
-          onlineVehicles: serviceMetrics.onlineVehicles,
-          offlineVehicles: serviceMetrics.offlineVehicles,
-          recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
-          lastSyncTime: serviceMetrics.lastSyncTime,
-          positionsUpdated: syncMetrics.positionsUpdated,
-          errors: syncMetrics.errors,
-          syncStatus: syncMetrics.syncStatus as 'success' | 'error' | 'syncing',
-          errorMessage: syncMetrics.errorMessage
+          total: serviceMetrics?.total || 0,
+          online: serviceMetrics?.online || 0,
+          offline: serviceMetrics?.offline || 0,
+          idle: serviceMetrics?.idle || 0,
+          alerts: serviceMetrics?.alerts || 0,
+          totalVehicles: serviceMetrics?.totalVehicles || 0,
+          onlineVehicles: serviceMetrics?.onlineVehicles || 0,
+          offlineVehicles: serviceMetrics?.offlineVehicles || 0,
+          recentlyActiveVehicles: serviceMetrics?.recentlyActiveVehicles || 0,
+          lastSyncTime: serviceMetrics?.lastSyncTime || new Date(),
+          positionsUpdated: syncMetrics?.positionsUpdated || 0,
+          errors: syncMetrics?.errors || 0,
+          syncStatus: syncMetrics?.syncStatus as 'success' | 'error' | 'syncing' || 'success',
+          errorMessage: syncMetrics?.errorMessage
         };
         
         setMetrics(expandedMetrics);
         setIsLoading(false);
 
         // Show error toast if sync failed
-        if (syncMetrics.syncStatus === 'error' && syncMetrics.errorMessage) {
+        if (syncMetrics?.syncStatus === 'error' && syncMetrics?.errorMessage) {
           toast({
             title: "Vehicle Data Sync Failed",
             description: syncMetrics.errorMessage,
@@ -78,44 +78,36 @@ export const useEnhancedVehicleData = () => {
     }
 
     // Subscribe to vehicle data updates
-    const unsubscribe = enhancedVehicleDataService.subscribe(async (newVehicles) => {
-      setVehicles(newVehicles);
+    const subscriberId = `enhanced-vehicle-data-${Date.now()}`;
+    enhancedVehicleDataService.subscribe(subscriberId, (enhancedData) => {
+      setVehicles(enhancedData.vehicles);
+      setIsLoading(enhancedData.isLoading);
       
-      const serviceMetrics = enhancedVehicleDataService.getMetrics();
-      const syncMetrics = await enhancedVehicleDataService.getLastSyncMetrics();
-      
-      // Convert service metrics to the full VehicleDataMetrics interface
-      const expandedMetrics: VehicleDataMetrics = {
-        total: serviceMetrics.total,
-        online: serviceMetrics.online,
-        offline: serviceMetrics.offline,
-        idle: serviceMetrics.idle,
-        alerts: serviceMetrics.alerts,
-        totalVehicles: serviceMetrics.totalVehicles,
-        onlineVehicles: serviceMetrics.onlineVehicles,
-        offlineVehicles: serviceMetrics.offlineVehicles,
-        recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
-        lastSyncTime: serviceMetrics.lastSyncTime,
-        positionsUpdated: syncMetrics.positionsUpdated,
-        errors: syncMetrics.errors,
-        syncStatus: syncMetrics.syncStatus as 'success' | 'error' | 'syncing',
-        errorMessage: syncMetrics.errorMessage
+      // Update metrics based on enhanced data
+      const newMetrics: VehicleDataMetrics = {
+        total: enhancedData.vehicles.length,
+        online: enhancedData.vehicles.filter(v => v.isOnline).length,
+        offline: enhancedData.vehicles.filter(v => !v.isOnline).length,
+        idle: enhancedData.vehicles.filter(v => v.isOnline && !v.isMoving).length,
+        alerts: enhancedData.events.filter(e => !e.acknowledged).length,
+        totalVehicles: enhancedData.vehicles.length,
+        onlineVehicles: enhancedData.vehicles.filter(v => v.isOnline).length,
+        offlineVehicles: enhancedData.vehicles.filter(v => !v.isOnline).length,
+        recentlyActiveVehicles: enhancedData.vehicles.filter(v => 
+          Date.now() - enhancedData.lastUpdate.getTime() < 30 * 60 * 1000
+        ).length,
+        lastSyncTime: enhancedData.lastUpdate,
+        positionsUpdated: enhancedData.vehicles.length,
+        errors: enhancedData.error ? 1 : 0,
+        syncStatus: enhancedData.syncStatus.isSync ? 'syncing' : 
+                   enhancedData.error ? 'error' : 'success',
+        errorMessage: enhancedData.error?.message
       };
       
-      setMetrics(expandedMetrics);
-      setIsLoading(false);
-
-      // Show error toast if sync failed
-      if (syncMetrics.syncStatus === 'error' && syncMetrics.errorMessage) {
-        toast({
-          title: "Vehicle Data Sync Failed",
-          description: syncMetrics.errorMessage,
-          variant: "destructive"
-        });
-      }
+      setMetrics(newMetrics);
     });
 
-    unsubscribeRef.current = unsubscribe;
+    unsubscribeRef.current = () => enhancedVehicleDataService.unsubscribe(subscriberId);
 
     // Load initial data
     loadData();
@@ -153,11 +145,11 @@ export const useEnhancedVehicleData = () => {
   };
 
   const getOnlineVehicles = () => {
-    return vehicles.filter(v => v.status === 'online');
+    return vehicles.filter(v => v.isOnline);
   };
 
   const getOfflineVehicles = () => {
-    return vehicles.filter(v => v.status === 'offline');
+    return vehicles.filter(v => !v.isOnline);
   };
 
   const getRecentlyActiveVehicles = () => {

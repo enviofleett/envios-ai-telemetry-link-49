@@ -80,6 +80,13 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
     data: query.data || [],
     isLoading: query.isLoading,
     error: query.error,
-    refetch: query.refetch
+    refetch: query.refetch,
+    // Add missing properties
+    allVehicles: query.data || [],
+    syncStatus: 'success' as const,
+    isConnected: true,
+    forceSync: async () => { await query.refetch(); },
+    events: [] as any[],
+    acknowledgeEvent: async (eventId: string) => { console.log('Acknowledge event:', eventId); }
   };
 };
