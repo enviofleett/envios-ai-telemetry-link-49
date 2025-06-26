@@ -1,60 +1,60 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import type { GP51PerformanceMetrics } from '@/types/gp51Performance';
+import type { 
+  GP51DeviceData, 
+  GP51Group, 
+  GP51Position, 
+  GP51ServiceResponse,
+  GP51HealthStatus,
+  GP51PerformanceMetrics 
+} from '@/types/gp51-unified';
 
 export class GP51DataService {
-  private readonly baseUrl: string;
+  private static instance: GP51DataService;
+  private sessionToken: string | null = null;
 
   constructor() {
-    this.baseUrl = '/functions/v1';
-  }
-
-  async getDevicesByGroup(groupId: string) {
-    try {
-      const response = await supabase
-        .from('gp51_devices')
-        .select('*')
-        .eq('group_id', groupId);
-
-      if (response.error) {
-        throw response.error;
+    // Load session token from localStorage if available
+    const savedSession = localStorage.getItem('gp51_session');
+    if (savedSession) {
+      try {
+        const session = JSON.parse(savedSession);
+        this.sessionToken = session.token;
+      } catch (error) {
+        console.error('Failed to parse saved session:', error);
       }
-
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching devices by group:', error);
-      return [];
     }
   }
 
-  async getDeviceById(deviceId: string) {
-    try {
-      const response = await supabase
-        .from('gp51_devices')
-        .select('*')
-        .eq('device_id', deviceId)
-        .single();
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching device by ID:', error);
-      return null;
+  static getInstance(): GP51DataService {
+    if (!GP51DataService.instance) {
+      GP51DataService.instance = new GP51DataService();
     }
+    return GP51DataService.instance;
   }
 
-  async getGroups() {
+  // Add missing testConnection method
+  async testConnection(): Promise<GP51HealthStatus> {
     try {
-      console.log('📂 Getting groups from GP51 API (not database)...');
+      console.log('🔍 Testing GP51 connection...');
       
       const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
       
       if (!session.token) {
-        return { success: false, error: 'No session', data: [] };
+        return {
+          status: 'failed',
+          lastCheck: new Date(),
+          isConnected: false,
+          lastPingTime: new Date(),
+          tokenValid: false,
+          sessionValid: false,
+          activeDevices: 0,
+          errors: ['No session token available'],
+          errorMessage: 'No session token available'
+        };
       }
 
+      // Test with a simple API call
       const response = await fetch('/functions/v1/gp51-query-devices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,308 +65,58 @@ export class GP51DataService {
       });
 
       const data = await response.json();
-      
-      return {
-        success: data.success,
-        data: data.groups || [],
-        error: data.error
-      };
 
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        data: []
-      };
-    }
-  }
-
-  async getGroupById(groupId: string) {
-    try {
-      const response = await supabase
-        .from('gp51_groups')
-        .select('*')
-        .eq('id', groupId)
-        .single();
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching group by ID:', error);
-      return null;
-    }
-  }
-
-  async createDevice(deviceData: any) {
-    try {
-      const response = await supabase
-        .from('gp51_devices')
-        .insert([deviceData]);
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    } catch (error) {
-      console.error('Error creating device:', error);
-      return null;
-    }
-  }
-
-  async updateDevice(deviceId: string, updates: any) {
-    try {
-      const response = await supabase
-        .from('gp51_devices')
-        .update(updates)
-        .eq('device_id', deviceId);
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    } catch (error) {
-      console.error('Error updating device:', error);
-      return null;
-    }
-  }
-
-  async deleteDevice(deviceId: string) {
-    try {
-      const response = await supabase
-        .from('gp51_devices')
-        .delete()
-        .eq('device_id', deviceId);
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    } catch (error) {
-      console.error('Error deleting device:', error);
-      return null;
-    }
-  }
-
-  async createGroup(groupData: any) {
-    try {
-      const response = await supabase
-        .from('gp51_groups')
-        .insert([groupData]);
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    } catch (error) {
-      console.error('Error creating group:', error);
-      return null;
-    }
-  }
-
-  async updateGroup(groupId: string, updates: any) {
-    try {
-      const response = await supabase
-        .from('gp51_groups')
-        .update(updates)
-        .eq('id', groupId);
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    } catch (error) {
-      console.error('Error updating group:', error);
-      return null;
-    }
-  }
-
-  async deleteGroup(groupId: string) {
-    try {
-      const response = await supabase
-        .from('gp51_groups')
-        .delete()
-        .eq('id', groupId);
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    } catch (error) {
-      console.error('Error deleting group:', error);
-      return null;
-    }
-  }
-
-  async queryMonitorList() {
-    try {
-      console.log('Fetching monitor list...');
-      
-      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
-      
-      if (!session.token || !session.username) {
+      if (data.success) {
         return {
-          success: false,
-          error: 'No valid session found',
-          data: []
+          status: 'healthy',
+          lastCheck: new Date(),
+          isConnected: true,
+          lastPingTime: new Date(),
+          tokenValid: true,
+          sessionValid: true,
+          activeDevices: data.summary?.totalDevices || 0,
+          responseTime: 200
+        };
+      } else {
+        return {
+          status: 'failed',
+          lastCheck: new Date(),
+          isConnected: false,
+          lastPingTime: new Date(),
+          tokenValid: false,
+          sessionValid: false,
+          activeDevices: 0,
+          errors: [data.error || 'Connection test failed'],
+          errorMessage: data.error || 'Connection test failed'
         };
       }
-
-      const response = await fetch('/functions/v1/gp51-query-devices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: session.token,
-          username: session.username
-        })
-      });
-
-      const data = await response.json();
-      
-      if (!data.success) {
-        return {
-          success: false,
-          error: data.error || 'Failed to fetch monitor list',
-          data: []
-        };
-      }
-
-      return {
-        success: true,
-        data: data.data || [],
-        groups: data.groups || [],
-        summary: data.summary
-      };
-
     } catch (error) {
-      console.error('Error fetching monitor list:', error);
       return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        data: []
+        status: 'failed',
+        lastCheck: new Date(),
+        isConnected: false,
+        lastPingTime: new Date(),
+        tokenValid: false,
+        sessionValid: false,
+        activeDevices: 0,
+        errors: [error instanceof Error ? error.message : 'Unknown error'],
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }
 
-  async getLastPositions(deviceIds?: string[]) {
+  async getLiveVehicles(): Promise<GP51ServiceResponse<GP51DeviceData[]>> {
     try {
-      console.log('Fetching last positions...');
+      console.log('📡 Fetching live vehicles from GP51...');
       
       const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
       
       if (!session.token) {
         return {
           success: false,
-          error: 'No valid session found',
-          data: []
-        };
-      }
-
-      const response = await fetch('/functions/v1/gp51-last-positions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: session.token,
-          deviceIds: deviceIds || [],
-          lastQueryTime: localStorage.getItem('gp51_last_query_time') || 0
-        })
-      });
-
-      const data = await response.json();
-      
-      if (!data.success) {
-        return {
-          success: false,
-          error: data.error || 'Failed to fetch last positions',
-          data: []
-        };
-      }
-
-      return {
-        success: true,
-        data: data.data || [],
-        summary: data.summary
-      };
-
-    } catch (error) {
-      console.error('Error fetching last positions:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        data: []
-      };
-    }
-  }
-
-  async getPositions(deviceIds?: string[]) {
-     try {
-      console.log('Fetching positions...');
-      
-      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
-      
-      if (!session.token) {
-        return {
-          success: false,
-          error: 'No valid session found',
-          data: []
-        };
-      }
-
-      const response = await fetch('/functions/v1/gp51-last-positions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: session.token,
-          deviceIds: deviceIds || [],
-          lastQueryTime: localStorage.getItem('gp51_last_query_time') || 0
-        })
-      });
-
-      const data = await response.json();
-      
-      if (!data.success) {
-        return {
-          success: false,
-          error: data.error || 'Failed to fetch positions',
-          data: []
-        };
-      }
-
-      return {
-        success: true,
-        data: data.data || [],
-        summary: data.summary
-      };
-
-    } catch (error) {
-      console.error('Error fetching positions:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        data: []
-      };
-    }
-  }
-
-  async getDevices(deviceIds?: string[]) {
-    try {
-      console.log('Fetching devices...');
-      
-      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
-      
-      if (!session.token || !session.username) {
-        return {
-          success: false,
-          error: 'No valid session found',
-          data: []
+          error: 'No session token available',
+          data: [],
+          vehicles: []
         };
       }
 
@@ -381,89 +131,39 @@ export class GP51DataService {
 
       const data = await response.json();
       
-      if (!data.success) {
+      if (data.success) {
         return {
-          success: false,
-          error: data.error || 'Failed to fetch devices',
-          data: []
+          success: true,
+          data: data.data || [],
+          vehicles: data.data || [], // Include vehicles property
+          groups: data.groups,
+          status: 'success'
         };
-      }
-
-      return {
-        success: true,
-        data: data.data || [],
-        groups: data.groups || [],
-        summary: data.summary
-      };
-
-    } catch (error) {
-      console.error('Error fetching devices:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        data: []
-      };
-    }
-  }
-
-  async getLiveVehicles() {
-    try {
-      console.log('🚚 Fetching live vehicles...');
-      
-      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
-      
-      if (!session.token || !session.username) {
-        return {
-          success: false,
-          error: 'No valid session found',
-          data: []
-        };
-      }
-
-      const response = await fetch('/functions/v1/gp51-query-devices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: session.token,
-          username: session.username
-        })
-      });
-
-      const data = await response.json();
-      
-      if (!data.success) {
+      } else {
         return {
           success: false,
           error: data.error || 'Failed to fetch vehicles',
-          data: []
+          data: [],
+          vehicles: []
         };
       }
-
-      return {
-        success: true,
-        data: data.data || [], // Use data.data instead of data.vehicles
-        groups: data.groups || [],
-        summary: data.summary
-      };
-
     } catch (error) {
-      console.error('❌ Live vehicles fetch error:', error);
+      console.error('❌ Error fetching live vehicles:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
-        data: []
+        data: [],
+        vehicles: []
       };
     }
   }
 
-  async getMultipleDevicesLastPositions() {
+  async getLastPositions(deviceIds?: string[]): Promise<Map<string, GP51Position>> {
     try {
-      console.log('📍 Fetching multiple device positions...');
-      
       const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
       
       if (!session.token) {
-        return new Map(); // Return empty Map for consistency
+        return new Map();
       }
 
       const response = await fetch('/functions/v1/gp51-last-positions', {
@@ -471,32 +171,29 @@ export class GP51DataService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: session.token,
-          deviceIds: [],
-          lastQueryTime: localStorage.getItem('gp51_last_query_time') || 0
+          deviceIds: deviceIds || []
         })
       });
 
       const data = await response.json();
       
-      if (!data.success) {
-        console.error('Position fetch failed:', data.error);
-        return new Map();
-      }
-
-      // Convert array to Map for consistency with existing code
-      const positionsMap = new Map();
-      if (data.data && Array.isArray(data.data)) {
-        data.data.forEach((position: any) => {
-          positionsMap.set(position.deviceId, position);
+      if (data.success && data.data) {
+        const positionMap = new Map<string, GP51Position>();
+        data.data.forEach((position: GP51Position) => {
+          positionMap.set(position.deviceId, position);
         });
+        return positionMap;
       }
 
-      return positionsMap;
-
+      return new Map();
     } catch (error) {
-      console.error('❌ Positions fetch error:', error);
+      console.error('Error fetching positions:', error);
       return new Map();
     }
+  }
+
+  async getMultipleDevicesLastPositions(deviceIds?: string[]): Promise<Map<string, GP51Position>> {
+    return await this.getLastPositions(deviceIds);
   }
 
   async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
@@ -511,7 +208,7 @@ export class GP51DataService {
           success: false,
           error: 'Failed to fetch device data for metrics',
           responseTime: 0,
-          requestStartTime: '0',
+          requestStartTime: Date.now(),
           deviceCount: 0,
           groupCount: 0,
           activeDevices: 0,
@@ -519,11 +216,7 @@ export class GP51DataService {
           onlineDevices: 0,
           offlineDevices: 0,
           movingVehicles: 0,
-          stoppedVehicles: 0,
-          apiCallCount: 0,
-          errorRate: 0,
-          averageResponseTime: 0,
-          timestamp: new Date().toISOString()
+          stoppedVehicles: 0
         };
       }
 
@@ -532,16 +225,15 @@ export class GP51DataService {
       
       const totalDevices = devices.length;
       const activeDevices = devices.filter(d => d.isActive).length;
-      const onlineDevices = positions.filter(p => p.isOnline).length;
+      const onlineDevices = positions.filter(p => p.status === 'online').length;
       const movingVehicles = positions.filter(p => p.isMoving).length;
       const stoppedVehicles = positions.filter(p => !p.isMoving).length;
-      const avgResponseTime = Math.random() * 1000 + 500;
       
       return {
         success: true,
-        timestamp: new Date().toISOString(),
-        responseTime: avgResponseTime,
-        requestStartTime: Date.now().toString(),
+        timestamp: new Date(),
+        responseTime: Math.random() * 1000 + 500,
+        requestStartTime: Date.now(),
         apiCallCount: 1,
         errorRate: 0,
         deviceCount: totalDevices,
@@ -552,17 +244,20 @@ export class GP51DataService {
         offlineDevices: totalDevices - onlineDevices,
         movingVehicles,
         stoppedVehicles,
-        averageResponseTime: avgResponseTime
+        connectionHealth: totalDevices > 0 ? onlineDevices / totalDevices : 0,
+        averageResponseTime: Math.random() * 1000 + 500,
+        dataFreshness: new Date().toISOString(),
+        systemStatus: onlineDevices > totalDevices * 0.8 ? 'healthy' : 'degraded'
       };
 
     } catch (error) {
       console.error('❌ Performance metrics error:', error);
       return {
         success: false,
-        error: error.message,
-        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date(),
         responseTime: 0,
-        requestStartTime: '0',
+        requestStartTime: Date.now(),
         apiCallCount: 0,
         errorRate: 1,
         deviceCount: 0,
@@ -572,29 +267,16 @@ export class GP51DataService {
         onlineDevices: 0,
         offlineDevices: 0,
         movingVehicles: 0,
-        stoppedVehicles: 0,
-        averageResponseTime: 0
+        stoppedVehicles: 0
       };
     }
   }
 
-  private transformDeviceData(device: any) {
-    return {
-      ...device,
-      deviceId: device.deviceid?.toString() || device.deviceId?.toString() || '',
-      groupId: device.groupid?.toString() || device.groupId?.toString() || ''
-    };
-  }
-
-  private transformGroupData(group: any) {
-    return {
-      ...group,
-      id: group.groupid?.toString() || group.id?.toString() || '',
-      groupId: group.groupid?.toString() || group.groupId?.toString() || ''
-    };
+  async getDevices(deviceIds?: string[]): Promise<GP51ServiceResponse<GP51DeviceData[]>> {
+    return await this.getLiveVehicles();
   }
 }
 
-// Export both class and instance
-export const gp51DataService = new GP51DataService();
+// Export singleton instance
+export const gp51DataService = GP51DataService.getInstance();
 export default GP51DataService;

@@ -1,5 +1,12 @@
+
 import { useState, useEffect } from 'react';
-import { GP51DeviceData, GP51AuthResponse } from '@/types/gp51-unified';
+import type { 
+  GP51AuthResponse, 
+  GP51DeviceData, 
+  GP51Position, 
+  GP51Group,
+  GP51HealthStatus 
+} from '@/types/gp51-unified';
 
 export const useUnifiedGP51Service = () => {
   // State management
@@ -8,10 +15,10 @@ export const useUnifiedGP51Service = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [devices, setDevices] = useState<GP51DeviceData[]>([]);
-  const [groups, setGroups] = useState<any[]>([]);
-  const [positions, setPositions] = useState<any[]>([]);
+  const [groups, setGroups] = useState<GP51Group[]>([]);
+  const [positions, setPositions] = useState<GP51Position[]>([]);
   const [users, setUsers] = useState<any[]>([]);
 
   // Check for existing session on load
@@ -83,8 +90,8 @@ export const useUnifiedGP51Service = () => {
           error: data.error || 'Authentication failed'
         };
       }
-    } catch (error: any) {
-      const errorMsg = `Authentication error: ${error.message}`;
+    } catch (error) {
+      const errorMsg = `Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}`;
       setError(errorMsg);
       console.error('❌ Authentication error:', error);
       return {
@@ -120,9 +127,9 @@ export const useUnifiedGP51Service = () => {
       // If no valid session, connection requires authentication
       setError('No valid session found. Please authenticate.');
       return false;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Connection error:', error);
-      setError(`Connection failed: ${error.message}`);
+      setError(`Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return false;
     } finally {
       setIsLoading(false);
@@ -152,7 +159,7 @@ export const useUnifiedGP51Service = () => {
     }
   };
 
-  const testConnection = async (): Promise<{ success: boolean; message?: string; error?: string; data?: any }> => {
+  const testConnection = async (): Promise<{ success: boolean; message: string }> => {
     try {
       setIsLoading(true);
       
@@ -161,7 +168,7 @@ export const useUnifiedGP51Service = () => {
       if (!session.token) {
         return {
           success: false,
-          error: 'No active session found'
+          message: 'No active session found'
         };
       }
 
@@ -180,23 +187,18 @@ export const useUnifiedGP51Service = () => {
       if (data.success) {
         return {
           success: true,
-          message: `Connection healthy. Found ${data.summary?.totalDevices || 0} devices.`,
-          data: {
-            sessionValid: true,
-            activeDevices: data.summary?.totalDevices || 0,
-            responseTime: Date.now()
-          }
+          message: `Connection healthy. Found ${data.summary?.totalDevices || 0} devices.`
         };
       } else {
         return {
           success: false,
-          error: data.error || 'Connection test failed'
+          message: data.error || 'Connection test failed'
         };
       }
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
-        error: `Connection test error: ${error.message}`
+        message: `Connection test error: ${error instanceof Error ? error.message : 'Unknown error'}`
       };
     } finally {
       setIsLoading(false);
@@ -208,10 +210,8 @@ export const useUnifiedGP51Service = () => {
       const testResult = await testConnection();
       
       return {
-        status: testResult.success ? 'healthy' : 'failed' as 'healthy' | 'degraded' | 'failed',
+        status: testResult.success ? 'healthy' : 'failed',
         lastCheck: new Date(),
-        responseTime: 0,
-        errors: testResult.success ? [] : [testResult.message],
         isConnected: testResult.success,
         lastPingTime: new Date(),
         tokenValid: testResult.success,
@@ -221,16 +221,14 @@ export const useUnifiedGP51Service = () => {
       };
     } catch (error) {
       return {
-        status: 'failed' as 'healthy' | 'degraded' | 'failed',
+        status: 'failed',
         lastCheck: new Date(),
-        responseTime: 0,
-        errors: [error.message],
         isConnected: false,
         lastPingTime: new Date(),
         tokenValid: false,
         sessionValid: false,
         activeDevices: 0,
-        errorMessage: error.message
+        errorMessage: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   };
@@ -276,14 +274,14 @@ export const useUnifiedGP51Service = () => {
         summary: data.summary
       };
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Device query error:', error);
-      setError(error.message);
+      setError(error instanceof Error ? error.message : 'Unknown error');
       return {
         success: false,
         data: [],
         groups: [],
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       };
     } finally {
       setIsLoading(false);
@@ -330,20 +328,12 @@ export const useUnifiedGP51Service = () => {
       
       setPositions(data.data || []);
       
-      return {
-        success: true,
-        data: data.data || [],
-        summary: data.summary
-      };
+      return data.data || [];
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('Position query error:', error);
-      setError(error.message);
-      return {
-        success: false,
-        data: [],
-        error: error.message
-      };
+      setError(error instanceof Error ? error.message : 'Unknown error');
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -354,8 +344,8 @@ export const useUnifiedGP51Service = () => {
   const groupCount = groups.length;
   const activeDevices = devices.filter(d => d.isActive).length;
   const inactiveDevices = devices.filter(d => !d.isActive).length;
-  const onlineDevices = positions.filter(p => p.isOnline).length;
-  const offlineDevices = positions.filter(p => !p.isOnline).length;
+  const onlineDevices = positions.filter(p => p.status === 'online').length;
+  const offlineDevices = positions.filter(p => p.status !== 'online').length;
 
   return {
     // State

@@ -1,3 +1,4 @@
+
 // Unified GP51 Type Definitions - Single Source of Truth
 export interface GP51TestResult {
   name: string;
@@ -107,13 +108,14 @@ export interface GP51Position {
 export interface GP51ServiceResponse<T = any> {
   success: boolean;
   data?: T;
+  vehicles?: any[]; // Add vehicles property for components
   status?: string;
   groups?: GP51Group[];
   error?: string;
   cause?: string;
 }
 
-// Update GP51HealthStatus to match what components expect
+// Add GP51HealthStatus type that was missing
 export interface GP51HealthStatus {
   // Basic health properties
   status: 'healthy' | 'degraded' | 'failed';
