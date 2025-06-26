@@ -1,4 +1,3 @@
-
 import { useState, useCallback, useEffect } from 'react';
 import { 
   unifiedGP51Service, 
@@ -6,7 +5,8 @@ import {
   GP51Session,
   GP51AuthResponse,
   GP51MonitorListResponse,
-  GP51HealthStatus
+  GP51HealthStatus,
+  GP51Device
 } from '@/services/gp51/UnifiedGP51Service';
 
 export interface UseUnifiedGP51ServiceReturn {
@@ -15,6 +15,7 @@ export interface UseUnifiedGP51ServiceReturn {
   logout: () => Promise<void>;
   disconnect: () => Promise<void>;
   getConnectionHealth: () => Promise<GP51HealthStatus>;
+  testConnection: () => Promise<{ success: boolean; error?: string; data?: any }>;
   session: GP51Session | null;
   isConnected: boolean;
   isAuthenticated: boolean;
@@ -27,6 +28,10 @@ export interface UseUnifiedGP51ServiceReturn {
   sendCommand: (deviceid: string, command: string, params: any[]) => Promise<any>;
   clearError: () => void;
   health: GP51HealthStatus | null;
+  users: GP51User[];
+  devices: GP51Device[];
+  fetchUsers: () => Promise<void>;
+  fetchDevices: () => Promise<void>;
 }
 
 export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
@@ -37,6 +42,8 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
   const [session, setSession] = useState<GP51Session | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [health, setHealth] = useState<GP51HealthStatus | null>(null);
+  const [users, setUsers] = useState<GP51User[]>([]);
+  const [devices, setDevices] = useState<GP51Device[]>([]);
 
   useEffect(() => {
     setSession(unifiedGP51Service.session);
@@ -118,6 +125,21 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     return healthData;
   }, []);
 
+  const testConnection = useCallback(async () => {
+    try {
+      const healthStatus = await unifiedGP51Service.getConnectionHealth();
+      setHealth(healthStatus);
+      return { 
+        success: healthStatus.isConnected, 
+        data: healthStatus,
+        error: healthStatus.isConnected ? undefined : 'Connection failed'
+      };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Connection test failed';
+      return { success: false, error: errorMsg };
+    }
+  }, []);
+
   const queryMonitorList = useCallback(async (username?: string) => {
     return await unifiedGP51Service.queryMonitorList(username);
   }, []);
@@ -134,12 +156,41 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     return await unifiedGP51Service.sendCommand(deviceid, command, params);
   }, []);
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      // Mock implementation for development
+      setUsers([
+        { username: 'admin', usertype: 3, showname: 'Administrator' },
+        { username: 'user1', usertype: 11, showname: 'Regular User' }
+      ]);
+    } catch (error) {
+      console.error('Failed to fetch users:', error);
+    }
+  }, []);
+
+  const fetchDevices = useCallback(async () => {
+    try {
+      const monitorList = await unifiedGP51Service.queryMonitorList();
+      const allDevices = monitorList.groups.flatMap(group => 
+        group.devices.map(device => ({
+          username: device.devicename,
+          usertype: 1,
+          showname: device.devicename
+        }))
+      );
+      setUsers(allDevices);
+    } catch (error) {
+      console.error('Failed to fetch devices:', error);
+    }
+  }, []);
+
   return {
     authenticate,
     authenticateAdmin,
     logout,
     disconnect,
     getConnectionHealth,
+    testConnection,
     session,
     isConnected,
     isAuthenticated,
@@ -151,6 +202,10 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     addDevice,
     sendCommand,
     clearError,
-    health
+    health,
+    users,
+    devices,
+    fetchUsers,
+    fetchDevices
   };
 }

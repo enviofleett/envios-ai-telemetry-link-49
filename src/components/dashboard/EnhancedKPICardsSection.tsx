@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -117,9 +116,11 @@ export const EnhancedKPICardsSection: React.FC = () => {
   const movingVehicles = metrics.movingVehicles || 0;
   const idleVehicles = metrics.idleVehicles || 0;
   const alertsCount = metrics.alerts || 0;
+  const recentlyActiveVehicles = metrics.recentlyActiveVehicles || 0;
 
   const onlinePercentage = totalVehicles > 0 ? Math.round((onlineVehicles / totalVehicles) * 100) : 0;
   const movingPercentage = onlineVehicles > 0 ? Math.round((movingVehicles / onlineVehicles) * 100) : 0;
+  const recentlyActivePercentage = totalVehicles > 0 ? Math.round((recentlyActiveVehicles / totalVehicles) * 100) : 0;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -186,6 +187,17 @@ export const EnhancedKPICardsSection: React.FC = () => {
         badge={{
           text: alertsCount > 0 ? "Action Needed" : "Clear",
           variant: alertsCount > 0 ? "destructive" : "default"
+        }}
+      />
+      
+      <KPICard
+        title="Recently Active Vehicles"
+        value={recentlyActiveVehicles}
+        icon={<CheckCircle className="h-4 w-4 text-green-600" />}
+        description={`${recentlyActivePercentage}% of total fleet`}
+        badge={{
+          text: "Active",
+          variant: recentlyActivePercentage > 80 ? "default" : "secondary"
         }}
       />
       

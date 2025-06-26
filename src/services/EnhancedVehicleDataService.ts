@@ -1,5 +1,12 @@
-
-import { VehicleData, VehicleMetrics, VehicleEvent, SyncStatusData, EnhancedVehicleData } from '@/types/vehicle';
+import { 
+  VehicleData, 
+  VehiclePosition, 
+  VehicleMetrics, 
+  SyncMetrics, 
+  VehicleEvent, 
+  SyncStatus, 
+  EnhancedVehicleData 
+} from '@/types/vehicle';
 
 export class EnhancedVehicleDataService {
   private vehicles: VehicleData[] = [];
@@ -10,7 +17,7 @@ export class EnhancedVehicleDataService {
   private lastUpdate: Date = new Date();
   private metrics: VehicleMetrics;
   private events: VehicleEvent[] = [];
-  private syncStatus: SyncStatusData = {
+  private syncStatus: SyncStatus = {
     isConnected: false,
     lastSync: new Date(),
     isSync: false
@@ -178,32 +185,34 @@ export class EnhancedVehicleDataService {
       id: `vehicle_${i + 1}`,
       device_id: `device_${i + 1}`,
       device_name: `Vehicle ${i + 1}`,
-      name: `Vehicle ${i + 1}`,
       gp51_device_id: `gp51_${i + 1}`,
-      user_id: 'user_1',
-      sim_number: `sim_${i + 1}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      is_active: true,
       last_position: {
         latitude: 52.0 + Math.random() * 0.1,
         longitude: 4.3 + Math.random() * 0.1,
         speed: Math.random() * 100,
+        timestamp: Date.now(),
         course: Math.random() * 360,
-        timestamp: new Date().toISOString()
+        altitude: 10 + Math.random() * 100
       },
-      latitude: 52.0 + Math.random() * 0.1,
-      longitude: 4.3 + Math.random() * 0.1,
-      speed: Math.random() * 100,
-      course: Math.random() * 360,
-      status: Math.random() > 0.8 ? 'maintenance' : 'online',
       isOnline: Math.random() > 0.2,
       isMoving: Math.random() > 0.5,
-      alerts: [],
       lastUpdate: new Date(),
-      vehicleName: `Fleet Vehicle ${i + 1}`
+      is_active: Math.random() > 0.1,
+      vehicleName: `Fleet Vehicle ${i + 1}`,
+      status: Math.random() > 0.8 ? 'maintenance' : 'active',
+      fuel_level: Math.random() * 100,
+      driver_name: `Driver ${i + 1}`,
+      license_plate: `ABC-${1000 + i}`,
+      vehicle_type: 'truck',
+      group_id: `group_${Math.floor(i / 3) + 1}`,
+      owner_id: 'octopus',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }));
   }
 }
 
 export const enhancedVehicleDataService = new EnhancedVehicleDataService();
+
+// Export types that are needed by other files
+export type { VehicleData, VehicleEvent, EnhancedVehicleData };

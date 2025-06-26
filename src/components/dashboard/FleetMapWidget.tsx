@@ -1,10 +1,9 @@
-
 import React, { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Navigation, RefreshCw, Car, Zap, AlertTriangle } from 'lucide-react';
-import { useEnhancedVehicleData } from '@/hooks/useEnhancedVehicleData';
+import { useVehicleQuery } from '@/hooks/useVehicleQuery';
 import type { VehicleData } from '@/types/vehicle';
 
 export const FleetMapWidget: React.FC = () => {
@@ -12,10 +11,8 @@ export const FleetMapWidget: React.FC = () => {
     vehicles, 
     isLoading, 
     error, 
-    forceSync, 
-    isRefreshing,
-    syncStatus 
-  } = useEnhancedVehicleData();
+    refetch
+  } = useVehicleQuery();
 
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleData | null>(null);
 
@@ -24,8 +21,8 @@ export const FleetMapWidget: React.FC = () => {
   }, []);
 
   const handleRefresh = useCallback(async () => {
-    await forceSync();
-  }, [forceSync]);
+    await refetch();
+  }, [refetch]);
 
   if (isLoading) {
     return (
@@ -81,15 +78,10 @@ export const FleetMapWidget: React.FC = () => {
           </CardTitle>
           <Button 
             onClick={handleRefresh} 
-            disabled={isRefreshing}
             variant="outline" 
             size="sm"
           >
-            {isRefreshing ? (
-              <RefreshCw className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
+            <RefreshCw className="h-4 w-4" />
           </Button>
         </div>
       </CardHeader>
@@ -141,12 +133,6 @@ export const FleetMapWidget: React.FC = () => {
             </div>
           ))}
         </div>
-        
-        {syncStatus.isConnected && (
-          <div className="mt-4 text-xs text-gray-500 text-center">
-            Last updated: {syncStatus.lastSync.toLocaleTimeString()}
-          </div>
-        )}
       </CardContent>
     </Card>
   );

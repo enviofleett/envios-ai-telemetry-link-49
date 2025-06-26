@@ -1,4 +1,3 @@
-
 export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
 export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading' | 'idle' | 'completed' | 'running' | 'connected' | 'disconnected' | 'pending';
@@ -58,6 +57,40 @@ export interface VehicleData {
   };
 }
 
+export interface FilterState {
+  search: string;
+  status: 'all' | 'online' | 'offline' | 'active';
+  user: string;
+  online: 'all' | 'online' | 'offline';
+}
+
+export interface VehicleDbRecord {
+  id: string;
+  device_id: string;
+  device_name: string;
+  gp51_device_id: string;
+  user_id?: string;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+}
+
+export interface EnhancedVehicle {
+  id: string;
+  device_id: string;
+  device_name: string;
+  gp51_device_id: string;
+  last_position?: VehiclePosition;
+  status: VehicleStatus;
+  isOnline: boolean;
+  isMoving: boolean;
+  lastUpdate: Date;
+  is_active: boolean;
+  vehicleName?: string;
+}
+
+export type ReportType = 'daily' | 'weekly' | 'monthly' | 'custom';
+
 export interface VehicleMetrics {
   totalVehicles: number;
   onlineVehicles: number;
@@ -112,3 +145,6 @@ export interface EnhancedVehicleData {
   acknowledgeEvent: (eventId: string) => Promise<void>;
   metrics: VehicleMetrics;
 }
+
+// Fix the type alias for backward compatibility
+export type VehicleDataMetrics = VehicleMetrics;
