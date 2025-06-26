@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   GP51ProcessedPosition, 
@@ -6,8 +5,7 @@ import type {
   GP51LiveVehiclesResponse,
   GP51ProcessResult,
   GP51TelemetryData
-} from '@/types/gp51';
-import type { GP51PerformanceMetrics } from '@/types/gp51Performance';
+} from '@/types/gp51-unified';
 
 export class GP51DataService {
   private static instance: GP51DataService;
@@ -20,6 +18,44 @@ export class GP51DataService {
   }
 
   private constructor() {}
+
+  async getDataDirectly(): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      console.log('🔄 Getting GP51 data directly...');
+      
+      const devices = await this.getDeviceList();
+      const liveVehicles = await this.getLiveVehicles();
+      
+      const data = {
+        groups: [],
+        devices: devices,
+        users: [],
+        summary: {
+          totalUsers: 0,
+          totalDevices: devices.length,
+          activeDevices: devices.filter(d => d.isActive).length,
+          offlineDevices: devices.filter(d => !d.isActive).length,
+          totalGroups: 0,
+          lastUpdateTime: new Date(),
+          connectionStatus: 'connected' as const,
+          apiResponseTime: 0,
+          total_users: 0,
+          total_devices: devices.length,
+          active_devices: devices.filter(d => d.isActive).length,
+          offline_devices: devices.filter(d => !d.isActive).length,
+          total_groups: 0
+        }
+      };
+
+      return { success: true, data };
+    } catch (error) {
+      console.error('❌ Error getting data directly:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Failed to get data'
+      };
+    }
+  }
 
   async getDeviceList(): Promise<GP51DeviceData[]> {
     try {
@@ -65,22 +101,11 @@ export class GP51DataService {
       const mockTelemetryData: GP51TelemetryData[] = devices.map(device => ({
         deviceId: device.deviceId,
         timestamp: new Date(),
-        position: {
-          deviceid: device.deviceId,
-          latitude: 0,
-          longitude: 0,
-          speed: 0,
-          course: 0
-        },
-        sensors: {
-          temperature: 25,
-          fuel: 80
-        },
-        status: {
-          engine: device.isActive || false,
-          doors: [],
-          alarms: []
-        }
+        latitude: 0,
+        longitude: 0,
+        speed: 0,
+        course: 0,
+        status: device.isActive ? 'active' : 'inactive'
       }));
 
       return {
@@ -160,7 +185,7 @@ export class GP51DataService {
     }
   }
 
-  async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
+  async getPerformanceMetrics(): Promise<any> {
     const startTime = Date.now();
     
     try {

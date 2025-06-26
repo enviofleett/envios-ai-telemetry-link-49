@@ -20,7 +20,7 @@ interface GP51DashboardSummary {
   offlineDevices: number;
   totalGroups: number;
   lastUpdateTime: Date;
-  connectionStatus: string;
+  connectionStatus: "error" | "disconnected" | "connected";
   apiResponseTime: number;
   total_users: number;
   total_devices: number;
@@ -88,15 +88,34 @@ const GPS51Dashboard: React.FC = () => {
       
       console.log('🔄 Loading GP51 dashboard data...');
       
-      const result = await gp51DataService.getDataDirectly();
+      // Use existing method instead of getDataDirectly
+      const devices = await gp51DataService.getDeviceList();
+      const liveVehicles = await gp51DataService.getLiveVehicles();
       
-      if (result.success && result.data) {
-        setData(result.data);
-        setLastUpdated(new Date());
-        toast.success('Dashboard data loaded successfully');
-      } else {
-        throw new Error(result.error || 'Failed to load data');
-      }
+      const dashboardData: DashboardData = {
+        groups: [],
+        devices: devices,
+        users: [],
+        summary: {
+          totalUsers: 0,
+          totalDevices: devices.length,
+          activeDevices: devices.filter(d => d.isActive).length,
+          offlineDevices: devices.filter(d => !d.isActive).length,
+          totalGroups: 0,
+          lastUpdateTime: new Date(),
+          connectionStatus: 'connected',
+          apiResponseTime: 0,
+          total_users: 0,
+          total_devices: devices.length,
+          active_devices: devices.filter(d => d.isActive).length,
+          offline_devices: devices.filter(d => !d.isActive).length,
+          total_groups: 0
+        }
+      };
+
+      setData(dashboardData);
+      setLastUpdated(new Date());
+      toast.success('Dashboard data loaded successfully');
       
     } catch (err) {
       console.error('❌ Error loading dashboard data:', err);
