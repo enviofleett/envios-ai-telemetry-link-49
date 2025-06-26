@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useAnalyticsDashboard } from '@/hooks/useAnalyticsDashboard';
 import DashboardMetricCard from './DashboardMetricCard';
@@ -8,7 +7,7 @@ import { RefreshCw, Car, Users, Building2, Store, UserCheck } from 'lucide-react
 const ModernAnalyticsDashboard: React.FC = () => {
   const { data, isLoading, error, lastUpdated, refreshData } = useAnalyticsDashboard();
 
-  // Transform data for metric cards
+  // Transform data for metric cards with proper growth calculation
   const metricCards = [
     {
       title: 'Total Vehicles',
@@ -16,7 +15,8 @@ const ModernAnalyticsDashboard: React.FC = () => {
         current: data?.totalVehicles || 0,
         previous: 0,
         change: 0,
-        trend: 'stable' as const
+        trend: 'stable' as const,
+        growth: 0 // Add the missing growth property
       },
       icon: Car,
       iconColor: 'text-blue-600'
@@ -27,7 +27,8 @@ const ModernAnalyticsDashboard: React.FC = () => {
         current: data?.totalUsers || 0,
         previous: 0,
         change: 0,
-        trend: 'stable' as const
+        trend: 'stable' as const,
+        growth: 0
       },
       icon: Users,
       iconColor: 'text-green-600'
@@ -38,7 +39,8 @@ const ModernAnalyticsDashboard: React.FC = () => {
         current: data?.activeUsers || 0,
         previous: 0,
         change: 0,
-        trend: 'stable' as const
+        trend: 'stable' as const,
+        growth: 0
       },
       icon: UserCheck,
       iconColor: 'text-purple-600'
@@ -49,7 +51,8 @@ const ModernAnalyticsDashboard: React.FC = () => {
         current: data?.activeVehicles || 0,
         previous: 0,
         change: 0,
-        trend: 'stable' as const
+        trend: 'stable' as const,
+        growth: 0
       },
       icon: Car,
       iconColor: 'text-orange-600'

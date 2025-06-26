@@ -1,5 +1,5 @@
-
 import { supabase } from '@/integrations/supabase/client';
+import { gp51UnifiedDataService } from './gp51/GP51UnifiedDataService';
 
 export interface RealAnalyticsData {
   totalUsers: number;
@@ -27,34 +27,72 @@ export interface RealAnalyticsData {
     importedVehicles: number;
     lastSync: string | null;
   };
+  gp51Fleet?: {
+    onlineDevices: number;
+    movingDevices: number;
+    parkedDevices: number;
+    groups: number;
+  };
 }
 
 class RealAnalyticsService {
   async getAnalyticsData(): Promise<RealAnalyticsData> {
     try {
-      // Get user statistics
+      console.log('🔄 Fetching real analytics data...');
+
+      // Get user statistics from Supabase
       const { data: users, error: usersError } = await supabase
         .from('envio_users')
         .select('id, created_at, registration_status, is_gp51_imported');
 
-      if (usersError) throw usersError;
+      if (usersError) {
+        console.error('Error fetching users:', usersError);
+      }
 
-      // Get vehicle statistics - use basic fields that exist
+      // Get vehicle statistics from Supabase
       const { data: vehicles, error: vehiclesError } = await supabase
         .from('vehicles')
         .select('id, created_at, is_active, updated_at');
 
-      if (vehiclesError) throw vehiclesError;
+      if (vehiclesError) {
+        console.error('Error fetching vehicles:', vehiclesError);
+      }
+
+      // Try to get GP51 fleet data if available
+      let gp51FleetData = null;
+      try {
+        const fleetResult = await gp51UnifiedDataService.getCompleteFleetData({ includePositions: true });
+        if (fleetResult.success) {
+          gp51FleetData = fleetResult.data;
+        }
+      } catch (error) {
+        console.log('GP51 data not available, using Supabase data only');
+      }
 
       // Calculate user stats
       const totalUsers = users?.length || 0;
       const activeUsers = users?.filter(u => u.registration_status === 'active').length || 0;
       const importedUsers = users?.filter(u => u.is_gp51_imported).length || 0;
 
-      // Calculate vehicle stats
-      const totalVehicles = vehicles?.length || 0;
-      const activeVehicles = vehicles?.filter(v => v.is_active).length || 0;
-      const inactiveVehicles = vehicles?.filter(v => !v.is_active).length || 0;
+      // Calculate vehicle stats - prioritize GP51 data if available
+      let totalVehicles = vehicles?.length || 0;
+      let activeVehicles = vehicles?.filter(v => v.is_active).length || 0;
+      let inactiveVehicles = vehicles?.filter(v => !v.is_active).length || 0;
+
+      // Enhanced stats from GP51 if available
+      const gp51Fleet = gp51FleetData ? {
+        onlineDevices: gp51FleetData.summary.onlineDevices,
+        movingDevices: gp51FleetData.summary.movingDevices,
+        parkedDevices: gp51FleetData.summary.parkedDevices,
+        groups: gp51FleetData.summary.groups
+      } : undefined;
+
+      // Use GP51 data for vehicle counts if available and higher
+      if (gp51FleetData && gp51FleetData.summary.totalDevices > totalVehicles) {
+        totalVehicles = gp51FleetData.summary.totalDevices;
+        activeVehicles = gp51FleetData.summary.activeDevices;
+        inactiveVehicles = totalVehicles - activeVehicles;
+      }
 
       // Calculate recent activity (last 7 days)
       const sevenDaysAgo = new Date();
@@ -76,7 +114,7 @@ class RealAnalyticsService {
         ? lastSyncTimes[0].toISOString() 
         : null;
 
-      return {
+      const analyticsData: RealAnalyticsData = {
         totalUsers,
         activeUsers,
         totalVehicles,
@@ -90,15 +128,23 @@ class RealAnalyticsService {
         vehicleStatus: {
           active: activeVehicles,
           inactive: inactiveVehicles,
-          synced: 0, // Will be updated when GP51 sync is implemented
-          unsynced: totalVehicles
+          synced: gp51FleetData?.summary.totalDevices || 0,
+          unsynced: Math.max(0, totalVehicles - (gp51FleetData?.summary.totalDevices || 0))
         },
         gp51Status: {
           importedUsers,
-          importedVehicles: 0, // Will be updated when GP51 sync is implemented
+          importedVehicles: gp51FleetData?.summary.totalDevices || 0,
           lastSync
         }
       };
+
+      // Add GP51 fleet data if available
+      if (gp51Fleet) {
+        analyticsData.gp51Fleet = gp51Fleet;
+      }
+
+      console.log('✅ Real analytics data loaded:', analyticsData);
+      return analyticsData;
 
     } catch (error) {
       console.error('Error fetching real analytics data:', error);
