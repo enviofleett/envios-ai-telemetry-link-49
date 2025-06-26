@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   GP51HealthStatus, 
@@ -110,7 +111,7 @@ export class GP51DataService {
     try {
       const startTime = Date.now();
       const { data, error } = await supabase
-        .from('gp51_vehicles')
+        .from('vehicles')
         .select('count')
         .limit(1);
       
