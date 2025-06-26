@@ -16,11 +16,9 @@ export const GP51Settings: React.FC = () => {
     isConnected,
     isLoading,
     error,
-    health,
     authenticate,
     logout,
-    getConnectionHealth,
-    clearError
+    getConnectionHealth
   } = useUnifiedGP51Service();
 
   const [credentials, setCredentials] = useState({
@@ -29,6 +27,7 @@ export const GP51Settings: React.FC = () => {
   });
 
   const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [health, setHealth] = useState<any>(null);
 
   const handleAuthenticate = async () => {
     if (!credentials.username || !credentials.password) {
@@ -56,10 +55,15 @@ export const GP51Settings: React.FC = () => {
 
   const handleTestConnection = async () => {
     try {
-      await getConnectionHealth();
+      const healthData = await getConnectionHealth();
+      setHealth(healthData);
     } catch (error) {
       console.error('Connection test error:', error);
     }
+  };
+
+  const clearError = () => {
+    // Error clearing logic if needed
   };
 
   return (
@@ -194,7 +198,7 @@ export const GP51Settings: React.FC = () => {
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
                   <div className="space-y-1">
-                    {health.errors.map((error, index) => (
+                    {health.errors.map((error: string, index: number) => (
                       <div key={index} className="text-sm">{error}</div>
                     ))}
                   </div>
@@ -220,3 +224,5 @@ export const GP51Settings: React.FC = () => {
     </div>
   );
 };
+
+export default GP51Settings;

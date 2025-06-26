@@ -5,6 +5,9 @@ import { enhancedVehicleDataService, type EnhancedVehicleData } from '@/services
 export const useUnifiedVehicleData = () => {
   const [data, setData] = useState<EnhancedVehicleData>({
     vehicles: [],
+    allVehicles: [],
+    filteredVehicles: [],
+    userOptions: [],
     isLoading: true,
     isRefreshing: false,
     error: null,
@@ -25,33 +28,31 @@ export const useUnifiedVehicleData = () => {
       movingVehicles: 0,
       idleVehicles: 0,
       offlineVehicles: 0,
+      recentlyActiveVehicles: 0,
       lastSyncTime: new Date(),
       averageSpeed: 0,
       totalDistance: 0,
+      syncStatus: 'pending',
+      errors: [],
       total: 0,
       online: 0,
       offline: 0,
       idle: 0,
       alerts: 0
     },
-    isConnected: false,
-    allVehicles: [],
-    filteredVehicles: [],
-    userOptions: []
+    isConnected: false
   });
 
   useEffect(() => {
     const subscriberId = `unified-vehicle-data-${Date.now()}`;
     
-    enhancedVehicleDataService.subscribe(subscriberId, (enhancedData) => {
+    const unsubscribe = enhancedVehicleDataService.subscribe(subscriberId, (enhancedData) => {
       setData(enhancedData);
     });
 
     enhancedVehicleDataService.getVehicleData();
 
-    return () => {
-      enhancedVehicleDataService.unsubscribe(subscriberId);
-    };
+    return unsubscribe;
   }, []);
 
   return data;

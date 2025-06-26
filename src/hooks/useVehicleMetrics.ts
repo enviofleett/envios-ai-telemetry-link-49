@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { enhancedVehicleDataService } from '@/services/EnhancedVehicleDataService';
-import type { VehicleMetrics } from '@/services/EnhancedVehicleDataService';
+import type { VehicleMetrics } from '@/types/vehicle';
 
 export const useVehicleMetrics = () => {
   const [metrics, setMetrics] = useState<VehicleMetrics>({
@@ -29,12 +29,7 @@ export const useVehicleMetrics = () => {
   useEffect(() => {
     const unsubscribe = enhancedVehicleDataService.subscribe('metrics-hook', async (data) => {
       try {
-        const serviceMetrics = enhancedVehicleDataService.getMetrics();
-        
-        if (serviceMetrics) {
-          setMetrics(serviceMetrics);
-        }
-        
+        setMetrics(data.metrics);
         setError(null);
         setIsLoading(false);
       } catch (err) {
@@ -44,24 +39,7 @@ export const useVehicleMetrics = () => {
       }
     });
 
-    // Initial load
-    const loadInitialData = async () => {
-      try {
-        await enhancedVehicleDataService.getVehicleData();
-        const serviceMetrics = enhancedVehicleDataService.getMetrics();
-        
-        if (serviceMetrics) {
-          setMetrics(serviceMetrics);
-        }
-        setIsLoading(false);
-      } catch (err) {
-        console.error('Error loading initial vehicle metrics:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load initial data');
-        setIsLoading(false);
-      }
-    };
-
-    loadInitialData();
+    enhancedVehicleDataService.getVehicleData();
 
     return unsubscribe;
   }, []);
@@ -80,16 +58,7 @@ export const useVehicleMetrics = () => {
   };
 
   const forceSync = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      await enhancedVehicleDataService.forceSync();
-    } catch (err) {
-      console.error('Error forcing sync:', err);
-      setError(err instanceof Error ? err.message : 'Failed to force sync');
-    } finally {
-      setIsLoading(false);
-    }
+    await refreshMetrics();
   };
 
   return {

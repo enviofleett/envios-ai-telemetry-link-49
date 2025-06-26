@@ -1,7 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { VehicleData } from '@/services/EnhancedVehicleDataService';
+import type { VehicleData } from '@/types/vehicle';
 
 interface UseStableVehicleDataOptions {
   search?: string;
@@ -59,9 +59,12 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
           longitude: -74.0060 + (Math.random() - 0.5) * 0.01,
           speed: Math.floor(Math.random() * 80),
           course: Math.floor(Math.random() * 360),
-          timestamp: Date.now()
+          timestamp: new Date().toISOString()
         },
+        latitude: 40.7128 + (Math.random() - 0.5) * 0.01,
+        longitude: -74.0060 + (Math.random() - 0.5) * 0.01,
         is_active: true,
+        status: Math.random() > 0.3 ? 'online' : 'offline',
         isOnline: Math.random() > 0.3,
         isMoving: Math.random() > 0.6,
         alerts: [],

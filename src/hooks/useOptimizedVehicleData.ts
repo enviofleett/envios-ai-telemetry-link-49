@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { VehicleData } from '@/services/EnhancedVehicleDataService';
+import type { VehicleData } from '@/types/vehicle';
 import { enhancedVehicleDataService } from '@/services/EnhancedVehicleDataService';
 import { useToast } from '@/hooks/use-toast';
 
@@ -58,7 +58,7 @@ export const useOptimizedVehicleData = () => {
     
     const subscriberId = `optimized_${Date.now()}_${Math.random()}`;
     
-    enhancedVehicleDataService.subscribe(subscriberId, (data) => {
+    const unsubscribe = enhancedVehicleDataService.subscribe(subscriberId, (data) => {
       if (isMountedRef.current) {
         debouncedUpdate(data.vehicles);
         setIsLoading(data.isLoading);
@@ -73,7 +73,7 @@ export const useOptimizedVehicleData = () => {
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
-      enhancedVehicleDataService.unsubscribe(subscriberId);
+      unsubscribe();
     };
   }, [refreshData, debouncedUpdate]);
 

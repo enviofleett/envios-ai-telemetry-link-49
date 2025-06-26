@@ -1,7 +1,7 @@
 
 export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
-export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading' | 'idle' | 'completed' | 'running';
+export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading' | 'idle' | 'completed' | 'running' | 'connected' | 'disconnected' | 'pending';
 
 export interface VehiclePosition {
   latitude: number;
@@ -14,9 +14,9 @@ export interface VehiclePosition {
 export interface VehicleData {
   id: string;
   device_id: string;
-  gp51_device_id: string; // Added missing property
+  gp51_device_id: string;
   device_name: string;
-  name: string; // REQUIRED: Canonical name property
+  name: string;
   user_id?: string;
   sim_number?: string;
   created_at: string;
@@ -30,11 +30,9 @@ export interface VehicleData {
   isMoving: boolean;
   alerts: any[];
   lastUpdate: Date;
-  envio_users?: {
-    name?: string;
-    email?: string;
-  };
-  // Additional properties that components are accessing
+  // Additional properties for position data
+  latitude?: number;
+  longitude?: number;
   speed?: number;
   course?: number;
   driver?: string | { name: string } | null;
@@ -53,80 +51,64 @@ export interface VehicleData {
     longitude: number;
     address?: string;
   };
-  vehicleName?: string; // Additional compatibility property
+  vehicleName?: string;
+  envio_users?: {
+    name?: string;
+    email?: string;
+  };
 }
 
-export interface VehicleDataMetrics {
-  // Dashboard-compatible properties
+export interface VehicleMetrics {
+  totalVehicles: number;
+  onlineVehicles: number;
+  offlineVehicles: number;
+  movingVehicles: number;
+  idleVehicles: number;
+  recentlyActiveVehicles: number;
+  lastSyncTime: Date;
+  averageSpeed: number;
+  totalDistance: number;
+  syncStatus: SyncStatus;
+  errors: string[];
+  errorMessage?: string;
   total: number;
   online: number;
   offline: number;
   idle: number;
   alerts: number;
-  // Legacy properties
-  totalVehicles: number;
-  onlineVehicles: number;
-  offlineVehicles: number;
-  recentlyActiveVehicles: number;
-  // Sync properties
-  lastSyncTime: Date;
-  positionsUpdated: number;
-  errors: number;
-  syncStatus: SyncStatus;
-  errorMessage?: string;
 }
 
-export interface FilterState {
-  search: string;
-  status: 'all' | 'online' | 'offline' | 'active';
-  user: string;
-  online: 'all' | 'online' | 'offline';
-}
-
-export interface VehicleStatistics {
-  total: number;
-  active: number;
-  online: number;
-  alerts: number;
-}
-
-export interface VehicleDbRecord {
+export interface VehicleEvent {
   id: string;
-  gp51_device_id: string;
-  name: string;
-  sim_number?: string;
-  user_id?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// Missing type exports that are being imported
-export interface EnhancedVehicle extends VehicleData {
-  enhanced?: boolean;
-}
-
-export interface ReportType {
-  id: string;
-  name: string;
-  description: string;
-}
-
-export interface VehicleUpdate {
-  device_name?: string;
-  license_plate?: string;
-  vin?: string;
-  user_id?: string;
-}
-
-export type VehicleLocation = VehiclePosition;
-
-export interface VehicleParkingPattern {
   vehicleId: string;
-  patternType: string;
-  frequency: number;
-  duration: number;
-  location: {
-    latitude: number;
-    longitude: number;
-  };
+  type: string;
+  message: string;
+  timestamp: Date;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  isAcknowledged: boolean;
+}
+
+export interface SyncStatusData {
+  isConnected: boolean;
+  lastSync: Date;
+  isSync: boolean;
+}
+
+export interface EnhancedVehicleData {
+  vehicles: VehicleData[];
+  allVehicles: VehicleData[];
+  filteredVehicles: VehicleData[];
+  userOptions: any[];
+  isLoading: boolean;
+  isRefreshing: boolean;
+  error: Error | null;
+  lastUpdate: Date;
+  refetch: () => Promise<void>;
+  syncStatus: SyncStatusData;
+  isConnected: boolean;
+  forceSync: () => Promise<void>;
+  forceRefresh: () => Promise<void>;
+  events: VehicleEvent[];
+  acknowledgeEvent: (eventId: string) => Promise<void>;
+  metrics: VehicleMetrics;
 }

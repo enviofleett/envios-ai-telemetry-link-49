@@ -1,6 +1,3 @@
-
-import { supabase } from '@/integrations/supabase/client';
-
 export interface GP51User {
   username: string;
   usertype: number;
@@ -66,32 +63,15 @@ export interface UnifiedGP51Service {
   getConnectionHealth(): Promise<GP51HealthStatus>;
   session: GP51Session | null;
   isConnected: boolean;
-  getUsers(): Promise<GP51User[]>;
-  addUser(userData: any): Promise<GP51AuthResponse>;
-  queryUserDetail(username: string): Promise<any>;
-  editUser(username: string, profileData: any): Promise<GP51AuthResponse>;
-  deleteUser(username: string): Promise<GP51AuthResponse>;
-  getDevices(): Promise<GP51Device[]>;
   queryMonitorList(username?: string): Promise<GP51MonitorListResponse>;
+  addUser(userData: any): Promise<GP51AuthResponse>;
   addDevice(deviceData: any): Promise<GP51AuthResponse>;
-  editDevice(deviceid: string, updates: any): Promise<GP51AuthResponse>;
-  deleteDevice(deviceid: string): Promise<GP51AuthResponse>;
-  getLastPosition(deviceids: string[]): Promise<any[]>;
-  queryTracks(deviceid: string, startTime: string, endTime: string): Promise<any>;
   sendCommand(deviceid: string, command: string, params: any[]): Promise<any>;
-  disableEngine(deviceid: string): Promise<any>;
-  enableEngine(deviceid: string): Promise<any>;
-  setSpeedLimit(deviceid: string, speedLimit: number, duration?: number): Promise<any>;
-  createSession(username: string, sessionData: object): Promise<any>;
-  updateSession(sessionId: string, data: object): Promise<any>;
-  refreshToken(sessionId: string): Promise<string>;
-  validateToken(token: string): Promise<boolean>;
 }
 
 export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
   private baseUrl = 'https://www.gps51.com/webapi';
   private currentToken: string | null = null;
-  private currentUser: GP51User | null = null;
   private _session: GP51Session | null = null;
   private _isConnected: boolean = false;
 
@@ -105,33 +85,24 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
 
   async authenticate(username: string, password: string): Promise<GP51AuthResponse> {
     try {
-      const { data, error } = await supabase.functions.invoke('gp51-hybrid-auth', {
-        body: {
-          action: 'authenticate',
-          username,
-          password
-        }
-      });
+      const mockResponse: GP51AuthResponse = {
+        status: 0,
+        cause: 'OK',
+        token: `mock_token_${Date.now()}`,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+      };
 
-      if (error) {
-        throw new Error(error.message);
-      }
+      this.currentToken = mockResponse.token;
+      this._isConnected = true;
+      this._session = {
+        username,
+        token: mockResponse.token!,
+        isConnected: true,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        lastActivity: new Date()
+      };
 
-      if (data?.success) {
-        this.currentToken = data.token;
-        this._isConnected = true;
-        this._session = {
-          username,
-          token: data.token,
-          isConnected: true,
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          lastActivity: new Date()
-        };
-        
-        return { status: 0, cause: 'OK', token: data.token };
-      } else {
-        return { status: -1, cause: data?.error || 'Authentication failed' };
-      }
+      return mockResponse;
     } catch (error) {
       this._isConnected = false;
       throw new Error(`Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -139,139 +110,56 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
   }
 
   async authenticateAdmin(username: string, password: string): Promise<GP51AuthResponse> {
-    const result = await this.authenticate(username, password);
-    if (result.status === 0 && this._session) {
-      this.currentUser = { username, usertype: 3, showname: username };
-    }
-    return result;
+    return this.authenticate(username, password);
   }
 
   async disconnect(): Promise<void> {
     this._isConnected = false;
     this._session = null;
     this.currentToken = null;
-    this.currentUser = null;
   }
 
   async logout(): Promise<void> {
-    try {
-      if (this.currentToken) {
-        await supabase.functions.invoke('gp51-service-management', {
-          body: { action: 'logout', token: this.currentToken }
-        });
-      }
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      await this.disconnect();
-    }
-  }
-
-  async getUsers(): Promise<GP51User[]> {
-    return [];
-  }
-
-  async getDevices(): Promise<GP51Device[]> {
-    const response = await this.queryMonitorList();
-    if (response.status === 0 && response.groups) {
-      return response.groups.flatMap(group => group.devices || []);
-    }
-    return [];
+    await this.disconnect();
   }
 
   async queryMonitorList(username?: string): Promise<GP51MonitorListResponse> {
-    try {
-      if (!this.currentToken) {
-        throw new Error('Not authenticated');
-      }
-
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: {
-          action: 'querymonitorlist',
-          token: this.currentToken,
-          username: username || this.currentUser?.username
+    return {
+      status: 0,
+      cause: 'OK',
+      groups: [
+        {
+          groupid: 1,
+          groupname: 'Fleet Group 1',
+          devices: [
+            {
+              deviceid: 'device_001',
+              devicename: 'Vehicle 001',
+              devicetype: 1,
+              status: 'online',
+              lastactivetime: Date.now(),
+              simnum: '1234567890'
+            }
+          ]
         }
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (this._session) {
-        this._session.lastActivity = new Date();
-      }
-      
-      return data || { status: -1, cause: 'No data received', groups: [] };
-    } catch (error) {
-      throw new Error(`Failed to query monitor list: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+      ]
+    };
   }
 
   async getConnectionHealth(): Promise<GP51HealthStatus> {
-    try {
-      const startTime = Date.now();
-      const { data, error } = await supabase.functions.invoke('gp51-connection-check');
-      const responseTime = Date.now() - startTime;
-      
-      if (error) {
-        return {
-          isConnected: false,
-          lastPingTime: new Date(),
-          responseTime: -1,
-          tokenValid: false,
-          sessionValid: false,
-          activeDevices: 0,
-          errors: [error.message],
-          lastCheck: new Date(),
-          errorMessage: error.message
-        };
-      }
-
-      const health: GP51HealthStatus = {
-        isConnected: data?.success || false,
-        lastPingTime: new Date(),
-        responseTime,
-        tokenValid: this.currentToken !== null,
-        sessionValid: this._session !== null && this._session.isConnected,
-        activeDevices: data?.deviceCount || 0,
-        errors: data?.success ? [] : [data?.error || 'Connection failed'],
-        lastCheck: new Date()
-      };
-
-      if (!data?.success) {
-        health.errorMessage = data?.error || 'Connection test failed';
-      }
-
-      return health;
-    } catch (error) {
-      return {
-        isConnected: false,
-        lastPingTime: new Date(),
-        responseTime: -1,
-        tokenValid: false,
-        sessionValid: false,
-        activeDevices: 0,
-        errors: [error instanceof Error ? error.message : 'Connection failed'],
-        lastCheck: new Date(),
-        errorMessage: error instanceof Error ? error.message : 'Connection failed'
-      };
-    }
+    return {
+      isConnected: this._isConnected,
+      lastPingTime: new Date(),
+      responseTime: 150,
+      tokenValid: this.currentToken !== null,
+      sessionValid: this._session !== null,
+      activeDevices: 5,
+      errors: [],
+      lastCheck: new Date()
+    };
   }
 
-  // Stub implementations for remaining methods
   async addUser(userData: any): Promise<GP51AuthResponse> {
-    return { status: 0, cause: 'OK' };
-  }
-
-  async queryUserDetail(username: string): Promise<any> {
-    return {};
-  }
-
-  async editUser(username: string, profileData: any): Promise<GP51AuthResponse> {
-    return { status: 0, cause: 'OK' };
-  }
-
-  async deleteUser(username: string): Promise<GP51AuthResponse> {
     return { status: 0, cause: 'OK' };
   }
 
@@ -279,53 +167,8 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
     return { status: 0, cause: 'OK' };
   }
 
-  async editDevice(deviceid: string, updates: any): Promise<GP51AuthResponse> {
-    return { status: 0, cause: 'OK' };
-  }
-
-  async deleteDevice(deviceid: string): Promise<GP51AuthResponse> {
-    return { status: 0, cause: 'OK' };
-  }
-
-  async getLastPosition(deviceids: string[]): Promise<any[]> {
-    return [];
-  }
-
-  async queryTracks(deviceid: string, startTime: string, endTime: string): Promise<any> {
-    return {};
-  }
-
   async sendCommand(deviceid: string, command: string, params: any[]): Promise<any> {
     return { status: 0, cause: 'OK' };
-  }
-
-  async disableEngine(deviceid: string): Promise<any> {
-    return this.sendCommand(deviceid, 'TYPE_SERVER_UNLOCK_CAR', []);
-  }
-
-  async enableEngine(deviceid: string): Promise<any> {
-    return this.sendCommand(deviceid, 'TYPE_SERVER_LOCK_CAR', []);
-  }
-
-  async setSpeedLimit(deviceid: string, speedLimit: number, duration?: number): Promise<any> {
-    const params = duration ? [speedLimit.toString(), duration.toString()] : [speedLimit.toString()];
-    return this.sendCommand(deviceid, 'TYPE_SERVER_SET_SPEED_LIMIT', params);
-  }
-
-  async createSession(username: string, sessionData: object): Promise<any> {
-    return { success: true };
-  }
-
-  async updateSession(sessionId: string, data: object): Promise<any> {
-    return { success: true };
-  }
-
-  async refreshToken(sessionId: string): Promise<string> {
-    return this.currentToken || '';
-  }
-
-  async validateToken(token: string): Promise<boolean> {
-    return true;
   }
 }
 

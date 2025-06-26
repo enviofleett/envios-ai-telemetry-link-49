@@ -102,7 +102,7 @@ export const EnhancedKPICardsSection: React.FC = () => {
               <AlertTriangle className="h-8 w-8 text-red-600 mx-auto mb-2" />
               <p className="text-red-600">Failed to load metrics</p>
               <p className="text-sm text-gray-500 mt-1">
-                {error?.message || 'Unknown error occurred'}
+                {error || 'Unknown error occurred'}
               </p>
             </div>
           </CardContent>
@@ -118,7 +118,6 @@ export const EnhancedKPICardsSection: React.FC = () => {
   const idleVehicles = metrics.idleVehicles || 0;
   const alertsCount = metrics.alerts || 0;
 
-  // Calculate percentages safely
   const onlinePercentage = totalVehicles > 0 ? Math.round((onlineVehicles / totalVehicles) * 100) : 0;
   const movingPercentage = onlineVehicles > 0 ? Math.round((movingVehicles / onlineVehicles) * 100) : 0;
 
@@ -214,3 +213,5 @@ export const EnhancedKPICardsSection: React.FC = () => {
     </div>
   );
 };
+
+export default EnhancedKPICardsSection;
