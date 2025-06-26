@@ -1,3 +1,4 @@
+
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData, VehicleDbRecord, VehicleStatus } from '@/types/vehicle';
@@ -13,20 +14,21 @@ const mapDbToDisplayVehicle = (dbVehicle: VehicleDbRecord): VehicleData => {
     return {
         id: dbVehicle.id,
         device_id: dbVehicle.gp51_device_id,
+        gp51_device_id: dbVehicle.gp51_device_id, // Added missing property
         device_name: dbVehicle.name,
-        name: dbVehicle.name, // FIXED: Add the required name property
+        name: dbVehicle.name,
         user_id: dbVehicle.user_id,
         sim_number: dbVehicle.sim_number,
         created_at: dbVehicle.created_at,
         updated_at: dbVehicle.updated_at,
         status: getVehicleStatus(),
-        is_active: false, // Default value, since it's not in DB
-        gp51_metadata: {}, // Default value
+        is_active: false,
+        gp51_metadata: {},
         alerts: [],
         isOnline: false,
         isMoving: false,
         lastUpdate: new Date(dbVehicle.updated_at),
-        license_plate: undefined, // Not in DB
+        license_plate: undefined,
     };
 };
 
@@ -56,13 +58,12 @@ export const useDeviceManagement = (searchQuery: string = '') => {
         return [];
       }
 
-      // Transform the raw data to match the VehicleData interface
       const dbRecords: VehicleDbRecord[] = data;
       const transformedData: VehicleData[] = dbRecords.map(mapDbToDisplayVehicle);
 
       return transformedData;
     },
-    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
+    refetchInterval: 30000,
   });
 
   return {

@@ -1,209 +1,163 @@
+
 import React, { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import type { VehicleData, VehicleDbRecord } from '@/types/vehicle';
+import { supabase } from '@/integrations/supabase/client';
+import type { VehicleData } from '@/types/vehicle';
 
 interface VehicleAssignmentDialogProps {
-  user: {
-    id: string;
-    email: string;
-  } | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  isOpen: boolean;
+  onClose: () => void;
+  userId: string;
+  userName: string;
+  onAssignmentComplete: () => void;
 }
 
-export const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = ({ user, open, onOpenChange }) => {
-  const [userVehicles, setUserVehicles] = useState<VehicleData[]>([]);
-  const [unassignedVehicles, setUnassignedVehicles] = useState<VehicleData[]>([]);
+const VehicleAssignmentDialog: React.FC<VehicleAssignmentDialogProps> = ({
+  isOpen,
+  onClose,
+  userId,
+  userName,
+  onAssignmentComplete
+}) => {
+  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
+  const [selectedVehicles, setSelectedVehicles] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  const mapDbToDisplay = (dbVehicle: VehicleDbRecord): VehicleData => ({
-    id: dbVehicle.id,
-    device_id: dbVehicle.gp51_device_id,
-    device_name: dbVehicle.name,
-    name: dbVehicle.name, // FIXED: Add the required name property
-    user_id: dbVehicle.user_id,
-    sim_number: dbVehicle.sim_number,
-    created_at: dbVehicle.created_at,
-    updated_at: dbVehicle.updated_at,
-    status: 'offline', // default
-    is_active: false, // default
-    isOnline: false,
-    isMoving: false,
-    alerts: [],
-    lastUpdate: new Date(dbVehicle.updated_at),
-  });
+  useEffect(() => {
+    if (isOpen) {
+      loadVehicles();
+    }
+  }, [isOpen]);
 
-  const fetchUnassignedVehicles = async () => {
+  const loadVehicles = async () => {
     try {
       const { data, error } = await supabase
         .from('vehicles')
-        .select('id, gp51_device_id, name, user_id, sim_number, created_at, updated_at')
-        .is('user_id', null);
-      if (error) {
-        console.error('Error fetching unassigned vehicles:', error);
-        toast({ title: 'Error', description: 'Could not fetch unassigned vehicles.', variant: 'destructive' });
-        setUnassignedVehicles([]);
-        return;
-      }
-      if (!data) {
-        setUnassignedVehicles([]);
-        return;
-      }
-      const dbRecords: VehicleDbRecord[] = data as VehicleDbRecord[];
-      setUnassignedVehicles(dbRecords.map(mapDbToDisplay));
+        .select('id, gp51_device_id, name, user_id')
+        .order('name');
+
+      if (error) throw error;
+
+      const vehicleData: VehicleData[] = (data || []).map(vehicle => ({
+        id: vehicle.id,
+        device_id: vehicle.gp51_device_id,
+        gp51_device_id: vehicle.gp51_device_id, // Added missing property
+        device_name: vehicle.name,
+        name: vehicle.name,
+        user_id: vehicle.user_id,
+        sim_number: '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        status: 'offline',
+        is_active: false,
+        isOnline: false,
+        isMoving: false,
+        alerts: [],
+        lastUpdate: new Date()
+      }));
+
+      setVehicles(vehicleData);
+      setSelectedVehicles(vehicleData.filter(v => v.user_id === userId).map(v => v.id));
     } catch (error) {
-      console.error('Error fetching unassigned vehicles:', error);
-      toast({ title: 'Error', description: 'Could not fetch unassigned vehicles.', variant: 'destructive' });
-      setUnassignedVehicles([]);
+      console.error('Error loading vehicles:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load vehicles",
+        variant: "destructive"
+      });
     }
   };
 
-  const fetchUserVehicles = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('id, gp51_device_id, name, user_id, sim_number, created_at, updated_at')
-        .eq('user_id', userId);
-
-      if (error) {
-        console.error('Error fetching user vehicles:', error);
-        toast({ title: 'Error', description: 'Could not fetch user vehicles.', variant: 'destructive' });
-        return;
-      }
-      if (!data) {
-        setUserVehicles([]);
-        return;
-      }
-      const dbRecords: VehicleDbRecord[] = data as VehicleDbRecord[];
-      setUserVehicles(dbRecords.map(mapDbToDisplay));
-    } catch (error) {
-      console.error('Error fetching user vehicles:', error);
-      toast({ title: 'Error', description: 'Could not fetch user vehicles.', variant: 'destructive' });
-    }
+  const handleVehicleToggle = (vehicleId: string) => {
+    setSelectedVehicles(prev => 
+      prev.includes(vehicleId) 
+        ? prev.filter(id => id !== vehicleId)
+        : [...prev, vehicleId]
+    );
   };
 
-  const handleAssign = async (vehicleId: string) => {
-    if (!user) return;
+  const handleSave = async () => {
+    setIsLoading(true);
     try {
-      const { error } = await supabase
-        .from('vehicles')
-        .update({ user_id: user.id })
-        .eq('id', vehicleId);
-      if (error) {
-        console.error('Error assigning vehicle:', error);
-        toast({ title: 'Error', description: 'Could not assign vehicle.', variant: 'destructive' });
-        return;
-      }
-      toast({ title: 'Success', description: 'Vehicle assigned successfully.' });
-      fetchUnassignedVehicles();
-      fetchUserVehicles(user.id);
-    } catch (error) {
-      console.error('Error assigning vehicle:', error);
-      toast({ title: 'Error', description: 'Could not assign vehicle.', variant: 'destructive' });
-    }
-  };
-
-  const handleUnassign = async (vehicleId: string) => {
-    try {
-      const { error } = await supabase
+      // First, unassign all vehicles from this user
+      await supabase
         .from('vehicles')
         .update({ user_id: null })
-        .eq('id', vehicleId);
-      if (error) {
-        console.error('Error unassigning vehicle:', error);
-        toast({ title: 'Error', description: 'Could not unassign vehicle.', variant: 'destructive' });
-        return;
+        .eq('user_id', userId);
+
+      // Then assign selected vehicles
+      if (selectedVehicles.length > 0) {
+        await supabase
+          .from('vehicles')
+          .update({ user_id: userId })
+          .in('id', selectedVehicles);
       }
-      toast({ title: 'Success', description: 'Vehicle unassigned successfully.' });
-      fetchUnassignedVehicles();
-      if (user) {
-        fetchUserVehicles(user.id);
-      }
+
+      toast({
+        title: "Success",
+        description: `Vehicle assignments updated for ${userName}`
+      });
+
+      onAssignmentComplete();
+      onClose();
     } catch (error) {
-      console.error('Error unassigning vehicle:', error);
-      toast({ title: 'Error', description: 'Could not unassign vehicle.', variant: 'destructive' });
+      console.error('Error updating assignments:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update vehicle assignments",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (open) {
-      fetchUnassignedVehicles();
-      if (user) {
-        fetchUserVehicles(user.id);
-      }
-    }
-  }, [open, user]);
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[625px]">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Vehicle Assignment</DialogTitle>
-          <DialogDescription>
-            Assign or unassign vehicles for user: {user?.email}
-          </DialogDescription>
+          <DialogTitle>Assign Vehicles to {userName}</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Unassigned Vehicles</Label>
-              <ScrollArea className="h-[200px] w-full rounded-md border p-4">
-                {unassignedVehicles.length > 0 ? (
-                  <ul className="list-none p-0">
-                    {unassignedVehicles.map((vehicle) => (
-                      <li key={vehicle.id} className="py-2 border-b last:border-b-0">
-                        {vehicle.device_name}
-                        <Button variant="secondary" size="sm" className="float-right" onClick={() => handleAssign(vehicle.id)}>
-                          Assign
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No unassigned vehicles.</p>
-                )}
-              </ScrollArea>
-            </div>
-            <div>
-              <Label>User Vehicles</Label>
-              <ScrollArea className="h-[200px] w-full rounded-md border p-4">
-                {userVehicles.length > 0 ? (
-                  <ul className="list-none p-0">
-                    {userVehicles.map((vehicle) => (
-                      <li key={vehicle.id} className="py-2 border-b last:border-b-0">
-                        {vehicle.device_name}
-                        <Button variant="secondary" size="sm" className="float-right" onClick={() => handleUnassign(vehicle.id)}>
-                          Unassign
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No vehicles assigned to this user.</p>
-                )}
-              </ScrollArea>
-            </div>
+        
+        <div className="space-y-4">
+          <div className="max-h-96 overflow-y-auto space-y-2">
+            {vehicles.map(vehicle => (
+              <div key={vehicle.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={vehicle.id}
+                  checked={selectedVehicles.includes(vehicle.id)}
+                  onCheckedChange={() => handleVehicleToggle(vehicle.id)}
+                />
+                <Label htmlFor={vehicle.id} className="flex-1">
+                  {vehicle.device_name} ({vehicle.device_id})
+                  {vehicle.user_id && vehicle.user_id !== userId && (
+                    <span className="text-sm text-muted-foreground ml-2">
+                      (Currently assigned)
+                    </span>
+                  )}
+                </Label>
+              </div>
+            ))}
+          </div>
+          
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={isLoading}>
+              {isLoading ? 'Saving...' : 'Save'}
+            </Button>
           </div>
         </div>
-        <DialogFooter>
-          <Button type="button" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 };
+
+export default VehicleAssignmentDialog;
