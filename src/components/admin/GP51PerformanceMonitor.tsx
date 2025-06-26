@@ -1,171 +1,243 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { 
-  Activity, 
-  Clock, 
-  CheckCircle, 
-  XCircle, 
-  TrendingUp, 
-  Database,
-  Wifi,
-  AlertTriangle
-} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { RefreshCw, Activity, Clock, Users, Database } from 'lucide-react';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
-import type { GP51PerformanceMetrics } from '@/types/gp51Performance';
+
+interface GP51PerformanceMetrics {
+  success: boolean;
+  error: string;
+  responseTime: number;
+  requestStartTime: string;
+  deviceCount: number;
+  groupCount: number;
+  activeDevices: number;
+  inactiveDevices: number;
+  onlineDevices: number;
+  offlineDevices: number;
+  movingVehicles: number;
+  stoppedVehicles: number;
+  timestamp: Date;
+  apiCallCount: number;
+  errorRate: number;
+}
 
 const GP51PerformanceMonitor: React.FC = () => {
-  const [metrics, setMetrics] = useState<GP51PerformanceMetrics | null>(null);
+  const [metrics, setMetrics] = useState<GP51PerformanceMetrics>({
+    success: false,
+    error: '',
+    responseTime: 0,
+    requestStartTime: '',
+    deviceCount: 0,
+    groupCount: 0,
+    activeDevices: 0,
+    inactiveDevices: 0,
+    onlineDevices: 0,
+    offlineDevices: 0,
+    movingVehicles: 0,
+    stoppedVehicles: 0,
+    timestamp: new Date(),
+    apiCallCount: 0,
+    errorRate: 0
+  });
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchMetrics = async () => {
+  const fetchPerformanceMetrics = async () => {
     setIsLoading(true);
     try {
-      const performanceData = await gp51DataService.getPerformanceMetrics();
-      setMetrics(performanceData);
+      const result = await gp51DataService.getPerformanceMetrics();
+      setMetrics({
+        ...result,
+        timestamp: new Date(),
+        apiCallCount: metrics.apiCallCount + 1,
+        errorRate: result.success ? metrics.errorRate : metrics.errorRate + 1
+      });
     } catch (error) {
       console.error('Failed to fetch performance metrics:', error);
+      setMetrics(prev => ({
+        ...prev,
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date(),
+        apiCallCount: prev.apiCallCount + 1,
+        errorRate: prev.errorRate + 1
+      }));
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchMetrics();
-    
-    // Set up periodic refresh
-    const interval = setInterval(fetchMetrics, 30000); // Refresh every 30 seconds
-    
+    fetchPerformanceMetrics();
+    const interval = setInterval(fetchPerformanceMetrics, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  const getHealthStatus = () => {
-    if (!metrics) return { status: 'unknown', color: 'gray' };
-    
-    if (metrics.success && metrics.responseTime < 2000) {
-      return { status: 'healthy', color: 'green' };
-    } else if (metrics.success && metrics.responseTime < 5000) {
-      return { status: 'degraded', color: 'yellow' };
-    } else {
-      return { status: 'critical', color: 'red' };
-    }
-  };
-
-  const formatResponseTime = (time: number) => {
-    return time < 1000 ? `${time}ms` : `${(time / 1000).toFixed(2)}s`;
-  };
-
-  const health = getHealthStatus();
-
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              GP51 Performance Monitor
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={fetchMetrics} disabled={isLoading}>
-              {isLoading ? 'Refreshing...' : 'Refresh'}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {!metrics ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="text-muted-foreground">Loading performance metrics...</div>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Health Status */}
-              <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-2">
-                  {health.status === 'healthy' && <CheckCircle className="h-6 w-6 text-green-600" />}
-                  {health.status === 'degraded' && <AlertTriangle className="h-6 w-6 text-yellow-600" />}
-                  {health.status === 'critical' && <XCircle className="h-6 w-6 text-red-600" />}
-                  <span className="font-medium">System Status</span>
-                </div>
-                <Badge variant={health.color === 'green' ? 'default' : health.color === 'yellow' ? 'secondary' : 'destructive'}>
-                  {health.status}
-                </Badge>
-                {!metrics.success && metrics.errorType && (
-                  <span className="text-sm text-red-600">Error: {metrics.errorType}</span>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">GP51 Performance</CardTitle>
+        <RefreshCw className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Status</div>
+              <div className="font-semibold">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-24 rounded"></div>
+                ) : metrics.success ? (
+                  <Badge variant="outline">Online</Badge>
+                ) : (
+                  <Badge variant="destructive">Offline</Badge>
                 )}
               </div>
-
-              {/* Performance Metrics Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="h-4 w-4 text-blue-600" />
-                      <span className="text-sm font-medium">Response Time</span>
-                    </div>
-                    <div className="text-2xl font-bold">
-                      {formatResponseTime(metrics.responseTime)}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Database className="h-4 w-4 text-green-600" />
-                      <span className="text-sm font-medium">Devices</span>
-                    </div>
-                    <div className="text-2xl font-bold">
-                      {metrics.deviceCount}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Wifi className="h-4 w-4 text-purple-600" />
-                      <span className="text-sm font-medium">Groups</span>
-                    </div>
-                    <div className="text-2xl font-bold">
-                      {metrics.groupCount}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp className="h-4 w-4 text-orange-600" />
-                      <span className="text-sm font-medium">API Calls</span>
-                    </div>
-                    <div className="text-2xl font-bold">
-                      {metrics.apiCallCount}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Error Rate */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Error Rate</span>
-                  <span className="text-sm text-muted-foreground">{metrics.errorRate.toFixed(1)}%</span>
-                </div>
-                <Progress value={metrics.errorRate} className="h-2" />
-              </div>
-
-              {/* Last Updated */}
-              <div className="text-xs text-muted-foreground">
-                Last updated: {new Date(metrics.timestamp).toLocaleString()}
+            </div>
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Response Time</div>
+              <div className="font-semibold">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-16 rounded"></div>
+                ) : (
+                  `${metrics.responseTime}ms`
+                )}
               </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Devices</div>
+              <div className="font-semibold flex items-center gap-1">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                ) : (
+                  `${metrics.deviceCount}`
+                )}
+                <Activity className="h-3 w-3 text-green-500" />
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Groups</div>
+              <div className="font-semibold flex items-center gap-1">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                ) : (
+                  `${metrics.groupCount}`
+                )}
+                <Users className="h-3 w-3 text-blue-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Active</div>
+              <div className="font-semibold flex items-center gap-1">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                ) : (
+                  `${metrics.activeDevices}`
+                )}
+                <CheckCircle className="h-3 w-3 text-green-500" />
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Inactive</div>
+              <div className="font-semibold flex items-center gap-1">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                ) : (
+                  `${metrics.inactiveDevices}`
+                )}
+                <XCircle className="h-3 w-3 text-red-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Online</div>
+              <div className="font-semibold flex items-center gap-1">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                ) : (
+                  `${metrics.onlineDevices}`
+                )}
+                <Wifi className="h-3 w-3 text-green-500" />
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Offline</div>
+              <div className="font-semibold flex items-center gap-1">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                ) : (
+                  `${metrics.offlineDevices}`
+                )}
+                <WifiOff className="h-3 w-3 text-red-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Moving</div>
+              <div className="font-semibold flex items-center gap-1">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                ) : (
+                  `${metrics.movingVehicles}`
+                )}
+                <ArrowRight className="h-3 w-3 text-blue-500" />
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Stopped</div>
+              <div className="font-semibold flex items-center gap-1">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                ) : (
+                  `${metrics.stoppedVehicles}`
+                )}
+                <PauseCircle className="h-3 w-3 text-yellow-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">API Calls</div>
+              <div className="font-semibold flex items-center gap-1">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                ) : (
+                  `${metrics.apiCallCount}`
+                )}
+                <Database className="h-3 w-3 text-gray-500" />
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">Error Rate</div>
+              <div className="font-semibold flex items-center gap-1">
+                {isLoading ? (
+                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
+                ) : (
+                  `${metrics.errorRate}`
+                )}
+                <AlertTriangle className="h-3 w-3 text-red-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="text-xs text-muted-foreground">
+            Last updated: {metrics.timestamp.toLocaleTimeString()}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 
