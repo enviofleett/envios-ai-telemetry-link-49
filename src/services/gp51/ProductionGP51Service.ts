@@ -1,4 +1,3 @@
-
 // REAL GP51 API INTEGRATION - PRODUCTION READY
 import CryptoJS from 'crypto-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,20 +42,6 @@ interface GP51Position {
   updatetime: number;
   status: number;
   strstatus: string;
-  course?: number;
-  altitude?: number;
-  radius?: number;
-  alarm?: number;
-  stralarm?: string;
-  gotsrc?: string;
-  rxlevel?: number;
-  gpsvalidnum?: number;
-  voltagev?: number;
-  masteroil?: number;
-  moving?: number;
-  parkduration?: number;
-  totaldistance?: number;
-  reportmode?: number;
 }
 
 interface GP51CommandResponse {
@@ -67,13 +52,21 @@ interface GP51CommandResponse {
 export class ProductionGP51Service {
   private config: GP51Config = {
     baseUrl: 'https://www.gps51.com/webapi',
-    timeout: 30000, // 30 seconds for sync operations
+    timeout: 30000,
     retryAttempts: 3,
-    defaultTimezone: 8 // GMT+8 as per GP51 docs
+    defaultTimezone: 8
   };
 
   private currentToken: string | null = null;
   private currentUser: string | null = null;
+
+  get isAuthenticated(): boolean {
+    return this.currentToken !== null;
+  }
+
+  get currentUsername(): string | null {
+    return this.currentUser;
+  }
 
   // REAL AUTHENTICATION with proper MD5 and session storage
   async authenticate(username: string, password: string, userType: 'USER' | 'DEVICE' = 'USER'): Promise<GP51AuthResponse> {
@@ -111,6 +104,38 @@ export class ProductionGP51Service {
     }
   }
 
+  async loadExistingSession(username: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('gp51_sessions')
+        .select('*')
+        .eq('username', username)
+        .single();
+
+      if (error || !data) {
+        return false;
+      }
+
+      // Check if session is still valid
+      const expiresAt = new Date(data.expires_at);
+      if (expiresAt > new Date()) {
+        this.currentToken = data.token;
+        this.currentUser = username;
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error loading existing session:', error);
+      return false;
+    }
+  }
+
+  async logout(): Promise<void> {
+    this.currentToken = null;
+    this.currentUser = null;
+  }
+
   // REAL USER FETCHING for admin dashboard
   async fetchAllUsers(): Promise<GP51User[]> {
     if (!this.currentToken) {
@@ -118,7 +143,7 @@ export class ProductionGP51Service {
     }
 
     try {
-      const response = await this.makeRequest('querymonitorlist', {
+      const response = await this.makeRequest('queryuserlist', {
         username: this.currentUser
       });
 
@@ -126,28 +151,14 @@ export class ProductionGP51Service {
         throw new Error(`GP51 API Error: ${response.cause}`);
       }
 
-      // Extract users from groups and store in database
-      const users: GP51User[] = [];
-      
-      if (response.groups) {
-        for (const group of response.groups) {
-          // In GP51, users are typically represented through device ownership
-          // We'll also need to call queryuserdetail for each user if available
-          if (group.devices) {
-            for (const device of group.devices) {
-              // Store device data
-              await this.storeDeviceData(device, group);
-            }
-          }
-        }
-      }
-
+      const users: GP51User[] = response.users || [];
       await this.logOperation('fetch_users', this.currentUser, {}, response);
       return users;
     } catch (error) {
       await this.logOperation('fetch_users', this.currentUser, {}, null, error);
       throw error;
     }
+    return [];
   }
 
   // REAL DEVICE/VEHICLE FETCHING
@@ -196,7 +207,7 @@ export class ProductionGP51Service {
     try {
       const response = await this.makeRequest('lastposition', {
         deviceids: deviceIds || [],
-        lastquerypositiontime: 0 // First time query
+        lastquerypositiontime: 0
       });
 
       if (response.status !== 0) {
@@ -237,11 +248,11 @@ export class ProductionGP51Service {
       const hashedPassword = this.md5Hash(userData.password);
       
       const response = await this.makeRequest('adduser', {
-        creater: this.currentUser, // Admin who creates the user
+        creater: this.currentUser,
         username: userData.username,
-        usertype: 11, // End user type
+        usertype: 11,
         password: hashedPassword,
-        multilogin: 1, // Allow multiple logins
+        multilogin: 1,
         companyname: userData.companyname || '',
         email: userData.email || '',
         cardname: userData.cardname || '',
@@ -296,9 +307,9 @@ export class ProductionGP51Service {
         devicetype: deviceData.devicetype,
         creater: deviceData.creater,
         groupid: deviceData.groupid || 1,
-        calmileageway: deviceData.calmileageway || 0, // Auto calculate
-        deviceenable: deviceData.deviceenable || 1, // Enabled
-        loginenable: deviceData.loginenable || 0, // No direct login
+        calmileageway: deviceData.calmileageway || 0,
+        deviceenable: deviceData.deviceenable || 1,
+        loginenable: deviceData.loginenable || 0,
         timezone: deviceData.timezone || this.config.defaultTimezone
       });
 
@@ -333,7 +344,7 @@ export class ProductionGP51Service {
         cmdcode: command,
         params,
         state: -1,
-        cmdpwd: 'zhuyi' // Default command password as per GP51 docs
+        cmdpwd: 'zhuyi'
       });
 
       await this.logOperation('send_command', this.currentUser, { deviceid, command, params }, response);
@@ -453,7 +464,7 @@ export class ProductionGP51Service {
           group_id: group.groupid,
           group_name: group.groupname,
           status: device.status || 'active',
-          is_online: device.lastactivetime > (Date.now() - 300000), // Online if active in last 5 min
+          is_online: device.lastactivetime > (Date.now() - 300000),
           last_active_time: new Date(device.lastactivetime).toISOString(),
           sim_number: device.simnum,
           sync_status: 'synced',
@@ -507,7 +518,7 @@ export class ProductionGP51Service {
     }
   }
 
-  private async logOperation(operation: string, username: string | null, requestData: any, responseData: any, error?: any): Promise<void> {
+  private async logOperation(operation: string, username: string, requestData: any, responseData: any, error?: any): Promise<void> {
     try {
       await supabase
         .from('gp51_sync_log')
@@ -523,47 +534,6 @@ export class ProductionGP51Service {
         });
     } catch (logError) {
       console.error('Failed to log operation:', logError);
-    }
-  }
-
-  // Public getters for current state
-  get isAuthenticated(): boolean {
-    return !!this.currentToken;
-  }
-
-  get currentUsername(): string | null {
-    return this.currentUser;
-  }
-
-  get token(): string | null {
-    return this.currentToken;
-  }
-
-  // Session management
-  async logout(): Promise<void> {
-    this.currentToken = null;
-    this.currentUser = null;
-  }
-
-  async loadExistingSession(username: string): Promise<boolean> {
-    try {
-      const { data, error } = await supabase
-        .from('gp51_sessions')
-        .select('*')
-        .eq('username', username)
-        .gt('expires_at', new Date().toISOString())
-        .single();
-
-      if (error || !data) {
-        return false;
-      }
-
-      this.currentToken = data.token;
-      this.currentUser = data.username;
-      return true;
-    } catch (error) {
-      console.error('Failed to load existing session:', error);
-      return false;
     }
   }
 }

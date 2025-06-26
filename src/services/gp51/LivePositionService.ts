@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { GP51ProcessedPosition } from '@/types/gp51';
 
@@ -42,9 +43,9 @@ export class LivePositionService {
 
   async storePosition(positionData: GP51ProcessedPosition): Promise<void> {
     try {
-      const livePosition: Partial<LivePositionData> = {
+      const livePosition: LivePositionData = {
         device_id: positionData.deviceId,
-        position_data: positionData,
+        position_data: positionData as any,
         latitude: positionData.latitude,
         longitude: positionData.longitude,
         speed: positionData.speed,
@@ -78,9 +79,9 @@ export class LivePositionService {
 
   async batchStorePositions(positions: GP51ProcessedPosition[]): Promise<void> {
     try {
-      const livePositions = positions.map(position => ({
+      const livePositions: LivePositionData[] = positions.map(position => ({
         device_id: position.deviceId,
-        position_data: position,
+        position_data: position as any,
         latitude: position.latitude,
         longitude: position.longitude,
         speed: position.speed,
@@ -137,7 +138,7 @@ export class LivePositionService {
       });
 
       latestPositions.forEach((position, deviceId) => {
-        positionsMap.set(deviceId, position);
+        positionsMap.set(deviceId, position as LivePositionData);
       });
 
       return positionsMap;
@@ -147,7 +148,7 @@ export class LivePositionService {
     }
   }
 
-  async getPositionHistory(deviceId: string, startTime: Date, endTime: Date): Promise<LivePositionData[]> {
+  async getPositionHistory(deviceId: string, startTime: Date, endTime: Date): Promise<any[]> {
     try {
       const { data, error } = await supabase
         .from('position_history')

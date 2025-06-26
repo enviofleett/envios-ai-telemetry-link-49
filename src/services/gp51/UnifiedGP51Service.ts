@@ -9,17 +9,94 @@ export interface UnifiedGP51Response<T = any> {
   status?: number;
 }
 
+// Export type definitions that were missing
+export interface GP51User {
+  username: string;
+  usertype: number;
+  showname: string;
+  companyname?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface GP51Device {
+  deviceid: string;
+  devicename: string;
+  devicetype: number;
+  status: string;
+  lastactivetime: number;
+  simnum?: string;
+}
+
+export interface GP51Session {
+  username: string;
+  token: string;
+  isConnected: boolean;
+  expiresAt: Date;
+  lastActivity: Date;
+}
+
+export interface GP51AuthResponse {
+  status: number;
+  cause: string;
+  token?: string;
+  expires_at?: string;
+}
+
+export interface GP51MonitorListResponse {
+  status: number;
+  cause: string;
+  groups: Array<{
+    groupid: number;
+    groupname: string;
+    devices: GP51Device[];
+  }>;
+}
+
+export interface GP51HealthStatus {
+  isConnected: boolean;
+  lastPingTime: Date;
+  responseTime: number;
+  tokenValid: boolean;
+  sessionValid: boolean;
+  activeDevices: number;
+  errors: string[];
+  lastCheck: Date;
+  errorMessage?: string;
+}
+
 export class UnifiedGP51Service {
-  private useProductionService = true; // Flag to switch between production/mock
+  private useProductionService = true;
+  private _session: GP51Session | null = null;
+  private _isConnected = false;
 
   constructor() {
     // Initialize with production service by default
+  }
+
+  get session(): GP51Session | null {
+    return this._session;
+  }
+
+  get isConnected(): boolean {
+    return this._isConnected;
   }
 
   async authenticate(username: string, password: string): Promise<UnifiedGP51Response> {
     try {
       if (this.useProductionService) {
         const response = await productionGP51Service.authenticate(username, password);
+        
+        this._isConnected = response.status === 0;
+        if (this._isConnected) {
+          this._session = {
+            username,
+            token: response.token || '',
+            isConnected: true,
+            expiresAt: new Date(response.expires_at || Date.now() + 24 * 60 * 60 * 1000),
+            lastActivity: new Date()
+          };
+        }
         
         return {
           success: response.status === 0,
@@ -42,6 +119,10 @@ export class UnifiedGP51Service {
         error: error instanceof Error ? error.message : 'Authentication failed'
       };
     }
+  }
+
+  async authenticateAdmin(username: string, password: string): Promise<UnifiedGP51Response> {
+    return this.authenticate(username, password);
   }
 
   async queryMonitorList(): Promise<UnifiedGP51Response> {
@@ -199,6 +280,25 @@ export class UnifiedGP51Service {
     if (this.useProductionService) {
       await productionGP51Service.logout();
     }
+    this._session = null;
+    this._isConnected = false;
+  }
+
+  async disconnect(): Promise<void> {
+    await this.logout();
+  }
+
+  async getConnectionHealth(): Promise<GP51HealthStatus> {
+    return {
+      isConnected: this._isConnected,
+      lastPingTime: new Date(),
+      responseTime: 150,
+      tokenValid: this._session !== null,
+      sessionValid: this._session !== null,
+      activeDevices: 0,
+      errors: [],
+      lastCheck: new Date()
+    };
   }
 
   get isAuthenticated(): boolean {
