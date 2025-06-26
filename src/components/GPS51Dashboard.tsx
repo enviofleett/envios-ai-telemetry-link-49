@@ -1,27 +1,18 @@
-
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, CheckCircle, RefreshCw, Users, Car, Activity } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle, CheckCircle, RefreshCw, Car, Users, Database, Activity } from 'lucide-react';
+import { toast } from 'sonner';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
-import type { GP51DeviceData, GP51Group } from '@/types/gp51-unified';
+import type { GP51Device, GP51Group } from '@/types/gp51-unified';
 
 interface DashboardSummary {
   totalDevices: number;
   activeDevices: number;
   totalGroups: number;
   connectionStatus: "connected" | "disconnected" | "error";
-  lastUpdate: Date;
-}
-
-interface GP51Device {
-  deviceid: string;
-  devicename: string;
-  devicetype: string;
-  status: string;
-  lastactivetime: string;
+  lastSync: string;
 }
 
 const GPS51Dashboard: React.FC = () => {
@@ -30,111 +21,86 @@ const GPS51Dashboard: React.FC = () => {
     activeDevices: 0,
     totalGroups: 0,
     connectionStatus: "disconnected",
-    lastUpdate: new Date()
+    lastSync: "Never"
   });
-  
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [devices, setDevices] = useState<GP51Device[]>([]);
   const [groups, setGroups] = useState<GP51Group[]>([]);
-  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchDashboardData = async () => {
+  const loadDashboardData = async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const data = await gp51DataService.getDataDirectly();
+      // Get devices data
+      const deviceResponse = await gp51DataService.getDataDirectly();
+      let deviceData: GP51Device[] = [];
       
-      if (data.success && data.data) {
-        const deviceData = Array.isArray(data.data) ? data.data : [];
-        
-        // Transform GP51DeviceData to GP51Device for legacy compatibility
-        const transformedDevices: GP51Device[] = deviceData.map(device => ({
-          deviceid: device.deviceId,
-          devicename: device.deviceName,
-          devicetype: device.deviceType || 'unknown',
-          status: device.isActive ? 'active' : 'inactive',
-          lastactivetime: typeof device.lastActiveTime === 'string' 
-            ? device.lastActiveTime 
-            : device.lastActiveTime?.toISOString() || new Date().toISOString()
-        }));
-        
-        setDevices(transformedDevices);
-        
-        const dashboardSummary: DashboardSummary = {
-          totalDevices: transformedDevices.length,
-          activeDevices: transformedDevices.filter(d => d.status === 'active').length,
-          totalGroups: data.groups?.length || 0,
-          connectionStatus: "connected",
-          lastUpdate: new Date()
-        };
-        
-        setSummary(dashboardSummary);
-        setGroups(data.groups || []);
-        
-        toast({
-          title: "Success",
-          description: `Loaded ${transformedDevices.length} devices successfully`,
-        });
-      } else {
-        throw new Error(data.error || 'Failed to fetch data');
+      if (deviceResponse.success && deviceResponse.data) {
+        deviceData = Array.isArray(deviceResponse.data) ? deviceResponse.data : [];
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch dashboard data';
-      setError(errorMessage);
-      setSummary(prev => ({ ...prev, connectionStatus: "error" }));
+
+      // Get groups data with defensive access
+      const groupResponse = await gp51DataService.getDataDirectly();
+      let groupData: GP51Group[] = [];
       
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      if (groupResponse.success) {
+        // Handle different possible response structures for groups
+        groupData = groupResponse.data?.groups || 
+                   (Array.isArray(groupResponse.data) ? groupResponse.data : []) ||
+                   [];
+      }
+
+      // Update summary
+      const dashboardSummary: DashboardSummary = {
+        totalDevices: deviceData.length,
+        activeDevices: deviceData.filter(d => d.status === 'active').length,
+        totalGroups: groupData.length,
+        connectionStatus: deviceResponse.success ? "connected" : "error",
+        lastSync: new Date().toLocaleString()
+      };
+
+      setSummary(dashboardSummary);
+      setDevices(deviceData);
+      setGroups(groupData);
+
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load dashboard data';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    loadDashboardData();
   }, []);
 
   const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'active':
-      case 'connected':
-        return 'bg-green-100 text-green-800';
-      case 'inactive':
-      case 'disconnected':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
+    switch (status) {
+      case 'connected': return 'bg-green-500';
+      case 'disconnected': return 'bg-yellow-500';
+      case 'error': return 'bg-red-500';
+      default: return 'bg-gray-500';
     }
   };
 
-  const getConnectionStatusIcon = () => {
-    switch (summary.connectionStatus) {
-      case 'connected':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'error':
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'connected': return 'Connected';
+      case 'disconnected': return 'Disconnected';
+      case 'error': return 'Error';
+      default: return 'Unknown';
     }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">GPS51 Dashboard</h1>
-          <p className="text-gray-600">Monitor your fleet and device status</p>
-        </div>
-        <Button 
-          onClick={fetchDashboardData} 
-          disabled={isLoading}
-          variant="outline"
-        >
+        <h1 className="text-3xl font-bold">GPS51 Dashboard</h1>
+        <Button onClick={loadDashboardData} disabled={isLoading} variant="outline">
           <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
@@ -143,8 +109,8 @@ const GPS51Dashboard: React.FC = () => {
       {error && (
         <Card className="border-red-200 bg-red-50">
           <CardContent className="pt-6">
-            <div className="flex items-center text-red-700">
-              <AlertCircle className="h-4 w-4 mr-2" />
+            <div className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-4 w-4" />
               <span>{error}</span>
             </div>
           </CardContent>
@@ -175,7 +141,7 @@ const GPS51Dashboard: React.FC = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Device Groups</CardTitle>
+            <CardTitle className="text-sm font-medium">Groups</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -186,12 +152,12 @@ const GPS51Dashboard: React.FC = () => {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Connection Status</CardTitle>
-            {getConnectionStatusIcon()}
+            <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-sm font-medium capitalize">{summary.connectionStatus}</div>
-            <div className="text-xs text-muted-foreground">
-              Last updated: {summary.lastUpdate.toLocaleTimeString()}
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${getStatusColor(summary.connectionStatus)}`} />
+              <span className="text-sm font-medium">{getStatusText(summary.connectionStatus)}</span>
             </div>
           </CardContent>
         </Card>
@@ -201,47 +167,57 @@ const GPS51Dashboard: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle>Recent Devices</CardTitle>
-          <CardDescription>
-            Latest device information from GPS51
-          </CardDescription>
         </CardHeader>
         <CardContent>
           {devices.length === 0 ? (
-            <div className="text-center py-8">
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                  Loading devices...
-                </div>
-              ) : (
-                'No devices found. Try refreshing or importing data from GPS51.'
-              )}
-            </div>
+            <p className="text-muted-foreground">No devices found</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {devices.slice(0, 10).map((device) => (
-                <div key={device.deviceid} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <div>
-                      <div className="font-medium">{device.devicename}</div>
-                      <div className="text-sm text-gray-600">ID: {device.deviceid}</div>
-                      <div className="text-sm text-gray-600">Type: {device.devicetype}</div>
-                    </div>
+                <div key={device.deviceid} className="flex items-center justify-between p-2 border rounded">
+                  <div>
+                    <span className="font-medium">{device.devicename}</span>
+                    <span className="text-sm text-muted-foreground ml-2">({device.deviceid})</span>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge className={getStatusColor(device.status)}>
-                      {device.status}
-                    </Badge>
-                    <div className="text-sm text-gray-500">
-                      {new Date(device.lastactivetime).toLocaleDateString()}
-                    </div>
-                  </div>
+                  <Badge variant={device.status === 'active' ? 'default' : 'secondary'}>
+                    {device.status}
+                  </Badge>
                 </div>
               ))}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Groups Overview */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Groups Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {groups.length === 0 ? (
+            <p className="text-muted-foreground">No groups found</p>
+          ) : (
+            <div className="space-y-2">
+              {groups.slice(0, 5).map((group) => (
+                <div key={group.id} className="flex items-center justify-between p-2 border rounded">
+                  <div>
+                    <span className="font-medium">{group.group_name}</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      ({group.device_count} devices)
+                    </span>
+                  </div>
+                  <Badge variant="outline">{group.device_count}</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="text-center text-sm text-muted-foreground">
+        Last synchronized: {summary.lastSync}
+      </div>
     </div>
   );
 };
