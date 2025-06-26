@@ -212,75 +212,85 @@ class GP51DataService {
   /**
    * Get performance metrics (used by GP51PerformanceMonitor)
    */
-  async getPerformanceMetrics() {
+  async getPerformanceMetrics(): Promise<any> {
     try {
       console.log('📈 Fetching performance metrics...');
       
+      const startTime = Date.now();
       const deviceResponse = await this.getLiveVehicles();
+      const positionResponse = await this.getMultipleDevicesLastPositions();
+      const responseTime = Date.now() - startTime;
       
       if (!deviceResponse.success) {
         return {
           success: false,
           error: 'Failed to fetch device data for metrics',
-          responseTime: 0,
-          requestStartTime: Date.now().toString(),
+          responseTime,
+          requestStartTime: startTime.toString(),
           deviceCount: 0,
           groupCount: 0,
           activeDevices: 0,
           inactiveDevices: 0,
           onlineDevices: 0,
-          offlineDevices: 0
+          offlineDevices: 0,
+          movingVehicles: 0,
+          stoppedVehicles: 0,
+          timestamp: new Date().toISOString(),
+          apiCallCount: 1,
+          errorRate: 100,
+          averageResponseTime: responseTime
         };
       }
 
-      const devices = deviceResponse.data || [];
+      const devices = deviceResponse.vehicles || [];
+      const positions = Array.isArray(positionResponse) ? positionResponse : Array.from(positionResponse.values());
+      
       const totalDevices = devices.length;
       const activeDevices = devices.filter(d => d.isActive).length;
-      const onlineDevices = devices.filter(d => d.isOnline).length;
-      const avgResponseTime = Math.random() * 1000 + 500;
+      const onlineDevices = positions.filter(p => p.isOnline).length;
+      const offlineDevices = positions.filter(p => !p.isOnline).length;
+      const movingVehicles = positions.filter(p => p.isMoving).length;
+      const stoppedVehicles = positions.filter(p => !p.isMoving).length;
       
       return {
         success: true,
-        responseTime: avgResponseTime,
-        requestStartTime: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        responseTime,
+        requestStartTime: startTime.toString(),
+        apiCallCount: 2,
+        errorRate: 0,
         deviceCount: totalDevices,
         groupCount: new Set(devices.map(d => d.groupId)).size,
         activeDevices,
         inactiveDevices: totalDevices - activeDevices,
         onlineDevices,
-        offlineDevices: totalDevices - onlineDevices,
-        connectionHealth: totalDevices > 0 ? onlineDevices / totalDevices : 0,
-        averageResponseTime: avgResponseTime,
-        dataFreshness: new Date().toISOString(),
-        systemStatus: onlineDevices > totalDevices * 0.8 ? 'healthy' : 'degraded',
-        
-        // Also include nested metrics for backward compatibility
-        metrics: {
-          totalDevices,
-          activeDevices,
-          inactiveDevices: totalDevices - activeDevices,
-          onlineDevices,
-          offlineDevices: totalDevices - onlineDevices,
-          connectionHealth: totalDevices > 0 ? onlineDevices / totalDevices : 0,
-          averageResponseTime: avgResponseTime,
-          dataFreshness: new Date().toISOString(),
-          systemStatus: onlineDevices > totalDevices * 0.8 ? 'healthy' : 'degraded'
-        }
+        offlineDevices,
+        movingVehicles,
+        stoppedVehicles,
+        averageResponseTime: responseTime
       };
 
     } catch (error) {
       console.error('❌ Performance metrics error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Performance metrics failed',
+        error: errorMessage,
+        timestamp: new Date().toISOString(),
         responseTime: 0,
         requestStartTime: Date.now().toString(),
+        apiCallCount: 0,
+        errorRate: 100,
         deviceCount: 0,
         groupCount: 0,
         activeDevices: 0,
         inactiveDevices: 0,
         onlineDevices: 0,
-        offlineDevices: 0
+        offlineDevices: 0,
+        movingVehicles: 0,
+        stoppedVehicles: 0,
+        averageResponseTime: 0
       };
     }
   }

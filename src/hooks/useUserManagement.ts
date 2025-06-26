@@ -24,31 +24,41 @@ export const useUserManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('id, email, full_name, created_at');
+      setIsLoading(true);
+      setError(null);
 
-      if (error) throw error;
+      // Try to query auth users instead of user_profiles since columns don't exist
+      const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
 
-      const transformedUsers: User[] = (data || []).map(profile => ({
-        id: profile.id,
-        email: profile.email || '',
-        name: profile.full_name || '',
-        created_at: profile.created_at
+      if (authError) {
+        throw authError;
+      }
+
+      const transformedUsers: User[] = authData.users.map(user => ({
+        id: user.id,
+        email: user.email || 'Unknown',
+        name: user.user_metadata?.full_name || user.email || 'Unknown User',
+        created_at: user.created_at
       }));
 
       setUsers(transformedUsers);
       return transformedUsers;
     } catch (err) {
       console.error('Error fetching users:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch users');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch users';
+      setError(errorMessage);
+      
+      // Return empty array on error to prevent crashes
+      setUsers([]);
       return [];
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const fetchUserGroups = async () => {
     try {
-      // For now, create mock data since user groups table might not exist
+      // Since user groups table might not exist, provide mock data
       const mockGroups: UserGroup[] = [
         { id: '1', name: 'Administrators', description: 'System administrators', user_count: 5 },
         { id: '2', name: 'Fleet Managers', description: 'Fleet management team', user_count: 12 },

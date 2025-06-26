@@ -10,6 +10,19 @@ export interface GP51PerformanceMetrics {
   apiCallCount: number;
   errorRate: number;
   averageResponseTime: number;
+  
+  // Vehicle movement metrics (missing properties)
+  movingVehicles: number;
+  stoppedVehicles: number;
+  
+  // Additional device metrics
+  activeDevices?: number;
+  inactiveDevices?: number;
+  onlineDevices?: number;
+  offlineDevices?: number;
+  
+  // Error handling
+  error?: string;
 }
 
 export interface GP51HealthMetrics {

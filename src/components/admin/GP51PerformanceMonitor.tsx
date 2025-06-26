@@ -1,67 +1,61 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { RefreshCw, Activity, Clock, Users, Database } from 'lucide-react';
-import { gp51DataService } from '@/services/gp51/GP51DataService';
-
-interface GP51PerformanceMetrics {
-  success: boolean;
-  error: string;
-  responseTime: number;
-  requestStartTime: string;
-  deviceCount: number;
-  groupCount: number;
-  activeDevices: number;
-  inactiveDevices: number;
-  onlineDevices: number;
-  offlineDevices: number;
-  movingVehicles: number;
-  stoppedVehicles: number;
-  timestamp: Date;
-  apiCallCount: number;
-  errorRate: number;
-}
+import { CheckCircle, XCircle, Wifi, WifiOff, ArrowRight, PauseCircle, AlertTriangle } from 'lucide-react';
+import { GP51DataService } from '@/services/gp51/GP51DataService';
+import type { GP51PerformanceMetrics } from '@/types/gp51Performance';
 
 const GP51PerformanceMonitor: React.FC = () => {
   const [metrics, setMetrics] = useState<GP51PerformanceMetrics>({
-    success: false,
-    error: '',
     responseTime: 0,
+    success: true,
     requestStartTime: '',
+    errorType: '',
     deviceCount: 0,
     groupCount: 0,
-    activeDevices: 0,
-    inactiveDevices: 0,
-    onlineDevices: 0,
-    offlineDevices: 0,
-    movingVehicles: 0,
-    stoppedVehicles: 0,
-    timestamp: new Date(),
+    timestamp: '',
     apiCallCount: 0,
-    errorRate: 0
+    errorRate: 0,
+    averageResponseTime: 0,
+    movingVehicles: 0,
+    stoppedVehicles: 0
   });
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchPerformanceMetrics = async () => {
-    setIsLoading(true);
+  const dataService = new GP51DataService();
+
+  const fetchMetrics = async () => {
     try {
-      const result = await gp51DataService.getPerformanceMetrics();
-      setMetrics({
-        ...result,
-        timestamp: new Date(),
-        apiCallCount: metrics.apiCallCount + 1,
-        errorRate: result.success ? metrics.errorRate : metrics.errorRate + 1
-      });
+      setIsLoading(true);
+      const performanceData = await dataService.getPerformanceMetrics();
+      
+      const metricsUpdate = {
+        timestamp: new Date().toISOString(),
+        apiCallCount: 1,
+        errorRate: performanceData.success ? 0 : 100,
+        success: performanceData.success,
+        error: performanceData.error || '',
+        responseTime: performanceData.responseTime || 0,
+        requestStartTime: new Date().toISOString(),
+        deviceCount: performanceData.deviceCount || 0,
+        groupCount: performanceData.groupCount || 0,
+        activeDevices: performanceData.activeDevices || 0,
+        inactiveDevices: performanceData.inactiveDevices || 0,
+        onlineDevices: performanceData.onlineDevices || 0,
+        offlineDevices: performanceData.offlineDevices || 0,
+        movingVehicles: performanceData.movingVehicles || 0,
+        stoppedVehicles: performanceData.stoppedVehicles || 0,
+        averageResponseTime: performanceData.averageResponseTime || 0
+      };
+
+      setMetrics(metricsUpdate);
     } catch (error) {
       console.error('Failed to fetch performance metrics:', error);
       setMetrics(prev => ({
         ...prev,
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date(),
-        apiCallCount: prev.apiCallCount + 1,
-        errorRate: prev.errorRate + 1
+        timestamp: new Date().toISOString()
       }));
     } finally {
       setIsLoading(false);
@@ -69,175 +63,87 @@ const GP51PerformanceMonitor: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchPerformanceMetrics();
-    const interval = setInterval(fetchPerformanceMetrics, 30000);
+    fetchMetrics();
+    const interval = setInterval(fetchMetrics, 30000);
     return () => clearInterval(interval);
   }, []);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">GP51 Performance</CardTitle>
-        <RefreshCw className="h-4 w-4 text-muted-foreground" />
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Status</div>
-              <div className="font-semibold">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-24 rounded"></div>
-                ) : metrics.success ? (
-                  <Badge variant="outline">Online</Badge>
-                ) : (
-                  <Badge variant="destructive">Offline</Badge>
-                )}
-              </div>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>GP51 Performance Metrics</CardTitle>
+          <CardDescription>Real-time system performance monitoring</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="flex items-center space-x-2">
+              <Badge variant={metrics.success ? "default" : "destructive"}>
+                {metrics.success ? "Healthy" : "Error"}
+              </Badge>
+              <span className="text-sm text-gray-600">
+                Response: {metrics.responseTime}ms
+              </span>
             </div>
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Response Time</div>
-              <div className="font-semibold">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-16 rounded"></div>
-                ) : (
-                  `${metrics.responseTime}ms`
-                )}
-              </div>
+            
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              <span className="text-sm">
+                Devices: {metrics.deviceCount}
+              </span>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Devices</div>
-              <div className="font-semibold flex items-center gap-1">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
-                ) : (
-                  `${metrics.deviceCount}`
-                )}
-                <Activity className="h-3 w-3 text-green-500" />
-              </div>
+            
+            <div className="flex items-center space-x-2">
+              <XCircle className="h-4 w-4 text-red-500" />
+              <span className="text-sm">
+                Groups: {metrics.groupCount}
+              </span>
             </div>
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Groups</div>
-              <div className="font-semibold flex items-center gap-1">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
-                ) : (
-                  `${metrics.groupCount}`
-                )}
-                <Users className="h-3 w-3 text-blue-500" />
-              </div>
+            
+            <div className="flex items-center space-x-2">
+              <Wifi className="h-4 w-4 text-blue-500" />
+              <span className="text-sm">
+                Online: {metrics.onlineDevices || 0}
+              </span>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Active</div>
-              <div className="font-semibold flex items-center gap-1">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
-                ) : (
-                  `${metrics.activeDevices}`
-                )}
-                <CheckCircle className="h-3 w-3 text-green-500" />
-              </div>
+            
+            <div className="flex items-center space-x-2">
+              <WifiOff className="h-4 w-4 text-orange-500" />
+              <span className="text-sm">
+                Offline: {metrics.offlineDevices || 0}
+              </span>
             </div>
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Inactive</div>
-              <div className="font-semibold flex items-center gap-1">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
-                ) : (
-                  `${metrics.inactiveDevices}`
-                )}
-                <XCircle className="h-3 w-3 text-red-500" />
-              </div>
+            
+            <div className="flex items-center space-x-2">
+              <ArrowRight className="h-4 w-4 text-green-500" />
+              <span className="text-sm">
+                Moving: {metrics.movingVehicles}
+              </span>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <PauseCircle className="h-4 w-4 text-gray-500" />
+              <span className="text-sm">
+                Stopped: {metrics.stoppedVehicles}
+              </span>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-4 w-4 text-yellow-500" />
+              <span className="text-sm">
+                API Calls: {metrics.apiCallCount}
+              </span>
             </div>
           </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Online</div>
-              <div className="font-semibold flex items-center gap-1">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
-                ) : (
-                  `${metrics.onlineDevices}`
-                )}
-                <Wifi className="h-3 w-3 text-green-500" />
-              </div>
+          
+          {!metrics.success && metrics.error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">Error: {metrics.error}</p>
             </div>
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Offline</div>
-              <div className="font-semibold flex items-center gap-1">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
-                ) : (
-                  `${metrics.offlineDevices}`
-                )}
-                <WifiOff className="h-3 w-3 text-red-500" />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Moving</div>
-              <div className="font-semibold flex items-center gap-1">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
-                ) : (
-                  `${metrics.movingVehicles}`
-                )}
-                <ArrowRight className="h-3 w-3 text-blue-500" />
-              </div>
-            </div>
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Stopped</div>
-              <div className="font-semibold flex items-center gap-1">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
-                ) : (
-                  `${metrics.stoppedVehicles}`
-                )}
-                <PauseCircle className="h-3 w-3 text-yellow-500" />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">API Calls</div>
-              <div className="font-semibold flex items-center gap-1">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
-                ) : (
-                  `${metrics.apiCallCount}`
-                )}
-                <Database className="h-3 w-3 text-gray-500" />
-              </div>
-            </div>
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">Error Rate</div>
-              <div className="font-semibold flex items-center gap-1">
-                {isLoading ? (
-                  <div className="animate-pulse bg-gray-300 h-4 w-12 rounded"></div>
-                ) : (
-                  `${metrics.errorRate}`
-                )}
-                <AlertTriangle className="h-3 w-3 text-red-500" />
-              </div>
-            </div>
-          </div>
-
-          <div className="text-xs text-muted-foreground">
-            Last updated: {metrics.timestamp.toLocaleTimeString()}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

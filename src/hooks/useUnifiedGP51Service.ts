@@ -1,13 +1,12 @@
-
 import { useState, useEffect } from 'react';
 import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
-import type { GP51AuthResponse, GP51DeviceData } from '@/types/gp51-unified';
+import type { GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
 
 export const useUnifiedGP51Service = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
@@ -90,52 +89,76 @@ export const useUnifiedGP51Service = () => {
   const queryMonitorList = async () => {
     try {
       setIsLoading(true);
-      setError(null);
+      setError('');
+      
+      const result = await unifiedGP51Service.queryMonitorList();
+      
+      if (result.success && result.data) {
+        setDevices(result.data);
+        setGroups(result.groups || []);
+      } else {
+        throw new Error(result.error || 'Failed to query devices');
+      }
+      
+      return result;
+      
+    } catch (error) {
+      console.error('Query monitor list error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(errorMessage);
+      return { success: false, error: errorMessage, data: [], groups: [] };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getLastPositions = async (deviceIds?: string[]) => {
+    try {
+      setIsLoading(true);
+      setError('');
       
       const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
       
-      if (!session.token || !session.username) {
+      if (!session.token) {
         throw new Error('No valid session found');
       }
 
-      console.log('🔍 Fetching devices for user:', session.username);
+      console.log('📍 Fetching last positions...');
 
-      const response = await fetch('/functions/v1/gp51-query-devices', {
+      const response = await fetch('/functions/v1/gp51-last-positions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: session.token,
-          username: session.username
+          deviceIds: deviceIds || [],
+          lastQueryTime: localStorage.getItem('gp51_last_query_time') || 0
         })
       });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
       const data = await response.json();
       
       if (!data.success) {
-        throw new Error(data.error || 'Device query failed');
+        throw new Error(data.error || 'Position query failed');
       }
 
-      console.log('✅ Devices loaded:', data.summary);
+      // Store last query time
+      if (data.lastQueryTime) {
+        localStorage.setItem('gp51_last_query_time', data.lastQueryTime.toString());
+      }
       
-      setDevices(data.data || []);
-      setGroups(data.groups || []);
+      setPositions(data.data || []);
       
-      return {
-        success: true,
-        data: data.data,
-        groups: data.groups,
-        summary: data.summary
-      };
+      return data.data || [];
 
     } catch (error) {
-      console.error('Device query error:', error);
-      setError(error instanceof Error ? error.message : 'Device query failed');
-      return {
-        success: false,
-        data: [],
-        groups: [],
-        error: error instanceof Error ? error.message : 'Device query failed'
-      };
+      console.error('Position query error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setError(errorMessage);
+      return [];
     } finally {
       setIsLoading(false);
     }
@@ -189,11 +212,6 @@ export const useUnifiedGP51Service = () => {
       }
 
       console.log('✅ Positions loaded:', data.summary);
-      
-      // Store last query time for next request
-      if (data.lastQueryTime) {
-        localStorage.setItem('gp51_last_query_time', data.lastQueryTime.toString());
-      }
       
       setPositions(data.data || []);
       
@@ -252,19 +270,10 @@ export const useUnifiedGP51Service = () => {
     devices,
     groups,
     positions,
-    clearError,
-    connect,
-    disconnect,
-    getConnectionHealth,
-    authenticate,
-    authenticateAdmin,
-    logout,
-    fetchUsers,
-    fetchDevices,
+    
+    // Methods
     queryMonitorList,
-    getDevices,
-    getPositions,
-    testConnection,
+    getLastPositions,
     
     // Computed values
     deviceCount: devices.length,
