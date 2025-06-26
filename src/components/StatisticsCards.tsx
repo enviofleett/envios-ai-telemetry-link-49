@@ -2,35 +2,40 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, Car, MapPin, Activity, AlertTriangle } from 'lucide-react';
-import type { GPS51DashboardSummary } from '@/types/gp51';
+import type { GP51DashboardSummary } from '@/types/gp51';
 
 interface StatisticsCardsProps {
-  summary?: GPS51DashboardSummary;
+  summary?: GP51DashboardSummary;
 }
 
 const StatisticsCards: React.FC<StatisticsCardsProps> = ({ summary }) => {
+  // Safe property access with fallbacks
+  const getSafeValue = (primary: number | undefined, fallback: number | undefined, defaultValue: number = 0): number => {
+    return primary ?? fallback ?? defaultValue;
+  };
+
   const cards = [
     {
       title: 'Total Devices',
-      value: summary?.total_devices || 0,
+      value: getSafeValue(summary?.total_devices, summary?.totalDevices),
       icon: Car,
       description: 'All registered devices'
     },
     {
       title: 'Active Devices',
-      value: summary?.active_devices || 0,
+      value: getSafeValue(summary?.active_devices, summary?.activeDevices),
       icon: Activity,
       description: 'Currently active devices'
     },
     {
       title: 'Device Groups',
-      value: summary?.total_groups || 0,
+      value: getSafeValue(summary?.total_groups, summary?.totalGroups),
       icon: MapPin,
       description: 'Organized device groups'
     },
     {
       title: 'Total Users',
-      value: summary?.total_users || 0,
+      value: getSafeValue(summary?.total_users, summary?.totalUsers),
       icon: Users,
       description: 'System users'
     }

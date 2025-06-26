@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, RefreshCw, Car } from 'lucide-react';
-import type { GPS51Device } from '@/types/gp51';
+import type { GP51Device } from '@/types/gp51';
 
 interface DeviceTableProps {
-  devices: GPS51Device[];
+  devices: GP51Device[];
   loading: boolean;
   onRefresh: () => void;
 }
@@ -17,14 +17,31 @@ interface DeviceTableProps {
 const DeviceTable: React.FC<DeviceTableProps> = ({ devices, loading, onRefresh }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
-  const filteredDevices = devices.filter(device =>
-    device.device_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    device.device_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (device.gps51_groups?.group_name || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Safe property access helper
+  const getDeviceProps = (device: GP51Device) => ({
+    id: device.id || device.deviceid,
+    device_name: device.device_name || device.devicename,
+    device_id: device.device_id || device.deviceid,
+    device_type: device.device_type || device.devicetype,
+    sim_number: device.sim_number || device.simnum,
+    last_active_time: device.last_active_time || device.lastactivetime,
+    is_active: device.is_active ?? (device.status === 'active'),
+    starred: device.starred ?? false,
+    gps51_groups: typeof device.gps51_groups === 'string' ? device.gps51_groups : 'No Group'
+  });
 
-  const getStatusBadge = (device: GPS51Device) => {
-    if (device.is_active) {
+  const filteredDevices = devices.filter(device => {
+    const props = getDeviceProps(device);
+    return (
+      props.device_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      props.device_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      props.gps51_groups.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  });
+
+  const getStatusBadge = (device: GP51Device) => {
+    const props = getDeviceProps(device);
+    if (props.is_active) {
       return <Badge variant="default">Active</Badge>;
     }
     return <Badge variant="secondary">Inactive</Badge>;
@@ -32,11 +49,11 @@ const DeviceTable: React.FC<DeviceTableProps> = ({ devices, loading, onRefresh }
 
   const formatDate = (timestamp: number | null): string => {
     if (!timestamp) return 'N/A';
-    return new Date(timestamp).toLocaleString();
+    return new Date(timestamp * 1000).toLocaleString();
   };
 
-  const getStarredIcon = (starred: number | null) => {
-    return starred && starred > 0 ? '⭐' : '';
+  const getStarredIcon = (starred: boolean) => {
+    return starred ? '⭐' : '';
   };
 
   return (
@@ -49,7 +66,7 @@ const DeviceTable: React.FC<DeviceTableProps> = ({ devices, loading, onRefresh }
               Devices ({filteredDevices.length})
             </CardTitle>
             <CardDescription>
-              Manage and monitor your GPS51 devices
+              Manage and monitor your GP51 devices
             </CardDescription>
           </div>
           <Button variant="outline" onClick={onRefresh} disabled={loading}>
@@ -59,7 +76,6 @@ const DeviceTable: React.FC<DeviceTableProps> = ({ devices, loading, onRefresh }
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
@@ -70,7 +86,6 @@ const DeviceTable: React.FC<DeviceTableProps> = ({ devices, loading, onRefresh }
           />
         </div>
 
-        {/* Table */}
         <div className="rounded-md border">
           <Table>
             <TableHeader>
@@ -95,36 +110,39 @@ const DeviceTable: React.FC<DeviceTableProps> = ({ devices, loading, onRefresh }
                     ) : searchTerm ? (
                       `No devices found matching "${searchTerm}"`
                     ) : (
-                      'No devices available. Try importing data from GPS51.'
+                      'No devices available. Try importing data from GP51.'
                     )}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredDevices.map((device) => (
-                  <TableRow key={device.id}>
-                    <TableCell className="font-mono text-sm">
-                      {device.device_id}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-1">
-                        {device.device_name}
-                        {getStarredIcon(device.starred)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {device.gps51_groups?.group_name || 'No Group'}
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(device)}
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {device.sim_number || 'N/A'}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {formatDate(device.last_active_time)}
-                    </TableCell>
-                  </TableRow>
-                ))
+                filteredDevices.map((device) => {
+                  const props = getDeviceProps(device);
+                  return (
+                    <TableRow key={props.id}>
+                      <TableCell className="font-mono text-sm">
+                        {props.device_id}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-1">
+                          {props.device_name}
+                          {getStarredIcon(props.starred)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {props.gps51_groups}
+                      </TableCell>
+                      <TableCell>
+                        {getStatusBadge(device)}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {props.sim_number || 'N/A'}
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {formatDate(props.last_active_time)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>

@@ -9,14 +9,14 @@ import { toast } from "sonner";
 import DeviceTable from './DeviceTable';
 import GroupGrid from './GroupGrid';
 import StatisticsCards from './StatisticsCards';
-import { gps51DataService } from '@/services/gp51/GPS51DataService';
-import type { GPS51Group, GPS51Device, GPS51User, GPS51DashboardSummary } from '@/types/gp51';
+import { gp51DataService } from '@/services/gp51/GPS51DataService';
+import type { GP51Group, GP51Device, GP51User, GP51DashboardSummary } from '@/types/gp51';
 
 interface DashboardData {
-  groups: GPS51Group[];
-  devices: GPS51Device[];
-  users: GPS51User[];
-  summary: GPS51DashboardSummary;
+  groups: GP51Group[];
+  devices: GP51Device[];
+  users: GP51User[];
+  summary: GP51DashboardSummary;
 }
 
 const GPS51Dashboard: React.FC = () => {
@@ -25,11 +25,19 @@ const GPS51Dashboard: React.FC = () => {
     devices: [],
     users: [],
     summary: {
+      totalUsers: 0,
+      totalDevices: 0,
+      activeDevices: 0,
+      offlineDevices: 0,
+      totalGroups: 0,
+      lastUpdateTime: new Date(),
+      connectionStatus: 'disconnected',
+      apiResponseTime: 0,
+      total_users: 0,
       total_devices: 0,
       active_devices: 0,
-      total_groups: 0,
-      devices_with_positions: 0,
-      total_users: 0
+      offline_devices: 0,
+      total_groups: 0
     }
   });
 
@@ -37,14 +45,23 @@ const GPS51Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  // Safe property access helpers
+  const getUserProps = (user: GP51User) => ({
+    id: user.id || user.username,
+    nickname: user.nickname || user.showname,
+    gp51_username: user.gp51_username || user.username,
+    company_name: user.company_name || user.companyname,
+    is_active: user.is_active ?? true
+  });
+
   const loadData = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      console.log('🔄 Loading GPS51 dashboard data...');
+      console.log('🔄 Loading GP51 dashboard data...');
       
-      const result = await gps51DataService.getDataDirectly();
+      const result = await gp51DataService.getDataDirectly();
       
       if (result.success && result.data) {
         setData(result.data);
@@ -74,14 +91,13 @@ const GPS51Dashboard: React.FC = () => {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl font-bold">GPS51 Dashboard</CardTitle>
+              <CardTitle className="text-2xl font-bold">GP51 Dashboard</CardTitle>
               <p className="text-muted-foreground">
-                Monitor your GPS51 devices, groups, and users
+                Monitor your GP51 devices, groups, and users
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -99,13 +115,12 @@ const GPS51Dashboard: React.FC = () => {
         </CardHeader>
       </Card>
 
-      {/* Status Messages */}
       {loading && (
         <Card>
           <CardContent className="py-6">
             <div className="flex items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin mr-2" />
-              <span>Loading GPS51 data...</span>
+              <span>Loading GP51 data...</span>
             </div>
           </CardContent>
         </Card>
@@ -127,45 +142,42 @@ const GPS51Dashboard: React.FC = () => {
 
       {!loading && !error && (
         <>
-          {/* Summary Statistics */}
           <StatisticsCards summary={data.summary} />
-
-          {/* Groups Section */}
           <GroupGrid 
             groups={data.groups} 
             loading={loading} 
             onRefresh={handleRefresh}
           />
-
-          {/* Devices Section */}
           <DeviceTable 
             devices={data.devices} 
             loading={loading} 
             onRefresh={handleRefresh}
           />
 
-          {/* Users Summary */}
           {data.users.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>GPS51 Users ({data.users.length})</CardTitle>
+                <CardTitle>GP51 Users ({data.users.length})</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {data.users.slice(0, 6).map((user) => (
-                    <div key={user.id} className="p-4 border rounded-lg">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-medium">{user.nickname}</h4>
-                          <p className="text-sm text-muted-foreground">@{user.gp51_username}</p>
-                          <p className="text-sm text-muted-foreground">{user.company_name}</p>
+                  {data.users.slice(0, 6).map((user) => {
+                    const props = getUserProps(user);
+                    return (
+                      <div key={props.id} className="p-4 border rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <h4 className="font-medium">{props.nickname}</h4>
+                            <p className="text-sm text-muted-foreground">@{props.gp51_username}</p>
+                            <p className="text-sm text-muted-foreground">{props.company_name}</p>
+                          </div>
+                          <Badge variant={props.is_active ? "default" : "secondary"}>
+                            {props.is_active ? "Active" : "Inactive"}
+                          </Badge>
                         </div>
-                        <Badge variant={user.is_active ? "default" : "secondary"}>
-                          {user.is_active ? "Active" : "Inactive"}
-                        </Badge>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {data.users.length > 6 && (
                   <p className="text-center text-muted-foreground text-sm mt-4">
