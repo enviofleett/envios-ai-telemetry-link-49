@@ -10,6 +10,16 @@ export interface GP51TestResult {
   details?: string;
 }
 
+export interface GP51AuthResponse {
+  success: boolean;
+  status: string;
+  cause?: string;
+  error?: string;
+  token?: string;
+  username?: string;
+  expiresAt?: string;
+}
+
 export interface GP51DeviceData {
   deviceId: string;
   deviceName: string;
@@ -79,16 +89,6 @@ export interface GP51Group {
   // Alternative naming support
   groupid?: number;
   groupname?: string;
-}
-
-export interface GP51AuthResponse {
-  success: boolean;
-  status: string;
-  cause?: string;
-  error?: string;
-  token?: string;
-  username?: string;
-  expiresAt?: string;
 }
 
 export interface GP51Position {
