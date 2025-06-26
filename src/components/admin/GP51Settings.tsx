@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
-import { Loader2, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, XCircle, Wifi, RefreshCw } from 'lucide-react';
 
 const GP51Settings: React.FC = () => {
   const [credentials, setCredentials] = useState({
@@ -17,6 +17,8 @@ const GP51Settings: React.FC = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [connectionSuccess, setConnectionSuccess] = useState(false);
+  const [connectionDetails, setConnectionDetails] = useState<any>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const { toast } = useToast();
   const { authenticate, isAuthenticated, isLoading, error } = useUnifiedGP51Service();
@@ -30,21 +32,33 @@ const GP51Settings: React.FC = () => {
     setIsConnecting(true);
     setConnectionError(null);
     setConnectionSuccess(false);
+    setConnectionDetails(null);
 
     try {
-      console.log('🔐 Starting GP51 authentication...');
+      console.log('🔐 Starting GP51 authentication...', { username: credentials.username });
       
+      const startTime = Date.now();
       const result = await authenticate(credentials.username, credentials.password);
+      const responseTime = Date.now() - startTime;
+      
+      console.log('🔐 Authentication result:', result);
+      
+      setConnectionDetails({
+        responseTime,
+        timestamp: new Date().toISOString(),
+        result
+      });
       
       if (result.success) {
         setConnectionSuccess(true);
         setConnectionError(null);
         toast({
           title: "Connection Successful",
-          description: `Successfully connected to GP51 as ${credentials.username}`,
+          description: `Successfully connected to GP51 as ${credentials.username} (${responseTime}ms)`,
         });
       } else {
-        const errorMessage = result.error || 'Authentication failed - please check your credentials';
+        const errorMessage = result.error || result.cause || 'Authentication failed - please check your credentials';
+        console.error('❌ Authentication failed:', errorMessage);
         setConnectionError(errorMessage);
         toast({
           title: "Authentication Failed",
@@ -56,6 +70,12 @@ const GP51Settings: React.FC = () => {
       const errorMessage = err instanceof Error ? err.message : 'Connection failed unexpectedly';
       console.error('❌ GP51 authentication error:', err);
       setConnectionError(errorMessage);
+      setConnectionDetails({
+        responseTime: 0,
+        timestamp: new Date().toISOString(),
+        error: errorMessage,
+        stack: err instanceof Error ? err.stack : undefined
+      });
       toast({
         title: "Connection Error",
         description: errorMessage,
@@ -69,7 +89,40 @@ const GP51Settings: React.FC = () => {
   const handleDisconnect = async () => {
     setConnectionSuccess(false);
     setConnectionError(null);
+    setConnectionDetails(null);
     // Add disconnect logic here if needed
+  };
+
+  const testEdgeFunction = async () => {
+    try {
+      console.log('🧪 Testing edge function directly...');
+      const response = await fetch('/api/gp51-hybrid-auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: 'test',
+          password: 'test'
+        })
+      });
+      
+      const data = await response.text();
+      console.log('Edge function test response:', { status: response.status, data });
+      
+      toast({
+        title: "Edge Function Test",
+        description: `Status: ${response.status} - Check console for details`,
+        variant: response.ok ? "default" : "destructive"
+      });
+    } catch (error) {
+      console.error('Edge function test failed:', error);
+      toast({
+        title: "Edge Function Test Failed",
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: "destructive"
+      });
+    }
   };
 
   const getConnectionStatus = () => {
@@ -77,7 +130,8 @@ const GP51Settings: React.FC = () => {
       return {
         icon: <Loader2 className="h-4 w-4 animate-spin" />,
         text: 'Connecting...',
-        color: 'text-blue-600'
+        color: 'text-blue-600',
+        bgColor: 'bg-blue-50 border-blue-200'
       };
     }
     
@@ -85,22 +139,25 @@ const GP51Settings: React.FC = () => {
       return {
         icon: <CheckCircle className="h-4 w-4" />,
         text: 'Connected',
-        color: 'text-green-600'
+        color: 'text-green-600',
+        bgColor: 'bg-green-50 border-green-200'
       };
     }
     
     if (connectionError || error) {
       return {
         icon: <XCircle className="h-4 w-4" />,
-        text: 'Disconnected',
-        color: 'text-red-600'
+        text: 'Failed',
+        color: 'text-red-600',
+        bgColor: 'bg-red-50 border-red-200'
       };
     }
     
     return {
-      icon: <XCircle className="h-4 w-4" />,
+      icon: <Wifi className="h-4 w-4" />,
       text: 'Not Connected',
-      color: 'text-gray-600'
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-50 border-gray-200'
     };
   };
 
@@ -109,25 +166,60 @@ const GP51Settings: React.FC = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          GP51 Platform Connection
-          <div className={`flex items-center gap-1 ${status.color}`}>
-            {status.icon}
-            <span className="text-sm">{status.text}</span>
-          </div>
+        <CardTitle className="flex items-center justify-between">
+          <span>GP51 Platform Connection</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDiagnostics(!showDiagnostics)}
+          >
+            Diagnostics
+          </Button>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Connection Status Alert */}
+        {/* Enhanced Connection Status */}
+        <div className={`p-3 rounded border ${status.bgColor}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {status.icon}
+              <span className={`font-medium ${status.color}`}>{status.text}</span>
+            </div>
+            {connectionDetails && (
+              <span className="text-xs text-gray-500">
+                {connectionDetails.responseTime}ms
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Enhanced Error Display */}
         {connectionError && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              <strong>Connection Failed:</strong> {connectionError}
-              <br />
-              <small className="text-xs mt-1 block">
-                Please verify your GP51 credentials and ensure the GP51 platform is accessible.
-              </small>
+              <div className="space-y-2">
+                <div><strong>Connection Failed:</strong> {connectionError}</div>
+                <div className="text-xs">
+                  Please verify your GP51 credentials and ensure the GP51 platform is accessible.
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setConnectionError(null)}
+                  >
+                    Dismiss
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={testEdgeFunction}
+                  >
+                    Test Edge Function
+                  </Button>
+                </div>
+              </div>
             </AlertDescription>
           </Alert>
         )}
@@ -137,8 +229,61 @@ const GP51Settings: React.FC = () => {
             <CheckCircle className="h-4 w-4" />
             <AlertDescription>
               Successfully connected to GP51 platform as <strong>{credentials.username}</strong>
+              {connectionDetails && (
+                <div className="text-xs mt-1">
+                  Connected at {new Date(connectionDetails.timestamp).toLocaleString()}
+                </div>
+              )}
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Diagnostics Panel */}
+        {showDiagnostics && (
+          <div className="border rounded p-3 bg-gray-50">
+            <h4 className="font-medium mb-2">Connection Diagnostics</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Authentication State:</span>
+                <span className={isAuthenticated ? 'text-green-600' : 'text-red-600'}>
+                  {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Service Loading:</span>
+                <span>{isLoading ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Service Error:</span>
+                <span className="text-red-600">{error || 'None'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Last Connection Error:</span>
+                <span className="text-red-600">{connectionError || 'None'}</span>
+              </div>
+              {connectionDetails && (
+                <div className="mt-2 p-2 bg-white rounded text-xs">
+                  <strong>Last Attempt Details:</strong>
+                  <pre className="mt-1 overflow-x-auto">
+                    {JSON.stringify(connectionDetails, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" variant="outline" onClick={testEdgeFunction}>
+                Test Edge Function
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => window.location.reload()}
+              >
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Reload Page
+              </Button>
+            </div>
+          </div>
         )}
 
         {/* Credentials Form */}
@@ -195,17 +340,6 @@ const GP51Settings: React.FC = () => {
             </Button>
           )}
         </div>
-
-        {/* Debug Information */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs">
-            <strong>Debug Info:</strong>
-            <div>Authentication State: {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}</div>
-            <div>Loading: {isLoading ? 'Yes' : 'No'}</div>
-            <div>Service Error: {error || 'None'}</div>
-            <div>Connection Error: {connectionError || 'None'}</div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
