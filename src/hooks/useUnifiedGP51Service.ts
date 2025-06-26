@@ -19,6 +19,10 @@ export const useUnifiedGP51Service = () => {
   const [healthStatus, setHealthStatus] = useState<GP51HealthStatus | null>(null);
   const [performanceMetrics, setPerformanceMetrics] = useState<GP51PerformanceMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [positionsLoading, setPositionsLoading] = useState(false);
+  const [groupsLoading, setGroupsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -136,6 +140,7 @@ export const useUnifiedGP51Service = () => {
 
   // Add missing methods
   const fetchDevices = useCallback(async () => {
+    setDevicesLoading(true);
     try {
       const result = await gp51DataService.queryMonitorList();
       if (result.success && result.data) {
@@ -143,10 +148,13 @@ export const useUnifiedGP51Service = () => {
       }
     } catch (err) {
       console.error('Error fetching devices:', err);
+    } finally {
+      setDevicesLoading(false);
     }
   }, []);
 
   const connect = useCallback(async () => {
+    setLoading(true);
     try {
       const connected = await unifiedGP51Service.connect();
       if (connected) {
@@ -155,8 +163,36 @@ export const useUnifiedGP51Service = () => {
       }
     } catch (err) {
       console.error('Error connecting:', err);
+    } finally {
+      setLoading(false);
     }
   }, [refreshAllData]);
+
+  const fetchPositions = useCallback(async () => {
+    setPositionsLoading(true);
+    try {
+      const positionData = await gp51DataService.getPositions();
+      setPositions(positionData);
+    } catch (err) {
+      console.error('Error fetching positions:', err);
+    } finally {
+      setPositionsLoading(false);
+    }
+  }, []);
+
+  const fetchGroups = useCallback(async () => {
+    setGroupsLoading(true);
+    try {
+      const result = await gp51DataService.queryMonitorList();
+      if (result.success && result.groups) {
+        setGroups(Object.values(result.groups));
+      }
+    } catch (err) {
+      console.error('Error fetching groups:', err);
+    } finally {
+      setGroupsLoading(false);
+    }
+  }, []);
 
   const queryMonitorList = useCallback(async () => {
     return gp51DataService.queryMonitorList();
@@ -212,6 +248,15 @@ export const useUnifiedGP51Service = () => {
     setPerformanceMetrics(null);
   }, []);
 
+  const refreshHealthStatus = useCallback(async () => {
+    try {
+      const health = await gp51DataService.testConnection();
+      setHealthStatus(health);
+    } catch (err) {
+      console.error('Error refreshing health status:', err);
+    }
+  }, []);
+
   return {
     // State
     session,
@@ -221,6 +266,10 @@ export const useUnifiedGP51Service = () => {
     healthStatus,
     performanceMetrics,
     isLoading,
+    loading,
+    devicesLoading,
+    positionsLoading, 
+    groupsLoading,
     error,
     
     // Computed properties
@@ -236,6 +285,9 @@ export const useUnifiedGP51Service = () => {
     getLastPositions,
     getConnectionHealth,
     testConnection,
-    refreshAllData
+    refreshAllData,
+    fetchPositions,
+    fetchGroups,
+    refreshHealthStatus
   };
 };
