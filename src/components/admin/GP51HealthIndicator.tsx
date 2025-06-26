@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, AlertCircle, XCircle, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
-import type { GP51HealthStatus } from '@/types/gp51';
+import type { GP51HealthStatus } from '@/types/gp51-unified';
 
 interface GP51HealthIndicatorProps {
   onStatusChange?: (status: any) => void;
@@ -40,14 +40,15 @@ const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({
     } catch (error) {
       console.error('❌ Health check failed:', error);
       const errorStatus: GP51HealthStatus = {
+        status: 'failed',
+        lastCheck: new Date(),
+        responseTime: 0,
         isConnected: false,
         lastPingTime: new Date(),
-        responseTime: -1,
         tokenValid: false,
         sessionValid: false,
         activeDevices: 0,
         errors: [error instanceof Error ? error.message : 'Health check failed'],
-        lastCheck: new Date(),
         errorMessage: error instanceof Error ? error.message : 'Health check failed'
       };
       

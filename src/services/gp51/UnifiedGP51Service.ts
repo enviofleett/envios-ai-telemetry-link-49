@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { GP51HealthStatus, GP51AuthResponse, GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
 
@@ -103,7 +102,7 @@ export class UnifiedGP51Service {
         return {
           status: 'failed',
           lastCheck: new Date(),
-          responseTime,
+          responseTime, // Always provide responseTime
           errors: [error?.message || 'Health check failed'],
           isConnected: false,
           lastPingTime: new Date(),
@@ -117,7 +116,7 @@ export class UnifiedGP51Service {
       return {
         status: 'healthy',
         lastCheck: new Date(),
-        responseTime,
+        responseTime, // Always provide responseTime
         isConnected: this.isAuthenticated,
         lastPingTime: new Date(),
         tokenValid: !!this.session?.token,
@@ -129,6 +128,7 @@ export class UnifiedGP51Service {
       return {
         status: 'failed',
         lastCheck: new Date(),
+        responseTime: 0, // Always provide responseTime, default to 0 on error
         errors: [error.message],
         isConnected: false,
         lastPingTime: new Date(),
