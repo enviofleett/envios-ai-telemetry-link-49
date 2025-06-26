@@ -33,12 +33,14 @@ export const GP51ConnectionTester: React.FC = () => {
     setIsLoading(true);
     
     try {
+      console.log('🧪 Starting GP51 connection test...');
+      
       const result = await testConnection();
       
       setTestResult({
         success: result.success,
         message: result.success ? 'GP51 connection is working properly' : (result.error || 'Connection test failed'),
-        data: result.data,
+        data: result.success ? { message: 'Connection successful', ...result.data } : null,
         timestamp: new Date()
       });
 
