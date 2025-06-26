@@ -91,3 +91,6 @@ export class GP51DataService {
     };
   }
 }
+
+// Create and export singleton instance
+export const gp51DataService = new GP51DataService();
