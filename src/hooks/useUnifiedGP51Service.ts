@@ -21,6 +21,7 @@ export interface UseUnifiedGP51ServiceReturn {
   authenticate: (username: string, password: string) => Promise<boolean>;
   authenticateAdmin: (username: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  disconnect: () => Promise<void>;
   
   // Data fetching methods
   fetchMonitorList: () => Promise<{ users: GP51User[]; devices: GP51Device[] } | null>;
@@ -28,9 +29,19 @@ export interface UseUnifiedGP51ServiceReturn {
   
   // Health monitoring
   checkHealth: () => Promise<GP51HealthStatus | null>;
+  getConnectionHealth: () => Promise<GP51HealthStatus | null>;
+  testConnection: () => Promise<{ success: boolean; error?: string }>;
   
   // Device commands
   sendCommand: (deviceId: string, command: string, parameters?: any[]) => Promise<boolean>;
+  
+  // Additional properties for dashboard compatibility
+  isAuthenticated: boolean;
+  currentUser: string | null;
+  users: GP51User[];
+  devices: GP51Device[];
+  fetchUsers: () => Promise<void>;
+  fetchDevices: () => Promise<void>;
   
   // Utility methods
   clearError: () => void;
@@ -40,6 +51,8 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
   const [session, setSession] = useState<GP51Session | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [users, setUsers] = useState<GP51User[]>([]);
+  const [devices, setDevices] = useState<GP51Device[]>([]);
   const { toast } = useToast();
 
   // Update session state when service session changes
@@ -109,6 +122,8 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
     try {
       await unifiedGP51Service.disconnect();
       setSession(null);
+      setUsers([]);
+      setDevices([]);
       toast({
         title: "Logged Out",
         description: "Disconnected from GP51",
@@ -126,15 +141,36 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
     }
   }, [toast]);
 
+  const disconnect = useCallback(async (): Promise<void> => {
+    await logout();
+  }, [logout]);
+
   const checkHealth = useCallback(async (): Promise<GP51HealthStatus | null> => {
     try {
-      const health = await unifiedGP51Service.getConnectionHealth();
+      const health = await unifiedGP51Service.getHealthStatus();
       return health;
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Health check failed');
       return null;
     }
   }, []);
+
+  const getConnectionHealth = useCallback(async (): Promise<GP51HealthStatus | null> => {
+    return await checkHealth();
+  }, [checkHealth]);
+
+  const testConnection = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const health = await checkHealth();
+      if (health && health.status === 'healthy') {
+        return { success: true };
+      } else {
+        return { success: false, error: health?.connectionDetails?.errorCount ? 'Connection issues detected' : 'Connection test failed' };
+      }
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Connection test failed' };
+    }
+  }, [checkHealth]);
 
   const fetchMonitorList = useCallback(async (): Promise<{ users: GP51User[]; devices: GP51Device[] } | null> => {
     setIsLoading(true);
@@ -143,6 +179,8 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
       const result = await unifiedGP51Service.queryMonitorList();
       
       if (result.success && result.data) {
+        setUsers(result.data.users);
+        setDevices(result.data.devices);
         return result.data;
       } else {
         setError(result.error || 'Failed to fetch monitor list');
@@ -156,6 +194,20 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
       setIsLoading(false);
     }
   }, []);
+
+  const fetchUsers = useCallback(async (): Promise<void> => {
+    const result = await fetchMonitorList();
+    if (result) {
+      setUsers(result.users);
+    }
+  }, [fetchMonitorList]);
+
+  const fetchDevices = useCallback(async (): Promise<void> => {
+    const result = await fetchMonitorList();
+    if (result) {
+      setDevices(result.devices);
+    }
+  }, [fetchMonitorList]);
 
   const fetchPositions = useCallback(async (deviceIds?: string[]): Promise<any[] | null> => {
     setIsLoading(true);
@@ -221,10 +273,19 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
     authenticate,
     authenticateAdmin,
     logout,
+    disconnect,
     fetchMonitorList,
     fetchPositions,
     checkHealth,
+    getConnectionHealth,
+    testConnection,
     sendCommand,
     clearError,
+    isAuthenticated: unifiedGP51Service.isAuthenticated,
+    currentUser: unifiedGP51Service.currentUsername,
+    users,
+    devices,
+    fetchUsers,
+    fetchDevices,
   };
 };

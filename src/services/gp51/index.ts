@@ -15,3 +15,10 @@ export type {
 
 // Re-export commonly used service instances
 export { unifiedGP51Service } from './UnifiedGP51Service';
+
+// Fix for GP51Session type to include isConnected
+declare module './UnifiedGP51Service' {
+  interface GP51Session {
+    isConnected?: boolean;
+  }
+}

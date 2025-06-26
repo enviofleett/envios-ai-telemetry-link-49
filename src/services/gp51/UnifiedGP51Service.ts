@@ -78,13 +78,14 @@ export class UnifiedGP51Service {
       const result = await productionGP51Service.authenticate(username, password);
       
       if (result.status === 0) {
-        // Create session object
+        // Create session object with isConnected property
         this.currentSession = {
           id: `session_${Date.now()}`,
           username: username,
           token: result.token!,
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
           isActive: true,
+          isConnected: true, // Add this property
           apiUrl: 'https://www.gps51.com/webapi'
         };
 
