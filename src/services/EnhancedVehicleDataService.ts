@@ -5,9 +5,16 @@ import {
   VehicleMetrics, 
   SyncMetrics, 
   VehicleEvent, 
-  SyncStatus, 
   EnhancedVehicleData 
 } from '@/types/vehicle';
+
+// Define SyncStatus as an object interface, not a union
+export interface SyncStatus {
+  isConnected: boolean;
+  lastSync: Date;
+  isSync: boolean;
+  status?: string;
+}
 
 export class EnhancedVehicleDataService {
   private vehicles: VehicleData[] = [];
@@ -21,7 +28,8 @@ export class EnhancedVehicleDataService {
   private syncStatus: SyncStatus = {
     isConnected: false,
     lastSync: new Date(),
-    isSync: false
+    isSync: false,
+    status: 'disconnected'
   };
 
   constructor() {
@@ -68,7 +76,6 @@ export class EnhancedVehicleDataService {
     this.subscribers.delete(subscriberId);
   }
 
-  // Fixed: Change return type from Promise<void> to Promise<VehicleData[]>
   async getVehicleData(): Promise<VehicleData[]> {
     try {
       this.isLoading = true;
@@ -81,7 +88,7 @@ export class EnhancedVehicleDataService {
       this.lastUpdate = new Date();
       this.updateMetrics();
       
-      return this.vehicles; // Return the vehicles array
+      return this.vehicles;
     } catch (error) {
       this.error = error instanceof Error ? error : new Error('Failed to fetch vehicle data');
       throw this.error;
@@ -121,6 +128,7 @@ export class EnhancedVehicleDataService {
 
       this.syncStatus.lastSync = new Date();
       this.syncStatus.isConnected = true;
+      this.syncStatus.status = 'connected';
       
     } catch (error) {
       if (this.syncMetrics) {
@@ -128,6 +136,7 @@ export class EnhancedVehicleDataService {
         this.syncMetrics.errors.push(error instanceof Error ? error.message : 'Unknown sync error');
       }
       this.syncStatus.isConnected = false;
+      this.syncStatus.status = 'error';
       throw error;
     } finally {
       this.syncStatus.isSync = false;
@@ -142,7 +151,7 @@ export class EnhancedVehicleDataService {
   async acknowledgeEvent(eventId: string): Promise<void> {
     const eventIndex = this.events.findIndex(e => e.id === eventId);
     if (eventIndex >= 0) {
-      this.events[eventIndex].acknowledged = true;
+      this.events[eventIndex].isAcknowledged = true;
       this.notifySubscribers();
     }
   }
@@ -153,8 +162,8 @@ export class EnhancedVehicleDataService {
       isLoading: this.isLoading,
       error: this.error,
       lastUpdate: this.lastUpdate,
-      refetch: async () => { await this.getVehicleData(); }, // Fixed: wrap in async function
-      syncStatus: this.syncStatus,
+      refetch: async () => { await this.getVehicleData(); },
+      syncStatus: this.syncStatus.status || 'disconnected',
       isConnected: this.syncStatus.isConnected,
       forceSync: () => this.forceSync(),
       events: this.events,
@@ -209,6 +218,7 @@ export class EnhancedVehicleDataService {
       id: `vehicle_${i + 1}`,
       device_id: `device_${i + 1}`,
       device_name: `Vehicle ${i + 1}`,
+      name: `Vehicle ${i + 1}`,
       gp51_device_id: `gp51_${i + 1}`,
       last_position: {
         latitude: 52.0 + Math.random() * 0.1,
@@ -231,9 +241,13 @@ export class EnhancedVehicleDataService {
       group_id: `group_${Math.floor(i / 3) + 1}`,
       owner_id: 'octopus',
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      alerts: []
     }));
   }
 }
 
 export const enhancedVehicleDataService = new EnhancedVehicleDataService();
+
+// Export types for external use
+export type { VehicleData, VehicleEvent, EnhancedVehicleData } from '@/types/vehicle';

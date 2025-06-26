@@ -1,87 +1,66 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData } from '@/types/vehicle';
-import { enhancedVehicleDataService } from '@/services/EnhancedVehicleDataService';
-import { useToast } from '@/hooks/use-toast';
 
-export const useOptimizedVehicleData = () => {
-  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
-  
-  const isMountedRef = useRef(true);
-  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastUpdateRef = useRef<number>(0);
-  
-  const debouncedUpdate = useCallback((newVehicles: VehicleData[]) => {
-    if (!isMountedRef.current) return;
-    
-    const now = Date.now();
-    const timeSinceLastUpdate = now - lastUpdateRef.current;
-    
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
+interface UseOptimizedVehicleDataOptions {
+  refetchInterval?: number;
+  enabled?: boolean;
+}
+
+export function useOptimizedVehicleData(options: UseOptimizedVehicleDataOptions = {}) {
+  const { refetchInterval = 30000, enabled = true } = options;
+
+  const query = useQuery({
+    queryKey: ['optimized-vehicles'],
+    queryFn: async (): Promise<VehicleData[]> => {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching vehicles:', error);
+        throw error;
+      }
+
+      // Transform database records to VehicleData format
+      return (data || []).map(item => ({
+        id: item.id,
+        device_id: item.gp51_device_id || item.id,
+        device_name: item.name || `Vehicle ${item.id}`,
+        name: item.name || `Vehicle ${item.id}`,
+        gp51_device_id: item.gp51_device_id || item.id,
+        user_id: item.user_id,
+        sim_number: item.sim_number,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        is_active: item.is_active || false,
+        isOnline: false,
+        isMoving: false,
+        lastUpdate: new Date(item.updated_at),
+        alerts: [],
+        status: 'offline' as const,
+        last_position: null
+      }));
+    },
+    refetchInterval: enabled ? refetchInterval : false,
+    enabled
+  });
+
+  // Fix: Ensure refetch is a callable function
+  const refetch = useCallback(async () => {
+    if (query.refetch) {
+      return await query.refetch();
     }
-    
-    const delay = timeSinceLastUpdate < 1000 ? 500 : 0;
-    
-    updateTimeoutRef.current = setTimeout(() => {
-      if (isMountedRef.current) {
-        setVehicles(newVehicles);
-        lastUpdateRef.current = now;
-      }
-    }, delay);
-  }, []);
-
-  const refreshData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await enhancedVehicleDataService.getVehicleData();
-      debouncedUpdate(data);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load vehicle data';
-      setError(errorMessage);
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [debouncedUpdate, toast]);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    
-    const subscriberId = `optimized_${Date.now()}_${Math.random()}`;
-    
-    const unsubscribe = enhancedVehicleDataService.subscribe(subscriberId, (data) => {
-      if (isMountedRef.current) {
-        debouncedUpdate(data.vehicles);
-        setIsLoading(data.isLoading);
-        setError(data.error?.message || null);
-      }
-    });
-
-    refreshData();
-
-    return () => {
-      isMountedRef.current = false;
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-      unsubscribe();
-    };
-  }, [refreshData, debouncedUpdate]);
+    return Promise.resolve();
+  }, [query.refetch]);
 
   return {
-    vehicles,
-    isLoading,
-    error,
-    refreshData,
-    forceSync: () => enhancedVehicleDataService.forceSync()
+    vehicles: query.data || [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch
   };
-};
+}
