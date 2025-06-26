@@ -1,391 +1,215 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
+import { gp51DataService } from '@/services/gp51/GP51DataService';
 import type { 
-  GP51AuthResponse, 
+  GP51HealthStatus, 
   GP51DeviceData, 
   GP51Position, 
   GP51Group,
-  GP51HealthStatus 
+  GP51PerformanceMetrics 
 } from '@/types/gp51-unified';
 
 export const useUnifiedGP51Service = () => {
-  // State management
-  const [isConnected, setIsConnected] = useState(false);
   const [session, setSession] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [devices, setDevices] = useState<GP51DeviceData[]>([]);
-  const [groups, setGroups] = useState<GP51Group[]>([]);
   const [positions, setPositions] = useState<GP51Position[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
+  const [groups, setGroups] = useState<GP51Group[]>([]);
+  const [healthStatus, setHealthStatus] = useState<GP51HealthStatus | null>(null);
+  const [performanceMetrics, setPerformanceMetrics] = useState<GP51PerformanceMetrics | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  // Check for existing session on load
+  // Load existing session on mount
   useEffect(() => {
-    const savedSession = localStorage.getItem('gp51_session');
-    if (savedSession) {
+    const loadSession = async () => {
       try {
-        const parsedSession = JSON.parse(savedSession);
-        setSession(parsedSession);
-        setIsAuthenticated(true);
-        setIsConnected(true);
-        setCurrentUser(parsedSession.username);
-        
-        // Auto-load data if session exists
-        queryMonitorList();
-      } catch (error) {
-        console.error('Failed to parse saved session:', error);
-        localStorage.removeItem('gp51_session');
+        const sessionLoaded = await unifiedGP51Service.loadExistingSession();
+        if (sessionLoaded) {
+          setSession(unifiedGP51Service.session);
+          console.log('✅ Loaded existing GP51 session');
+        }
+      } catch (err) {
+        console.log('ℹ️ No existing GP51 session found');
       }
+    };
+
+    loadSession();
+  }, []);
+
+  // Auto-refresh data when session is available
+  useEffect(() => {
+    if (session) {
+      refreshAllData();
+      
+      // Set up periodic refresh every 30 seconds
+      const interval = setInterval(() => {
+        refreshAllData();
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [session]);
+
+  const refreshAllData = useCallback(async () => {
+    if (!session) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('🔄 Refreshing all GP51 data...');
+      
+      // Fetch all data in parallel
+      const [devicesResult, positionsResult, healthResult, metricsResult] = await Promise.all([
+        gp51DataService.queryMonitorList(),
+        gp51DataService.getPositions(),
+        gp51DataService.testConnection(),
+        gp51DataService.getPerformanceMetrics()
+      ]);
+
+      // Update devices
+      if (devicesResult.success && devicesResult.data) {
+        setDevices(devicesResult.data);
+        console.log(`✅ Updated ${devicesResult.data.length} devices`);
+      }
+
+      // Update positions with enhanced filtering
+      if (positionsResult.length > 0) {
+        // Filter out invalid positions and ensure all required properties
+        const validPositions = positionsResult.filter(pos => 
+          pos.latitude !== 0 && 
+          pos.longitude !== 0 && 
+          pos.deviceId
+        ).map(pos => ({
+          ...pos,
+          isOnline: pos.isOnline !== undefined ? pos.isOnline : isPositionRecent(pos.timestamp),
+          isMoving: pos.isMoving !== undefined ? pos.isMoving : pos.speed > 5
+        }));
+        
+        setPositions(validPositions);
+        console.log(`✅ Updated ${validPositions.length} positions`);
+      }
+
+      // Update health status
+      setHealthStatus(healthResult);
+      
+      // Update performance metrics
+      setPerformanceMetrics(metricsResult);
+
+      // Update groups if available
+      if (devicesResult.groups) {
+        setGroups(Object.values(devicesResult.groups));
+      }
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to refresh data';
+      setError(errorMessage);
+      console.error('❌ Error refreshing GP51 data:', err);
+      
+      toast({
+        title: "Data Refresh Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [session, toast]);
+
+  // Helper function to determine if position is recent
+  const isPositionRecent = (timestamp: number | string): boolean => {
+    let positionTime: Date;
+    
+    if (typeof timestamp === 'string') {
+      positionTime = new Date(timestamp);
+    } else {
+      positionTime = new Date(timestamp * 1000);
+    }
+    
+    const now = new Date();
+    const diffMinutes = (now.getTime() - positionTime.getTime()) / (1000 * 60);
+    return diffMinutes <= 10;
+  };
+
+  const queryMonitorList = useCallback(async () => {
+    return gp51DataService.queryMonitorList();
+  }, []);
+
+  const getLastPositions = useCallback(async (deviceIds?: string[]) => {
+    const allPositions = await gp51DataService.getPositions();
+    return deviceIds ? allPositions.filter(pos => deviceIds.includes(pos.deviceId)) : allPositions;
+  }, []);
+
+  const getConnectionHealth = useCallback(async () => {
+    return gp51DataService.testConnection();
+  }, []);
+
+  const testConnection = useCallback(async () => {
+    try {
+      const health = await gp51DataService.testConnection();
+      return {
+        success: health.isHealthy,
+        message: health.isHealthy ? 'Connection successful' : health.errorMessage || 'Connection failed'
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Connection test failed'
+      };
     }
   }, []);
 
-  // Authentication methods
-  const authenticate = async (username: string, password: string): Promise<GP51AuthResponse> => {
+  const authenticate = useCallback(async (username: string, password: string) => {
     try {
-      setIsLoading(true);
-      setError('');
-
-      console.log('🔐 Authenticating user:', username);
-
-      const response = await fetch('/functions/v1/gp51-hybrid-auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        const sessionData = {
-          token: data.token,
-          username: data.username,
-          expiresAt: data.expiresAt
-        };
-
-        setSession(sessionData);
-        setIsAuthenticated(true);
-        setIsConnected(true);
-        setCurrentUser(data.username);
-
-        // Persist session
-        localStorage.setItem('gp51_session', JSON.stringify(sessionData));
-
-        // Auto-load data after successful authentication
-        await queryMonitorList();
-
-        console.log('✅ Authentication successful');
-        return {
-          success: true,
-          status: 'authenticated',
-          token: data.token,
-          username: data.username
-        };
-      } else {
-        setError(data.error || 'Authentication failed');
-        return {
-          success: false,
-          status: 'error',
-          error: data.error || 'Authentication failed'
-        };
+      const result = await unifiedGP51Service.authenticate(username, password);
+      if (result.success) {
+        setSession(unifiedGP51Service.session);
       }
+      return result;
     } catch (error) {
-      const errorMsg = `Authentication error: ${error instanceof Error ? error.message : 'Unknown error'}`;
-      setError(errorMsg);
-      console.error('❌ Authentication error:', error);
       return {
         success: false,
         status: 'error',
-        error: errorMsg
-      };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const connect = async (): Promise<boolean> => {
-    try {
-      setIsLoading(true);
-      
-      // Try to restore existing session
-      const savedSession = localStorage.getItem('gp51_session');
-      if (savedSession) {
-        const sessionData = JSON.parse(savedSession);
-        
-        // Check if session is still valid (simple expiry check)
-        if (sessionData.expiresAt && new Date(sessionData.expiresAt) > new Date()) {
-          setSession(sessionData);
-          setIsConnected(true);
-          setIsAuthenticated(true);
-          setCurrentUser(sessionData.username);
-          await queryMonitorList();
-          return true;
-        }
-      }
-      
-      // If no valid session, connection requires authentication
-      setError('No valid session found. Please authenticate.');
-      return false;
-    } catch (error) {
-      console.error('Connection error:', error);
-      setError(`Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const disconnect = async (): Promise<void> => {
-    try {
-      console.log('🔌 Disconnecting from GP51...');
-      
-      setSession(null);
-      setIsAuthenticated(false);
-      setIsConnected(false);
-      setCurrentUser(null);
-      setDevices([]);
-      setGroups([]);
-      setPositions([]);
-      setError('');
-
-      // Clear stored session
-      localStorage.removeItem('gp51_session');
-      localStorage.removeItem('gp51_last_query_time');
-
-      console.log('✅ Disconnected successfully');
-    } catch (error) {
-      console.error('Disconnect error:', error);
-    }
-  };
-
-  const testConnection = async (): Promise<{ success: boolean; message: string }> => {
-    try {
-      setIsLoading(true);
-      
-      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
-      
-      if (!session.token) {
-        return {
-          success: false,
-          message: 'No active session found'
-        };
-      }
-
-      // Test with a simple device query
-      const response = await fetch('/functions/v1/gp51-query-devices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: session.token,
-          username: session.username
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        return {
-          success: true,
-          message: `Connection healthy. Found ${data.summary?.totalDevices || 0} devices.`
-        };
-      } else {
-        return {
-          success: false,
-          message: data.error || 'Connection test failed'
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: `Connection test error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getConnectionHealth = async (): Promise<GP51HealthStatus> => {
-    try {
-      const testResult = await testConnection();
-      
-      return {
-        status: testResult.success ? 'healthy' : 'failed',
-        lastCheck: new Date(),
-        isConnected: testResult.success,
-        lastPingTime: new Date(),
-        tokenValid: testResult.success,
-        sessionValid: testResult.success,
-        activeDevices: devices.length,
-        errorMessage: testResult.success ? undefined : testResult.message,
-        responseTime: 0,
-        errors: testResult.success ? [] : [testResult.message],
-        // Add required properties
-        isHealthy: testResult.success,
-        connectionStatus: testResult.success ? 'connected' : 'error'
-      };
-    } catch (error) {
-      return {
-        status: 'failed',
-        lastCheck: new Date(),
-        isConnected: false,
-        lastPingTime: new Date(),
-        tokenValid: false,
-        sessionValid: false,
-        activeDevices: 0,
-        errorMessage: error.message,
-        responseTime: 0,
-        errors: [error.message],
-        // Add required properties
-        isHealthy: false,
-        connectionStatus: 'error'
+        error: error instanceof Error ? error.message : 'Authentication failed'
       };
     }
-  };
+  }, []);
 
-  // Data fetching methods
-  const queryMonitorList = async () => {
-    try {
-      setIsLoading(true);
-      setError('');
-      
-      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
-      
-      if (!session.token || !session.username) {
-        throw new Error('No valid session found');
-      }
-
-      console.log('🔍 Fetching devices for user:', session.username);
-
-      const response = await fetch('/functions/v1/gp51-query-devices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: session.token,
-          username: session.username
-        })
-      });
-
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Device query failed');
-      }
-
-      console.log('✅ Devices loaded:', data.summary);
-      
-      setDevices(data.data || []);
-      setGroups(data.groups || []);
-      
-      return {
-        success: true,
-        data: data.data,
-        groups: data.groups,
-        summary: data.summary
-      };
-
-    } catch (error) {
-      console.error('Device query error:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error');
-      return {
-        success: false,
-        data: [],
-        groups: [],
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchDevices = async () => {
-    // Alias for queryMonitorList
-    return await queryMonitorList();
-  };
-
-  const getLastPositions = async (deviceIds?: string[]) => {
-    try {
-      setIsLoading(true);
-      
-      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
-      
-      if (!session.token) {
-        throw new Error('No valid session found');
-      }
-
-      console.log('📍 Fetching last positions...');
-
-      const response = await fetch('/functions/v1/gp51-last-positions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: session.token,
-          deviceIds: deviceIds || [],
-          lastQueryTime: localStorage.getItem('gp51_last_query_time') || 0
-        })
-      });
-
-      const data = await response.json();
-      
-      if (!data.success) {
-        throw new Error(data.error || 'Position query failed');
-      }
-
-      // Store last query time
-      if (data.lastQueryTime) {
-        localStorage.setItem('gp51_last_query_time', data.lastQueryTime.toString());
-      }
-      
-      setPositions(data.data || []);
-      
-      return data.data || [];
-
-    } catch (error) {
-      console.error('Position query error:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error');
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Computed values
-  const deviceCount = devices.length;
-  const groupCount = groups.length;
-  const activeDevices = devices.filter(d => d.isActive).length;
-  const inactiveDevices = devices.filter(d => !d.isActive).length;
-  const onlineDevices = positions.filter(p => p.status === 'online').length;
-  const offlineDevices = positions.filter(p => p.status !== 'online').length;
+  const disconnect = useCallback(async () => {
+    await unifiedGP51Service.disconnect();
+    setSession(null);
+    setDevices([]);
+    setPositions([]);
+    setGroups([]);
+    setHealthStatus(null);
+    setPerformanceMetrics(null);
+  }, []);
 
   return {
     // State
-    isConnected,
     session,
+    devices,
+    positions,
+    groups,
+    healthStatus,
+    performanceMetrics,
     isLoading,
     error,
-    isAuthenticated,
-    currentUser,
-    users,
-    devices,
-    groups,
-    positions,
-
-    // Methods that components expect
+    
+    // Computed properties
+    isAuthenticated: !!session,
+    isConnected: healthStatus?.isConnected || false,
+    
+    // Methods
     authenticate,
-    connect,
     disconnect,
-    testConnection,
-    getConnectionHealth,
     queryMonitorList,
-    fetchDevices,
     getLastPositions,
-
-    // Computed values
-    deviceCount,
-    groupCount,
-    activeDevices,
-    inactiveDevices,
-    onlineDevices,
-    offlineDevices
+    getConnectionHealth,
+    testConnection,
+    refreshAllData
   };
 };

@@ -1,3 +1,4 @@
+
 // Unified GP51 Type Definitions - Single Source of Truth
 export interface GP51TestResult {
   name: string;
@@ -95,11 +96,11 @@ export interface GP51Position {
   deviceId: string;
   latitude: number;
   longitude: number;
-  timestamp: number;
+  timestamp: number | string; // Support both formats
   speed: number;
   course: number;
   status: string;
-  isMoving: boolean;
+  isMoving: boolean; // Fixed: Added missing property
   statusText?: string;
   address?: string;
   isOnline?: boolean; // Add missing property for FleetDashboard
@@ -115,7 +116,6 @@ export interface GP51ServiceResponse<T = any> {
   cause?: string;
 }
 
-// Add GP51HealthStatus type that was missing
 export interface GP51HealthStatus {
   // Keep existing properties that are being used
   status: 'healthy' | 'degraded' | 'failed';
@@ -142,7 +142,7 @@ export interface GP51ConnectionTestResult {
   data?: any;
 }
 
-// Add GP51PerformanceMetrics interface
+// Enhanced GP51PerformanceMetrics interface
 export interface GP51PerformanceMetrics {
   responseTime: number;
   success: boolean;
@@ -155,7 +155,7 @@ export interface GP51PerformanceMetrics {
   errorRate: number;
   averageResponseTime: number;
   
-  // Vehicle movement metrics
+  // Vehicle movement metrics - Fixed and enhanced
   movingVehicles: number;
   stoppedVehicles: number;
   

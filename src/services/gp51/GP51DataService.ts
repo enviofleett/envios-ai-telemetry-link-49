@@ -10,7 +10,26 @@ import type {
 } from '@/types/gp51-unified';
 
 export class GP51DataService {
-  // Add missing queryMonitorList method
+  // Helper method to determine if position is recent (online)
+  private isPositionRecent(timestamp: number | string): boolean {
+    let positionTime: Date;
+    
+    if (typeof timestamp === 'string') {
+      positionTime = new Date(timestamp);
+    } else {
+      positionTime = new Date(timestamp * 1000); // Convert from seconds to milliseconds
+    }
+    
+    const now = new Date();
+    const diffMinutes = (now.getTime() - positionTime.getTime()) / (1000 * 60);
+    return diffMinutes <= 10; // Consider online if position is within 10 minutes
+  }
+
+  // Helper method to determine if vehicle is moving
+  private isVehicleMoving(speed: number): boolean {
+    return speed > 5; // Consider moving if speed > 5 km/h
+  }
+
   async queryMonitorList(): Promise<GP51ServiceResponse<GP51DeviceData[]>> {
     try {
       console.log('🔍 Querying monitor list from GP51 API...');
@@ -44,11 +63,23 @@ export class GP51DataService {
         };
       }
 
+      // Transform data to match GP51DeviceData interface
+      const deviceData: GP51DeviceData[] = (data.data || []).map((device: any) => ({
+        deviceId: device.deviceId || device.id,
+        deviceName: device.deviceName || device.name,
+        deviceType: device.deviceType,
+        simNumber: device.simNumber,
+        groupId: device.groupId,
+        groupName: device.groupName,
+        isActive: device.isActive !== undefined ? device.isActive : true,
+        lastActiveTime: device.lastActiveTime || new Date()
+      }));
+
       return {
         success: true,
-        data: data.data || [],
+        data: deviceData,
         groups: data.groups,
-        vehicles: data.data || []
+        vehicles: deviceData
       };
 
     } catch (error) {
@@ -61,7 +92,6 @@ export class GP51DataService {
     }
   }
 
-  // Add missing getPositions method
   async getPositions(): Promise<GP51Position[]> {
     try {
       console.log('📍 Fetching positions from GP51 API...');
@@ -94,7 +124,22 @@ export class GP51DataService {
         localStorage.setItem('gp51_last_query_time', data.lastQueryTime.toString());
       }
       
-      return data.data || [];
+      // Transform positions data with proper online and moving status
+      const positions: GP51Position[] = (data.data || []).map((pos: any) => ({
+        deviceId: pos.deviceId,
+        latitude: pos.latitude || 0,
+        longitude: pos.longitude || 0,
+        timestamp: pos.timestamp,
+        speed: pos.speed || 0,
+        course: pos.course || 0,
+        status: pos.status || 'unknown',
+        isMoving: this.isVehicleMoving(pos.speed || 0),
+        statusText: pos.statusText,
+        address: pos.address,
+        isOnline: this.isPositionRecent(pos.timestamp)
+      }));
+      
+      return positions;
 
     } catch (error) {
       console.error('Position query error:', error);
@@ -179,26 +224,31 @@ export class GP51DataService {
 
   async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
     try {
-      const positions = await this.getPositions();
-      const devices = await this.queryMonitorList();
+      const startTime = Date.now();
+      const [positions, devices] = await Promise.all([
+        this.getPositions(),
+        this.queryMonitorList()
+      ]);
       
+      const responseTime = Date.now() - startTime;
       const totalDevices = devices.data?.length || 0;
-      const activeDevices = positions.filter(p => 
-        p.isOnline !== undefined ? p.isOnline : this.isPositionRecent(p.timestamp)
-      ).length;
+      const onlinePositions = positions.filter(p => p.isOnline);
+      const activeDevices = onlinePositions.length;
+      const movingVehicles = positions.filter(p => p.isMoving).length;
+      const stoppedVehicles = onlinePositions.length - movingVehicles;
 
       return {
-        responseTime: 150,
+        responseTime,
         success: true,
         requestStartTime: new Date().toISOString(),
         deviceCount: totalDevices,
-        groupCount: 0,
+        groupCount: 0, // Could be enhanced with actual group count
         timestamp: new Date().toISOString(),
-        apiCallCount: 1,
-        errorRate: 0,
-        averageResponseTime: 150,
-        movingVehicles: positions.filter(p => p.isMoving).length,
-        stoppedVehicles: positions.filter(p => !p.isMoving).length,
+        apiCallCount: 2, // We made 2 API calls above
+        errorRate: devices.success && positions.length >= 0 ? 0 : 0.1,
+        averageResponseTime: responseTime,
+        movingVehicles,
+        stoppedVehicles,
         activeDevices,
         inactiveDevices: totalDevices - activeDevices,
         onlineDevices: activeDevices,
@@ -224,14 +274,6 @@ export class GP51DataService {
         error: error instanceof Error ? error.message : 'Unknown error'
       };
     }
-  }
-
-  // Helper method to determine if position is recent (online)
-  private isPositionRecent(timestamp: number): boolean {
-    const positionTime = new Date(timestamp * 1000); // Convert from seconds to milliseconds
-    const now = new Date();
-    const diffMinutes = (now.getTime() - positionTime.getTime()) / (1000 * 60);
-    return diffMinutes <= 10; // Consider online if position is within 10 minutes
   }
 }
 
