@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { GP51HealthStatus, GP51AuthResponse, GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
 
