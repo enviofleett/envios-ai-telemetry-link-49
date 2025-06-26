@@ -1,26 +1,17 @@
 
-export type { 
+// GP51 Service Index - Main exports
+export { UnifiedGP51Service } from './UnifiedGP51Service';
+export { ProductionGP51Service, productionGP51Service } from './ProductionGP51Service';
+export { LivePositionService, livePositionService } from './LivePositionService';
+
+// Export types
+export type {
   GP51User,
   GP51Device,
-  GP51Group,
-  GP51AuthResponse,
-  GP51MonitorListResponse,
   GP51Session,
   GP51HealthStatus,
-  UnifiedGP51Service
+  UnifiedGP51Response
 } from './UnifiedGP51Service';
 
-export { 
-  UnifiedGP51ServiceImpl, 
-  unifiedGP51Service 
-} from './UnifiedGP51Service';
-
-export type {
-  PositionUpdate,
-  RealTimePositionConfig
-} from './RealTimePositionService';
-
-export { 
-  RealTimePositionService,
-  realTimePositionService 
-} from './RealTimePositionService';
+// Re-export commonly used service instances
+export { unifiedGP51Service } from './UnifiedGP51Service';

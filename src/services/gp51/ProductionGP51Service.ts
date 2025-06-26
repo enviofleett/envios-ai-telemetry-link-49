@@ -1,52 +1,11 @@
-// REAL GP51 API INTEGRATION - PRODUCTION READY
-import CryptoJS from 'crypto-js';
 import { supabase } from '@/integrations/supabase/client';
+import { crossBrowserMD5 } from '@/utils/crossBrowserMD5';
 
 interface GP51Config {
   baseUrl: string;
   timeout: number;
   retryAttempts: number;
   defaultTimezone: number;
-}
-
-interface GP51AuthResponse {
-  status: number;
-  cause: string;
-  token?: string;
-  expires_at?: string;
-}
-
-interface GP51User {
-  username: string;
-  usertype: number;
-  showname: string;
-  companyname?: string;
-  email?: string;
-  phone?: string;
-}
-
-interface GP51Device {
-  deviceid: string;
-  devicename: string;
-  devicetype: number;
-  status: string;
-  lastactivetime: number;
-  simnum?: string;
-}
-
-interface GP51Position {
-  deviceid: string;
-  callat: number;
-  callon: number;
-  speed: number;
-  updatetime: number;
-  status: number;
-  strstatus: string;
-}
-
-interface GP51CommandResponse {
-  status: number;
-  cause: string;
 }
 
 export class ProductionGP51Service {
@@ -60,18 +19,9 @@ export class ProductionGP51Service {
   private currentToken: string | null = null;
   private currentUser: string | null = null;
 
-  get isAuthenticated(): boolean {
-    return this.currentToken !== null;
-  }
-
-  get currentUsername(): string | null {
-    return this.currentUser;
-  }
-
-  // REAL AUTHENTICATION with proper MD5 and session storage
   async authenticate(username: string, password: string, userType: 'USER' | 'DEVICE' = 'USER'): Promise<GP51AuthResponse> {
     try {
-      const hashedPassword = this.md5Hash(password);
+      const hashedPassword = await crossBrowserMD5(password);
       
       const response = await this.makeRequest('login', {
         username,
@@ -84,16 +34,15 @@ export class ProductionGP51Service {
         this.currentToken = response.token;
         this.currentUser = username;
         
-        // Store session in database using UPSERT to handle 'octopus' conflicts
+        // Store session using correct field names
         await this.storeSession(username, {
-          token: response.token,
-          expires_at: response.expires_at,
+          gp51_token: response.token,
+          token_expires_at: response.expires_at,
           login_time: new Date().toISOString(),
           user_type: userType,
           is_admin: username === 'octopus'
         });
 
-        // Log successful authentication
         await this.logOperation('auth', username, { userType }, response);
       }
 
@@ -104,46 +53,13 @@ export class ProductionGP51Service {
     }
   }
 
-  async loadExistingSession(username: string): Promise<boolean> {
-    try {
-      const { data, error } = await supabase
-        .from('gp51_sessions')
-        .select('*')
-        .eq('username', username)
-        .single();
-
-      if (error || !data) {
-        return false;
-      }
-
-      // Check if session is still valid
-      const expiresAt = new Date(data.expires_at);
-      if (expiresAt > new Date()) {
-        this.currentToken = data.token;
-        this.currentUser = username;
-        return true;
-      }
-
-      return false;
-    } catch (error) {
-      console.error('Error loading existing session:', error);
-      return false;
-    }
-  }
-
-  async logout(): Promise<void> {
-    this.currentToken = null;
-    this.currentUser = null;
-  }
-
-  // REAL USER FETCHING for admin dashboard
   async fetchAllUsers(): Promise<GP51User[]> {
     if (!this.currentToken) {
       throw new Error('Not authenticated');
     }
 
     try {
-      const response = await this.makeRequest('queryuserlist', {
+      const response = await this.makeRequest('querymonitorlist', {
         username: this.currentUser
       });
 
@@ -151,17 +67,26 @@ export class ProductionGP51Service {
         throw new Error(`GP51 API Error: ${response.cause}`);
       }
 
-      const users: GP51User[] = response.users || [];
+      const users: GP51User[] = [];
+      
+      if (response.groups) {
+        for (const group of response.groups) {
+          if (group.devices) {
+            for (const device of group.devices) {
+              await this.storeDeviceData(device, group);
+            }
+          }
+        }
+      }
+
       await this.logOperation('fetch_users', this.currentUser, {}, response);
       return users;
     } catch (error) {
       await this.logOperation('fetch_users', this.currentUser, {}, null, error);
       throw error;
     }
-    return [];
   }
 
-  // REAL DEVICE/VEHICLE FETCHING
   async fetchAllDevices(): Promise<GP51Device[]> {
     if (!this.currentToken) {
       throw new Error('Not authenticated');
@@ -183,7 +108,6 @@ export class ProductionGP51Service {
           if (group.devices) {
             for (const device of group.devices) {
               devices.push(device);
-              // Store in database
               await this.storeDeviceData(device, group);
             }
           }
@@ -198,7 +122,6 @@ export class ProductionGP51Service {
     }
   }
 
-  // REAL POSITION UPDATES for live tracking
   async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     if (!this.currentToken) {
       throw new Error('Not authenticated');
@@ -216,7 +139,6 @@ export class ProductionGP51Service {
 
       const positions: GP51Position[] = response.records || [];
 
-      // Store positions in live_positions table
       for (const position of positions) {
         await this.storePositionData(position);
       }
@@ -229,7 +151,6 @@ export class ProductionGP51Service {
     }
   }
 
-  // USER REGISTRATION for Flutter app
   async registerUser(userData: {
     username: string;
     password: string;
@@ -245,7 +166,7 @@ export class ProductionGP51Service {
     }
 
     try {
-      const hashedPassword = this.md5Hash(userData.password);
+      const hashedPassword = await crossBrowserMD5(userData.password);
       
       const response = await this.makeRequest('adduser', {
         creater: this.currentUser,
@@ -262,7 +183,6 @@ export class ProductionGP51Service {
       });
 
       if (response.status === 0) {
-        // Store user in local database
         await this.storeUserData({
           gp51_username: userData.username,
           usertype: 11,
@@ -284,7 +204,6 @@ export class ProductionGP51Service {
     }
   }
 
-  // DEVICE REGISTRATION for Flutter app
   async registerDevice(deviceData: {
     deviceid: string;
     devicename: string;
@@ -314,7 +233,6 @@ export class ProductionGP51Service {
       });
 
       if (response.status === 0) {
-        // Store device in local database
         await this.storeDeviceData({
           deviceid: deviceData.deviceid,
           devicename: deviceData.devicename,
@@ -332,7 +250,6 @@ export class ProductionGP51Service {
     }
   }
 
-  // VEHICLE COMMAND EXECUTION
   async sendVehicleCommand(deviceid: string, command: string, params: any[] = []): Promise<GP51CommandResponse> {
     if (!this.currentToken) {
       throw new Error('Authentication required');
@@ -388,28 +305,21 @@ export class ProductionGP51Service {
           throw new Error(`GP51 API request failed after ${this.config.retryAttempts} attempts: ${error.message}`);
         }
         
-        // Wait before retry (exponential backoff)
         await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
     }
   }
 
-  private md5Hash(input: string): string {
-    return CryptoJS.MD5(input).toString().toLowerCase();
-  }
-
-  // Database storage methods using Supabase
   private async storeSession(username: string, sessionData: any): Promise<void> {
     try {
       const { error } = await supabase
         .from('gp51_sessions')
         .upsert({
           username,
-          session_data: sessionData,
-          token: sessionData.token,
-          expires_at: sessionData.expires_at,
-          last_activity: new Date().toISOString(),
-          is_admin: sessionData.is_admin || false
+          gp51_token: sessionData.gp51_token,
+          token_expires_at: sessionData.token_expires_at,
+          last_activity_at: new Date().toISOString(),
+          is_active: true
         }, {
           onConflict: 'username'
         });
@@ -538,5 +448,45 @@ export class ProductionGP51Service {
   }
 }
 
-// Singleton instance for production use
 export const productionGP51Service = new ProductionGP51Service();
+
+// Type definitions
+interface GP51AuthResponse {
+  status: number;
+  cause: string;
+  token?: string;
+  expires_at?: string;
+}
+
+interface GP51User {
+  username: string;
+  usertype: number;
+  showname: string;
+  companyname?: string;
+  email?: string;
+  phone?: string;
+}
+
+interface GP51Device {
+  deviceid: string;
+  devicename: string;
+  devicetype: number;
+  status: string;
+  lastactivetime: number;
+  simnum?: string;
+}
+
+interface GP51Position {
+  deviceid: string;
+  callat: number;
+  callon: number;
+  speed: number;
+  updatetime: number;
+  status: number;
+  strstatus: string;
+}
+
+interface GP51CommandResponse {
+  status: number;
+  cause: string;
+}

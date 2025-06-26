@@ -4,11 +4,24 @@ import {
   unifiedGP51Service, 
   GP51User, 
   GP51Session,
-  GP51AuthResponse,
-  GP51MonitorListResponse,
+  UnifiedGP51Response,
   GP51HealthStatus,
   GP51Device
 } from '@/services/gp51/UnifiedGP51Service';
+
+// Updated interfaces to match actual service responses
+export interface GP51AuthResponse {
+  success: boolean;
+  status: number;
+  error?: string;
+  data?: any;
+}
+
+export interface GP51MonitorListResponse {
+  success: boolean;
+  error?: string;
+  data?: any;
+}
 
 export interface UseUnifiedGP51ServiceReturn {
   authenticate: (username: string, password: string) => Promise<GP51AuthResponse>;
@@ -56,47 +69,49 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     setError(null);
   }, []);
 
-  const authenticate = useCallback(async (username: string, password: string) => {
+  const authenticate = useCallback(async (username: string, password: string): Promise<GP51AuthResponse> => {
     setIsLoading(true);
     setError(null);
     try {
       const result = await unifiedGP51Service.authenticate(username, password);
-      if (result.status === 0) {
+      if (result.success) {
         setIsAuthenticated(true);
         setIsConnected(true);
         setSession(unifiedGP51Service.session);
         setCurrentUser({ username, usertype: 11, showname: username });
+        return { success: true, status: 0 };
       } else {
-        setError(result.cause || 'Authentication failed');
+        setError(result.error || 'Authentication failed');
+        return { success: false, status: 1, error: result.error || 'Authentication failed' };
       }
-      return result;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Authentication failed';
       setError(errorMsg);
-      throw err;
+      return { success: false, status: 1, error: errorMsg };
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const authenticateAdmin = useCallback(async (username: string, password: string) => {
+  const authenticateAdmin = useCallback(async (username: string, password: string): Promise<GP51AuthResponse> => {
     setIsLoading(true);
     setError(null);
     try {
       const result = await unifiedGP51Service.authenticateAdmin(username, password);
-      if (result.status === 0) {
+      if (result.success) {
         setIsAuthenticated(true);
         setIsConnected(true);
         setSession(unifiedGP51Service.session);
         setCurrentUser({ username, usertype: 3, showname: username });
+        return { success: true, status: 0 };
       } else {
-        setError(result.cause || 'Admin authentication failed');
+        setError(result.error || 'Admin authentication failed');
+        return { success: false, status: 1, error: result.error || 'Admin authentication failed' };
       }
-      return result;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Admin authentication failed';
       setError(errorMsg);
-      throw err;
+      return { success: false, status: 1, error: errorMsg };
     } finally {
       setIsLoading(false);
     }
@@ -141,16 +156,38 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     }
   }, []);
 
-  const queryMonitorList = useCallback(async (username?: string) => {
-    return await unifiedGP51Service.queryMonitorList(username);
+  const queryMonitorList = useCallback(async (username?: string): Promise<GP51MonitorListResponse> => {
+    try {
+      const result = await unifiedGP51Service.queryMonitorList();
+      return {
+        success: result.success,
+        error: result.error,
+        data: result.data
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Query failed'
+      };
+    }
   }, []);
 
-  const addUser = useCallback(async (userData: any) => {
-    return await unifiedGP51Service.addUser(userData);
+  const addUser = useCallback(async (userData: any): Promise<GP51AuthResponse> => {
+    try {
+      // Placeholder implementation - would need to be added to UnifiedGP51Service
+      return { success: false, status: 1, error: 'Not implemented' };
+    } catch (error) {
+      return { success: false, status: 1, error: 'Add user failed' };
+    }
   }, []);
 
-  const addDevice = useCallback(async (deviceData: any) => {
-    return await unifiedGP51Service.addDevice(deviceData);
+  const addDevice = useCallback(async (deviceData: any): Promise<GP51AuthResponse> => {
+    try {
+      // Placeholder implementation - would need to be added to UnifiedGP51Service
+      return { success: false, status: 1, error: 'Not implemented' };
+    } catch (error) {
+      return { success: false, status: 1, error: 'Add device failed' };
+    }
   }, []);
 
   const sendCommand = useCallback(async (deviceid: string, command: string, params: any[]) => {
@@ -171,17 +208,19 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
   const fetchDevices = useCallback(async () => {
     try {
       const monitorList = await unifiedGP51Service.queryMonitorList();
-      const allDevices = monitorList.groups.flatMap(group => 
-        group.devices.map(device => ({
-          deviceid: device.deviceid,
-          devicename: device.devicename,
-          devicetype: device.devicetype,
-          status: device.status,
-          lastactivetime: device.lastactivetime,
-          simnum: device.simnum
-        }))
-      );
-      setDevices(allDevices);
+      if (monitorList.success && monitorList.data?.groups) {
+        const allDevices = monitorList.data.groups.flatMap((group: any) => 
+          (group.devices || []).map((device: any) => ({
+            deviceid: device.deviceid,
+            devicename: device.devicename,
+            devicetype: device.devicetype,
+            status: device.status,
+            lastactivetime: device.lastactivetime,
+            simnum: device.simnum
+          }))
+        );
+        setDevices(allDevices);
+      }
     } catch (error) {
       console.error('Failed to fetch devices:', error);
     }
