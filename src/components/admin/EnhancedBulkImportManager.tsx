@@ -1,288 +1,322 @@
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Database, Download, Upload, AlertTriangle, CheckCircle, Loader2 } from 'lucide-react';
+import { GP51ImportManager } from '@/services/gp51/GP51BulkImportService';
+import { Upload, Download, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 
-interface ImportJob {
-  id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+interface ImportProgress {
+  phase: string;
+  message: string;
   progress: number;
-  totalRecords: number;
-  processedRecords: number;
-  errors: string[];
-  startedAt: string;
-  completedAt?: string;
-}
-
-interface PreviewData {
-  totalUsers: number;
-  totalVehicles: number;
-  sampleRecords: any[];
-  conflicts: any[];
-  estimatedDuration: string;
+  details?: string;
 }
 
 const EnhancedBulkImportManager: React.FC = () => {
-  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [isImporting, setIsImporting] = useState(false);
-  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
-  const [currentJob, setCurrentJob] = useState<ImportJob | null>(null);
+  const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
+  const [importResult, setImportResult] = useState<any>(null);
   const { toast } = useToast();
 
-  const fetchPreviewData = async () => {
-    setIsLoadingPreview(true);
-    try {
-      console.log('🔍 Fetching enhanced bulk import preview...');
-      
-      const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: { action: 'get_import_preview' }
-      });
-
-      if (error) {
-        console.error('❌ Preview fetch error:', error);
-        throw new Error(`Preview failed: ${error.message}`);
-      }
-
-      if (data?.success) {
-        const summary = data.data?.summary || {};
-        setPreviewData({
-          totalUsers: summary.users || 0,
-          totalVehicles: summary.vehicles || 0,
-          sampleRecords: data.data?.sampleData?.vehicles || [],
-          conflicts: data.data?.conflicts || [],
-          estimatedDuration: data.data?.estimatedDuration || '0 minutes'
-        });
-
-        toast({
-          title: "Preview Generated",
-          description: `Found ${summary.users || 0} users and ${summary.vehicles || 0} vehicles available for import.`
-        });
-      } else {
-        throw new Error(data?.error || 'Failed to generate preview');
-      }
-    } catch (error) {
-      console.error('❌ Preview generation failed:', error);
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type === 'text/csv') {
+      setCsvFile(file);
+      setImportResult(null);
+    } else {
       toast({
-        title: "Preview Failed",
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        title: "Invalid File",
+        description: "Please upload a CSV file",
         variant: "destructive"
       });
-    } finally {
-      setIsLoadingPreview(false);
     }
   };
 
-  const startBulkImport = async () => {
-    if (!previewData) {
+  const parseCsvFile = async (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const csv = e.target?.result as string;
+          const lines = csv.split('\n');
+          const headers = lines[0].split(',').map(h => h.trim());
+          
+          const data = lines.slice(1)
+            .filter(line => line.trim())
+            .map(line => {
+              const values = line.split(',').map(v => v.trim());
+              const row: any = {};
+              headers.forEach((header, index) => {
+                row[header] = values[index] || '';
+              });
+              return row;
+            });
+          
+          resolve(data);
+        } catch (error) {
+          reject(error);
+        }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsText(file);
+    });
+  };
+
+  const handleImport = async () => {
+    if (!csvFile) {
       toast({
-        title: "No Preview Data",
-        description: "Please generate a preview before starting the import",
+        title: "No File Selected",
+        description: "Please upload a CSV file first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!credentials.username || !credentials.password) {
+      toast({
+        title: "Missing Credentials",
+        description: "Please enter your GP51 username and password",
         variant: "destructive"
       });
       return;
     }
 
     setIsImporting(true);
+    setImportProgress({ phase: 'preparing', message: 'Preparing import...', progress: 10 });
+
     try {
-      console.log('🚀 Starting enhanced bulk import...');
-      
-      const { data, error } = await supabase.functions.invoke('enhanced-bulk-import', {
-        body: { 
-          action: 'start_import',
-          options: {
-            importUsers: true,
-            importDevices: true,
-            conflictResolution: 'skip',
-            batchSize: 50
-          }
-        }
-      });
+      // Parse CSV file
+      setImportProgress({ phase: 'parsing', message: 'Parsing CSV file...', progress: 20 });
+      const csvData = await parseCsvFile(csvFile);
 
-      if (error) {
-        throw new Error(`Import failed: ${error.message}`);
-      }
+      // Initialize import manager
+      setImportProgress({ phase: 'authenticating', message: 'Authenticating with GP51...', progress: 30 });
+      const importManager = new GP51ImportManager();
 
-      if (data?.success) {
-        const jobData: ImportJob = {
-          id: `import_${Date.now()}`,
-          status: 'completed',
-          progress: 100,
-          totalRecords: previewData.totalUsers + previewData.totalVehicles,
-          processedRecords: previewData.totalUsers + previewData.totalVehicles,
-          errors: data.errors || [],
-          startedAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
-        };
+      // Run import
+      setImportProgress({ phase: 'importing', message: 'Performing bulk import...', progress: 50 });
+      const result = await importManager.runImport(csvData, credentials);
 
-        setCurrentJob(jobData);
+      setImportProgress({ phase: 'completing', message: 'Finalizing import...', progress: 90 });
+      setImportResult(result);
+      setImportProgress({ phase: 'completed', message: 'Import completed!', progress: 100 });
 
+      if (result.success) {
         toast({
-          title: "Import Completed",
-          description: `Successfully imported ${data.statistics?.usersImported || 0} users and ${data.statistics?.devicesImported || 0} devices.`
+          title: "Import Successful",
+          description: result.message,
         });
       } else {
-        throw new Error(data?.message || 'Import failed');
+        toast({
+          title: "Import Failed",
+          description: result.message,
+          variant: "destructive"
+        });
       }
+
     } catch (error) {
-      console.error('❌ Bulk import failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setImportResult({
+        success: false,
+        message: errorMessage,
+        results: {
+          users: { total: 0, successful: 0, failed: 0, errors: [errorMessage] },
+          devices: { total: 0, successful: 0, failed: 0, errors: [errorMessage] }
+        }
+      });
+      
       toast({
-        title: "Import Failed",
-        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        title: "Import Error",
+        description: errorMessage,
         variant: "destructive"
       });
-
-      const failedJob: ImportJob = {
-        id: `failed_${Date.now()}`,
-        status: 'failed',
-        progress: 0,
-        totalRecords: 0,
-        processedRecords: 0,
-        errors: [error instanceof Error ? error.message : 'Unknown error'],
-        startedAt: new Date().toISOString()
-      };
-
-      setCurrentJob(failedJob);
     } finally {
       setIsImporting(false);
     }
   };
 
+  const downloadTemplate = () => {
+    const template = `username,password,usertype,multilogin,creater,showname,email,phone,deviceid,devicename,devicetype,groupid
+user1,password123,11,0,admin,User One,user1@email.com,1234567890,device001,Vehicle 1,92,1
+user2,password456,11,0,admin,User Two,user2@email.com,0987654321,device002,Vehicle 2,92,1`;
+
+    const blob = new Blob([template], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.style.display = 'none';
+    a.href = url;
+    a.download = 'gp51_import_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Credentials */}
       <Card>
         <CardHeader>
-          <div className="flex items-center space-x-2">
-            <Database className="h-5 w-5 text-blue-600" />
-            <CardTitle>Enhanced Bulk Import Manager</CardTitle>
-          </div>
-          <CardDescription>
-            Import all users and vehicles from GP51 with advanced conflict resolution and progress monitoring.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-
-      {/* Preview Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Download className="h-5 w-5" />
-            Data Preview
-          </CardTitle>
+          <CardTitle>GP51 Credentials</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!previewData ? (
-            <div className="text-center py-8">
-              <div className="text-gray-500 mb-4">No preview data available</div>
-              <Button onClick={fetchPreviewData} disabled={isLoadingPreview}>
-                {isLoadingPreview ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Generating Preview...
-                  </>
-                ) : (
-                  'Generate Preview'
-                )}
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <div className="text-2xl font-bold text-blue-600">{previewData.totalUsers}</div>
-                  <div className="text-sm text-gray-600">Users</div>
-                </div>
-                <div className="text-center p-4 bg-green-50 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{previewData.totalVehicles}</div>
-                  <div className="text-sm text-gray-600">Vehicles</div>
-                </div>
-                <div className="text-center p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">{previewData.estimatedDuration}</div>
-                  <div className="text-sm text-gray-600">Est. Duration</div>
-                </div>
-              </div>
-
-              <div className="flex justify-between">
-                <Button variant="outline" onClick={fetchPreviewData} disabled={isLoadingPreview}>
-                  Refresh Preview
-                </Button>
-                <Button onClick={startBulkImport} disabled={isImporting}>
-                  {isImporting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Importing...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Start Import
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
+          <div>
+            <Label htmlFor="username">GP51 Username</Label>
+            <Input
+              id="username"
+              type="text"
+              value={credentials.username}
+              onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
+              placeholder="Enter your GP51 username"
+            />
+          </div>
+          <div>
+            <Label htmlFor="password">GP51 Password</Label>
+            <Input
+              id="password"
+              type="password"
+              value={credentials.password}
+              onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+              placeholder="Enter your GP51 password"
+            />
+          </div>
         </CardContent>
       </Card>
 
-      {/* Import Status */}
-      {currentJob && (
+      {/* File Upload */}
+      <Card>
+        <CardHeader>
+          <CardTitle>CSV Import File</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="csvFile">Select CSV File</Label>
+            <Input
+              id="csvFile"
+              type="file"
+              accept=".csv"
+              onChange={handleFileUpload}
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={downloadTemplate}>
+              <Download className="mr-2 h-4 w-4" />
+              Download Template
+            </Button>
+            
+            {csvFile && (
+              <div className="flex items-center gap-2 text-sm text-green-600">
+                <CheckCircle className="h-4 w-4" />
+                {csvFile.name} loaded
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Import Controls */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Import Control</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Button 
+            onClick={handleImport} 
+            disabled={isImporting || !csvFile || !credentials.username || !credentials.password}
+            className="w-full"
+          >
+            {isImporting ? (
+              <>
+                <Upload className="mr-2 h-4 w-4 animate-pulse" />
+                Importing...
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" />
+                Start Bulk Import
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Progress */}
+      {importProgress && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Import Progress</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span>{importProgress.message}</span>
+                <span>{importProgress.progress}%</span>
+              </div>
+              <Progress value={importProgress.progress} className="w-full" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Results */}
+      {importResult && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              {currentJob.status === 'completed' ? (
+              {importResult.success ? (
                 <CheckCircle className="h-5 w-5 text-green-600" />
-              ) : currentJob.status === 'failed' ? (
-                <AlertTriangle className="h-5 w-5 text-red-600" />
               ) : (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <XCircle className="h-5 w-5 text-red-600" />
               )}
-              Import Status
+              Import Results
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span>Progress</span>
-                <span>{currentJob.processedRecords} / {currentJob.totalRecords}</span>
+            <Alert variant={importResult.success ? "default" : "destructive"}>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{importResult.message}</AlertDescription>
+            </Alert>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 bg-blue-50 rounded-lg">
+                <h4 className="font-medium mb-2">Users Import</h4>
+                <div className="text-sm space-y-1">
+                  <div>Total: {importResult.results.users.total}</div>
+                  <div className="text-green-600">Successful: {importResult.results.users.successful}</div>
+                  <div className="text-red-600">Failed: {importResult.results.users.failed}</div>
+                </div>
               </div>
-              <Progress value={currentJob.progress} className="w-full" />
+
+              <div className="p-4 bg-green-50 rounded-lg">
+                <h4 className="font-medium mb-2">Devices Import</h4>
+                <div className="text-sm space-y-1">
+                  <div>Total: {importResult.results.devices.total}</div>
+                  <div className="text-green-600">Successful: {importResult.results.devices.successful}</div>
+                  <div className="text-red-600">Failed: {importResult.results.devices.failed}</div>
+                </div>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-medium">Status:</span>
-                <span className={`ml-2 capitalize ${
-                  currentJob.status === 'completed' ? 'text-green-600' :
-                  currentJob.status === 'failed' ? 'text-red-600' :
-                  'text-blue-600'
-                }`}>
-                  {currentJob.status}
-                </span>
+            {/* Errors */}
+            {(importResult.results.users.errors.length > 0 || importResult.results.devices.errors.length > 0) && (
+              <div className="space-y-2">
+                <h4 className="font-medium">Errors:</h4>
+                <div className="max-h-40 overflow-y-auto text-sm space-y-1">
+                  {[...importResult.results.users.errors, ...importResult.results.devices.errors].map((error, index) => (
+                    <div key={index} className="p-2 bg-red-50 rounded border text-red-700">
+                      {error}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div>
-                <span className="font-medium">Started:</span>
-                <span className="ml-2">{new Date(currentJob.startedAt).toLocaleString()}</span>
-              </div>
-            </div>
-
-            {currentJob.errors.length > 0 && (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="font-medium">Errors encountered:</div>
-                  <ul className="mt-1 list-disc list-inside">
-                    {currentJob.errors.map((error, index) => (
-                      <li key={index} className="text-sm">{error}</li>
-                    ))}
-                  </ul>
-                </AlertDescription>
-              </Alert>
             )}
           </CardContent>
         </Card>
