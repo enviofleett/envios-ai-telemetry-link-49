@@ -2408,6 +2408,80 @@ export type Database = {
         }
         Relationships: []
       }
+      gp51_devices: {
+        Row: {
+          created_at: string | null
+          device_data: Json
+          device_id: string
+          device_name: string
+          device_type: number
+          group_id: number | null
+          group_name: string | null
+          id: string
+          is_online: boolean | null
+          last_active_time: string | null
+          last_sync: string | null
+          location_type: number | null
+          mileage_mode: number | null
+          owner_username: string | null
+          sim_number: string | null
+          status: string | null
+          sync_status: string | null
+          timezone: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          device_data: Json
+          device_id: string
+          device_name: string
+          device_type: number
+          group_id?: number | null
+          group_name?: string | null
+          id?: string
+          is_online?: boolean | null
+          last_active_time?: string | null
+          last_sync?: string | null
+          location_type?: number | null
+          mileage_mode?: number | null
+          owner_username?: string | null
+          sim_number?: string | null
+          status?: string | null
+          sync_status?: string | null
+          timezone?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          device_data?: Json
+          device_id?: string
+          device_name?: string
+          device_type?: number
+          group_id?: number | null
+          group_name?: string | null
+          id?: string
+          is_online?: boolean | null
+          last_active_time?: string | null
+          last_sync?: string | null
+          location_type?: number | null
+          mileage_mode?: number | null
+          owner_username?: string | null
+          sim_number?: string | null
+          status?: string | null
+          sync_status?: string | null
+          timezone?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gp51_devices_owner_username_fkey"
+            columns: ["owner_username"]
+            isOneToOne: false
+            referencedRelation: "gp51_users"
+            referencedColumns: ["gp51_username"]
+          },
+        ]
+      }
       gp51_entity_sync_conflicts: {
         Row: {
           conflict_data: Json | null
@@ -3074,6 +3148,45 @@ export type Database = {
         }
         Relationships: []
       }
+      gp51_sync_log: {
+        Row: {
+          created_at: string | null
+          duration_ms: number | null
+          error_message: string | null
+          gp51_status_code: number | null
+          id: string
+          operation_type: string
+          request_data: Json | null
+          response_data: Json | null
+          status: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          gp51_status_code?: number | null
+          id?: string
+          operation_type: string
+          request_data?: Json | null
+          response_data?: Json | null
+          status: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          duration_ms?: number | null
+          error_message?: string | null
+          gp51_status_code?: number | null
+          id?: string
+          operation_type?: string
+          request_data?: Json | null
+          response_data?: Json | null
+          status?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
       gp51_sync_status: {
         Row: {
           completed_at: string | null
@@ -3260,6 +3373,66 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      gp51_users: {
+        Row: {
+          companyname: string | null
+          created_at: string | null
+          creater: string | null
+          email: string | null
+          gp51_created_at: string | null
+          gp51_username: string
+          id: string
+          last_sync: string | null
+          multilogin: boolean | null
+          phone: string | null
+          qq: string | null
+          showname: string | null
+          sync_status: string | null
+          updated_at: string | null
+          user_data: Json
+          usertype: number
+          wechat: string | null
+        }
+        Insert: {
+          companyname?: string | null
+          created_at?: string | null
+          creater?: string | null
+          email?: string | null
+          gp51_created_at?: string | null
+          gp51_username: string
+          id?: string
+          last_sync?: string | null
+          multilogin?: boolean | null
+          phone?: string | null
+          qq?: string | null
+          showname?: string | null
+          sync_status?: string | null
+          updated_at?: string | null
+          user_data: Json
+          usertype: number
+          wechat?: string | null
+        }
+        Update: {
+          companyname?: string | null
+          created_at?: string | null
+          creater?: string | null
+          email?: string | null
+          gp51_created_at?: string | null
+          gp51_username?: string
+          id?: string
+          last_sync?: string | null
+          multilogin?: boolean | null
+          phone?: string | null
+          qq?: string | null
+          showname?: string | null
+          sync_status?: string | null
+          updated_at?: string | null
+          user_data?: Json
+          usertype?: number
+          wechat?: string | null
+        }
+        Relationships: []
       }
       gps51_analytics: {
         Row: {
@@ -4218,6 +4391,101 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "billing_cycles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_positions: {
+        Row: {
+          accuracy_radius: number | null
+          alarm_code: number | null
+          alarm_description: string | null
+          altitude: number | null
+          course: number | null
+          created_at: string | null
+          device_id: string
+          fuel_level: number | null
+          gps_satellite_count: number | null
+          id: string
+          is_moving: boolean | null
+          latitude: number
+          location_source: string | null
+          longitude: number
+          parking_duration: number | null
+          position_data: Json
+          position_timestamp: string
+          report_mode: number | null
+          server_timestamp: string | null
+          signal_strength: number | null
+          speed: number | null
+          status_code: number | null
+          status_description: string | null
+          temperature: number | null
+          total_distance: number | null
+          voltage: number | null
+        }
+        Insert: {
+          accuracy_radius?: number | null
+          alarm_code?: number | null
+          alarm_description?: string | null
+          altitude?: number | null
+          course?: number | null
+          created_at?: string | null
+          device_id: string
+          fuel_level?: number | null
+          gps_satellite_count?: number | null
+          id?: string
+          is_moving?: boolean | null
+          latitude: number
+          location_source?: string | null
+          longitude: number
+          parking_duration?: number | null
+          position_data: Json
+          position_timestamp: string
+          report_mode?: number | null
+          server_timestamp?: string | null
+          signal_strength?: number | null
+          speed?: number | null
+          status_code?: number | null
+          status_description?: string | null
+          temperature?: number | null
+          total_distance?: number | null
+          voltage?: number | null
+        }
+        Update: {
+          accuracy_radius?: number | null
+          alarm_code?: number | null
+          alarm_description?: string | null
+          altitude?: number | null
+          course?: number | null
+          created_at?: string | null
+          device_id?: string
+          fuel_level?: number | null
+          gps_satellite_count?: number | null
+          id?: string
+          is_moving?: boolean | null
+          latitude?: number
+          location_source?: string | null
+          longitude?: number
+          parking_duration?: number | null
+          position_data?: Json
+          position_timestamp?: string
+          report_mode?: number | null
+          server_timestamp?: string | null
+          signal_strength?: number | null
+          speed?: number | null
+          status_code?: number | null
+          status_description?: string | null
+          temperature?: number | null
+          total_distance?: number | null
+          voltage?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_positions_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "gp51_devices"
+            referencedColumns: ["device_id"]
           },
         ]
       }
@@ -6369,6 +6637,57 @@ export type Database = {
           id?: string
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      position_history: {
+        Row: {
+          altitude: number | null
+          arrived_time: string | null
+          course: number | null
+          created_at: string | null
+          device_id: string
+          id: string
+          latitude: number
+          longitude: number
+          position_timestamp: string
+          report_mode: number | null
+          speed: number | null
+          status_code: number | null
+          total_distance: number | null
+          track_data: Json
+        }
+        Insert: {
+          altitude?: number | null
+          arrived_time?: string | null
+          course?: number | null
+          created_at?: string | null
+          device_id: string
+          id?: string
+          latitude: number
+          longitude: number
+          position_timestamp: string
+          report_mode?: number | null
+          speed?: number | null
+          status_code?: number | null
+          total_distance?: number | null
+          track_data: Json
+        }
+        Update: {
+          altitude?: number | null
+          arrived_time?: string | null
+          course?: number | null
+          created_at?: string | null
+          device_id?: string
+          id?: string
+          latitude?: number
+          longitude?: number
+          position_timestamp?: string
+          report_mode?: number | null
+          speed?: number | null
+          status_code?: number | null
+          total_distance?: number | null
+          track_data?: Json
         }
         Relationships: []
       }
@@ -9075,16 +9394,19 @@ export type Database = {
           expire_notify_time: string | null
           fuel_level: number | null
           gp51_alarm: string | null
+          gp51_data: Json | null
           gp51_device_id: string
           gp51_group_id: number | null
           gp51_metadata: Json | null
           gp51_status: number | null
           gp51_status_text: string | null
+          gp51_sync_status: string | null
           icon: string | null
           id: string
           is_active: boolean | null
           is_free: boolean | null
           last_active_time: string | null
+          last_gp51_sync: string | null
           last_position: Json | null
           last_sync_time: string | null
           login_name: string | null
@@ -9113,16 +9435,19 @@ export type Database = {
           expire_notify_time?: string | null
           fuel_level?: number | null
           gp51_alarm?: string | null
+          gp51_data?: Json | null
           gp51_device_id: string
           gp51_group_id?: number | null
           gp51_metadata?: Json | null
           gp51_status?: number | null
           gp51_status_text?: string | null
+          gp51_sync_status?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
           is_free?: boolean | null
           last_active_time?: string | null
+          last_gp51_sync?: string | null
           last_position?: Json | null
           last_sync_time?: string | null
           login_name?: string | null
@@ -9151,16 +9476,19 @@ export type Database = {
           expire_notify_time?: string | null
           fuel_level?: number | null
           gp51_alarm?: string | null
+          gp51_data?: Json | null
           gp51_device_id?: string
           gp51_group_id?: number | null
           gp51_metadata?: Json | null
           gp51_status?: number | null
           gp51_status_text?: string | null
+          gp51_sync_status?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
           is_free?: boolean | null
           last_active_time?: string | null
+          last_gp51_sync?: string | null
           last_position?: Json | null
           last_sync_time?: string | null
           login_name?: string | null
@@ -9177,6 +9505,13 @@ export type Database = {
           voltage?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_vehicles_gp51_device"
+            columns: ["gp51_device_id"]
+            isOneToOne: true
+            referencedRelation: "gp51_devices"
+            referencedColumns: ["device_id"]
+          },
           {
             foreignKeyName: "vehicles_user_id_fkey"
             columns: ["user_id"]
@@ -10136,6 +10471,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: number
       }
+      cleanup_old_positions: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       cleanup_old_vehicle_positions: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -10171,6 +10510,16 @@ export type Database = {
           password: string
           api_url: string
           is_active: boolean
+        }[]
+      }
+      get_latest_position: {
+        Args: { p_device_id: string }
+        Returns: {
+          latitude: number
+          longitude: number
+          speed: number
+          position_timestamp: string
+          is_moving: boolean
         }[]
       }
       get_market_analytics: {
