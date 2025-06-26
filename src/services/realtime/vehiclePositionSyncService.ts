@@ -38,7 +38,7 @@ export class VehiclePositionSyncService {
       console.log('🔄 Starting vehicle position sync...');
 
       // Get vehicles from GP51
-      const vehiclesResponse = await gp51DataService.getLiveVehicles();
+      const vehiclesResponse = await gp51DataService.queryMonitorList();
       
       if (!vehiclesResponse.success || !vehiclesResponse.data) {
         throw new Error('Failed to fetch vehicles from GP51');
@@ -48,22 +48,35 @@ export class VehiclePositionSyncService {
       const deviceIds = vehicles.map(v => v.deviceId);
 
       // Get positions for all devices
-      const positions = await gp51DataService.getMultipleDevicesLastPositions(deviceIds);
+      const positions = await gp51DataService.getPositions();
 
       let processed = 0;
       let errors = 0;
 
       // Process each position
-      for (const [deviceId, position] of positions.entries()) {
+      for (const position of positions) {
         try {
+          // Ensure all numeric values are properly converted
+          const latitude = Number(position.latitude);
+          const longitude = Number(position.longitude);
+          const speed = position.speed ? Number(position.speed) : 0;
+          const course = position.course ? Number(position.course) : 0;
+
+          // Validate that conversion worked
+          if (isNaN(latitude) || isNaN(longitude)) {
+            console.warn(`Invalid coordinates for device ${position.deviceId}: lat=${position.latitude}, lng=${position.longitude}`);
+            errors++;
+            continue;
+          }
+
           // Convert position data to match Supabase schema
           const positionData = {
-            device_id: deviceId,
-            latitude: position.latitude,
-            longitude: position.longitude,
-            speed: position.speed,
-            heading: position.course, // Map course to heading
-            timestamp: new Date(position.timestamp * 1000).toISOString(), // Convert to ISO string
+            device_id: position.deviceId,
+            latitude: latitude,
+            longitude: longitude,
+            speed: speed,
+            heading: course, // Map course to heading
+            timestamp: new Date(typeof position.timestamp === 'string' ? position.timestamp : position.timestamp * 1000).toISOString(),
             created_at: new Date().toISOString()
           };
 
@@ -73,13 +86,13 @@ export class VehiclePositionSyncService {
             .upsert(positionData, { onConflict: 'device_id' });
 
           if (error) {
-            console.error(`Failed to sync position for device ${deviceId}:`, error);
+            console.error(`Failed to sync position for device ${position.deviceId}:`, error);
             errors++;
           } else {
             processed++;
           }
         } catch (error) {
-          console.error(`Error processing position for device ${deviceId}:`, error);
+          console.error(`Error processing position for device ${position.deviceId}:`, error);
           errors++;
         }
       }
@@ -111,8 +124,8 @@ export class VehiclePositionSyncService {
     try {
       console.log(`🔄 Syncing position for device ${deviceId}...`);
 
-      const positions = await gp51DataService.getMultipleDevicesLastPositions([deviceId]);
-      const position = positions.get(deviceId);
+      const positions = await gp51DataService.getPositions();
+      const position = positions.find(p => p.deviceId === deviceId);
 
       if (!position) {
         return {
@@ -123,14 +136,30 @@ export class VehiclePositionSyncService {
         };
       }
 
+      // Ensure numeric conversion
+      const latitude = Number(position.latitude);
+      const longitude = Number(position.longitude);
+      const speed = position.speed ? Number(position.speed) : 0;
+      const course = position.course ? Number(position.course) : 0;
+
+      // Validate coordinates
+      if (isNaN(latitude) || isNaN(longitude)) {
+        return {
+          success: false,
+          processed: 0,
+          errors: 1,
+          message: `Invalid coordinates for device ${deviceId}`
+        };
+      }
+
       // Convert position data to match Supabase schema
       const positionData = {
         device_id: deviceId,
-        latitude: position.latitude,
-        longitude: position.longitude,
-        speed: position.speed,
-        heading: position.course, // Map course to heading
-        timestamp: new Date(position.timestamp * 1000).toISOString(), // Convert to ISO string
+        latitude: latitude,
+        longitude: longitude,
+        speed: speed,
+        heading: course, // Map course to heading
+        timestamp: new Date(typeof position.timestamp === 'string' ? position.timestamp : position.timestamp * 1000).toISOString(),
         created_at: new Date().toISOString()
       };
 

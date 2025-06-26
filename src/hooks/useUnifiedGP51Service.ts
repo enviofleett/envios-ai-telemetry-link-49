@@ -134,6 +134,30 @@ export const useUnifiedGP51Service = () => {
     return diffMinutes <= 10;
   };
 
+  // Add missing methods
+  const fetchDevices = useCallback(async () => {
+    try {
+      const result = await gp51DataService.queryMonitorList();
+      if (result.success && result.data) {
+        setDevices(result.data);
+      }
+    } catch (err) {
+      console.error('Error fetching devices:', err);
+    }
+  }, []);
+
+  const connect = useCallback(async () => {
+    try {
+      const connected = await unifiedGP51Service.connect();
+      if (connected) {
+        setSession(unifiedGP51Service.session);
+        await refreshAllData();
+      }
+    } catch (err) {
+      console.error('Error connecting:', err);
+    }
+  }, [refreshAllData]);
+
   const queryMonitorList = useCallback(async () => {
     return gp51DataService.queryMonitorList();
   }, []);
@@ -203,7 +227,9 @@ export const useUnifiedGP51Service = () => {
     isAuthenticated: !!session,
     isConnected: healthStatus?.isConnected || false,
     
-    // Methods
+    // Methods - including the missing ones
+    fetchDevices,
+    connect,
     authenticate,
     disconnect,
     queryMonitorList,
