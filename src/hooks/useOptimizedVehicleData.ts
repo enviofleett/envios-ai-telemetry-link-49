@@ -1,118 +1,87 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { VehicleData } from '@/types/vehicle';
-import { enhancedVehicleDataService } from '@/services/enhancedVehicleDataService';
+import type { VehicleData } from '@/services/EnhancedVehicleDataService';
+import { enhancedVehicleDataService } from '@/services/EnhancedVehicleDataService';
 import { useToast } from '@/hooks/use-toast';
 
-// Debounced update hook to prevent memory leaks and improve performance
 export const useOptimizedVehicleData = () => {
   const [vehicles, setVehicles] = useState<VehicleData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   
-  // Use refs to track component mounting and prevent memory leaks
   const isMountedRef = useRef(true);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastUpdateRef = useRef<number>(0);
   
-  // Debounced update function to prevent rapid state changes
   const debouncedUpdate = useCallback((newVehicles: VehicleData[]) => {
     if (!isMountedRef.current) return;
     
     const now = Date.now();
     const timeSinceLastUpdate = now - lastUpdateRef.current;
     
-    // Minimum 500ms between updates to prevent overwhelming the UI
-    const delay = Math.max(0, 500 - timeSinceLastUpdate);
-    
     if (updateTimeoutRef.current) {
       clearTimeout(updateTimeoutRef.current);
     }
     
+    const delay = timeSinceLastUpdate < 1000 ? 500 : 0;
+    
     updateTimeoutRef.current = setTimeout(() => {
       if (isMountedRef.current) {
         setVehicles(newVehicles);
-        lastUpdateRef.current = Date.now();
+        lastUpdateRef.current = now;
       }
     }, delay);
   }, []);
 
-  // Optimized subscription handler
-  const handleVehicleUpdate = useCallback(async () => {
-    if (!isMountedRef.current) return;
-    
+  const refreshData = useCallback(async () => {
     try {
-      const updatedVehicles = await enhancedVehicleDataService.getEnhancedVehicles();
-      debouncedUpdate(updatedVehicles);
+      setIsLoading(true);
       setError(null);
+      const data = await enhancedVehicleDataService.getVehicleData();
+      debouncedUpdate(data);
     } catch (err) {
-      console.error('Error updating vehicles:', err);
-      if (isMountedRef.current) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to update vehicles';
-        setError(errorMessage);
-        toast({
-          title: "Vehicle Update Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      }
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load vehicle data';
+      setError(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   }, [debouncedUpdate, toast]);
-
-  // Force refresh function
-  const refreshVehicles = useCallback(async () => {
-    if (!isMountedRef.current) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      await enhancedVehicleDataService.forceSync();
-      await handleVehicleUpdate();
-    } catch (err) {
-      console.error('Error refreshing vehicles:', err);
-      if (isMountedRef.current) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to refresh vehicles';
-        setError(errorMessage);
-        toast({
-          title: "Refresh Error",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, [handleVehicleUpdate, toast]);
 
   useEffect(() => {
     isMountedRef.current = true;
     
-    // Subscribe to vehicle updates
-    const unsubscribe = enhancedVehicleDataService.subscribe(handleVehicleUpdate);
+    const subscriberId = `optimized_${Date.now()}_${Math.random()}`;
     
-    // Initial load
-    handleVehicleUpdate();
-    setIsLoading(false);
-    
-    // Cleanup function
+    enhancedVehicleDataService.subscribe(subscriberId, (data) => {
+      if (isMountedRef.current) {
+        debouncedUpdate(data.vehicles);
+        setIsLoading(data.isLoading);
+        setError(data.error?.message || null);
+      }
+    });
+
+    refreshData();
+
     return () => {
       isMountedRef.current = false;
-      unsubscribe();
-      
       if (updateTimeoutRef.current) {
         clearTimeout(updateTimeoutRef.current);
       }
+      enhancedVehicleDataService.unsubscribe(subscriberId);
     };
-  }, [handleVehicleUpdate]);
+  }, [refreshData, debouncedUpdate]);
 
   return {
     vehicles,
     isLoading,
     error,
-    refreshVehicles,
+    refreshData,
+    forceSync: () => enhancedVehicleDataService.forceSync()
   };
 };

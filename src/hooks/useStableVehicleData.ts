@@ -61,7 +61,6 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
           course: Math.floor(Math.random() * 360),
           timestamp: Date.now()
         },
-        status: Math.random() > 0.5 ? 'online' : 'offline',
         is_active: true,
         isOnline: Math.random() > 0.3,
         isMoving: Math.random() > 0.6,
@@ -83,7 +82,6 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
     isLoading: query.isLoading,
     error: query.error,
     refetch: query.refetch,
-    // Add missing properties
     allVehicles: query.data || [],
     syncStatus: { isConnected: true, lastSync: new Date(), isSync: false },
     isConnected: true,

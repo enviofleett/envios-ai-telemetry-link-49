@@ -33,21 +33,22 @@ export const useUnifiedVehicleData = () => {
       offline: 0,
       idle: 0,
       alerts: 0
-    }
+    },
+    isConnected: false,
+    allVehicles: [],
+    filteredVehicles: [],
+    userOptions: []
   });
 
   useEffect(() => {
     const subscriberId = `unified-vehicle-data-${Date.now()}`;
     
-    // Subscribe to service updates
     enhancedVehicleDataService.subscribe(subscriberId, (enhancedData) => {
       setData(enhancedData);
     });
 
-    // Initial load
     enhancedVehicleDataService.getVehicleData();
 
-    // Cleanup
     return () => {
       enhancedVehicleDataService.unsubscribe(subscriberId);
     };

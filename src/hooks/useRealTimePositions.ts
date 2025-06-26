@@ -1,103 +1,69 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { realTimePositionService } from '@/services/gp51/index';
+import { realTimePositionService, type PositionUpdate } from '@/services/gp51/RealTimePositionService';
 
-export interface PositionUpdate {
-  deviceId: string;
+export interface RealTimePositionData {
   position: {
-    deviceid: string;
     latitude: number;
     longitude: number;
     speed: number;
-    course: number;
-    altitude: number;
-    timestamp: string;
-    status: string;
+    timestamp: number;
+    course?: number;
+    altitude?: number;
   };
-  timestamp: Date;
+  lastUpdate: Date;
 }
 
-export interface UseRealTimePositionsReturn {
-  positions: Map<string, PositionUpdate>;
-  isSubscribed: boolean;
-  error: string | null;
-  lastUpdate: Date | null;
-  subscribe: (deviceIds: string[]) => void;
-  unsubscribe: () => void;
-  clearError: () => void;
-}
-
-export const useRealTimePositions = (subscriptionId?: string): UseRealTimePositionsReturn => {
-  const [positions, setPositions] = useState<Map<string, PositionUpdate>>(new Map());
-  const [isSubscribed, setIsSubscribed] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-
-  const actualSubscriptionId = subscriptionId || `subscription-${Date.now()}`;
+export const useRealTimePositions = () => {
+  const [positions, setPositions] = useState<Map<string, RealTimePositionData>>(new Map());
+  const [isActive, setIsActive] = useState(false);
 
   const subscribe = useCallback((deviceIds: string[]) => {
-    console.log('📡 [useRealTimePositions] Subscribing to devices:', deviceIds);
+    const listenerId = `realtime-${Date.now()}`;
     
-    setIsSubscribed(true);
-    setError(null);
-    
-    realTimePositionService.start(deviceIds);
-    
-    realTimePositionService.subscribe(actualSubscriptionId, (update) => {
-      const positionUpdate: PositionUpdate = {
-        deviceId: update.deviceid,
-        position: {
-          deviceid: update.deviceid,
-          latitude: update.latitude,
-          longitude: update.longitude,
-          speed: update.speed,
-          course: update.course || 0,
-          altitude: update.altitude || 0,
-          timestamp: new Date(update.timestamp).toISOString(),
-          status: update.status
-        },
-        timestamp: new Date()
-      };
-      
+    realTimePositionService.subscribe(listenerId, (update: PositionUpdate) => {
       setPositions(prev => {
         const newPositions = new Map(prev);
-        newPositions.set(update.deviceid, positionUpdate);
+        newPositions.set(update.deviceid, {
+          position: {
+            latitude: update.latitude,
+            longitude: update.longitude,
+            speed: update.speed,
+            timestamp: update.timestamp,
+            course: update.course,
+            altitude: update.altitude
+          },
+          lastUpdate: new Date()
+        });
         return newPositions;
       });
-      setLastUpdate(new Date());
     });
-  }, [actualSubscriptionId]);
 
-  const unsubscribe = useCallback(() => {
-    console.log('📡 [useRealTimePositions] Unsubscribing from real-time positions');
-    
-    realTimePositionService.stop();
-    realTimePositionService.unsubscribe(actualSubscriptionId);
-    setIsSubscribed(false);
-    setPositions(new Map());
-    setLastUpdate(null);
-  }, [actualSubscriptionId]);
+    realTimePositionService.start(deviceIds);
+    setIsActive(true);
 
-  const clearError = useCallback(() => {
-    setError(null);
+    return () => {
+      realTimePositionService.unsubscribe(listenerId);
+    };
   }, []);
 
-  // Cleanup on unmount
+  const unsubscribe = useCallback(() => {
+    realTimePositionService.stop();
+    setIsActive(false);
+    setPositions(new Map());
+  }, []);
+
   useEffect(() => {
     return () => {
-      if (isSubscribed) {
-        realTimePositionService.unsubscribe(actualSubscriptionId);
-      }
+      realTimePositionService.stop();
     };
-  }, [actualSubscriptionId, isSubscribed]);
+  }, []);
 
   return {
     positions,
-    isSubscribed,
-    error,
-    lastUpdate,
+    isActive,
     subscribe,
     unsubscribe,
-    clearError,
+    forceUpdate: () => realTimePositionService.forceUpdate()
   };
 };

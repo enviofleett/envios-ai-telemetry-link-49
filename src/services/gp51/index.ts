@@ -1,5 +1,4 @@
 
-// Export types
 export type { 
   GP51User,
   GP51Device,
@@ -11,7 +10,6 @@ export type {
   UnifiedGP51Service
 } from './UnifiedGP51Service';
 
-// Export services
 export { 
   UnifiedGP51ServiceImpl, 
   unifiedGP51Service 
