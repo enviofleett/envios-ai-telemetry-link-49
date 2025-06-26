@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { GP51HealthStatus, GP51AuthResponse, GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
 
 export class UnifiedGP51Service {
-  private session: any = null;
+  public session: any = null; // Changed from private to public
   private currentUser: string | null = null;
   public isAuthenticated: boolean = false;
 
@@ -104,20 +104,38 @@ export class UnifiedGP51Service {
           status: 'failed',
           lastCheck: new Date(),
           responseTime,
-          errors: [error?.message || 'Health check failed']
+          errors: [error?.message || 'Health check failed'],
+          isConnected: false,
+          lastPingTime: new Date(),
+          tokenValid: false,
+          sessionValid: false,
+          activeDevices: 0,
+          errorMessage: error?.message || 'Health check failed'
         };
       }
       
       return {
         status: 'healthy',
         lastCheck: new Date(),
-        responseTime
+        responseTime,
+        isConnected: this.isAuthenticated,
+        lastPingTime: new Date(),
+        tokenValid: !!this.session?.token,
+        sessionValid: await this.validateSession(this.session),
+        activeDevices: data.activeDevices || 0,
+        errorMessage: undefined
       };
     } catch (error) {
       return {
         status: 'failed',
         lastCheck: new Date(),
-        errors: [error.message]
+        errors: [error.message],
+        isConnected: false,
+        lastPingTime: new Date(),
+        tokenValid: false,
+        sessionValid: false,
+        activeDevices: 0,
+        errorMessage: error.message
       };
     }
   }
@@ -214,7 +232,7 @@ export class UnifiedGP51Service {
 
   private async validateSession(sessionData: any): Promise<boolean> {
     try {
-      if (!sessionData.expiresAt) return false;
+      if (!sessionData?.expiresAt) return false;
       
       const expiry = new Date(sessionData.expiresAt);
       if (expiry <= new Date()) return false;
