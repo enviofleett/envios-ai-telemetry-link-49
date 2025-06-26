@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -5,12 +6,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast"
 import { useProductionGP51Service } from '@/hooks/useProductionGP51Service';
@@ -42,10 +40,10 @@ const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) =>
           description: `Successfully imported ${result.created} devices. ${result.errors} errors.`,
         });
       } else {
-        setError(result.error || 'Import failed');
+        setError('Import failed');
         toast({
           title: "Import Failed",
-          description: result.error || 'Import failed',
+          description: 'Import failed',
           variant: "destructive",
         });
       }
@@ -71,7 +69,7 @@ const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) =>
       let devices: GP51DeviceData[] = [];
       if (Array.isArray(response)) {
         devices = response;
-      } else if (response && 'vehicles' in response) {
+      } else if (response && 'vehicles' in response && Array.isArray(response.vehicles)) {
         devices = response.vehicles;
       } else if (response && 'data' in response && Array.isArray(response.data)) {
         devices = response.data;
@@ -108,7 +106,11 @@ const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) =>
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" onClick={handleImport} loading={isLoading}>
+          <Button 
+            type="submit" 
+            onClick={handleImport} 
+            disabled={isLoading}
+          >
             {isLoading ? "Importing..." : "Import"}
           </Button>
         </DialogFooter>

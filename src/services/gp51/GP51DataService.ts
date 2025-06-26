@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   GP51ProcessedPosition, 
@@ -61,19 +62,29 @@ export class GP51DataService {
       const devices = await this.getDeviceList();
       
       // Generate mock telemetry data for demonstration
-      const telemetry: GP51TelemetryData[] = devices.map(device => ({
+      const mockTelemetryData: GP51TelemetryData[] = devices.map(device => ({
         deviceId: device.deviceId,
-        timestamp: new Date().toISOString(),
-        latitude: 0,
-        longitude: 0,
-        speed: 0,
-        course: 0,
-        status: 'active'
+        timestamp: new Date(),
+        position: {
+          deviceid: device.deviceId,
+          latitude: 0,
+          longitude: 0,
+          speed: 0,
+          course: 0
+        },
+        sensors: {
+          temperature: 25,
+          fuel: 80
+        },
+        status: {
+          engine: device.isActive || false,
+          doors: [],
+          alarms: []
+        }
       }));
 
       return {
         vehicles: devices,
-        telemetry,
         metadata: {
           totalDevices: devices.length,
           activeDevices: devices.filter(d => d.isActive).length,
@@ -89,7 +100,6 @@ export class GP51DataService {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
         vehicles: [],
-        telemetry: [],
         lastUpdate: new Date(),
         totalCount: 0,
         activeCount: 0
@@ -128,24 +138,24 @@ export class GP51DataService {
       
       console.log(`✅ Successfully processed ${created} vehicle records, ${errors} errors`);
       return { 
+        success: errors === 0,
         created, 
         errors, 
         processed: created,
         skipped: 0,
         details: errorDetails.map(e => e.message),
-        timestamp: new Date(),
-        errorDetails
+        timestamp: new Date()
       };
     } catch (error) {
       console.error('❌ Error processing vehicle data:', error);
       return { 
+        success: false,
         created: 0, 
         errors: data.length,
         processed: 0,
         skipped: 0,
         details: [error instanceof Error ? error.message : 'Batch processing failed'],
-        timestamp: new Date(),
-        errorDetails: [{ itemId: 'batch', message: error instanceof Error ? error.message : 'Batch processing failed' }]
+        timestamp: new Date()
       };
     }
   }
@@ -206,7 +216,6 @@ export class GP51DataService {
         course: 0,
         timestamp: new Date(),
         status: 'active',
-        isOnline: true,
         isMoving: false,
         statusText: 'active'
       });

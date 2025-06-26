@@ -28,6 +28,7 @@ export interface GP51User {
 }
 
 export interface GP51Device {
+  // GP51 API properties (original)
   deviceid: string;
   devicename: string;
   devicetype: number;
@@ -35,41 +36,45 @@ export interface GP51Device {
   lastactivetime: number;
   simnum?: string;
   groupid?: number;
-  owner?: string;
   
-  // Component compatibility properties
-  device_id?: string;
-  device_name?: string;
-  device_type?: number;
-  sim_number?: string;
-  last_active_time?: number;
-  id?: string;
-  is_active?: boolean;
-  starred?: boolean;
-  gps51_groups?: string;
+  // Component compatibility properties (aliases)
+  device_id?: string;          // Alias for deviceid
+  device_name?: string;        // Alias for devicename
+  device_type?: number;        // Alias for devicetype
+  sim_number?: string;         // Alias for simnum
+  last_active_time?: number;   // Alias for lastactivetime
+  
+  // Additional component properties
+  id?: string;                 // For component keys
+  is_active?: boolean;         // Component status
+  starred?: boolean;           // UI feature
+  gps51_groups?: string;       // Group display name
+  owner?: string;              // Device owner
 }
 
 export interface GP51Group {
+  // GP51 API properties (original)
   groupid: number;
   groupname: string;
   devices: GP51Device[];
   remark?: string;
   creater?: string;
   
-  // Component compatibility properties
-  id?: string;
-  group_id?: number;
-  group_name?: string;
-  device_count?: number;
-  last_sync_at?: Date;
+  // Component compatibility properties (aliases)
+  id?: string;                 // For component keys
+  group_id?: number;           // Alias for groupid
+  group_name?: string;         // Alias for groupname
+  device_count?: number;       // Count of devices
+  last_sync_at?: Date | string; // Last sync time - can be Date or string
 }
 
 export interface GP51Position {
+  // GP51 API properties (original)
   deviceid?: string;
-  callat?: number;
-  callon?: number;
-  lat?: number;
-  lon?: number;
+  callat?: number;             // Calculated latitude
+  callon?: number;             // Calculated longitude
+  lat?: number;                // Raw latitude
+  lon?: number;                // Raw longitude
   speed?: number;
   course?: number;
   altitude?: number;
@@ -87,15 +92,16 @@ export interface GP51Position {
   totaldistance?: number;
   reportmode?: number;
   
-  // Component compatibility properties
-  device_id?: string;
-  latitude?: number;
-  longitude?: number;
-  update_time?: number;
-  address?: string;
+  // Component compatibility properties (aliases)
+  device_id?: string;          // Alias for deviceid
+  latitude?: number;           // Standardized latitude
+  longitude?: number;          // Standardized longitude
+  update_time?: number;        // Alias for updatetime
+  address?: string;            // Reverse geocoded address
 }
 
 export interface GP51DashboardSummary {
+  // Standard properties
   totalUsers: number;
   totalDevices: number;
   activeDevices: number;
@@ -106,43 +112,42 @@ export interface GP51DashboardSummary {
   apiResponseTime: number;
   
   // Component compatibility aliases
-  total_users?: number;
-  total_devices?: number;
-  active_devices?: number;
-  offline_devices?: number;
-  total_groups?: number;
-  devices_with_positions?: number;
+  total_users?: number;        // Alias for totalUsers
+  total_devices?: number;      // Alias for totalDevices
+  active_devices?: number;     // Alias for activeDevices
+  offline_devices?: number;    // Alias for offlineDevices
+  total_groups?: number;       // Alias for totalGroups
 }
 
 export interface GP51TestResult {
   success: boolean;
+  message?: string;          // Made optional
+  responseTime?: number;     // Made optional
+  timestamp?: Date;          // Made optional
   name?: string;
   data?: any;
   error?: string;
-  message?: string;          // Make optional
-  responseTime?: number;     // Make optional  
-  timestamp?: Date;          // Make optional
   details?: any;
 }
 
 export interface GP51ProcessResult {
-  success: boolean;
+  success: boolean;          // Added as required
   processed: number;
   errors: number;
   skipped: number;
   details: string[];
   timestamp: Date;
-  created?: number;
-  errorDetails?: Array<{itemId: string; message: string}>; // Fix type
+  created?: number;          // Made optional
+  errorDetails?: Array<{itemId: string; message: string}>; // Made optional and more specific
 }
 
 export interface GP51MonitorListResponse {
   status: number;
   cause: string;
   groups: GP51Group[];
-  success?: boolean;
-  error?: string;
-  data?: {
+  success?: boolean;           // Component compatibility
+  error?: string;              // Error message alias
+  data?: {                     // Structured data
     groups: GP51Group[];
     users: GP51User[];
     devices: GP51Device[];
@@ -173,6 +178,7 @@ export interface GP51Session {
 }
 
 export interface GP51DeviceData {
+  // GP51 API properties (original)
   deviceid: string;
   devicename: string;
   devicetype: number;
@@ -180,21 +186,23 @@ export interface GP51DeviceData {
   lastactivetime: number;
   simnum?: string;
   
-  // Component compatibility
-  deviceId?: string;
-  deviceName?: string;
-  deviceType?: number;
-  device_id?: string;
-  device_name?: string;
+  // Component compatibility properties
+  deviceId?: string;           // Alias for deviceid
+  deviceName?: string;         // Alias for devicename
+  deviceType?: number;         // Alias for devicetype
+  device_id?: string;          // Alternative alias
+  device_name?: string;        // Alternative alias
   
   // Extended properties
   lastPosition?: GP51Position;
   isOnline?: boolean;
-  isActive?: boolean;
+  isActive?: boolean;          // Component status
   batteryLevel?: number;
   signalStrength?: number;
   lastUpdate?: Date;
   owner?: string;
+  groupId?: string;
+  groupName?: string;
 }
 
 export interface GP51LiveVehiclesResponse {
@@ -202,26 +210,32 @@ export interface GP51LiveVehiclesResponse {
   lastUpdate: Date;
   totalCount: number;
   activeCount: number;
-  success?: boolean;
-  error?: string;
-  data?: GP51DeviceData[];
-  devices?: GP51DeviceData[];
+  
+  // Component compatibility
+  success?: boolean;           // Success indicator
+  error?: string;              // Error message
+  data?: GP51DeviceData[];     // Data alias
+  metadata?: {                 // Added metadata support
+    totalDevices: number;
+    activeDevices: number;
+    lastSync: string;
+  };
 }
 
 export interface GP51TelemetryData {
   deviceId: string;
-  timestamp: string | Date;
-  latitude?: number;
-  longitude?: number;
-  speed?: number;
-  course?: number;
-  status?: string;
-  position?: GP51Position;   // Make optional
-  sensors?: {               // Make optional
+  timestamp: Date;
+  position?: GP51Position;     // Made optional
+  sensors?: {                  // Made optional
     temperature?: number;
     humidity?: number;
     fuel?: number;
     battery?: number;
+  };
+  status?: {                   // Made optional
+    engine: boolean;
+    doors: boolean[];
+    alarms: string[];
   };
 }
 
@@ -236,7 +250,8 @@ export interface GP51ProcessedPosition {
   isMoving: boolean;
   course?: number;
   altitude?: number;
-  statusText?: string;
+  statusText?: string;        // Added for compatibility
+  // Removed isOnline as it doesn't exist in this interface
 }
 
 export interface LivePositionData {
@@ -294,21 +309,21 @@ export interface UnifiedGP51Service {
 }
 
 export interface UseUnifiedGP51ServiceReturn {
-  // Authentication
+  // Authentication methods
   authenticate: (username: string, password: string) => Promise<GP51AuthResponse>;
   authenticateAdmin: (username: string, password: string) => Promise<GP51AuthResponse>;
   logout: () => Promise<void>;
   disconnect: () => Promise<void>;
 
-  // State
+  // State properties that components expect
   isAuthenticated: boolean;
-  isConnected: boolean;
+  isConnected: boolean;        // REQUIRED by components
   currentUser: GP51User | null;
   session: GP51Session | null;
   isLoading: boolean;
   error: string | null;
 
-  // Data
+  // Data properties
   users: GP51User[];
   devices: GP51Device[];
   groups: GP51Group[];
@@ -317,16 +332,16 @@ export interface UseUnifiedGP51ServiceReturn {
   // Health monitoring
   healthStatus: GP51HealthStatus | null;
   getConnectionHealth: () => Promise<GP51HealthStatus>;
-  testConnection: () => Promise<GP51TestResult>;
+  testConnection?: () => Promise<GP51TestResult>;
 
-  // Data operations
+  // Data operations that components expect
   fetchData: () => Promise<void>;
-  fetchUsers: () => Promise<void>;
-  fetchDevices: () => Promise<void>;
+  fetchUsers: () => Promise<void>;     // REQUIRED by UnifiedGP51Dashboard
+  fetchDevices: () => Promise<void>;   // REQUIRED by UnifiedGP51Dashboard
   getPositions: (deviceIds?: string[]) => Promise<GP51Position[]>;
 
-  // Utilities
-  clearError: () => void;
+  // Utility methods
+  clearError: () => void;              // REQUIRED by UnifiedGP51Dashboard
 }
 
 // Legacy aliases for backward compatibility
