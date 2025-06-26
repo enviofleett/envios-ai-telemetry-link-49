@@ -1,9 +1,8 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { GP51HealthStatus, GP51AuthResponse, GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
 
 export class UnifiedGP51Service {
-  public session: any = null; // Changed from private to public
+  public session: any = null;
   private currentUser: string | null = null;
   public isAuthenticated: boolean = false;
 
@@ -20,10 +19,29 @@ export class UnifiedGP51Service {
         body: { action: 'querymonitorlist' }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+
+      console.log('📊 Monitor list response:', data);
+
+      if (!data.success) {
+        return {
+          success: false,
+          error: data.error || 'Failed to query monitor list',
+          data: [],
+          groups: []
+        };
+      }
 
       const groups = data?.groups || [];
-      const devices = groups.flatMap((group: any) => group.devices || []);
+      const devices = data?.devices || groups.flatMap((group: any) => group.devices || []);
+
+      console.log('✅ Successfully fetched:', {
+        groupCount: groups.length,
+        deviceCount: devices.length
+      });
 
       return {
         success: true,
@@ -103,7 +121,7 @@ export class UnifiedGP51Service {
         return {
           status: 'failed',
           lastCheck: new Date(),
-          responseTime, // Always provide responseTime
+          responseTime,
           errors: [error?.message || 'Health check failed'],
           isConnected: false,
           lastPingTime: new Date(),
@@ -117,7 +135,7 @@ export class UnifiedGP51Service {
       return {
         status: 'healthy',
         lastCheck: new Date(),
-        responseTime, // Always provide responseTime
+        responseTime,
         isConnected: this.isAuthenticated,
         lastPingTime: new Date(),
         tokenValid: !!this.session?.token,
@@ -129,7 +147,7 @@ export class UnifiedGP51Service {
       return {
         status: 'failed',
         lastCheck: new Date(),
-        responseTime: 0, // Always provide responseTime, default to 0 on error
+        responseTime: 0,
         errors: [error.message],
         isConnected: false,
         lastPingTime: new Date(),
