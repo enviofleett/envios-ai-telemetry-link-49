@@ -1,21 +1,28 @@
 
+// Export types
 export type { 
-  UnifiedGP51Service,
   GP51User,
   GP51Device,
   GP51Group,
-  GP51Position,
   GP51AuthResponse,
   GP51MonitorListResponse,
+  GP51Session,
   GP51HealthStatus,
-  GP51ServiceResult,
-  GP51Session
+  UnifiedGP51Service
 } from './UnifiedGP51Service';
 
+// Export services
 export { 
   UnifiedGP51ServiceImpl, 
-  unifiedGP51Service
+  unifiedGP51Service 
 } from './UnifiedGP51Service';
 
-export { RealTimePositionService, realTimePositionService } from './RealTimePositionService';
-export type { PositionUpdate, RealTimePositionConfig } from './RealTimePositionService';
+export type {
+  PositionUpdate,
+  RealTimePositionConfig
+} from './RealTimePositionService';
+
+export { 
+  RealTimePositionService,
+  realTimePositionService 
+} from './RealTimePositionService';

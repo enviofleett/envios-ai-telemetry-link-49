@@ -21,11 +21,33 @@ export interface RealTimeSubscription {
   onError: (error: string) => void;
 }
 
+export interface PositionUpdate {
+  deviceid: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  timestamp: number;
+  status: string;
+  altitude?: number;
+  course?: number;
+}
+
+export interface RealTimePositionConfig {
+  updateInterval: number; // milliseconds
+  deviceIds: string[];
+  autoReconnect: boolean;
+}
+
 export class RealTimePositionService {
   private static instance: RealTimePositionService;
   private subscriptions: Map<string, RealTimeSubscription> = new Map();
   private pollingInterval: NodeJS.Timeout | null = null;
   private readonly POLLING_INTERVAL_MS = 5000;
+  private updateInterval: NodeJS.Timeout | null = null;
+  private config: RealTimePositionConfig;
+  private listeners: Map<string, (update: PositionUpdate) => void> = new Map();
+  private lastPositionTime: number = 0;
+  private isRunning: boolean = false;
 
   private constructor() {}
 
@@ -159,6 +181,106 @@ export class RealTimePositionService {
       subscriptionCount: this.subscriptions.size,
       totalDevices: allDeviceIds.size
     };
+  }
+  
+  constructor(
+    private gp51Service: any = null,
+    config: Partial<RealTimePositionConfig> = {}
+  ) {
+    this.config = {
+      updateInterval: 10000, // 10 seconds default
+      deviceIds: [],
+      autoReconnect: true,
+      ...config
+    };
+  }
+
+  // Start real-time position updates
+  start(deviceIds: string[] = []): void {
+    if (this.isRunning) {
+      this.stop();
+    }
+
+    this.config.deviceIds = deviceIds.length > 0 ? deviceIds : this.config.deviceIds;
+    this.isRunning = true;
+
+    if (this.config.deviceIds.length === 0) {
+      console.warn('No device IDs provided for real-time tracking');
+      return;
+    }
+
+    this.updateInterval = setInterval(async () => {
+      try {
+        await this.fetchAndBroadcastPositions();
+      } catch (error) {
+        console.error('Real-time position update failed:', error);
+        
+        if (this.config.autoReconnect) {
+          setTimeout(() => {
+            if (this.isRunning) {
+              this.start(this.config.deviceIds);
+            }
+          }, 5000);
+        }
+      }
+    }, this.config.updateInterval);
+
+    this.fetchAndBroadcastPositions().catch(console.error);
+  }
+
+  stop(): void {
+    this.isRunning = false;
+    if (this.updateInterval) {
+      clearInterval(this.updateInterval);
+      this.updateInterval = null;
+    }
+  }
+
+  subscribe(listenerId: string, callback: (update: PositionUpdate) => void): void {
+    this.listeners.set(listenerId, callback);
+  }
+
+  unsubscribe(listenerId: string): void {
+    this.listeners.delete(listenerId);
+  }
+
+  private async fetchAndBroadcastPositions(): Promise<void> {
+    // Mock implementation for now
+    console.log('Fetching positions for devices:', this.config.deviceIds);
+    
+    // Simulate position updates
+    this.config.deviceIds.forEach(deviceId => {
+      const mockUpdate: PositionUpdate = {
+        deviceid: deviceId,
+        latitude: Math.random() * 90,
+        longitude: Math.random() * 180,
+        speed: Math.random() * 100,
+        timestamp: Date.now(),
+        status: 'active',
+        altitude: Math.random() * 1000,
+        course: Math.random() * 360
+      };
+      
+      this.broadcastUpdate(mockUpdate);
+    });
+  }
+
+  private broadcastUpdate(update: PositionUpdate): void {
+    this.listeners.forEach((callback, listenerId) => {
+      try {
+        callback(update);
+      } catch (error) {
+        console.error(`Error in position update listener ${listenerId}:`, error);
+      }
+    });
+  }
+
+  isActive(): boolean {
+    return this.isRunning;
+  }
+
+  getTrackedDevices(): string[] {
+    return [...this.config.deviceIds];
   }
 }
 

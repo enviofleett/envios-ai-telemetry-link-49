@@ -1,6 +1,21 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { realTimePositionService, type PositionUpdate } from '@/services/gp51/RealTimePositionService';
+import { realTimePositionService } from '@/services/gp51/index';
+
+export interface PositionUpdate {
+  deviceId: string;
+  position: {
+    deviceid: string;
+    latitude: number;
+    longitude: number;
+    speed: number;
+    course: number;
+    altitude: number;
+    timestamp: string;
+    status: string;
+  };
+  timestamp: Date;
+}
 
 export interface UseRealTimePositionsReturn {
   positions: Map<string, PositionUpdate>;
@@ -26,26 +41,37 @@ export const useRealTimePositions = (subscriptionId?: string): UseRealTimePositi
     setIsSubscribed(true);
     setError(null);
     
-    realTimePositionService.subscribe(actualSubscriptionId, {
-      deviceIds,
-      onUpdate: (update: PositionUpdate) => {
-        setPositions(prev => {
-          const newPositions = new Map(prev);
-          newPositions.set(update.deviceId, update);
-          return newPositions;
-        });
-        setLastUpdate(new Date());
-      },
-      onError: (errorMessage: string) => {
-        console.error('❌ [useRealTimePositions] Position update error:', errorMessage);
-        setError(errorMessage);
-      }
+    realTimePositionService.start(deviceIds);
+    
+    realTimePositionService.subscribe(actualSubscriptionId, (update) => {
+      const positionUpdate: PositionUpdate = {
+        deviceId: update.deviceid,
+        position: {
+          deviceid: update.deviceid,
+          latitude: update.latitude,
+          longitude: update.longitude,
+          speed: update.speed,
+          course: update.course || 0,
+          altitude: update.altitude || 0,
+          timestamp: new Date(update.timestamp).toISOString(),
+          status: update.status
+        },
+        timestamp: new Date()
+      };
+      
+      setPositions(prev => {
+        const newPositions = new Map(prev);
+        newPositions.set(update.deviceid, positionUpdate);
+        return newPositions;
+      });
+      setLastUpdate(new Date());
     });
   }, [actualSubscriptionId]);
 
   const unsubscribe = useCallback(() => {
     console.log('📡 [useRealTimePositions] Unsubscribing from real-time positions');
     
+    realTimePositionService.stop();
     realTimePositionService.unsubscribe(actualSubscriptionId);
     setIsSubscribed(false);
     setPositions(new Map());
