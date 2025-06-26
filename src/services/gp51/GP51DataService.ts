@@ -1,7 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import { GP51HealthStatus, GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
-import type { GP51PerformanceMetrics } from '@/types/gp51Performance';
+import { GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
 
 class GP51DataService {
   async queryMonitorList(): Promise<{
@@ -11,19 +10,21 @@ class GP51DataService {
     error?: string;
   }> {
     try {
+      console.log('🔍 Querying GP51 monitor list...');
+      
       const { data, error } = await supabase.functions.invoke('gp51-service-management', {
         body: { action: 'query_monitor_list' }
       });
-
+      
       if (error || !data?.success) {
         return {
           success: false,
-          error: error?.message || 'Query monitor list failed',
+          error: error?.message || 'Failed to query monitor list',
           data: [],
           groups: []
         };
       }
-
+      
       return {
         success: true,
         data: data.data || [],
@@ -41,64 +42,81 @@ class GP51DataService {
 
   async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     try {
+      console.log('📍 Getting last positions...');
+      
       const { data, error } = await supabase.functions.invoke('gp51-service-management', {
         body: { 
           action: 'get_last_positions',
           deviceIds: deviceIds 
         }
       });
-
+      
       if (error || !data?.success) {
-        console.error('Failed to get last positions:', error);
+        console.error('❌ Failed to get positions:', error);
         return [];
       }
-
+      
       return data.positions || [];
     } catch (error) {
-      console.error('Error getting last positions:', error);
+      console.error('❌ Position fetch error:', error);
       return [];
     }
   }
 
   async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     try {
+      console.log('📍 Getting positions...');
+      
       const { data, error } = await supabase.functions.invoke('gp51-service-management', {
         body: { 
           action: 'get_positions',
           deviceIds: deviceIds 
         }
       });
-
+      
       if (error || !data?.success) {
-        console.error('Failed to get positions:', error);
+        console.error('❌ Failed to get positions:', error);
         return [];
       }
-
+      
       return data.positions || [];
     } catch (error) {
-      console.error('Error getting positions:', error);
+      console.error('❌ Position fetch error:', error);
       return [];
     }
   }
 
   async getDevices(deviceIds?: string[]) {
     try {
-      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
-        body: { 
-          action: 'get_devices',
-          deviceIds: deviceIds 
-        }
-      });
-
-      if (error || !data?.success) {
-        console.error('Failed to get devices:', error);
-        return [];
+      console.log('🚗 Getting devices...');
+      
+      const result = await this.queryMonitorList();
+      
+      if (!result.success) {
+        return {
+          success: false,
+          error: result.error,
+          data: []
+        };
       }
-
-      return data.devices || [];
+      
+      let devices = result.data || [];
+      
+      if (deviceIds && deviceIds.length > 0) {
+        devices = devices.filter(device => deviceIds.includes(device.deviceId));
+      }
+      
+      return {
+        success: true,
+        data: devices,
+        groups: result.groups
+      };
     } catch (error) {
-      console.error('Error getting devices:', error);
-      return [];
+      return {
+        success: false,
+        error: error.message,
+        data: []
+      };
     }
   }
 
@@ -208,7 +226,7 @@ class GP51DataService {
   /**
    * Get performance metrics (used by GP51PerformanceMonitor)
    */
-  async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
+  async getPerformanceMetrics(): Promise<any> {
     try {
       console.log('📈 Fetching performance metrics...');
       
@@ -219,16 +237,13 @@ class GP51DataService {
           success: false,
           error: 'Failed to fetch device data for metrics',
           responseTime: 0,
-          requestStartTime: Date.now(),
+          requestStartTime: Date.now().toString(),
           deviceCount: 0,
           groupCount: 0,
           activeDevices: 0,
           inactiveDevices: 0,
           onlineDevices: 0,
-          offlineDevices: 0,
-          timestamp: new Date().toISOString(),
-          errorRate: 0,
-          apiCallCount: 0
+          offlineDevices: 0
         };
       }
 
@@ -241,17 +256,30 @@ class GP51DataService {
       return {
         success: true,
         responseTime: avgResponseTime,
-        requestStartTime: Date.now(),
+        requestStartTime: Date.now().toString(),
         deviceCount: totalDevices,
         groupCount: new Set(devices.map(d => d.groupId)).size,
         activeDevices,
         inactiveDevices: totalDevices - activeDevices,
         onlineDevices,
         offlineDevices: totalDevices - onlineDevices,
-        timestamp: new Date().toISOString(),
-        errorRate: 0,
-        apiCallCount: 1,
-        errorType: undefined
+        connectionHealth: totalDevices > 0 ? onlineDevices / totalDevices : 0,
+        averageResponseTime: avgResponseTime,
+        dataFreshness: new Date().toISOString(),
+        systemStatus: onlineDevices > totalDevices * 0.8 ? 'healthy' : 'degraded',
+        
+        // Also include nested metrics for backward compatibility
+        metrics: {
+          totalDevices,
+          activeDevices,
+          inactiveDevices: totalDevices - activeDevices,
+          onlineDevices,
+          offlineDevices: totalDevices - onlineDevices,
+          connectionHealth: totalDevices > 0 ? onlineDevices / totalDevices : 0,
+          averageResponseTime: avgResponseTime,
+          dataFreshness: new Date().toISOString(),
+          systemStatus: onlineDevices > totalDevices * 0.8 ? 'healthy' : 'degraded'
+        }
       };
 
     } catch (error) {
@@ -260,16 +288,13 @@ class GP51DataService {
         success: false,
         error: error.message,
         responseTime: 0,
-        requestStartTime: Date.now(),
+        requestStartTime: Date.now().toString(),
         deviceCount: 0,
         groupCount: 0,
         activeDevices: 0,
         inactiveDevices: 0,
         onlineDevices: 0,
-        offlineDevices: 0,
-        timestamp: new Date().toISOString(),
-        errorRate: 100,
-        apiCallCount: 0
+        offlineDevices: 0
       };
     }
   }
@@ -293,7 +318,7 @@ class GP51DataService {
         body: JSON.stringify({
           token: session.token,
           deviceIds: deviceIds,
-          lastQueryTime: localStorage.getItem('gp51_last_query_time') || 0
+          lastQueryTime: localStorage.getItem('gp51_last_query_time') || '0'
         })
       });
 
@@ -347,11 +372,11 @@ class GP51DataService {
       ]);
 
       const devices = deviceResponse.data || [];
-      const positions = Array.from(positionResponse.values()) || [];
+      const positions = positionResponse || new Map();
       
       const totalDevices = devices.length;
       const activeDevices = devices.filter(d => d.isActive).length;
-      const onlineDevices = positions.filter(p => p.isOnline).length;
+      const onlineDevices = Array.from(positions.values()).filter(p => p.isOnline).length;
       
       return {
         totalDevices,
@@ -376,7 +401,6 @@ class GP51DataService {
   }
 }
 
-// Export both the class and an instance
 export { GP51DataService };
 export const gp51DataService = new GP51DataService();
 export default GP51DataService;
