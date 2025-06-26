@@ -159,15 +159,38 @@ export class EnhancedVehicleDataService {
   getCurrentData(): EnhancedVehicleData {
     return {
       vehicles: this.vehicles,
+      allVehicles: this.vehicles,
+      filteredVehicles: this.vehicles,
+      userOptions: [],
       isLoading: this.isLoading,
+      isRefreshing: false,
       error: this.error,
       lastUpdate: this.lastUpdate,
       refetch: async () => { await this.getVehicleData(); },
-      syncStatus: this.syncStatus.status || 'disconnected',
+      syncStatus: this.syncStatus,
       isConnected: this.syncStatus.isConnected,
       forceSync: () => this.forceSync(),
+      forceRefresh: () => this.forceSync(),
       events: this.events,
-      acknowledgeEvent: (eventId: string) => this.acknowledgeEvent(eventId)
+      acknowledgeEvent: (eventId: string) => this.acknowledgeEvent(eventId),
+      metrics: this.metrics || {
+        totalVehicles: 0,
+        onlineVehicles: 0,
+        movingVehicles: 0,
+        idleVehicles: 0,
+        offlineVehicles: 0,
+        recentlyActiveVehicles: 0,
+        lastSyncTime: new Date(),
+        averageSpeed: 0,
+        totalDistance: 0,
+        syncStatus: 'pending',
+        errors: [],
+        total: 0,
+        online: 0,
+        offline: 0,
+        idle: 0,
+        alerts: 0
+      }
     };
   }
 
@@ -224,7 +247,7 @@ export class EnhancedVehicleDataService {
         latitude: 52.0 + Math.random() * 0.1,
         longitude: 4.3 + Math.random() * 0.1,
         speed: Math.random() * 100,
-        timestamp: Date.now(),
+        timestamp: new Date().toISOString(), // Fixed: Use string instead of number
         course: Math.random() * 360,
         altitude: 10 + Math.random() * 100
       },
