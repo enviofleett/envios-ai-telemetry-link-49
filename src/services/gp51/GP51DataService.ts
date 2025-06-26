@@ -1,8 +1,9 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
 
 class GP51DataService {
+  private baseUrl = 'https://www.gps51.com/webapi';
+
   async queryMonitorList(): Promise<{
     success: boolean;
     data?: GP51DeviceData[];
@@ -123,22 +124,21 @@ class GP51DataService {
   /**
    * Get live vehicles data (used by GPS51Dashboard and GP51ImportModal)
    */
-  async getLiveVehicles(): Promise<{
-    success: boolean;
-    data?: any[];
-    error?: string;
-  }> {
+  async getLiveVehicles() {
     try {
-      console.log('🚗 Fetching live vehicles...');
+      console.log('🚗 Fetching live vehicles from GP51...');
       
-      // Get current session
       const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
       
-      if (!session.token) {
-        throw new Error('No valid session found');
+      if (!session.token || !session.username) {
+        return {
+          success: false,
+          error: 'No valid session found',
+          data: []
+        };
       }
 
-      // Use the device query edge function
+      // Use the new device query endpoint
       const response = await fetch('/functions/v1/gp51-query-devices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -151,21 +151,23 @@ class GP51DataService {
       const data = await response.json();
       
       if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch live vehicles');
+        throw new Error(data.error || 'Failed to fetch devices');
       }
 
       console.log('✅ Live vehicles loaded:', data.summary);
       
       return {
         success: true,
-        data: data.data || []
+        data: data.data || [],
+        groups: data.groups || [],
+        summary: data.summary
       };
 
     } catch (error) {
       console.error('❌ Live vehicles error:', error);
       return {
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Failed to fetch vehicles',
         data: []
       };
     }
@@ -174,51 +176,35 @@ class GP51DataService {
   /**
    * Get data directly (used by GP51HistoricalData)
    */
-  async getDataDirectly(): Promise<{
-    success: boolean;
-    data?: any[];
-    groups?: any[];
-    error?: string;
-  }> {
+  async getDataDirectly() {
     try {
-      console.log('📊 Fetching data directly...');
+      console.log('📊 Getting GP51 data directly...');
       
-      // Get current session
-      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
+      const vehicleResponse = await this.getLiveVehicles();
       
-      if (!session.token) {
-        throw new Error('No valid session found');
+      if (!vehicleResponse.success) {
+        return {
+          success: false,
+          error: vehicleResponse.error,
+          data: []
+        };
       }
 
-      // Call device query function
-      const response = await fetch('/functions/v1/gp51-query-devices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: session.token,
-          username: session.username
-        })
-      });
-
-      const data = await response.json();
+      console.log('✅ Direct data fetch completed');
       
-      if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch data');
-      }
-
       return {
         success: true,
-        data: data.data || [],
-        groups: data.groups || []
+        data: vehicleResponse.data,
+        groups: vehicleResponse.groups,
+        summary: vehicleResponse.summary
       };
 
     } catch (error) {
       console.error('❌ Direct data fetch error:', error);
       return {
         success: false,
-        error: error.message,
-        data: [],
-        groups: []
+        error: error instanceof Error ? error.message : 'Direct data fetch failed',
+        data: []
       };
     }
   }
@@ -226,7 +212,7 @@ class GP51DataService {
   /**
    * Get performance metrics (used by GP51PerformanceMonitor)
    */
-  async getPerformanceMetrics(): Promise<any> {
+  async getPerformanceMetrics() {
     try {
       console.log('📈 Fetching performance metrics...');
       
@@ -286,7 +272,7 @@ class GP51DataService {
       console.error('❌ Performance metrics error:', error);
       return {
         success: false,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Performance metrics failed',
         responseTime: 0,
         requestStartTime: Date.now().toString(),
         deviceCount: 0,

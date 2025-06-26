@@ -13,6 +13,7 @@ export const useUnifiedGP51Service = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [devices, setDevices] = useState<GP51DeviceData[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
+  const [positions, setPositions] = useState<any[]>([]);
 
   useEffect(() => {
     setIsConnected(unifiedGP51Service.isAuthenticated);
@@ -60,6 +61,10 @@ export const useUnifiedGP51Service = () => {
         setIsAuthenticated(true);
         setSession(unifiedGP51Service.session);
         setCurrentUser({ username });
+        
+        // Auto-load devices after successful authentication
+        console.log('🚀 Auto-loading devices after authentication...');
+        await queryMonitorList();
       }
       return result;
     } catch (err) {
@@ -82,6 +87,60 @@ export const useUnifiedGP51Service = () => {
     setCurrentUser(null);
   };
 
+  const queryMonitorList = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
+      
+      if (!session.token || !session.username) {
+        throw new Error('No valid session found');
+      }
+
+      console.log('🔍 Fetching devices for user:', session.username);
+
+      const response = await fetch('/functions/v1/gp51-query-devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session.token,
+          username: session.username
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Device query failed');
+      }
+
+      console.log('✅ Devices loaded:', data.summary);
+      
+      setDevices(data.data || []);
+      setGroups(data.groups || []);
+      
+      return {
+        success: true,
+        data: data.data,
+        groups: data.groups,
+        summary: data.summary
+      };
+
+    } catch (error) {
+      console.error('Device query error:', error);
+      setError(error instanceof Error ? error.message : 'Device query failed');
+      return {
+        success: false,
+        data: [],
+        groups: [],
+        error: error instanceof Error ? error.message : 'Device query failed'
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
@@ -94,20 +153,7 @@ export const useUnifiedGP51Service = () => {
   };
 
   const fetchDevices = async () => {
-    setIsLoading(true);
-    try {
-      const result = await unifiedGP51Service.getDevices();
-      if (result.success && result.data) {
-        setDevices(result.data);
-        if (result.groups) {
-          setGroups(result.groups);
-        }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch devices');
-    } finally {
-      setIsLoading(false);
-    }
+    return await queryMonitorList();
   };
 
   const getDevices = async (deviceIds?: string[]) => {
@@ -115,7 +161,59 @@ export const useUnifiedGP51Service = () => {
   };
 
   const getPositions = async (deviceIds?: string[]) => {
-    return await unifiedGP51Service.getPositions(deviceIds);
+    try {
+      setIsLoading(true);
+      
+      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
+      
+      if (!session.token) {
+        throw new Error('No valid session found');
+      }
+
+      console.log('📍 Fetching positions for devices:', deviceIds?.length || 'all');
+
+      const response = await fetch('/functions/v1/gp51-last-positions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session.token,
+          deviceIds: deviceIds || [],
+          lastQueryTime: localStorage.getItem('gp51_last_query_time') || 0
+        })
+      });
+
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Position query failed');
+      }
+
+      console.log('✅ Positions loaded:', data.summary);
+      
+      // Store last query time for next request
+      if (data.lastQueryTime) {
+        localStorage.setItem('gp51_last_query_time', data.lastQueryTime.toString());
+      }
+      
+      setPositions(data.data || []);
+      
+      return {
+        success: true,
+        data: data.data,
+        summary: data.summary
+      };
+
+    } catch (error) {
+      console.error('Position query error:', error);
+      setError(error instanceof Error ? error.message : 'Position query failed');
+      return {
+        success: false,
+        data: [],
+        error: error instanceof Error ? error.message : 'Position query failed'
+      };
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const testConnection = async () => {
@@ -134,6 +232,15 @@ export const useUnifiedGP51Service = () => {
     }
   };
 
+  // Auto-load devices when session is available
+  useEffect(() => {
+    const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
+    if (session.token && session.username && devices.length === 0) {
+      console.log('🚀 Auto-loading devices from existing session...');
+      queryMonitorList();
+    }
+  }, []);
+
   return {
     isConnected,
     session,
@@ -144,6 +251,7 @@ export const useUnifiedGP51Service = () => {
     users,
     devices,
     groups,
+    positions,
     clearError,
     connect,
     disconnect,
@@ -153,8 +261,15 @@ export const useUnifiedGP51Service = () => {
     logout,
     fetchUsers,
     fetchDevices,
+    queryMonitorList,
     getDevices,
     getPositions,
-    testConnection
+    testConnection,
+    
+    // Computed values
+    deviceCount: devices.length,
+    groupCount: groups.length,
+    activeDevices: devices.filter(d => d.isActive).length,
+    onlineDevices: positions.filter(p => p.isOnline).length
   };
 };
