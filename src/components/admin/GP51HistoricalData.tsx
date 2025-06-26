@@ -1,201 +1,300 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, RefreshCw } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { cn } from "@/lib/utils"
-import { format } from "date-fns"
+import { Badge } from '@/components/ui/badge';
+import { Search, RefreshCw, Download, Calendar, Filter } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { gp51DataService } from '@/services/gp51/GP51DataService';
+import type { GP51DeviceData } from '@/types/gp51-unified';
 
-import { useToast } from "@/hooks/use-toast"
-import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
-import type { GP51Device, GP51Group } from '@/types/gp51';
+interface HistoricalDataFilters {
+  dateRange: {
+    start: string;
+    end: string;
+  };
+  deviceType: string;
+  status: string;
+  searchTerm: string;
+}
 
 const GP51HistoricalData: React.FC = () => {
-  const [startDate, setStartDate] = useState<Date | undefined>(new Date(new Date().setDate(new Date().getDate() - 7)));
-  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
-  const [selectedDevice, setSelectedDevice] = useState<string>('');
-  const [selectedGroup, setSelectedGroup] = useState<string>('');
-  const [loading, setLoading] = useState(false);
+  const [devices, setDevices] = useState<GP51DeviceData[]>([]);
+  const [filteredDevices, setFilteredDevices] = useState<GP51DeviceData[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<HistoricalDataFilters>({
+    dateRange: {
+      start: '',
+      end: ''
+    },
+    deviceType: '',
+    status: '',
+    searchTerm: ''
+  });
   const { toast } = useToast();
-  const { devices, groups } = useUnifiedGP51Service();
 
-  useEffect(() => {
-    console.log('Devices:', devices);
-    console.log('Groups:', groups);
-  }, [devices, groups]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+  const fetchHistoricalData = async () => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      // Placeholder for historical data retrieval logic
+      const response = await gp51DataService.getDataDirectly();
+      
+      if (response.success && response.data) {
+        const deviceData = Array.isArray(response.data) ? response.data : [];
+        setDevices(deviceData);
+        setFilteredDevices(deviceData);
+        
+        toast({
+          title: "Success",
+          description: `Loaded ${deviceData.length} historical records`,
+        });
+      } else {
+        throw new Error(response.error || 'Failed to fetch historical data');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch historical data';
+      setError(errorMessage);
+      
       toast({
-        title: "Data Retrieval Initiated",
-        description: `Retrieving historical data for ${selectedDevice ? `device ${selectedDevice}` : `group ${selectedGroup}`} from ${startDate?.toLocaleDateString()} to ${endDate?.toLocaleDateString()}.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Error Retrieving Data",
-        description: "Failed to retrieve historical data. Please try again.",
+        title: "Error",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  // Fix type conversions on lines 51, 52, 63, 64
-  const deviceCount = devices ? devices.length : 0;
-  const isActiveCount = devices ? devices.filter(d => d.is_active).length : 0;
-  const groupCount = groups ? groups.length : 0;
-  const isOnlineCount = devices ? devices.filter(d => d.status === 'active').length : 0;
+  const applyFilters = () => {
+    let filtered = devices;
+
+    // Apply search filter
+    if (filters.searchTerm) {
+      filtered = filtered.filter(device =>
+        device.deviceName.toLowerCase().includes(filters.searchTerm.toLowerCase()) ||
+        device.deviceId.toLowerCase().includes(filters.searchTerm.toLowerCase())
+      );
+    }
+
+    // Apply status filter
+    if (filters.status) {
+      filtered = filtered.filter(device => {
+        const deviceStatus = device.isActive ? 'active' : 'inactive';
+        return deviceStatus === filters.status;
+      });
+    }
+
+    // Apply device type filter
+    if (filters.deviceType) {
+      filtered = filtered.filter(device => 
+        (device.deviceType || 'unknown').toLowerCase().includes(filters.deviceType.toLowerCase())
+      );
+    }
+
+    setFilteredDevices(filtered);
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      dateRange: { start: '', end: '' },
+      deviceType: '',
+      status: '',
+      searchTerm: ''
+    });
+    setFilteredDevices(devices);
+  };
+
+  const exportData = () => {
+    const csvData = filteredDevices.map(device => ({
+      'Device ID': device.deviceId,
+      'Device Name': device.deviceName,
+      'Device Type': device.deviceType || 'Unknown',
+      'Status': device.isActive ? 'Active' : 'Inactive',
+      'Group ID': device.groupId || '',
+      'Group Name': device.groupName || '',
+      'SIM Number': device.simNumber || '',
+      'Last Active': device.lastActiveTime ? 
+        (typeof device.lastActiveTime === 'string' ? device.lastActiveTime : device.lastActiveTime.toISOString()) : 
+        'Never'
+    }));
+
+    const headers = Object.keys(csvData[0] || {});
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => headers.map(header => `"${row[header as keyof typeof row] || ''}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `gp51-historical-data-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Export Complete",
+      description: `Exported ${filteredDevices.length} records to CSV`,
+    });
+  };
+
+  const getStatusBadge = (device: GP51DeviceData) => {
+    const isActive = device.isActive;
+    return (
+      <Badge variant={isActive ? "default" : "secondary"}>
+        {isActive ? 'Active' : 'Inactive'}
+      </Badge>
+    );
+  };
+
+  const formatDate = (dateValue: string | Date | null | undefined) => {
+    if (!dateValue) return 'Never';
+    
+    const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
+    return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleString();
+  };
+
+  useEffect(() => {
+    fetchHistoricalData();
+  }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [filters, devices]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Historical Data Retrieval</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="startDate">Start Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !startDate && "text-muted-foreground"
-                    )}
-                  >
-                    {startDate ? (
-                      format(startDate, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={startDate}
-                    onSelect={setStartDate}
-                    disabled={(date) =>
-                      date > new Date()
-                    }
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label htmlFor="endDate">End Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant={"outline"}
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !endDate && "text-muted-foreground"
-                    )}
-                  >
-                    {endDate ? (
-                      format(endDate, "PPP")
-                    ) : (
-                      <span>Pick a date</span>
-                    )}
-                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={endDate}
-                    onSelect={setEndDate}
-                    disabled={(date) =>
-                      date > new Date() || (startDate && date < startDate)
-                    }
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="device">Select Device</Label>
-              <Select onValueChange={setSelectedDevice}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a device" />
-                </SelectTrigger>
-                <SelectContent>
-                  {devices && devices.map((device) => (
-                    <SelectItem key={device.deviceid} value={device.deviceid}>
-                      {device.devicename} ({device.deviceid})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="group">Select Group</Label>
-              <Select onValueChange={setSelectedGroup}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a group" />
-                </SelectTrigger>
-                <SelectContent>
-                  {groups && groups.map((group) => (
-                    <SelectItem key={group.groupid} value={group.groupid.toString()}>
-                      {group.groupname}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Retrieving Data...
-              </>
-            ) : (
-              "Retrieve Historical Data"
-            )}
-          </Button>
-        </form>
-
-        <div className="border-t pt-4">
-          <CardTitle>Summary</CardTitle>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm font-medium">Total Devices:</p>
-              <p className="text-sm">{deviceCount}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Active Devices:</p>
-              <p className="text-sm">{isActiveCount}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Total Groups:</p>
-              <p className="text-sm">{groupCount}</p>
-            </div>
-            <div>
-              <p className="text-sm font-medium">Devices Online:</p>
-              <p className="text-sm">{isOnlineCount}</p>
-            </div>
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Historical Data</h2>
+          <p className="text-gray-600">View and analyze historical device data from GP51</p>
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex space-x-2">
+          <Button onClick={exportData} disabled={filteredDevices.length === 0} variant="outline">
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+          <Button onClick={fetchHistoricalData} disabled={isLoading}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="h-4 w-4" />
+            Filters
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Search</label>
+              <div className="relative">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search devices..."
+                  value={filters.searchTerm}
+                  onChange={(e) => setFilters(prev => ({ ...prev, searchTerm: e.target.value }))}
+                  className="pl-8"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Status</label>
+              <select
+                value={filters.status}
+                onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Device Type</label>
+              <Input
+                placeholder="Filter by type..."
+                value={filters.deviceType}
+                onChange={(e) => setFilters(prev => ({ ...prev, deviceType: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Actions</label>
+              <Button onClick={clearFilters} variant="outline" className="w-full">
+                Clear Filters
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Results */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Device Records ({filteredDevices.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="text-red-600 mb-4 p-3 bg-red-50 rounded-md">
+              Error: {error}
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+              Loading historical data...
+            </div>
+          ) : filteredDevices.length === 0 ? (
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600">No historical data found</p>
+              <p className="text-sm text-gray-500">Try adjusting your filters or refreshing the data</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredDevices.map((device) => (
+                <div key={`${device.deviceId}-${device.deviceId}`} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h4 className="font-medium">{device.deviceName}</h4>
+                      <p className="text-sm text-gray-600">ID: {device.deviceId}</p>
+                      <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                        <span>Type: {device.deviceType || 'Unknown'}</span>
+                        {device.groupName && <span>Group: {device.groupName}</span>}
+                        {device.simNumber && <span>SIM: {device.simNumber}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      {getStatusBadge(device)}
+                      <div className="text-right text-sm">
+                        <div className="text-gray-500">Last Active</div>
+                        <div className="font-medium">{formatDate(device.lastActiveTime)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
