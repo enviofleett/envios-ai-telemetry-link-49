@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { realTimePositionService, PositionUpdate } from '@/services/gp51/RealTimePositionService';
+import { realTimePositionService, type PositionUpdate } from '@/services/gp51/RealTimePositionService';
 
 export interface UseRealTimePositionsReturn {
   positions: Map<string, PositionUpdate>;

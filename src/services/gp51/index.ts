@@ -1,5 +1,16 @@
 
-export { unifiedGP51Service } from './UnifiedGP51Service';
-export { realTimePositionService } from './RealTimePositionService';
-export type { GP51Position, GP51Device, GP51Group, GP51User, GP51ServiceResult } from './UnifiedGP51Service';
-export type { PositionUpdate, RealTimeSubscription } from './RealTimePositionService';
+export { 
+  UnifiedGP51Service, 
+  UnifiedGP51ServiceImpl, 
+  unifiedGP51Service,
+  type GP51User,
+  type GP51Device,
+  type GP51Group,
+  type GP51Position,
+  type GP51AuthResponse,
+  type GP51MonitorListResponse,
+  type GP51HealthStatus,
+  type GP51ServiceResult
+} from './UnifiedGP51Service';
+
+export { realTimePositionService, type PositionUpdate, type RealTimeSubscription } from './RealTimePositionService';
