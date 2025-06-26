@@ -6,6 +6,7 @@ import UserManagementCards from './UserManagementCards';
 import DashboardRefreshButton from './DashboardRefreshButton';
 import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
 import { useUserManagement } from '@/hooks/useUserManagement';
+import type { GP51Position } from '@/types/gp51-unified';
 
 const FleetDashboard: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
@@ -28,17 +29,32 @@ const FleetDashboard: React.FC = () => {
     refreshAll: refreshUserData
   } = useUserManagement();
 
-  // Calculate metrics
+  // Calculate metrics with proper isOnline handling
   const totalVehicles = devices.length;
-  const onlineVehicles = positions.filter(p => p.isOnline).length;
-  const offlineVehicles = positions.filter(p => !p.isOnline).length;
-  const movingVehicles = positions.filter(p => p.isMoving).length;
+  
+  // Add isOnline property to positions if missing and determine online status
+  const positionsWithOnlineStatus = positions.map((position: GP51Position) => ({
+    ...position,
+    isOnline: position.isOnline !== undefined ? position.isOnline : isPositionRecent(position.timestamp)
+  }));
+  
+  const onlineVehicles = positionsWithOnlineStatus.filter(p => p.isOnline).length;
+  const offlineVehicles = positionsWithOnlineStatus.filter(p => !p.isOnline).length;
+  const movingVehicles = positionsWithOnlineStatus.filter(p => p.isMoving).length;
   const inactiveVehicles = devices.filter(d => !d.isActive).length;
   const totalUsers = users.length;
   const totalUserGroups = userGroups.length;
   const totalDeviceGroups = groups.length;
 
   const isLoading = gp51Loading || userLoading;
+
+  // Helper function to determine if position is recent (online)
+  const isPositionRecent = (timestamp: number): boolean => {
+    const positionTime = new Date(timestamp * 1000); // Convert from seconds to milliseconds
+    const now = new Date();
+    const diffMinutes = (now.getTime() - positionTime.getTime()) / (1000 * 60);
+    return diffMinutes <= 10; // Consider online if position is within 10 minutes
+  };
 
   // Auto-refresh functionality
   const refreshAllData = async () => {

@@ -56,20 +56,21 @@ export class VehiclePositionSyncService {
       // Process each position
       for (const [deviceId, position] of positions.entries()) {
         try {
-          // Store position in database
+          // Convert position data to match Supabase schema
+          const positionData = {
+            device_id: deviceId,
+            latitude: position.latitude,
+            longitude: position.longitude,
+            speed: position.speed,
+            heading: position.course, // Map course to heading
+            timestamp: new Date(position.timestamp * 1000).toISOString(), // Convert to ISO string
+            created_at: new Date().toISOString()
+          };
+
+          // Store position in database using correct table structure
           const { error } = await supabase
             .from('vehicle_positions')
-            .upsert({
-              device_id: deviceId,
-              latitude: position.latitude,
-              longitude: position.longitude,
-              speed: position.speed,
-              course: position.course,
-              status: position.status,
-              is_moving: position.isMoving,
-              timestamp: new Date(position.timestamp),
-              updated_at: new Date()
-            }, { onConflict: 'device_id' });
+            .upsert(positionData, { onConflict: 'device_id' });
 
           if (error) {
             console.error(`Failed to sync position for device ${deviceId}:`, error);
@@ -122,19 +123,20 @@ export class VehiclePositionSyncService {
         };
       }
 
+      // Convert position data to match Supabase schema
+      const positionData = {
+        device_id: deviceId,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        speed: position.speed,
+        heading: position.course, // Map course to heading
+        timestamp: new Date(position.timestamp * 1000).toISOString(), // Convert to ISO string
+        created_at: new Date().toISOString()
+      };
+
       const { error } = await supabase
         .from('vehicle_positions')
-        .upsert({
-          device_id: deviceId,
-          latitude: position.latitude,
-          longitude: position.longitude,
-          speed: position.speed,
-          course: position.course,
-          status: position.status,
-          is_moving: position.isMoving,
-          timestamp: new Date(position.timestamp),
-          updated_at: new Date()
-        }, { onConflict: 'device_id' });
+        .upsert(positionData, { onConflict: 'device_id' });
 
       if (error) {
         return {

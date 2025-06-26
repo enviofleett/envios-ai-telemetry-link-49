@@ -1,3 +1,4 @@
+
 import { GP51AuthService } from './GP51AuthService';
 import { GP51DataService } from './GP51DataService';
 import { GP51HealthService } from './GP51HealthService';
@@ -50,13 +51,11 @@ export class UnifiedGP51Service {
 
   async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     try {
-      const result = await this.dataService.getLastPositions(deviceIds);
+      const result = await this.dataService.getPositions();
       
-      // Return just the data array, not the response object
+      // Return just the data array, filter by deviceIds if provided
       if (Array.isArray(result)) {
-        return result;
-      } else if (result && typeof result === 'object' && 'data' in result) {
-        return result.data || [];
+        return deviceIds ? result.filter(pos => deviceIds.includes(pos.deviceId)) : result;
       } else {
         return [];
       }
@@ -68,13 +67,11 @@ export class UnifiedGP51Service {
 
   async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     try {
-      const result = await this.dataService.getPositions(deviceIds);
+      const result = await this.dataService.getPositions();
       
-      // Return just the data array, not the response object
+      // Return just the data array, filter by deviceIds if provided
       if (Array.isArray(result)) {
-        return result;
-      } else if (result && typeof result === 'object' && 'data' in result) {
-        return result.data || [];
+        return deviceIds ? result.filter(pos => deviceIds.includes(pos.deviceId)) : result;
       } else {
         return [];
       }
@@ -85,7 +82,7 @@ export class UnifiedGP51Service {
   }
 
   async getDevices(deviceIds?: string[]) {
-    return this.dataService.getDevices(deviceIds);
+    return this.dataService.queryMonitorList();
   }
 
   // Health methods

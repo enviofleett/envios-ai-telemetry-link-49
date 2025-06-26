@@ -14,18 +14,11 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
-
-interface ConnectionTestResult {
-  success: boolean;
-  error?: string;
-  data?: any;
-  message?: string;
-  timestamp: Date;
-}
+import type { GP51ConnectionTestResult } from '@/types/gp51-unified';
 
 export const GP51ConnectionTester: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
+  const [testResult, setTestResult] = useState<GP51ConnectionTestResult | null>(null);
   const { toast } = useToast();
   const { testConnection, disconnect } = useUnifiedGP51Service();
 
@@ -37,29 +30,31 @@ export const GP51ConnectionTester: React.FC = () => {
       
       const result = await testConnection();
       
-      setTestResult({
+      // Convert the testConnection result to GP51ConnectionTestResult
+      const connectionTestResult: GP51ConnectionTestResult = {
         success: result.success,
-        message: result.success ? 'GP51 connection is working properly' : (result.error || 'Connection test failed'),
-        data: result.success ? { message: 'Connection successful', ...result.data } : null,
-        timestamp: new Date()
-      });
+        message: result.message,
+        error: result.success ? undefined : result.message,
+        data: result.success ? { message: 'Connection successful' } : undefined
+      };
+
+      setTestResult(connectionTestResult);
 
       toast({
         title: result.success ? "Connection Successful" : "Connection Failed",
-        description: result.success ? 
-          "GP51 connection is working properly" : 
-          (result.error || 'Unknown error occurred'),
+        description: result.message,
         variant: result.success ? "default" : "destructive"
       });
 
     } catch (error) {
       console.error('❌ Connection test exception:', error);
-      setTestResult({
+      const errorResult: GP51ConnectionTestResult = {
         success: false,
         message: `Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        error: error instanceof Error ? error.message : 'Connection test failed',
-        timestamp: new Date()
-      });
+        error: error instanceof Error ? error.message : 'Connection test failed'
+      };
+      
+      setTestResult(errorResult);
 
       toast({
         title: "Test Failed",
@@ -124,7 +119,7 @@ export const GP51ConnectionTester: React.FC = () => {
               <p className="font-medium">{getStatusText()}</p>
               {testResult && (
                 <p className="text-sm text-muted-foreground">
-                  Last tested: {testResult.timestamp.toLocaleTimeString()}
+                  Last tested: {new Date().toLocaleTimeString()}
                 </p>
               )}
             </div>
@@ -147,17 +142,9 @@ export const GP51ConnectionTester: React.FC = () => {
                 {testResult.data && (
                   <div className="text-sm">
                     <p><strong>Details:</strong></p>
-                    <ul className="list-disc list-inside">
-                      {testResult.data.sessionValid !== undefined && (
-                        <li>Session: {testResult.data.sessionValid ? 'Valid' : 'Invalid'}</li>
-                      )}
-                      {testResult.data.activeDevices !== undefined && (
-                        <li>Active Devices: {testResult.data.activeDevices}</li>
-                      )}
-                      {testResult.data.responseTime !== undefined && (
-                        <li>Response Time: {testResult.data.responseTime}ms</li>
-                      )}
-                    </ul>
+                    <pre className="bg-gray-100 p-2 rounded text-xs overflow-auto">
+                      {JSON.stringify(testResult.data, null, 2)}
+                    </pre>
                   </div>
                 )}
               </div>

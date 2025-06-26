@@ -103,6 +103,7 @@ export interface GP51Position {
   isMoving: boolean;
   statusText?: string;
   address?: string;
+  isOnline?: boolean; // Add missing property for FleetDashboard
 }
 
 export interface GP51ServiceResponse<T = any> {
@@ -130,6 +131,45 @@ export interface GP51HealthStatus {
   sessionValid: boolean;
   activeDevices: number;
   errorMessage?: string;
+  
+  // Properties for GP51ConnectionTester compatibility
+  isHealthy: boolean;
+  connectionStatus: 'connected' | 'disconnected' | 'error';
+}
+
+// Add GP51ConnectionTestResult for GP51ConnectionTester
+export interface GP51ConnectionTestResult {
+  success: boolean;
+  message: string;
+  error?: string;
+  data?: any;
+}
+
+// Add GP51PerformanceMetrics interface
+export interface GP51PerformanceMetrics {
+  responseTime: number;
+  success: boolean;
+  requestStartTime: string;
+  errorType?: string;
+  deviceCount: number;
+  groupCount: number;
+  timestamp: string;
+  apiCallCount: number;
+  errorRate: number;
+  averageResponseTime: number;
+  
+  // Vehicle movement metrics
+  movingVehicles: number;
+  stoppedVehicles: number;
+  
+  // Additional device metrics
+  activeDevices?: number;
+  inactiveDevices?: number;
+  onlineDevices?: number;
+  offlineDevices?: number;
+  
+  // Error handling
+  error?: string;
 }
 
 // Legacy aliases for backward compatibility
