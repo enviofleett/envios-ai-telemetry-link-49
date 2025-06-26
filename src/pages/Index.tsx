@@ -66,7 +66,7 @@ const Index: React.FC = () => {
       title: 'Analytics',
       description: 'View detailed reports',
       icon: BarChart3,
-      href: '/admin/analytics',
+      href: '/reports',
       color: 'bg-indigo-50 text-indigo-600'
     },
     {
@@ -173,8 +173,8 @@ const Index: React.FC = () => {
                 <p className="text-sm text-gray-600 mb-3">
                   Add your vehicles and start tracking them in real-time.
                 </p>
-                <Link to="/vehicles">
-                  <Button size="sm">Add Vehicles</Button>
+                <Link to="/tracking">
+                  <Button size="sm">Start Tracking</Button>
                 </Link>
               </div>
               <div className="p-4 border rounded-lg">

@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
@@ -89,6 +90,28 @@ export const AppRouter: React.FC = () => {
           <ProtectedRoute>
             <Layout>
               <EnhancedLiveTracking />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/vehicles"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <EnhancedVehicleManagement />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <EnhancedUserManagement />
             </Layout>
           </ProtectedRoute>
         }
