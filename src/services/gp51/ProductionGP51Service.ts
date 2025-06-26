@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { GP51AuthResponse, GP51User, GP51Device, GP51HealthStatus, GP51ProcessedPosition, GP51Session } from '@/types/gp51';
 import md5 from 'crypto-js/md5';
@@ -235,17 +234,21 @@ export class ProductionGP51Service {
 
   private async storeSession(username: string, sessionData: any): Promise<void> {
     try {
+      // Fix: Use correct column names that match your actual gp51_sessions table
       await supabase
         .from('gp51_sessions')
         .upsert({
           username,
-          session_data: sessionData,
-          token: sessionData.token,
-          expires_at: sessionData.expires_at,
-          is_admin: sessionData.is_admin || false
+          gp51_token: sessionData.token,
+          token_expires_at: sessionData.expires_at || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          is_active: true,
+          last_activity_at: new Date().toISOString()
+        }, {
+          onConflict: 'username'
         });
     } catch (error) {
       console.error('Failed to store session:', error);
+      throw error;
     }
   }
 

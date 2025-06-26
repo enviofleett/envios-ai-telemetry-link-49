@@ -11,6 +11,7 @@ import type {
   GP51Group,
   GP51Position,
   GP51DashboardSummary,
+  GP51TestResult,
   UseUnifiedGP51ServiceReturn
 } from '@/types/gp51';
 
@@ -41,6 +42,60 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     return () => clearInterval(interval);
   }, []);
 
+  const getConnectionHealth = useCallback(async () => {
+    try {
+      const health = await unifiedGP51Service.getConnectionHealth();
+      setHealthStatus(health);
+      setIsConnected(health.isConnected);
+      
+      if (!health.isConnected && health.errorMessage) {
+        setError(health.errorMessage);
+      }
+      
+      return health;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Health check failed';
+      setError(errorMsg);
+      setIsConnected(false);
+      throw err;
+    }
+  }, []);
+
+  const testConnection = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const health = await getConnectionHealth();
+      
+      const testResult: GP51TestResult = {
+        success: health.isConnected,
+        message: health.isConnected ? 'Connection successful' : 'Connection failed',
+        responseTime: health.responseTime,
+        timestamp: new Date(),
+        name: 'Connection Test',
+        data: health,
+        error: health.isConnected ? undefined : health.errorMessage
+      };
+      
+      return testResult;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Connection test failed';
+      setError(errorMsg);
+      
+      return {
+        success: false,
+        message: errorMsg,
+        responseTime: -1,
+        timestamp: new Date(),
+        name: 'Connection Test',
+        error: errorMsg
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getConnectionHealth]);
+
   const authenticate = useCallback(async (username: string, password: string) => {
     setIsLoading(true);
     setError(null);
@@ -57,8 +112,7 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
           usertype: 11, 
           showname: username,
           id: username,
-          gp51_username: username,
-          is_active: true
+          gp51_username: username
         });
         
         await fetchData();
@@ -93,8 +147,7 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
           usertype: 3, 
           showname: username,
           id: username,
-          gp51_username: username,
-          is_active: true
+          gp51_username: username
         });
         
         await fetchData();
@@ -150,18 +203,15 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
       
       if (result.success || result.status === 0) {
         const fetchedGroups = result.groups || [];
-        
-        // Process groups with component-compatible properties
         setGroups(fetchedGroups.map(group => ({
           ...group,
           id: group.groupid.toString(),
           group_id: group.groupid,
           group_name: group.groupname,
           device_count: group.devices?.length || 0,
-          last_sync_at: new Date().toISOString()
+          last_sync_at: new Date()
         })));
 
-        // Process devices with component-compatible properties
         const allDevices: GP51Device[] = [];
         fetchedGroups.forEach(group => {
           if (group.devices) {
@@ -184,7 +234,6 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
         });
         setDevices(allDevices);
 
-        // Create summary with both property naming conventions
         const newSummary: GP51DashboardSummary = {
           totalUsers: 0,
           totalDevices: allDevices.length,
@@ -222,25 +271,6 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     await fetchData();
   }, [fetchData]);
 
-  const connectionHealth = useCallback(async () => {
-    try {
-      const health = await unifiedGP51Service.getConnectionHealth();
-      setHealthStatus(health);
-      setIsConnected(health.isConnected);
-      
-      if (!health.isConnected && health.errorMessage) {
-        setError(health.errorMessage);
-      }
-      
-      return health;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Health check failed';
-      setError(errorMsg);
-      setIsConnected(false);
-      throw err;
-    }
-  }, []);
-
   const getPositions = useCallback(async (deviceIds?: string[]) => {
     try {
       const positions = await unifiedGP51Service.getLastPositions(deviceIds);
@@ -264,7 +294,6 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     setError(null);
   }, []);
 
-  // Auto-load session on mount
   useEffect(() => {
     const loadSession = async () => {
       try {
@@ -281,7 +310,7 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     };
 
     loadSession();
-  }, [fetchData]);
+  }, []);
 
   return {
     authenticate,
@@ -299,7 +328,8 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     groups,
     summary,
     healthStatus,
-    connectionHealth,
+    getConnectionHealth,
+    testConnection,
     fetchData,
     fetchUsers,
     fetchDevices,

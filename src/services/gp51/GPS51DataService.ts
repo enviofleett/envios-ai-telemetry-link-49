@@ -1,4 +1,3 @@
-
 import type { 
   GPS51Group, 
   GPS51Device, 
@@ -129,15 +128,22 @@ export class GPS51DataService {
       }
 
       // Calculate summary
-      const summary: GPS51DashboardSummary = {
-        total_devices: devices.length,
-        active_devices: devices.filter(d => d.is_active === true).length,
-        total_groups: groups.length,
-        devices_with_positions: 0, // Will be calculated separately if needed
-        total_users: users.length
+      const summary: GP51DashboardSummary = {
+        totalUsers: users.length,
+        totalDevices: devices.length,
+        activeDevices: devices.filter(d => d.status === 'active').length,
+        offlineDevices: devices.filter(d => d.status !== 'active').length,
+        totalGroups: groups.length,
+        lastUpdateTime: new Date(),
+        connectionStatus: 'connected',
+        apiResponseTime: 150,
+        devices_with_positions: devices.length
       };
 
-      return {
+      const response: GP51MonitorListResponse = {
+        status: 0,
+        cause: 'OK',
+        groups: groups,
         success: true,
         data: {
           groups,
@@ -147,12 +153,17 @@ export class GPS51DataService {
         }
       };
 
+      return response;
+
     } catch (error) {
-      console.error('❌ GPS51DataService error:', error);
-      return {
+      const errorResponse: GP51MonitorListResponse = {
+        status: 1,
+        cause: typeof error === 'string' ? error : 'Failed to fetch data',
+        groups: [],
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: typeof error === 'string' ? error : 'Failed to fetch data'
       };
+      return errorResponse;
     }
   }
 

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useRealTimePositions } from './useRealTimePositions';
 import { livePositionService } from '@/services/gp51/LivePositionService';
@@ -207,7 +206,8 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
     const loadExistingSession = async () => {
       try {
         // Try to load the 'octopus' admin session
-        const sessionLoaded = await unifiedGP51Service.loadExistingSession('octopus');
+        const service = unifiedGP51Service;
+        const sessionLoaded = await service.loadExistingSession();
         if (sessionLoaded) {
           console.log('✅ Loaded existing GP51 session');
           await loadDevicesFromDatabase();

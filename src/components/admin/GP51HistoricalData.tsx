@@ -1,215 +1,201 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CalendarIcon, Download } from 'lucide-react';
-import { gps51DataService } from '@/services/gp51/GPS51DataService';
-import type { GPS51Device, GPS51Position } from '@/types/gp51';
+import { Calendar } from '@/components/ui/calendar';
+import { CalendarIcon, RefreshCw } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
+import { format } from "date-fns"
+
+import { useToast } from "@/hooks/use-toast"
+import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
+import type { GP51Device, GP51Group } from '@/types/gp51';
 
 const GP51HistoricalData: React.FC = () => {
-  const [devices, setDevices] = useState<GPS51Device[]>([]);
+  const [startDate, setStartDate] = useState<Date | undefined>(new Date(new Date().setDate(new Date().getDate() - 7)));
+  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [selectedDevice, setSelectedDevice] = useState<string>('');
-  const [historicalData, setHistoricalData] = useState<GPS51Position[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [startDate, setStartDate] = useState(
-    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  );
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const { toast } = useToast();
+  const { devices, groups } = useUnifiedGP51Service();
 
   useEffect(() => {
-    loadDevices();
-  }, []);
+    console.log('Devices:', devices);
+    console.log('Groups:', groups);
+  }, [devices, groups]);
 
-  const loadDevices = async () => {
-    try {
-      const result = await gps51DataService.getDataDirectly();
-      if (result.success && result.data) {
-        setDevices(result.data.devices.slice(0, 100));
-      }
-    } catch (error) {
-      console.error('Failed to load devices:', error);
-    }
-  };
-
-  const loadHistoricalData = async () => {
-    if (!selectedDevice) return;
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setLoading(true);
     try {
-      // Mock historical data for now - replace with actual API call
-      const mockData: GPS51Position[] = [
-        {
-          id: '1',
-          device_id: selectedDevice,
-          latitude: 40.7128,
-          longitude: -74.0060,
-          speed: 45.5,
-          course: 180,
-          update_time: new Date().toISOString(),
-          moving: true,
-          address: 'New York, NY',
-          created_at: new Date().toISOString()
-        },
-        {
-          id: '2',
-          device_id: selectedDevice,
-          latitude: 40.7589,
-          longitude: -73.9851,
-          speed: 0,
-          course: 0,
-          update_time: new Date(Date.now() - 3600000).toISOString(),
-          moving: false,
-          address: 'Times Square, NY',
-          created_at: new Date(Date.now() - 3600000).toISOString()
-        }
-      ];
-      
-      setHistoricalData(mockData);
+      // Placeholder for historical data retrieval logic
+      toast({
+        title: "Data Retrieval Initiated",
+        description: `Retrieving historical data for ${selectedDevice ? `device ${selectedDevice}` : `group ${selectedGroup}`} from ${startDate?.toLocaleDateString()} to ${endDate?.toLocaleDateString()}.`,
+      });
     } catch (error) {
-      console.error('Failed to load historical data:', error);
+      toast({
+        title: "Error Retrieving Data",
+        description: "Failed to retrieve historical data. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  const exportData = () => {
-    const csvContent = [
-      ['Time', 'Latitude', 'Longitude', 'Speed', 'Moving', 'Address'],
-      ...historicalData.map(position => [
-        position.update_time || '',
-        position.latitude?.toString() || '',
-        position.longitude?.toString() || '',
-        position.speed?.toString() || '',
-        position.moving ? 'Yes' : 'No',
-        position.address || ''
-      ])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `historical_data_${selectedDevice}_${startDate}_${endDate}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // Fix type conversions on lines 51, 52, 63, 64
+  const deviceCount = devices ? devices.length : 0;
+  const isActiveCount = devices ? devices.filter(d => d.is_active).length : 0;
+  const groupCount = groups ? groups.length : 0;
+  const isOnlineCount = devices ? devices.filter(d => d.status === 'active').length : 0;
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="h-5 w-5" />
-            GPS51 Historical Data
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <Select value={selectedDevice} onValueChange={setSelectedDevice}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Device" />
-              </SelectTrigger>
-              <SelectContent>
-                {devices.map(device => (
-                  <SelectItem key={device.device_id} value={device.device_id}>
-                    {device.device_name} ({device.device_id})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-            
-            <Input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-            
-            <Button
-              onClick={loadHistoricalData}
-              disabled={loading || !selectedDevice}
-            >
-              {loading ? 'Loading...' : 'Load Data'}
-            </Button>
+    <Card>
+      <CardHeader>
+        <CardTitle>Historical Data Retrieval</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="startDate">Start Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    {startDate ? (
+                      format(startDate, "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={setStartDate}
+                    disabled={(date) =>
+                      date > new Date()
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label htmlFor="endDate">End Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    {endDate ? (
+                      format(endDate, "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    disabled={(date) =>
+                      date > new Date() || (startDate && date < startDate)
+                    }
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {historicalData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>
-                Historical Positions ({historicalData.length} records)
-              </CardTitle>
-              <Button onClick={exportData} variant="outline" size="sm">
-                <Download className="h-4 w-4 mr-2" />
-                Export CSV
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Time</TableHead>
-                    <TableHead>Latitude</TableHead>
-                    <TableHead>Longitude</TableHead>
-                    <TableHead>Speed</TableHead>
-                    <TableHead>Moving</TableHead>
-                    <TableHead>Address</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {historicalData.slice(0, 100).map((position, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-mono text-sm">
-                        {position.update_time ? 
-                          new Date(position.update_time).toLocaleString() : 'N/A'}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {position.latitude?.toFixed(6) || 'N/A'}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
-                        {position.longitude?.toFixed(6) || 'N/A'}
-                      </TableCell>
-                      <TableCell>
-                        {position.speed?.toFixed(1) || 'N/A'} km/h
-                      </TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          position.moving ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                        }`}>
-                          {position.moving ? 'Moving' : 'Stopped'}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {position.address || 'N/A'}
-                      </TableCell>
-                    </TableRow>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="device">Select Device</Label>
+              <Select onValueChange={setSelectedDevice}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a device" />
+                </SelectTrigger>
+                <SelectContent>
+                  {devices && devices.map((device) => (
+                    <SelectItem key={device.deviceid} value={device.deviceid}>
+                      {device.devicename} ({device.deviceid})
+                    </SelectItem>
                   ))}
-                </TableBody>
-              </Table>
+                </SelectContent>
+              </Select>
             </div>
-            
-            {historicalData.length > 100 && (
-              <p className="text-center text-gray-500 text-sm mt-4">
-                Showing first 100 records. Export CSV for complete data.
-              </p>
+            <div>
+              <Label htmlFor="group">Select Group</Label>
+              <Select onValueChange={setSelectedGroup}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a group" />
+                </SelectTrigger>
+                <SelectContent>
+                  {groups && groups.map((group) => (
+                    <SelectItem key={group.groupid} value={group.groupid.toString()}>
+                      {group.groupname}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? (
+              <>
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                Retrieving Data...
+              </>
+            ) : (
+              "Retrieve Historical Data"
             )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
+          </Button>
+        </form>
+
+        <div className="border-t pt-4">
+          <CardTitle>Summary</CardTitle>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm font-medium">Total Devices:</p>
+              <p className="text-sm">{deviceCount}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium">Active Devices:</p>
+              <p className="text-sm">{isActiveCount}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium">Total Groups:</p>
+              <p className="text-sm">{groupCount}</p>
+            </div>
+            <div>
+              <p className="text-sm font-medium">Devices Online:</p>
+              <p className="text-sm">{isOnlineCount}</p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

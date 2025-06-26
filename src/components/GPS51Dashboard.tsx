@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,7 +8,7 @@ import { toast } from "sonner";
 import DeviceTable from './DeviceTable';
 import GroupGrid from './GroupGrid';
 import StatisticsCards from './StatisticsCards';
-import { gp51DataService } from '@/services/gp51/GPS51DataService';
+import { gps51DataService } from '@/services/gp51/GPS51DataService';
 import type { GP51Group, GP51Device, GP51User, GP51DashboardSummary } from '@/types/gp51';
 
 interface DashboardData {
@@ -45,7 +44,6 @@ const GPS51Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // Safe property access helpers
   const getUserProps = (user: GP51User) => ({
     id: user.id || user.username,
     nickname: user.nickname || user.showname,
@@ -61,7 +59,7 @@ const GPS51Dashboard: React.FC = () => {
       
       console.log('🔄 Loading GP51 dashboard data...');
       
-      const result = await gp51DataService.getDataDirectly();
+      const result = await gps51DataService.getDataDirectly();
       
       if (result.success && result.data) {
         setData(result.data);

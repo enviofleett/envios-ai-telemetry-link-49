@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { GP51ProcessedPosition } from '@/types/gp51';
 
@@ -52,8 +51,8 @@ export class LivePositionService {
         course: positionData.course,
         position_timestamp: positionData.timestamp.toISOString(),
         server_timestamp: new Date().toISOString(),
-        status_code: positionData.status,
-        status_description: positionData.statusText,
+        status_code: parseInt(String(positionData.status)) || 0,
+        status_description: positionData.status || 'Unknown',
         is_moving: positionData.isMoving,
         location_source: 'gps'
       };
@@ -88,8 +87,8 @@ export class LivePositionService {
         course: position.course,
         position_timestamp: position.timestamp.toISOString(),
         server_timestamp: new Date().toISOString(),
-        status_code: position.status,
-        status_description: position.statusText,
+        status_code: parseInt(String(position.status)) || 0,
+        status_description: position.status || 'Unknown',
         is_moving: position.isMoving,
         location_source: 'gps'
       }));
