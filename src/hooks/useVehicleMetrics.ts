@@ -1,52 +1,36 @@
 
 import { useState, useEffect } from 'react';
-import { enhancedVehicleDataService } from '@/services/enhancedVehicleDataService';
-import type { VehicleDataMetrics } from '@/types/vehicle';
+import { enhancedVehicleDataService } from '@/services/EnhancedVehicleDataService';
+import type { VehicleMetrics, SyncMetrics } from '@/services/EnhancedVehicleDataService';
 
 export const useVehicleMetrics = () => {
-  const [metrics, setMetrics] = useState<VehicleDataMetrics>({
-    total: 0,
-    online: 0,
-    offline: 0,
-    idle: 0,
-    alerts: 0,
+  const [metrics, setMetrics] = useState<VehicleMetrics>({
     totalVehicles: 0,
     onlineVehicles: 0,
+    movingVehicles: 0,
+    idleVehicles: 0,
     offlineVehicles: 0,
     recentlyActiveVehicles: 0,
     lastSyncTime: new Date(),
-    positionsUpdated: 0,
-    errors: 0,
-    syncStatus: 'success'
+    averageSpeed: 0,
+    totalDistance: 0,
+    syncStatus: 'success',
+    errors: [],
+    errorMessage: undefined
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = enhancedVehicleDataService.subscribe(async () => {
+    const unsubscribe = enhancedVehicleDataService.subscribe('metrics-hook', async (data) => {
       try {
-        const vehicles = await enhancedVehicleDataService.getEnhancedVehicles();
         const serviceMetrics = enhancedVehicleDataService.getMetrics();
-        const syncMetrics = await enhancedVehicleDataService.getLastSyncMetrics();
+        const syncMetrics = enhancedVehicleDataService.getLastSyncMetrics();
         
-        const expandedMetrics: VehicleDataMetrics = {
-          total: serviceMetrics.total,
-          online: serviceMetrics.online,
-          offline: serviceMetrics.offline,
-          idle: serviceMetrics.idle,
-          alerts: serviceMetrics.alerts,
-          totalVehicles: serviceMetrics.totalVehicles,
-          onlineVehicles: serviceMetrics.onlineVehicles,
-          offlineVehicles: serviceMetrics.offlineVehicles,
-          recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
-          lastSyncTime: serviceMetrics.lastSyncTime,
-          positionsUpdated: syncMetrics.positionsUpdated,
-          errors: syncMetrics.errors,
-          syncStatus: syncMetrics.syncStatus as 'success' | 'error' | 'syncing',
-          errorMessage: syncMetrics.errorMessage
-        };
+        if (serviceMetrics) {
+          setMetrics(serviceMetrics);
+        }
         
-        setMetrics(expandedMetrics);
         setError(null);
         setIsLoading(false);
       } catch (err) {
@@ -59,26 +43,12 @@ export const useVehicleMetrics = () => {
     // Initial load
     const loadInitialData = async () => {
       try {
-        const vehicles = await enhancedVehicleDataService.getEnhancedVehicles();
+        await enhancedVehicleDataService.getVehicleData();
         const serviceMetrics = enhancedVehicleDataService.getMetrics();
-        const syncMetrics = await enhancedVehicleDataService.getLastSyncMetrics();
         
-        setMetrics({
-          total: serviceMetrics.total,
-          online: serviceMetrics.online,
-          offline: serviceMetrics.offline,
-          idle: serviceMetrics.idle,
-          alerts: serviceMetrics.alerts,
-          totalVehicles: serviceMetrics.totalVehicles,
-          onlineVehicles: serviceMetrics.onlineVehicles,
-          offlineVehicles: serviceMetrics.offlineVehicles,
-          recentlyActiveVehicles: serviceMetrics.recentlyActiveVehicles,
-          lastSyncTime: serviceMetrics.lastSyncTime,
-          positionsUpdated: syncMetrics.positionsUpdated,
-          errors: syncMetrics.errors,
-          syncStatus: syncMetrics.syncStatus as 'success' | 'error' | 'syncing',
-          errorMessage: syncMetrics.errorMessage
-        });
+        if (serviceMetrics) {
+          setMetrics(serviceMetrics);
+        }
         setIsLoading(false);
       } catch (err) {
         console.error('Error loading initial vehicle metrics:', err);

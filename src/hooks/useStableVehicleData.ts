@@ -1,7 +1,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { VehicleData } from '@/types/vehicle';
+import type { VehicleData } from '@/services/EnhancedVehicleDataService';
 
 interface UseStableVehicleDataOptions {
   search?: string;
@@ -59,7 +59,7 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
           longitude: -74.0060 + (Math.random() - 0.5) * 0.01,
           speed: Math.floor(Math.random() * 80),
           course: Math.floor(Math.random() * 360),
-          timestamp: new Date().toISOString()
+          timestamp: Date.now()
         },
         status: Math.random() > 0.5 ? 'online' : 'offline',
         is_active: true,
@@ -67,7 +67,9 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
         isMoving: Math.random() > 0.6,
         alerts: [],
         lastUpdate: new Date(),
-        vehicleName: vehicle.name
+        vehicleName: vehicle.name,
+        speed: Math.floor(Math.random() * 80),
+        course: Math.floor(Math.random() * 360)
       }));
     },
     staleTime: 1000 * 60 * 5,
@@ -83,7 +85,7 @@ export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) 
     refetch: query.refetch,
     // Add missing properties
     allVehicles: query.data || [],
-    syncStatus: 'success' as const,
+    syncStatus: { isConnected: true, lastSync: new Date(), isSync: false },
     isConnected: true,
     forceSync: async () => { await query.refetch(); },
     events: [] as any[],
