@@ -72,26 +72,27 @@ export class GP51DataService {
       }));
 
       return {
-        success: true,
-        data: {
-          devices,
-          telemetry,
-          metadata: {
-            totalDevices: devices.length,
-            activeDevices: devices.filter(d => d.isActive).length,
-            lastSync: new Date().toISOString()
-          }
-        }
+        vehicles: devices,
+        telemetry,
+        metadata: {
+          totalDevices: devices.length,
+          activeDevices: devices.filter(d => d.isActive).length,
+          lastSync: new Date().toISOString()
+        },
+        lastUpdate: new Date(),
+        totalCount: devices.length,
+        activeCount: devices.filter(d => d.isActive).length
       };
     } catch (error) {
       console.error('❌ Failed to get live vehicles:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
-        data: {
-          devices: [],
-          telemetry: []
-        }
+        vehicles: [],
+        telemetry: [],
+        lastUpdate: new Date(),
+        totalCount: 0,
+        activeCount: 0
       };
     }
   }
@@ -102,12 +103,11 @@ export class GP51DataService {
       
       let created = 0;
       let errors = 0;
-      const errorDetails: { itemId: string; message: string }[] = [];
+      const errorDetails: Array<{itemId: string; message: string}> = [];
 
       // Process and validate each vehicle record
       for (const vehicle of data) {
         try {
-          // Simulate processing logic
           if (vehicle.deviceId && vehicle.deviceName) {
             created++;
           } else {
@@ -127,12 +127,24 @@ export class GP51DataService {
       }
       
       console.log(`✅ Successfully processed ${created} vehicle records, ${errors} errors`);
-      return { created, errors, errorDetails };
+      return { 
+        created, 
+        errors, 
+        processed: created,
+        skipped: 0,
+        details: errorDetails.map(e => e.message),
+        timestamp: new Date(),
+        errorDetails
+      };
     } catch (error) {
       console.error('❌ Error processing vehicle data:', error);
       return { 
         created: 0, 
-        errors: data.length, 
+        errors: data.length,
+        processed: 0,
+        skipped: 0,
+        details: [error instanceof Error ? error.message : 'Batch processing failed'],
+        timestamp: new Date(),
         errorDetails: [{ itemId: 'batch', message: error instanceof Error ? error.message : 'Batch processing failed' }]
       };
     }
@@ -190,13 +202,13 @@ export class GP51DataService {
         deviceName: `Device ${deviceId}`,
         latitude: 0,
         longitude: 0,
-        speed: 0, // Required field
+        speed: 0,
         course: 0,
         timestamp: new Date(),
-        statusText: 'active',
+        status: 'active',
         isOnline: true,
         isMoving: false,
-        status: 1
+        statusText: 'active'
       });
     }
     

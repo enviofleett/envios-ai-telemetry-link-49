@@ -146,14 +146,15 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
 
       const deviceIds = devices.map(d => d.deviceId);
       if (deviceIds.length > 0) {
-        // Start real-time position updates from GP51
         if (unifiedGP51Service.isAuthenticated) {
           console.log('🎯 Starting real-time position tracking...');
           
           // Get initial positions from GP51
           const positionsResponse = await unifiedGP51Service.getLastPositions(deviceIds);
-          if (positionsResponse.success) {
-            console.log(`📍 Retrieved positions for ${positionsResponse.data?.records?.length || 0} devices`);
+          
+          // Handle direct array response
+          if (Array.isArray(positionsResponse) && positionsResponse.length > 0) {
+            console.log(`📍 Retrieved positions for ${positionsResponse.length} devices`);
           }
         }
 
@@ -205,7 +206,6 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
   useEffect(() => {
     const loadExistingSession = async () => {
       try {
-        // Try to load the 'octopus' admin session
         const service = unifiedGP51Service;
         const sessionLoaded = await service.loadExistingSession();
         if (sessionLoaded) {

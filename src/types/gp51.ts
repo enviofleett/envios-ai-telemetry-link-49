@@ -1,4 +1,3 @@
-
 // Core GP51 API Types with enhanced compatibility
 export interface GP51AuthResponse {
   status: number;
@@ -117,12 +116,12 @@ export interface GP51DashboardSummary {
 
 export interface GP51TestResult {
   success: boolean;
-  message: string;        // REQUIRED
-  responseTime: number;   // REQUIRED
-  timestamp: Date;        // REQUIRED
   name?: string;
   data?: any;
   error?: string;
+  message?: string;          // Make optional
+  responseTime?: number;     // Make optional  
+  timestamp?: Date;          // Make optional
   details?: any;
 }
 
@@ -134,7 +133,7 @@ export interface GP51ProcessResult {
   details: string[];
   timestamp: Date;
   created?: number;
-  errorDetails?: string[];
+  errorDetails?: Array<{itemId: string; message: string}>; // Fix type
 }
 
 export interface GP51MonitorListResponse {
@@ -211,18 +210,18 @@ export interface GP51LiveVehiclesResponse {
 
 export interface GP51TelemetryData {
   deviceId: string;
-  timestamp: Date;
-  position: GP51Position;
-  sensors: {
+  timestamp: string | Date;
+  latitude?: number;
+  longitude?: number;
+  speed?: number;
+  course?: number;
+  status?: string;
+  position?: GP51Position;   // Make optional
+  sensors?: {               // Make optional
     temperature?: number;
     humidity?: number;
     fuel?: number;
     battery?: number;
-  };
-  status: {
-    engine: boolean;
-    doors: boolean[];
-    alarms: string[];
   };
 }
 

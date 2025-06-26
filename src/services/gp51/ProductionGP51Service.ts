@@ -234,18 +234,23 @@ export class ProductionGP51Service {
 
   private async storeSession(username: string, sessionData: any): Promise<void> {
     try {
-      // Fix: Use correct column names that match your actual gp51_sessions table
-      await supabase
-        .from('gp51_sessions')
-        .upsert({
-          username,
-          gp51_token: sessionData.token,
-          token_expires_at: sessionData.expires_at || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          is_active: true,
-          last_activity_at: new Date().toISOString()
-        }, {
-          onConflict: 'username'
-        });
+      // Use the Supabase function to properly handle session storage
+      const { data, error } = await supabase.rpc('upsert_gp51_session', {
+        p_envio_user_id: null, // Will be set by the function if needed
+        p_username: username,
+        p_password_hash: sessionData.password_hash || 'temp_hash',
+        p_gp51_token: sessionData.token,
+        p_api_url: sessionData.api_url || 'https://www.gps51.com/webapi',
+        p_token_expires_at: sessionData.expires_at || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        p_session_fingerprint: sessionData.session_fingerprint || null
+      });
+
+      if (error) {
+        console.error('Failed to store session via RPC:', error);
+        throw error;
+      }
+
+      console.log('Session stored successfully via RPC');
     } catch (error) {
       console.error('Failed to store session:', error);
       throw error;

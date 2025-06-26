@@ -10,9 +10,20 @@ import { gps51DataService, type DiagnosticInfo } from '@/services/gp51/GPS51Data
 import type { GPS51TestResult } from '@/types/gp51';
 
 const DiagnosticPanel: React.FC = () => {
-  const [testResults, setTestResults] = useState<GPS51TestResult[]>([]);
+  const [testResults, setTestResults] = useState<GP51TestResult[]>([]);
   const [diagnosticInfo, setDiagnosticInfo] = useState<DiagnosticInfo | null>(null);
   const [testing, setTesting] = useState(false);
+
+  // Helper function to create properly formatted test results
+  const createTestResult = (name: string, success: boolean, data?: any, error?: string): GP51TestResult => ({
+    name,
+    success,
+    data,
+    error,
+    message: success ? `${name} passed` : `${name} failed`,
+    responseTime: Date.now(),
+    timestamp: new Date()
+  });
 
   const runDiagnostics = async () => {
     setTesting(true);
@@ -27,12 +38,7 @@ const DiagnosticPanel: React.FC = () => {
     } catch (error) {
       console.error('❌ Diagnostics failed:', error);
       setTestResults([
-        {
-          name: 'Diagnostic Test',
-          success: false,
-          data: 0,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
+        createTestResult('Diagnostic Test', false, 0, error instanceof Error ? error.message : 'Unknown error')
       ]);
     } finally {
       setTesting(false);

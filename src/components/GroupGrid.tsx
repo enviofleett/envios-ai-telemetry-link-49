@@ -22,7 +22,7 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
     group_name: group.group_name || group.groupname,
     group_id: group.group_id || group.groupid,
     device_count: group.device_count || group.devices?.length || 0,
-    last_sync_at: group.last_sync_at || new Date().toISOString(),
+    last_sync_at: group.last_sync_at || new Date().toISOString(), // Convert to string
     remark: group.remark
   });
 
@@ -36,7 +36,8 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleString();
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    return date.toLocaleString();
   };
 
   return (

@@ -48,11 +48,11 @@ export class LivePositionService {
         latitude: positionData.latitude,
         longitude: positionData.longitude,
         speed: positionData.speed,
-        course: positionData.course,
+        course: positionData.course || 0,
         position_timestamp: positionData.timestamp.toISOString(),
         server_timestamp: new Date().toISOString(),
-        status_code: parseInt(String(positionData.status)) || 0,
-        status_description: positionData.status || 'Unknown',
+        status_code: parseInt(String(positionData.status)) || 0, // Fix conversion
+        status_description: positionData.statusText || positionData.status || 'Unknown',
         is_moving: positionData.isMoving,
         location_source: 'gps'
       };
@@ -84,11 +84,11 @@ export class LivePositionService {
         latitude: position.latitude,
         longitude: position.longitude,
         speed: position.speed,
-        course: position.course,
+        course: position.course || 0,
         position_timestamp: position.timestamp.toISOString(),
         server_timestamp: new Date().toISOString(),
-        status_code: parseInt(String(position.status)) || 0,
-        status_description: position.status || 'Unknown',
+        status_code: parseInt(String(position.status)) || 0, // Fix conversion
+        status_description: position.statusText || position.status || 'Unknown',
         is_moving: position.isMoving,
         location_source: 'gps'
       }));
