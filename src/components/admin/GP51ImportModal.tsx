@@ -13,12 +13,23 @@ import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast"
 import { useProductionGP51Service } from '@/hooks/useProductionGP51Service';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
-import type { GP51DeviceData } from '@/types/gp51';
+import type { GP51DeviceData } from '@/types/gp51-unified';
 
 interface GP51ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+// Transform unified type to legacy type for compatibility
+const transformDeviceData = (device: GP51DeviceData): any => ({
+  deviceid: device.deviceId,
+  devicename: device.deviceName,
+  devicetype: device.deviceType || 'unknown',
+  status: device.isActive ? 'active' : 'inactive',
+  lastactivetime: typeof device.lastActiveTime === 'string' 
+    ? device.lastActiveTime 
+    : device.lastActiveTime?.toISOString() || new Date().toISOString()
+});
 
 const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -32,7 +43,10 @@ const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) =>
       setError(null);
 
       console.log(`🔄 Processing ${devices.length} devices...`);
-      const result = await syncDevices(devices);
+      
+      // Transform devices to expected format
+      const transformedDevices = devices.map(transformDeviceData);
+      const result = await syncDevices(transformedDevices);
 
       if (result.success) {
         toast({

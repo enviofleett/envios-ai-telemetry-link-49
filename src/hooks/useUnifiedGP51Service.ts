@@ -1,27 +1,50 @@
 
 import { useState, useEffect } from 'react';
 import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
-import type { GP51AuthResponse, GP51DeviceData, GP51Position } from '@/types/gp51-unified';
+import type { GP51AuthResponse, GP51DeviceData } from '@/types/gp51-unified';
 
 export const useUnifiedGP51Service = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [session, setSession] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [users, setUsers] = useState<any[]>([]);
+  const [devices, setDevices] = useState<GP51DeviceData[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
 
   useEffect(() => {
     setIsConnected(unifiedGP51Service.isAuthenticated);
     setSession(unifiedGP51Service.session);
+    setIsAuthenticated(unifiedGP51Service.isAuthenticated);
   }, []);
 
+  const clearError = () => {
+    setError(null);
+  };
+
   const connect = async (): Promise<boolean> => {
-    const result = await unifiedGP51Service.connect();
-    setIsConnected(result);
-    return result;
+    setIsLoading(true);
+    try {
+      const result = await unifiedGP51Service.connect();
+      setIsConnected(result);
+      setIsAuthenticated(result);
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Connection failed');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const disconnect = async (): Promise<void> => {
     await unifiedGP51Service.disconnect();
     setIsConnected(false);
+    setIsAuthenticated(false);
     setSession(null);
+    setCurrentUser(null);
   };
 
   const getConnectionHealth = async () => {
@@ -29,29 +52,70 @@ export const useUnifiedGP51Service = () => {
   };
 
   const authenticate = async (username: string, password: string): Promise<GP51AuthResponse> => {
-    const result = await unifiedGP51Service.authenticate(username, password);
-    if (result.success) {
-      setIsConnected(true);
-      setSession(unifiedGP51Service.session);
+    setIsLoading(true);
+    try {
+      const result = await unifiedGP51Service.authenticate(username, password);
+      if (result.success) {
+        setIsConnected(true);
+        setIsAuthenticated(true);
+        setSession(unifiedGP51Service.session);
+        setCurrentUser({ username });
+      }
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Authentication failed');
+      return { success: false, status: 'error', error: err instanceof Error ? err.message : 'Authentication failed' };
+    } finally {
+      setIsLoading(false);
     }
-    return result;
   };
 
   const authenticateAdmin = async (username: string, password: string): Promise<GP51AuthResponse> => {
-    return await unifiedGP51Service.authenticateAdmin(username, password);
+    return await authenticate(username, password);
   };
 
   const logout = async (): Promise<void> => {
     await unifiedGP51Service.logout();
     setIsConnected(false);
+    setIsAuthenticated(false);
     setSession(null);
+    setCurrentUser(null);
+  };
+
+  const fetchUsers = async () => {
+    setIsLoading(true);
+    try {
+      // Mock implementation - replace with actual service call
+      setUsers([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch users');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchDevices = async () => {
+    setIsLoading(true);
+    try {
+      const result = await unifiedGP51Service.getDevices();
+      if (result.success && result.data) {
+        setDevices(result.data);
+        if (result.groups) {
+          setGroups(result.groups);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch devices');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const getDevices = async (deviceIds?: string[]) => {
     return await unifiedGP51Service.getDevices(deviceIds);
   };
 
-  const getPositions = async (deviceIds?: string[]): Promise<GP51Position[]> => {
+  const getPositions = async (deviceIds?: string[]) => {
     return await unifiedGP51Service.getPositions(deviceIds);
   };
 
@@ -74,12 +138,22 @@ export const useUnifiedGP51Service = () => {
   return {
     isConnected,
     session,
+    isLoading,
+    error,
+    isAuthenticated,
+    currentUser,
+    users,
+    devices,
+    groups,
+    clearError,
     connect,
     disconnect,
     getConnectionHealth,
     authenticate,
     authenticateAdmin,
     logout,
+    fetchUsers,
+    fetchDevices,
     getDevices,
     getPositions,
     testConnection
