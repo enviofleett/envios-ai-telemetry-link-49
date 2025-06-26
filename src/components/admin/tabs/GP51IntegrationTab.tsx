@@ -9,7 +9,10 @@ import UnifiedImportPanel from '../UnifiedImportPanel';
 import GP51RawDiagnosticPanel from '../GP51RawDiagnosticPanel';
 import GP51UserManagement from '../GP51UserManagement';
 import GP51HistoricalData from '../GP51HistoricalData';
+import UnifiedGP51Dashboard from '../UnifiedGP51Dashboard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Info } from 'lucide-react';
 
 // Safe array helper - prevents "map is not a function" errors
 function safeArray(value: any): any[] {
@@ -22,16 +25,28 @@ function safeArray(value: any): any[] {
 const GP51IntegrationTab: React.FC = () => {
   return (
     <div className="space-y-6">
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          <strong>New Unified Dashboard Available!</strong> The new unified GP51 dashboard consolidates all functionality into a single interface. Legacy components remain available for compatibility.
+        </AlertDescription>
+      </Alert>
+
       <GP51HealthIndicator />
       
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs defaultValue="unified" className="w-full">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="unified">Unified Dashboard</TabsTrigger>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="historical">Historical Data</TabsTrigger>
           <TabsTrigger value="import">Import</TabsTrigger>
           <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="unified" className="space-y-6">
+          <UnifiedGP51Dashboard />
+        </TabsContent>
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

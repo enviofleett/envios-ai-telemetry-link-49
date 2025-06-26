@@ -1,20 +1,39 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { unifiedGP51Service, GP51ConnectionConfig, GP51Session, GP51ServiceResult } from '@/services/gp51/unifiedGP51Service';
+import { unifiedGP51Service, GP51ConnectionConfig, GP51Session, GP51ServiceResult, GP51User, GP51Device } from '@/services/gp51/UnifiedGP51Service';
 import { useToast } from '@/hooks/use-toast';
 
 export interface UseUnifiedGP51ServiceReturn {
+  // Session state
   session: GP51Session | null;
   isConnected: boolean;
   isLoading: boolean;
   error: string | null;
-  authenticate: (config: GP51ConnectionConfig) => Promise<boolean>;
-  testConnection: () => Promise<boolean>;
-  queryMonitorList: () => Promise<GP51ServiceResult>;
-  queryLastPosition: (deviceIds?: string[]) => Promise<GP51ServiceResult>;
+
+  // Authentication
+  authenticateAdmin: (config: GP51ConnectionConfig) => Promise<boolean>;
   refreshSession: () => Promise<boolean>;
   disconnect: () => Promise<void>;
-  getConnectionHealth: () => Promise<any>;
+
+  // User management
+  addUser: (userData: GP51User) => Promise<GP51ServiceResult>;
+  queryUserDetail: (username: string) => Promise<GP51ServiceResult>;
+
+  // Device/Vehicle management
+  addDevice: (deviceData: GP51Device) => Promise<GP51ServiceResult>;
+  queryMonitorList: () => Promise<GP51ServiceResult>;
+
+  // Real-time tracking
+  getLastPosition: (deviceIds?: string[]) => Promise<GP51ServiceResult>;
+  queryTracks: (deviceId: string, startTime: string, endTime: string) => Promise<GP51ServiceResult>;
+
+  // Vehicle commands
+  disableEngine: (deviceId: string) => Promise<GP51ServiceResult>;
+  enableEngine: (deviceId: string) => Promise<GP51ServiceResult>;
+  batchOperate: (deviceIds: string[], operation: string, params?: any) => Promise<GP51ServiceResult>;
+
+  // Testing
+  testConnection: () => Promise<boolean>;
   clearError: () => void;
 }
 
@@ -37,12 +56,12 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
     setError(null);
   }, []);
 
-  const authenticate = useCallback(async (config: GP51ConnectionConfig): Promise<boolean> => {
+  const authenticateAdmin = useCallback(async (config: GP51ConnectionConfig): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const result = await unifiedGP51Service.authenticate(config);
+      const result = await unifiedGP51Service.authenticateAdmin(config.username, config.password);
       
       if (result.success) {
         toast({
@@ -73,81 +92,6 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
       setIsLoading(false);
     }
   }, [toast]);
-
-  const testConnection = useCallback(async (): Promise<boolean> => {
-    setIsLoading(true);
-    
-    try {
-      const result = await unifiedGP51Service.testConnection();
-      
-      if (result.success) {
-        toast({
-          title: "Connection Test Successful",
-          description: "GP51 connection is working properly",
-        });
-        return true;
-      } else {
-        setError(result.error || 'Connection test failed');
-        toast({
-          title: "Connection Test Failed",
-          description: result.error || 'Connection test failed',
-          variant: "destructive",
-        });
-        return false;
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Connection test error';
-      setError(errorMessage);
-      toast({
-        title: "Connection Test Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
-
-  const queryMonitorList = useCallback(async (): Promise<GP51ServiceResult> => {
-    setIsLoading(true);
-    
-    try {
-      const result = await unifiedGP51Service.queryMonitorList();
-      
-      if (!result.success) {
-        setError(result.error || 'Monitor list query failed');
-      }
-      
-      return result;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Monitor list query error';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  const queryLastPosition = useCallback(async (deviceIds?: string[]): Promise<GP51ServiceResult> => {
-    setIsLoading(true);
-    
-    try {
-      const result = await unifiedGP51Service.queryLastPosition(deviceIds);
-      
-      if (!result.success) {
-        setError(result.error || 'Position query failed');
-      }
-      
-      return result;
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Position query error';
-      setError(errorMessage);
-      return { success: false, error: errorMessage };
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
     setIsLoading(true);
@@ -188,7 +132,7 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
     setIsLoading(true);
     
     try {
-      await unifiedGP51Service.terminate();
+      await unifiedGP51Service.disconnect();
       toast({
         title: "Disconnected",
         description: "Successfully disconnected from GP51",
@@ -206,27 +150,240 @@ export const useUnifiedGP51Service = (): UseUnifiedGP51ServiceReturn => {
     }
   }, [toast]);
 
-  const getConnectionHealth = useCallback(async () => {
+  const addUser = useCallback(async (userData: GP51User): Promise<GP51ServiceResult> => {
+    setIsLoading(true);
+    
     try {
-      return await unifiedGP51Service.getConnectionHealth();
+      const result = await unifiedGP51Service.addUser(userData);
+      
+      if (result.success) {
+        toast({
+          title: "User Added",
+          description: `User ${userData.username} has been added successfully`,
+        });
+      } else {
+        toast({
+          title: "Add User Failed",
+          description: result.error || 'Failed to add user',
+          variant: "destructive",
+        });
+      }
+      
+      return result;
     } catch (error) {
-      console.error('❌ Failed to get connection health:', error);
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : 'Add user error';
+      toast({
+        title: "Add User Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  const queryUserDetail = useCallback(async (username: string): Promise<GP51ServiceResult> => {
+    setIsLoading(true);
+    
+    try {
+      return await unifiedGP51Service.queryUserDetail(username);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
+
+  const addDevice = useCallback(async (deviceData: GP51Device): Promise<GP51ServiceResult> => {
+    setIsLoading(true);
+    
+    try {
+      const result = await unifiedGP51Service.addDevice(deviceData);
+      
+      if (result.success) {
+        toast({
+          title: "Device Added",
+          description: `Device ${deviceData.devicename} has been added successfully`,
+        });
+      } else {
+        toast({
+          title: "Add Device Failed",
+          description: result.error || 'Failed to add device',
+          variant: "destructive",
+        });
+      }
+      
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Add device error';
+      toast({
+        title: "Add Device Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      return { success: false, error: errorMessage };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  const queryMonitorList = useCallback(async (): Promise<GP51ServiceResult> => {
+    setIsLoading(true);
+    
+    try {
+      return await unifiedGP51Service.queryMonitorList();
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const getLastPosition = useCallback(async (deviceIds?: string[]): Promise<GP51ServiceResult> => {
+    setIsLoading(true);
+    
+    try {
+      return await unifiedGP51Service.getLastPosition(deviceIds);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const queryTracks = useCallback(async (deviceId: string, startTime: string, endTime: string): Promise<GP51ServiceResult> => {
+    setIsLoading(true);
+    
+    try {
+      return await unifiedGP51Service.queryTracks(deviceId, startTime, endTime);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const disableEngine = useCallback(async (deviceId: string): Promise<GP51ServiceResult> => {
+    setIsLoading(true);
+    
+    try {
+      const result = await unifiedGP51Service.disableEngine(deviceId);
+      
+      if (result.success) {
+        toast({
+          title: "Engine Disabled",
+          description: `Engine disabled for device ${deviceId}`,
+        });
+      } else {
+        toast({
+          title: "Engine Disable Failed",
+          description: result.error || 'Failed to disable engine',
+          variant: "destructive",
+        });
+      }
+      
+      return result;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  const enableEngine = useCallback(async (deviceId: string): Promise<GP51ServiceResult> => {
+    setIsLoading(true);
+    
+    try {
+      const result = await unifiedGP51Service.enableEngine(deviceId);
+      
+      if (result.success) {
+        toast({
+          title: "Engine Enabled",
+          description: `Engine enabled for device ${deviceId}`,
+        });
+      } else {
+        toast({
+          title: "Engine Enable Failed",
+          description: result.error || 'Failed to enable engine',
+          variant: "destructive",
+        });
+      }
+      
+      return result;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  const batchOperate = useCallback(async (deviceIds: string[], operation: string, params?: any): Promise<GP51ServiceResult> => {
+    setIsLoading(true);
+    
+    try {
+      const result = await unifiedGP51Service.batchOperate(deviceIds, operation, params);
+      
+      if (result.success) {
+        toast({
+          title: "Batch Operation Completed",
+          description: `${operation} completed for ${deviceIds.length} devices`,
+        });
+      } else {
+        toast({
+          title: "Batch Operation Failed",
+          description: result.error || 'Batch operation failed',
+          variant: "destructive",
+        });
+      }
+      
+      return result;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  const testConnection = useCallback(async (): Promise<boolean> => {
+    setIsLoading(true);
+    
+    try {
+      const result = await unifiedGP51Service.testConnection();
+      
+      if (result.success) {
+        toast({
+          title: "Connection Test Successful",
+          description: "GP51 connection is working properly",
+        });
+        return true;
+      } else {
+        setError(result.error || 'Connection test failed');
+        toast({
+          title: "Connection Test Failed",
+          description: result.error || 'Connection test failed',
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Connection test error';
+      setError(errorMessage);
+      toast({
+        title: "Connection Test Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
 
   return {
     session,
     isConnected: unifiedGP51Service.isSessionValid(),
     isLoading,
     error,
-    authenticate,
-    testConnection,
-    queryMonitorList,
-    queryLastPosition,
+    authenticateAdmin,
     refreshSession,
     disconnect,
-    getConnectionHealth,
+    addUser,
+    queryUserDetail,
+    addDevice,
+    queryMonitorList,
+    getLastPosition,
+    queryTracks,
+    disableEngine,
+    enableEngine,
+    batchOperate,
+    testConnection,
     clearError,
   };
 };

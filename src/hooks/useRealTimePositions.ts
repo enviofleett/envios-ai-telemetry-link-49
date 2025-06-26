@@ -1,121 +1,77 @@
 
-import { useState, useEffect } from 'react';
-import { realTimePositionService } from '@/services/gp51/realTimePositionService';
+import { useState, useEffect, useCallback } from 'react';
+import { realTimePositionService, PositionUpdate } from '@/services/gp51/RealTimePositionService';
 
-interface PositionUpdate {
-  deviceid: string;
-  devicetime: number;
-  arrivedtime: number;
-  updatetime: number;
-  validpoistiontime: number;
-  callat: number;
-  callon: number;
-  altitude: number;
-  radius: number;
-  speed: number;
-  course: number;
-  totaldistance: number;
-  status: number;
-  strstatus: string;
-  strstatusen: string;
-  alarm: number;
-  stralarm: string;
-  gotsrc: string;
-  rxlevel: number;
-  gpsvalidnum: number;
-  moving: number;
-  parktime: number;
-  parkduration: number;
+export interface UseRealTimePositionsReturn {
+  positions: Map<string, PositionUpdate>;
+  isSubscribed: boolean;
+  error: string | null;
+  lastUpdate: Date | null;
+  subscribe: (deviceIds: string[]) => void;
+  unsubscribe: () => void;
+  clearError: () => void;
 }
 
-export const useRealTimePositions = () => {
-  const [positions, setPositions] = useState<PositionUpdate[]>([]);
-  const [isPolling, setIsPolling] = useState(false);
+export const useRealTimePositions = (subscriptionId?: string): UseRealTimePositionsReturn => {
+  const [positions, setPositions] = useState<Map<string, PositionUpdate>>(new Map());
+  const [isSubscribed, setIsSubscribed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
-  const startPolling = async () => {
-    try {
-      setError(null);
-      const result = await realTimePositionService.startPolling();
-      
-      if (result.success) {
-        setIsPolling(true);
-      } else {
-        setError(result.error || 'Failed to start polling');
+  const actualSubscriptionId = subscriptionId || `subscription-${Date.now()}`;
+
+  const subscribe = useCallback((deviceIds: string[]) => {
+    console.log('📡 [useRealTimePositions] Subscribing to devices:', deviceIds);
+    
+    setIsSubscribed(true);
+    setError(null);
+    
+    realTimePositionService.subscribe(actualSubscriptionId, {
+      deviceIds,
+      onUpdate: (update: PositionUpdate) => {
+        setPositions(prev => {
+          const newPositions = new Map(prev);
+          newPositions.set(update.deviceId, update);
+          return newPositions;
+        });
+        setLastUpdate(new Date());
+      },
+      onError: (errorMessage: string) => {
+        console.error('❌ [useRealTimePositions] Position update error:', errorMessage);
+        setError(errorMessage);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error');
-    }
-  };
-
-  const stopPolling = () => {
-    realTimePositionService.stopPolling();
-    setIsPolling(false);
-  };
-
-  useEffect(() => {
-    // Subscribe to position updates
-    const unsubscribe = realTimePositionService.onPositionUpdate((newPosition) => {
-      // Convert the position update to the expected format
-      const convertedPosition: PositionUpdate = {
-        deviceid: newPosition.deviceId,
-        devicetime: newPosition.position.timestamp.getTime(),
-        arrivedtime: Date.now(),
-        updatetime: Date.now(),
-        validpoistiontime: newPosition.position.timestamp.getTime(),
-        callat: newPosition.position.latitude,
-        callon: newPosition.position.longitude,
-        altitude: 0,
-        radius: 0,
-        speed: newPosition.position.speed || 0,
-        course: newPosition.position.heading || 0,
-        totaldistance: 0,
-        status: 1,
-        strstatus: 'Active',
-        strstatusen: 'Active',
-        alarm: 0,
-        stralarm: 'None',
-        gotsrc: 'GPS',
-        rxlevel: 0,
-        gpsvalidnum: 1,
-        moving: newPosition.position.speed && newPosition.position.speed > 0 ? 1 : 0,
-        parktime: 0,
-        parkduration: 0
-      };
-      
-      setPositions(prev => {
-        const filtered = prev.filter(p => p.deviceid !== convertedPosition.deviceid);
-        return [...filtered, convertedPosition];
-      });
     });
+  }, [actualSubscriptionId]);
 
-    // Check if already polling
-    setIsPolling(realTimePositionService.isCurrentlyPolling());
+  const unsubscribe = useCallback(() => {
+    console.log('📡 [useRealTimePositions] Unsubscribing from real-time positions');
+    
+    realTimePositionService.unsubscribe(actualSubscriptionId);
+    setIsSubscribed(false);
+    setPositions(new Map());
+    setLastUpdate(null);
+  }, [actualSubscriptionId]);
 
-    return () => {
-      unsubscribe();
-    };
+  const clearError = useCallback(() => {
+    setError(null);
   }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (isPolling) {
-        realTimePositionService.stopPolling();
+      if (isSubscribed) {
+        realTimePositionService.unsubscribe(actualSubscriptionId);
       }
     };
-  }, []);
-
-  const getDevicePosition = (deviceId: string) => {
-    return realTimePositionService.getDeviceLastPosition(deviceId);
-  };
+  }, [actualSubscriptionId, isSubscribed]);
 
   return {
     positions,
-    isPolling,
+    isSubscribed,
     error,
-    startPolling,
-    stopPolling,
-    getDevicePosition
+    lastUpdate,
+    subscribe,
+    unsubscribe,
+    clearError,
   };
 };
