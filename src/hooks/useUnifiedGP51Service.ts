@@ -217,7 +217,12 @@ export const useUnifiedGP51Service = () => {
         tokenValid: testResult.success,
         sessionValid: testResult.success,
         activeDevices: devices.length,
-        errorMessage: testResult.success ? undefined : testResult.message
+        errorMessage: testResult.success ? undefined : testResult.message,
+        responseTime: 0,
+        errors: testResult.success ? [] : [testResult.message],
+        // Add required properties
+        isHealthy: testResult.success,
+        connectionStatus: testResult.success ? 'connected' : 'error'
       };
     } catch (error) {
       return {
@@ -228,7 +233,12 @@ export const useUnifiedGP51Service = () => {
         tokenValid: false,
         sessionValid: false,
         activeDevices: 0,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error'
+        errorMessage: error.message,
+        responseTime: 0,
+        errors: [error.message],
+        // Add required properties
+        isHealthy: false,
+        connectionStatus: 'error'
       };
     }
   };

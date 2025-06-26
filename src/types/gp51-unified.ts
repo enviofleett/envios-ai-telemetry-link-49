@@ -1,4 +1,3 @@
-
 // Unified GP51 Type Definitions - Single Source of Truth
 export interface GP51TestResult {
   name: string;
@@ -118,21 +117,19 @@ export interface GP51ServiceResponse<T = any> {
 
 // Add GP51HealthStatus type that was missing
 export interface GP51HealthStatus {
-  // Basic health properties
+  // Keep existing properties that are being used
   status: 'healthy' | 'degraded' | 'failed';
   lastCheck: Date;
   responseTime?: number;
-  errors?: string[];
-  
-  // Additional properties that components expect
   isConnected: boolean;
   lastPingTime: Date;
   tokenValid: boolean;
   sessionValid: boolean;
   activeDevices: number;
   errorMessage?: string;
+  errors?: string[];
   
-  // Properties for GP51ConnectionTester compatibility
+  // Add the required properties for backwards compatibility
   isHealthy: boolean;
   connectionStatus: 'connected' | 'disconnected' | 'error';
 }

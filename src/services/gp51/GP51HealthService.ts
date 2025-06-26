@@ -24,7 +24,10 @@ export class GP51HealthService {
           tokenValid: false,
           sessionValid: false,
           activeDevices: 0,
-          errorMessage: error?.message || 'Health check failed'
+          errorMessage: error?.message || 'Health check failed',
+          // Add required properties
+          isHealthy: false,
+          connectionStatus: 'error'
         };
       }
       
@@ -37,7 +40,10 @@ export class GP51HealthService {
         tokenValid: !!data.tokenValid,
         sessionValid: !!data.sessionValid,
         activeDevices: data.activeDevices || 0,
-        errorMessage: undefined
+        errorMessage: undefined,
+        // Add required properties
+        isHealthy: true,
+        connectionStatus: 'connected'
       };
     } catch (error) {
       return {
@@ -50,7 +56,10 @@ export class GP51HealthService {
         tokenValid: false,
         sessionValid: false,
         activeDevices: 0,
-        errorMessage: error.message
+        errorMessage: error.message,
+        // Add required properties
+        isHealthy: false,
+        connectionStatus: 'error'
       };
     }
   }

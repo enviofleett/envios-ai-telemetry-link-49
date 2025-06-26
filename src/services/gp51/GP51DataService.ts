@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   GP51HealthStatus, 
@@ -109,76 +108,47 @@ export class GP51DataService {
 
   async testConnection(): Promise<GP51HealthStatus> {
     try {
-      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
+      const startTime = Date.now();
+      const { data, error } = await supabase
+        .from('gp51_vehicles')
+        .select('count')
+        .limit(1);
       
-      if (!session.token) {
-        return {
-          status: 'failed',
-          lastCheck: new Date(),
-          isConnected: false,
-          lastPingTime: new Date(),
-          tokenValid: false,
-          sessionValid: false,
-          activeDevices: 0,
-          errorMessage: 'No active session found',
-          isHealthy: false,
-          connectionStatus: 'disconnected',
-          errors: ['No active session found']
-        };
-      }
-
-      // Test with a simple device query
-      const response = await fetch('/functions/v1/gp51-query-devices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: session.token,
-          username: session.username
-        })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        return {
-          status: 'healthy',
-          lastCheck: new Date(),
-          isConnected: true,
-          lastPingTime: new Date(),
-          tokenValid: true,
-          sessionValid: true,
-          activeDevices: data.summary?.totalDevices || 0,
-          isHealthy: true,
-          connectionStatus: 'connected'
-        };
-      } else {
-        return {
-          status: 'failed',
-          lastCheck: new Date(),
-          isConnected: false,
-          lastPingTime: new Date(),
-          tokenValid: false,
-          sessionValid: false,
-          activeDevices: 0,
-          errorMessage: data.error || 'Connection test failed',
-          isHealthy: false,
-          connectionStatus: 'error',
-          errors: [data.error || 'Connection test failed']
-        };
-      }
-    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const isHealthy = !error;
+      
+      return {
+        status: isHealthy ? 'healthy' : 'failed',
+        lastCheck: new Date(),
+        responseTime,
+        isConnected: isHealthy,
+        lastPingTime: new Date(),
+        tokenValid: isHealthy,
+        sessionValid: isHealthy,
+        activeDevices: data?.length || 0,
+        errorMessage: error?.message,
+        errors: error ? [error.message] : undefined,
+        // Required properties
+        isHealthy,
+        connectionStatus: error ? 'error' : 'connected'
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      
       return {
         status: 'failed',
         lastCheck: new Date(),
+        responseTime: 0,
         isConnected: false,
         lastPingTime: new Date(),
         tokenValid: false,
         sessionValid: false,
         activeDevices: 0,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorMessage,
+        errors: [errorMessage],
+        // Required properties
         isHealthy: false,
-        connectionStatus: 'error',
-        errors: [error instanceof Error ? error.message : 'Unknown error']
+        connectionStatus: 'error'
       };
     }
   }

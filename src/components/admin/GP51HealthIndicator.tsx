@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,7 +48,9 @@ const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({
         sessionValid: false,
         activeDevices: 0,
         errors: [error instanceof Error ? error.message : 'Health check failed'],
-        errorMessage: error instanceof Error ? error.message : 'Health check failed'
+        errorMessage: error instanceof Error ? error.message : 'Health check failed',
+        isHealthy: false,
+        connectionStatus: 'error'
       };
       
       setHealthStatus(errorStatus);
