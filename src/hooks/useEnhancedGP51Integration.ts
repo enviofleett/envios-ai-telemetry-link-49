@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { useRealTimePositions } from './useRealTimePositions';
 import { livePositionService } from '@/services/gp51/LivePositionService';
@@ -150,7 +151,7 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
           console.log('🎯 Starting real-time position tracking...');
           
           // Get initial positions from GP51
-          const positionsResponse = await unifiedGP51Service.getLastPositions(deviceIds);
+          const positionsResponse = await unifiedGP51Service.getPositions(deviceIds);
           
           // Handle direct array response
           if (Array.isArray(positionsResponse) && positionsResponse.length > 0) {

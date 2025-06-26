@@ -11,6 +11,7 @@ export type {
   GP51Group,
   GP51Position,
   GP51ServiceResponse,
+  GP51HealthStatus,
   // Legacy aliases
   GPS51TestResult,
   GPS51Device,
@@ -18,7 +19,7 @@ export type {
   GPS51Position
 } from '@/types/gp51-unified';
 
-// Export the service implementation
+// Export the service implementation and class
 export { UnifiedGP51Service, unifiedGP51Service } from './UnifiedGP51Service';
 
 // Re-export commonly used service instances

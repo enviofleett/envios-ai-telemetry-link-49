@@ -1,281 +1,230 @@
 
-import { GP51AuthResponse, GP51DeviceData, GP51HealthStatus } from '@/types/gp51-unified';
+import { supabase } from '@/integrations/supabase/client';
+import { GP51HealthStatus, GP51AuthResponse, GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
 
-class UnifiedGP51Service {
-  private _isAuthenticated: boolean = false;
-  private _session: any = null;
-  private _lastError: string | null = null;
-  private _connectionHealth: 'healthy' | 'degraded' | 'failed' = 'failed';
+export class UnifiedGP51Service {
+  private session: any = null;
+  private currentUser: string | null = null;
+  public isAuthenticated: boolean = false;
 
-  get isAuthenticated(): boolean {
-    return this._isAuthenticated;
-  }
-
-  get session(): any {
-    return this._session;
-  }
-
-  get lastError(): string | null {
-    return this._lastError;
-  }
-
-  get connectionHealth(): string {
-    return this._connectionHealth;
-  }
-
-  async authenticate(username: string, password: string): Promise<GP51AuthResponse> {
+  async queryMonitorList(): Promise<{
+    success: boolean;
+    data?: GP51DeviceData[];
+    groups?: GP51Group[];
+    error?: string;
+  }> {
     try {
-      console.log('🔐 UnifiedGP51Service: Starting authentication for:', username);
-      this._lastError = null;
+      console.log('🔍 Querying monitor list...');
       
-      // Try multiple authentication methods
-      const authMethods = [
-        () => this.authenticateViaHybrid(username, password),
-        () => this.authenticateViaSecure(username, password),
-        () => this.authenticateViaSettings(username, password)
-      ];
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: { action: 'querymonitorlist' }
+      });
 
-      let lastError = null;
+      if (error) throw error;
+
+      const groups = data?.groups || [];
+      const devices = groups.flatMap((group: any) => group.devices || []);
+
+      return {
+        success: true,
+        data: devices,
+        groups: groups
+      };
+    } catch (error) {
+      console.error('Failed to query monitor list:', error);
+      return {
+        success: false,
+        error: error.message,
+        data: [],
+        groups: []
+      };
+    }
+  }
+
+  async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
+    return this.getPositions(deviceIds);
+  }
+
+  async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
+    try {
+      console.log('📍 Getting positions for devices:', deviceIds);
       
-      for (const authMethod of authMethods) {
-        try {
-          const result = await authMethod();
-          if (result.success) {
-            this._isAuthenticated = true;
-            this._connectionHealth = 'healthy';
-            this._session = { username, authenticated: true };
-            console.log('✅ Authentication successful via method');
-            return result;
-          } else {
-            lastError = result.error || result.cause;
-          }
-        } catch (error) {
-          console.warn('Auth method failed, trying next...', error);
-          lastError = error instanceof Error ? error.message : 'Authentication method failed';
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: { 
+          action: 'getpositions',
+          deviceIds: deviceIds 
         }
-      }
+      });
 
-      // All methods failed
-      const finalError = lastError || 'All authentication methods failed';
-      this._lastError = finalError;
-      this._connectionHealth = 'failed';
-      
-      console.error('❌ All authentication methods failed:', finalError);
-      
-      return {
-        success: false,
-        status: 'error',
-        error: finalError,
-        cause: finalError
-      };
+      if (error) throw error;
 
+      return data?.positions || [];
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
-      this._lastError = errorMessage;
-      this._connectionHealth = 'failed';
-      
-      console.error('❌ Authentication error:', error);
-      
-      return {
-        success: false,
-        status: 'error',
-        error: errorMessage,
-        cause: errorMessage
-      };
+      console.error('Failed to get positions:', error);
+      return [];
     }
   }
 
-  private async authenticateViaHybrid(username: string, password: string): Promise<GP51AuthResponse> {
-    console.log('🔐 Trying hybrid authentication...');
-    
-    const response = await fetch('/api/gp51-hybrid-auth', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ username, password })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Network error' }));
-      throw new Error(`Hybrid auth failed (${response.status}): ${errorData.error || errorData.message || 'Unknown error'}`);
-    }
-
-    const data = await response.json();
-    return {
-      success: true,
-      status: 'authenticated',
-      token: data.token,
-      expiresAt: data.expiresAt
-    };
-  }
-
-  private async authenticateViaSecure(username: string, password: string): Promise<GP51AuthResponse> {
-    console.log('🔐 Trying secure authentication...');
-    
-    const response = await fetch('/api/gp51-secure-auth', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ 
-        action: 'authenticate',
-        username, 
-        password 
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Network error' }));
-      throw new Error(`Secure auth failed (${response.status}): ${errorData.error || errorData.message || 'Unknown error'}`);
-    }
-
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || 'Secure authentication failed');
-    }
-
-    return {
-      success: true,
-      status: 'authenticated',
-      token: data.token,
-      expiresAt: data.expiresAt
-    };
-  }
-
-  private async authenticateViaSettings(username: string, password: string): Promise<GP51AuthResponse> {
-    console.log('🔐 Trying settings management authentication...');
-    
-    const response = await fetch('/api/settings-management', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token') || ''}`
-      },
-      body: JSON.stringify({ 
-        action: 'authenticate-gp51',
-        username, 
-        password 
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Network error' }));
-      throw new Error(`Settings auth failed (${response.status}): ${errorData.error || errorData.message || 'Unknown error'}`);
-    }
-
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || 'Settings authentication failed');
-    }
-
-    return {
-      success: true,
-      status: 'authenticated',
-      username: data.username,
-      apiUrl: data.apiUrl
-    };
-  }
-
-  async connect(): Promise<boolean> {
+  async loadExistingSession(): Promise<boolean> {
     try {
-      // Basic connection check
-      this._connectionHealth = 'healthy';
-      return true;
+      const storedSession = localStorage.getItem('gp51_session');
+      if (!storedSession) return false;
+
+      const sessionData = JSON.parse(storedSession);
+      
+      // Validate session is still active
+      const isValid = await this.validateSession(sessionData);
+      if (isValid) {
+        this.session = sessionData;
+        this.isAuthenticated = true;
+        this.currentUser = sessionData.username;
+        return true;
+      }
+      
+      localStorage.removeItem('gp51_session');
+      return false;
     } catch (error) {
-      this._connectionHealth = 'failed';
+      console.error('Failed to load existing session:', error);
       return false;
     }
   }
 
+  async getConnectionHealth(): Promise<GP51HealthStatus> {
+    try {
+      const start = Date.now();
+      
+      const { data, error } = await supabase.functions.invoke('gp51-service-management', {
+        body: { action: 'health_check' }
+      });
+      
+      const responseTime = Date.now() - start;
+      
+      if (error || !data?.success) {
+        return {
+          status: 'failed',
+          lastCheck: new Date(),
+          responseTime,
+          errors: [error?.message || 'Health check failed']
+        };
+      }
+      
+      return {
+        status: 'healthy',
+        lastCheck: new Date(),
+        responseTime
+      };
+    } catch (error) {
+      return {
+        status: 'failed',
+        lastCheck: new Date(),
+        errors: [error.message]
+      };
+    }
+  }
+
+  async authenticate(username: string, password: string): Promise<GP51AuthResponse> {
+    try {
+      console.log('🔐 Authenticating with GP51...');
+      
+      const { data, error } = await supabase.functions.invoke('gp51-hybrid-auth', {
+        body: { username, password }
+      });
+
+      if (error) {
+        return {
+          success: false,
+          status: 'error',
+          error: error.message,
+          cause: 'Authentication request failed'
+        };
+      }
+
+      if (!data.success) {
+        return {
+          success: false,
+          status: 'error',
+          error: data.error || 'Authentication failed',
+          cause: data.details
+        };
+      }
+
+      // Store session
+      this.session = {
+        token: data.token,
+        username,
+        expiresAt: data.expiresAt
+      };
+      this.currentUser = username;
+      this.isAuthenticated = true;
+
+      // Persist session
+      localStorage.setItem('gp51_session', JSON.stringify(this.session));
+
+      return {
+        success: true,
+        status: 'authenticated',
+        token: data.token,
+        username: username
+      };
+    } catch (error) {
+      return {
+        success: false,
+        status: 'error',
+        error: error.message,
+        cause: 'Network error'
+      };
+    }
+  }
+
+  async connect(): Promise<boolean> {
+    return await this.loadExistingSession();
+  }
+
   async disconnect(): Promise<void> {
-    this._isAuthenticated = false;
-    this._session = null;
-    this._connectionHealth = 'failed';
-    console.log('🔌 Disconnected from GP51');
+    this.session = null;
+    this.currentUser = null;
+    this.isAuthenticated = false;
+    localStorage.removeItem('gp51_session');
   }
 
   async logout(): Promise<void> {
-    await this.disconnect();
-  }
-
-  async getConnectionHealth(): Promise<GP51HealthStatus> {
     try {
-      // Perform a simple health check
-      const healthCheck = await fetch('/api/gp51-connection-check', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (healthCheck.ok) {
-        this._connectionHealth = 'healthy';
-        return {
-          status: 'healthy',
-          message: 'GP51 connection is healthy',
-          timestamp: new Date().toISOString()
-        };
-      } else {
-        this._connectionHealth = 'degraded';
-        return {
-          status: 'degraded',
-          message: 'GP51 connection is degraded',
-          timestamp: new Date().toISOString()
-        };
+      if (this.session?.token) {
+        await supabase.functions.invoke('gp51-service-management', {
+          body: { action: 'logout' }
+        });
       }
     } catch (error) {
-      this._connectionHealth = 'failed';
-      return {
-        status: 'failed',
-        message: 'GP51 connection failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      };
+      console.error('Logout error:', error);
+    } finally {
+      await this.disconnect();
     }
   }
 
-  async getDevices(deviceIds?: string[]): Promise<{ success: boolean; data?: GP51DeviceData[]; error?: string }> {
-    try {
-      if (!this._isAuthenticated) {
-        return { success: false, error: 'Not authenticated' };
-      }
-
-      // Mock implementation - replace with actual API call
-      return {
-        success: true,
-        data: []
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch devices'
-      };
-    }
+  async getDevices(deviceIds?: string[]) {
+    const result = await this.queryMonitorList();
+    
+    return {
+      success: result.success,
+      data: result.data || [],
+      groups: result.groups || [],
+      error: result.error
+    };
   }
 
-  async getPositions(deviceIds?: string[]): Promise<{ success: boolean; data?: any[]; error?: string }> {
+  private async validateSession(sessionData: any): Promise<boolean> {
     try {
-      if (!this._isAuthenticated) {
-        return { success: false, error: 'Not authenticated' };
-      }
+      if (!sessionData.expiresAt) return false;
+      
+      const expiry = new Date(sessionData.expiresAt);
+      if (expiry <= new Date()) return false;
 
-      // Mock implementation - replace with actual API call
-      return {
-        success: true,
-        data: []
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch positions'
-      };
+      return true;
+    } catch {
+      return false;
     }
-  }
-
-  clearError(): void {
-    this._lastError = null;
   }
 }
 
+// Create and export singleton instance
 export const unifiedGP51Service = new UnifiedGP51Service();

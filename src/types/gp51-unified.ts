@@ -87,6 +87,9 @@ export interface GP51AuthResponse {
   status: string;
   cause?: string;
   error?: string;
+  token?: string;
+  username?: string;
+  expiresAt?: string;
 }
 
 export interface GP51Position {
@@ -109,6 +112,13 @@ export interface GP51ServiceResponse<T = any> {
   groups?: GP51Group[];
   error?: string;
   cause?: string;
+}
+
+export interface GP51HealthStatus {
+  status: 'healthy' | 'degraded' | 'failed';
+  lastCheck: Date;
+  responseTime?: number;
+  errors?: string[];
 }
 
 // Legacy aliases for backward compatibility
