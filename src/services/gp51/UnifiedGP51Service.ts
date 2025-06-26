@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import type { 
   GP51DeviceData, 
@@ -61,46 +60,80 @@ export class UnifiedGP51Service {
     try {
       console.log(`🔐 Authenticating with GP51 as: ${username}`);
       
-      const { data, error } = await supabase.functions.invoke('gp51-hybrid-auth', {
-        body: { username, password }
+      // First try the secure auth service
+      const { data, error } = await supabase.functions.invoke('gp51-secure-auth', {
+        body: { 
+          action: 'authenticate',
+          username, 
+          password 
+        }
       });
       
       if (error) {
-        console.error('❌ Authentication failed:', error);
+        console.error('❌ Secure auth function error:', error);
         return { 
           success: false, 
           status: 'error',
-          error: error.message,
-          cause: 'api_error'
+          error: `Authentication service error: ${error.message}`,
+          cause: 'service_error'
         };
       }
 
       if (data?.success) {
         this.isAuthenticatedFlag = true;
         this.sessionData = data;
-        console.log('✅ GP51 authentication successful');
+        console.log('✅ GP51 authentication successful via secure auth');
         return { 
           success: true, 
           status: 'authenticated',
           cause: 'success'
         };
-      } else {
-        const errorMsg = data?.error || 'Authentication failed';
-        console.error('❌ GP51 authentication failed:', errorMsg);
-        return { 
-          success: false, 
-          status: 'failed',
-          error: errorMsg,
-          cause: 'auth_failed'
+      }
+
+      // If secure auth fails, try the hybrid auth as fallback
+      console.log('🔄 Trying hybrid auth as fallback...');
+      const { data: hybridData, error: hybridError } = await supabase.functions.invoke('gp51-hybrid-auth', {
+        body: { username, password }
+      });
+      
+      if (hybridError) {
+        console.error('❌ Hybrid auth function error:', hybridError);
+        return {
+          success: false,
+          status: 'error',
+          error: `Both authentication methods failed. Last error: ${hybridError.message}`,
+          cause: 'both_methods_failed'
         };
       }
+
+      if (hybridData?.success) {
+        this.isAuthenticatedFlag = true;
+        this.sessionData = hybridData;
+        console.log('✅ GP51 authentication successful via hybrid auth');
+        return { 
+          success: true, 
+          status: 'authenticated',
+          cause: 'success'
+        };
+      }
+
+      // Both methods failed
+      const errorMsg = hybridData?.error || data?.error || 'Authentication failed with both methods';
+      console.error('❌ All GP51 authentication methods failed:', errorMsg);
+      return { 
+        success: false, 
+        status: 'failed',
+        error: errorMsg,
+        cause: 'auth_failed'
+      };
+
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Authentication error';
-      console.error('❌ GP51 authentication error:', errorMsg);
+      console.error('❌ GP51 authentication exception:', err);
       return { 
         success: false, 
         status: 'error',
-        error: errorMsg,
+        error: `Unexpected error during authentication: ${errorMsg}`,
         cause: 'exception'
       };
     }
