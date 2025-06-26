@@ -1,223 +1,257 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { AlertCircle, CheckCircle, RefreshCw, Car, Users, Database, Activity } from 'lucide-react';
-import { toast } from 'sonner';
-import { gp51DataService } from '@/services/gp51/GP51DataService';
-import type { GP51Device, GP51Group } from '@/types/gp51-unified';
 
-interface DashboardSummary {
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { RefreshCw, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
+import { GPS51Device } from '@/types/gp51-unified';
+import { gp51DataService } from '@/services/gp51/GP51DataService';
+
+interface DashboardStats {
   totalDevices: number;
-  activeDevices: number;
-  totalGroups: number;
-  connectionStatus: "connected" | "disconnected" | "error";
-  lastSync: string;
+  onlineDevices: number;
+  offlineDevices: number;
+  lastSync: Date | null;
 }
 
 const GPS51Dashboard: React.FC = () => {
-  const [summary, setSummary] = useState<DashboardSummary>({
+  const [devices, setDevices] = useState<GPS51Device[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [stats, setStats] = useState<DashboardStats>({
     totalDevices: 0,
-    activeDevices: 0,
-    totalGroups: 0,
-    connectionStatus: "disconnected",
-    lastSync: "Never"
+    onlineDevices: 0,
+    offlineDevices: 0,
+    lastSync: null
   });
-  const [devices, setDevices] = useState<GP51Device[]>([]);
-  const [groups, setGroups] = useState<GP51Group[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const { toast } = useToast();
 
-  const loadDashboardData = async () => {
+  const fetchData = async () => {
     setIsLoading(true);
-    setError(null);
-    
     try {
-      // Get devices data
-      const deviceResponse = await gp51DataService.getDataDirectly();
-      let deviceData: GP51Device[] = [];
+      console.log('🔄 Fetching GPS51 data...');
       
-      if (deviceResponse.success && deviceResponse.data) {
-        deviceData = Array.isArray(deviceResponse.data) ? deviceResponse.data : [];
-      }
-
-      // Get groups data with defensive access
-      const groupResponse = await gp51DataService.getDataDirectly();
-      let groupData: GP51Group[] = [];
+      // Get devices using the singleton service
+      const response = await gp51DataService.getLiveVehicles();
       
-      if (groupResponse.success) {
-        // Handle different possible response structures for groups
-        groupData = groupResponse.data?.groups || 
-                   (Array.isArray(groupResponse.data) ? groupResponse.data : []) ||
-                   [];
+      if (response && typeof response === 'object') {
+        // Handle different response structures
+        let deviceList: GPS51Device[] = [];
+        let groupsList: any[] = [];
+        
+        if (Array.isArray(response)) {
+          deviceList = response;
+        } else if ('vehicles' in response && Array.isArray(response.vehicles)) {
+          deviceList = response.vehicles;
+        } else if ('data' in response) {
+          if (Array.isArray(response.data)) {
+            deviceList = response.data;
+          } else if (response.data && Array.isArray(response.data.vehicles)) {
+            deviceList = response.data.vehicles;
+          }
+        }
+
+        // Handle groups data defensively
+        groupsList = response.data?.groups || response.data || [];
+        
+        setDevices(deviceList);
+        setGroups(groupsList);
+        
+        // Calculate stats
+        const totalDevices = deviceList.length;
+        const onlineDevices = deviceList.filter(device => 
+          device.status === 'active' || device.status === 'online'
+        ).length;
+        
+        setStats({
+          totalDevices,
+          onlineDevices,
+          offlineDevices: totalDevices - onlineDevices,
+          lastSync: new Date()
+        });
+        
+        setLastUpdate(new Date());
+        
+        toast({
+          title: "Data Updated",
+          description: `Successfully loaded ${totalDevices} devices`,
+        });
+        
+        console.log(`✅ Successfully loaded ${totalDevices} devices and ${groupsList.length} groups`);
+      } else {
+        console.warn('⚠️ Unexpected response format:', response);
+        throw new Error('Invalid response format');
       }
-
-      // Update summary
-      const dashboardSummary: DashboardSummary = {
-        totalDevices: deviceData.length,
-        activeDevices: deviceData.filter(d => d.status === 'active').length,
-        totalGroups: groupData.length,
-        connectionStatus: deviceResponse.success ? "connected" : "error",
-        lastSync: new Date().toLocaleString()
-      };
-
-      setSummary(dashboardSummary);
-      setDevices(deviceData);
-      setGroups(groupData);
-
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to load dashboard data';
-      setError(errorMsg);
-      toast.error(errorMsg);
+    } catch (error) {
+      console.error('❌ Error fetching GPS51 data:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : 'Failed to fetch data',
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'connected': return 'bg-green-500';
-      case 'disconnected': return 'bg-yellow-500';
-      case 'error': return 'bg-red-500';
-      default: return 'bg-gray-500';
-    }
+  // Handle groups data defensively
+  const handleGroupsResponse = (response: any) => {
+    return response.data?.groups || response.data || [];
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'connected': return 'Connected';
-      case 'disconnected': return 'Disconnected';
-      case 'error': return 'Error';
-      default: return 'Unknown';
-    }
+  useEffect(() => {
+    fetchData();
+    
+    // Set up auto-refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  const getStatusBadge = (device: GPS51Device) => {
+    const isOnline = device.status === 'active' || device.status === 'online';
+    return (
+      <Badge variant={isOnline ? "default" : "secondary"} className="ml-2">
+        {isOnline ? (
+          <>
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Online
+          </>
+        ) : (
+          <>
+            <AlertCircle className="w-3 h-3 mr-1" />
+            Offline
+          </>
+        )}
+      </Badge>
+    );
   };
 
   return (
-    <div className="space-y-6">
+    <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">GPS51 Dashboard</h1>
-        <Button onClick={loadDashboardData} disabled={isLoading} variant="outline">
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">GPS51 Dashboard</h1>
+          <p className="text-muted-foreground">
+            Real-time fleet monitoring and management
+          </p>
+        </div>
+        <Button onClick={fetchData} disabled={isLoading}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh
         </Button>
       </div>
 
-      {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-red-600">
-              <AlertCircle className="h-4 w-4" />
-              <span>{error}</span>
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Devices</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalDevices}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Online</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.onlineDevices}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Offline</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{stats.offlineDevices}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Last Sync</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-sm text-muted-foreground">
+              {lastUpdate ? (
+                <>
+                  <Clock className="w-4 h-4 inline mr-1" />
+                  {lastUpdate.toLocaleTimeString()}
+                </>
+              ) : (
+                'Never'
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Devices List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Device Status</CardTitle>
+          <CardDescription>
+            Current status of all GPS tracking devices
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+              <span>Loading devices...</span>
+            </div>
+          ) : devices.length > 0 ? (
+            <div className="space-y-2">
+              {devices.map((device, index) => (
+                <div key={device.deviceid || index} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div>
+                    <div className="font-medium">{device.devicename || 'Unknown Device'}</div>
+                    <div className="text-sm text-muted-foreground">
+                      ID: {device.deviceid} | Type: {device.devicetype || 'Unknown'}
+                    </div>
+                  </div>
+                  {getStatusBadge(device)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              No devices found. Check your GP51 connection.
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Groups Section */}
+      {groups.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Device Groups</CardTitle>
+            <CardDescription>
+              Organized device groups from GP51
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {groups.map((group, index) => (
+                <div key={group.id || index} className="p-4 border rounded-lg">
+                  <div className="font-medium">{group.group_name || group.name || 'Unnamed Group'}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {group.device_count || 0} devices
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
       )}
-
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Devices</CardTitle>
-            <Car className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary.totalDevices}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Devices</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{summary.activeDevices}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Groups</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{summary.totalGroups}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Connection Status</CardTitle>
-            <Database className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${getStatusColor(summary.connectionStatus)}`} />
-              <span className="text-sm font-medium">{getStatusText(summary.connectionStatus)}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Devices */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Devices</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {devices.length === 0 ? (
-            <p className="text-muted-foreground">No devices found</p>
-          ) : (
-            <div className="space-y-2">
-              {devices.slice(0, 10).map((device) => (
-                <div key={device.deviceid} className="flex items-center justify-between p-2 border rounded">
-                  <div>
-                    <span className="font-medium">{device.devicename}</span>
-                    <span className="text-sm text-muted-foreground ml-2">({device.deviceid})</span>
-                  </div>
-                  <Badge variant={device.status === 'active' ? 'default' : 'secondary'}>
-                    {device.status}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Groups Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Groups Overview</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {groups.length === 0 ? (
-            <p className="text-muted-foreground">No groups found</p>
-          ) : (
-            <div className="space-y-2">
-              {groups.slice(0, 5).map((group) => (
-                <div key={group.id} className="flex items-center justify-between p-2 border rounded">
-                  <div>
-                    <span className="font-medium">{group.group_name}</span>
-                    <span className="text-sm text-muted-foreground ml-2">
-                      ({group.device_count} devices)
-                    </span>
-                  </div>
-                  <Badge variant="outline">{group.device_count}</Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="text-center text-sm text-muted-foreground">
-        Last synchronized: {summary.lastSync}
-      </div>
     </div>
   );
 };
