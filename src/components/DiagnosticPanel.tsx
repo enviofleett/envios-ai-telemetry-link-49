@@ -6,10 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useGP51Connection } from '@/hooks/useGP51Connection';
-import type { GPS51TestResult } from '@/types/gp51';
+import type { GP51TestResult } from '@/types/gp51-unified';
 
 // Helper function to create properly structured test results
-const createTestResult = (name: string, success: boolean, data?: any, error?: string): GPS51TestResult => ({
+const createTestResult = (name: string, success: boolean, data?: any, error?: string): GP51TestResult => ({
   name,
   success,
   message: success ? `${name} completed successfully` : `${name} failed`,
@@ -20,13 +20,13 @@ const createTestResult = (name: string, success: boolean, data?: any, error?: st
 });
 
 const GP51DiagnosticsPanel: React.FC = () => {
-  const [diagnostics, setDiagnostics] = useState<GPS51TestResult[]>([]);
+  const [diagnostics, setDiagnostics] = useState<GP51TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const { checkConnection, fetchLiveData } = useGP51Connection();
 
   const runDiagnostics = useCallback(async () => {
     setIsRunning(true);
-    const results: GPS51TestResult[] = [];
+    const results: GP51TestResult[] = [];
 
     try {
       // Test connection

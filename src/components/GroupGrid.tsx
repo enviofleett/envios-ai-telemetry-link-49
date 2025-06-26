@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, RefreshCw, MapPin, Car } from 'lucide-react';
-import type { GP51Group } from '@/types/gp51';
+import type { GP51Group } from '@/types/gp51-unified';
 
 interface GroupGridProps {
   groups: GP51Group[];
@@ -18,9 +18,9 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
 
   // Safe property access helper
   const getGroupProps = (group: GP51Group) => ({
-    id: group.id || group.groupid.toString(),
-    group_name: group.group_name || group.groupname,
-    group_id: group.group_id || group.groupid,
+    id: group.id || group.groupid?.toString() || '',
+    group_name: group.group_name || group.groupname || '',
+    group_id: group.group_id || group.groupid || 0,
     device_count: group.device_count || group.devices?.length || 0,
     last_sync_at: group.last_sync_at || new Date(),
     remark: group.remark
@@ -39,7 +39,7 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
     
     // Safe date conversion
     const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
-    return date.toLocaleString();
+    return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleString();
   };
 
   return (
