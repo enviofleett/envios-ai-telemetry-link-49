@@ -4,12 +4,16 @@ import type {
   GP51DeviceData, 
   GP51ProcessResult, 
   GP51LiveVehiclesResponse,
-  GP51ProcessedPosition
+  GP51ProcessedPosition,
+  GP51AuthResponse,
+  GP51Position,
+  GP51ServiceResponse
 } from '@/types/gp51-unified';
 
 export class UnifiedGP51Service {
   private static instance: UnifiedGP51Service;
   private isAuthenticatedFlag = false;
+  private sessionData: any = null;
 
   static getInstance(): UnifiedGP51Service {
     if (!UnifiedGP51Service.instance) {
@@ -24,7 +28,36 @@ export class UnifiedGP51Service {
     return this.isAuthenticatedFlag;
   }
 
-  async authenticate(username: string, password: string): Promise<{ success: boolean; error?: string }> {
+  get isConnected(): boolean {
+    return this.isAuthenticatedFlag;
+  }
+
+  get session(): any {
+    return this.sessionData;
+  }
+
+  async connect(): Promise<boolean> {
+    return this.isAuthenticatedFlag;
+  }
+
+  async disconnect(): Promise<void> {
+    this.isAuthenticatedFlag = false;
+    this.sessionData = null;
+  }
+
+  async getConnectionHealth(): Promise<any> {
+    return { 
+      status: this.isAuthenticatedFlag ? 'healthy' : 'disconnected',
+      timestamp: new Date()
+    };
+  }
+
+  async logout(): Promise<void> {
+    this.isAuthenticatedFlag = false;
+    this.sessionData = null;
+  }
+
+  async authenticate(username: string, password: string): Promise<GP51AuthResponse> {
     try {
       console.log(`🔐 Authenticating with GP51 as: ${username}`);
       
@@ -34,26 +67,50 @@ export class UnifiedGP51Service {
       
       if (error) {
         console.error('❌ Authentication failed:', error);
-        return { success: false, error: error.message };
+        return { 
+          success: false, 
+          status: 'error',
+          error: error.message,
+          cause: 'api_error'
+        };
       }
 
       if (data?.success) {
         this.isAuthenticatedFlag = true;
+        this.sessionData = data;
         console.log('✅ GP51 authentication successful');
-        return { success: true };
+        return { 
+          success: true, 
+          status: 'authenticated',
+          cause: 'success'
+        };
       } else {
         const errorMsg = data?.error || 'Authentication failed';
         console.error('❌ GP51 authentication failed:', errorMsg);
-        return { success: false, error: errorMsg };
+        return { 
+          success: false, 
+          status: 'failed',
+          error: errorMsg,
+          cause: 'auth_failed'
+        };
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Authentication error';
       console.error('❌ GP51 authentication error:', errorMsg);
-      return { success: false, error: errorMsg };
+      return { 
+        success: false, 
+        status: 'error',
+        error: errorMsg,
+        cause: 'exception'
+      };
     }
   }
 
-  async queryMonitorList(): Promise<{ success: boolean; data?: GP51DeviceData[]; error?: string }> {
+  async authenticateAdmin(username: string, password: string): Promise<GP51AuthResponse> {
+    return this.authenticate(username, password);
+  }
+
+  async queryMonitorList(): Promise<GP51ServiceResponse<GP51DeviceData[]>> {
     try {
       console.log('🔄 Querying GP51 monitor list...');
       
@@ -61,7 +118,11 @@ export class UnifiedGP51Service {
       
       if (error) {
         console.error('❌ Failed to query monitor list:', error);
-        return { success: false, error: error.message };
+        return { 
+          success: false, 
+          error: error.message,
+          status: 'error'
+        };
       }
 
       if (data?.success) {
@@ -77,17 +138,33 @@ export class UnifiedGP51Service {
         }));
 
         console.log(`✅ Successfully queried ${devices.length} devices`);
-        return { success: true, data: devices };
+        return { 
+          success: true, 
+          data: devices,
+          status: 'ok'
+        };
       } else {
         const errorMsg = data?.error || 'Failed to query monitor list';
         console.error('❌ Monitor list query failed:', errorMsg);
-        return { success: false, error: errorMsg };
+        return { 
+          success: false, 
+          error: errorMsg,
+          status: 'failed'
+        };
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Query failed';
       console.error('❌ Monitor list query error:', errorMsg);
-      return { success: false, error: errorMsg };
+      return { 
+        success: false, 
+        error: errorMsg,
+        status: 'error'
+      };
     }
+  }
+
+  async getDevices(deviceIds?: string[]): Promise<GP51ServiceResponse<GP51DeviceData[]>> {
+    return this.queryMonitorList();
   }
 
   async getLastPositions(deviceIds: string[]): Promise<GP51ProcessedPosition[]> {
@@ -115,6 +192,28 @@ export class UnifiedGP51Service {
     }
   }
 
+  async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
+    try {
+      const processedPositions = await this.getLastPositions(deviceIds || []);
+      
+      return processedPositions.map(pos => ({
+        deviceId: pos.deviceId,
+        latitude: pos.latitude,
+        longitude: pos.longitude,
+        timestamp: pos.timestamp.getTime(), // Convert Date to number
+        speed: pos.speed,
+        course: pos.course,
+        status: pos.status,
+        isMoving: pos.isMoving,
+        statusText: pos.statusText,
+        address: ''
+      }));
+    } catch (err) {
+      console.error('❌ Error getting positions:', err);
+      return [];
+    }
+  }
+
   async loadExistingSession(): Promise<boolean> {
     try {
       // Check if there's an existing valid session
@@ -134,6 +233,7 @@ export class UnifiedGP51Service {
 
       if (data) {
         this.isAuthenticatedFlag = true;
+        this.sessionData = data;
         console.log('✅ Loaded existing GP51 session');
         return true;
       }

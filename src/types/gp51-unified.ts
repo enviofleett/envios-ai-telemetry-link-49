@@ -81,3 +81,38 @@ export interface GP51Group {
   groupid?: number;
   groupname?: string;
 }
+
+export interface GP51AuthResponse {
+  success: boolean;
+  status: string;
+  cause?: string;
+  error?: string;
+}
+
+export interface GP51Position {
+  deviceId: string;
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+  speed: number;
+  course: number;
+  status: string;
+  isMoving: boolean;
+  statusText?: string;
+  address?: string;
+}
+
+export interface GP51ServiceResponse<T = any> {
+  success: boolean;
+  data?: T;
+  status?: string;
+  groups?: GP51Group[];
+  error?: string;
+  cause?: string;
+}
+
+// Legacy aliases for backward compatibility
+export type GPS51TestResult = GP51TestResult;
+export type GPS51Device = GP51DeviceData;
+export type GPS51Group = GP51Group;
+export type GPS51Position = GP51Position;

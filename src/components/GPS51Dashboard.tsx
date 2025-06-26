@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,12 +9,40 @@ import { toast } from "sonner";
 import DeviceTable from './DeviceTable';
 import GroupGrid from './GroupGrid';
 import StatisticsCards from './StatisticsCards';
-import { gps51DataService } from '@/services/gp51/GPS51DataService';
-import type { GP51Group, GP51Device, GP51User, GP51DashboardSummary } from '@/types/gp51';
+import { gp51DataService } from '@/services/gp51/GP51DataService';
+import type { GP51Group, GP51DeviceData } from '@/types/gp51-unified';
+
+// Define proper dashboard summary type
+interface GP51DashboardSummary {
+  totalUsers: number;
+  totalDevices: number;
+  activeDevices: number;
+  offlineDevices: number;
+  totalGroups: number;
+  lastUpdateTime: Date;
+  connectionStatus: string;
+  apiResponseTime: number;
+  total_users: number;
+  total_devices: number;
+  active_devices: number;
+  offline_devices: number;
+  total_groups: number;
+}
+
+interface GP51User {
+  id?: string;
+  username?: string;
+  nickname?: string;
+  showname?: string;
+  gp51_username?: string;
+  company_name?: string;
+  companyname?: string;
+  is_active?: boolean;
+}
 
 interface DashboardData {
   groups: GP51Group[];
-  devices: GP51Device[];
+  devices: GP51DeviceData[];
   users: GP51User[];
   summary: GP51DashboardSummary;
 }
@@ -59,7 +88,7 @@ const GPS51Dashboard: React.FC = () => {
       
       console.log('🔄 Loading GP51 dashboard data...');
       
-      const result = await gps51DataService.getDataDirectly();
+      const result = await gp51DataService.getDataDirectly();
       
       if (result.success && result.data) {
         setData(result.data);
