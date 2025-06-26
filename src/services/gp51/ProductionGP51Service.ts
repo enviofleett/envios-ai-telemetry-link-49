@@ -1,371 +1,279 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { md5 } from 'js-md5';
+import type { GP51AuthResponse, GP51User, GP51Device, GP51HealthStatus, GP51ProcessedPosition, GP51Session } from '@/types/gp51';
+import md5 from 'crypto-js/md5';
 
-export interface GP51AuthResult {
-  status: number;
-  cause?: string;
-  message?: string;
-  token?: string;
-  expires_at?: string;
-}
-
-export interface GP51User {
-  id: string;
-  username: string;
-  email?: string;
-  showname?: string;
-  companyname?: string;
-  phone?: string;
-  usertype?: number;
-  creater?: string;
-}
-
-export interface GP51Device {
-  deviceid: string;
-  devicename: string;
-  devicetype?: number;
-  status?: string;
-  lastactivetime?: string;
-  simnum?: string;
-  owner_username?: string;
+export interface GP51Config {
+  baseUrl: string;
+  timeout: number;
+  retryAttempts: number;
+  defaultTimezone: number;
 }
 
 export class ProductionGP51Service {
-  private static instance: ProductionGP51Service;
+  private config: GP51Config = {
+    baseUrl: 'https://www.gps51.com/webapi',
+    timeout: 30000,
+    retryAttempts: 3,
+    defaultTimezone: 8
+  };
+
   private currentToken: string | null = null;
   private currentUsername: string | null = null;
-  private tokenExpiry: Date | null = null;
-  private apiUrl: string = 'https://www.gps51.com/webapi';
 
-  private constructor() {}
-
-  static getInstance(): ProductionGP51Service {
-    if (!ProductionGP51Service.instance) {
-      ProductionGP51Service.instance = new ProductionGP51Service();
-    }
-    return ProductionGP51Service.instance;
-  }
-
-  get isAuthenticated(): boolean {
-    return this.currentToken !== null && this.tokenExpiry !== null && this.tokenExpiry > new Date();
-  }
-
-  get currentUsername(): string | null {
+  // Public getters for external access
+  get username(): string | null {
     return this.currentUsername;
   }
 
-  async authenticate(username: string, password: string): Promise<GP51AuthResult> {
+  get isConnected(): boolean {
+    return this.currentToken !== null && this.currentUsername !== null;
+  }
+
+  get session(): GP51Session | null {
+    if (this.currentUsername && this.currentToken) {
+      return {
+        username: this.currentUsername,
+        token: this.currentToken,
+        isConnected: this.isConnected,
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        lastActivity: new Date()
+      };
+    }
+    return null;
+  }
+
+  async authenticate(username: string, password: string, userType: 'USER' | 'DEVICE' = 'USER'): Promise<GP51AuthResponse> {
     try {
-      console.log(`🔐 Authenticating ${username} with GP51...`);
+      const hashedPassword = md5(password).toString();
       
-      const hashedPassword = this.hashMD5(password);
-      
-      const response = await fetch(`${this.apiUrl}?action=login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username,
-          password: hashedPassword,
-          from: 'WEB',
-          type: 'USER'
-        })
+      const response = await this.makeRequest('login', {
+        username,
+        password: hashedPassword,
+        from: 'WEB',
+        type: userType
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (response.status === 0) {
+        this.currentToken = response.token;
+        this.currentUsername = username;
+        
+        await this.storeSession(username, {
+          token: response.token,
+          expires_at: response.expires_at,
+          login_time: new Date().toISOString(),
+          user_type: userType,
+          is_admin: username === 'octopus'
+        });
+
+        await this.logOperation('auth', username, { userType }, response);
       }
 
-      const result = await response.json();
-      
-      if (result.status === 0) {
-        this.currentToken = result.token;
-        this.currentUsername = username;
-        this.tokenExpiry = new Date(Date.now() + (result.tokenExpiry || 24 * 60 * 60 * 1000));
-        
-        // Store session in database with required fields
-        await this.storeSession(username, hashedPassword, result.token);
-        
-        console.log('✅ GP51 authentication successful');
-        return {
-          status: 0,
-          token: result.token,
-          expires_at: this.tokenExpiry.toISOString(),
-          username: username
-        };
-      } else {
-        console.error('❌ GP51 authentication failed:', result.cause);
-        return {
-          status: result.status,
-          cause: result.cause || 'Authentication failed'
-        };
-      }
+      return response;
     } catch (error) {
-      console.error('❌ GP51 authentication error:', error);
+      await this.logOperation('auth', username, { userType }, null, error);
+      throw error;
+    }
+  }
+
+  async getConnectionHealth(): Promise<GP51HealthStatus> {
+    try {
+      const startTime = Date.now();
+      const response = await this.queryMonitorList();
+      const responseTime = Date.now() - startTime;
+      
+      const health: GP51HealthStatus = {
+        isConnected: response.status === 0,
+        lastPingTime: new Date(),
+        responseTime,
+        tokenValid: this.currentToken !== null,
+        sessionValid: this.currentToken !== null && this.currentUsername !== null,
+        activeDevices: response.groups?.flatMap(g => g.devices || []).length || 0,
+        errors: response.status !== 0 ? [response.cause] : [],
+        lastCheck: new Date(),
+        errorMessage: response.status !== 0 ? response.cause : undefined
+      };
+
+      return health;
+    } catch (error) {
       return {
-        status: -1,
-        cause: error instanceof Error ? error.message : 'Network error'
+        isConnected: false,
+        lastPingTime: new Date(),
+        responseTime: -1,
+        tokenValid: false,
+        sessionValid: false,
+        activeDevices: 0,
+        errors: [error instanceof Error ? error.message : 'Connection failed'],
+        lastCheck: new Date(),
+        errorMessage: error instanceof Error ? error.message : 'Connection failed'
       };
     }
   }
 
-  private async storeSession(username: string, passwordHash: string, token: string): Promise<void> {
-    try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      
-      await supabase
-        .from('gp51_sessions')
-        .upsert({
-          username,
-          password_hash: passwordHash,
-          gp51_token: token,
-          token_expires_at: this.tokenExpiry?.toISOString() || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-          is_active: true,
-          last_activity_at: new Date().toISOString()
-        });
-    } catch (error) {
-      console.warn('Failed to store session in database:', error);
-    }
-  }
-
-  async loadExistingSession(username: string): Promise<boolean> {
-    try {
-      const { supabase } = await import('@/integrations/supabase/client');
-      
-      const { data: session } = await supabase
-        .from('gp51_sessions')
-        .select('*')
-        .eq('username', username)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (session && session.token_expires_at && new Date(session.token_expires_at) > new Date()) {
-        this.currentToken = session.gp51_token;
-        this.currentUsername = session.username;
-        this.tokenExpiry = new Date(session.token_expires_at);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.warn('Failed to load existing session:', error);
-      return false;
-    }
-  }
-
-  async logout(): Promise<void> {
+  async disconnect(): Promise<void> {
     this.currentToken = null;
     this.currentUsername = null;
-    this.tokenExpiry = null;
+  }
+
+  async sendCommand(deviceid: string, command: string, params: any[] = []): Promise<any> {
+    if (!this.currentToken) {
+      throw new Error('Not authenticated');
+    }
+
+    return await this.makeRequest('sendcommand', {
+      deviceid,
+      command,
+      params
+    });
   }
 
   async fetchAllUsers(): Promise<GP51User[]> {
-    if (!this.isAuthenticated) {
+    if (!this.currentToken) {
       throw new Error('Not authenticated');
     }
 
     try {
-      const url = new URL(this.apiUrl);
-      url.searchParams.append('action', 'querymonitorlist');
-      url.searchParams.append('token', this.currentToken!);
+      const response = await this.makeRequest('querymonitorlist', {
+        username: this.currentUsername
+      });
 
-      const response = await fetch(url.toString());
-      const result = await response.json();
-
-      if (result.status === 0 && result.users) {
-        return result.users;
+      const users: GP51User[] = [];
+      
+      if (response.groups) {
+        for (const group of response.groups) {
+          if (group.devices) {
+            for (const device of group.devices) {
+              await this.storeDeviceData(device, group);
+            }
+          }
+        }
       }
 
-      return [];
+      await this.logOperation('fetch_users', this.currentUsername, {}, response);
+      return users;
     } catch (error) {
-      console.error('Error fetching users:', error);
-      return [];
+      await this.logOperation('fetch_users', this.currentUsername, {}, null, error);
+      throw error;
     }
   }
 
   async fetchAllDevices(): Promise<GP51Device[]> {
-    if (!this.isAuthenticated) {
+    if (!this.currentToken) {
       throw new Error('Not authenticated');
     }
 
     try {
-      const url = new URL(this.apiUrl);
-      url.searchParams.append('action', 'querymonitorlist');
-      url.searchParams.append('token', this.currentToken!);
-
-      const response = await fetch(url.toString());
-      const result = await response.json();
-
-      if (result.status === 0 && result.devices) {
-        return result.devices;
+      const response = await this.queryMonitorList();
+      
+      const devices: GP51Device[] = [];
+      if (response.groups) {
+        for (const group of response.groups) {
+          if (group.devices) {
+            devices.push(...group.devices);
+          }
+        }
       }
 
-      return [];
+      return devices;
     } catch (error) {
-      console.error('Error fetching devices:', error);
-      return [];
+      throw new Error(`Failed to fetch devices: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  async getLastPositions(deviceIds?: string[]): Promise<any[]> {
-    if (!this.isAuthenticated) {
+  private async queryMonitorList(username?: string): Promise<any> {
+    if (!this.currentToken) {
       throw new Error('Not authenticated');
     }
 
     try {
-      const url = new URL(this.apiUrl);
-      url.searchParams.append('action', 'lastposition');
-      url.searchParams.append('token', this.currentToken!);
-
-      const body = {
-        deviceids: deviceIds || [],
-        lastquerypositiontime: 0
-      };
-
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+      const response = await this.makeRequest('querymonitorlist', {
+        username: username || this.currentUsername
       });
+      
+      return response;
+    } catch (error) {
+      throw new Error(`Failed to query monitor list: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 
-      const result = await response.json();
+  private async makeRequest(action: string, data: any): Promise<any> {
+    const url = `${this.config.baseUrl}?action=${action}${this.currentToken ? `&token=${this.currentToken}` : ''}`;
+    
+    for (let attempt = 1; attempt <= this.config.retryAttempts; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
 
-      if (result.status === 0 && result.records) {
-        return result.records;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'User-Agent': 'Envio-Fleet-Management/1.0'
+          },
+          body: JSON.stringify(data),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        return result;
+
+      } catch (error) {
+        if (attempt === this.config.retryAttempts) {
+          throw new Error(`GP51 API request failed after ${this.config.retryAttempts} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
       }
-
-      return [];
-    } catch (error) {
-      console.error('Error fetching positions:', error);
-      return [];
     }
   }
 
-  async sendVehicleCommand(deviceId: string, command: string, parameters: any[] = []): Promise<GP51AuthResult> {
-    if (!this.isAuthenticated) {
-      throw new Error('Not authenticated');
-    }
-
+  private async storeSession(username: string, sessionData: any): Promise<void> {
     try {
-      const url = new URL(this.apiUrl);
-      url.searchParams.append('action', 'devicecommand');
-      url.searchParams.append('token', this.currentToken!);
-
-      const body = {
-        deviceid: deviceId,
-        command: command,
-        parameters: parameters
-      };
-
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      const result = await response.json();
-      return result;
+      await supabase
+        .from('gp51_sessions')
+        .upsert({
+          username,
+          session_data: sessionData,
+          token: sessionData.token,
+          expires_at: sessionData.expires_at,
+          is_admin: sessionData.is_admin || false
+        });
     } catch (error) {
-      return {
-        status: -1,
-        cause: error instanceof Error ? error.message : 'Command failed'
-      };
+      console.error('Failed to store session:', error);
     }
   }
 
-  async registerUser(userData: {
-    username: string;
-    password: string;
-    email?: string;
-    companyname?: string;
-    cardname?: string;
-    phone?: string;
-  }): Promise<GP51AuthResult> {
-    if (!this.isAuthenticated) {
-      throw new Error('Not authenticated');
-    }
-
+  private async storeDeviceData(device: any, group: any): Promise<void> {
     try {
-      const url = new URL(this.apiUrl);
-      url.searchParams.append('action', 'adduser');
-      url.searchParams.append('token', this.currentToken!);
-
-      const body = {
-        ...userData,
-        password: md5(userData.password),
-        creater: this.currentUsername,
-        usertype: 11, // End user
-        multilogin: 1
-      };
-
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      const result = await response.json();
-      return result;
+      console.log('Storing device:', device.deviceid);
+      // Implementation for storing device data
     } catch (error) {
-      return {
-        status: -1,
-        cause: error instanceof Error ? error.message : 'User registration failed'
-      };
+      console.error('Failed to store device data:', error);
     }
   }
 
-  async registerDevice(deviceData: {
-    deviceid: string;
-    devicename: string;
-    devicetype: number;
-    creater: string;
-  }): Promise<GP51AuthResult> {
-    if (!this.isAuthenticated) {
-      throw new Error('Not authenticated');
-    }
-
+  private async logOperation(operation: string, username: string | null, requestData: any, responseData: any, error?: any): Promise<void> {
     try {
-      const url = new URL(this.apiUrl);
-      url.searchParams.append('action', 'adddevice');
-      url.searchParams.append('token', this.currentToken!);
-
-      const body = {
-        ...deviceData,
-        groupid: 1,
-        deviceenable: 1,
-        timezone: 8
-      };
-
-      const response = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      return {
-        status: -1,
-        cause: error instanceof Error ? error.message : 'Device registration failed'
-      };
-    }
-  }
-
-  private hashMD5(input: string): string {
-    try {
-      // Simple hash implementation for browsers
-      const crypto = require('crypto');
-      return crypto.createHash('md5').update(input).digest('hex');
-    } catch (error) {
-      // Fallback for environments without crypto
-      console.warn('MD5 hashing not available, using plain text (NOT FOR PRODUCTION)');
-      return input;
+      await supabase
+        .from('gp51_sync_log')
+        .insert({
+          operation_type: operation,
+          username: username || 'unknown',
+          request_data: requestData,
+          response_data: responseData,
+          status: error ? 'error' : 'success',
+          gp51_status_code: responseData?.status || -1
+        });
+    } catch (logError) {
+      console.error('Failed to log operation:', logError);
     }
   }
 }
 
-export const productionGP51Service = ProductionGP51Service.getInstance();
+export const productionGP51Service = new ProductionGP51Service();

@@ -10,20 +10,22 @@ import {
   RefreshCw, 
   Trash2,
   AlertTriangle,
-  Wifi,
-  WifiOff
+  Wifi
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
 
+interface ConnectionTestResult {
+  success: boolean;
+  error?: string;
+  data?: any;
+  message?: string;
+  timestamp: Date;
+}
+
 export const GP51ConnectionTester: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [testResult, setTestResult] = useState<{
-    success: boolean;
-    message: string;
-    details?: any;
-    timestamp: Date;
-  } | null>(null);
+  const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const { toast } = useToast();
   const { testConnection, disconnect } = useUnifiedGP51Service();
 
@@ -36,7 +38,7 @@ export const GP51ConnectionTester: React.FC = () => {
       setTestResult({
         success: result.success,
         message: result.success ? 'GP51 connection is working properly' : (result.error || 'Connection test failed'),
-        details: result.data,
+        data: result.data,
         timestamp: new Date()
       });
 
@@ -53,7 +55,7 @@ export const GP51ConnectionTester: React.FC = () => {
       setTestResult({
         success: false,
         message: `Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        details: { exception: true },
+        error: error instanceof Error ? error.message : 'Connection test failed',
         timestamp: new Date()
       });
 
@@ -137,8 +139,24 @@ export const GP51ConnectionTester: React.FC = () => {
             <AlertDescription>
               <div className="space-y-2">
                 <p><strong>Status:</strong> {testResult.message}</p>
-                {testResult.details?.error && (
-                  <p><strong>Error:</strong> {testResult.details.error}</p>
+                {testResult.error && (
+                  <p><strong>Error:</strong> {testResult.error}</p>
+                )}
+                {testResult.data && (
+                  <div className="text-sm">
+                    <p><strong>Details:</strong></p>
+                    <ul className="list-disc list-inside">
+                      {testResult.data.sessionValid !== undefined && (
+                        <li>Session: {testResult.data.sessionValid ? 'Valid' : 'Invalid'}</li>
+                      )}
+                      {testResult.data.activeDevices !== undefined && (
+                        <li>Active Devices: {testResult.data.activeDevices}</li>
+                      )}
+                      {testResult.data.responseTime !== undefined && (
+                        <li>Response Time: {testResult.data.responseTime}ms</li>
+                      )}
+                    </ul>
+                  </div>
                 )}
               </div>
             </AlertDescription>

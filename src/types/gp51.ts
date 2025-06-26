@@ -1,164 +1,98 @@
 
-export interface GPS51Device {
-  id: string;
-  device_id: string;
-  device_name: string;
-  group_id: number;
-  device_type: number;
-  device_tag: string;
-  car_tag_color: number | null;
-  sim_number: string | null;
-  login_name: string | null;
-  creator: string;
-  status_code?: number | null; // Optional as it may not exist in DB
-  status_text?: string | null; // Optional as it may not exist in DB
-  last_active_time: number | null;
-  overdue_time: number | null;
-  expire_notify_time: number;
-  allow_edit: number; // This is a number in DB, not boolean
-  starred: number | null; // This is a number in DB (0/1), not boolean
-  icon: number | null;
-  remark: string | null;
-  video_channel_count: number | null;
-  is_active: boolean;
-  days_since_active?: number | null; // Computed field
-  create_time: number | null;
-  created_at: string;
-  updated_at: string;
-  last_sync_at: string | null;
-  gps51_groups?: {
-    group_name: string;
-  };
+// Core GP51 Types
+export interface GP51AuthResponse {
+  status: number;
+  cause: string;
+  token?: string;
+  expires_at?: string;
 }
 
-export interface GPS51Group {
-  id: string;
-  group_id: number;
-  group_name: string;
-  remark: string | null;
-  device_count: number | null;
-  is_active: boolean | null;
-  shared: number | null;
-  created_at: string;
-  updated_at: string;
-  last_sync_at: string | null;
+export interface GP51HealthStatus {
+  isConnected: boolean;
+  lastPingTime: Date;
+  responseTime: number;
+  tokenValid: boolean;
+  sessionValid: boolean;
+  activeDevices: number;
+  errors: string[];
+  lastCheck: Date;
+  errorMessage?: string;
 }
 
-export interface GPS51User {
-  id: string;
-  envio_user_id: string;
-  gp51_username: string;
-  nickname: string;
-  company_name: string;
-  email: string;
-  phone: string;
-  qq: string;
-  wechat: string;
-  multi_login: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-  last_sync_at: string | null;
+export interface GP51Session {
+  username: string;
+  token: string;
+  isConnected: boolean;
+  expiresAt: Date;
+  lastActivity: Date;
 }
 
-export interface GPS51Position {
-  id: string;
-  device_id: string;
-  latitude?: number;
-  longitude?: number;
-  speed?: number;
-  course?: number;
-  update_time?: string;
-  moving: boolean;
+export interface GP51MonitorListResponse {
+  status: number;
+  cause: string;
+  groups: GP51Group[];
+}
+
+export interface GP51User {
+  username: string;
+  usertype: number;
+  showname: string;
+  companyname?: string;
+  email?: string;
+  phone?: string;
+}
+
+export interface GP51Group {
+  groupid: number;
+  groupname: string;
+  devices: GP51Device[];
+}
+
+export interface GP51Device {
+  deviceid: string;
+  devicename: string;
+  devicetype: number;
+  status: string;
+  lastactivetime: number;
+  simnum?: string;
+}
+
+export interface GP51Position {
+  deviceid: string;
+  lat: number;
+  lon: number;
+  speed: number;
+  course: number;
+  updatetime: number;
+  status: number;
+  moving?: number;
   address?: string;
-  created_at: string;
 }
 
-export interface GPS51DashboardSummary {
-  total_devices: number;
-  active_devices: number;
-  total_groups: number;
-  devices_with_positions: number;
-  total_users?: number;
-}
-
-export interface GPS51DataResponse {
-  success: boolean;
-  data?: {
-    groups: GPS51Group[];
-    devices: GPS51Device[];
-    users: GPS51User[];
-    summary: GPS51DashboardSummary;
-  };
-  error?: string;
-}
-
-export interface GPS51TestResult {
-  name: string;
-  success: boolean;
-  data: number;
-  error?: string;
-}
-
-// Missing types that were causing TypeScript errors
 export interface GP51ProcessedPosition {
   deviceId: string;
-  deviceName: string;
   latitude: number;
   longitude: number;
   speed: number;
   course: number;
   timestamp: Date;
-  statusText: string;
-  isOnline: boolean;
-  isMoving: boolean;
   status: number;
+  statusText: string;
+  isMoving: boolean;
+  address?: string;
 }
 
-export interface GP51DeviceData {
-  deviceId: string;
-  deviceName: string;
-  deviceType: string;
-  simNumber?: string;
-  groupId?: string;
-  groupName?: string;
-  isActive: boolean;
-  lastActiveTime?: string;
+// Export additional types that may be needed
+export interface GP51Config {
+  baseUrl: string;
+  timeout: number;
+  retryAttempts: number;
+  defaultTimezone: number;
 }
 
-export interface GP51LiveVehiclesResponse {
+export interface GP51SyncResult {
   success: boolean;
-  data: {
-    devices: GP51DeviceData[];
-    telemetry: GP51TelemetryData[];
-    metadata?: {
-      totalDevices: number;
-      activeDevices: number;
-      lastSync: string;
-    };
-  };
-  error?: string;
-}
-
-export interface GP51ProcessResult {
-  created: number;
-  errors: number;
-  errorDetails: { itemId: string; message: string }[];
-}
-
-export interface GP51TelemetryData {
-  deviceId: string;
-  timestamp: string;
-  latitude: number;
-  longitude: number;
-  speed: number;
-  course: number;
-  status: string;
-}
-
-export interface VehicleGP51Metadata {
-  lastSync: string;
-  deviceStatus: string;
-  signalStrength?: number;
-  batteryLevel?: number;
+  processed: number;
+  errors: string[];
+  timestamp: Date;
 }
