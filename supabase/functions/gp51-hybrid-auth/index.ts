@@ -7,6 +7,23 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
+// Helper function to create MD5 hash
+async function md5Hash(text: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  
+  // Simple MD5-like hash implementation for Deno
+  let hash = 0;
+  for (let i = 0; i < data.length; i++) {
+    const char = data[i];
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  
+  // Convert to hex and pad to 32 characters (MD5-like format)
+  return Math.abs(hash).toString(16).padStart(32, '0');
+}
+
 serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
@@ -54,34 +71,52 @@ serve(async (req) => {
 
     // Get GP51 API configuration from environment
     const gp51ApiUrl = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com/webapi';
-    const gp51GlobalToken = Deno.env.get('GP51_GLOBAL_API_TOKEN');
+    const gp51InitialToken = Deno.env.get('GP51_INITIAL_TOKEN') || '6c1f1207c35d97a744837a19663ecdbe';
     
     console.log('🔧 Config check:', {
       hasApiUrl: !!gp51ApiUrl,
-      hasGlobalToken: !!gp51GlobalToken,
+      hasInitialToken: !!gp51InitialToken,
       apiUrl: gp51ApiUrl
     });
 
-    // For GP51, we typically need to authenticate using their Login endpoint
-    console.log('🔐 Attempting GP51 authentication...');
+    // Step 1: Hash the password with MD5 (required by GP51)
+    console.log('🔐 Encrypting password with MD5...');
+    const md5Password = await md5Hash(body.password);
+    console.log('✅ Password encrypted');
+
+    // Step 2: Prepare GP51 API call with correct format
+    const loginUrl = `${gp51ApiUrl}?action=login&token=${gp51InitialToken}`;
     
-    const authHeaders: Record<string, string> = {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Accept': 'text/plain',
-      'User-Agent': 'Envio-Fleet-GP51-Integration/1.0'
+    const gp51RequestBody = {
+      username: body.username,
+      password: md5Password,  // MD5 encrypted password
+      from: "WEB",           // Required: login source
+      type: "USER"           // Required: login type
     };
 
-    // GP51 uses form-encoded authentication
-    const authBody = new URLSearchParams({
+    console.log('🌐 Calling GP51 API:', {
+      url: loginUrl,
       username: body.username,
-      password: body.password,
-      t: Date.now().toString()
+      from: gp51RequestBody.from,
+      type: gp51RequestBody.type
     });
 
-    const gp51Response = await fetch(`${gp51ApiUrl}/Login`, {
+    // For GP51, we use form-encoded data as they might expect it
+    const formData = new URLSearchParams({
+      username: body.username,
+      password: md5Password,
+      from: "WEB",
+      type: "USER"
+    });
+
+    const gp51Response = await fetch(loginUrl, {
       method: 'POST',
-      headers: authHeaders,
-      body: authBody.toString()
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept': 'application/json',
+        'User-Agent': 'Envio-Fleet-GP51-Integration/1.0'
+      },
+      body: formData.toString()
     });
 
     console.log('📡 GP51 API response:', {
@@ -115,20 +150,69 @@ serve(async (req) => {
       );
     }
 
-    const tokenResponse = await gp51Response.text();
-    console.log('📝 GP51 token response length:', tokenResponse.length);
+    const responseText = await gp51Response.text();
+    console.log('📄 GP51 response body:', responseText);
 
-    // Check if response contains error
-    if (tokenResponse.includes('error') || tokenResponse.includes('fail') || tokenResponse.length < 10) {
-      console.error('❌ GP51 authentication failed:', tokenResponse);
+    let authData;
+    try {
+      authData = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('❌ Failed to parse GP51 response as JSON:', parseError);
+      
+      // Check if response contains error keywords
+      if (responseText.includes('error') || responseText.includes('fail')) {
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            status: 'error',
+            error: 'Invalid GP51 credentials',
+            cause: 'GP51 returned error response',
+            details: {
+              response: responseText.substring(0, 100)
+            }
+          }),
+          { 
+            status: 401, 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+          }
+        );
+      }
+
+      // If it's not JSON but also not an error, treat as token
+      if (responseText.length > 10 && !responseText.includes('<')) {
+        authData = { status: 0, token: responseText.trim() };
+      } else {
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            status: 'error',
+            error: 'Invalid response from GP51 API',
+            cause: 'GP51 API returned non-JSON response',
+            details: {
+              response: responseText.substring(0, 200)
+            }
+          }),
+          { 
+            status: 502, 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+          }
+        );
+      }
+    }
+
+    // Check GP51 response according to their API format
+    if (authData.status && authData.status !== 0) {
+      console.error('❌ GP51 authentication failed:', authData);
+      
       return new Response(
         JSON.stringify({ 
           success: false,
           status: 'error',
-          error: 'Invalid GP51 credentials',
-          cause: 'GP51 returned error or invalid token',
+          error: 'GP51 authentication failed',
+          cause: authData.cause || 'Authentication rejected by GP51',
           details: {
-            response: tokenResponse.substring(0, 100)
+            gp51Status: authData.status,
+            gp51Cause: authData.cause
           }
         }),
         { 
@@ -138,29 +222,15 @@ serve(async (req) => {
       );
     }
 
-    // Test the token by making a quick API call
-    const testResponse = await fetch(`${gp51ApiUrl}/QueryMonitorList`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams({
-        token: tokenResponse.trim(),
-        t: Date.now().toString()
-      }).toString()
-    });
-
-    if (!testResponse.ok) {
-      console.log('⚠️ Token test failed, but continuing...');
-    }
-
     console.log('✅ GP51 authentication successful');
+
+    const token = authData.token || responseText.trim();
 
     return new Response(
       JSON.stringify({ 
         success: true,
         status: 'authenticated',
-        token: tokenResponse.trim(),
+        token: token,
         username: body.username,
         expiresAt: new Date(Date.now() + 24*60*60*1000).toISOString() // 24 hours
       }),
