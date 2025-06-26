@@ -1,4 +1,3 @@
-
 import { GP51AuthService } from './GP51AuthService';
 import { GP51DataService } from './GP51DataService';
 import { GP51HealthService } from './GP51HealthService';
@@ -50,11 +49,39 @@ export class UnifiedGP51Service {
   }
 
   async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
-    return this.dataService.getLastPositions(deviceIds);
+    try {
+      const result = await this.dataService.getLastPositions(deviceIds);
+      
+      // Return just the data array, not the response object
+      if (Array.isArray(result)) {
+        return result;
+      } else if (result && typeof result === 'object' && 'data' in result) {
+        return result.data || [];
+      } else {
+        return [];
+      }
+    } catch (error) {
+      console.error('Position fetch error:', error);
+      return [];
+    }
   }
 
   async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
-    return this.dataService.getPositions(deviceIds);
+    try {
+      const result = await this.dataService.getPositions(deviceIds);
+      
+      // Return just the data array, not the response object
+      if (Array.isArray(result)) {
+        return result;
+      } else if (result && typeof result === 'object' && 'data' in result) {
+        return result.data || [];
+      } else {
+        return [];
+      }
+    } catch (error) {
+      console.error('Position fetch error:', error);
+      return [];
+    }
   }
 
   async getDevices(deviceIds?: string[]) {

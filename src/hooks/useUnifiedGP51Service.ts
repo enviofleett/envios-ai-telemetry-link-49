@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { GP51DeviceData, GP51AuthResponse } from '@/types/gp51-unified';
 
@@ -204,24 +203,28 @@ export const useUnifiedGP51Service = () => {
     }
   };
 
-  const getConnectionHealth = async () => {
+  const getConnectionHealth = async (): Promise<GP51HealthStatus> => {
     try {
       const testResult = await testConnection();
       
       return {
-        status: testResult.success ? 'healthy' : 'failed',
+        status: testResult.success ? 'healthy' : 'failed' as 'healthy' | 'degraded' | 'failed',
         lastCheck: new Date(),
+        responseTime: 0,
+        errors: testResult.success ? [] : [testResult.message],
         isConnected: testResult.success,
         lastPingTime: new Date(),
         tokenValid: testResult.success,
         sessionValid: testResult.success,
         activeDevices: devices.length,
-        errorMessage: testResult.success ? undefined : testResult.error
+        errorMessage: testResult.success ? undefined : testResult.message
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
-        status: 'failed',
+        status: 'failed' as 'healthy' | 'degraded' | 'failed',
         lastCheck: new Date(),
+        responseTime: 0,
+        errors: [error.message],
         isConnected: false,
         lastPingTime: new Date(),
         tokenValid: false,

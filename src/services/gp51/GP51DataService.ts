@@ -47,18 +47,37 @@ export class GP51DataService {
 
   async getGroups() {
     try {
-      const response = await supabase
-        .from('gp51_groups')
-        .select('*');
-
-      if (response.error) {
-        throw response.error;
+      console.log('📂 Getting groups from GP51 API (not database)...');
+      
+      const session = JSON.parse(localStorage.getItem('gp51_session') || '{}');
+      
+      if (!session.token) {
+        return { success: false, error: 'No session', data: [] };
       }
 
-      return response.data;
+      const response = await fetch('/functions/v1/gp51-query-devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: session.token,
+          username: session.username
+        })
+      });
+
+      const data = await response.json();
+      
+      return {
+        success: data.success,
+        data: data.groups || [],
+        error: data.error
+      };
+
     } catch (error) {
-      console.error('Error fetching groups:', error);
-      return [];
+      return {
+        success: false,
+        error: error.message,
+        data: []
+      };
     }
   }
 
@@ -492,7 +511,7 @@ export class GP51DataService {
           success: false,
           error: 'Failed to fetch device data for metrics',
           responseTime: 0,
-          requestStartTime: Date.now(),
+          requestStartTime: '0',
           deviceCount: 0,
           groupCount: 0,
           activeDevices: 0,
@@ -501,32 +520,32 @@ export class GP51DataService {
           offlineDevices: 0,
           movingVehicles: 0,
           stoppedVehicles: 0,
-          timestamp: new Date().toISOString(),
           apiCallCount: 0,
-          errorRate: 100,
-          averageResponseTime: 0
+          errorRate: 0,
+          averageResponseTime: 0,
+          timestamp: new Date().toISOString()
         };
       }
 
       const devices = deviceResponse.data || [];
-      const positions = Array.from(positionResponse.values()); // Convert Map to Array
+      const positions = Array.from(positionResponse.values());
       
       const totalDevices = devices.length;
-      const activeDevices = devices.filter((d: any) => d.isActive).length;
-      const onlineDevices = positions.filter((p: any) => p.isOnline).length;
-      const movingVehicles = positions.filter((p: any) => p.isMoving).length;
-      const stoppedVehicles = positions.filter((p: any) => !p.isMoving).length;
+      const activeDevices = devices.filter(d => d.isActive).length;
+      const onlineDevices = positions.filter(p => p.isOnline).length;
+      const movingVehicles = positions.filter(p => p.isMoving).length;
+      const stoppedVehicles = positions.filter(p => !p.isMoving).length;
       const avgResponseTime = Math.random() * 1000 + 500;
       
       return {
         success: true,
         timestamp: new Date().toISOString(),
         responseTime: avgResponseTime,
-        requestStartTime: Date.now(),
+        requestStartTime: Date.now().toString(),
         apiCallCount: 1,
         errorRate: 0,
         deviceCount: totalDevices,
-        groupCount: new Set(devices.map((d: any) => d.groupId)).size,
+        groupCount: new Set(devices.map(d => d.groupId)).size,
         activeDevices,
         inactiveDevices: totalDevices - activeDevices,
         onlineDevices,
@@ -540,12 +559,12 @@ export class GP51DataService {
       console.error('❌ Performance metrics error:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error.message,
         timestamp: new Date().toISOString(),
         responseTime: 0,
-        requestStartTime: Date.now(),
+        requestStartTime: '0',
         apiCallCount: 0,
-        errorRate: 100,
+        errorRate: 1,
         deviceCount: 0,
         groupCount: 0,
         activeDevices: 0,
@@ -558,4 +577,24 @@ export class GP51DataService {
       };
     }
   }
+
+  private transformDeviceData(device: any) {
+    return {
+      ...device,
+      deviceId: device.deviceid?.toString() || device.deviceId?.toString() || '',
+      groupId: device.groupid?.toString() || device.groupId?.toString() || ''
+    };
+  }
+
+  private transformGroupData(group: any) {
+    return {
+      ...group,
+      id: group.groupid?.toString() || group.id?.toString() || '',
+      groupId: group.groupid?.toString() || group.groupId?.toString() || ''
+    };
+  }
 }
+
+// Export both class and instance
+export const gp51DataService = new GP51DataService();
+export default GP51DataService;

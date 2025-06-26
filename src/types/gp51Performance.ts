@@ -11,7 +11,7 @@ export interface GP51PerformanceMetrics {
   errorRate: number;
   averageResponseTime: number;
   
-  // Vehicle movement metrics (missing properties)
+  // Vehicle movement metrics
   movingVehicles: number;
   stoppedVehicles: number;
   
