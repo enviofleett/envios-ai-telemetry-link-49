@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRealTimePositions } from './useRealTimePositions';
 import { livePositionService } from '@/services/gp51/LivePositionService';
 import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
+import { productionGP51Service } from '@/services/gp51/ProductionGP51Service';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GP51DeviceStatus {
@@ -29,6 +30,7 @@ export interface UseEnhancedGP51IntegrationReturn {
   stopTracking: () => void;
   refreshDevices: () => Promise<void>;
   syncWithGP51: () => Promise<void>;
+  authenticateWithGP51: (username: string, password: string) => Promise<boolean>;
 }
 
 export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
@@ -43,6 +45,34 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
     unsubscribe, 
     isConnected 
   } = useRealTimePositions();
+
+  const authenticateWithGP51 = useCallback(async (username: string, password: string): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      console.log(`🔐 Authenticating with GP51 as: ${username}`);
+      
+      const response = await unifiedGP51Service.authenticate(username, password);
+      
+      if (response.success) {
+        console.log('✅ GP51 authentication successful');
+        return true;
+      } else {
+        const errorMsg = response.error || 'Authentication failed';
+        console.error('❌ GP51 authentication failed:', errorMsg);
+        setError(errorMsg);
+        return false;
+      }
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Authentication error';
+      console.error('❌ GP51 authentication error:', errorMsg);
+      setError(errorMsg);
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const loadDevicesFromDatabase = useCallback(async () => {
     try {
@@ -83,46 +113,24 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
       setIsLoading(true);
       setError(null);
 
+      if (!unifiedGP51Service.isAuthenticated) {
+        throw new Error('Not authenticated with GP51. Please authenticate first.');
+      }
+
+      console.log('🔄 Syncing devices from GP51...');
+
       // Get monitor list from GP51
-      const monitorList = await unifiedGP51Service.queryMonitorList();
+      const monitorResponse = await unifiedGP51Service.queryMonitorList();
       
-      if (monitorList.status !== 0) {
-        throw new Error(monitorList.cause || 'Failed to fetch monitor list');
+      if (!monitorResponse.success) {
+        throw new Error(monitorResponse.error || 'Failed to fetch monitor list');
       }
 
-      // Sync devices to database
-      const allDevices = monitorList.groups.flatMap(group => 
-        group.devices.map(device => ({
-          device_id: device.deviceid,
-          device_name: device.devicename,
-          device_type: device.devicetype,
-          device_data: device,
-          group_id: group.groupid,
-          group_name: group.groupname,
-          status: 'active',
-          is_online: device.status === 'online',
-          last_active_time: device.lastactivetime ? new Date(device.lastactivetime).toISOString() : null,
-          sim_number: device.simnum,
-          sync_status: 'synced',
-          last_sync: new Date().toISOString()
-        }))
-      );
-
-      if (allDevices.length > 0) {
-        const { error: upsertError } = await supabase
-          .from('gp51_devices')
-          .upsert(allDevices, { onConflict: 'device_id' });
-
-        if (upsertError) {
-          console.error('Error syncing devices:', upsertError);
-          throw upsertError;
-        }
-      }
-
-      // Reload devices from database
+      // The production service automatically stores devices in the database
+      // So we just need to reload from database
       await loadDevicesFromDatabase();
 
-      console.log(`Synced ${allDevices.length} devices from GP51`);
+      console.log(`✅ GP51 sync completed`);
     } catch (err) {
       console.error('Error syncing with GP51:', err);
       setError(err instanceof Error ? err.message : 'Sync failed');
@@ -139,6 +147,17 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
 
       const deviceIds = devices.map(d => d.deviceId);
       if (deviceIds.length > 0) {
+        // Start real-time position updates from GP51
+        if (unifiedGP51Service.isAuthenticated) {
+          console.log('🎯 Starting real-time position tracking...');
+          
+          // Get initial positions from GP51
+          const positionsResponse = await unifiedGP51Service.getLastPositions(deviceIds);
+          if (positionsResponse.success) {
+            console.log(`📍 Retrieved positions for ${positionsResponse.data?.records?.length || 0} devices`);
+          }
+        }
+
         await subscribe(deviceIds);
         setIsTracking(true);
         setError(null);
@@ -183,15 +202,34 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
     loadDevicesFromDatabase();
   }, [loadDevicesFromDatabase]);
 
+  // Try to load existing session on mount
+  useEffect(() => {
+    const loadExistingSession = async () => {
+      try {
+        // Try to load the 'octopus' admin session
+        const sessionLoaded = await unifiedGP51Service.loadExistingSession('octopus');
+        if (sessionLoaded) {
+          console.log('✅ Loaded existing GP51 session');
+          await loadDevicesFromDatabase();
+        }
+      } catch (err) {
+        console.log('ℹ️ No existing GP51 session found');
+      }
+    };
+
+    loadExistingSession();
+  }, [loadDevicesFromDatabase]);
+
   return {
     devices,
     positions,
-    isConnected,
+    isConnected: isConnected && unifiedGP51Service.isAuthenticated,
     isLoading,
     error,
     startTracking,
     stopTracking,
     refreshDevices,
-    syncWithGP51
+    syncWithGP51,
+    authenticateWithGP51
   };
 }

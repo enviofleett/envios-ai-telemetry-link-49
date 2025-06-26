@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { 
   Play, 
   Square, 
@@ -12,7 +14,9 @@ import {
   WifiOff, 
   Navigation,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Key,
+  Database
 } from 'lucide-react';
 import { useEnhancedGP51Integration } from '@/hooks/useEnhancedGP51Integration';
 import { formatDistanceToNow } from 'date-fns';
@@ -27,10 +31,16 @@ const RealTimeTrackingDashboard: React.FC = () => {
     startTracking,
     stopTracking,
     refreshDevices,
-    syncWithGP51
+    syncWithGP51,
+    authenticateWithGP51
   } = useEnhancedGP51Integration();
 
   const [isTrackingActive, setIsTrackingActive] = useState(false);
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [authCredentials, setAuthCredentials] = useState({
+    username: 'octopus',
+    password: ''
+  });
 
   const handleStartTracking = async () => {
     await startTracking();
@@ -40,6 +50,15 @@ const RealTimeTrackingDashboard: React.FC = () => {
   const handleStopTracking = () => {
     stopTracking();
     setIsTrackingActive(false);
+  };
+
+  const handleAuthenticate = async () => {
+    const success = await authenticateWithGP51(authCredentials.username, authCredentials.password);
+    if (success) {
+      setShowAuthForm(false);
+      // Auto-sync after successful authentication
+      await syncWithGP51();
+    }
   };
 
   const onlineDevices = devices.filter(d => d.isOnline).length;
@@ -52,7 +71,7 @@ const RealTimeTrackingDashboard: React.FC = () => {
         <div>
           <h1 className="text-3xl font-bold">Real-Time Vehicle Tracking</h1>
           <p className="text-muted-foreground">
-            Enhanced GP51 integration with live position updates
+            Production GP51 integration with live position updates
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -80,6 +99,68 @@ const RealTimeTrackingDashboard: React.FC = () => {
         </Alert>
       )}
 
+      {/* Authentication Section */}
+      {!isConnected && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Key className="w-5 h-5" />
+              GP51 Authentication Required
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!showAuthForm ? (
+              <div className="space-y-4">
+                <p className="text-muted-foreground">
+                  You need to authenticate with GP51 to access real-time vehicle data.
+                </p>
+                <Button onClick={() => setShowAuthForm(true)}>
+                  <Key className="w-4 h-4 mr-2" />
+                  Authenticate with GP51
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="username">Username</Label>
+                    <Input
+                      id="username"
+                      value={authCredentials.username}
+                      onChange={(e) => setAuthCredentials(prev => ({ ...prev, username: e.target.value }))}
+                      placeholder="Enter GP51 username"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={authCredentials.password}
+                      onChange={(e) => setAuthCredentials(prev => ({ ...prev, password: e.target.value }))}
+                      placeholder="Enter GP51 password"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleAuthenticate} disabled={isLoading}>
+                    {isLoading ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Key className="w-4 h-4 mr-2" />
+                    )}
+                    Authenticate
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowAuthForm(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Control Panel */}
       <Card>
         <CardHeader>
@@ -88,7 +169,7 @@ const RealTimeTrackingDashboard: React.FC = () => {
         <CardContent className="space-y-4">
           <div className="flex items-center gap-4">
             {!isTrackingActive ? (
-              <Button onClick={handleStartTracking} disabled={isLoading}>
+              <Button onClick={handleStartTracking} disabled={isLoading || !isConnected}>
                 <Play className="w-4 h-4 mr-2" />
                 Start Tracking
               </Button>
@@ -115,9 +196,9 @@ const RealTimeTrackingDashboard: React.FC = () => {
             <Button 
               onClick={syncWithGP51} 
               variant="outline"
-              disabled={isLoading}
+              disabled={isLoading || !isConnected}
             >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              <Database className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               Sync with GP51
             </Button>
           </div>
@@ -147,7 +228,17 @@ const RealTimeTrackingDashboard: React.FC = () => {
         <CardContent>
           {devices.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No devices found. Try syncing with GP51 first.
+              {!isConnected ? (
+                <div>
+                  <Database className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>Authenticate with GP51 to load devices</p>
+                </div>
+              ) : (
+                <div>
+                  <RefreshCw className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No devices found. Try syncing with GP51.</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-4">
