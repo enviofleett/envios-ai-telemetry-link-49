@@ -4,7 +4,7 @@ export { UnifiedGP51Service } from './UnifiedGP51Service';
 export { ProductionGP51Service, productionGP51Service } from './ProductionGP51Service';
 export { LivePositionService, livePositionService } from './LivePositionService';
 
-// Export types
+// Export types from UnifiedGP51Service
 export type {
   GP51User,
   GP51Device,
