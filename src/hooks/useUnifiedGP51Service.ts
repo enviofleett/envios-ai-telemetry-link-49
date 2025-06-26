@@ -159,7 +159,6 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
 
   const fetchUsers = useCallback(async () => {
     try {
-      // Mock implementation for development
       setUsers([
         { username: 'admin', usertype: 3, showname: 'Administrator' },
         { username: 'user1', usertype: 11, showname: 'Regular User' }

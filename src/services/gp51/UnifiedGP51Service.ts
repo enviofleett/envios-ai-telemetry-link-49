@@ -1,3 +1,4 @@
+
 export interface GP51User {
   username: string;
   usertype: number;

@@ -44,7 +44,6 @@ export class RealTimePositionService {
 
   async forceUpdate(): Promise<void> {
     console.log('Forcing position update...');
-    // Mock implementation for development
   }
 }
 
