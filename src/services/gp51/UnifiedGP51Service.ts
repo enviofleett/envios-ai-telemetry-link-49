@@ -23,17 +23,6 @@ export interface GP51Group {
   devices: GP51Device[];
 }
 
-export interface GP51Position {
-  deviceid: string;
-  latitude: number;
-  longitude: number;
-  speed: number;
-  course: number;
-  altitude: number;
-  timestamp: string;
-  status: string;
-}
-
 export interface GP51AuthResponse {
   status: number;
   cause: string;
@@ -45,6 +34,17 @@ export interface GP51MonitorListResponse {
   status: number;
   cause: string;
   groups: GP51Group[];
+}
+
+export interface GP51Position {
+  deviceid: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  course: number;
+  altitude: number;
+  timestamp: string;
+  status: string;
 }
 
 export interface GP51Session {
@@ -76,16 +76,18 @@ export interface GP51ServiceResult<T = any> {
 export interface UnifiedGP51Service {
   // Authentication methods
   authenticate(credentials: { username: string; password: string; apiUrl?: string }): Promise<boolean>;
+  authenticateAdmin(username: string, password: string): Promise<GP51AuthResponse>;
   logout(): Promise<void>;
   disconnect(): Promise<void>;
-  testConnection(): Promise<GP51ServiceResult>;
   
   // Connection health
   getConnectionHealth(): Promise<GP51HealthStatus>;
+  testConnection(): Promise<GP51ServiceResult>;
   
   // Session management
   session: GP51Session | null;
   isConnected: boolean;
+  clearError(): void;
   
   // User management
   getUsers(): Promise<GP51User[]>;
@@ -104,6 +106,18 @@ export interface UnifiedGP51Service {
   // Position tracking
   getLastPosition(deviceids: string[]): Promise<any[]>;
   queryTracks(deviceid: string, startTime: string, endTime: string): Promise<any>;
+  
+  // Vehicle commands
+  sendCommand(deviceid: string, command: string, params: any[]): Promise<any>;
+  disableEngine(deviceid: string): Promise<any>;
+  enableEngine(deviceid: string): Promise<any>;
+  setSpeedLimit(deviceid: string, speedLimit: number, duration?: number): Promise<any>;
+  
+  // Session utilities
+  createSession(username: string, sessionData: object): Promise<any>;
+  updateSession(sessionId: string, data: object): Promise<any>;
+  refreshToken(sessionId: string): Promise<string>;
+  validateToken(token: string): Promise<boolean>;
 }
 
 export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
@@ -112,6 +126,7 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
   private currentUser: GP51User | null = null;
   private _session: GP51Session | null = null;
   private _isConnected: boolean = false;
+  private _error: string | null = null;
 
   get session(): GP51Session | null {
     return this._session;
@@ -119,6 +134,10 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
 
   get isConnected(): boolean {
     return this._isConnected;
+  }
+
+  clearError(): void {
+    this._error = null;
   }
 
   async authenticate(credentials: { username: string; password: string; apiUrl?: string }): Promise<boolean> {
@@ -146,22 +165,25 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
           lastActivity: new Date()
         };
-        
-        this.currentUser = {
-          username: credentials.username,
-          usertype: 11,
-          showname: credentials.username
-        };
-        
+        this._error = null;
         return true;
+      } else {
+        this._error = data.cause || 'Authentication failed';
+        return false;
       }
-      
-      return false;
     } catch (error) {
       this._isConnected = false;
-      console.error('Authentication failed:', error);
+      this._error = error instanceof Error ? error.message : 'Authentication failed';
       return false;
     }
+  }
+
+  async authenticateAdmin(username: string, password: string): Promise<GP51AuthResponse> {
+    const success = await this.authenticate({ username, password });
+    return {
+      status: success ? 0 : 1,
+      cause: success ? 'OK' : (this._error || 'Authentication failed')
+    };
   }
 
   async testConnection(): Promise<GP51ServiceResult> {
@@ -170,7 +192,7 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
       return {
         success: health.isConnected,
         data: health,
-        error: health.isConnected ? undefined : (health.errorMessage || 'Connection failed')
+        error: health.errorMessage
       };
     } catch (error) {
       return {
@@ -185,6 +207,7 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
     this._session = null;
     this.currentToken = null;
     this.currentUser = null;
+    this._error = null;
   }
 
   async logout(): Promise<void> {
@@ -402,6 +425,75 @@ export class UnifiedGP51ServiceImpl implements UnifiedGP51Service {
       return await response.json();
     } catch (error) {
       throw new Error(`Failed to query tracks: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  async sendCommand(deviceid: string, command: string, params: any[]): Promise<any> {
+    try {
+      const response = await fetch(`${this.baseUrl}?action=sendcmd&token=${this.currentToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceid,
+          cmdcode: command,
+          params,
+          state: -1,
+          cmdpwd: 'zhuyi'
+        })
+      });
+      return await response.json();
+    } catch (error) {
+      return { status: -1, cause: error instanceof Error ? error.message : 'Command failed' };
+    }
+  }
+
+  async disableEngine(deviceid: string): Promise<any> {
+    return this.sendCommand(deviceid, 'TYPE_SERVER_UNLOCK_CAR', []);
+  }
+
+  async enableEngine(deviceid: string): Promise<any> {
+    return this.sendCommand(deviceid, 'TYPE_SERVER_LOCK_CAR', []);
+  }
+
+  async setSpeedLimit(deviceid: string, speedLimit: number, duration?: number): Promise<any> {
+    const params = duration ? [speedLimit.toString(), duration.toString()] : [speedLimit.toString()];
+    return this.sendCommand(deviceid, 'TYPE_SERVER_SET_SPEED_LIMIT', params);
+  }
+
+  async createSession(username: string, sessionData: object): Promise<any> {
+    try {
+      console.log('Creating session for:', username, sessionData);
+      return { success: true };
+    } catch (error) {
+      console.error('Session creation failed:', error);
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async updateSession(sessionId: string, data: object): Promise<any> {
+    try {
+      console.log('Updating session:', sessionId, data);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  async refreshToken(sessionId: string): Promise<string> {
+    return this.currentToken || '';
+  }
+
+  async validateToken(token: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.baseUrl}?action=querymonitorlist&token=${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await response.json();
+      return data.status === 0;
+    } catch {
+      return false;
     }
   }
 

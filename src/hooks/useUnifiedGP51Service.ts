@@ -1,25 +1,27 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { 
+  UnifiedGP51Service, 
   unifiedGP51Service, 
-  type GP51User, 
-  type GP51Device, 
-  type GP51HealthStatus,
-  type GP51Session,
-  type GP51AuthResponse,
-  type GP51MonitorListResponse
-} from '@/services/gp51';
+  GP51User, 
+  GP51Device, 
+  GP51HealthStatus,
+  GP51Session,
+  GP51AuthResponse,
+  GP51MonitorListResponse,
+  GP51ServiceResult
+} from '@/services/gp51/UnifiedGP51Service';
 
 export interface UseUnifiedGP51ServiceReturn {
   // Authentication
   authenticate: (credentials: { username: string; password: string; apiUrl?: string }) => Promise<boolean>;
+  authenticateAdmin: (username: string, password: string) => Promise<GP51AuthResponse>;
   logout: () => Promise<void>;
   disconnect: () => Promise<void>;
-  clearError: () => void;
   
   // Connection monitoring
   getConnectionHealth: () => Promise<GP51HealthStatus>;
-  testConnection: () => Promise<{ success: boolean; error?: string; data?: any }>;
+  testConnection: () => Promise<GP51ServiceResult>;
   
   // Session and connection state
   session: GP51Session | null;
@@ -28,6 +30,7 @@ export interface UseUnifiedGP51ServiceReturn {
   currentUser: GP51User | null;
   isLoading: boolean;
   error: string | null;
+  clearError: () => void;
   
   // Data
   users: GP51User[];
@@ -61,7 +64,6 @@ export interface UseUnifiedGP51ServiceReturn {
 }
 
 export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
-  // State management
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<GP51User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -71,34 +73,26 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
   const [session, setSession] = useState<GP51Session | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Clear error function
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
-
-  // Sync state with service
   useEffect(() => {
     setSession(unifiedGP51Service.session);
     setIsConnected(unifiedGP51Service.isConnected);
     setIsAuthenticated(unifiedGP51Service.isConnected && unifiedGP51Service.session !== null);
   }, []);
 
-  // Authentication methods
   const authenticate = useCallback(async (credentials: { username: string; password: string; apiUrl?: string }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await unifiedGP51Service.authenticate(credentials.username, credentials.password);
-      if (result.status === 0) {
+      const success = await unifiedGP51Service.authenticate(credentials);
+      if (success) {
         setIsAuthenticated(true);
         setIsConnected(true);
         setSession(unifiedGP51Service.session);
         setCurrentUser({ username: credentials.username, usertype: 11, showname: credentials.username });
-        return true;
       } else {
-        setError(result.cause || 'Authentication failed');
-        return false;
+        setError('Authentication failed');
       }
+      return success;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Authentication failed';
       setError(errorMsg);
@@ -109,6 +103,37 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     } finally {
       setIsLoading(false);
     }
+  }, []);
+
+  const authenticateAdmin = useCallback(async (username: string, password: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await unifiedGP51Service.authenticateAdmin(username, password);
+      if (result.status === 0) {
+        setIsAuthenticated(true);
+        setIsConnected(true);
+        setSession(unifiedGP51Service.session);
+        setCurrentUser({ username, usertype: 3, showname: username });
+      } else {
+        setError(result.cause || 'Admin authentication failed');
+      }
+      return result;
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Admin authentication failed';
+      setError(errorMsg);
+      setIsAuthenticated(false);
+      setIsConnected(false);
+      setSession(null);
+      return { status: 1, cause: errorMsg };
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+    unifiedGP51Service.clearError();
   }, []);
 
   const logout = useCallback(async () => {
@@ -147,28 +172,6 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     }
   }, []);
 
-  // Test connection method
-  const testConnection = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const health = await unifiedGP51Service.getConnectionHealth();
-      if (health.isConnected && health.sessionValid) {
-        return { success: true, data: health };
-      } else {
-        setError(health.errorMessage || 'Connection test failed');
-        return { success: false, error: health.errorMessage || 'Connection test failed' };
-      }
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Connection test failed';
-      setError(errorMsg);
-      return { success: false, error: errorMsg };
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  // Data fetching methods
   const fetchUsers = useCallback(async () => {
     if (!isAuthenticated) return;
     
@@ -180,7 +183,6 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to fetch users';
       setError(errorMsg);
-      console.error('Fetch users error:', err);
     } finally {
       setIsLoading(false);
     }
@@ -197,13 +199,11 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to fetch devices';
       setError(errorMsg);
-      console.error('Fetch devices error:', err);
     } finally {
       setIsLoading(false);
     }
   }, [isAuthenticated]);
 
-  // Connection health monitoring
   const getConnectionHealth = useCallback(async () => {
     try {
       const health = await unifiedGP51Service.getConnectionHealth();
@@ -220,72 +220,30 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     }
   }, []);
 
-  // Wrapped service methods with error handling
-  const addUser = useCallback(async (userData: any) => {
+  const testConnection = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const result = await unifiedGP51Service.addUser(userData);
-      if (result.status === 0) {
-        await fetchUsers();
-      } else {
-        setError(result.cause || 'Failed to add user');
+      const result = await unifiedGP51Service.testConnection();
+      if (!result.success && result.error) {
+        setError(result.error);
       }
       return result;
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to add user';
+      const errorMsg = err instanceof Error ? err.message : 'Connection test failed';
       setError(errorMsg);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [fetchUsers]);
-
-  const queryMonitorList = useCallback(async (username?: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await unifiedGP51Service.queryMonitorList(username);
-      if (result.status !== 0) {
-        setError(result.cause || 'Failed to query monitor list');
-      }
-      return result;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to query monitor list';
-      setError(errorMsg);
-      throw err;
+      return { success: false, error: errorMsg };
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  const addDevice = useCallback(async (deviceData: any) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await unifiedGP51Service.addDevice(deviceData);
-      if (result.status === 0) {
-        await fetchDevices();
-      } else {
-        setError(result.cause || 'Failed to add device');
-      }
-      return result;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to add device';
-      setError(errorMsg);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [fetchDevices]);
-
-  // Return all methods and state
   return {
     // Authentication
     authenticate,
+    authenticateAdmin,
     logout,
     disconnect,
-    clearError,
     
     // Connection monitoring
     getConnectionHealth,
@@ -298,6 +256,7 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     currentUser,
     isLoading,
     error,
+    clearError,
     users,
     devices,
     
@@ -305,149 +264,20 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
     fetchUsers,
     fetchDevices,
     
-    // User management
-    addUser,
-    queryUserDetail: async (username: string) => {
-      setError(null);
-      try {
-        return await unifiedGP51Service.queryUserDetail(username);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to query user detail';
-        setError(errorMsg);
-        throw err;
-      }
-    },
-    editUser: async (username: string, profileData: any) => {
-      setError(null);
-      try {
-        const result = await unifiedGP51Service.editUser(username, profileData);
-        if (result.status === 0) {
-          await fetchUsers();
-        } else {
-          setError(result.cause || 'Failed to edit user');
-        }
-        return result;
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to edit user';
-        setError(errorMsg);
-        throw err;
-      }
-    },
-    deleteUser: async (username: string) => {
-      setError(null);
-      try {
-        const result = await unifiedGP51Service.deleteUser(username);
-        if (result.status === 0) {
-          await fetchUsers();
-        } else {
-          setError(result.cause || 'Failed to delete user');
-        }
-        return result;
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to delete user';
-        setError(errorMsg);
-        throw err;
-      }
-    },
-    
-    // Device management
-    queryMonitorList,
-    addDevice,
-    editDevice: async (deviceid: string, updates: any) => {
-      setError(null);
-      try {
-        const result = await unifiedGP51Service.editDevice(deviceid, updates);
-        if (result.status === 0) {
-          await fetchDevices();
-        } else {
-          setError(result.cause || 'Failed to edit device');
-        }
-        return result;
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to edit device';
-        setError(errorMsg);
-        throw err;
-      }
-    },
-    deleteDevice: async (deviceid: string) => {
-      setError(null);
-      try {
-        const result = await unifiedGP51Service.deleteDevice(deviceid);
-        if (result.status === 0) {
-          await fetchDevices();
-        } else {
-          setError(result.cause || 'Failed to delete device');
-        }
-        return result;
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to delete device';
-        setError(errorMsg);
-        throw err;
-      }
-    },
-    
-    // Position tracking
-    getLastPosition: async (deviceids: string[]) => {
-      setError(null);
-      try {
-        return await unifiedGP51Service.getLastPosition(deviceids);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to get last position';
-        setError(errorMsg);
-        throw err;
-      }
-    },
-    queryTracks: async (deviceid: string, startTime: string, endTime: string) => {
-      setError(null);
-      try {
-        return await unifiedGP51Service.queryTracks(deviceid, startTime, endTime);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to query tracks';
-        setError(errorMsg);
-        throw err;
-      }
-    },
-    
-    // Vehicle commands
-    sendCommand: async (deviceid: string, command: string, params: any[]) => {
-      setError(null);
-      try {
-        return await unifiedGP51Service.sendCommand(deviceid, command, params);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to send command';
-        setError(errorMsg);
-        throw err;
-      }
-    },
-    disableEngine: async (deviceid: string) => {
-      setError(null);
-      try {
-        return await unifiedGP51Service.disableEngine(deviceid);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to disable engine';
-        setError(errorMsg);
-        throw err;
-      }
-    },
-    enableEngine: async (deviceid: string) => {
-      setError(null);
-      try {
-        return await unifiedGP51Service.enableEngine(deviceid);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to enable engine';
-        setError(errorMsg);
-        throw err;
-      }
-    },
-    setSpeedLimit: async (deviceid: string, speedLimit: number, duration?: number) => {
-      setError(null);
-      try {
-        return await unifiedGP51Service.setSpeedLimit(deviceid, speedLimit, duration);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : 'Failed to set speed limit';
-        setError(errorMsg);
-        throw err;
-      }
-    }
+    // Service methods
+    addUser: unifiedGP51Service.addUser.bind(unifiedGP51Service),
+    queryUserDetail: unifiedGP51Service.queryUserDetail.bind(unifiedGP51Service),
+    editUser: unifiedGP51Service.editUser.bind(unifiedGP51Service),
+    deleteUser: unifiedGP51Service.deleteUser.bind(unifiedGP51Service),
+    queryMonitorList: unifiedGP51Service.queryMonitorList.bind(unifiedGP51Service),
+    addDevice: unifiedGP51Service.addDevice.bind(unifiedGP51Service),
+    editDevice: unifiedGP51Service.editDevice.bind(unifiedGP51Service),
+    deleteDevice: unifiedGP51Service.deleteDevice.bind(unifiedGP51Service),
+    getLastPosition: unifiedGP51Service.getLastPosition.bind(unifiedGP51Service),
+    queryTracks: unifiedGP51Service.queryTracks.bind(unifiedGP51Service),
+    sendCommand: unifiedGP51Service.sendCommand.bind(unifiedGP51Service),
+    disableEngine: unifiedGP51Service.disableEngine.bind(unifiedGP51Service),
+    enableEngine: unifiedGP51Service.enableEngine.bind(unifiedGP51Service),
+    setSpeedLimit: unifiedGP51Service.setSpeedLimit.bind(unifiedGP51Service),
   };
 }

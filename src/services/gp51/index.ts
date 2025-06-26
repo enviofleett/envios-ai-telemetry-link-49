@@ -17,5 +17,5 @@ export {
   unifiedGP51Service
 } from './UnifiedGP51Service';
 
-export { realTimePositionService } from './RealTimePositionService';
-export type { PositionUpdate, RealTimeSubscription } from './RealTimePositionService';
+export { RealTimePositionService, realTimePositionService } from './RealTimePositionService';
+export type { PositionUpdate, RealTimePositionConfig } from './RealTimePositionService';

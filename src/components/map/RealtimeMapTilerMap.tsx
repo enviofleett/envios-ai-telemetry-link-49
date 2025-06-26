@@ -9,13 +9,21 @@ interface RealtimeMapTilerMapProps {
   center?: [number, number];
   zoom?: number;
   className?: string;
+  height?: string;
+  autoFitBounds?: boolean;
+  selectedVehicle?: any;
+  onVehicleSelect?: (vehicle: any) => void;
 }
 
 const RealtimeMapTilerMap: React.FC<RealtimeMapTilerMapProps> = ({
   deviceIds,
   center = [-74.006, 40.7128],
   zoom = 10,
-  className = "w-full h-96"
+  className = "w-full h-96",
+  height = "400px",
+  autoFitBounds = false,
+  selectedVehicle,
+  onVehicleSelect
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -34,6 +42,8 @@ const RealtimeMapTilerMap: React.FC<RealtimeMapTilerMapProps> = ({
     });
 
     map.current = mapInstance;
+
+    mapInstance.addControl(new maplibregl.NavigationControl(), 'top-right');
 
     return () => {
       if (map.current) {
@@ -64,17 +74,47 @@ const RealtimeMapTilerMap: React.FC<RealtimeMapTilerMapProps> = ({
       let marker = markers.current.get(deviceId);
       
       if (!marker) {
-        marker = new maplibregl.Marker()
+        marker = new maplibregl.Marker({
+          color: selectedVehicle?.device_id === deviceId ? '#ff0000' : '#3b82f6'
+        })
           .setLngLat(lngLat)
           .addTo(map.current!);
+        
+        if (onVehicleSelect) {
+          marker.getElement().addEventListener('click', () => {
+            onVehicleSelect({ device_id: deviceId, ...position });
+          });
+        }
+        
         markers.current.set(deviceId, marker);
       } else {
         marker.setLngLat(lngLat);
       }
     });
-  }, [positions]);
 
-  return <div ref={mapContainer} className={className} />;
+    // Auto-fit bounds if requested
+    if (autoFitBounds && positions.size > 0) {
+      const bounds = new maplibregl.LngLatBounds();
+      positions.forEach((positionUpdate) => {
+        bounds.extend([
+          positionUpdate.position.longitude,
+          positionUpdate.position.latitude
+        ]);
+      });
+      
+      if (!bounds.isEmpty()) {
+        map.current.fitBounds(bounds, { padding: 50 });
+      }
+    }
+  }, [positions, selectedVehicle, onVehicleSelect, autoFitBounds]);
+
+  return (
+    <div 
+      ref={mapContainer} 
+      className={className}
+      style={{ height }}
+    />
+  );
 };
 
 export default RealtimeMapTilerMap;
