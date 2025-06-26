@@ -2711,6 +2711,7 @@ export type Database = {
           last_activity_at: string | null
           last_validated_at: string | null
           password_hash: string
+          session_fingerprint: string | null
           token_expires_at: string
           updated_at: string
           username: string
@@ -2726,6 +2727,7 @@ export type Database = {
           last_activity_at?: string | null
           last_validated_at?: string | null
           password_hash: string
+          session_fingerprint?: string | null
           token_expires_at: string
           updated_at?: string
           username: string
@@ -2741,6 +2743,7 @@ export type Database = {
           last_activity_at?: string | null
           last_validated_at?: string | null
           password_hash?: string
+          session_fingerprint?: string | null
           token_expires_at?: string
           updated_at?: string
           username?: string
@@ -10125,6 +10128,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      cleanup_expired_gp51_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       cleanup_expired_sessions: {
         Args: Record<PropertyKey, never>
         Returns: number
@@ -10257,6 +10264,18 @@ export type Database = {
           p_api_key_encrypted: string
           p_is_active?: boolean
           p_primary_provider?: boolean
+        }
+        Returns: string
+      }
+      upsert_gp51_session: {
+        Args: {
+          p_envio_user_id: string
+          p_username: string
+          p_password_hash: string
+          p_gp51_token: string
+          p_api_url: string
+          p_token_expires_at: string
+          p_session_fingerprint?: string
         }
         Returns: string
       }
