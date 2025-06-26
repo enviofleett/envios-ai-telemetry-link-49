@@ -36,11 +36,14 @@ export const calculateVehicleMetrics = (vehicles: VehicleData[]): VehicleDataMet
     totalVehicles: total,
     onlineVehicles: online,
     offlineVehicles: offline,
+    movingVehicles: vehicles.filter(v => v.isMoving).length,
+    idleVehicles: idle,
     recentlyActiveVehicles: recentlyActive,
     // Sync properties
     lastSyncTime: new Date(),
-    positionsUpdated: vehicles.length,
-    errors: 0,
-    syncStatus: 'success' as const
+    averageSpeed: 0,
+    totalDistance: 0,
+    syncStatus: 'success' as const,
+    errors: []
   };
 };

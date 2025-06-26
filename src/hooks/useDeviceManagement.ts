@@ -14,7 +14,7 @@ const mapDbToDisplayVehicle = (dbVehicle: VehicleDbRecord): VehicleData => {
     return {
         id: dbVehicle.id,
         device_id: dbVehicle.gp51_device_id,
-        gp51_device_id: dbVehicle.gp51_device_id, // Added missing property
+        gp51_device_id: dbVehicle.gp51_device_id,
         device_name: dbVehicle.name,
         name: dbVehicle.name,
         user_id: dbVehicle.user_id,
@@ -22,8 +22,7 @@ const mapDbToDisplayVehicle = (dbVehicle: VehicleDbRecord): VehicleData => {
         created_at: dbVehicle.created_at,
         updated_at: dbVehicle.updated_at,
         status: getVehicleStatus(),
-        is_active: false,
-        gp51_metadata: {},
+        is_active: dbVehicle.is_active,
         alerts: [],
         isOnline: false,
         isMoving: false,
@@ -38,7 +37,7 @@ export const useDeviceManagement = (searchQuery: string = '') => {
     queryFn: async (): Promise<VehicleData[]> => {
       let queryBuilder = supabase
         .from('vehicles')
-        .select('id, gp51_device_id, name, created_at, updated_at, user_id, sim_number')
+        .select('id, gp51_device_id, name, created_at, updated_at, user_id, sim_number, is_active')
         .order('created_at', { ascending: false });
 
       if (searchQuery) {
@@ -58,7 +57,19 @@ export const useDeviceManagement = (searchQuery: string = '') => {
         return [];
       }
 
-      const dbRecords: VehicleDbRecord[] = data;
+      const dbRecords = data.map(item => ({
+        id: item.id,
+        device_id: item.gp51_device_id,
+        device_name: item.name,
+        gp51_device_id: item.gp51_device_id,
+        name: item.name,
+        user_id: item.user_id,
+        sim_number: item.sim_number,
+        created_at: item.created_at,
+        updated_at: item.updated_at,
+        is_active: item.is_active || false
+      })) as VehicleDbRecord[];
+
       const transformedData: VehicleData[] = dbRecords.map(mapDbToDisplayVehicle);
 
       return transformedData;

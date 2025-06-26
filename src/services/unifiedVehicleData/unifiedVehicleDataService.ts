@@ -14,11 +14,14 @@ class UnifiedVehicleDataService {
     totalVehicles: 0,
     onlineVehicles: 0,
     offlineVehicles: 0,
+    movingVehicles: 0,
+    idleVehicles: 0,
     recentlyActiveVehicles: 0,
     lastSyncTime: new Date(),
-    positionsUpdated: 0,
-    errors: 0,
-    syncStatus: 'success'
+    averageSpeed: 0,
+    totalDistance: 0,
+    syncStatus: 'success',
+    errors: []
   };
   private subscribers: (() => void)[] = [];
   private ready = false;
@@ -63,11 +66,14 @@ class UnifiedVehicleDataService {
       totalVehicles: total,
       onlineVehicles: online,
       offlineVehicles: offline,
+      movingVehicles: this.vehicles.filter(v => v.isMoving).length,
+      idleVehicles: idle,
       recentlyActiveVehicles: online + idle,
       lastSyncTime: new Date(),
-      positionsUpdated: total,
-      errors: 0,
-      syncStatus: 'success'
+      averageSpeed: 0,
+      totalDistance: 0,
+      syncStatus: 'success',
+      errors: []
     };
   }
 

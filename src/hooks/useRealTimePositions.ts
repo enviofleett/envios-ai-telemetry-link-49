@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { realTimePositionService, type PositionUpdate } from '@/services/gp51/RealTimePositionService';
 
 export interface RealTimePositionData {
@@ -29,9 +29,7 @@ export const useRealTimePositions = () => {
             latitude: update.latitude,
             longitude: update.longitude,
             speed: update.speed,
-            timestamp: update.timestamp,
-            course: update.course,
-            altitude: update.altitude
+            timestamp: update.timestamp
           },
           lastUpdate: new Date()
         });

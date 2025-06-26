@@ -1,3 +1,4 @@
+
 import { useState, useCallback, useEffect } from 'react';
 import { 
   unifiedGP51Service, 
@@ -173,12 +174,15 @@ export function useUnifiedGP51Service(): UseUnifiedGP51ServiceReturn {
       const monitorList = await unifiedGP51Service.queryMonitorList();
       const allDevices = monitorList.groups.flatMap(group => 
         group.devices.map(device => ({
-          username: device.devicename,
-          usertype: 1,
-          showname: device.devicename
+          deviceid: device.deviceid,
+          devicename: device.devicename,
+          devicetype: device.devicetype,
+          status: device.status,
+          lastactivetime: device.lastactivetime,
+          simnum: device.simnum
         }))
       );
-      setUsers(allDevices);
+      setDevices(allDevices);
     } catch (error) {
       console.error('Failed to fetch devices:', error);
     }

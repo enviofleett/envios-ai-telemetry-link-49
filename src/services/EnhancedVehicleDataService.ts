@@ -1,10 +1,11 @@
+
 import { 
   VehicleData, 
   VehiclePosition, 
   VehicleMetrics, 
   SyncMetrics, 
   VehicleEvent, 
-  SyncStatus, 
+  SyncStatusData, 
   EnhancedVehicleData 
 } from '@/types/vehicle';
 
@@ -17,7 +18,7 @@ export class EnhancedVehicleDataService {
   private lastUpdate: Date = new Date();
   private metrics: VehicleMetrics;
   private events: VehicleEvent[] = [];
-  private syncStatus: SyncStatus = {
+  private syncStatus: SyncStatusData = {
     isConnected: false,
     lastSync: new Date(),
     isSync: false
@@ -185,14 +186,14 @@ export class EnhancedVehicleDataService {
       id: `vehicle_${i + 1}`,
       device_id: `device_${i + 1}`,
       device_name: `Vehicle ${i + 1}`,
+      name: `Vehicle ${i + 1}`,
       gp51_device_id: `gp51_${i + 1}`,
       last_position: {
         latitude: 52.0 + Math.random() * 0.1,
         longitude: 4.3 + Math.random() * 0.1,
         speed: Math.random() * 100,
-        timestamp: Date.now(),
-        course: Math.random() * 360,
-        altitude: 10 + Math.random() * 100
+        timestamp: new Date().toISOString(),
+        course: Math.random() * 360
       },
       isOnline: Math.random() > 0.2,
       isMoving: Math.random() > 0.5,
@@ -200,14 +201,11 @@ export class EnhancedVehicleDataService {
       is_active: Math.random() > 0.1,
       vehicleName: `Fleet Vehicle ${i + 1}`,
       status: Math.random() > 0.8 ? 'maintenance' : 'active',
-      fuel_level: Math.random() * 100,
-      driver_name: `Driver ${i + 1}`,
-      license_plate: `ABC-${1000 + i}`,
-      vehicle_type: 'truck',
-      group_id: `group_${Math.floor(i / 3) + 1}`,
-      owner_id: 'octopus',
+      plateNumber: `ABC-${1000 + i}`,
+      model: `Vehicle Model ${i + 1}`,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      alerts: []
     }));
   }
 }

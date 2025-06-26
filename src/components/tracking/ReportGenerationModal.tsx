@@ -1,275 +1,219 @@
 
 import React, { useState } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  BarChart3,
-  CalendarIcon,
-  Download,
-  RefreshCw,
-} from 'lucide-react';
-import { format, subDays } from 'date-fns';
-import type { EnhancedVehicle, ReportType } from '@/types/vehicle';
-import { useToast } from '@/hooks/use-toast';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { DatePicker } from '@/components/ui/date-picker';
+import { CalendarIcon, Download, FileText, AlertCircle } from 'lucide-react';
+import { format } from 'date-fns';
+import type { ReportType, ReportTypeOption, EnhancedVehicle } from '@/types/vehicle';
 
 interface ReportGenerationModalProps {
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
-  selectedReport: string | null;
-  reportTypes: ReportType[];
   vehicles: EnhancedVehicle[];
 }
 
-const AVAILABLE_REPORT_TYPES: ReportType[] = [
-  {
-    id: 'trip',
-    name: 'Trip Report',
-    description: 'Detailed analysis of vehicle trips and routes'
-  },
-  {
-    id: 'maintenance',
-    name: 'Maintenance Report',
-    description: 'Vehicle maintenance status and upcoming services'
-  },
-  {
-    id: 'alerts',
-    name: 'Alerts Report',
-    description: 'Summary of vehicle alerts and incidents'
-  },
-  {
-    id: 'geofence',
-    name: 'Geofence Report',
-    description: 'Geofence entries and exits analysis'
-  },
-  {
-    id: 'usage',
-    name: 'Usage Report',
-    description: 'Vehicle utilization and performance metrics'
-  }
-];
-
-export const ReportGenerationModal: React.FC<ReportGenerationModalProps> = ({
-  isOpen,
+const ReportGenerationModal: React.FC<ReportGenerationModalProps> = ({
+  open,
   onClose,
-  selectedReport,
   vehicles
 }) => {
-  const [reportDateRange, setReportDateRange] = useState<{ from?: Date; to?: Date }>({
-    from: subDays(new Date(), 30),
-    to: new Date(),
-  });
-  const [reportVehicles, setReportVehicles] = useState<string[]>([]);
-  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
-  const { toast } = useToast();
+  const [selectedReportType, setSelectedReportType] = useState<ReportType>('daily');
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [endDate, setEndDate] = useState<Date>(new Date());
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const selectedReportType = AVAILABLE_REPORT_TYPES.find(r => r.id === selectedReport);
+  const reportTypes: ReportTypeOption[] = [
+    {
+      id: 'daily',
+      name: 'Daily Report',
+      description: 'Vehicle activity for a single day'
+    },
+    {
+      id: 'weekly', 
+      name: 'Weekly Report',
+      description: 'Vehicle activity for the past week'
+    },
+    {
+      id: 'monthly',
+      name: 'Monthly Report', 
+      description: 'Vehicle activity for the past month'
+    },
+    {
+      id: 'custom',
+      name: 'Custom Range',
+      description: 'Vehicle activity for a custom date range'
+    }
+  ];
 
-  const generateReport = async () => {
-    setIsGeneratingReport(true);
+  const handleGenerateReport = async () => {
+    setIsGenerating(true);
+    
+    try {
+      // Simulate report generation
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // In a real implementation, this would call your report generation service
+      console.log('Generating report:', {
+        type: selectedReportType,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        vehicleCount: vehicles.length
+      });
+      
+      onClose();
+    } catch (error) {
+      console.error('Error generating report:', error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
-    // Simulate report generation
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
-    const reportData = {
-      type: selectedReport,
-      dateRange: reportDateRange,
-      vehicles: reportVehicles.length > 0 ? reportVehicles : vehicles.map((v) => v.id),
-      generatedAt: new Date().toISOString(),
-      totalVehicles: reportVehicles.length > 0 ? reportVehicles.length : vehicles.length,
-    };
-
-    console.log("Generated report:", reportData);
-
-    setIsGeneratingReport(false);
-    onClose();
-
-    toast({
-      title: "Report Generated Successfully",
-      description: `${selectedReportType?.name} has been generated and is ready for download.`,
-    });
+  const getSelectedReportType = (): ReportTypeOption => {
+    return reportTypes.find(type => type.id === selectedReportType) || reportTypes[0];
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Generate {selectedReportType?.name}
+            <FileText className="h-5 w-5" />
+            Generate Vehicle Report
           </DialogTitle>
-          <DialogDescription>
-            Configure your report parameters and generate comprehensive fleet analytics
-          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Date Range Selection */}
+          {/* Report Type Selection */}
           <div className="space-y-3">
-            <h4 className="font-medium">Report Period</h4>
-            <div className="flex items-center gap-4 flex-wrap">
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setReportDateRange({
-                      from: subDays(new Date(), 7),
-                      to: new Date(),
-                    })
-                  }
-                >
-                  Last 7 Days
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setReportDateRange({
-                      from: subDays(new Date(), 30),
-                      to: new Date(),
-                    })
-                  }
-                >
-                  Last 30 Days
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setReportDateRange({
-                      from: subDays(new Date(), 90),
-                      to: new Date(),
-                    })
-                  }
-                >
-                  Last 90 Days
-                </Button>
-              </div>
-              <div className="flex gap-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-[140px] justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {reportDateRange?.from ? format(reportDateRange.from, "MMM dd, yyyy") : "From Date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={reportDateRange?.from}
-                      onSelect={(date) => setReportDateRange({ ...reportDateRange, from: date })}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-[140px] justify-start text-left font-normal">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {reportDateRange?.to ? format(reportDateRange.to, "MMM dd, yyyy") : "To Date"}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={reportDateRange?.to}
-                      onSelect={(date) => setReportDateRange({ ...reportDateRange, to: date })}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-          </div>
-
-          {/* Vehicle Selection */}
-          <div className="space-y-3">
-            <h4 className="font-medium">Vehicle Selection</h4>
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="all-vehicles"
-                  checked={reportVehicles.length === 0}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setReportVehicles([]);
-                    }
-                  }}
-                  className="rounded"
-                />
-                <label htmlFor="all-vehicles" className="text-sm font-medium">
-                  All Vehicles ({vehicles.length})
-                </label>
-              </div>
-              <div className="grid grid-cols-2 gap-2 max-h-32 overflow-y-auto">
-                {vehicles.map((vehicle) => (
-                  <div key={vehicle.id} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id={vehicle.id}
-                      checked={reportVehicles.includes(vehicle.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setReportVehicles([...reportVehicles, vehicle.id]);
-                        } else {
-                          setReportVehicles(reportVehicles.filter((id) => id !== vehicle.id));
-                        }
-                      }}
-                      className="rounded"
-                    />
-                    <label htmlFor={vehicle.id} className="text-sm">
-                      {vehicle.plateNumber || vehicle.device_name} - {vehicle.model || 'Unknown Model'}
-                    </label>
+            <Label className="text-base font-medium">Report Type</Label>
+            <RadioGroup 
+              value={selectedReportType} 
+              onValueChange={(value) => setSelectedReportType(value as ReportType)}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {reportTypes.map((type) => (
+                  <div key={type.id} className="flex items-center space-x-2">
+                    <RadioGroupItem value={type.id} id={type.id} />
+                    <Label 
+                      htmlFor={type.id} 
+                      className="flex-1 cursor-pointer"
+                    >
+                      <Card className="p-3 hover:bg-gray-50 transition-colors">
+                        <div className="space-y-1">
+                          <div className="font-medium">{type.name}</div>
+                          <div className="text-sm text-gray-600">{type.description}</div>
+                        </div>
+                      </Card>
+                    </Label>
                   </div>
                 ))}
               </div>
-            </div>
+            </RadioGroup>
           </div>
 
-          {/* Report Summary */}
+          {/* Date Range Selection */}
+          {selectedReportType === 'custom' && (
+            <div className="space-y-3">
+              <Label className="text-base font-medium">Date Range</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="start-date">Start Date</Label>
+                  <DatePicker
+                    date={startDate}
+                    onDateChange={setStartDate}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="end-date">End Date</Label>
+                  <DatePicker
+                    date={endDate}
+                    onDateChange={setEndDate}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Vehicle Summary */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Report Summary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-sm space-y-2">
-                <div><strong>Report Type:</strong> {selectedReportType?.name}</div>
-                <div>
-                  <strong>Period:</strong> {reportDateRange?.from ? format(reportDateRange.from, "MMM dd, yyyy") : "Not set"} -{" "}
-                  {reportDateRange?.to ? format(reportDateRange.to, "MMM dd, yyyy") : "Not set"}
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-medium">Vehicles to Include</Label>
+                  <Badge variant="secondary">
+                    {vehicles.length} vehicles
+                  </Badge>
                 </div>
-                <div>
-                  <strong>Vehicles:</strong>{" "}
-                  {reportVehicles.length === 0
-                    ? `All vehicles (${vehicles.length})`
-                    : `${reportVehicles.length} selected`}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-32 overflow-y-auto">
+                  {vehicles.slice(0, 6).map((vehicle) => (
+                    <div key={vehicle.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                      <span className="text-sm font-medium">
+                        {vehicle.plateNumber || vehicle.model || vehicle.device_name}
+                      </span>
+                      <Badge 
+                        variant={vehicle.isOnline ? 'default' : 'secondary'}
+                        className="text-xs"
+                      >
+                        {vehicle.isOnline ? 'Online' : 'Offline'}
+                      </Badge>
+                    </div>
+                  ))}
+                  {vehicles.length > 6 && (
+                    <div className="flex items-center justify-center p-2 bg-gray-100 rounded text-sm text-gray-600">
+                      +{vehicles.length - 6} more vehicles
+                    </div>
+                  )}
                 </div>
-                <div><strong>Description:</strong> {selectedReportType?.description}</div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Report Summary */}
+          <Card className="bg-blue-50 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-blue-600" />
+                  <Label className="font-medium text-blue-900">Report Summary</Label>
+                </div>
+                <div className="text-sm text-blue-800 space-y-1">
+                  <p>Report Type: <strong>{getSelectedReportType().name}</strong></p>
+                  <p>Description: {getSelectedReportType().description}</p>
+                  {selectedReportType === 'custom' && (
+                    <p>
+                      Date Range: {format(startDate, 'PP')} - {format(endDate, 'PP')}
+                    </p>
+                  )}
+                  <p>Vehicles: <strong>{vehicles.length}</strong></p>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Action Buttons */}
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end space-x-3">
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              onClick={generateReport}
-              disabled={isGeneratingReport || !reportDateRange?.from || !reportDateRange?.to}
+            <Button 
+              onClick={handleGenerateReport}
+              disabled={isGenerating}
+              className="flex items-center gap-2"
             >
-              {isGeneratingReport ? (
+              {isGenerating ? (
                 <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   Generating...
                 </>
               ) : (
                 <>
-                  <Download className="h-4 w-4 mr-2" />
+                  <Download className="h-4 w-4" />
                   Generate Report
                 </>
               )}
@@ -280,3 +224,5 @@ export const ReportGenerationModal: React.FC<ReportGenerationModalProps> = ({
     </Dialog>
   );
 };
+
+export default ReportGenerationModal;

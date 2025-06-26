@@ -1,3 +1,4 @@
+
 export type VehicleStatus = 'online' | 'offline' | 'idle' | 'moving' | 'inactive' | 'active' | 'maintenance' | 'unknown';
 
 export type SyncStatus = 'success' | 'error' | 'syncing' | 'loading' | 'idle' | 'completed' | 'running' | 'connected' | 'disconnected' | 'pending';
@@ -69,7 +70,9 @@ export interface VehicleDbRecord {
   device_id: string;
   device_name: string;
   gp51_device_id: string;
+  name: string;
   user_id?: string;
+  sim_number?: string;
   created_at: string;
   updated_at: string;
   is_active: boolean;
@@ -87,9 +90,17 @@ export interface EnhancedVehicle {
   lastUpdate: Date;
   is_active: boolean;
   vehicleName?: string;
+  plateNumber?: string;
+  model?: string;
 }
 
 export type ReportType = 'daily' | 'weekly' | 'monthly' | 'custom';
+
+export interface ReportTypeOption {
+  id: ReportType;
+  name: string;
+  description: string;
+}
 
 export interface VehicleMetrics {
   totalVehicles: number;
@@ -109,6 +120,15 @@ export interface VehicleMetrics {
   offline: number;
   idle: number;
   alerts: number;
+}
+
+export interface SyncMetrics {
+  lastSyncTime: Date;
+  successfulSyncs: number;
+  failedSyncs: number;
+  totalRecords: number;
+  syncDuration: number;
+  errors: string[];
 }
 
 export interface VehicleEvent {
