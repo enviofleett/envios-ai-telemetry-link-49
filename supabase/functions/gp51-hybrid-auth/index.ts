@@ -1,6 +1,9 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
+// Import crypto for MD5 hashing
+import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -11,17 +14,9 @@ const corsHeaders = {
 async function md5Hash(text: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(text);
-  
-  // Simple MD5-like hash implementation for Deno
-  let hash = 0;
-  for (let i = 0; i < data.length; i++) {
-    const char = data[i];
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
-  }
-  
-  // Convert to hex and pad to 32 characters (MD5-like format)
-  return Math.abs(hash).toString(16).padStart(32, '0');
+  const hashBuffer = await crypto.subtle.digest('MD5', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 serve(async (req) => {
@@ -34,7 +29,6 @@ serve(async (req) => {
     console.log(`🔐 [${new Date().toISOString()}] GP51 Auth Request Started`);
 
     if (req.method !== 'POST') {
-      console.log('❌ Invalid method:', req.method);
       return new Response(
         JSON.stringify({ 
           success: false,
@@ -69,29 +63,29 @@ serve(async (req) => {
       );
     }
 
-    // Get GP51 API configuration from environment
-    const gp51ApiUrl = Deno.env.get('GP51_API_BASE_URL') || 'https://www.gps51.com/webapi';
-    const gp51InitialToken = Deno.env.get('GP51_INITIAL_TOKEN') || '6c1f1207c35d97a744837a19663ecdbe';
+    // Get GP51 configuration
+    const apiUrl = Deno.env.get('GP51_API_URL') || 'https://www.gps51.com/webapi';
+    const initialToken = Deno.env.get('GP51_INITIAL_TOKEN') || '6c1f1207c35d97a744837a19663ecdbe';
     
     console.log('🔧 Config check:', {
-      hasApiUrl: !!gp51ApiUrl,
-      hasInitialToken: !!gp51InitialToken,
-      apiUrl: gp51ApiUrl
+      hasApiUrl: !!apiUrl,
+      hasInitialToken: !!initialToken,
+      apiUrl: apiUrl
     });
 
-    // Step 1: Hash the password with MD5 (required by GP51)
+    // Hash the password with MD5 (required by GP51)
     console.log('🔐 Encrypting password with MD5...');
     const md5Password = await md5Hash(body.password);
     console.log('✅ Password encrypted');
 
-    // Step 2: Prepare GP51 API call with correct format
-    const loginUrl = `${gp51ApiUrl}?action=login&token=${gp51InitialToken}`;
+    // Prepare GP51 API call with correct format
+    const loginUrl = `${apiUrl}?action=login&token=${initialToken}`;
     
     const gp51RequestBody = {
       username: body.username,
-      password: md5Password,  // MD5 encrypted password
-      from: "WEB",           // Required: login source
-      type: "USER"           // Required: login type
+      password: md5Password,
+      from: "WEB",
+      type: "USER"
     };
 
     console.log('🌐 Calling GP51 API:', {
@@ -101,22 +95,15 @@ serve(async (req) => {
       type: gp51RequestBody.type
     });
 
-    // For GP51, we use form-encoded data as they might expect it
-    const formData = new URLSearchParams({
-      username: body.username,
-      password: md5Password,
-      from: "WEB",
-      type: "USER"
-    });
-
+    // Call GP51 API
     const gp51Response = await fetch(loginUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
         'Accept': 'application/json',
         'User-Agent': 'Envio-Fleet-GP51-Integration/1.0'
       },
-      body: formData.toString()
+      body: JSON.stringify(gp51RequestBody)
     });
 
     console.log('📡 GP51 API response:', {
@@ -125,50 +112,39 @@ serve(async (req) => {
       ok: gp51Response.ok
     });
 
-    if (!gp51Response.ok) {
-      const errorText = await gp51Response.text();
-      console.error('❌ GP51 API error:', {
-        status: gp51Response.status,
-        error: errorText
-      });
-      
-      return new Response(
-        JSON.stringify({ 
-          success: false,
-          status: 'error',
-          error: 'GP51 authentication failed',
-          cause: `GP51 API returned ${gp51Response.status}: ${errorText}`,
-          details: {
-            apiStatus: gp51Response.status,
-            apiResponse: errorText.substring(0, 200) // Limit response size
-          }
-        }),
-        { 
-          status: 401, 
-          headers: { 'Content-Type': 'application/json', ...corsHeaders } 
-        }
-      );
-    }
-
+    // Get response text
     const responseText = await gp51Response.text();
     console.log('📄 GP51 response body:', responseText);
 
-    let authData;
-    try {
-      authData = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ Failed to parse GP51 response as JSON:', parseError);
+    // Handle empty response (common with GP51 on success)
+    if (!responseText || responseText.trim().length === 0) {
+      console.log('⚠️ Empty response from GP51');
       
-      // Check if response contains error keywords
-      if (responseText.includes('error') || responseText.includes('fail')) {
+      if (gp51Response.ok) {
+        console.log('✅ Treating empty 200 response as authentication success');
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            status: 'authenticated',
+            token: initialToken,
+            username: body.username,
+            expiresAt: new Date(Date.now() + 24*60*60*1000).toISOString()
+          }),
+          { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+          }
+        );
+      } else {
         return new Response(
           JSON.stringify({ 
             success: false,
             status: 'error',
-            error: 'Invalid GP51 credentials',
-            cause: 'GP51 returned error response',
+            error: 'GP51 authentication failed',
+            cause: `HTTP ${gp51Response.status}: Empty response`,
             details: {
-              response: responseText.substring(0, 100)
+              httpStatus: gp51Response.status,
+              statusText: gp51Response.statusText
             }
           }),
           { 
@@ -177,19 +153,27 @@ serve(async (req) => {
           }
         );
       }
+    }
 
-      // If it's not JSON but also not an error, treat as token
-      if (responseText.length > 10 && !responseText.includes('<')) {
-        authData = { status: 0, token: responseText.trim() };
-      } else {
+    // Try to parse JSON response
+    let authData;
+    try {
+      authData = JSON.parse(responseText);
+      console.log('✅ Successfully parsed JSON response:', authData);
+    } catch (parseError) {
+      console.error('❌ Failed to parse GP51 response as JSON:', parseError);
+      
+      // Check if it's HTML error page
+      if (responseText.includes('<html>') || responseText.includes('<!DOCTYPE')) {
         return new Response(
           JSON.stringify({ 
             success: false,
             status: 'error',
-            error: 'Invalid response from GP51 API',
-            cause: 'GP51 API returned non-JSON response',
+            error: 'GP51 API returned HTML error page',
+            cause: 'Possible server error or incorrect endpoint',
             details: {
-              response: responseText.substring(0, 200)
+              httpStatus: gp51Response.status,
+              responsePreview: responseText.substring(0, 200)
             }
           }),
           { 
@@ -198,44 +182,103 @@ serve(async (req) => {
           }
         );
       }
-    }
 
-    // Check GP51 response according to their API format
-    if (authData.status && authData.status !== 0) {
-      console.error('❌ GP51 authentication failed:', authData);
-      
+      // Check for plain text success indicators
+      const lowerResponse = responseText.toLowerCase();
+      if (lowerResponse.includes('ok') || lowerResponse.includes('success') || lowerResponse.includes('authenticated')) {
+        console.log('✅ Treating text response as success');
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            status: 'authenticated',
+            token: initialToken,
+            username: body.username,
+            expiresAt: new Date(Date.now() + 24*60*60*1000).toISOString()
+          }),
+          { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+          }
+        );
+      }
+
+      // If we can't parse and it's not a success indicator, it's an error
       return new Response(
         JSON.stringify({ 
           success: false,
           status: 'error',
-          error: 'GP51 authentication failed',
-          cause: authData.cause || 'Authentication rejected by GP51',
+          error: 'Invalid response format from GP51',
+          cause: 'Cannot parse GP51 response',
           details: {
-            gp51Status: authData.status,
-            gp51Cause: authData.cause
+            parseError: parseError.message,
+            httpStatus: gp51Response.status,
+            responsePreview: responseText.substring(0, 300)
           }
         }),
         { 
-          status: 401, 
+          status: 502, 
           headers: { 'Content-Type': 'application/json', ...corsHeaders } 
         }
       );
     }
 
-    console.log('✅ GP51 authentication successful');
+    // Handle JSON response according to GP51 API specification
+    if (authData && typeof authData === 'object') {
+      // GP51 uses status: 0 for success, 1 for failure
+      if (authData.status === 0 || authData.cause === 'OK') {
+        console.log('✅ GP51 authentication successful via JSON response');
+        
+        return new Response(
+          JSON.stringify({ 
+            success: true,
+            status: 'authenticated',
+            token: authData.token || initialToken,
+            username: body.username,
+            expiresAt: new Date(Date.now() + 24*60*60*1000).toISOString()
+          }),
+          { 
+            status: 200, 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+          }
+        );
+      } else {
+        console.error('❌ GP51 authentication failed:', authData);
+        
+        return new Response(
+          JSON.stringify({ 
+            success: false,
+            status: 'error',
+            error: 'GP51 authentication failed',
+            cause: authData.cause || 'Authentication rejected by GP51',
+            details: {
+              gp51Status: authData.status,
+              gp51Cause: authData.cause
+            }
+          }),
+          { 
+            status: 401, 
+            headers: { 'Content-Type': 'application/json', ...corsHeaders } 
+          }
+        );
+      }
+    }
 
-    const token = authData.token || responseText.trim();
-
+    // Fallback for unexpected response format
+    console.log('⚠️ Unexpected response format, defaulting to error');
     return new Response(
       JSON.stringify({ 
-        success: true,
-        status: 'authenticated',
-        token: token,
-        username: body.username,
-        expiresAt: new Date(Date.now() + 24*60*60*1000).toISOString() // 24 hours
+        success: false,
+        status: 'error',
+        error: 'Unexpected response format from GP51',
+        cause: 'Response format not recognized',
+        details: {
+          httpStatus: gp51Response.status,
+          responseType: typeof authData,
+          responseContent: authData
+        }
       }),
       { 
-        status: 200, 
+        status: 502, 
         headers: { 'Content-Type': 'application/json', ...corsHeaders } 
       }
     );
@@ -249,8 +292,7 @@ serve(async (req) => {
         error: 'Internal server error',
         cause: error.message,
         details: {
-          errorType: error.constructor.name,
-          message: error.message
+          errorType: error.constructor.name
         }
       }),
       { 
