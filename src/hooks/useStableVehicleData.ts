@@ -3,11 +3,15 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { VehicleData } from '@/types/vehicle';
 
-export const useStableVehicleData = () => {
-  return useQuery({
-    queryKey: ['stable-vehicles'],
+interface UseStableVehicleDataOptions {
+  search?: string;
+}
+
+export const useStableVehicleData = (options: UseStableVehicleDataOptions = {}) => {
+  const query = useQuery({
+    queryKey: ['stable-vehicles', options.search],
     queryFn: async (): Promise<VehicleData[]> => {
-      const { data: vehicles, error } = await supabase
+      let queryBuilder = supabase
         .from('vehicles')
         .select(`
           id,
@@ -23,6 +27,14 @@ export const useStableVehicleData = () => {
           )
         `);
 
+      if (options.search) {
+        queryBuilder = queryBuilder.or(
+          `name.ilike.%${options.search}%,gp51_device_id.ilike.%${options.search}%`
+        );
+      }
+
+      const { data: vehicles, error } = await queryBuilder;
+
       if (error) {
         console.error('Error fetching vehicles:', error);
         throw error;
@@ -35,7 +47,7 @@ export const useStableVehicleData = () => {
       return vehicles.map(vehicle => ({
         id: vehicle.id,
         device_id: vehicle.gp51_device_id,
-        gp51_device_id: vehicle.gp51_device_id, // Added missing property
+        gp51_device_id: vehicle.gp51_device_id,
         device_name: vehicle.name,
         name: vehicle.name,
         user_id: vehicle.user_id,
@@ -58,8 +70,16 @@ export const useStableVehicleData = () => {
         vehicleName: vehicle.name
       }));
     },
-    staleTime: 1000 * 60 * 5, // 5 minutes
-    gcTime: 1000 * 60 * 10, // 10 minutes
-    refetchInterval: 1000 * 60 * 2, // 2 minutes
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
+    refetchInterval: 1000 * 60 * 2,
   });
+
+  return {
+    vehicles: query.data || [],
+    data: query.data || [],
+    isLoading: query.isLoading,
+    error: query.error,
+    refetch: query.refetch
+  };
 };

@@ -1,8 +1,11 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import type { VehicleData, VehiclePosition } from '@/types/vehicle';
+import type { VehicleData, VehiclePosition, VehicleDataMetrics } from '@/types/vehicle';
 
 class EnhancedVehicleDataService {
+  private vehicles: VehicleData[] = [];
+  private subscribers: (() => void)[] = [];
+
   async loadVehicles(): Promise<VehicleData[]> {
     try {
       const { data: vehicles, error } = await supabase
@@ -30,11 +33,11 @@ class EnhancedVehicleDataService {
         return this.getMockVehicles();
       }
 
-      return vehicles.map(vehicle => ({
+      this.vehicles = vehicles.map(vehicle => ({
         id: vehicle.id,
         name: vehicle.name || 'Unknown Vehicle',
         device_id: vehicle.gp51_device_id,
-        gp51_device_id: vehicle.gp51_device_id, // Added missing property
+        gp51_device_id: vehicle.gp51_device_id,
         device_name: vehicle.name,
         user_id: vehicle.user_id,
         sim_number: vehicle.sim_number,
@@ -50,10 +53,77 @@ class EnhancedVehicleDataService {
         alerts: [],
         lastUpdate: new Date()
       }));
+      
+      return this.vehicles;
     } catch (error) {
       console.error('Failed to load vehicles:', error);
       return this.getMockVehicles();
     }
+  }
+
+  async getVehicleData(): Promise<VehicleData[]> {
+    return this.loadVehicles();
+  }
+
+  async getEnhancedVehicles(): Promise<VehicleData[]> {
+    return this.loadVehicles();
+  }
+
+  getMetrics(): VehicleDataMetrics {
+    const total = this.vehicles.length;
+    const online = this.vehicles.filter(v => v.status === 'online').length;
+    const offline = this.vehicles.filter(v => v.status === 'offline').length;
+    const idle = this.vehicles.filter(v => v.status === 'idle').length;
+    const alerts = this.vehicles.filter(v => v.alerts && v.alerts.length > 0).length;
+
+    return {
+      total,
+      online,
+      offline,
+      idle,
+      alerts,
+      totalVehicles: total,
+      onlineVehicles: online,
+      offlineVehicles: offline,
+      recentlyActiveVehicles: online + idle,
+      lastSyncTime: new Date(),
+      positionsUpdated: total,
+      errors: 0,
+      syncStatus: 'success'
+    };
+  }
+
+  async getLastSyncMetrics(): Promise<{
+    positionsUpdated: number;
+    errors: number;
+    syncStatus: 'success' | 'error' | 'syncing';
+    errorMessage?: string;
+  }> {
+    return {
+      positionsUpdated: this.vehicles.length,
+      errors: 0,
+      syncStatus: 'success'
+    };
+  }
+
+  subscribe(callback: () => void): () => void {
+    this.subscribers.push(callback);
+    return () => {
+      this.subscribers = this.subscribers.filter(sub => sub !== callback);
+    };
+  }
+
+  private notifySubscribers(): void {
+    this.subscribers.forEach(callback => callback());
+  }
+
+  async forceSync(): Promise<void> {
+    await this.loadVehicles();
+    this.notifySubscribers();
+  }
+
+  getVehicleById(deviceId: string): VehicleData | undefined {
+    return this.vehicles.find(v => v.device_id === deviceId);
   }
 
   private getMockVehicles(): VehicleData[] {
@@ -62,7 +132,7 @@ class EnhancedVehicleDataService {
         id: '1',
         name: 'Fleet Vehicle 001',
         device_id: 'GP51001',
-        gp51_device_id: 'GP51001', // Added missing property
+        gp51_device_id: 'GP51001',
         device_name: 'Fleet Vehicle 001',
         user_id: 'user1',
         sim_number: '1234567890',
@@ -82,7 +152,7 @@ class EnhancedVehicleDataService {
         id: '2',
         name: 'Fleet Vehicle 002',
         device_id: 'GP51002',
-        gp51_device_id: 'GP51002', // Added missing property
+        gp51_device_id: 'GP51002',
         device_name: 'Fleet Vehicle 002',
         user_id: 'user2',
         sim_number: '0987654321',
@@ -121,7 +191,7 @@ class EnhancedVehicleDataService {
 
     return {
       ...vehicle,
-      gp51_device_id: vehicle.gp51_device_id || vehicle.device_id, // Ensure property exists
+      gp51_device_id: vehicle.gp51_device_id || vehicle.device_id,
       last_position: this.getMockPosition(),
       lastUpdate: new Date()
     };

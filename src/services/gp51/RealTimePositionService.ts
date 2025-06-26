@@ -13,7 +13,7 @@ export interface PositionUpdate {
 }
 
 export interface RealTimePositionConfig {
-  updateInterval: number; // milliseconds
+  updateInterval: number;
   deviceIds: string[];
   autoReconnect: boolean;
 }
@@ -30,14 +30,13 @@ export class RealTimePositionService {
     config: Partial<RealTimePositionConfig> = {}
   ) {
     this.config = {
-      updateInterval: 10000, // 10 seconds default
+      updateInterval: 10000,
       deviceIds: [],
       autoReconnect: true,
       ...config
     };
   }
 
-  // Start real-time position updates
   start(deviceIds: string[] = []): void {
     if (this.isRunning) {
       this.stop();
@@ -58,7 +57,6 @@ export class RealTimePositionService {
         console.error('Real-time position update failed:', error);
         
         if (this.config.autoReconnect) {
-          // Try to reconnect after a delay
           setTimeout(() => {
             if (this.isRunning) {
               this.start(this.config.deviceIds);
@@ -68,11 +66,9 @@ export class RealTimePositionService {
       }
     }, this.config.updateInterval);
 
-    // Fetch initial positions immediately
     this.fetchAndBroadcastPositions().catch(console.error);
   }
 
-  // Stop real-time updates
   stop(): void {
     this.isRunning = false;
     if (this.updateInterval) {
@@ -81,81 +77,67 @@ export class RealTimePositionService {
     }
   }
 
-  // Subscribe to position updates for specific devices
   subscribe(listenerId: string, callback: (update: PositionUpdate) => void): void {
     this.listeners.set(listenerId, callback);
   }
 
-  // Unsubscribe from position updates
   unsubscribe(listenerId: string): void {
     this.listeners.delete(listenerId);
   }
 
-  // Add device to tracking list
   addDevice(deviceId: string): void {
     if (!this.config.deviceIds.includes(deviceId)) {
       this.config.deviceIds.push(deviceId);
       
-      // Restart tracking if currently running
       if (this.isRunning) {
         this.start(this.config.deviceIds);
       }
     }
   }
 
-  // Remove device from tracking list
   removeDevice(deviceId: string): void {
     const index = this.config.deviceIds.indexOf(deviceId);
     if (index > -1) {
       this.config.deviceIds.splice(index, 1);
       
-      // Restart tracking if currently running
       if (this.isRunning) {
         this.start(this.config.deviceIds);
       }
     }
   }
 
-  // Get current configuration
   getConfig(): RealTimePositionConfig {
     return { ...this.config };
   }
 
-  // Update configuration
   updateConfig(newConfig: Partial<RealTimePositionConfig>): void {
     this.config = { ...this.config, ...newConfig };
     
-    // Restart if running and interval changed
     if (this.isRunning && newConfig.updateInterval) {
       this.start(this.config.deviceIds);
     }
   }
 
-  // Check if service is running
   isActive(): boolean {
     return this.isRunning;
   }
 
-  // Get tracked device IDs
   getTrackedDevices(): string[] {
     return [...this.config.deviceIds];
   }
 
-  // Private method to fetch and broadcast positions
   private async fetchAndBroadcastPositions(): Promise<void> {
     try {
       if (this.config.deviceIds.length === 0) {
         return;
       }
 
-      // Fetch latest positions from GP51
       const positions = await this.gp51Service.getLastPosition(this.config.deviceIds);
       
       if (!positions || positions.length === 0) {
         return;
       }
 
-      // Process and broadcast each position update
       for (const position of positions) {
         if (this.isValidPosition(position)) {
           const update: PositionUpdate = this.transformPosition(position);
@@ -163,7 +145,6 @@ export class RealTimePositionService {
         }
       }
 
-      // Update last position time
       this.lastPositionTime = Date.now();
       
     } catch (error) {
@@ -172,7 +153,6 @@ export class RealTimePositionService {
     }
   }
 
-  // Validate position data
   private isValidPosition(position: any): boolean {
     return (
       position &&
@@ -184,7 +164,6 @@ export class RealTimePositionService {
     );
   }
 
-  // Transform GP51 position data to standardized format
   private transformPosition(position: any): PositionUpdate {
     return {
       deviceid: position.deviceid,
@@ -198,7 +177,6 @@ export class RealTimePositionService {
     };
   }
 
-  // Broadcast position update to all listeners
   private broadcastUpdate(update: PositionUpdate): void {
     this.listeners.forEach((callback, listenerId) => {
       try {
@@ -209,12 +187,10 @@ export class RealTimePositionService {
     });
   }
 
-  // Get last position time
   getLastUpdateTime(): number {
     return this.lastPositionTime;
   }
 
-  // Force immediate position update
   async forceUpdate(): Promise<void> {
     if (this.config.deviceIds.length > 0) {
       await this.fetchAndBroadcastPositions();
@@ -222,5 +198,4 @@ export class RealTimePositionService {
   }
 }
 
-// Export singleton instance
 export const realTimePositionService = new RealTimePositionService();
