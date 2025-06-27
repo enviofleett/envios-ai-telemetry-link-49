@@ -1,7 +1,53 @@
 
 import { GP51UnifiedDataService } from './GP51UnifiedDataService';
 
-// Enhanced Service with Advanced Features
+// Import necessary types
+interface GP51Position {
+  deviceid: string;
+  devicetime: number;
+  arrivedtime: number;
+  updatetime: number;
+  validpoistiontime: number;
+  callat: number;
+  callon: number;
+  altitude: number;
+  radius: number;
+  speed: number;
+  course: number;
+  totaldistance: number;
+  status: number;
+  strstatus: string;
+  strstatusen: string;
+  alarm: number;
+  stralarm: string;
+  stralarmsen: string;
+  gotsrc: string;
+  rxlevel: number;
+  gpsvalidnum: number;
+  exvoltage: number;
+  voltagev: number;
+  voltagepercent: number;
+  moving: number;
+  parklat: number;
+  parklon: number;
+  parktime: number;
+  parkduration: number;
+  temp1: number;
+  temp2: number;
+  temp3: number;
+  temp4: number;
+  iostatus: number;
+  currentoverspeedstate: number;
+  rotatestatus: number;
+  loadstatus: number;
+  weight: number;
+  reportmode: number;
+}
+
+// =============================================================================
+// ENHANCED SERVICE WITH ADVANCED FEATURES
+// =============================================================================
+
 export class GP51EnhancedDataService extends GP51UnifiedDataService {
   private websocket: WebSocket | null = null;
   private refreshTimer: NodeJS.Timeout | null = null;
@@ -26,7 +72,7 @@ export class GP51EnhancedDataService extends GP51UnifiedDataService {
           this.notifySubscribers('position_update', positions.records);
           
           // Check for alerts and status changes
-          await this.checkForAlerts(positions.records);
+          await this.checkForAlerts(positions.records || []);
         }
       } catch (error) {
         console.error('Real-time update failed:', error);
@@ -64,7 +110,7 @@ export class GP51EnhancedDataService extends GP51UnifiedDataService {
   // ALERT SYSTEM
   // ==========================================================================
   
-  private async checkForAlerts(positions: any[]) {
+  private async checkForAlerts(positions: GP51Position[]) {
     const alerts: Array<{
       deviceid: string;
       devicename: string;
@@ -126,7 +172,7 @@ export class GP51EnhancedDataService extends GP51UnifiedDataService {
       }
 
       // Temperature alerts
-      [position.temp1, position.temp2, position.temp3, position.temp4].forEach((temp: number, index: number) => {
+      [position.temp1, position.temp2, position.temp3, position.temp4].forEach((temp, index) => {
         if (temp && (temp > 800 || temp < -200)) { // Assuming 1/10°C format
           alerts.push({
             deviceid: position.deviceid,

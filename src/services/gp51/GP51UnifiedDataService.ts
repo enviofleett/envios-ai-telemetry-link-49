@@ -1,5 +1,6 @@
 
-import { md5 } from 'js-md5';
+// GP51 Unified Data Architecture - querydevicestree as Source of Truth
+// This replaces all import-based endpoints and creates a single source of truth
 
 // =============================================================================
 // CORE DATA TYPES (Based on GP51 API Documentation)
@@ -96,10 +97,10 @@ interface GP51Position {
 // =============================================================================
 
 export class GP51UnifiedDataService {
-  private baseUrl = 'https://www.gps51.com/webapi';
-  private token: string | null = null;
+  protected baseUrl = 'https://api.gps51.com/webapi'; // Changed to protected
+  protected token: string | null = null; // Changed to protected
   private lastPositionQueryTime = 0;
-  private cache: {
+  protected cache: { // Changed to protected
     deviceTree: GP51DeviceTreeResponse | null;
     positions: GP51Position[];
     lastUpdate: number;
@@ -116,7 +117,7 @@ export class GP51UnifiedDataService {
   async authenticate(username: string, password: string): Promise<GP51AuthResult> {
     try {
       // Password must be MD5 hashed (32 digits lowercase) per API docs
-      const hashedPassword = md5(password);
+      const hashedPassword = crypto.createHash('md5').update(password).digest('hex');
       
       const response = await fetch(`${this.baseUrl}?action=login`, {
         method: 'POST',
@@ -219,6 +220,50 @@ export class GP51UnifiedDataService {
       return result;
     } catch (error) {
       throw new Error(`Failed to fetch positions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // ==========================================================================
+  // LIVE TRACKING DATA - Added to fix missing method error
+  // ==========================================================================
+  
+  async getLiveTrackingData(): Promise<Array<{
+    deviceid: string;
+    name: string;
+    group: string;
+    latitude: number;
+    longitude: number;
+    speed: number;
+    heading: number;
+    status: string;
+    lastUpdate: Date;
+  }> | null> {
+    try {
+      const fleetData = await this.getCompleteFleetData({ 
+        includePositions: true,
+        includeInactive: false
+      });
+      
+      if (!fleetData.success) return null;
+
+      return fleetData.data.groups.flatMap(g => 
+        g.devices
+          .filter(d => d.position && d.connectionStatus !== 'offline')
+          .map(d => ({
+            deviceid: d.deviceid,
+            name: d.devicename,
+            group: g.groupname,
+            latitude: d.position!.latitude,
+            longitude: d.position!.longitude,
+            speed: d.position!.speed,
+            heading: d.position!.heading,
+            status: d.connectionStatus,
+            lastUpdate: d.lastSeen
+          }))
+      );
+    } catch (error) {
+      console.error('Error fetching live tracking data:', error);
+      return null;
     }
   }
 
@@ -355,25 +400,6 @@ export class GP51UnifiedDataService {
   }
 
   // ==========================================================================
-  // SPECIFIC USE CASE METHODS - Built on top of unified data
-  // ==========================================================================
-
-  // For Dashboard Summary Cards
-  async getDashboardSummary() {
-    const fleetData = await this.getCompleteFleetData({ includePositions: true });
-    return fleetData.success ? fleetData.data.summary : null;
-  }
-
-  // For Fleet Management Page
-  async getFleetManagementData(groupId?: number) {
-    const fleetData = await this.getCompleteFleetData({ 
-      includePositions: true,
-      groupFilter: groupId ? [groupId] : undefined
-    });
-    return fleetData.success ? fleetData.data : null;
-  }
-
-  // ==========================================================================
   // UTILITY METHODS
   // ==========================================================================
 
@@ -454,7 +480,7 @@ export class GP51UnifiedDataService {
     };
   }
 
-  private clearCache() {
+  protected clearCache() {
     this.cache = {
       deviceTree: null,
       positions: [],
@@ -480,6 +506,3 @@ export class GP51UnifiedDataService {
     }
   }
 }
-
-// Create and export singleton instance
-export const gp51UnifiedDataService = new GP51UnifiedDataService();

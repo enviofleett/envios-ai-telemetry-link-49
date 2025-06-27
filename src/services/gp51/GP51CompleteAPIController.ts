@@ -1,6 +1,10 @@
 
 import { GP51EnhancedDataService } from './GP51EnhancedDataService';
 
+// =============================================================================
+// COMPLETE API REPLACEMENT LAYER
+// =============================================================================
+
 export class GP51CompleteAPIController {
   private enhancedService = new GP51EnhancedDataService();
 
@@ -317,6 +321,3 @@ export class GP51CompleteAPIController {
     }
   }
 }
-
-// Export singleton instance
-export const gp51CompleteAPIController = new GP51CompleteAPIController();

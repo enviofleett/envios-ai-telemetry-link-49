@@ -16,8 +16,8 @@ export const useEnhancedGP51Fleet = () => {
       service.startRealTimeUpdates();
       setIsRealTimeActive(true);
 
-      // Subscribe to position updates
-      service.subscribe('position_update', (positions) => {
+      // Subscribe to position updates with proper typing
+      service.subscribe('position_update', (positions: any[]) => {
         setFleetData((prev: any) => {
           if (!prev) return prev;
           
