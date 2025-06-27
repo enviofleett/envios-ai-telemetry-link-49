@@ -8,9 +8,18 @@ import GP51HealthIndicator from '@/components/admin/GP51HealthIndicator';
 import { useUnifiedAuth } from '@/contexts/UnifiedAuthContext';
 import { Navigate } from 'react-router-dom';
 
+interface GP51HealthStatus {
+  isConnected: boolean;
+  lastChecked: Date;
+  deviceCount: number;
+  groupCount: number;
+  error?: string;
+  apiResponseTime?: number;
+}
+
 const AdminSetup: React.FC = () => {
   const { user, loading } = useUnifiedAuth();
-  const [healthStatus, setHealthStatus] = useState(null);
+  const [healthStatus, setHealthStatus] = useState<GP51HealthStatus | null>(null);
 
   if (loading) {
     return (

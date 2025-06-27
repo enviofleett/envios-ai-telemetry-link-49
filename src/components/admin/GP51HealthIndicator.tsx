@@ -23,7 +23,16 @@ interface GP51HealthStatus {
   apiResponseTime?: number;
 }
 
-const GP51HealthIndicator: React.FC = () => {
+// Add props interface to support the props being passed from AdminSetup
+interface GP51HealthIndicatorProps {
+  compact?: boolean;
+  onStatusChange?: (status: GP51HealthStatus | null) => void;
+}
+
+const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({ 
+  compact = false, 
+  onStatusChange 
+}) => {
   const [healthStatus, setHealthStatus] = useState<GP51HealthStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -48,32 +57,47 @@ const GP51HealthIndicator: React.FC = () => {
       const result = await response.json();
       console.log('🔍 GP51 Health Check Result:', result);
 
+      let newHealthStatus: GP51HealthStatus;
+
       if (result.success) {
-        setHealthStatus({
+        newHealthStatus = {
           isConnected: true,
           lastChecked: new Date(),
           deviceCount: result.deviceCount || 0,
           groupCount: result.groupCount || 0,
           apiResponseTime: Date.now() - performance.now()
-        });
+        };
       } else {
-        setHealthStatus({
+        newHealthStatus = {
           isConnected: false,
           lastChecked: new Date(),
           deviceCount: 0,
           groupCount: 0,
           error: result.error || 'Connection failed'
-        });
+        };
+      }
+
+      setHealthStatus(newHealthStatus);
+      
+      // Call onStatusChange callback if provided
+      if (onStatusChange) {
+        onStatusChange(newHealthStatus);
       }
     } catch (error) {
       console.error('❌ GP51 health check failed:', error);
-      setHealthStatus({
+      const errorStatus: GP51HealthStatus = {
         isConnected: false,
         lastChecked: new Date(),
         deviceCount: 0,
         groupCount: 0,
         error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      };
+      
+      setHealthStatus(errorStatus);
+      
+      if (onStatusChange) {
+        onStatusChange(errorStatus);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -104,6 +128,26 @@ const GP51HealthIndicator: React.FC = () => {
     if (!healthStatus) return 'Unknown';
     return healthStatus.isConnected ? 'Connected' : 'Failed';
   };
+
+  // Compact mode for smaller displays
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        {getStatusIcon()}
+        <Badge variant={getStatusColor() as any}>
+          {getStatusText()}
+        </Badge>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={checkGP51Health}
+          disabled={isLoading}
+        >
+          <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <Card className="w-full">
