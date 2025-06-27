@@ -244,6 +244,10 @@ interface ActivityData {
 }
 
 export interface RealAnalyticsData {
+  totalUsers: number;
+  activeUsers: number;
+  totalVehicles: number;
+  activeVehicles: number;
   vehicleStatus: {
     total: number;
     online: number;
@@ -280,4 +284,42 @@ export interface RealAnalyticsData {
     lastSync: Date;
     status: 'success' | 'pending' | 'error';
   };
+}
+
+// Fleet data interfaces
+export interface GP51FleetData {
+  devices: GP51Device[];
+  positions: GP51Position[];
+  groups: GP51Group[];
+  summary: {
+    totalDevices: number;
+    activeDevices: number;
+    totalGroups: number;
+  };
+  lastUpdate: Date;
+}
+
+export interface GP51FleetDataOptions {
+  includePositions?: boolean;
+  forceRefresh?: boolean;
+  includeInactive?: boolean;
+}
+
+export interface GP51LiveData {
+  positions: GP51Position[];
+  lastUpdate: Date;
+  
+  filter(predicate: (item: GP51Position) => boolean): GP51Position[];
+  get length(): number;
+}
+
+// Analytics hook return type
+export interface AnalyticsHookReturn {
+  analyticsData: RealAnalyticsData | null;
+  data: RealAnalyticsData | null;
+  loading: boolean;
+  isLoading: boolean;
+  error: string | null;
+  lastUpdated: Date;
+  refreshData: () => void;
 }

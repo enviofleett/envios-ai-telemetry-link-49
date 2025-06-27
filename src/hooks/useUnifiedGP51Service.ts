@@ -29,7 +29,7 @@ export const useUnifiedGP51Service = () => {
   const processPositions = (rawPositions: GP51Position[]) => {
     return rawPositions.map(pos => {
       const enhanced = GP51PropertyMapper.enhancePosition(pos);
-      console.log(`Processing position for device: ${enhanced.deviceid}`);
+      console.log(`Processing position for device: ${enhanced.deviceId}`);
       return enhanced;
     });
   };

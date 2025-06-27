@@ -1,16 +1,5 @@
 
-import type { GP51AuthResponse, GP51Device, GP51Position } from '@/types/gp51-unified';
-
-export interface GP51FleetData {
-  devices: GP51Device[];
-  positions: GP51Position[];
-  groups: any[];
-}
-
-export interface GP51LiveData {
-  positions: GP51Position[];
-  lastUpdate: Date;
-}
+import type { GP51AuthResponse, GP51Device, GP51Position, GP51FleetData, GP51FleetDataOptions, GP51LiveData } from '@/types/gp51-unified';
 
 export class GP51EnhancedDataService {
   private token: string | null = null;
@@ -42,13 +31,19 @@ export class GP51EnhancedDataService {
     }
   }
 
-  async getCompleteFleetData(options?: { includePositions?: boolean; forceRefresh?: boolean }): Promise<{ success: boolean; data?: GP51FleetData; error?: string }> {
+  async getCompleteFleetData(options?: GP51FleetDataOptions): Promise<{ success: boolean; data?: GP51FleetData; error?: string }> {
     try {
       // Mock implementation - replace with actual API calls
       const fleetData: GP51FleetData = {
         devices: [],
         positions: [],
-        groups: []
+        groups: [],
+        summary: {
+          totalDevices: 0,
+          activeDevices: 0,
+          totalGroups: 0
+        },
+        lastUpdate: new Date()
       };
       
       return { success: true, data: fleetData };
@@ -62,9 +57,19 @@ export class GP51EnhancedDataService {
 
   async getLiveTrackingData(): Promise<GP51LiveData> {
     // Mock implementation
+    const positions: GP51Position[] = [];
+    
     return {
-      positions: [],
-      lastUpdate: new Date()
+      positions,
+      lastUpdate: new Date(),
+      
+      filter(predicate: (item: GP51Position) => boolean): GP51Position[] {
+        return positions.filter(predicate);
+      },
+      
+      get length(): number {
+        return positions.length;
+      }
     };
   }
 
@@ -101,11 +106,21 @@ export class GP51EnhancedDataService {
     console.log('Stopping real-time updates');
   }
 
-  subscribe(event: string, callback: Function): void {
+  subscribe(event: string, callback: Function): string {
     if (!this.subscribers.has(event)) {
       this.subscribers.set(event, []);
     }
     this.subscribers.get(event)!.push(callback);
+    return Math.random().toString(36);
+  }
+
+  unsubscribe(subscriptionId: string): void {
+    // Implementation for unsubscribe
+    console.log(`Unsubscribed: ${subscriptionId}`);
+  }
+
+  unsubscribeAll(): void {
+    this.subscribers.clear();
   }
 
   async generateFleetReport(options: any): Promise<{ success: boolean; data?: any; error?: string }> {

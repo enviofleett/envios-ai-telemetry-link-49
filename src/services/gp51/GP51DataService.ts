@@ -109,10 +109,9 @@ export class GP51DataService {
 
   processPositions(positions: GP51Position[]): GP51Position[] {
     return positions.map(pos => {
-      const enhanced = GP51PropertyMapper.enhancePosition(pos);
-      // Use deviceid consistently
-      console.log(`Processing position for device: ${enhanced.deviceid}`);
-      return enhanced;
+      // Just log and return the original position since we're working with GP51Position[]
+      console.log(`Processing position for device: ${pos.deviceid}`);
+      return pos;
     });
   }
 }

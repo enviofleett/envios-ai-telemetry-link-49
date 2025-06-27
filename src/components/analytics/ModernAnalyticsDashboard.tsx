@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { useAnalyticsDashboard } from '@/hooks/useAnalyticsDashboard';
 import DashboardMetricCard from './DashboardMetricCard';
@@ -5,18 +6,18 @@ import { Button } from '@/components/ui/button';
 import { RefreshCw, Car, Users, Building2, Store, UserCheck } from 'lucide-react';
 
 const ModernAnalyticsDashboard: React.FC = () => {
-  const { data, isLoading, error, lastUpdated, refreshData } = useAnalyticsDashboard();
+  const { analyticsData, loading, error, lastUpdated, refreshData } = useAnalyticsDashboard();
 
   // Transform data for metric cards with proper growth calculation
   const metricCards = [
     {
       title: 'Total Vehicles',
       metric: {
-        current: data?.totalVehicles || 0,
+        current: analyticsData?.totalVehicles || 0,
         previous: 0,
         change: 0,
         trend: 'stable' as const,
-        growth: 0 // Add the missing growth property
+        growth: 0
       },
       icon: Car,
       iconColor: 'text-blue-600'
@@ -24,7 +25,7 @@ const ModernAnalyticsDashboard: React.FC = () => {
     {
       title: 'Total Users',
       metric: {
-        current: data?.totalUsers || 0,
+        current: analyticsData?.totalUsers || 0,
         previous: 0,
         change: 0,
         trend: 'stable' as const,
@@ -36,10 +37,10 @@ const ModernAnalyticsDashboard: React.FC = () => {
     {
       title: 'Active Users',
       metric: {
-        current: data?.activeUsers || 0,
+        current: analyticsData?.activeUsers || 0,
         previous: 0,
         change: 0,
-        trend: 'stable' as const,
+        trend: 'stable' as const,  
         growth: 0
       },
       icon: UserCheck,
@@ -48,7 +49,7 @@ const ModernAnalyticsDashboard: React.FC = () => {
     {
       title: 'Active Vehicles',
       metric: {
-        current: data?.activeVehicles || 0,
+        current: analyticsData?.activeVehicles || 0,
         previous: 0,
         change: 0,
         trend: 'stable' as const,
@@ -86,9 +87,9 @@ const ModernAnalyticsDashboard: React.FC = () => {
             onClick={refreshData} 
             variant="outline" 
             className="flex items-center gap-2"
-            disabled={isLoading}
+            disabled={loading}
           >
-            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh Data
           </Button>
         </div>
@@ -102,7 +103,7 @@ const ModernAnalyticsDashboard: React.FC = () => {
               metric={card.metric}
               icon={card.icon}
               iconColor={card.iconColor}
-              isLoading={isLoading}
+              isLoading={loading}
             />
           ))}
         </div>
@@ -116,15 +117,15 @@ const ModernAnalyticsDashboard: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Total Users:</span>
-                  <span className="text-sm font-medium">{data?.totalUsers || 0}</span>
+                  <span className="text-sm font-medium">{analyticsData?.totalUsers || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Active Users:</span>
-                  <span className="text-sm font-medium">{data?.activeUsers || 0}</span>
+                  <span className="text-sm font-medium">{analyticsData?.activeUsers || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">New This Week:</span>
-                  <span className="text-sm font-medium">{data?.recentActivity?.newUsers || 0}</span>
+                  <span className="text-sm font-medium">{analyticsData?.growth?.newUsers || 0}</span>
                 </div>
               </div>
             </div>
@@ -133,15 +134,15 @@ const ModernAnalyticsDashboard: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Total Vehicles:</span>
-                  <span className="text-sm font-medium">{data?.totalVehicles || 0}</span>
+                  <span className="text-sm font-medium">{analyticsData?.totalVehicles || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Active Vehicles:</span>
-                  <span className="text-sm font-medium">{data?.activeVehicles || 0}</span>
+                  <span className="text-sm font-medium">{analyticsData?.activeVehicles || 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">New This Week:</span>
-                  <span className="text-sm font-medium">{data?.recentActivity?.newVehicles || 0}</span>
+                  <span className="text-sm font-medium">{analyticsData?.growth?.newVehicles || 0}</span>
                 </div>
               </div>
             </div>
@@ -149,26 +150,26 @@ const ModernAnalyticsDashboard: React.FC = () => {
         </div>
 
         {/* Summary Insights */}
-        {!isLoading && (
+        {!loading && (
           <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Key Insights</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
               <div className="bg-white p-4 rounded-lg shadow-sm">
                 <div className="font-medium text-gray-900">Platform Activity</div>
                 <div className="text-gray-600 mt-1">
-                  {data?.activeUsers || 0} active users managing {data?.activeVehicles || 0} vehicles
+                  {analyticsData?.activeUsers || 0} active users managing {analyticsData?.activeVehicles || 0} vehicles
                 </div>
               </div>
               <div className="bg-white p-4 rounded-lg shadow-sm">
                 <div className="font-medium text-gray-900">GP51 Integration</div>
                 <div className="text-gray-600 mt-1">
-                  {data?.gp51Status?.importedUsers || 0} imported users with {data?.gp51Status?.importedVehicles || 0} vehicles
+                  {analyticsData?.sync?.importedUsers || 0} imported users with {analyticsData?.sync?.importedVehicles || 0} vehicles
                 </div>
               </div>
               <div className="bg-white p-4 rounded-lg shadow-sm">
                 <div className="font-medium text-gray-900">Recent Growth</div>
                 <div className="text-gray-600 mt-1">
-                  {data?.recentActivity?.newUsers || 0} new users and {data?.recentActivity?.newVehicles || 0} new vehicles this week
+                  {analyticsData?.growth?.newUsers || 0} new users and {analyticsData?.growth?.newVehicles || 0} new vehicles this week
                 </div>
               </div>
             </div>

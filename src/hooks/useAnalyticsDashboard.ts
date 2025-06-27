@@ -1,12 +1,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import type { RealAnalyticsData } from '@/types/gp51-unified';
+import type { RealAnalyticsData, AnalyticsHookReturn } from '@/types/gp51-unified';
 import { realAnalyticsService } from '@/services/realAnalyticsService';
 
-export function useAnalyticsDashboard() {
+export function useAnalyticsDashboard(): AnalyticsHookReturn {
   const [analyticsData, setAnalyticsData] = useState<RealAnalyticsData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
   const fetchData = useCallback(async (forceRefresh: boolean = false) => {
     try {
@@ -14,6 +15,7 @@ export function useAnalyticsDashboard() {
       setError(null);
       const data = await realAnalyticsService.getAnalyticsData(forceRefresh);
       setAnalyticsData(data);
+      setLastUpdated(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch analytics data');
       console.error('Analytics data fetch error:', err);
@@ -32,8 +34,11 @@ export function useAnalyticsDashboard() {
 
   return {
     analyticsData,
+    data: analyticsData,        // Alias for compatibility
     loading,
-    error,
+    isLoading: loading,         // Alias for compatibility
+    error: error || '',
+    lastUpdated,
     refreshData
   };
 }
