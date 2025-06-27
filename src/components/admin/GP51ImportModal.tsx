@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -21,13 +22,13 @@ interface GP51ImportModalProps {
 
 // Transform unified type to legacy type for compatibility
 const transformDeviceData = (device: GP51DeviceData): any => ({
-  deviceid: device.deviceId,
-  devicename: device.deviceName,
-  devicetype: device.deviceType || 'unknown',
-  status: device.isActive ? 'active' : 'inactive',
-  lastactivetime: typeof device.lastActiveTime === 'string' 
-    ? device.lastActiveTime 
-    : device.lastActiveTime?.toISOString() || new Date().toISOString()
+  deviceid: device.deviceid,
+  devicename: device.devicename,
+  devicetype: device.devicetype || 'unknown',
+  status: device.isfree === 1 ? 'active' : 'inactive',
+  lastactivetime: device.lastactivetime 
+    ? new Date(device.lastactivetime).toISOString()
+    : new Date().toISOString()
 });
 
 const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) => {
