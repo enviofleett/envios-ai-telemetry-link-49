@@ -65,6 +65,7 @@ export class GP51CompleteAPIController {
     error?: string;
   }> {
     try {
+      const startTime = Date.now();
       const [devicesResult, positions] = await Promise.all([
         this.queryMonitorList(),
         this.getPositions()
@@ -97,6 +98,10 @@ export class GP51CompleteAPIController {
         },
         lastUpdate: new Date(),
         metadata: {
+          requestId: Math.random().toString(36).substring(7),
+          responseTime: Date.now() - startTime,
+          dataVersion: "1.0",
+          source: "GP51API",
           options,
           fetchTime: new Date()
         }

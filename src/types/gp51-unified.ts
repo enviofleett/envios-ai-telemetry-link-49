@@ -322,6 +322,21 @@ export interface GP51FleetData {
     totalGroups: number;
   };
   lastUpdate: Date;
+  metadata?: {
+    requestId?: string;
+    responseTime?: number;
+    dataVersion?: string;
+    source?: string;
+    filters?: any;
+    pagination?: {
+      page: number;
+      limit: number;
+      total: number;
+    };
+    options?: GP51FleetDataOptions;
+    fetchTime?: Date;
+    [key: string]: any;
+  };
 }
 
 export interface GP51FleetDataOptions {
