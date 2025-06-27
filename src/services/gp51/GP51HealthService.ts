@@ -17,7 +17,7 @@ export class GP51HealthService {
     }
 
     const startTime = Date.now();
-    const errors: string[] = [];
+    const errorMessages: string[] = [];
     let isConnected = false;
     let tokenValid = false;
     let sessionValid = false;
@@ -30,11 +30,11 @@ export class GP51HealthService {
       sessionValid = !authStatus.isExpired;
 
       if (!tokenValid) {
-        errors.push('No valid GP51 authentication token');
+        errorMessages.push('No valid GP51 authentication token');
       }
 
       if (!sessionValid) {
-        errors.push('GP51 session has expired');
+        errorMessages.push('GP51 session has expired');
       }
 
       // Test connection if authenticated
@@ -44,7 +44,7 @@ export class GP51HealthService {
           isConnected = connectionTest.success;
 
           if (!connectionTest.success && connectionTest.error) {
-            errors.push(`Connection test failed: ${connectionTest.error}`);
+            errorMessages.push(`Connection test failed: ${connectionTest.error}`);
           }
 
           // Try to get device count
@@ -55,12 +55,12 @@ export class GP51HealthService {
             }
           }
         } catch (error) {
-          errors.push(`Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          errorMessages.push(`Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       }
 
     } catch (error) {
-      errors.push(`Health check error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      errorMessages.push(`Health check error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
     const responseTime = Date.now() - startTime;
@@ -73,9 +73,8 @@ export class GP51HealthService {
       tokenValid,
       sessionValid,
       activeDevices,
-      errors,
-      lastCheck,
-      errorMessage: errors.length > 0 ? errors.join('; ') : undefined
+      errorMessage: errorMessages.length > 0 ? errorMessages.join('; ') : undefined,
+      lastCheck
     };
 
     // Cache the result

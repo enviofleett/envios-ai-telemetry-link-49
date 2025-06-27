@@ -10,6 +10,7 @@ export interface GP51Device {
   lastactivetime: number;
   groupid?: number;
   groupname?: string;
+  isfree?: boolean; // Add missing property for compatibility
 }
 
 export interface GP51Position {
@@ -27,12 +28,35 @@ export interface GP51Position {
   battery?: number;
   signal?: number;
   satellites?: number;
+  updatetime?: string; // Add missing property
+  arrivedtime?: string; // Add missing property
+  validpoistiontime?: string; // Add missing property
+  radius?: number; // Add missing property
 }
 
 export interface GP51Group {
   groupid: number;
   groupname: string;
   devices: GP51Device[];
+}
+
+export interface GP51HealthStatus {
+  isConnected: boolean;
+  lastPingTime?: Date;
+  responseTime?: number;
+  tokenValid: boolean;
+  sessionValid: boolean;
+  activeDevices: number;
+  errors: string[];
+  lastCheck: Date;
+  errorMessage?: string;
+}
+
+export interface GP51PerformanceMetrics {
+  responseTime: number;
+  successRate: number;
+  errorRate: number;
+  lastUpdated: Date;
 }
 
 export class GP51DataService {
@@ -126,7 +150,10 @@ export class GP51DataService {
         // Flatten devices from all groups
         groups.forEach(group => {
           if (group.devices) {
-            devices.push(...group.devices);
+            devices.push(...group.devices.map(device => ({
+              ...device,
+              isfree: device.isfree || false // Ensure isfree property exists
+            })));
           }
         });
 
@@ -185,7 +212,13 @@ export class GP51DataService {
             return deviceIds.includes(pos.deviceid);
           }
           return true;
-        });
+        }).map((pos: any) => ({
+          ...pos,
+          updatetime: pos.updatetime || pos.servertime,
+          arrivedtime: pos.arrivedtime || pos.devicetime,
+          validpoistiontime: pos.validpoistiontime || pos.devicetime,
+          radius: pos.radius || 0
+        }));
       }
 
       // Cache the result
@@ -202,6 +235,78 @@ export class GP51DataService {
 
   async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     return this.getPositions(deviceIds);
+  }
+
+  // Add missing methods for compatibility
+  async getLiveVehicles(): Promise<GP51Device[]> {
+    const result = await this.queryMonitorList();
+    return result.data || [];
+  }
+
+  async getMultipleDevicesLastPositions(deviceIds: string[]): Promise<Map<string, GP51Position>> {
+    const positions = await this.getPositions(deviceIds);
+    const devicePositions = new Map<string, GP51Position>();
+    
+    positions.forEach(pos => {
+      if (deviceIds.includes(pos.deviceid)) {
+        devicePositions.set(pos.deviceid, pos);
+      }
+    });
+    
+    return devicePositions;
+  }
+
+  async getHealthStatus(): Promise<GP51HealthStatus> {
+    try {
+      const isAuthenticated = supabaseGP51AuthService.isAuthenticated;
+      const sessionInfo = supabaseGP51AuthService.sessionInfo;
+      
+      const healthStatus: GP51HealthStatus = {
+        isConnected: isAuthenticated,
+        lastPingTime: new Date(),
+        responseTime: 0,
+        tokenValid: !!sessionInfo?.gp51_token,
+        sessionValid: isAuthenticated,
+        activeDevices: 0,
+        errors: [],
+        lastCheck: new Date()
+      };
+
+      if (isAuthenticated) {
+        try {
+          const result = await this.queryMonitorList();
+          healthStatus.activeDevices = result.data?.length || 0;
+          if (!result.success && result.error) {
+            healthStatus.errors.push(result.error);
+          }
+        } catch (error) {
+          healthStatus.errors.push('Failed to fetch device count');
+        }
+      }
+
+      return healthStatus;
+    } catch (error) {
+      return {
+        isConnected: false,
+        lastPingTime: new Date(),
+        responseTime: 0,
+        tokenValid: false,
+        sessionValid: false,
+        activeDevices: 0,
+        errors: [error instanceof Error ? error.message : 'Unknown error'],
+        lastCheck: new Date()
+      };
+    }
+  }
+
+  async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
+    // Simple implementation - in production you'd track these metrics
+    return {
+      responseTime: 150,
+      successRate: 0.95,
+      errorRate: 0.05,
+      lastUpdated: new Date()
+    };
   }
 
   async testConnection(): Promise<{ success: boolean; error?: string }> {

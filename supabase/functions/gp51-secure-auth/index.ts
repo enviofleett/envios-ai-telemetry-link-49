@@ -3,51 +3,62 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { createHash } from 'https://deno.land/std@0.177.0/node/crypto.ts'
 
+// Configuration constants
+const GP51_BASE_URL = 'https://gps51.com/webapi';
+const TOKEN_EXPIRY_HOURS = 23; // GP51 tokens typically last 24 hours
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
-// Standardized GP51 endpoint
-const GP51_BASE_URL = 'https://gps51.com/webapi';
+// Types
+interface GP51AuthRequest {
+  username: string;
+  password: string;
+}
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+interface GP51AuthResponse {
+  success: boolean;
+  message?: string;
+  token?: string;
+  username?: string;
+  apiUrl?: string;
+  expiresAt?: string;
+  error?: string;
+  debug?: string;
+  gp51_status?: number;
+}
+
+interface UserSession {
+  user_id: string;
+  gp51_token?: string;
+  gp51_username?: string;
+  gp51_token_expires?: string;
+}
+
+// Authentication service class
+class GP51AuthService {
+  private supabase: any;
+
+  constructor(supabaseUrl: string, supabaseKey: string, authHeader: string) {
+    this.supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
   }
 
-  console.log("🚀 GP51 Secure Auth - Standardized Implementation")
-
-  try {
-    // Auth verification
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return jsonResponse({ success: false, error: 'Authorization required' }, 401)
+  async authenticateUser(): Promise<{ user: any; error?: string }> {
+    const { data: { user }, error } = await this.supabase.auth.getUser();
+    
+    if (error || !user) {
+      return { user: null, error: 'User not authenticated' };
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: authHeader } } }
-    )
+    return { user, error: undefined };
+  }
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return jsonResponse({ success: false, error: 'User not authenticated' }, 401)
-    }
-
-    console.log("✅ User authenticated")
-
-    // Parse request
-    const { username, password } = await req.json()
-    if (!username || !password) {
-      return jsonResponse({ success: false, error: 'Username and password required' }, 400)
-    }
-
-    console.log(`🔐 Processing GP51 authentication for user: ${username}`)
-
-    // Check for existing valid session first
+  async checkExistingToken(user: any): Promise<string | null> {
     const existingToken = user.user_metadata?.gp51_token;
     const tokenExpires = user.user_metadata?.gp51_token_expires;
     
@@ -55,34 +66,61 @@ serve(async (req) => {
       const expiryDate = new Date(tokenExpires);
       if (expiryDate > new Date()) {
         console.log("✅ Using existing valid GP51 token");
-        return jsonResponse({
-          success: true,
-          message: 'Using existing GP51 session',
-          token: existingToken,
-          username: user.user_metadata?.gp51_username || username,
-          apiUrl: GP51_BASE_URL,
-          expiresAt: tokenExpires
-        });
+        return existingToken;
       }
     }
+    
+    return null;
+  }
 
-    // Generate real MD5 hash
-    const realMD5Hash = createRealMD5Hash(password)
-    console.log(`🔐 Generated MD5 hash (length: ${realMD5Hash.length})`)
+  async updateUserToken(token: string, username: string): Promise<void> {
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + TOKEN_EXPIRY_HOURS);
 
-    // Validate hash format
-    if (realMD5Hash.length !== 32) {
-      console.error(`❌ Invalid hash length: ${realMD5Hash.length}`)
-      return jsonResponse({ 
-        success: false, 
-        error: 'Hash generation failed',
-        debug: `Expected 32 chars, got ${realMD5Hash.length}`
-      }, 500)
+    await this.supabase.auth.updateUser({
+      data: { 
+        gp51_token: token,
+        gp51_username: username,
+        gp51_token_expires: expiresAt.toISOString(),
+        gp51_login_time: new Date().toISOString()
+      }
+    });
+  }
+}
+
+// GP51 API service class
+class GP51ApiService {
+  private baseUrl: string;
+
+  constructor(baseUrl: string = GP51_BASE_URL) {
+    this.baseUrl = baseUrl;
+  }
+
+  createMD5Hash(password: string): string {
+    try {
+      const hash = createHash('md5');
+      hash.update(password, 'utf8');
+      const result = hash.digest('hex').toLowerCase();
+      console.log(`🔐 MD5 hash generated: length=${result.length}`);
+      
+      if (result.length !== 32) {
+        throw new Error(`Invalid hash length: ${result.length}`);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error("❌ MD5 generation failed:", error);
+      throw new Error('MD5 hash generation failed');
     }
+  }
 
-    // Call GP51 API with standardized endpoint
-    console.log("🌐 Calling GP51 with standardized endpoint...")
-    const response = await fetch(`${GP51_BASE_URL}?action=login`, {
+  async authenticate(username: string, password: string): Promise<any> {
+    const passwordHash = this.createMD5Hash(password);
+    const url = `${this.baseUrl}?action=login`;
+
+    console.log(`🌐 Calling GP51 API: ${url}`);
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -91,110 +129,155 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         username,
-        password: realMD5Hash,
+        password: passwordHash,
         from: 'WEB',
         type: 'USER'
       })
-    })
+    });
 
-    console.log(`📡 GP51 response status: ${response.status}`)
+    console.log(`📡 GP51 response status: ${response.status}`);
 
     if (!response.ok) {
-      return jsonResponse({ 
-        success: false, 
-        error: `GP51 API error: ${response.status}` 
-      }, 502)
+      throw new Error(`GP51 API error: ${response.status}`);
     }
 
-    const responseText = await response.text()
-    console.log(`📄 GP51 response: ${responseText.substring(0, 200)}...`)
+    const responseText = await response.text();
+    console.log(`📄 GP51 response: ${responseText.substring(0, 200)}...`);
 
-    let gp51Result
     try {
-      gp51Result = JSON.parse(responseText)
+      return JSON.parse(responseText);
     } catch (parseError) {
-      console.error("❌ JSON parse failed:", parseError)
-      return jsonResponse({ 
-        success: false, 
-        error: 'Invalid response from GP51',
-        debug: responseText.substring(0, 200)
-      }, 502)
+      console.error("❌ JSON parse failed:", parseError);
+      throw new Error('Invalid response from GP51');
+    }
+  }
+}
+
+// Response helper
+class ResponseHelper {
+  static success(data: Partial<GP51AuthResponse>): Response {
+    return new Response(
+      JSON.stringify({ success: true, ...data }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+
+  static error(message: string, status: number = 500, extra?: any): Response {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: message,
+        ...extra
+      }),
+      {
+        status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+
+  static cors(): Response {
+    return new Response('ok', { headers: corsHeaders });
+  }
+}
+
+// Main handler
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return ResponseHelper.cors();
+  }
+
+  console.log("🚀 GP51 Secure Auth - Refactored Implementation");
+
+  try {
+    // Validate authorization
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return ResponseHelper.error('Authorization required', 401);
     }
 
-    console.log(`📊 GP51 result status: ${gp51Result.status}`)
+    // Initialize services
+    const authService = new GP51AuthService(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      authHeader
+    );
+
+    const gp51Service = new GP51ApiService();
+
+    // Authenticate user
+    const { user, error: authError } = await authService.authenticateUser();
+    if (authError || !user) {
+      return ResponseHelper.error(authError || 'User not authenticated', 401);
+    }
+
+    console.log("✅ User authenticated");
+
+    // Parse and validate request
+    const requestBody = await req.json() as GP51AuthRequest;
+    const { username, password } = requestBody;
+
+    if (!username || !password) {
+      return ResponseHelper.error('Username and password required', 400);
+    }
+
+    console.log(`🔐 Processing GP51 authentication for user: ${username}`);
+
+    // Check for existing valid session
+    const existingToken = await authService.checkExistingToken(user);
+    if (existingToken) {
+      return ResponseHelper.success({
+        message: 'Using existing GP51 session',
+        token: existingToken,
+        username: user.user_metadata?.gp51_username || username,
+        apiUrl: GP51_BASE_URL,
+        expiresAt: user.user_metadata?.gp51_token_expires
+      });
+    }
+
+    // Authenticate with GP51
+    const gp51Result = await gp51Service.authenticate(username, password);
+    console.log(`📊 GP51 result status: ${gp51Result.status}`);
 
     if (gp51Result.status === 0 && gp51Result.token) {
-      console.log("🎉 GP51 authentication successful!")
+      console.log("🎉 GP51 authentication successful!");
       
-      // Store token in user metadata with expiration
+      // Store token in user metadata
+      await authService.updateUserToken(gp51Result.token, username);
+
       const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 23); // GP51 tokens typically last 24 hours
+      expiresAt.setHours(expiresAt.getHours() + TOKEN_EXPIRY_HOURS);
 
-      await supabase.auth.updateUser({
-        data: { 
-          gp51_token: gp51Result.token,
-          gp51_username: username,
-          gp51_token_expires: expiresAt.toISOString(),
-          gp51_login_time: new Date().toISOString()
-        }
-      })
-
-      return jsonResponse({
-        success: true,
+      return ResponseHelper.success({
         message: 'GP51 authentication successful',
         token: gp51Result.token,
-        username: gp51Result.username,
+        username: gp51Result.username || username,
         apiUrl: GP51_BASE_URL,
         expiresAt: expiresAt.toISOString()
-      })
+      });
     } else {
-      console.error(`❌ GP51 authentication failed: status=${gp51Result.status}, cause=${gp51Result.cause}`)
+      console.error(`❌ GP51 authentication failed: status=${gp51Result.status}, cause=${gp51Result.cause}`);
       
-      // Check for specific error messages
-      let errorMessage = gp51Result.cause || 'GP51 authentication failed'
+      let errorMessage = gp51Result.cause || 'GP51 authentication failed';
       if (gp51Result.status === 1 && !gp51Result.cause) {
-        errorMessage = 'Invalid username or password'
+        errorMessage = 'Invalid username or password';
       }
       
-      return jsonResponse({
-        success: false,
-        error: errorMessage,
+      return ResponseHelper.error(errorMessage, 401, {
         gp51_status: gp51Result.status,
         debug: `GP51 returned: ${JSON.stringify(gp51Result)}`
-      }, 401)
+      });
     }
 
   } catch (error) {
-    console.error("💥 GP51 Auth Error:", error)
-    return jsonResponse({
-      success: false,
-      error: 'Internal server error',
-      debug: error.message
-    }, 500)
+    console.error("💥 GP51 Auth Error:", error);
+    return ResponseHelper.error(
+      'Internal server error',
+      500,
+      { debug: error.message }
+    );
   }
-})
-
-// Real MD5 hash function using Node.js crypto
-function createRealMD5Hash(input: string): string {
-  try {
-    const hash = createHash('md5')
-    hash.update(input, 'utf8')
-    const result = hash.digest('hex').toLowerCase()
-    console.log(`🔐 Real MD5 generated: length=${result.length}`)
-    return result
-  } catch (error) {
-    console.error("❌ Real MD5 failed:", error)
-    throw new Error('MD5 hash generation failed')
-  }
-}
-
-// Helper for JSON responses
-function jsonResponse(data: any, status = 200) {
-  return new Response(
-    JSON.stringify(data),
-    {
-      status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    }
-  )
-}
+});
