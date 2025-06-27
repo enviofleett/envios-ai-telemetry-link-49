@@ -1,6 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import type { GP51AuthResponse, GP51Session } from '@/types/gp51-supabase';
+import type { GP51AuthResponse, GP51Session, GP51SessionRPCResponse } from '@/types/gp51-supabase';
 
 export class SupabaseGP51AuthService {
   private currentSession: GP51Session | null = null;
@@ -79,7 +79,10 @@ export class SupabaseGP51AuthService {
         cause: 'OK',
         success: true,
         token: data.token,
-        expiresAt: data.expiresAt
+        expiresAt: data.expiresAt,
+        sessionId: data.sessionId,
+        username: data.username,
+        loginTime: data.loginTime
       };
 
     } catch (error) {
@@ -104,17 +107,26 @@ export class SupabaseGP51AuthService {
         return false;
       }
 
-      // Query active GP51 session from database using raw SQL to avoid type issues
-      const { data: gp51Sessions, error: gp51Error } = await supabase.rpc('get_active_gp51_session', {
-        p_user_id: session.user.id
-      });
+      // Query active GP51 session using the RPC function
+      const { data: gp51Sessions, error: gp51Error } = await supabase
+        .rpc('get_active_gp51_session', {
+          p_user_id: session.user.id
+        });
 
-      if (gp51Error || !gp51Sessions || gp51Sessions.length === 0) {
+      if (gp51Error) {
+        console.error('❌ RPC error:', gp51Error);
+        return false;
+      }
+
+      // Handle the response properly - it should be an array
+      const sessionArray = Array.isArray(gp51Sessions) ? gp51Sessions : [];
+      
+      if (sessionArray.length === 0) {
         console.log('❌ No active GP51 session found');
         return false;
       }
 
-      const sessionData = gp51Sessions[0];
+      const sessionData = sessionArray[0] as GP51SessionRPCResponse;
       this.currentSession = {
         id: sessionData.id,
         user_id: sessionData.user_id,

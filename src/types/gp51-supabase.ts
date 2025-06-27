@@ -58,6 +58,9 @@ export interface GP51AuthResponse {
   error?: string;
   token?: string;
   expiresAt?: string;
+  sessionId?: string;
+  username?: string;
+  loginTime?: string;
 }
 
 export interface GP51Session {
@@ -68,4 +71,34 @@ export interface GP51Session {
   created_at: string;
   expires_at: string;
   is_active: boolean;
+}
+
+// RPC Function response types
+export interface GP51SessionRPCResponse {
+  id: string;
+  user_id: string;
+  gp51_username: string;
+  gp51_token: string;
+  created_at: string;
+  expires_at: string;
+  is_active: boolean;
+}
+
+export interface GP51PositionRPCResponse {
+  device_id: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  course: number;
+  altitude: number;
+  device_time: string;
+  server_time: string;
+  status: number;
+  moving: number;
+  gps_source: string;
+  battery: number;
+  signal: number;
+  satellites: number;
+  created_at: string;
+  raw_data: any;
 }

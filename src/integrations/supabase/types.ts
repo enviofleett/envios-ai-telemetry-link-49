@@ -2698,6 +2698,69 @@ export type Database = {
         }
         Relationships: []
       }
+      gp51_positions: {
+        Row: {
+          altitude: number | null
+          battery: number | null
+          course: number | null
+          created_at: string | null
+          device_id: string
+          device_time: string | null
+          gps_source: string | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          moving: number | null
+          raw_data: Json | null
+          satellites: number | null
+          server_time: string | null
+          signal: number | null
+          speed: number | null
+          status: number | null
+          user_id: string | null
+        }
+        Insert: {
+          altitude?: number | null
+          battery?: number | null
+          course?: number | null
+          created_at?: string | null
+          device_id: string
+          device_time?: string | null
+          gps_source?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          moving?: number | null
+          raw_data?: Json | null
+          satellites?: number | null
+          server_time?: string | null
+          signal?: number | null
+          speed?: number | null
+          status?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          altitude?: number | null
+          battery?: number | null
+          course?: number | null
+          created_at?: string | null
+          device_id?: string
+          device_time?: string | null
+          gps_source?: string | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          moving?: number | null
+          raw_data?: Json | null
+          satellites?: number | null
+          server_time?: string | null
+          signal?: number | null
+          speed?: number | null
+          status?: number | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       gp51_secure_credentials: {
         Row: {
           api_url: string | null
@@ -10494,6 +10557,39 @@ export type Database = {
       generate_temp_password_hash: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_active_gp51_session: {
+        Args: { p_user_id: string }
+        Returns: {
+          id: string
+          user_id: string
+          gp51_username: string
+          gp51_token: string
+          created_at: string
+          expires_at: string
+          is_active: boolean
+        }[]
+      }
+      get_cached_positions: {
+        Args: { p_user_id: string; p_device_ids?: string[] }
+        Returns: {
+          device_id: string
+          latitude: number
+          longitude: number
+          speed: number
+          course: number
+          altitude: number
+          device_time: string
+          server_time: string
+          status: number
+          moving: number
+          gps_source: string
+          battery: number
+          signal: number
+          satellites: number
+          created_at: string
+          raw_data: Json
+        }[]
       }
       get_customer_analytics: {
         Args: { p_limit?: number }
