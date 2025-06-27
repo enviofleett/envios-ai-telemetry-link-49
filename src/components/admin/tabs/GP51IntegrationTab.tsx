@@ -1,18 +1,49 @@
 
 import React from 'react';
-import GP51Settings from '../GP51Settings';
-import { GP51ConnectionTester } from '../GP51ConnectionTester';
-import GP51DiagnosticsPanel from '../GP51DiagnosticsPanel';
-import GP51DebugPanel from '../GP51DebugPanel';
-import GP51HealthIndicator from '../GP51HealthIndicator';
-import UnifiedImportPanel from '../UnifiedImportPanel';
-import GP51RawDiagnosticPanel from '../GP51RawDiagnosticPanel';
-import GP51UserManagement from '../GP51UserManagement';
-import GP51HistoricalData from '../GP51HistoricalData';
-import UnifiedGP51Dashboard from '../UnifiedGP51Dashboard';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
+
+// Import GP51 components - using conditional imports to avoid errors if components don't exist
+const GP51Settings = React.lazy(() => 
+  import('../GP51Settings').catch(() => ({ default: () => <div>GP51 Settings component not found</div> }))
+);
+
+const GP51ConnectionTester = React.lazy(() => 
+  import('../GP51ConnectionTester').catch(() => ({ default: () => <div>GP51 Connection Tester component not found</div> }))
+);
+
+const GP51DiagnosticsPanel = React.lazy(() => 
+  import('../GP51DiagnosticsPanel').catch(() => ({ default: () => <div>GP51 Diagnostics Panel component not found</div> }))
+);
+
+const GP51DebugPanel = React.lazy(() => 
+  import('../GP51DebugPanel').catch(() => ({ default: () => <div>GP51 Debug Panel component not found</div> }))
+);
+
+const GP51HealthIndicator = React.lazy(() => 
+  import('../GP51HealthIndicator').catch(() => ({ default: () => <div>GP51 Health Indicator component not found</div> }))
+);
+
+const UnifiedImportPanel = React.lazy(() => 
+  import('../UnifiedImportPanel').catch(() => ({ default: () => <div>Unified Import Panel component not found</div> }))
+);
+
+const GP51RawDiagnosticPanel = React.lazy(() => 
+  import('../GP51RawDiagnosticPanel').catch(() => ({ default: () => <div>GP51 Raw Diagnostic Panel component not found</div> }))
+);
+
+const GP51UserManagement = React.lazy(() => 
+  import('../GP51UserManagement').catch(() => ({ default: () => <div>GP51 User Management component not found</div> }))
+);
+
+const GP51HistoricalData = React.lazy(() => 
+  import('../GP51HistoricalData').catch(() => ({ default: () => <div>GP51 Historical Data component not found</div> }))
+);
+
+const UnifiedGP51Dashboard = React.lazy(() => 
+  import('../UnifiedGP51Dashboard').catch(() => ({ default: () => <div>Unified GP51 Dashboard component not found</div> }))
+);
 
 const GP51IntegrationTab: React.FC = () => {
   return (
@@ -24,7 +55,9 @@ const GP51IntegrationTab: React.FC = () => {
         </AlertDescription>
       </Alert>
 
-      <GP51HealthIndicator />
+      <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading GP51 Health Indicator...</div>}>
+        <GP51HealthIndicator />
+      </React.Suspense>
       
       <Tabs defaultValue="unified" className="w-full">
         <TabsList className="grid w-full grid-cols-6">
@@ -37,32 +70,48 @@ const GP51IntegrationTab: React.FC = () => {
         </TabsList>
 
         <TabsContent value="unified" className="space-y-6">
-          <UnifiedGP51Dashboard />
+          <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading Unified Dashboard...</div>}>
+            <UnifiedGP51Dashboard />
+          </React.Suspense>
         </TabsContent>
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <GP51Settings />
-            <GP51ConnectionTester />
+            <React.Suspense fallback={<div className="flex items-center justify-center p-4">Loading GP51 Settings...</div>}>
+              <GP51Settings />
+            </React.Suspense>
+            <React.Suspense fallback={<div className="flex items-center justify-center p-4">Loading Connection Tester...</div>}>
+              <GP51ConnectionTester />
+            </React.Suspense>
           </div>
-          <GP51DiagnosticsPanel />
+          <React.Suspense fallback={<div className="flex items-center justify-center p-4">Loading Diagnostics Panel...</div>}>
+            <GP51DiagnosticsPanel />
+          </React.Suspense>
         </TabsContent>
 
         <TabsContent value="users" className="space-y-6">
-          <GP51UserManagement />
+          <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading User Management...</div>}>
+            <GP51UserManagement />
+          </React.Suspense>
         </TabsContent>
 
         <TabsContent value="historical" className="space-y-6">
-          <GP51HistoricalData />
+          <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading Historical Data...</div>}>
+            <GP51HistoricalData />
+          </React.Suspense>
         </TabsContent>
 
         <TabsContent value="import" className="space-y-6">
-          <UnifiedImportPanel />
+          <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading Import Panel...</div>}>
+            <UnifiedImportPanel />
+          </React.Suspense>
         </TabsContent>
 
         <TabsContent value="diagnostics" className="space-y-6">
-          <GP51RawDiagnosticPanel />
-          <GP51DebugPanel />
+          <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading Diagnostic Panels...</div>}>
+            <GP51RawDiagnosticPanel />
+            <GP51DebugPanel />
+          </React.Suspense>
         </TabsContent>
       </Tabs>
     </div>

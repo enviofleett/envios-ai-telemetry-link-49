@@ -15,7 +15,7 @@ import {
   Shield, 
   Database,
   Package,
-  Settings as SettingsIcon 
+  Radio 
 } from 'lucide-react';
 
 // Safe array helper - prevents "map is not a function" errors
@@ -55,7 +55,7 @@ const Settings: React.FC = () => {
             Billing
           </TabsTrigger>
           <TabsTrigger value="gp51" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
+            <Radio className="h-4 w-4" />
             GP51 Integration
           </TabsTrigger>
           <TabsTrigger value="data" className="flex items-center gap-2">
@@ -126,7 +126,13 @@ const Settings: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="gp51">
-          <GP51IntegrationTab />
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">GP51 Integration</h2>
+              <p className="text-gray-600">Manage your GP51 fleet tracking integration</p>
+            </div>
+            <GP51IntegrationTab />
+          </div>
         </TabsContent>
 
         <TabsContent value="data">
