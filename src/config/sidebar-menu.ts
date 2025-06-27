@@ -1,4 +1,3 @@
-
 import {
   LayoutDashboard,
   Users,
@@ -143,7 +142,41 @@ export const menuItems: MenuItem[] = [
   },
 ]
 
-export const quickActionsData: QuickAction[] = [
+// Add the missing agentMenuItems export (can be same as menuItems or a subset)
+export const agentMenuItems: MenuItem[] = [
+  {
+    title: "Dashboard",
+    url: "/",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Live Tracking",
+    url: "/tracking",
+    icon: MapPin,
+    featureId: "live_tracking"
+  },
+  {
+    title: "Fleet Management",
+    url: "/vehicles",
+    icon: Car,
+    featureId: "vehicle_management"
+  },
+  {
+    title: "GP51 Integration",
+    url: "/gp51-integration",
+    icon: Radio,
+    featureId: "gp51_integration"
+  },
+  {
+    title: "Reports",
+    url: "/reports",
+    icon: FileText,
+    featureId: "reporting"
+  },
+]
+
+// Add the missing quickActions export (renamed from quickActionsData)
+export const quickActions: QuickAction[] = [
   {
     title: "Add Vehicle",
     url: "/vehicles/add",
@@ -165,3 +198,6 @@ export const quickActionsData: QuickAction[] = [
     icon: Radio,
   },
 ]
+
+// Keep the old export for backward compatibility
+export const quickActionsData: QuickAction[] = quickActions
