@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, RefreshCw, MapPin, Car } from 'lucide-react';
 import type { GP51Group } from '@/types/gp51-unified';
+import { GP51PropertyMapper } from '@/types/gp51-unified';
 
 interface GroupGridProps {
   groups: GP51Group[];
@@ -16,21 +17,11 @@ interface GroupGridProps {
 const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Safe property access helper
-  const getGroupProps = (group: GP51Group) => ({
-    id: group.id || group.groupid?.toString() || '',
-    group_name: group.group_name || group.groupname || '',
-    group_id: group.group_id || group.groupid || 0,
-    device_count: group.device_count || group.devices?.length || 0,
-    last_sync_at: group.last_sync_at || new Date(),
-    remark: group.remark
-  });
-
   const filteredGroups = groups.filter(group => {
-    const props = getGroupProps(group);
+    const enhancedGroup = GP51PropertyMapper.enhanceGroup(group);
     return (
-      props.group_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (props.remark || '').toLowerCase().includes(searchTerm.toLowerCase())
+      enhancedGroup.group_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (enhancedGroup.remark || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
 
@@ -88,20 +79,20 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredGroups.map((group) => {
-              const props = getGroupProps(group);
+              const enhancedGroup = GP51PropertyMapper.enhanceGroup(group);
               return (
-                <Card key={props.id} className="hover:shadow-md transition-shadow">
+                <Card key={enhancedGroup.id} className="hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg">{props.group_name}</CardTitle>
+                      <CardTitle className="text-lg">{enhancedGroup.group_name}</CardTitle>
                       <Badge variant="outline" className="flex items-center gap-1">
                         <Car className="h-3 w-3" />
-                        {props.device_count}
+                        {enhancedGroup.device_count}
                       </Badge>
                     </div>
-                    {props.remark && (
+                    {enhancedGroup.remark && (
                       <CardDescription className="line-clamp-2">
-                        {props.remark}
+                        {enhancedGroup.remark}
                       </CardDescription>
                     )}
                   </CardHeader>
@@ -109,11 +100,11 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
                     <div className="space-y-2 text-sm text-muted-foreground">
                       <div className="flex justify-between">
                         <span>Group ID:</span>
-                        <span className="font-mono">{props.group_id}</span>
+                        <span className="font-mono">{enhancedGroup.group_id}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Last Sync:</span>
-                        <span>{formatDate(props.last_sync_at)}</span>
+                        <span>{formatDate(enhancedGroup.last_sync_at)}</span>
                       </div>
                     </div>
                   </CardContent>

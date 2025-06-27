@@ -1,7 +1,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
-import type { GP51ProcessedPosition } from '@/types/gp51-unified';
+import type { GP51ProcessedPosition, GP51Position } from '@/types/gp51-unified';
+import { GP51PropertyMapper } from '@/types/gp51-unified';
 
 export class GP51VehiclePersistenceService {
   private static instance: GP51VehiclePersistenceService;
@@ -12,7 +13,8 @@ export class GP51VehiclePersistenceService {
     if (!GP51VehiclePersistenceService.instance) {
       GP51VehiclePersistenceService.instance = new GP51VehiclePersistenceService();
     }
-    return GP51VehiclePersistenceService.instance;
+    return GP51VehicleP
+istenceService.instance;
   }
 
   async persistVehicleData(deviceId: string, position: GP51ProcessedPosition): Promise<void> {
@@ -91,19 +93,9 @@ export class GP51VehiclePersistenceService {
         throw new Error(`No position data found for device ${deviceId}`);
       }
 
-      // Convert GP51Position to GP51ProcessedPosition
-      const processedPosition: GP51ProcessedPosition = {
-        deviceId: position.deviceId,
-        deviceName: position.deviceId, // Use deviceId as name if no name available
-        latitude: position.latitude,
-        longitude: position.longitude,
-        speed: position.speed,
-        course: position.course,
-        timestamp: new Date(position.timestamp),
-        status: position.status,
-        isMoving: position.isMoving,
-        statusText: position.statusText
-      };
+      // Convert GP51Position to GP51ProcessedPosition using mapper
+      const processedPosition = GP51PropertyMapper.mapPosition(position);
+      processedPosition.deviceName = deviceId; // Set device name
 
       await this.persistVehicleData(deviceId, processedPosition);
       console.log(`Data fetched and persisted successfully for device ${deviceId}`);

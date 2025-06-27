@@ -2,7 +2,7 @@
 import { GP51AuthService } from './GP51AuthService';
 import { GP51DataService } from './GP51DataService';
 import { GP51HealthService } from './GP51HealthService';
-import { GP51HealthStatus, GP51AuthResponse, GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
+import { GP51HealthStatus, GP51AuthResponse, GP51Device as GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
 
 export class UnifiedGP51Service {
   private authService: GP51AuthService;
@@ -55,7 +55,7 @@ export class UnifiedGP51Service {
       
       // Return just the data array, filter by deviceIds if provided
       if (Array.isArray(result)) {
-        return deviceIds ? result.filter(pos => deviceIds.includes(pos.deviceId)) : result;
+        return deviceIds ? result.filter(pos => deviceIds.includes(pos.deviceid)) : result;
       } else {
         return [];
       }
@@ -71,7 +71,7 @@ export class UnifiedGP51Service {
       
       // Return just the data array, filter by deviceIds if provided
       if (Array.isArray(result)) {
-        return deviceIds ? result.filter(pos => deviceIds.includes(pos.deviceId)) : result;
+        return deviceIds ? result.filter(pos => deviceIds.includes(pos.deviceid)) : result;
       } else {
         return [];
       }

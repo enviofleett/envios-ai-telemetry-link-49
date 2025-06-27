@@ -1,6 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
+import type { GP51Position } from '@/types/gp51-unified';
 
 interface SyncResult {
   success: boolean;
@@ -45,7 +46,7 @@ export class VehiclePositionSyncService {
       }
 
       const vehicles = vehiclesResponse.data;
-      const deviceIds = vehicles.map(v => v.deviceId);
+      const deviceIds = vehicles.map(v => v.deviceid);
 
       // Get positions for all devices
       const positions = await gp51DataService.getPositions();
@@ -56,27 +57,27 @@ export class VehiclePositionSyncService {
       // Process each position
       for (const position of positions) {
         try {
-          // Ensure all numeric values are properly converted
-          const latitude = Number(position.latitude);
-          const longitude = Number(position.longitude);
+          // Ensure all numeric values are properly converted using correct property names
+          const latitude = Number(position.callat); // Use callat, not latitude
+          const longitude = Number(position.callon); // Use callon, not longitude
           const speed = position.speed ? Number(position.speed) : 0;
           const course = position.course ? Number(position.course) : 0;
 
           // Validate that conversion worked
           if (isNaN(latitude) || isNaN(longitude)) {
-            console.warn(`Invalid coordinates for device ${position.deviceId}: lat=${position.latitude}, lng=${position.longitude}`);
+            console.warn(`Invalid coordinates for device ${position.deviceid}: lat=${position.callat}, lng=${position.callon}`);
             errors++;
             continue;
           }
 
-          // Convert position data to match Supabase schema
+          // Convert position data to match Supabase schema using correct property names
           const positionData = {
-            device_id: position.deviceId,
+            device_id: position.deviceid, // Use deviceid, not deviceId
             latitude: latitude,
             longitude: longitude,
             speed: speed,
             heading: course, // Map course to heading
-            timestamp: new Date(typeof position.timestamp === 'string' ? position.timestamp : position.timestamp * 1000).toISOString(),
+            timestamp: new Date(position.updatetime).toISOString(), // Use updatetime, not timestamp
             created_at: new Date().toISOString()
           };
 
@@ -86,13 +87,13 @@ export class VehiclePositionSyncService {
             .upsert(positionData, { onConflict: 'device_id' });
 
           if (error) {
-            console.error(`Failed to sync position for device ${position.deviceId}:`, error);
+            console.error(`Failed to sync position for device ${position.deviceid}:`, error);
             errors++;
           } else {
             processed++;
           }
         } catch (error) {
-          console.error(`Error processing position for device ${position.deviceId}:`, error);
+          console.error(`Error processing position for device ${position.deviceid}:`, error);
           errors++;
         }
       }
@@ -125,7 +126,7 @@ export class VehiclePositionSyncService {
       console.log(`🔄 Syncing position for device ${deviceId}...`);
 
       const positions = await gp51DataService.getPositions();
-      const position = positions.find(p => p.deviceId === deviceId);
+      const position = positions.find(p => p.deviceid === deviceId); // Use deviceid
 
       if (!position) {
         return {
@@ -136,9 +137,9 @@ export class VehiclePositionSyncService {
         };
       }
 
-      // Ensure numeric conversion
-      const latitude = Number(position.latitude);
-      const longitude = Number(position.longitude);
+      // Ensure numeric conversion using correct property names
+      const latitude = Number(position.callat); // Use callat
+      const longitude = Number(position.callon); // Use callon
       const speed = position.speed ? Number(position.speed) : 0;
       const course = position.course ? Number(position.course) : 0;
 
@@ -159,7 +160,7 @@ export class VehiclePositionSyncService {
         longitude: longitude,
         speed: speed,
         heading: course, // Map course to heading
-        timestamp: new Date(typeof position.timestamp === 'string' ? position.timestamp : position.timestamp * 1000).toISOString(),
+        timestamp: new Date(position.updatetime).toISOString(), // Use updatetime
         created_at: new Date().toISOString()
       };
 
