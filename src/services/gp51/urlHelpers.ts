@@ -2,74 +2,66 @@
 /**
  * GP51 URL Helper Functions
  * Provides standardized URL construction and validation for GP51 API endpoints
- * Updated for new API endpoint structure
+ * Updated to use consistent domain without www prefix
  */
 
-export const GP51_BASE_URL = 'https://api.gps51.com'; // Updated to new endpoint
+export const GP51_BASE_URL = 'https://gps51.com/webapi'; // Standardized endpoint
 
 /**
- * Constructs the GP51 API URL by intelligently appending /webapi to the base URL
- * Handles various base URL formats and prevents duplication
+ * Constructs the GP51 API URL using the standardized base URL
  * @param baseUrl - The GP51 base URL (defaults to GP51_BASE_URL)
- * @returns The complete GP51 API URL with /webapi endpoint
+ * @returns The complete GP51 API URL
  */
 export function getGP51ApiUrl(baseUrl?: string): string {
-  const url = baseUrl || GP51_BASE_URL;
-  
-  // Remove trailing slash if present
-  const cleanUrl = url.replace(/\/$/, '');
-  
-  // Only append /webapi if it's not already present
-  if (!cleanUrl.endsWith('/webapi')) {
-    return cleanUrl + '/webapi';
-  }
-  
-  return cleanUrl;
+  return baseUrl || GP51_BASE_URL;
 }
 
 /**
  * Validates if a GP51 base URL is properly formatted
- * Updated to accept both old and new GP51 domains for backward compatibility
  * @param url - The URL to validate
  * @returns true if the URL is valid for GP51 usage
  */
 export function isValidGP51BaseUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
-    return urlObj.protocol === 'https:' && (
-      urlObj.hostname.includes('gps51.com') || 
-      urlObj.hostname.includes('api.gps51.com')
-    );
+    return urlObj.protocol === 'https:' && urlObj.hostname.includes('gps51.com');
   } catch {
     return false;
   }
 }
 
 /**
- * Gets the standardized GP51 base URL from environment or fallback
- * Now prioritizes environment variable for easy configuration updates
+ * Gets the standardized GP51 base URL
  * @returns The standardized GP51 base URL
  */
 export function getStandardizedGP51BaseUrl(): string {
-  // Check if we're in a browser environment and handle accordingly
-  if (typeof process !== 'undefined' && process.env) {
-    return process.env.GP51_BASE_URL || GP51_BASE_URL;
-  }
   return GP51_BASE_URL;
 }
 
 /**
- * Migration helper - provides the correct API URL for the current environment
- * This function helps transition from old to new endpoint smoothly
+ * GP51 API Actions - Using correct action names from working console calls
  */
-export function getMigratedGP51ApiUrl(): string {
-  // In production or when properly configured, use environment variable
-  const envUrl = typeof process !== 'undefined' ? process.env.GP51_BASE_URL : undefined;
+export const GP51_ACTIONS = {
+  LOGIN: 'login',
+  DEVICE_TREE: 'querydevicetreebyuser', // Correct action from console
+  POSITIONS: 'queryalllastrecordsbyuser', // Correct action for positions
+  LOGOUT: 'logout'
+} as const;
+
+/**
+ * Constructs GP51 API URL with action
+ * @param action - The API action to perform
+ * @param token - Optional token for authenticated requests
+ * @returns Complete API URL with action
+ */
+export function buildGP51ApiUrl(action: string, token?: string): string {
+  const baseUrl = GP51_BASE_URL;
+  const url = new URL(baseUrl);
+  url.searchParams.set('action', action);
   
-  if (envUrl) {
-    return getGP51ApiUrl(envUrl);
+  if (token) {
+    url.searchParams.set('token', token);
   }
   
-  // Fallback to new default endpoint
-  return getGP51ApiUrl(GP51_BASE_URL);
+  return url.toString();
 }

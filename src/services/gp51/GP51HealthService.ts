@@ -1,45 +1,110 @@
 
-import type { GP51HealthStatus } from '@/types/gp51-unified';
+import { supabaseGP51AuthService } from './SupabaseGP51AuthService';
+import { gp51DataService } from './GP51DataService';
+import { GP51HealthStatus } from '@/types/gp51-unified';
 
 export class GP51HealthService {
+  private healthCheckCache: { data: GP51HealthStatus; timestamp: number } | null = null;
+  private readonly HEALTH_CACHE_TTL = 30000; // 30 seconds
+
   async getConnectionHealth(): Promise<GP51HealthStatus> {
-    try {
-      const startTime = Date.now();
-      
-      // Mock health check - in real implementation would test actual GP51 API
-      const isConnected = true;
-      const responseTime = Date.now() - startTime;
-      
-      return {
-        status: isConnected ? 'healthy' : 'failed',
-        lastCheck: new Date(),
-        responseTime,
-        isConnected,
-        lastPingTime: new Date(),
-        tokenValid: true,
-        sessionValid: true,
-        activeDevices: 15,
-        isHealthy: isConnected,
-        connectionStatus: isConnected ? 'connected' : 'disconnected'
-      };
-    } catch (error) {
-      return {
-        status: 'failed',
-        lastCheck: new Date(),
-        isConnected: false,
-        lastPingTime: new Date(),
-        tokenValid: false,
-        sessionValid: false,
-        activeDevices: 0,
-        errorMessage: error instanceof Error ? error.message : 'Health check failed',
-        isHealthy: false,
-        connectionStatus: 'error'
-      };
+    // Check cache first
+    if (this.healthCheckCache) {
+      const age = Date.now() - this.healthCheckCache.timestamp;
+      if (age < this.HEALTH_CACHE_TTL) {
+        return this.healthCheckCache.data;
+      }
     }
+
+    const startTime = Date.now();
+    const errors: string[] = [];
+    let isConnected = false;
+    let tokenValid = false;
+    let sessionValid = false;
+    let activeDevices = 0;
+
+    try {
+      // Check authentication status
+      const authStatus = supabaseGP51AuthService.getSessionStatus();
+      tokenValid = authStatus.isAuthenticated;
+      sessionValid = !authStatus.isExpired;
+
+      if (!tokenValid) {
+        errors.push('No valid GP51 authentication token');
+      }
+
+      if (!sessionValid) {
+        errors.push('GP51 session has expired');
+      }
+
+      // Test connection if authenticated
+      if (tokenValid && sessionValid) {
+        try {
+          const connectionTest = await gp51DataService.testConnection();
+          isConnected = connectionTest.success;
+
+          if (!connectionTest.success && connectionTest.error) {
+            errors.push(`Connection test failed: ${connectionTest.error}`);
+          }
+
+          // Try to get device count
+          if (isConnected) {
+            const devicesResult = await gp51DataService.queryMonitorList();
+            if (devicesResult.success && devicesResult.data) {
+              activeDevices = devicesResult.data.length;
+            }
+          }
+        } catch (error) {
+          errors.push(`Health check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+    } catch (error) {
+      errors.push(`Health check error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    const responseTime = Date.now() - startTime;
+    const lastCheck = new Date();
+
+    const healthStatus: GP51HealthStatus = {
+      isConnected,
+      lastPingTime: lastCheck,
+      responseTime,
+      tokenValid,
+      sessionValid,
+      activeDevices,
+      errors,
+      lastCheck,
+      errorMessage: errors.length > 0 ? errors.join('; ') : undefined
+    };
+
+    // Cache the result
+    this.healthCheckCache = {
+      data: healthStatus,
+      timestamp: Date.now()
+    };
+
+    return healthStatus;
   }
 
-  async checkHealth(): Promise<GP51HealthStatus> {
-    return this.getConnectionHealth();
+  // Clear health cache to force fresh check
+  clearHealthCache(): void {
+    this.healthCheckCache = null;
+  }
+
+  // Get quick status without full health check
+  getQuickStatus(): {
+    isAuthenticated: boolean;
+    hasValidSession: boolean;
+    canMakeRequests: boolean;
+  } {
+    const authStatus = supabaseGP51AuthService.getSessionStatus();
+    
+    return {
+      isAuthenticated: authStatus.isAuthenticated,
+      hasValidSession: !authStatus.isExpired,
+      canMakeRequests: authStatus.isAuthenticated && !authStatus.isExpired
+    };
   }
 }
 

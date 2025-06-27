@@ -1,22 +1,28 @@
-import { GP51AuthService } from './GP51AuthService';
-import { GP51DataService } from './GP51DataService';
+
+import { supabaseGP51AuthService } from './SupabaseGP51AuthService';
+import { gp51DataService } from './GP51DataService';
 import { GP51HealthService } from './GP51HealthService';
 import { GP51HealthStatus, GP51AuthResponse, GP51Device as GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
 
 export class UnifiedGP51Service {
-  private authService: GP51AuthService;
-  private dataService: GP51DataService;
+  private authService: typeof supabaseGP51AuthService;
+  private dataService: typeof gp51DataService;
   private healthService: GP51HealthService;
 
   constructor() {
-    this.authService = new GP51AuthService();
-    this.dataService = new GP51DataService();
+    this.authService = supabaseGP51AuthService;
+    this.dataService = gp51DataService;
     this.healthService = new GP51HealthService();
   }
 
   // Auth methods
-  get session() { return this.authService.getSession(); }
-  get isAuthenticated() { return this.authService.isAuthenticated; }
+  get session() { 
+    return this.authService.sessionInfo; 
+  }
+  
+  get isAuthenticated() { 
+    return this.authService.isAuthenticated; 
+  }
 
   async authenticate(username: string, password: string): Promise<GP51AuthResponse> {
     return this.authService.authenticate(username, password);
@@ -38,53 +44,84 @@ export class UnifiedGP51Service {
     return this.authService.logout();
   }
 
-  // Data methods
+  // Data methods - now using real API calls
   async queryMonitorList(): Promise<{
     success: boolean;
     data?: GP51DeviceData[];
     groups?: GP51Group[];
     error?: string;
   }> {
-    return this.dataService.queryMonitorList();
+    try {
+      if (!this.isAuthenticated) {
+        return {
+          success: false,
+          error: 'Not authenticated with GP51'
+        };
+      }
+
+      return await this.dataService.queryMonitorList();
+    } catch (error) {
+      console.error('💥 Query monitor list failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch devices'
+      };
+    }
   }
 
   async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     try {
-      const result = await this.dataService.getPositions();
-      
-      if (Array.isArray(result)) {
-        return deviceIds ? result.filter(pos => deviceIds.includes(pos.deviceid)) : result;
-      } else {
+      if (!this.isAuthenticated) {
+        console.error('❌ Not authenticated with GP51');
         return [];
       }
+
+      return await this.dataService.getLastPositions(deviceIds);
     } catch (error) {
-      console.error('Position fetch error:', error);
+      console.error('💥 Position fetch error:', error);
       return [];
     }
   }
 
   async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
-    try {
-      const result = await this.dataService.getPositions();
-      
-      if (Array.isArray(result)) {
-        return deviceIds ? result.filter(pos => deviceIds.includes(pos.deviceid)) : result;
-      } else {
-        return [];
-      }
-    } catch (error) {
-      console.error('Position fetch error:', error);
-      return [];
-    }
+    return this.getLastPositions(deviceIds);
   }
 
   async getDevices(deviceIds?: string[]) {
-    return this.dataService.queryMonitorList();
+    const result = await this.queryMonitorList();
+    
+    if (!result.success || !result.data) {
+      return result;
+    }
+
+    // Filter devices if specific IDs requested
+    if (deviceIds && deviceIds.length > 0) {
+      const filteredDevices = result.data.filter(device => 
+        deviceIds.includes(device.deviceid)
+      );
+      
+      return {
+        ...result,
+        data: filteredDevices
+      };
+    }
+
+    return result;
   }
 
   // Health methods
   async getConnectionHealth(): Promise<GP51HealthStatus> {
     return this.healthService.getConnectionHealth();
+  }
+
+  // Cache management
+  clearCache(): void {
+    this.dataService.clearCache();
+  }
+
+  // Connection test
+  async testConnection(): Promise<{ success: boolean; error?: string }> {
+    return this.dataService.testConnection();
   }
 }
 

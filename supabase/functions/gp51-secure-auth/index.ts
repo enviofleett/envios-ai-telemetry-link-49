@@ -9,12 +9,15 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+// Standardized GP51 endpoint
+const GP51_BASE_URL = 'https://gps51.com/webapi';
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  console.log("🚀 GP51 Auth with REAL MD5")
+  console.log("🚀 GP51 Secure Auth - Standardized Implementation")
 
   try {
     // Auth verification
@@ -42,13 +45,32 @@ serve(async (req) => {
       return jsonResponse({ success: false, error: 'Username and password required' }, 400)
     }
 
-    console.log(`🔐 Processing login for user: ${username}`)
+    console.log(`🔐 Processing GP51 authentication for user: ${username}`)
 
-    // CRITICAL: Use REAL MD5 hash
+    // Check for existing valid session first
+    const existingToken = user.user_metadata?.gp51_token;
+    const tokenExpires = user.user_metadata?.gp51_token_expires;
+    
+    if (existingToken && tokenExpires) {
+      const expiryDate = new Date(tokenExpires);
+      if (expiryDate > new Date()) {
+        console.log("✅ Using existing valid GP51 token");
+        return jsonResponse({
+          success: true,
+          message: 'Using existing GP51 session',
+          token: existingToken,
+          username: user.user_metadata?.gp51_username || username,
+          apiUrl: GP51_BASE_URL,
+          expiresAt: tokenExpires
+        });
+      }
+    }
+
+    // Generate real MD5 hash
     const realMD5Hash = createRealMD5Hash(password)
-    console.log(`🔐 REAL MD5 hash: ${realMD5Hash}`)
+    console.log(`🔐 Generated MD5 hash (length: ${realMD5Hash.length})`)
 
-    // Test the hash format
+    // Validate hash format
     if (realMD5Hash.length !== 32) {
       console.error(`❌ Invalid hash length: ${realMD5Hash.length}`)
       return jsonResponse({ 
@@ -58,9 +80,9 @@ serve(async (req) => {
       }, 500)
     }
 
-    // Call GP51 API with real MD5
-    console.log("🌐 Calling GP51 with REAL MD5...")
-    const response = await fetch('https://www.gps51.com/webapi?action=login', {
+    // Call GP51 API with standardized endpoint
+    console.log("🌐 Calling GP51 with standardized endpoint...")
+    const response = await fetch(`${GP51_BASE_URL}?action=login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -85,7 +107,7 @@ serve(async (req) => {
     }
 
     const responseText = await response.text()
-    console.log(`📄 GP51 response: ${responseText}`)
+    console.log(`📄 GP51 response: ${responseText.substring(0, 200)}...`)
 
     let gp51Result
     try {
@@ -99,16 +121,20 @@ serve(async (req) => {
       }, 502)
     }
 
-    console.log(`📊 GP51 result:`, gp51Result)
+    console.log(`📊 GP51 result status: ${gp51Result.status}`)
 
     if (gp51Result.status === 0 && gp51Result.token) {
       console.log("🎉 GP51 authentication successful!")
       
-      // Store token
+      // Store token in user metadata with expiration
+      const expiresAt = new Date();
+      expiresAt.setHours(expiresAt.getHours() + 23); // GP51 tokens typically last 24 hours
+
       await supabase.auth.updateUser({
         data: { 
           gp51_token: gp51Result.token,
           gp51_username: username,
+          gp51_token_expires: expiresAt.toISOString(),
           gp51_login_time: new Date().toISOString()
         }
       })
@@ -118,7 +144,8 @@ serve(async (req) => {
         message: 'GP51 authentication successful',
         token: gp51Result.token,
         username: gp51Result.username,
-        apiUrl: 'https://www.gps51.com'
+        apiUrl: GP51_BASE_URL,
+        expiresAt: expiresAt.toISOString()
       })
     } else {
       console.error(`❌ GP51 authentication failed: status=${gp51Result.status}, cause=${gp51Result.cause}`)
@@ -147,74 +174,18 @@ serve(async (req) => {
   }
 })
 
-// REAL MD5 HASH FUNCTION using Node.js crypto
+// Real MD5 hash function using Node.js crypto
 function createRealMD5Hash(input: string): string {
   try {
     const hash = createHash('md5')
     hash.update(input, 'utf8')
     const result = hash.digest('hex').toLowerCase()
-    console.log(`🔐 Real MD5 generated: length=${result.length}, value=${result}`)
+    console.log(`🔐 Real MD5 generated: length=${result.length}`)
     return result
   } catch (error) {
     console.error("❌ Real MD5 failed:", error)
-    // Fallback to best simulation
-    return fallbackMD5(input)
+    throw new Error('MD5 hash generation failed')
   }
-}
-
-// Fallback MD5 simulation (if real MD5 fails)
-function fallbackMD5(input: string): string {
-  // More accurate MD5-like simulation
-  const rotateLeft = (value: number, amount: number) => {
-    return (value << amount) | (value >>> (32 - amount))
-  }
-
-  const addUnsigned = (x: number, y: number) => {
-    const lsw = (x & 0xFFFF) + (y & 0xFFFF)
-    const msw = (x >> 16) + (y >> 16) + (lsw >> 16)
-    return (msw << 16) | (lsw & 0xFFFF)
-  }
-
-  // MD5 constants
-  let h0 = 0x67452301
-  let h1 = 0xEFCDAB89
-  let h2 = 0x98BADCFE
-  let h3 = 0x10325476
-
-  // Process input
-  const msg = unescape(encodeURIComponent(input))
-  const msgLength = msg.length
-  const wordArray = []
-
-  for (let i = 0; i < msgLength; i++) {
-    wordArray[i >> 2] |= msg.charCodeAt(i) << ((i % 4) * 8)
-  }
-
-  wordArray[msgLength >> 2] |= 0x80 << ((msgLength % 4) * 8)
-  wordArray[(((msgLength + 64) >>> 9) << 4) + 14] = msgLength * 8
-
-  // MD5 main loop (simplified)
-  for (let i = 0; i < wordArray.length; i += 16) {
-    const [a, b, c, d] = [h0, h1, h2, h3]
-
-    h0 = addUnsigned(h0, wordArray[i] || 0)
-    h1 = addUnsigned(h1, wordArray[i + 1] || 0)
-    h2 = addUnsigned(h2, wordArray[i + 2] || 0)
-    h3 = addUnsigned(h3, wordArray[i + 3] || 0)
-
-    h0 = rotateLeft(h0, 7)
-    h1 = rotateLeft(h1, 12)
-    h2 = rotateLeft(h2, 17)
-    h3 = rotateLeft(h3, 22)
-  }
-
-  // Convert to hex
-  const toHex = (num: number) => {
-    let hex = (num >>> 0).toString(16)
-    return ('00000000' + hex).slice(-8)
-  }
-
-  return (toHex(h0) + toHex(h1) + toHex(h2) + toHex(h3)).toLowerCase()
 }
 
 // Helper for JSON responses

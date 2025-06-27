@@ -1,6 +1,8 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import type { GP51PositionRPCResponse } from '@/types/gp51-supabase';
+import { gp51DataService } from './GP51DataService';
+import { supabaseGP51AuthService } from './SupabaseGP51AuthService';
 
 export class SupabaseGP51DataService {
   private static instance: SupabaseGP51DataService;
@@ -16,30 +18,24 @@ export class SupabaseGP51DataService {
 
   async getDevices(): Promise<any[]> {
     try {
-      console.log('🔍 Fetching GP51 devices from Supabase...');
+      console.log('🔍 Fetching GP51 devices via Supabase integration...');
 
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError || !session) {
-        console.error('❌ No Supabase session found');
+      // First ensure we have authentication
+      if (!supabaseGP51AuthService.isAuthenticated) {
+        console.error('❌ No GP51 authentication found');
         return [];
       }
 
-      // Call GP51 devices edge function with corrected endpoint
-      const { data, error } = await supabase.functions.invoke('gp51-devices');
+      // Use real GP51 data service instead of edge function
+      const result = await gp51DataService.queryMonitorList();
 
-      if (error) {
-        console.error('❌ GP51 devices error:', error);
+      if (!result.success) {
+        console.error('❌ GP51 devices fetch failed:', result.error);
         return [];
       }
 
-      if (!data.success) {
-        console.error('❌ GP51 devices failed:', data.error);
-        return [];
-      }
-
-      console.log('✅ GP51 devices fetched successfully');
-      return data.devices || [];
+      console.log('✅ GP51 devices fetched successfully via direct API');
+      return result.data || [];
 
     } catch (error) {
       console.error('💥 Get devices error:', error);
@@ -49,8 +45,42 @@ export class SupabaseGP51DataService {
 
   async getPositions(deviceIds?: string[]): Promise<any[]> {
     try {
-      console.log('🔍 Fetching GP51 positions...');
+      console.log('🔍 Fetching GP51 positions via Supabase integration...');
 
+      // First ensure we have authentication
+      if (!supabaseGP51AuthService.isAuthenticated) {
+        console.error('❌ No GP51 authentication found');
+        return [];
+      }
+
+      // Try live positions first from direct API
+      const livePositions = await gp51DataService.getPositions(deviceIds);
+      
+      if (livePositions.length > 0) {
+        console.log('✅ Live GP51 positions fetched successfully');
+        
+        // Transform GP51 format to internal format
+        return livePositions.map(pos => ({
+          deviceid: pos.deviceid,
+          callat: pos.callat, // GP51 latitude field
+          callon: pos.callon, // GP51 longitude field
+          speed: pos.speed,
+          course: pos.course,
+          altitude: pos.altitude,
+          devicetime: pos.devicetime,
+          servertime: pos.servertime,
+          status: pos.status,
+          moving: pos.moving,
+          gotsrc: pos.gotsrc,
+          battery: pos.battery,
+          signal: pos.signal,
+          satellites: pos.satellites
+        }));
+      }
+
+      // Fallback to cached positions using RPC function
+      console.log('⚠️ Live positions empty, trying cached positions...');
+      
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError || !session) {
@@ -58,19 +88,6 @@ export class SupabaseGP51DataService {
         return [];
       }
 
-      // First try to get live positions from edge function
-      const { data: liveData, error: liveError } = await supabase.functions.invoke('gp51-get-positions', {
-        body: { deviceIds: deviceIds || [] }
-      });
-
-      if (!liveError && liveData?.success) {
-        console.log('✅ Live GP51 positions fetched successfully');
-        return liveData.positions || [];
-      }
-
-      // Fallback to cached positions using RPC function
-      console.log('⚠️ Live positions failed, trying cached positions...');
-      
       const { data: cachedData, error: cachedError } = await supabase
         .rpc('get_cached_positions', {
           p_user_id: session.user.id,
@@ -124,10 +141,8 @@ export class SupabaseGP51DataService {
 
   async testConnection(): Promise<{ success: boolean; error?: string }> {
     try {
-      const devices = await this.getDevices();
-      return {
-        success: true
-      };
+      // Use the real data service for connection testing
+      return await gp51DataService.testConnection();
     } catch (error) {
       return {
         success: false,
