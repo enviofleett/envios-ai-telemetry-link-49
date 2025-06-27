@@ -2,7 +2,7 @@
 import { supabaseGP51AuthService } from './SupabaseGP51AuthService';
 import { gp51DataService } from './GP51DataService';
 import { GP51HealthService } from './GP51HealthService';
-import { GP51HealthStatus, GP51AuthResponse, GP51Device as GP51DeviceData, GP51Position, GP51Group } from '@/types/gp51-unified';
+import { GP51HealthStatus, GP51AuthResponse, GP51Device, GP51Position, GP51Group } from '@/types/gp51-unified';
 
 export class UnifiedGP51Service {
   private authService: typeof supabaseGP51AuthService;
@@ -47,7 +47,7 @@ export class UnifiedGP51Service {
   // Data methods - now using real API calls
   async queryMonitorList(): Promise<{
     success: boolean;
-    data?: GP51DeviceData[];
+    data?: GP51Device[];
     groups?: GP51Group[];
     error?: string;
   }> {

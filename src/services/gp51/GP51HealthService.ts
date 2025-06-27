@@ -65,8 +65,14 @@ export class GP51HealthService {
 
     const responseTime = Date.now() - startTime;
     const lastCheck = new Date();
+    const isHealthy = isConnected && tokenValid && sessionValid;
+    const status = isHealthy ? 'healthy' : 'unhealthy';
+    const connectionStatus = isConnected ? 'connected' : 'disconnected';
 
     const healthStatus: GP51HealthStatus = {
+      status,
+      isHealthy,
+      connectionStatus,
       isConnected,
       lastPingTime: lastCheck,
       responseTime,

@@ -1,120 +1,207 @@
 
-import { GP51_BASE_URL, GP51_ACTIONS, buildGP51ApiUrl } from './urlHelpers';
 import { supabaseGP51AuthService } from './SupabaseGP51AuthService';
+import { GP51_BASE_URL, GP51_ACTIONS } from './urlHelpers';
+import type { GP51Device, GP51Position, GP51Group, GP51HealthStatus, GP51PerformanceMetrics } from '@/types/gp51-unified';
 
-export interface GP51Device {
-  deviceid: string;
-  devicename: string;
-  devicetype: number;
-  status: string;
-  lastactivetime: number;
-  groupid?: number;
-  groupname?: string;
-  isfree?: boolean; // Add missing property for compatibility
+// Cache management
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number;
 }
 
-export interface GP51Position {
-  deviceid: string;
-  callat: number; // GP51 uses callat for latitude
-  callon: number; // GP51 uses callon for longitude
-  speed: number;
-  course: number;
-  altitude: number;
-  devicetime: string;
-  servertime: string;
-  status: number;
-  moving: number;
-  gotsrc?: string;
-  battery?: number;
-  signal?: number;
-  satellites?: number;
-  updatetime?: string; // Add missing property
-  arrivedtime?: string; // Add missing property
-  validpoistiontime?: string; // Add missing property
-  radius?: number; // Add missing property
-}
+class GP51Cache {
+  private cache = new Map<string, CacheEntry<any>>();
 
-export interface GP51Group {
-  groupid: number;
-  groupname: string;
-  devices: GP51Device[];
-}
-
-export interface GP51HealthStatus {
-  isConnected: boolean;
-  lastPingTime?: Date;
-  responseTime?: number;
-  tokenValid: boolean;
-  sessionValid: boolean;
-  activeDevices: number;
-  errors: string[];
-  lastCheck: Date;
-  errorMessage?: string;
-}
-
-export interface GP51PerformanceMetrics {
-  responseTime: number;
-  successRate: number;
-  errorRate: number;
-  lastUpdated: Date;
-}
-
-export class GP51DataService {
-  private cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
-  private readonly CACHE_TTL = 300000; // 5 minutes
-
-  private setCache(key: string, data: any, ttl: number = this.CACHE_TTL): void {
+  set<T>(key: string, data: T, ttl: number = 300000): void {
     this.cache.set(key, { data, timestamp: Date.now(), ttl });
   }
 
-  private getCache(key: string): any | null {
-    const item = this.cache.get(key);
-    if (!item) return null;
-    
-    if (Date.now() - item.timestamp > item.ttl) {
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    if (Date.now() - entry.timestamp > entry.ttl) {
       this.cache.delete(key);
       return null;
     }
-    
-    return item.data;
+
+    return entry.data;
   }
 
-  private async makeAuthenticatedRequest(action: string, body?: any): Promise<any> {
-    // Get token from authentication service
+  clear(): void {
+    this.cache.clear();
+  }
+
+  has(key: string): boolean {
+    const entry = this.cache.get(key);
+    if (!entry) return false;
+    
+    if (Date.now() - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return false;
+    }
+    
+    return true;
+  }
+}
+
+// Rate limiting
+class RateLimiter {
+  private attempts = new Map<string, number>();
+  private lastAttempt = new Map<string, number>();
+  private readonly maxAttempts = 5;
+  private readonly windowMs = 3600000; // 1 hour
+
+  canAttempt(key: string): boolean {
+    const now = Date.now();
+    const attempts = this.attempts.get(key) || 0;
+    const lastTime = this.lastAttempt.get(key) || 0;
+
+    if (now - lastTime > this.windowMs) {
+      this.attempts.delete(key);
+      this.lastAttempt.delete(key);
+      return true;
+    }
+
+    return attempts < this.maxAttempts;
+  }
+
+  recordAttempt(key: string): void {
+    const attempts = this.attempts.get(key) || 0;
+    this.attempts.set(key, attempts + 1);
+    this.lastAttempt.set(key, Date.now());
+  }
+}
+
+export class GP51DataService {
+  private cache = new GP51Cache();
+  private rateLimiter = new RateLimiter();
+  private readonly defaultTimeout = 10000;
+  private readonly maxRetries = 3;
+
+  // Convert GP51 API response to unified format
+  private mapDeviceToUnified(device: any): GP51Device {
+    return {
+      deviceid: device.deviceid || device.device_id || '',
+      devicename: device.devicename || device.device_name || '',
+      devicetype: String(device.devicetype || device.device_type || '0'),
+      groupid: device.groupid || device.group_id || '',
+      groupname: device.groupname || device.group_name || '',
+      imei: device.imei || '',
+      simcardno: device.simcardno || device.sim_card_no || '',
+      status: device.status || 0,
+      createtime: device.createtime || device.create_time || new Date().toISOString(),
+      lastactivetime: device.lastactivetime || device.last_active_time || new Date().toISOString(),
+      isOnline: device.isOnline || device.is_online || false,
+      vehicleInfo: device.vehicleInfo || device.vehicle_info || null
+    };
+  }
+
+  private mapPositionToUnified(position: any): GP51Position {
+    return {
+      deviceid: position.deviceid || position.device_id || '',
+      callat: position.callat || position.latitude || 0,
+      callon: position.callon || position.longitude || 0,
+      speed: position.speed || 0,
+      course: position.course || position.direction || 0,
+      altitude: position.altitude || 0,
+      devicetime: position.devicetime || position.device_time || new Date().toISOString(),
+      servertime: position.servertime || position.server_time || new Date().toISOString(),
+      status: position.status || 0,
+      moving: position.moving || false,
+      gotsrc: position.gotsrc || position.gps_source || 0,
+      battery: position.battery || 0,
+      signal: position.signal || 0,
+      satellites: position.satellites || 0,
+      totaldistance: position.totaldistance || position.total_distance || 0,
+      strstatus: position.strstatus || position.str_status || '',
+      strstatusen: position.strstatusen || position.str_status_en || '',
+      alarm: position.alarm || 0,
+      alarmtype: position.alarmtype || position.alarm_type || '',
+      alarmtypeen: position.alarmtypeen || position.alarm_type_en || '',
+      address: position.address || '',
+      addressen: position.addressen || position.address_en || '',
+      geoaddr: position.geoaddr || position.geo_addr || '',
+      geoaddrfrom: position.geoaddrfrom || position.geo_addr_from || '',
+      accuracyvalue: position.accuracyvalue || position.accuracy_value || 0,
+      location: position.location || null,
+      temperature: position.temperature || null,
+      humidity: position.humidity || null,
+      pressure: position.pressure || null,
+      fuel: position.fuel || null,
+      engine: position.engine || null,
+      door: position.door || null,
+      air_condition: position.air_condition || null,
+      custom_data: position.custom_data || null,
+      raw_data: position.raw_data || null
+    };
+  }
+
+  private mapGroupToUnified(group: any): GP51Group {
+    return {
+      groupid: group.groupid || group.group_id || '',
+      groupname: group.groupname || group.group_name || '',
+      parentgroupid: group.parentgroupid || group.parent_group_id || '',
+      level: group.level || 0,
+      devicecount: group.devicecount || group.device_count || 0,
+      children: group.children || []
+    };
+  }
+
+  private async makeGP51Request(action: string, additionalParams: Record<string, any> = {}): Promise<any> {
     const sessionInfo = supabaseGP51AuthService.sessionInfo;
     if (!sessionInfo?.gp51_token) {
       throw new Error('No valid GP51 session found. Please authenticate first.');
     }
 
-    const url = buildGP51ApiUrl(action, sessionInfo.gp51_token);
-    console.log(`🌐 Making GP51 API call: ${url}`);
+    const rateLimitKey = `gp51_${action}`;
+    if (!this.rateLimiter.canAttempt(rateLimitKey)) {
+      throw new Error('Rate limit exceeded. Please wait before making more requests.');
+    }
+
+    const url = new URL(GP51_BASE_URL);
+    url.searchParams.set('action', action);
+    url.searchParams.set('token', sessionInfo.gp51_token);
+
+    // Add additional parameters
+    Object.entries(additionalParams).forEach(([key, value]) => {
+      if (value !== null && value !== undefined) {
+        url.searchParams.set(key, String(value));
+      }
+    });
+
+    console.log(`🌐 [GP51DataService] Making request: ${action}`);
+    const startTime = Date.now();
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
+      const response = await fetch(url.toString(), {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'Envios-Fleet/1.0'
+          'User-Agent': 'GP51-Client/1.0',
+          'Accept': 'application/json'
         },
-        body: body ? JSON.stringify(body) : JSON.stringify({
-          username: sessionInfo.gp51_username
-        })
+        signal: AbortSignal.timeout(this.defaultTimeout)
       });
+
+      const responseTime = Date.now() - startTime;
+      this.rateLimiter.recordAttempt(rateLimitKey);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const result = await response.json();
-      console.log(`📊 GP51 API response for ${action}:`, result);
+      const data = await response.json();
+      console.log(`✅ [GP51DataService] Request completed in ${responseTime}ms`);
 
-      if (result.status !== 0) {
-        throw new Error(`GP51 API error: ${result.cause || 'Unknown error'}`);
+      if (data.status !== 0) {
+        throw new Error(data.cause || `GP51 API error: status ${data.status}`);
       }
 
-      return result;
+      return data;
     } catch (error) {
-      console.error(`❌ GP51 API call failed for ${action}:`, error);
+      const responseTime = Date.now() - startTime;
+      console.error(`❌ [GP51DataService] Request failed after ${responseTime}ms:`, error);
       throw error;
     }
   }
@@ -125,208 +212,111 @@ export class GP51DataService {
     groups?: GP51Group[];
     error?: string;
   }> {
+    const cacheKey = 'monitor_list';
+    
     try {
-      console.log('🔍 Fetching GP51 device tree...');
-
       // Check cache first
-      const cacheKey = 'device-tree';
-      const cached = this.getCache(cacheKey);
+      const cached = this.cache.get(cacheKey);
       if (cached) {
-        console.log('✅ Using cached device tree data');
+        console.log('📦 [GP51DataService] Returning cached monitor list');
         return cached;
       }
 
-      // Make real API call using correct action
-      const result = await this.makeAuthenticatedRequest(GP51_ACTIONS.DEVICE_TREE);
+      console.log('🔍 [GP51DataService] Fetching fresh monitor list from GP51...');
+      
+      const response = await this.makeGP51Request(GP51_ACTIONS.DEVICE_TREE);
+      
+      const devices: GP51Device[] = [];
+      const groups: GP51Group[] = [];
 
-      if (result.groups && Array.isArray(result.groups)) {
-        const devices: GP51Device[] = [];
-        const groups: GP51Group[] = result.groups.map((group: any) => ({
-          groupid: group.groupid,
-          groupname: group.groupname,
-          devices: group.devices || []
-        }));
-
-        // Flatten devices from all groups
-        groups.forEach(group => {
-          if (group.devices) {
-            devices.push(...group.devices.map(device => ({
-              ...device,
-              isfree: device.isfree || false // Ensure isfree property exists
-            })));
+      // Process the response data
+      if (response.data && Array.isArray(response.data)) {
+        response.data.forEach((item: any) => {
+          if (item.deviceid) {
+            devices.push(this.mapDeviceToUnified(item));
+          } else if (item.groupid) {
+            groups.push(this.mapGroupToUnified(item));
           }
         });
-
-        const response = {
-          success: true,
-          data: devices,
-          groups: groups
-        };
-
-        // Cache the result
-        this.setCache(cacheKey, response);
-
-        console.log(`✅ Fetched ${devices.length} devices in ${groups.length} groups`);
-        return response;
       }
 
-      console.warn('⚠️ No groups found in GP51 response');
-      return {
+      const result = {
         success: true,
-        data: [],
-        groups: []
+        data: devices,
+        groups: groups
       };
-
-    } catch (error) {
-      console.error('💥 Failed to fetch GP51 device tree:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch devices'
-      };
-    }
-  }
-
-  async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
-    try {
-      console.log('🔍 Fetching GP51 positions for devices:', deviceIds);
-
-      // Check cache first
-      const cacheKey = `positions-${deviceIds?.join(',') || 'all'}`;
-      const cached = this.getCache(cacheKey);
-      if (cached) {
-        console.log('✅ Using cached position data');
-        return cached;
-      }
-
-      // Make real API call using correct action
-      const result = await this.makeAuthenticatedRequest(GP51_ACTIONS.POSITIONS, {
-        deviceIds: deviceIds || []
-      });
-
-      let positions: GP51Position[] = [];
-
-      if (result.positions && Array.isArray(result.positions)) {
-        positions = result.positions.filter((pos: GP51Position) => {
-          // Filter by device IDs if specified
-          if (deviceIds && deviceIds.length > 0) {
-            return deviceIds.includes(pos.deviceid);
-          }
-          return true;
-        }).map((pos: any) => ({
-          ...pos,
-          updatetime: pos.updatetime || pos.servertime,
-          arrivedtime: pos.arrivedtime || pos.devicetime,
-          validpoistiontime: pos.validpoistiontime || pos.devicetime,
-          radius: pos.radius || 0
-        }));
-      }
 
       // Cache the result
-      this.setCache(cacheKey, positions, 60000); // 1 minute cache for positions
+      this.cache.set(cacheKey, result, 300000); // 5 minutes
 
-      console.log(`✅ Fetched ${positions.length} positions`);
-      return positions;
+      console.log(`✅ [GP51DataService] Monitor list fetched: ${devices.length} devices, ${groups.length} groups`);
+      return result;
 
     } catch (error) {
-      console.error('💥 Failed to fetch GP51 positions:', error);
-      return [];
+      console.error('❌ [GP51DataService] Monitor list fetch failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch monitor list'
+      };
     }
   }
 
   async getLastPositions(deviceIds?: string[]): Promise<GP51Position[]> {
-    return this.getPositions(deviceIds);
-  }
-
-  // Add missing methods for compatibility
-  async getLiveVehicles(): Promise<GP51Device[]> {
-    const result = await this.queryMonitorList();
-    return result.data || [];
-  }
-
-  async getMultipleDevicesLastPositions(deviceIds: string[]): Promise<Map<string, GP51Position>> {
-    const positions = await this.getPositions(deviceIds);
-    const devicePositions = new Map<string, GP51Position>();
+    const cacheKey = `positions_${deviceIds?.join(',') || 'all'}`;
     
-    positions.forEach(pos => {
-      if (deviceIds.includes(pos.deviceid)) {
-        devicePositions.set(pos.deviceid, pos);
-      }
-    });
-    
-    return devicePositions;
-  }
-
-  async getHealthStatus(): Promise<GP51HealthStatus> {
     try {
-      const isAuthenticated = supabaseGP51AuthService.isAuthenticated;
-      const sessionInfo = supabaseGP51AuthService.sessionInfo;
-      
-      const healthStatus: GP51HealthStatus = {
-        isConnected: isAuthenticated,
-        lastPingTime: new Date(),
-        responseTime: 0,
-        tokenValid: !!sessionInfo?.gp51_token,
-        sessionValid: isAuthenticated,
-        activeDevices: 0,
-        errors: [],
-        lastCheck: new Date()
-      };
-
-      if (isAuthenticated) {
-        try {
-          const result = await this.queryMonitorList();
-          healthStatus.activeDevices = result.data?.length || 0;
-          if (!result.success && result.error) {
-            healthStatus.errors.push(result.error);
-          }
-        } catch (error) {
-          healthStatus.errors.push('Failed to fetch device count');
-        }
+      // Check cache first
+      const cached = this.cache.get<GP51Position[]>(cacheKey);
+      if (cached) {
+        console.log('📦 [GP51DataService] Returning cached positions');
+        return cached;
       }
 
-      return healthStatus;
+      console.log('🔍 [GP51DataService] Fetching fresh positions from GP51...');
+      
+      const params: Record<string, any> = {};
+      if (deviceIds && deviceIds.length > 0) {
+        params.deviceids = deviceIds.join(',');
+      }
+
+      const response = await this.makeGP51Request(GP51_ACTIONS.POSITIONS, params);
+      
+      const positions: GP51Position[] = [];
+
+      if (response.data && Array.isArray(response.data)) {
+        response.data.forEach((item: any) => {
+          positions.push(this.mapPositionToUnified(item));
+        });
+      }
+
+      // Cache the result
+      this.cache.set(cacheKey, positions, 60000); // 1 minute for positions
+
+      console.log(`✅ [GP51DataService] Positions fetched: ${positions.length} records`);
+      return positions;
+
     } catch (error) {
-      return {
-        isConnected: false,
-        lastPingTime: new Date(),
-        responseTime: 0,
-        tokenValid: false,
-        sessionValid: false,
-        activeDevices: 0,
-        errors: [error instanceof Error ? error.message : 'Unknown error'],
-        lastCheck: new Date()
-      };
+      console.error('❌ [GP51DataService] Position fetch failed:', error);
+      return [];
     }
   }
 
-  async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
-    // Simple implementation - in production you'd track these metrics
-    return {
-      responseTime: 150,
-      successRate: 0.95,
-      errorRate: 0.05,
-      lastUpdated: new Date()
-    };
+  async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
+    return this.getLastPositions(deviceIds);
   }
 
   async testConnection(): Promise<{ success: boolean; error?: string }> {
     try {
-      // Check if we have valid authentication
-      if (!supabaseGP51AuthService.isAuthenticated) {
-        return {
-          success: false,
-          error: 'Not authenticated with GP51'
-        };
-      }
-
-      // Try to fetch device tree as a connection test
-      const result = await this.queryMonitorList();
-      return {
-        success: result.success,
-        error: result.error
-      };
+      console.log('🔍 [GP51DataService] Testing GP51 connection...');
+      
+      // Try to fetch a small amount of data to test connectivity
+      await this.makeGP51Request(GP51_ACTIONS.DEVICE_TREE);
+      
+      console.log('✅ [GP51DataService] Connection test successful');
+      return { success: true };
 
     } catch (error) {
+      console.error('❌ [GP51DataService] Connection test failed:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Connection test failed'
@@ -334,10 +324,70 @@ export class GP51DataService {
     }
   }
 
-  // Clear cache when needed
+  getPerformanceMetrics(): GP51PerformanceMetrics {
+    return {
+      success: true,
+      requestStartTime: Date.now(),
+      timestamp: new Date(),
+      deviceCount: 0,
+      positionCount: 0,
+      responseTime: 0,
+      cacheHitRate: 0,
+      errorRate: 0,
+      apiCallsCount: 0,
+      lastSuccessfulCall: new Date(),
+      lastFailedCall: null,
+      averageResponseTime: 0,
+      peakResponseTime: 0,
+      systemLoad: 0,
+      memoryUsage: 0,
+      networkLatency: 0,
+      connectionHealth: 100
+    };
+  }
+
   clearCache(): void {
+    console.log('🧹 [GP51DataService] Clearing cache');
     this.cache.clear();
-    console.log('🧹 GP51 cache cleared');
+  }
+
+  // Health check method
+  async healthCheck(): Promise<GP51HealthStatus> {
+    const startTime = Date.now();
+    
+    try {
+      const connectionTest = await this.testConnection();
+      const responseTime = Date.now() - startTime;
+      const authStatus = supabaseGP51AuthService.getSessionStatus();
+
+      return {
+        status: connectionTest.success ? 'healthy' : 'unhealthy',
+        isHealthy: connectionTest.success,
+        connectionStatus: connectionTest.success ? 'connected' : 'disconnected',
+        isConnected: connectionTest.success,
+        lastPingTime: new Date(),
+        responseTime,
+        tokenValid: authStatus.isAuthenticated,
+        sessionValid: !authStatus.isExpired,
+        activeDevices: 0,
+        errorMessage: connectionTest.error,
+        lastCheck: new Date()
+      };
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        isHealthy: false,
+        connectionStatus: 'error',
+        isConnected: false,
+        lastPingTime: new Date(),
+        responseTime: Date.now() - startTime,
+        tokenValid: false,
+        sessionValid: false,
+        activeDevices: 0,
+        errorMessage: error instanceof Error ? error.message : 'Health check failed',
+        lastCheck: new Date()
+      };
+    }
   }
 }
 
