@@ -3,35 +3,20 @@ import { supabase } from '@/integrations/supabase/client';
 import type { 
   GP51DeviceTreeResponse,
   GP51Position,
-  GP51HealthStatus
+  GP51HealthStatus,
+  GP51PerformanceMetrics,
+  GP51Device as GP51DeviceData
 } from '@/types/gp51-unified';
 
-export interface GP51Device {
-  id: string;
-  user_id: string;
-  device_id: string;
-  device_name: string;
-  device_type: number;
-  group_id: number;
-  group_name: string;
-  is_free: number;
-  last_active_time: number;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  raw_data: any;
-}
-
 export class SupabaseGP51DataService {
-  
   async queryMonitorList(): Promise<GP51DeviceTreeResponse> {
     try {
-      console.log('🔍 Fetching GP51 device tree via Supabase...');
+      console.log('🔍 Querying GP51 device monitor list...');
 
       const { data, error } = await supabase.functions.invoke('gp51-devices');
 
       if (error) {
-        console.error('❌ Device tree fetch error:', error);
+        console.error('❌ Device list error:', error);
         return {
           success: false,
           data: [],
@@ -40,61 +25,72 @@ export class SupabaseGP51DataService {
         };
       }
 
-      if (!data.success) {
-        console.error('❌ GP51 device fetch failed:', data.error);
+      if (!data?.success) {
+        console.error('❌ GP51 devices API error:', data?.error);
         return {
           success: false,
           data: [],
           groups: [],
-          error: data.error || 'Failed to fetch devices'
+          error: data?.error || 'GP51 API error'
         };
       }
 
-      console.log(`✅ Successfully fetched ${data.deviceCount} devices in ${data.groupCount} groups`);
-
+      console.log('✅ Device monitor list retrieved successfully');
+      
       return {
         success: true,
         data: data.devices || [],
-        groups: data.groups || [],
-        deviceCount: data.deviceCount,
-        groupCount: data.groupCount
+        groups: data.groups || []
       };
 
     } catch (error) {
-      console.error('💥 Device tree error:', error);
+      console.error('💥 Device list error:', error);
       return {
         success: false,
         data: [],
         groups: [],
-        error: error instanceof Error ? error.message : 'Device fetch failed'
+        error: error instanceof Error ? error.message : 'Network error'
       };
     }
   }
 
   async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     try {
-      console.log(`📍 Fetching positions for ${deviceIds?.length || 'all'} devices...`);
+      console.log('📍 Fetching GP51 positions for devices:', deviceIds?.length || 'all');
 
       const { data, error } = await supabase.functions.invoke('gp51-get-positions', {
-        body: { 
-          deviceIds: deviceIds || [],
-          lastQueryTime: 0
-        }
+        body: { deviceIds: deviceIds || [] }
       });
 
       if (error) {
-        console.error('❌ Position fetch error:', error);
+        console.error('❌ Positions error:', error);
         return [];
       }
 
-      if (!data.success) {
-        console.error('❌ GP51 position fetch failed:', data.error);
+      if (!data?.success) {
+        console.error('❌ GP51 positions API error:', data?.error);
         return [];
       }
 
-      console.log(`✅ Successfully fetched ${data.validRecords} valid positions`);
+      console.log('✅ Positions retrieved:', data.positions?.length || 0);
 
-      return data.positions || [];
+      // Return positions in the expected format
+      return (data.positions || []).map((pos: any) => ({
+        deviceid: pos.deviceid,
+        callat: pos.callat,
+        callon: pos.callon,
+        speed: pos.speed,
+        course: pos.course,
+        altitude: pos.altitude,
+        devicetime: pos.devicetime,
+        servertime: pos.servertime,
+        status: pos.status,
+        moving: pos.moving,
+        gotsrc: pos.gotsrc,
+        battery: pos.battery,
+        signal: pos.signal,
+        satellites: pos.satellites
+      }));
 
     } catch (error) {
       console.error('💥 Get positions error:', error);
@@ -102,29 +98,7 @@ export class SupabaseGP51DataService {
     }
   }
 
-  // Get cached devices from Supabase database
-  async getCachedDevices(): Promise<GP51Device[]> {
-    try {
-      const { data, error } = await supabase
-        .from('gp51_devices')
-        .select('*')
-        .order('updated_at', { ascending: false });
-
-      if (error) {
-        console.error('❌ Cached devices error:', error);
-        return [];
-      }
-
-      return data || [];
-
-    } catch (error) {
-      console.error('💥 Get cached devices error:', error);
-      return [];
-    }
-  }
-
-  // Get cached positions from Supabase database
-  async getCachedPositions(deviceIds?: string[], limit: number = 1000): Promise<GP51Position[]> {
+  async getCachedPositions(deviceIds?: string[]): Promise<any[]> {
     try {
       let query = supabase
         .from('gp51_positions')
@@ -135,7 +109,7 @@ export class SupabaseGP51DataService {
         query = query.in('device_id', deviceIds);
       }
 
-      const { data, error } = await query.limit(limit);
+      const { data, error } = await query.limit(1000);
 
       if (error) {
         console.error('❌ Cached positions error:', error);
@@ -166,48 +140,94 @@ export class SupabaseGP51DataService {
     }
   }
 
+  async getMultipleDevicesLastPositions(deviceIds: string[]): Promise<Map<string, GP51Position>> {
+    const positions = await this.getPositions(deviceIds);
+    const devicePositions = new Map<string, GP51Position>();
+    
+    positions.forEach(pos => {
+      if (deviceIds.includes(pos.deviceid)) {
+        devicePositions.set(pos.deviceid, pos);
+      }
+    });
+    
+    return devicePositions;
+  }
+
+  async getLiveVehicles(): Promise<{
+    success: boolean;
+    data?: any[];
+    groups?: any;
+    error?: string;
+  }> {
+    try {
+      console.log('🚗 Fetching live vehicles data...');
+
+      const [deviceTree, positions] = await Promise.all([
+        this.queryMonitorList(),
+        this.getPositions()
+      ]);
+
+      if (!deviceTree.success) {
+        return {
+          success: false,
+          error: deviceTree.error
+        };
+      }
+
+      // Combine device info with real-time positions
+      const liveVehicles = deviceTree.data?.map(device => {
+        const position = positions.find(pos => pos.deviceid === device.deviceid);
+        return {
+          ...device,
+          position,
+          isOnline: position ? position.status === 1 : false,
+          isMoving: position ? position.moving === 1 : false,
+          latitude: position?.callat,
+          longitude: position?.callon,
+          speed: position?.speed || 0,
+          course: position?.course || 0,
+          lastUpdate: position ? new Date(position.devicetime) : null
+        };
+      }) || [];
+
+      console.log('✅ Live vehicles data prepared:', liveVehicles.length);
+
+      return {
+        success: true,
+        data: liveVehicles,
+        groups: deviceTree.groups
+      };
+    } catch (error) {
+      console.error('💥 Live vehicles error:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch live data'
+      };
+    }
+  }
+
   async getHealthStatus(): Promise<GP51HealthStatus> {
     try {
       const startTime = Date.now();
-      
-      // Test device tree fetch
       const deviceTree = await this.queryMonitorList();
       const responseTime = Date.now() - startTime;
 
-      // Check Supabase auth status
       const { data: { session } } = await supabase.auth.getSession();
       const isAuthenticated = !!session;
 
-      // Check active GP51 session
-      let hasActiveGP51Session = false;
-      if (session) {
-        const { data: gp51Sessions } = await supabase
-          .from('gp51_sessions')
-          .select('id')
-          .eq('user_id', session.user.id)
-          .eq('is_active', true)
-          .gt('expires_at', new Date().toISOString())
-          .limit(1);
-
-        hasActiveGP51Session = !!(gp51Sessions && gp51Sessions.length > 0);
-      }
-
-      const isConnected = deviceTree.success && hasActiveGP51Session;
-
       return {
-        status: isConnected ? 'healthy' : 'failed',
+        status: deviceTree.success ? 'healthy' : 'failed',
         lastCheck: new Date(),
         responseTime,
-        isConnected,
+        isConnected: deviceTree.success,
         lastPingTime: new Date(),
-        tokenValid: hasActiveGP51Session,
+        tokenValid: isAuthenticated,
         sessionValid: isAuthenticated,
-        activeDevices: deviceTree.deviceCount || 0,
-        errorMessage: deviceTree.error,
-        isHealthy: isConnected,
-        connectionStatus: isConnected ? 'connected' : 'disconnected'
+        activeDevices: deviceTree.data?.length || 0,
+        isHealthy: deviceTree.success && isAuthenticated,
+        connectionStatus: deviceTree.success ? 'connected' : 'disconnected',
+        errorMessage: deviceTree.error
       };
-
     } catch (error) {
       return {
         status: 'failed',
@@ -224,45 +244,93 @@ export class SupabaseGP51DataService {
     }
   }
 
-  // Set up real-time position updates
-  setupRealtimePositions(callback: (positions: GP51Position[]) => void) {
-    const channel = supabase
-      .channel('gp51_positions_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'gp51_positions'
-        },
-        (payload) => {
-          console.log('📡 New position received:', payload.new);
-          // Fetch updated positions and call callback
-          this.getCachedPositions().then(callback);
-        }
-      )
-      .subscribe();
+  async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
+    const startTime = Date.now();
+    
+    try {
+      const [health, deviceTree, positions] = await Promise.all([
+        this.getHealthStatus(),
+        this.queryMonitorList(),
+        this.getPositions()
+      ]);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+      const responseTime = Date.now() - startTime;
+      const now = new Date();
+      const activeDevices = positions.filter(pos => pos.status === 1).length;
+      const movingVehicles = positions.filter(pos => pos.moving === 1).length;
+
+      return {
+        responseTime,
+        success: health.isHealthy,
+        requestStartTime: new Date(startTime).toISOString(),
+        timestamp: now.toISOString(),
+        deviceCount: deviceTree.data?.length || 0,
+        groupCount: deviceTree.groups?.length || 0,
+        apiCallCount: 3,
+        errorRate: health.isHealthy ? 0 : 1,
+        averageResponseTime: responseTime,
+        totalVehicles: deviceTree.data?.length || 0,
+        activeVehicles: activeDevices,
+        activeDevices,
+        movingVehicles,
+        stoppedVehicles: activeDevices - movingVehicles,
+        lastUpdateTime: now,
+        dataQuality: health.isHealthy ? 0.95 : 0,
+        onlinePercentage: deviceTree.data?.length ? 
+          (activeDevices / deviceTree.data.length) * 100 : 0,
+        utilizationRate: deviceTree.data?.length ? 
+          (movingVehicles / deviceTree.data.length) * 100 : 0
+      };
+    } catch (error) {
+      const responseTime = Date.now() - startTime;
+      const now = new Date();
+      
+      return {
+        responseTime,
+        success: false,
+        requestStartTime: new Date(startTime).toISOString(),
+        timestamp: now.toISOString(),
+        deviceCount: 0,
+        groupCount: 0,
+        apiCallCount: 0,
+        errorRate: 1,
+        averageResponseTime: responseTime,
+        totalVehicles: 0,
+        activeVehicles: 0,
+        activeDevices: 0,
+        movingVehicles: 0,
+        stoppedVehicles: 0,
+        lastUpdateTime: now,
+        dataQuality: 0,
+        onlinePercentage: 0,
+        utilizationRate: 0
+      };
+    }
   }
 
-  // Set up real-time device updates
-  setupRealtimeDevices(callback: (devices: GP51Device[]) => void) {
+  async testConnection(): Promise<GP51HealthStatus> {
+    return this.getHealthStatus();
+  }
+
+  processPositions(positions: GP51Position[]): GP51Position[] {
+    return positions.filter(pos => {
+      // Validate GPS coordinates
+      const validLat = Math.abs(pos.callat) <= 90;
+      const validLon = Math.abs(pos.callon) <= 180;
+      return validLat && validLon && pos.deviceid;
+    });
+  }
+
+  // Real-time subscriptions for live updates
+  subscribeToPositionUpdates(callback: (positions: GP51Position[]) => void) {
     const channel = supabase
-      .channel('gp51_devices_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'gp51_devices'
-        },
+      .channel('gp51_positions_realtime')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'gp51_positions' },
         (payload) => {
-          console.log('📡 Device update received:', payload);
-          // Fetch updated devices and call callback
-          this.getCachedDevices().then(callback);
+          console.log('📍 New position received:', payload.new);
+          // Trigger callback with updated positions
+          this.getCachedPositions().then(callback);
         }
       )
       .subscribe();

@@ -5,86 +5,92 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, Save, Key, CheckCircle, XCircle, Loader2 } from 'lucide-react';
-import { supabaseGP51AuthService } from '@/services/gp51/SupabaseGP51AuthService';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, CheckCircle, XCircle, Key, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabaseGP51AuthService } from '@/services/gp51/SupabaseGP51AuthService';
 
 const GP51CredentialManager: React.FC = () => {
   const [credentials, setCredentials] = useState({
     username: '',
     password: ''
   });
-  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
-  const [sessionStatus, setSessionStatus] = useState(supabaseGP51AuthService.getSessionStatus());
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [sessionInfo, setSessionInfo] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Load session status on mount
   useEffect(() => {
-    const loadSession = async () => {
-      setIsLoading(true);
-      try {
-        await supabaseGP51AuthService.loadExistingSession();
-        setSessionStatus(supabaseGP51AuthService.getSessionStatus());
-      } catch (error) {
-        console.error('Failed to load session:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadSession();
+    checkAuthStatus();
   }, []);
 
-  const testCredentials = async () => {
+  const checkAuthStatus = async () => {
+    try {
+      const status = supabaseGP51AuthService.getSessionStatus();
+      setIsAuthenticated(status.isAuthenticated);
+      setSessionInfo(status);
+      
+      if (status.isAuthenticated && status.currentUsername) {
+        setCredentials(prev => ({ ...prev, username: status.currentUsername || '' }));
+      }
+    } catch (error) {
+      console.error('Error checking auth status:', error);
+    }
+  };
+
+  const handleAuthenticate = async () => {
     if (!credentials.username || !credentials.password) {
-      toast({
-        title: "Missing Credentials",
-        description: "Please enter both username and password",
-        variant: "destructive",
-      });
+      setError('Please enter both username and password');
       return;
     }
 
-    setIsTesting(true);
+    setIsLoading(true);
+    setError(null);
+
     try {
       const result = await supabaseGP51AuthService.authenticate(
-        credentials.username, 
+        credentials.username,
         credentials.password
       );
 
       if (result.success) {
-        setSessionStatus(supabaseGP51AuthService.getSessionStatus());
-        setCredentials({ username: '', password: '' }); // Clear for security
-        
+        setIsAuthenticated(true);
+        await checkAuthStatus();
         toast({
           title: "Authentication Successful",
-          description: `Connected to GP51 as ${result.username}`,
+          description: `Connected to GP51 as ${credentials.username}`,
         });
+        // Clear password for security
+        setCredentials(prev => ({ ...prev, password: '' }));
       } else {
+        setError(result.error || 'Authentication failed');
         toast({
           title: "Authentication Failed",
-          description: result.error || 'Invalid credentials',
+          description: result.error || 'Invalid GP51 credentials',
           variant: "destructive",
         });
       }
-    } catch (error) {
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Authentication error';
+      setError(errorMessage);
       toast({
-        title: "Connection Error",
-        description: error instanceof Error ? error.message : 'Authentication failed',
+        title: "Authentication Error",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
-      setIsTesting(false);
+      setIsLoading(false);
     }
   };
 
-  const disconnect = async () => {
+  const handleDisconnect = async () => {
+    setIsLoading(true);
     try {
-      await supabaseGP51AuthService.disconnect();
-      setSessionStatus(supabaseGP51AuthService.getSessionStatus());
-      
+      await supabaseGP51AuthService.logout();
+      setIsAuthenticated(false);
+      setSessionInfo(null);
+      setCredentials({ username: '', password: '' });
       toast({
         title: "Disconnected",
         description: "Successfully disconnected from GP51",
@@ -92,91 +98,76 @@ const GP51CredentialManager: React.FC = () => {
     } catch (error) {
       toast({
         title: "Disconnect Error",
-        description: "Failed to disconnect cleanly",
+        description: "Failed to disconnect from GP51",
         variant: "destructive",
       });
-    }
-  };
-
-  const refreshStatus = async () => {
-    setIsLoading(true);
-    try {
-      const isValid = await supabaseGP51AuthService.refreshSession();
-      setSessionStatus(supabaseGP51AuthService.getSessionStatus());
-      
-      if (!isValid) {
-        toast({
-          title: "Session Expired",
-          description: "Please re-authenticate with GP51",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      console.error('Refresh error:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getStatusIcon = () => {
-    if (isLoading) return <Loader2 className="h-5 w-5 animate-spin text-gray-500" />;
-    if (sessionStatus.isAuthenticated) return <CheckCircle className="h-5 w-5 text-green-500" />;
-    return <XCircle className="h-5 w-5 text-red-500" />;
+  const getConnectionStatus = () => {
+    if (isAuthenticated && sessionInfo) {
+      return {
+        status: 'connected',
+        icon: CheckCircle,
+        color: 'text-green-500',
+        bgColor: 'bg-green-50',
+        borderColor: 'border-green-200'
+      };
+    } else {
+      return {
+        status: 'disconnected',
+        icon: XCircle,
+        color: 'text-red-500',
+        bgColor: 'bg-red-50',
+        borderColor: 'border-red-200'
+      };
+    }
   };
 
-  const getStatusColor = () => {
-    if (sessionStatus.isAuthenticated) return 'border-green-200 bg-green-50';
-    if (sessionStatus.isExpired) return 'border-red-200 bg-red-50';
-    return 'border-gray-200';
-  };
+  const connectionStatus = getConnectionStatus();
+  const StatusIcon = connectionStatus.icon;
 
   return (
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Key className="h-5 w-5" />
-          GP51 Authentication
+          <Shield className="h-5 w-5" />
+          GP51 Secure Authentication
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Current Status */}
-        <Alert className={getStatusColor()}>
-          <div className="flex items-center gap-2">
-            {getStatusIcon()}
-            <AlertDescription className="flex-1">
-              {sessionStatus.isAuthenticated ? (
-                <div>
-                  <strong>Connected to GP51</strong> as {sessionStatus.username}
-                  <br />
-                  <span className="text-sm text-gray-600">
-                    Session expires: {sessionStatus.expiresAt?.toLocaleString()}
-                  </span>
-                </div>
-              ) : (
-                <div>
-                  <strong>Not connected to GP51</strong>
-                  <br />
-                  <span className="text-sm text-gray-600">
-                    {sessionStatus.isExpired ? 'Session expired - please re-authenticate' : 'Please enter your GP51 credentials'}
-                  </span>
-                </div>
-              )}
-            </AlertDescription>
-            {sessionStatus.isAuthenticated && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={disconnect}
-                className="ml-2"
-              >
-                Disconnect
-              </Button>
-            )}
+        {/* Connection Status */}
+        <div className={`p-3 rounded-lg border ${connectionStatus.bgColor} ${connectionStatus.borderColor}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <StatusIcon className={`h-4 w-4 ${connectionStatus.color}`} />
+              <span className="font-medium">
+                {connectionStatus.status === 'connected' ? 'Connected to GP51' : 'Not Connected'}
+              </span>
+            </div>
+            <Badge variant={connectionStatus.status === 'connected' ? 'default' : 'secondary'}>
+              {connectionStatus.status}
+            </Badge>
           </div>
-        </Alert>
+          
+          {sessionInfo && isAuthenticated && (
+            <div className="mt-2 text-sm text-gray-600">
+              <p>Username: <span className="font-mono">{sessionInfo.currentUsername}</span></p>
+              <p>Expires: {sessionInfo.expiresAt ? new Date(sessionInfo.expiresAt).toLocaleString() : 'Unknown'}</p>
+            </div>
+          )}
+        </div>
 
-        {/* Authentication Form */}
-        {!sessionStatus.isAuthenticated && (
+        {error && (
+          <Alert variant="destructive">
+            <XCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {!isAuthenticated ? (
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">GP51 Username</Label>
@@ -186,86 +177,76 @@ const GP51CredentialManager: React.FC = () => {
                 placeholder="Enter your GP51 username"
                 value={credentials.username}
                 onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
-                disabled={isLoading || isTesting}
+                disabled={isLoading}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">GP51 Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your GP51 password"
-                  value={credentials.password}
-                  onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
-                  disabled={isLoading || isTesting}
-                  className="pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter your GP51 password"
+                value={credentials.password}
+                onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
+                disabled={isLoading}
+                onKeyPress={(e) => e.key === 'Enter' && handleAuthenticate()}
+              />
             </div>
 
-            <Button
-              onClick={testCredentials}
-              disabled={isLoading || isTesting || !credentials.username || !credentials.password}
+            <Button 
+              onClick={handleAuthenticate} 
+              disabled={isLoading || !credentials.username || !credentials.password}
               className="w-full"
             >
-              {isTesting ? (
+              {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Authenticating...
                 </>
               ) : (
                 <>
-                  <Save className="h-4 w-4 mr-2" />
-                  Authenticate with GP51
+                  <Key className="mr-2 h-4 w-4" />
+                  Connect to GP51
                 </>
               )}
             </Button>
           </div>
-        )}
+        ) : (
+          <div className="space-y-4">
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex items-center gap-2 text-green-700">
+                <CheckCircle className="h-4 w-4" />
+                <span className="font-medium">Successfully connected to GP51</span>
+              </div>
+              <p className="text-sm text-green-600 mt-1">
+                You can now access GP51 device data and real-time positions.
+              </p>
+            </div>
 
-        {/* Actions for authenticated users */}
-        {sessionStatus.isAuthenticated && (
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={refreshStatus}
+            <Button 
+              onClick={handleDisconnect} 
               disabled={isLoading}
-              className="flex-1"
+              variant="outline"
+              className="w-full"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Checking...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Disconnecting...
                 </>
               ) : (
-                'Refresh Status'
+                'Disconnect from GP51'
               )}
             </Button>
           </div>
         )}
 
-        {/* Security Notice */}
-        <Alert>
-          <AlertDescription>
-            <strong>Security:</strong> All authentication is handled securely through Supabase Edge Functions. 
-            Your GP51 credentials are never stored permanently and sessions are automatically managed.
-          </AlertDescription>
-        </Alert>
+        <div className="text-xs text-gray-500 space-y-1">
+          <p>🔒 Your credentials are securely encrypted and stored using Supabase Edge Functions</p>
+          <p>🌍 All GP51 API calls are made server-side for enhanced security</p>
+          <p>🔄 Sessions are automatically managed and refreshed as needed</p>
+        </div>
       </CardContent>
     </Card>
   );

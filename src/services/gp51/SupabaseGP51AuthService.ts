@@ -5,8 +5,8 @@ import type { GP51AuthResponse } from '@/types/gp51-unified';
 export interface GP51Session {
   id: string;
   user_id: string;
-  gp51_token: string;
   gp51_username: string;
+  gp51_token: string;
   created_at: string;
   expires_at: string;
   is_active: boolean;
@@ -89,7 +89,6 @@ export class SupabaseGP51AuthService {
         cause: 'OK',
         success: true,
         token: data.token,
-        username: data.username,
         sessionId: data.sessionId,
         expiresAt: data.expiresAt
       };
@@ -185,7 +184,7 @@ export class SupabaseGP51AuthService {
     if (!this.currentSession) {
       return {
         isAuthenticated: false,
-        username: null,
+        currentUsername: null,
         expiresAt: null,
         isExpired: true
       };
@@ -196,7 +195,7 @@ export class SupabaseGP51AuthService {
 
     return {
       isAuthenticated: !isExpired,
-      username: this.currentSession.gp51_username,
+      currentUsername: this.currentSession.gp51_username,
       expiresAt: expiresAt,
       isExpired: isExpired
     };
