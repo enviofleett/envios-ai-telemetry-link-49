@@ -13,9 +13,9 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  try {
-    console.log(`[${new Date().toISOString()}] GP51 Secure Auth Request`);
+  console.log("🚀 GP51 Auth function started");
 
+  try {
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -23,13 +23,8 @@ serve(async (req) => {
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(JSON.stringify({ 
-        success: false,
-        error: 'Authorization required'
-      }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      console.error("❌ No auth header");
+      return jsonResponse({ success: false, error: 'Authorization required' }, 401);
     }
 
     const supabase = createClient(
@@ -40,26 +35,25 @@ serve(async (req) => {
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
-      return new Response(JSON.stringify({ 
-        success: false,
-        error: 'Invalid authentication'
-      }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      console.error("❌ User auth failed:", authError?.message);
+      return jsonResponse({ success: false, error: 'Invalid authentication' }, 401);
     }
 
-    const body = await req.json();
-    const { username, password } = body;
+    console.log("✅ User authenticated");
 
+    // Parse request body with error handling
+    let requestBody;
+    try {
+      requestBody = await req.json();
+    } catch (bodyError) {
+      console.error("❌ Request body parse error:", bodyError);
+      return jsonResponse({ success: false, error: 'Invalid request body' }, 400);
+    }
+
+    const { username, password } = requestBody;
     if (!username || !password) {
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Username and password are required'
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      console.error("❌ Missing credentials");
+      return jsonResponse({ success: false, error: 'Username and password are required' }, 400);
     }
 
     console.log(`🔐 GP51 authentication for user: ${username}`);
@@ -68,132 +62,188 @@ serve(async (req) => {
     const hashedPassword = await createMD5Hash(password);
     console.log('✅ MD5 hash generated successfully');
 
-    // Call GP51 API with proper endpoint
-    console.log('📡 Calling GP51 API...');
-    const gp51Response = await fetch('https://www.gps51.com/webapi?action=login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': 'Supabase-GP51-Integration/1.0'
-      },
-      body: JSON.stringify({
-        username,
-        password: hashedPassword,
-        from: 'WEB',
-        type: 'USER'
-      }),
-      signal: AbortSignal.timeout(15000)
+    // ROBUST GP51 API CALL with multiple fallbacks
+    const loginResult = await callGP51Login(username, hashedPassword);
+    
+    if (!loginResult.success) {
+      console.error("❌ GP51 login failed:", loginResult.error);
+      return jsonResponse({ 
+        success: false, 
+        error: loginResult.error,
+        debug: loginResult.debug,
+        gp51_status: loginResult.gp51_status
+      }, loginResult.status || 401);
+    }
+
+    console.log("🎉 GP51 login successful");
+
+    // Store session in database
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 23);
+
+    const { error: sessionError } = await supabaseAdmin
+      .from('gp51_sessions')
+      .upsert({
+        envio_user_id: user.id,
+        username: username,
+        gp51_token: loginResult.token,
+        token_expires_at: expiresAt.toISOString(),
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        last_activity_at: new Date().toISOString()
+      }, {
+        onConflict: 'envio_user_id'
+      });
+
+    if (sessionError) {
+      console.error('❌ Failed to store session:', sessionError);
+    } else {
+      console.log('✅ GP51 session stored successfully');
+    }
+
+    return jsonResponse({
+      success: true,
+      message: 'GP51 authentication successful',
+      username: username,
+      token: loginResult.token,
+      expiresAt: expiresAt.toISOString(),
+      timestamp: new Date().toISOString()
     });
 
-    if (!gp51Response.ok) {
-      throw new Error(`GP51 API Error: ${gp51Response.status}`);
-    }
-
-    const responseText = await gp51Response.text();
-    console.log(`📄 GP51 Response length: ${responseText.length}`);
-
-    // Enhanced JSON parsing with validation
-    if (!responseText || responseText.trim().length === 0) {
-      console.error('❌ Empty response from GP51 API');
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Empty response from GP51 API'
-      }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Check if response looks like JSON
-    const trimmedResponse = responseText.trim();
-    if (!trimmedResponse.startsWith('{') && !trimmedResponse.startsWith('[')) {
-      console.error('❌ Non-JSON response from GP51:', trimmedResponse.substring(0, 100));
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Invalid response format from GP51 API'
-      }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    let gp51Result;
-    try {
-      gp51Result = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ JSON Parse Error:', parseError);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Invalid JSON response from GP51 API'
-      }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    console.log('📊 GP51 Response status:', gp51Result.status);
-
-    if (gp51Result.status === 0 && gp51Result.token) {
-      // Store session in database
-      const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 23); // GP51 tokens last ~24 hours
-
-      const { error: sessionError } = await supabaseAdmin
-        .from('gp51_sessions')
-        .upsert({
-          envio_user_id: user.id,
-          username: username,
-          gp51_token: gp51Result.token,
-          token_expires_at: expiresAt.toISOString(),
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          last_activity_at: new Date().toISOString()
-        }, {
-          onConflict: 'envio_user_id'
-        });
-
-      if (sessionError) {
-        console.error('❌ Failed to store session:', sessionError);
-      } else {
-        console.log('✅ GP51 session stored successfully');
-      }
-
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'GP51 authentication successful',
-        username: username,
-        token: gp51Result.token,
-        expiresAt: expiresAt.toISOString(),
-        timestamp: new Date().toISOString()
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-
-    } else {
-      console.error('❌ GP51 authentication failed:', gp51Result.cause);
-      return new Response(JSON.stringify({
-        success: false,
-        error: gp51Result.cause || 'GP51 authentication failed',
-        gp51_status: gp51Result.status
-      }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
   } catch (error) {
-    console.error('💥 GP51 Auth Error:', error);
-    return new Response(JSON.stringify({
+    console.error("💥 Unexpected error:", error);
+    return jsonResponse({
       success: false,
       error: `Authentication failed: ${error.message}`,
       details: error.stack
-    }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-    });
+    }, 500);
   }
 });
+
+// ROBUST GP51 API CALLER
+async function callGP51Login(username: string, hashedPassword: string) {
+  const endpoints = [
+    'https://www.gps51.com/webapi?action=login',
+    'https://api.gps51.com/webapi?action=login',
+    'https://gps51.com/webapi?action=login'
+  ];
+
+  const requestBody = {
+    username,
+    password: hashedPassword,
+    from: 'WEB',
+    type: 'USER'
+  };
+
+  for (const endpoint of endpoints) {
+    try {
+      console.log(`🌐 Trying endpoint: ${endpoint}`);
+      
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Envios-Fleet/1.0',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(requestBody),
+        signal: AbortSignal.timeout(15000)
+      });
+
+      console.log(`📡 Response status: ${response.status}`);
+      console.log(`📡 Response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        console.warn(`⚠️ HTTP ${response.status} from ${endpoint}`);
+        continue;
+      }
+
+      // BULLETPROOF RESPONSE PARSING
+      const responseText = await response.text();
+      console.log(`📄 Response length: ${responseText.length}`);
+      console.log(`📄 Response preview: "${responseText.substring(0, 200)}..."`);
+
+      // Check if response looks like JSON
+      if (!responseText.trim()) {
+        console.warn("⚠️ Empty response");
+        continue;
+      }
+
+      if (!isValidJSON(responseText)) {
+        console.warn("⚠️ Response is not valid JSON");
+        console.log(`📄 Full response: ${responseText}`);
+        continue;
+      }
+
+      let parsedResponse;
+      try {
+        parsedResponse = JSON.parse(responseText);
+      } catch (parseError) {
+        console.warn("⚠️ JSON parse failed:", parseError);
+        continue;
+      }
+
+      console.log(`📊 Parsed response:`, parsedResponse);
+
+      // Check GP51 response format
+      if (typeof parsedResponse.status !== 'undefined') {
+        if (parsedResponse.status === 0 && parsedResponse.token) {
+          return {
+            success: true,
+            token: parsedResponse.token,
+            gp51_status: parsedResponse.status
+          };
+        } else {
+          return {
+            success: false,
+            error: parsedResponse.cause || 'GP51 authentication failed',
+            gp51_status: parsedResponse.status,
+            debug: `GP51 returned status ${parsedResponse.status}`
+          };
+        }
+      } else {
+        console.warn("⚠️ Unexpected response format");
+        continue;
+      }
+
+    } catch (fetchError) {
+      console.warn(`⚠️ Fetch error for ${endpoint}:`, fetchError.message);
+      continue;
+    }
+  }
+
+  // All endpoints failed
+  return {
+    success: false,
+    error: 'GP51 API unavailable - all endpoints failed',
+    debug: 'Tried multiple endpoints, all failed',
+    status: 502
+  };
+}
+
+// BULLETPROOF JSON VALIDATOR
+function isValidJSON(text: string): boolean {
+  const trimmed = text.trim();
+  
+  // Must start with { or [
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return false;
+  }
+  
+  // Must end with } or ]
+  if (!trimmed.endsWith('}') && !trimmed.endsWith(']')) {
+    return false;
+  }
+  
+  // Quick syntax check
+  try {
+    JSON.parse(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function createMD5Hash(input: string): Promise<string> {
   // Fallback MD5-like hash for GP51 compatibility
@@ -209,4 +259,15 @@ async function createMD5Hash(input: string): Promise<string> {
     result = '0' + result;
   }
   return result.toLowerCase();
+}
+
+// HELPER FOR JSON RESPONSES
+function jsonResponse(data: any, status = 200) {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    }
+  );
 }
