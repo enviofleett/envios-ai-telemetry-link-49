@@ -4,19 +4,18 @@ import type {
   GP51DeviceTreeResponse,
   GP51Position,
   GP51HealthStatus,
-  GP51PerformanceMetrics,
-  GP51Device as GP51DeviceData
+  GP51PerformanceMetrics
 } from '@/types/gp51-unified';
+import type { GP51PositionRow, GP51DeviceRow } from '@/types/gp51-supabase';
 
 export class SupabaseGP51DataService {
+
   async queryMonitorList(): Promise<GP51DeviceTreeResponse> {
     try {
-      console.log('🔍 Querying GP51 device monitor list...');
-
       const { data, error } = await supabase.functions.invoke('gp51-devices');
 
       if (error) {
-        console.error('❌ Device list error:', error);
+        console.error('Device list error:', error);
         return {
           success: false,
           data: [],
@@ -26,7 +25,6 @@ export class SupabaseGP51DataService {
       }
 
       if (!data?.success) {
-        console.error('❌ GP51 devices API error:', data?.error);
         return {
           success: false,
           data: [],
@@ -35,16 +33,13 @@ export class SupabaseGP51DataService {
         };
       }
 
-      console.log('✅ Device monitor list retrieved successfully');
-      
       return {
         success: true,
         data: data.devices || [],
         groups: data.groups || []
       };
-
     } catch (error) {
-      console.error('💥 Device list error:', error);
+      console.error('Device list error:', error);
       return {
         success: false,
         data: [],
@@ -56,86 +51,60 @@ export class SupabaseGP51DataService {
 
   async getPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     try {
-      console.log('📍 Fetching GP51 positions for devices:', deviceIds?.length || 'all');
-
       const { data, error } = await supabase.functions.invoke('gp51-get-positions', {
         body: { deviceIds: deviceIds || [] }
       });
 
       if (error) {
-        console.error('❌ Positions error:', error);
+        console.error('Positions error:', error);
         return [];
       }
 
       if (!data?.success) {
-        console.error('❌ GP51 positions API error:', data?.error);
+        console.error('GP51 positions error:', data?.error);
         return [];
       }
 
-      console.log('✅ Positions retrieved:', data.positions?.length || 0);
-
-      // Return positions in the expected format
-      return (data.positions || []).map((pos: any) => ({
-        deviceid: pos.deviceid,
-        callat: pos.callat,
-        callon: pos.callon,
-        speed: pos.speed,
-        course: pos.course,
-        altitude: pos.altitude,
-        devicetime: pos.devicetime,
-        servertime: pos.servertime,
-        status: pos.status,
-        moving: pos.moving,
-        gotsrc: pos.gotsrc,
-        battery: pos.battery,
-        signal: pos.signal,
-        satellites: pos.satellites
-      }));
-
+      // Return the raw GP51Position data
+      return data.positions || [];
     } catch (error) {
-      console.error('💥 Get positions error:', error);
+      console.error('Get positions error:', error);
       return [];
     }
   }
 
-  async getCachedPositions(deviceIds?: string[]): Promise<any[]> {
+  async getCachedPositions(deviceIds?: string[]): Promise<GP51Position[]> {
     try {
-      let query = supabase
-        .from('gp51_positions')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (deviceIds && deviceIds.length > 0) {
-        query = query.in('device_id', deviceIds);
-      }
-
-      const { data, error } = await query.limit(1000);
+      // Use RPC to get positions to avoid type issues
+      const { data, error } = await supabase.rpc('get_cached_positions', {
+        p_device_ids: deviceIds || null
+      });
 
       if (error) {
-        console.error('❌ Cached positions error:', error);
+        console.error('Cached positions error:', error);
         return [];
       }
 
-      // Transform database format to GP51 format
-      return (data || []).map(pos => ({
-        deviceid: pos.device_id,
-        callat: pos.latitude,
-        callon: pos.longitude,
-        speed: pos.speed,
-        course: pos.course,
-        altitude: pos.altitude,
-        devicetime: pos.device_time,
-        servertime: pos.server_time,
-        status: pos.status,
-        moving: pos.moving,
-        gotsrc: pos.gps_source,
-        battery: pos.battery,
-        signal: pos.signal,
-        satellites: pos.satellites
+      // Transform the data to match GP51Position interface
+      const positions: GP51Position[] = (data || []).map((row: any) => ({
+        deviceid: row.device_id,
+        callat: row.latitude,
+        callon: row.longitude,
+        speed: row.speed || 0,
+        course: row.course || 0,
+        altitude: row.altitude || 0,
+        devicetime: row.device_time,
+        status: row.status || 0,
+        moving: row.moving || 0,
+        gotsrc: row.gps_source || '',
+        battery: row.battery || 0,
+        signal: row.signal || 0,
+        satellites: row.satellites || 0
       }));
 
+      return positions;
     } catch (error) {
-      console.error('💥 Get cached positions error:', error);
+      console.error('Get cached positions error:', error);
       return [];
     }
   }
@@ -160,8 +129,6 @@ export class SupabaseGP51DataService {
     error?: string;
   }> {
     try {
-      console.log('🚗 Fetching live vehicles data...');
-
       const [deviceTree, positions] = await Promise.all([
         this.queryMonitorList(),
         this.getPositions()
@@ -190,15 +157,13 @@ export class SupabaseGP51DataService {
         };
       }) || [];
 
-      console.log('✅ Live vehicles data prepared:', liveVehicles.length);
-
       return {
         success: true,
         data: liveVehicles,
         groups: deviceTree.groups
       };
     } catch (error) {
-      console.error('💥 Live vehicles error:', error);
+      console.error('Live vehicles error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to fetch live data'
@@ -319,25 +284,6 @@ export class SupabaseGP51DataService {
       const validLon = Math.abs(pos.callon) <= 180;
       return validLat && validLon && pos.deviceid;
     });
-  }
-
-  // Real-time subscriptions for live updates
-  subscribeToPositionUpdates(callback: (positions: GP51Position[]) => void) {
-    const channel = supabase
-      .channel('gp51_positions_realtime')
-      .on('postgres_changes', 
-        { event: 'INSERT', schema: 'public', table: 'gp51_positions' },
-        (payload) => {
-          console.log('📍 New position received:', payload.new);
-          // Trigger callback with updated positions
-          this.getCachedPositions().then(callback);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }
 }
 

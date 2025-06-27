@@ -1,16 +1,6 @@
 
 import { supabase } from '@/integrations/supabase/client';
-import type { GP51AuthResponse } from '@/types/gp51-unified';
-
-export interface GP51Session {
-  id: string;
-  user_id: string;
-  gp51_username: string;
-  gp51_token: string;
-  created_at: string;
-  expires_at: string;
-  is_active: boolean;
-}
+import type { GP51AuthResponse, GP51Session } from '@/types/gp51-supabase';
 
 export class SupabaseGP51AuthService {
   private currentSession: GP51Session | null = null;
@@ -75,12 +65,12 @@ export class SupabaseGP51AuthService {
 
       // Store session info locally
       this.currentSession = {
-        id: data.sessionId,
+        id: data.sessionId || '',
         user_id: session.user.id,
-        gp51_token: data.token,
-        gp51_username: data.username,
-        created_at: data.loginTime,
-        expires_at: data.expiresAt,
+        gp51_token: data.token || '',
+        gp51_username: data.username || username,
+        created_at: data.loginTime || new Date().toISOString(),
+        expires_at: data.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         is_active: true
       };
 
@@ -89,7 +79,6 @@ export class SupabaseGP51AuthService {
         cause: 'OK',
         success: true,
         token: data.token,
-        sessionId: data.sessionId,
         expiresAt: data.expiresAt
       };
 
@@ -115,24 +104,28 @@ export class SupabaseGP51AuthService {
         return false;
       }
 
-      // Query active GP51 session from database
-      const { data: gp51Sessions, error: gp51Error } = await supabase
-        .from('gp51_sessions')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('is_active', true)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .limit(1);
+      // Query active GP51 session from database using raw SQL to avoid type issues
+      const { data: gp51Sessions, error: gp51Error } = await supabase.rpc('get_active_gp51_session', {
+        p_user_id: session.user.id
+      });
 
       if (gp51Error || !gp51Sessions || gp51Sessions.length === 0) {
         console.log('❌ No active GP51 session found');
         return false;
       }
 
-      this.currentSession = gp51Sessions[0];
-      console.log('✅ GP51 session restored for:', this.currentSession.gp51_username);
+      const sessionData = gp51Sessions[0];
+      this.currentSession = {
+        id: sessionData.id,
+        user_id: sessionData.user_id,
+        gp51_username: sessionData.gp51_username,
+        gp51_token: sessionData.gp51_token,
+        created_at: sessionData.created_at,
+        expires_at: sessionData.expires_at,
+        is_active: sessionData.is_active
+      };
 
+      console.log('✅ GP51 session restored for:', this.currentSession.gp51_username);
       return true;
 
     } catch (error) {
@@ -159,11 +152,10 @@ export class SupabaseGP51AuthService {
   async logout(): Promise<void> {
     try {
       if (this.currentSession) {
-        // Mark session as inactive in database
-        await supabase
-          .from('gp51_sessions')
-          .update({ is_active: false })
-          .eq('id', this.currentSession.id);
+        // Mark session as inactive in database using edge function
+        await supabase.functions.invoke('gp51-logout', {
+          body: { sessionId: this.currentSession.id }
+        });
       }
 
       this.currentSession = null;
