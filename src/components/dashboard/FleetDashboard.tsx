@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import type { GP51Position } from '@/types/gp51-unified';
+import type { GP51Position, GP51ProcessedPosition } from '@/types/gp51-unified';
 import { GP51PropertyMapper } from '@/types/gp51-unified';
 
 export const FleetDashboard: React.FC = () => {
@@ -76,8 +76,8 @@ export const FleetDashboard: React.FC = () => {
 
       <div className="vehicle-list">
         {enhancedPositions.map((position) => (
-          <div key={position.deviceid} className="vehicle-item">
-            <h4>Vehicle {position.deviceid}</h4>
+          <div key={position.deviceId} className="vehicle-item">
+            <h4>Vehicle {position.deviceId}</h4>
             <p>Status: {position.isOnline ? 'Online' : 'Offline'}</p>
             <p>Moving: {position.isMoving ? 'Yes' : 'No'}</p>
             <p>Last Update: {position.timestamp.toLocaleString()}</p>
@@ -88,5 +88,3 @@ export const FleetDashboard: React.FC = () => {
     </div>
   );
 };
-
-export default FleetDashboard;

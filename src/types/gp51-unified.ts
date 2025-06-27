@@ -1,3 +1,4 @@
+
 export interface GP51AuthResponse {
   status: number;
   cause: string;
@@ -26,6 +27,15 @@ export interface GP51TestResult {
   data?: any;
 }
 
+export interface GP51ConnectionTestResult {
+  success: boolean;
+  message: string;
+  error?: string;
+  data?: any;
+  responseTime?: number;
+  timestamp?: Date;
+}
+
 export interface GP51LiveVehiclesResponse {
   success: boolean;
   data?: any[];
@@ -48,13 +58,19 @@ export interface GP51Device {
   speed?: number;
   course?: number;
   timestamp?: Date;
+  isActive?: boolean;
+  remark?: string;
 }
+
+// Alias for backwards compatibility
+export interface GP51DeviceData extends GP51Device {}
 
 export interface GP51Group {
   groupid: string;
   groupname: string;
   parentid: string;
   devices?: GP51Device[];
+  remark?: string;
 }
 
 export interface GP51DeviceTreeResponse {
@@ -63,6 +79,9 @@ export interface GP51DeviceTreeResponse {
   groups: GP51Group[];
   error?: string;
 }
+
+// Alias for backwards compatibility
+export interface GP51ServiceResponse extends GP51DeviceTreeResponse {}
 
 export interface GP51Position {
   deviceid: string;
@@ -195,6 +214,23 @@ export class GP51PropertyMapper {
     return {
       ...processed,
       deviceName: position.deviceid,
+    };
+  }
+
+  static enhanceGroup(group: GP51Group): GP51Group & {
+    id: string;
+    group_name: string;
+    group_id: string;
+    device_count: number;
+    last_sync_at: Date;
+  } {
+    return {
+      ...group,
+      id: group.groupid,
+      group_name: group.groupname,
+      group_id: group.groupid,
+      device_count: group.devices?.length || 0,
+      last_sync_at: new Date()
     };
   }
 }

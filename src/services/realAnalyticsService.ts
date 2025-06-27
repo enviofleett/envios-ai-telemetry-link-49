@@ -3,6 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import type { RealAnalyticsData } from '@/types/gp51-unified';
 import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
 
+// Export RealAnalyticsData for external use
+export type { RealAnalyticsData } from '@/types/gp51-unified';
+
 class RealAnalyticsService {
   private cache: RealAnalyticsData | null = null;
   private lastFetchTime: Date | null = null;

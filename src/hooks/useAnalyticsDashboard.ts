@@ -1,51 +1,39 @@
 
-import { useState, useEffect } from 'react';
-import { realAnalyticsService, type RealAnalyticsData } from '@/services/realAnalyticsService';
+import { useState, useEffect, useCallback } from 'react';
+import type { RealAnalyticsData } from '@/types/gp51-unified';
+import { realAnalyticsService } from '@/services/realAnalyticsService';
 
-export const useAnalyticsDashboard = () => {
-  const [data, setData] = useState<RealAnalyticsData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function useAnalyticsDashboard() {
+  const [analyticsData, setAnalyticsData] = useState<RealAnalyticsData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  const fetchAnalytics = async () => {
+  const fetchData = useCallback(async (forceRefresh: boolean = false) => {
     try {
-      setIsLoading(true);
+      setLoading(true);
       setError(null);
-      
-      const analyticsData = await realAnalyticsService.getAnalyticsData();
-      setData(analyticsData);
-      setLastUpdated(new Date());
-      
-      console.log('✅ Real analytics data loaded:', analyticsData);
+      const data = await realAnalyticsService.getAnalyticsData(forceRefresh);
+      setAnalyticsData(data);
     } catch (err) {
-      console.error('❌ Error loading analytics:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load analytics');
+      setError(err instanceof Error ? err.message : 'Failed to fetch analytics data');
+      console.error('Analytics data fetch error:', err);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
-
-  const refreshData = () => {
-    fetchAnalytics();
-  };
-
-  // Load data on mount
-  useEffect(() => {
-    fetchAnalytics();
   }, []);
 
-  // Auto-refresh every 5 minutes
+  const refreshData = useCallback(() => {
+    fetchData(true);
+  }, [fetchData]);
+
   useEffect(() => {
-    const interval = setInterval(fetchAnalytics, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, []);
+    fetchData();
+  }, [fetchData]);
 
   return {
-    data,
-    isLoading,
+    analyticsData,
+    loading,
     error,
-    lastUpdated,
     refreshData
   };
-};
+}

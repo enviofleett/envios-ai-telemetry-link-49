@@ -1,194 +1,114 @@
+
 import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { CheckCircle, AlertCircle, XCircle, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { CheckCircle, AlertCircle, XCircle, RefreshCw } from 'lucide-react';
 import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
-import type { GP51HealthStatus } from '@/types/gp51-unified';
 
-interface GP51HealthIndicatorProps {
-  onStatusChange?: (status: any) => void;
-  compact?: boolean;
-}
+const GP51HealthIndicator: React.FC = () => {
+  const { healthStatus, getConnectionHealth, loading } = useUnifiedGP51Service();
 
-const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({ 
-  onStatusChange, 
-  compact = false 
-}) => {
-  const [healthStatus, setHealthStatus] = useState<GP51HealthStatus | null>(null);
-  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
-  
-  const { session, isConnected, getConnectionHealth } = useUnifiedGP51Service();
-
-  const checkHealth = async () => {
-    setIsCheckingHealth(true);
+  useEffect(() => {
+    // Initial health check
+    getConnectionHealth();
     
-    try {
-      const health = await getConnectionHealth();
-      setHealthStatus(health);
-      
-      if (onStatusChange) {
-        onStatusChange({
-          isConnected: health.isConnected,
-          isAuthenticated: health.sessionValid,
-          sessionHealth: health.sessionValid ? 'healthy' : 'invalid',
-          lastCheck: health.lastCheck.toISOString(),
-          username: session?.username,
-          error: health.errorMessage
-        });
-      }
-    } catch (error) {
-      console.error('❌ Health check failed:', error);
-      const errorStatus: GP51HealthStatus = {
-        status: 'failed',
-        lastCheck: new Date(),
-        responseTime: 0,
-        isConnected: false,
-        lastPingTime: new Date(),
-        tokenValid: false,
-        sessionValid: false,
-        activeDevices: 0,
-        errors: [error instanceof Error ? error.message : 'Health check failed'],
-        errorMessage: error instanceof Error ? error.message : 'Health check failed',
-        isHealthy: false,
-        connectionStatus: 'error'
-      };
-      
-      setHealthStatus(errorStatus);
-      
-      if (onStatusChange) {
-        onStatusChange({
-          isConnected: false,
-          isAuthenticated: false,
-          sessionHealth: 'invalid',
-          lastCheck: new Date().toISOString(),
-          error: errorStatus.errorMessage
-        });
-      }
-    } finally {
-      setIsCheckingHealth(false);
-    }
-  };
-
-  useEffect(() => {
-    if (session) {
-      checkHealth();
-    }
-  }, [session]);
-
-  useEffect(() => {
+    // Set up periodic health checks
     const interval = setInterval(() => {
-      if (session) {
-        checkHealth();
-      }
-    }, 120000);
+      getConnectionHealth();
+    }, 60000); // Check every minute
 
     return () => clearInterval(interval);
-  }, [session]);
+  }, [getConnectionHealth]);
 
-  const getHealthIcon = () => {
-    if (isCheckingHealth) {
-      return <RefreshCw className="h-4 w-4 animate-spin" />;
-    }
+  const getStatusIcon = () => {
+    if (loading) return <RefreshCw className="h-4 w-4 animate-spin" />;
+    if (!healthStatus) return <AlertCircle className="h-4 w-4 text-yellow-500" />;
     
-    if (!healthStatus) {
-      return <AlertCircle className="h-4 w-4 text-gray-400" />;
+    switch (healthStatus.status) {
+      case 'healthy':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'warning':
+        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+      case 'failed':
+        return <XCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-500" />;
     }
-    
-    if (healthStatus.isConnected && healthStatus.sessionValid) {
-      return <CheckCircle className="h-4 w-4 text-green-500" />;
-    }
-    
-    if (healthStatus.sessionValid && healthStatus.tokenValid) {
-      return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-    }
-    
-    return <XCircle className="h-4 w-4 text-red-500" />;
   };
 
-  const getHealthBadge = () => {
-    if (isCheckingHealth) {
-      return <Badge variant="outline">Checking...</Badge>;
-    }
+  const getStatusVariant = () => {
+    if (!healthStatus) return 'secondary';
     
-    if (!healthStatus) {
-      return <Badge variant="secondary">Unknown</Badge>;
+    switch (healthStatus.status) {
+      case 'healthy':
+        return 'default';
+      case 'warning':
+        return 'secondary';
+      case 'failed':
+        return 'destructive';
+      default:
+        return 'secondary';
     }
-    
-    if (healthStatus.isConnected && healthStatus.sessionValid) {
-      return <Badge variant="default" className="bg-green-500">Healthy</Badge>;
-    }
-    
-    if (healthStatus.sessionValid && healthStatus.tokenValid) {
-      return <Badge variant="outline" className="border-yellow-500 text-yellow-700">Degraded</Badge>;
-    }
-    
-    return <Badge variant="destructive">Disconnected</Badge>;
   };
-
-  const getStatusText = () => {
-    if (!healthStatus) {
-      return "Status unknown - click refresh to check";
-    }
-    
-    if (healthStatus.isConnected && healthStatus.sessionValid) {
-      return `Connected with ${healthStatus.activeDevices || 0} devices`;
-    }
-    
-    if (healthStatus.sessionValid && healthStatus.tokenValid) {
-      return "API reachable but data flow issues detected";
-    }
-    
-    if (healthStatus.sessionValid && !healthStatus.tokenValid) {
-      return "Session valid but API unreachable";
-    }
-    
-    return healthStatus.errorMessage || "Connection failed";
-  };
-
-  if (compact) {
-    return (
-      <div className="flex items-center gap-2">
-        {getHealthIcon()}
-        {getHealthBadge()}
-      </div>
-    );
-  }
 
   return (
-    <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          {session ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
-          <span className="font-medium">GP51 Connection Status</span>
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm font-medium">GP51 Connection Health</CardTitle>
+          {getStatusIcon()}
         </div>
-        {getHealthBadge()}
-      </div>
-      
-      <div className="flex items-center gap-3">
-        <div className="text-right">
-          <p className="text-sm font-medium">
-            {session ? session.username : 'Not Connected'}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            {getStatusText()}
-          </p>
-          {healthStatus?.lastCheck && (
-            <p className="text-xs text-muted-foreground">
-              Last check: {new Date(healthStatus.lastCheck).toLocaleTimeString()}
-            </p>
+        <CardDescription className="text-xs">
+          Real-time connection status monitoring
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Status</span>
+            <Badge variant={getStatusVariant()}>
+              {healthStatus?.status || 'Unknown'}
+            </Badge>
+          </div>
+          
+          {healthStatus && (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Connected</span>
+                <Badge variant={healthStatus.isConnected ? 'default' : 'destructive'}>
+                  {healthStatus.isConnected ? 'Yes' : 'No'}
+                </Badge>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Active Devices</span>
+                <span className="text-sm font-medium">{healthStatus.activeDevices}</span>
+              </div>
+              
+              {healthStatus.responseTime && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm">Response Time</span>
+                  <span className="text-sm font-medium">{healthStatus.responseTime}ms</span>
+                </div>
+              )}
+              
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Last Check</span>
+                <span className="text-xs text-muted-foreground">
+                  {healthStatus.lastCheck.toLocaleTimeString()}
+                </span>
+              </div>
+              
+              {healthStatus.errorMessage && (
+                <div className="pt-2 border-t">
+                  <span className="text-xs text-red-600">{healthStatus.errorMessage}</span>
+                </div>
+              )}
+            </>
           )}
         </div>
-        
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={checkHealth}
-          disabled={isCheckingHealth}
-        >
-          {getHealthIcon()}
-        </Button>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };
 
