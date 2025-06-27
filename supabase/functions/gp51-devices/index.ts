@@ -53,7 +53,7 @@ serve(async (req) => {
     // Get active GP51 session
     const { data: sessions, error: sessionError } = await supabaseAdmin
       .from('gp51_sessions')
-      .select('gp51_token, gp51_username, expires_at')
+      .select('gp51_token, username, expires_at')
       .eq('user_id', user.id)
       .eq('is_active', true)
       .order('created_at', { ascending: false })
@@ -84,8 +84,8 @@ serve(async (req) => {
 
     console.log('🔍 Fetching GP51 device tree...');
 
-    // Call GP51 querymonitorlist API
-    const gp51Url = `https://www.gps51.com/webapi?action=querymonitorlist&token=${session.gp51_token}`;
+    // Use the correct API endpoint for device tree
+    const gp51Url = `https://api.gps51.com/webapi?action=querydevicestree&token=${session.gp51_token}&extend=self&serverid=0`;
     
     const gp51Response = await fetch(gp51Url, {
       method: 'GET',
@@ -103,12 +103,42 @@ serve(async (req) => {
     const responseText = await gp51Response.text();
     console.log('📄 GP51 Device Response length:', responseText.length);
 
+    // Enhanced response validation
+    if (!responseText || responseText.trim().length === 0) {
+      console.error('❌ Empty response from GP51 device API');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Empty response from GP51 device API'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const trimmedResponse = responseText.trim();
+    if (!trimmedResponse.startsWith('{') && !trimmedResponse.startsWith('[')) {
+      console.error('❌ Non-JSON response from GP51 device API:', trimmedResponse.substring(0, 100));
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Invalid response format from GP51 device API'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     let gp51Result;
     try {
       gp51Result = JSON.parse(responseText);
     } catch (parseError) {
       console.error('❌ JSON Parse Error:', parseError);
-      throw new Error(`Invalid JSON response: ${responseText.substring(0, 100)}`);
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Invalid JSON response from GP51 device API'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     console.log('📊 GP51 Device Response status:', gp51Result.status);

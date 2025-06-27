@@ -25,7 +25,7 @@ export class SupabaseGP51DataService {
         return [];
       }
 
-      // Call GP51 devices edge function
+      // Call GP51 devices edge function with corrected endpoint
       const { data, error } = await supabase.functions.invoke('gp51-devices');
 
       if (error) {

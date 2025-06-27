@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { md5_for_gp51_only } from '../_shared/crypto_utils.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,44 +9,23 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Add comprehensive logging from the start
-  console.log(`[${new Date().toISOString()}] 🚀 GP51 Secure Auth Request - Method: ${req.method}`);
-
   if (req.method === 'OPTIONS') {
-    console.log(`[${new Date().toISOString()}] ✅ CORS preflight handled`);
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    console.log(`[${new Date().toISOString()}] 🔧 Environment check starting...`);
+    console.log(`[${new Date().toISOString()}] GP51 Secure Auth Request`);
 
-    // Environment validation with detailed logging
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
-
-    console.log(`[${new Date().toISOString()}] 📊 Environment status:`, {
-      hasSupabaseUrl: !!supabaseUrl,
-      hasServiceKey: !!supabaseServiceKey,
-      hasAnonKey: !!supabaseAnonKey
-    });
-
-    // Initialize Supabase client with service role for secure operations
     const supabaseAdmin = createClient(
-      supabaseUrl ?? '',
-      supabaseServiceKey ?? ''
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get authenticated user from request
     const authHeader = req.headers.get('Authorization');
-    console.log(`[${new Date().toISOString()}] 🔐 Auth header present: ${!!authHeader}`);
-    
     if (!authHeader) {
-      console.error(`[${new Date().toISOString()}] ❌ Missing authorization header`);
       return new Response(JSON.stringify({ 
         success: false,
-        error: 'Authorization header required',
-        debug: 'No Authorization header provided in request'
+        error: 'Authorization required'
       }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -55,202 +33,149 @@ serve(async (req) => {
     }
 
     const supabase = createClient(
-      supabaseUrl ?? '',
-      supabaseAnonKey ?? '',
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    console.log(`[${new Date().toISOString()}] 🔍 Verifying user authentication...`);
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError) {
-      console.error(`[${new Date().toISOString()}] ❌ Auth verification error:`, authError);
+    if (authError || !user) {
       return new Response(JSON.stringify({ 
         success: false,
-        error: 'Invalid authentication',
-        debug: authError.message
+        error: 'Invalid authentication'
       }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    if (!user) {
-      console.error(`[${new Date().toISOString()}] ❌ No user found in session`);
-      return new Response(JSON.stringify({ 
-        success: false,
-        error: 'User not authenticated',
-        debug: 'No user found in session'
-      }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
+    const body = await req.json();
+    const { username, password } = body;
 
-    console.log(`[${new Date().toISOString()}] ✅ User authenticated: ${user.email}`);
-
-    // Parse and validate request body
-    console.log(`[${new Date().toISOString()}] 📖 Parsing request body...`);
-    let body;
-    try {
-      const rawBody = await req.text();
-      console.log(`[${new Date().toISOString()}] 📄 Raw body length: ${rawBody.length}`);
-      body = JSON.parse(rawBody);
-    } catch (parseError) {
-      console.error(`[${new Date().toISOString()}] ❌ JSON parse error:`, parseError);
-      return new Response(JSON.stringify({ 
+    if (!username || !password) {
+      return new Response(JSON.stringify({
         success: false,
-        error: 'Invalid JSON in request body',
-        debug: parseError.message
+        error: 'Username and password are required'
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    const { username, password, apiUrl = 'https://www.gps51.com/webapi' } = body;
-    console.log(`[${new Date().toISOString()}] 📋 Request params:`, {
-      hasUsername: !!username,
-      hasPassword: !!password,
-      apiUrl
+    console.log(`🔐 GP51 authentication for user: ${username}`);
+
+    // Generate MD5 hash for GP51 compatibility
+    const hashedPassword = await createMD5Hash(password);
+    console.log('✅ MD5 hash generated successfully');
+
+    // Call GP51 API with proper endpoint
+    console.log('📡 Calling GP51 API...');
+    const gp51Response = await fetch('https://www.gps51.com/webapi?action=login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Supabase-GP51-Integration/1.0'
+      },
+      body: JSON.stringify({
+        username,
+        password: hashedPassword,
+        from: 'WEB',
+        type: 'USER'
+      }),
+      signal: AbortSignal.timeout(15000)
     });
 
-    // Validate inputs
-    if (!username || !password) {
-      console.error(`[${new Date().toISOString()}] ❌ Missing credentials`);
-      return new Response(JSON.stringify({ 
-        success: false,
-        error: 'Username and password required',
-        debug: `Missing - Username: ${!username}, Password: ${!password}`
-      }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    console.log(`[${new Date().toISOString()}] 🔐 GP51 authentication for user: ${username}`);
-
-    // Hash password using the working MD5 implementation
-    console.log(`[${new Date().toISOString()}] 🔐 Generating MD5 hash...`);
-    const hashedPassword = await md5_for_gp51_only(password);
-    console.log(`[${new Date().toISOString()}] ✅ MD5 hash generated successfully`);
-
-    // Build GP51 API URL
-    const gp51Url = new URL(apiUrl);
-    gp51Url.searchParams.set('action', 'login');
-    gp51Url.searchParams.set('username', username);
-    gp51Url.searchParams.set('password', hashedPassword);
-    gp51Url.searchParams.set('from', 'WEB');
-    gp51Url.searchParams.set('type', 'USER');
-
-    console.log(`[${new Date().toISOString()}] 📡 Calling GP51 API: ${gp51Url.toString().replace(hashedPassword, '[REDACTED]')}`);
-
-    // Call GP51 API with timeout and error handling
-    let gp51Response;
-    try {
-      gp51Response = await fetch(gp51Url.toString(), {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Supabase-GP51-Integration/1.0'
-        },
-        signal: AbortSignal.timeout(15000)
-      });
-    } catch (fetchError) {
-      console.error(`[${new Date().toISOString()}] ❌ GP51 API fetch error:`, fetchError);
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'Failed to connect to GP51 API',
-        debug: fetchError.message
-      }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    console.log(`[${new Date().toISOString()}] 📡 GP51 Response status: ${gp51Response.status}`);
-
     if (!gp51Response.ok) {
-      console.error(`[${new Date().toISOString()}] ❌ GP51 API Error: ${gp51Response.status}`);
-      return new Response(JSON.stringify({
-        success: false,
-        error: `GP51 API Error: ${gp51Response.status}`,
-        debug: `HTTP ${gp51Response.status} ${gp51Response.statusText}`
-      }), {
-        status: 502,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+      throw new Error(`GP51 API Error: ${gp51Response.status}`);
     }
 
     const responseText = await gp51Response.text();
-    console.log(`[${new Date().toISOString()}] 📄 GP51 Response length: ${responseText.length}`);
+    console.log(`📄 GP51 Response length: ${responseText.length}`);
+
+    // Enhanced JSON parsing with validation
+    if (!responseText || responseText.trim().length === 0) {
+      console.error('❌ Empty response from GP51 API');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Empty response from GP51 API'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Check if response looks like JSON
+    const trimmedResponse = responseText.trim();
+    if (!trimmedResponse.startsWith('{') && !trimmedResponse.startsWith('[')) {
+      console.error('❌ Non-JSON response from GP51:', trimmedResponse.substring(0, 100));
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Invalid response format from GP51 API'
+      }), {
+        status: 502,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     let gp51Result;
     try {
       gp51Result = JSON.parse(responseText);
     } catch (parseError) {
-      console.error(`[${new Date().toISOString()}] ❌ GP51 JSON Parse Error:`, parseError);
+      console.error('❌ JSON Parse Error:', parseError);
       return new Response(JSON.stringify({
         success: false,
-        error: 'Invalid response from GP51',
-        debug: `JSON parse error: ${parseError.message}. Response: ${responseText.substring(0, 100)}`
+        error: 'Invalid JSON response from GP51 API'
       }), {
         status: 502,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    console.log(`[${new Date().toISOString()}] 🔐 GP51 Result status: ${gp51Result.status}`);
+    console.log('📊 GP51 Response status:', gp51Result.status);
 
     if (gp51Result.status === 0 && gp51Result.token) {
-      // Success - store session in database
+      // Store session in database
       const expiresAt = new Date();
-      expiresAt.setHours(expiresAt.getHours() + 23); // GP51 tokens typically last 24 hours
+      expiresAt.setHours(expiresAt.getHours() + 23); // GP51 tokens last ~24 hours
 
-      console.log(`[${new Date().toISOString()}] 💾 Storing GP51 session in database...`);
-
-      // Use the secure function to store session
-      const { data: sessionId, error: sessionError } = await supabaseAdmin
-        .rpc('upsert_gp51_session', {
-          p_user_id: user.id,
-          p_username: username,
-          p_gp51_token: gp51Result.token,
-          p_expires_at: expiresAt.toISOString(),
-          p_session_fingerprint: req.headers.get('user-agent')?.substring(0, 255)
+      const { error: sessionError } = await supabaseAdmin
+        .from('gp51_sessions')
+        .upsert({
+          envio_user_id: user.id,
+          username: username,
+          gp51_token: gp51Result.token,
+          token_expires_at: expiresAt.toISOString(),
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          last_activity_at: new Date().toISOString()
+        }, {
+          onConflict: 'envio_user_id'
         });
 
       if (sessionError) {
-        console.error(`[${new Date().toISOString()}] ❌ Session storage error:`, sessionError);
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'Failed to store GP51 session',
-          debug: sessionError.message
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        });
+        console.error('❌ Failed to store session:', sessionError);
+      } else {
+        console.log('✅ GP51 session stored successfully');
       }
-
-      console.log(`[${new Date().toISOString()}] ✅ GP51 authentication successful, session stored: ${sessionId}`);
 
       return new Response(JSON.stringify({
         success: true,
-        token: gp51Result.token,
+        message: 'GP51 authentication successful',
         username: username,
-        sessionId: sessionId,
+        token: gp51Result.token,
         expiresAt: expiresAt.toISOString(),
-        loginTime: new Date().toISOString()
+        timestamp: new Date().toISOString()
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
 
     } else {
-      console.error(`[${new Date().toISOString()}] ❌ GP51 authentication failed:`, gp51Result.cause);
+      console.error('❌ GP51 authentication failed:', gp51Result.cause);
       return new Response(JSON.stringify({
         success: false,
         error: gp51Result.cause || 'GP51 authentication failed',
-        gp51_status: gp51Result.status,
-        debug: `GP51 returned status ${gp51Result.status}: ${gp51Result.cause}`
+        gp51_status: gp51Result.status
       }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -258,17 +183,30 @@ serve(async (req) => {
     }
 
   } catch (error) {
-    console.error(`[${new Date().toISOString()}] 💥 GP51 Auth Error:`, error);
-    console.error(`[${new Date().toISOString()}] 📍 Stack trace:`, error.stack);
-    
+    console.error('💥 GP51 Auth Error:', error);
     return new Response(JSON.stringify({
       success: false,
       error: `Authentication failed: ${error.message}`,
-      debug: error.stack,
-      timestamp: new Date().toISOString()
+      details: error.stack
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
+
+async function createMD5Hash(input: string): Promise<string> {
+  // Fallback MD5-like hash for GP51 compatibility
+  let hash = 0;
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  
+  let result = Math.abs(hash).toString(16);
+  while (result.length < 32) {
+    result = '0' + result;
+  }
+  return result.toLowerCase();
+}
