@@ -17,39 +17,46 @@ serve(async (req) => {
 
     const body = await req.json();
     
-    if (!body.token || !body.username) {
+    if (!body.username || !body.password) {
       return new Response(
         JSON.stringify({ 
           success: false,
-          error: 'Token and username required'
+          error: 'Username and password required'
         }),
         { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
       );
     }
 
-    // Step 1: Query Monitor List (from API doc section 5)
-    const queryUrl = `https://www.gps51.com/webapi?action=querymonitorlist&token=${body.token}`;
+    // MD5 hash the password for GP51 API
+    const encoder = new TextEncoder();
+    const data = encoder.encode(body.password);
+    const hashBuffer = await crypto.subtle.digest('MD5', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const gp51Hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
+
+    // ✅ CORRECT: Using official GP51 API format with GET and query parameters
+    const queryUrl = `https://www.gps51.com/webapi?action=querymonitorlist&username=${encodeURIComponent(body.username)}&password=${encodeURIComponent(gp51Hash)}`;
     
     console.log('🔍 Querying device list for user:', body.username);
-    console.log('🌐 Query URL:', queryUrl);
+    console.log('🌐 Query URL (sanitized):', queryUrl.replace(gp51Hash, '***'));
 
     const gp51Response = await fetch(queryUrl, {
-      method: 'POST',
+      method: 'GET',  // Official GP51 API uses GET
       headers: {
-        'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'User-Agent': 'Envio-Fleet-GP51-Integration/1.0'
+        'User-Agent': 'FleetIQ-GP51-Integration/1.0'
       },
-      body: JSON.stringify({
-        username: body.username  // Required parameter from API doc
-      })
+      signal: AbortSignal.timeout(15000) // 15 second timeout
     });
 
     console.log('📡 GP51 Response Status:', gp51Response.status);
 
+    if (!gp51Response.ok) {
+      throw new Error(`HTTP ${gp51Response.status}: ${gp51Response.statusText}`);
+    }
+
     const responseText = await gp51Response.text();
     console.log('📄 Response Length:', responseText.length);
-    console.log('📄 Response Preview:', responseText.substring(0, 300));
 
     if (!responseText) {
       throw new Error('Empty response from GP51');
@@ -75,7 +82,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false,
-          error: `GP51 API Error: ${deviceData.cause}`,
+          error: `GP51 API Error: ${deviceData.cause || 'Unknown error'}`,
           data: [],
           groups: []
         }),

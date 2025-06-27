@@ -1,134 +1,200 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, AlertCircle, XCircle, RefreshCw } from 'lucide-react';
-import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
-import type { GP51HealthIndicatorProps } from '@/types/gp51-unified';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle, 
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  Activity
+} from 'lucide-react';
 
-const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({ 
-  compact = false, 
-  onStatusChange 
-}) => {
-  const { healthStatus, getConnectionHealth, loading } = useUnifiedGP51Service();
+interface GP51HealthStatus {
+  isConnected: boolean;
+  lastChecked: Date;
+  deviceCount: number;
+  groupCount: number;
+  error?: string;
+  apiResponseTime?: number;
+}
 
-  useEffect(() => {
-    // Initial health check
-    getConnectionHealth();
-    
-    // Set up periodic health checks
-    const interval = setInterval(() => {
-      getConnectionHealth();
-    }, 60000); // Check every minute
+const GP51HealthIndicator: React.FC = () => {
+  const [healthStatus, setHealthStatus] = useState<GP51HealthStatus | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-    return () => clearInterval(interval);
-  }, [getConnectionHealth]);
+  const checkGP51Health = async () => {
+    setIsLoading(true);
+    try {
+      console.log('🔍 Checking GP51 health status...');
+      
+      const response = await fetch('/functions/v1/gp51-secure-auth', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'test_connection',
+          username: 'octopus', // Default test username
+          password: 'your_password', // You'll need to update this
+          apiUrl: 'https://www.gps51.com/webapi'
+        })
+      });
 
-  // Call onStatusChange when health status changes
-  useEffect(() => {
-    if (onStatusChange && healthStatus) {
-      onStatusChange(healthStatus);
+      const result = await response.json();
+      console.log('🔍 GP51 Health Check Result:', result);
+
+      if (result.success) {
+        setHealthStatus({
+          isConnected: true,
+          lastChecked: new Date(),
+          deviceCount: result.deviceCount || 0,
+          groupCount: result.groupCount || 0,
+          apiResponseTime: Date.now() - performance.now()
+        });
+      } else {
+        setHealthStatus({
+          isConnected: false,
+          lastChecked: new Date(),
+          deviceCount: 0,
+          groupCount: 0,
+          error: result.error || 'Connection failed'
+        });
+      }
+    } catch (error) {
+      console.error('❌ GP51 health check failed:', error);
+      setHealthStatus({
+        isConnected: false,
+        lastChecked: new Date(),
+        deviceCount: 0,
+        groupCount: 0,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    } finally {
+      setIsLoading(false);
     }
-  }, [healthStatus, onStatusChange]);
+  };
+
+  useEffect(() => {
+    checkGP51Health();
+    
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(checkGP51Health, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getStatusIcon = () => {
-    if (loading) return <RefreshCw className="h-4 w-4 animate-spin" />;
-    if (!healthStatus) return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-    
-    switch (healthStatus.status) {
-      case 'healthy':
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
-      case 'warning':
-        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
-      case 'failed':
-        return <XCircle className="h-4 w-4 text-red-500" />;
-      default:
-        return <AlertCircle className="h-4 w-4 text-gray-500" />;
-    }
+    if (isLoading) return <RefreshCw className="h-5 w-5 animate-spin" />;
+    if (!healthStatus) return <AlertCircle className="h-5 w-5 text-gray-400" />;
+    if (healthStatus.isConnected) return <CheckCircle className="h-5 w-5 text-green-500" />;
+    return <XCircle className="h-5 w-5 text-red-500" />;
   };
 
-  const getStatusVariant = () => {
+  const getStatusColor = () => {
     if (!healthStatus) return 'secondary';
-    
-    switch (healthStatus.status) {
-      case 'healthy':
-        return 'default';
-      case 'warning':
-        return 'secondary';
-      case 'failed':
-        return 'destructive';
-      default:
-        return 'secondary';
-    }
+    return healthStatus.isConnected ? 'success' : 'destructive';
   };
 
-  if (compact) {
-    return (
-      <div className="flex items-center gap-2">
-        {getStatusIcon()}
-        <Badge variant={getStatusVariant()}>
-          {healthStatus?.status || 'Unknown'}
-        </Badge>
-      </div>
-    );
-  }
+  const getStatusText = () => {
+    if (isLoading) return 'Checking...';
+    if (!healthStatus) return 'Unknown';
+    return healthStatus.isConnected ? 'Connected' : 'Failed';
+  };
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">GP51 Connection Health</CardTitle>
-          {getStatusIcon()}
-        </div>
-        <CardDescription className="text-xs">
-          Real-time connection status monitoring
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Status</span>
-            <Badge variant={getStatusVariant()}>
-              {healthStatus?.status || 'Unknown'}
-            </Badge>
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {healthStatus?.isConnected ? (
+              <Wifi className="h-5 w-5 text-green-500" />
+            ) : (
+              <WifiOff className="h-5 w-5 text-red-500" />
+            )}
+            GP51 Connection Status
           </div>
-          
-          {healthStatus && (
-            <>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Connected</span>
-                <Badge variant={healthStatus.isConnected ? 'default' : 'destructive'}>
-                  {healthStatus.isConnected ? 'Yes' : 'No'}
-                </Badge>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Active Devices</span>
-                <span className="text-sm font-medium">{healthStatus.activeDevices}</span>
-              </div>
-              
-              {healthStatus.responseTime && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Response Time</span>
-                  <span className="text-sm font-medium">{healthStatus.responseTime}ms</span>
-                </div>
-              )}
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Last Check</span>
-                <span className="text-xs text-muted-foreground">
-                  {healthStatus.lastCheck.toLocaleTimeString()}
-                </span>
-              </div>
-              
-              {healthStatus.errorMessage && (
-                <div className="pt-2 border-t">
-                  <span className="text-xs text-red-600">{healthStatus.errorMessage}</span>
-                </div>
-              )}
-            </>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={checkGP51Health}
+            disabled={isLoading}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {getStatusIcon()}
+            <span className="font-medium">Status</span>
+          </div>
+          <Badge variant={getStatusColor() as any}>
+            {getStatusText()}
+          </Badge>
         </div>
+
+        {healthStatus && (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-blue-500" />
+                <div>
+                  <div className="text-sm text-gray-600">Devices</div>
+                  <div className="font-semibold">{healthStatus.deviceCount}</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-purple-500" />
+                <div>
+                  <div className="text-sm text-gray-600">Groups</div>
+                  <div className="font-semibold">{healthStatus.groupCount}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-xs text-gray-500">
+              Last checked: {healthStatus.lastChecked.toLocaleTimeString()}
+              {healthStatus.apiResponseTime && (
+                <span className="ml-2">
+                  • Response time: {Math.round(healthStatus.apiResponseTime)}ms
+                </span>
+              )}
+            </div>
+          </>
+        )}
+
+        {healthStatus?.error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Connection Error:</strong> {healthStatus.error}
+              <div className="mt-2 text-sm">
+                Please check your GP51 credentials and ensure the API is accessible.
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {healthStatus?.isConnected && (
+          <Alert>
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Connection Successful!</strong> GP51 integration is working properly.
+              {healthStatus.deviceCount > 0 && (
+                <div className="mt-1">
+                  Successfully connected to {healthStatus.deviceCount} devices across {healthStatus.groupCount} groups.
+                </div>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
       </CardContent>
     </Card>
   );

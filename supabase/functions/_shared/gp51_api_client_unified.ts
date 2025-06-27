@@ -20,10 +20,10 @@ export class GP51ApiClient {
   }
 
   /**
-   * CORRECTED: Query monitor list using the proper GP51 API method
+   * ✅ CORRECTED: Query monitor list using the proper GP51 API method with GET and query parameters
    */
   async queryDevicesTree(token: string, username?: string, password?: string): Promise<any> {
-    console.log('🌳 [GP51-UNIFIED] Starting corrected queryDevicesTree (using querymonitorlist)');
+    console.log('🌳 [GP51-UNIFIED] Starting corrected queryDevicesTree (using official API format)');
     
     try {
       // We need fresh credentials since GP51 requires login for each session
@@ -31,22 +31,39 @@ export class GP51ApiClient {
         throw new Error('Username and password required for GP51 authentication');
       }
 
-      // Initialize client with credentials
-      this.initializeClient(username, password);
+      // Hash password for GP51 API
+      const encoder = new TextEncoder();
+      const data = encoder.encode(password);
+      const hashBuffer = await crypto.subtle.digest('MD5', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const gp51Hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
+
+      // ✅ CORRECT: Using official GP51 API format with GET and query parameters
+      const queryUrl = `https://www.gps51.com/webapi?action=querymonitorlist&username=${encodeURIComponent(username)}&password=${encodeURIComponent(gp51Hash)}`;
       
-      if (!this.unifiedClient) {
-        throw new Error('Failed to initialize GP51 client');
+      console.log('🔄 [GP51-UNIFIED] Making querymonitorlist request (sanitized URL)');
+      
+      const result = await fetch(queryUrl, {
+        method: 'GET',  // Official GP51 API uses GET
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'FleetIQ/1.0'
+        },
+        signal: AbortSignal.timeout(this.timeout)
+      });
+
+      if (!result.ok) {
+        throw new Error(`HTTP ${result.status}: ${result.statusText}`);
       }
 
-      // Use the corrected method that actually works with GP51
-      const result = await this.unifiedClient.getDevicesHierarchy();
+      const data = await result.json();
       
-      if (!result.success) {
-        throw new Error(result.message || 'Failed to fetch devices hierarchy');
+      if (data.status !== 0) {
+        throw new Error(data.cause || 'Failed to fetch devices hierarchy');
       }
 
       console.log('✅ [GP51-UNIFIED] Successfully retrieved devices tree');
-      return result.data;
+      return data;
 
     } catch (error) {
       const errorMsg = `queryDevicesTree failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -66,19 +83,50 @@ export class GP51ApiClient {
         throw new Error('Username and password required for GP51 authentication');
       }
 
-      this.initializeClient(username, password);
-      
-      if (!this.unifiedClient) {
-        throw new Error('Failed to initialize GP51 client');
+      // Hash password for GP51 API
+      const encoder = new TextEncoder();
+      const data = encoder.encode(password);
+      const hashBuffer = await crypto.subtle.digest('MD5', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const gp51Hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
+
+      // Build query parameters
+      const params = new URLSearchParams({
+        action: 'lastposition',
+        username: username,
+        password: gp51Hash
+      });
+
+      if (deviceIds.length > 0) {
+        params.append('deviceids', deviceIds.join(','));
       }
 
-      const result = await this.unifiedClient.getDevicesWithPositions();
-      
-      if (!result.success) {
-        throw new Error(result.message || 'Failed to fetch device positions');
+      if (lastQueryTime) {
+        params.append('lastquerypositiontime', lastQueryTime);
       }
 
-      return result.data.positions;
+      const positionUrl = `https://www.gps51.com/webapi?${params.toString()}`;
+      
+      const result = await fetch(positionUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'FleetIQ/1.0'
+        },
+        signal: AbortSignal.timeout(this.timeout)
+      });
+
+      if (!result.ok) {
+        throw new Error(`HTTP ${result.status}: ${result.statusText}`);
+      }
+
+      const data = await result.json();
+      
+      if (data.status !== 0) {
+        throw new Error(data.cause || 'Failed to fetch device positions');
+      }
+
+      return data.positions || [];
 
     } catch (error) {
       const errorMsg = `getLastPosition failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -100,20 +148,14 @@ export class GP51ApiClient {
         throw new Error('Username and password required for GP51 authentication');
       }
 
-      this.initializeClient(username, password);
-      
-      if (!this.unifiedClient) {
-        throw new Error('Failed to initialize GP51 client');
-      }
-
       // Route to appropriate method based on action
       switch (action) {
         case 'querymonitorlist':
         case 'querydevicestree': // Alias for compatibility
-          return await this.unifiedClient.getDevicesHierarchy();
+          return await this.queryDevicesTree('', username, password);
           
         case 'lastposition':
-          return await this.unifiedClient.getDevicesWithPositions();
+          return await this.getLastPosition('', parameters.deviceids, parameters.lastquerypositiontime, username, password);
           
         default:
           throw new Error(`Unsupported action: ${action}`);
@@ -141,23 +183,12 @@ export class GP51ApiClient {
         };
       }
 
-      this.initializeClient(username, password);
-      
-      if (!this.unifiedClient) {
-        return {
-          success: false,
-          error: 'Failed to initialize GP51 client',
-          status: 500
-        };
-      }
-
-      const result = await this.unifiedClient.getDevicesHierarchy();
+      const result = await this.queryDevicesTree('', username, password);
       
       return {
-        success: result.success,
-        data: result.data,
-        error: result.success ? undefined : result.message,
-        status: result.success ? 200 : 400
+        success: true,
+        data: result,
+        status: 200
       };
     } catch (error) {
       return {
