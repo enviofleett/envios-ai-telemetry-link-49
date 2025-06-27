@@ -1,4 +1,3 @@
-
 import { GP51AuthService } from './GP51AuthService';
 import { GP51DataService } from './GP51DataService';
 import { GP51HealthService } from './GP51HealthService';
@@ -16,7 +15,7 @@ export class UnifiedGP51Service {
   }
 
   // Auth methods
-  get session() { return this.authService.session; }
+  get session() { return this.authService.getSession(); }
   get isAuthenticated() { return this.authService.isAuthenticated; }
 
   async authenticate(username: string, password: string): Promise<GP51AuthResponse> {
@@ -53,7 +52,6 @@ export class UnifiedGP51Service {
     try {
       const result = await this.dataService.getPositions();
       
-      // Return just the data array, filter by deviceIds if provided
       if (Array.isArray(result)) {
         return deviceIds ? result.filter(pos => deviceIds.includes(pos.deviceid)) : result;
       } else {
@@ -69,7 +67,6 @@ export class UnifiedGP51Service {
     try {
       const result = await this.dataService.getPositions();
       
-      // Return just the data array, filter by deviceIds if provided
       if (Array.isArray(result)) {
         return deviceIds ? result.filter(pos => deviceIds.includes(pos.deviceid)) : result;
       } else {
@@ -91,5 +88,4 @@ export class UnifiedGP51Service {
   }
 }
 
-// Create and export singleton instance
 export const unifiedGP51Service = new UnifiedGP51Service();

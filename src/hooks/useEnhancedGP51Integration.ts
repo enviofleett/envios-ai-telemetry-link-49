@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useRealTimePositions } from './useRealTimePositions';
 import { livePositionService } from '@/services/gp51/LivePositionService';
@@ -55,11 +54,11 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
       
       const response = await unifiedGP51Service.authenticate(username, password);
       
-      if (response.success) {
+      if (response.status === 0) {
         console.log('✅ GP51 authentication successful');
         return true;
       } else {
-        const errorMsg = response.error || 'Authentication failed';
+        const errorMsg = response.cause || 'Authentication failed';
         console.error('❌ GP51 authentication failed:', errorMsg);
         setError(errorMsg);
         return false;
@@ -119,15 +118,12 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
 
       console.log('🔄 Syncing devices from GP51...');
 
-      // Get monitor list from GP51
       const monitorResponse = await unifiedGP51Service.queryMonitorList();
       
       if (!monitorResponse.success) {
         throw new Error(monitorResponse.error || 'Failed to fetch monitor list');
       }
 
-      // The production service automatically stores devices in the database
-      // So we just need to reload from database
       await loadDevicesFromDatabase();
 
       console.log(`✅ GP51 sync completed`);
@@ -150,10 +146,8 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
         if (unifiedGP51Service.isAuthenticated) {
           console.log('🎯 Starting real-time position tracking...');
           
-          // Get initial positions from GP51
           const positionsResponse = await unifiedGP51Service.getPositions(deviceIds);
           
-          // Handle direct array response
           if (Array.isArray(positionsResponse) && positionsResponse.length > 0) {
             console.log(`📍 Retrieved positions for ${positionsResponse.length} devices`);
           }
@@ -178,7 +172,6 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
     await loadDevicesFromDatabase();
   }, [loadDevicesFromDatabase]);
 
-  // Update device positions when real-time positions change
   useEffect(() => {
     if (positions.size > 0) {
       setDevices(prevDevices => 
@@ -198,12 +191,10 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
     }
   }, [positions]);
 
-  // Load devices on mount
   useEffect(() => {
     loadDevicesFromDatabase();
   }, [loadDevicesFromDatabase]);
 
-  // Try to load existing session on mount
   useEffect(() => {
     const loadExistingSession = async () => {
       try {

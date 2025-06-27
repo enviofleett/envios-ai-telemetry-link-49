@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
 import type { GP51ProcessedPosition, GP51Position } from '@/types/gp51-unified';
@@ -13,8 +12,7 @@ export class GP51VehiclePersistenceService {
     if (!GP51VehiclePersistenceService.instance) {
       GP51VehiclePersistenceService.instance = new GP51VehiclePersistenceService();
     }
-    return GP51VehicleP
-istenceService.instance;
+    return GP51VehiclePersistenceService.instance;
   }
 
   async persistVehicleData(deviceId: string, position: GP51ProcessedPosition): Promise<void> {
@@ -26,12 +24,11 @@ istenceService.instance;
         throw new Error('User not authenticated');
       }
 
-      // Create vehicle data object matching the database schema
       const vehicleData = {
-        gp51_device_id: deviceId, // Correct column name
-        name: position.deviceName || deviceId, // Correct column name
-        user_id: user.id, // Correct column name
-        sim_number: null, // Optional field
+        gp51_device_id: deviceId,
+        name: position.deviceName || deviceId,
+        user_id: user.id,
+        sim_number: null,
       };
 
       const { error } = await supabase
@@ -59,12 +56,11 @@ istenceService.instance;
         throw new Error('User not authenticated');
       }
 
-      // Create vehicle data array matching the database schema
       const vehicleData = positions.map(position => ({
-        gp51_device_id: position.deviceId, // Correct column name
-        name: position.deviceName || position.deviceId, // Correct column name
-        user_id: user.id, // Correct column name
-        sim_number: null, // Optional field
+        gp51_device_id: position.deviceId,
+        name: position.deviceName || position.deviceId,
+        user_id: user.id,
+        sim_number: null,
       }));
 
       const { error } = await supabase
@@ -93,9 +89,8 @@ istenceService.instance;
         throw new Error(`No position data found for device ${deviceId}`);
       }
 
-      // Convert GP51Position to GP51ProcessedPosition using mapper
       const processedPosition = GP51PropertyMapper.mapPosition(position);
-      processedPosition.deviceName = deviceId; // Set device name
+      processedPosition.deviceName = deviceId;
 
       await this.persistVehicleData(deviceId, processedPosition);
       console.log(`Data fetched and persisted successfully for device ${deviceId}`);
@@ -111,7 +106,7 @@ istenceService.instance;
 
       const { error } = await supabase
         .from('vehicles')
-        .update({ user_id: userId }) // Correct column name
+        .update({ user_id: userId })
         .eq('id', vehicleId);
 
       if (error) {

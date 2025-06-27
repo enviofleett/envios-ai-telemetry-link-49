@@ -3,10 +3,14 @@ import type { GP51AuthResponse } from '@/types/gp51-unified';
 
 export class GP51AuthService {
   private token: string | null = null;
-  private session: any = null;
+  private _session: any = null;
 
   get isAuthenticated(): boolean {
     return !!this.token;
+  }
+
+  public getSession() {
+    return this._session;
   }
 
   async authenticate(username: string, password: string): Promise<GP51AuthResponse> {
@@ -17,7 +21,7 @@ export class GP51AuthService {
         for (let i = 0; i < str.length; i++) {
           const char = str.charCodeAt(i);
           hash = ((hash << 5) - hash) + char;
-          hash = hash & hash; // Convert to 32bit integer
+          hash = hash & hash;
         }
         return Math.abs(hash).toString(16);
       };
@@ -35,33 +39,45 @@ export class GP51AuthService {
         })
       });
 
-      const result: GP51AuthResponse = await response.json();
+      const result = await response.json();
       
       if (result.status === 0 && result.token) {
         this.token = result.token;
-        this.session = {
+        this._session = {
           username,
           token: result.token,
           loginTime: new Date()
         };
+        return {
+          status: result.status,
+          cause: result.cause,
+          token: result.token,
+          success: true
+        };
+      } else {
+        return {
+          status: result.status,
+          cause: result.cause,
+          success: false,
+          error: result.cause
+        };
       }
-      
-      return result;
     } catch (error) {
       return {
         status: 1,
-        cause: error instanceof Error ? error.message : 'Authentication failed'
+        cause: error instanceof Error ? error.message : 'Authentication failed',
+        success: false,
+        error: error instanceof Error ? error.message : 'Authentication failed'
       };
     }
   }
 
   async loadExistingSession(): Promise<boolean> {
-    // Check if there's a stored session
     const storedSession = localStorage.getItem('gp51_session');
     if (storedSession) {
       try {
-        this.session = JSON.parse(storedSession);
-        this.token = this.session.token;
+        this._session = JSON.parse(storedSession);
+        this.token = this._session.token;
         return true;
       } catch {
         return false;
@@ -86,7 +102,7 @@ export class GP51AuthService {
         console.error('Logout error:', error);
       } finally {
         this.token = null;
-        this.session = null;
+        this._session = null;
         localStorage.removeItem('gp51_session');
       }
     }

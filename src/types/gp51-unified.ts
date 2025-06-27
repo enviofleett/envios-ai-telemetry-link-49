@@ -1,7 +1,6 @@
 
-// =============================================================================
-// COMPLETE GP51 TYPE DEFINITIONS - types/gp51-unified.ts  
-// =============================================================================
+// Remove the problematic crypto import since it's not used and causes issues in browser
+// import crypto from 'crypto';
 
 // Core GP51 API Types
 export interface GP51AuthResult {
@@ -11,6 +10,8 @@ export interface GP51AuthResult {
 }
 
 export interface GP51AuthResponse extends GP51AuthResult {
+  success: boolean;
+  error?: string;
   userInfo?: {
     username: string;
     usertype: number;
@@ -34,6 +35,12 @@ export interface GP51Device {
   icon: number;
   stared: number;
   loginame?: string;
+  
+  // Additional computed properties for compatibility
+  deviceId?: string;
+  deviceName?: string;
+  lastActiveTime?: number;
+  isActive?: boolean;
 }
 
 // Alias for backwards compatibility
@@ -126,7 +133,7 @@ export interface GP51LastPositionResponse {
 }
 
 export interface GP51HealthStatus {
-  status: 'healthy' | 'failed' | 'warning' | 'degraded' | 'down';
+  status: 'healthy' | 'failed' | 'warning';
   lastCheck: Date;
   responseTime?: number;
   isConnected: boolean;
@@ -138,12 +145,6 @@ export interface GP51HealthStatus {
   errors?: string[];
   isHealthy: boolean;
   connectionStatus: 'connected' | 'disconnected' | 'error';
-  apiStatus?: 'healthy' | 'degraded' | 'down';
-  apiReachable?: boolean;
-  dataFlowing?: boolean;
-  deviceCount?: number;
-  apiResponseTime?: number;
-  lastSuccessfulPing?: Date;
 }
 
 export interface GP51ConnectionTestResult {
@@ -156,13 +157,12 @@ export interface GP51ConnectionTestResult {
 }
 
 export interface GP51TestResult {
-  name: string;
   success: boolean;
+  testType: string;
   message: string;
-  responseTime: number;
-  timestamp: Date;
+  duration: number;
+  errors?: string[];
   data?: any;
-  error?: string;
 }
 
 export interface GP51PerformanceMetrics {
@@ -175,6 +175,17 @@ export interface GP51PerformanceMetrics {
   dataQuality: number;
   onlinePercentage: number;
   utilizationRate: number;
+  
+  // Additional properties needed by components
+  responseTime: number;
+  success: boolean;
+  requestStartTime: string;
+  deviceCount: number;
+  groupCount: number;
+  timestamp: string;
+  apiCallCount: number;
+  movingVehicles: number;
+  stoppedVehicles: number;
 }
 
 export interface GP51ProcessedPosition {
@@ -192,7 +203,6 @@ export interface GP51ProcessedPosition {
   signal: number;
   battery?: number;
   fuel?: number;
-  statusText?: string;
 }
 
 export interface GP51ProcessResult {
@@ -249,6 +259,11 @@ export interface GP51TelemetryData {
 
 // Analytics Types
 export interface RealAnalyticsData {
+  totalUsers: number;
+  activeUsers: number;
+  totalVehicles: number;
+  activeVehicles: number;
+  gp51Status: GP51HealthStatus;
   vehicleStatus: {
     total: number;
     online: number;
@@ -271,6 +286,7 @@ export interface RealAnalyticsData {
     message: string;
     timestamp: Date;
     vehicleId?: string;
+    percentageChange?: number;
   }>;
   performance: {
     averageSpeed: number;
@@ -346,20 +362,14 @@ export interface CompleteFleetData {
 
 // Backwards compatibility aliases
 export interface GPS51Device extends GP51Device {}
-export interface GPS51Group extends GP51Group {}
-export interface GPS51Position extends GP51Position {}
 export interface GPS51TestResult extends GP51TestResult {}
 
-// =============================================================================
-// PROPERTY MAPPING UTILITIES
-// =============================================================================
-
+// Property mapping utilities
 export class GP51PropertyMapper {
-  // Map GP51Position to standardized format
   static mapPosition(position: GP51Position): GP51ProcessedPosition {
     return {
       deviceId: position.deviceid,
-      deviceName: '', // Would need to lookup from device tree
+      deviceName: '',
       latitude: position.callat,
       longitude: position.callon,
       altitude: position.altitude,
@@ -370,12 +380,10 @@ export class GP51PropertyMapper {
       status: position.strstatusen || position.strstatus,
       accuracy: position.radius,
       signal: position.rxlevel,
-      battery: position.voltagepercent > 0 ? position.voltagepercent : undefined,
-      statusText: position.strstatusen || position.strstatus
+      battery: position.voltagepercent > 0 ? position.voltagepercent : undefined
     };
   }
 
-  // Add computed properties to GP51Position for backwards compatibility
   static enhancePosition(position: GP51Position): GP51Position & {
     deviceId: string;
     latitude: number;
@@ -395,13 +403,12 @@ export class GP51PropertyMapper {
       latitude: position.callat,
       longitude: position.callon,
       timestamp: new Date(position.updatetime),
-      isOnline: minutesAgo <= 60, // Consider online if updated within 60 minutes
+      isOnline: minutesAgo <= 60,
       isMoving: position.moving === 1,
       statusText: position.strstatusen || position.strstatus || 'Unknown'
     };
   }
 
-  // Add computed properties to GP51Group for backwards compatibility
   static enhanceGroup(group: GP51Group): GP51Group & {
     id: number;
     group_name: string;
@@ -419,12 +426,15 @@ export class GP51PropertyMapper {
     };
   }
 
-  // Convert GP51Device to GP51DeviceData format
   static enhanceDevice(device: GP51Device, position?: GP51Position): GP51DeviceData {
     const isOnline = position ? this.enhancePosition(position).isOnline : false;
     
     return {
       ...device,
+      deviceId: device.deviceid,
+      deviceName: device.devicename,
+      lastActiveTime: device.lastactivetime,
+      isActive: device.isfree === 1 || device.isfree === 2,
       isOnline,
       lastSeen: position ? new Date(position.updatetime) : new Date(device.lastactivetime || 0),
       connectionStatus: position && isOnline 

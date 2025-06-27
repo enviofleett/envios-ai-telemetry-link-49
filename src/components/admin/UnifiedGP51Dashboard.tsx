@@ -1,236 +1,412 @@
 
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
+import { useToast } from '@/hooks/use-toast';
+import GP51HealthIndicator from './GP51HealthIndicator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  RefreshCw, 
+  Database, 
+  Activity, 
+  Users, 
+  Car,
+  AlertTriangle,
+  CheckCircle,
+  Clock
+} from 'lucide-react';
 
 const UnifiedGP51Dashboard: React.FC = () => {
   const {
-    session,
-    devices,
-    positions,
-    groups,
     healthStatus,
-    performanceMetrics,
-    loading,
-    devicesLoading,
+    devices,
+    groups,
+    metrics,
+    isLoading,
     error,
+    isAuthenticated,
+    session,
+    refreshAllData,
     fetchDevices,
-    connect,
-    disconnect,
-    refreshAllData
+    getConnectionHealth
   } = useUnifiedGP51Service();
 
+  const { toast } = useToast();
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+
   useEffect(() => {
-    // Auto-connect on mount if not already connected
-    if (!session && !loading) {
-      connect().catch(console.error);
+    if (isAuthenticated) {
+      handleRefreshAll();
     }
-  }, [session, loading, connect]);
+  }, [isAuthenticated]);
+
+  const handleRefreshAll = async () => {
+    try {
+      await refreshAllData();
+      setLastRefresh(new Date());
+      toast({
+        title: "Data Refreshed",
+        description: "All GP51 data has been updated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Refresh Failed",
+        description: "Failed to refresh GP51 data. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleRefreshDevices = async () => {
     try {
       await fetchDevices();
-    } catch (err) {
-      console.error('Error refreshing devices:', err);
+      toast({
+        title: "Devices Refreshed",
+        description: "Device list has been updated successfully.",
+      });
+    } catch (error) {
+      toast({
+        title: "Device Refresh Failed",
+        description: "Failed to refresh device list. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleConnect = async () => {
+  const handleHealthCheck = async () => {
     try {
-      await connect();
-    } catch (err) {
-      console.error('Error connecting:', err);
+      await getConnectionHealth();
+      toast({
+        title: "Health Check Complete",
+        description: "Connection health has been verified.",
+      });
+    } catch (error) {
+      toast({
+        title: "Health Check Failed",
+        description: "Failed to check connection health. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
-  const handleDisconnect = () => {
-    disconnect();
-  };
+  if (!isAuthenticated) {
+    return (
+      <Alert>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          Please authenticate with GP51 first to access the dashboard features.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
-  // Provide default values for metrics to avoid errors
-  const safePerformanceMetrics = performanceMetrics || {
-    responseTime: 0,
-    success: false,
-    requestStartTime: new Date().toISOString(),
-    deviceCount: 0,
-    groupCount: 0,
-    timestamp: new Date().toISOString(),
-    apiCallCount: 0,
-    errorRate: 0,
-    averageResponseTime: 0,
-    movingVehicles: 0,
-    stoppedVehicles: 0
-  };
-
-  const safeHealthStatus = healthStatus || {
-    status: 'failed' as const,
-    lastCheck: new Date(),
-    isConnected: false,
-    lastPingTime: new Date(),
-    tokenValid: false,
-    sessionValid: false,
-    activeDevices: 0,
-    errorMessage: 'Not connected',
-    isHealthy: false,
-    connectionStatus: 'disconnected' as const
-  };
+  if (error) {
+    return (
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          <strong>Error:</strong> {error}
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">GP51 Unified Dashboard</h1>
-        
-        <div className="flex space-x-3">
-          {!session ? (
-            <button
-              onClick={handleConnect}
-              disabled={loading}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-            >
-              {loading ? 'Connecting...' : 'Connect'}
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={handleRefreshDevices}
-                disabled={devicesLoading}
-                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:opacity-50"
-              >
-                {devicesLoading ? 'Refreshing...' : 'Refresh Devices'}
-              </button>
-              <button
-                onClick={handleDisconnect}
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-              >
-                Disconnect
-              </button>
-            </>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Unified GP51 Dashboard</h1>
+          <p className="text-muted-foreground">
+            Comprehensive GP51 fleet management and monitoring
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {lastRefresh && (
+            <span className="text-sm text-muted-foreground">
+              Last updated: {lastRefresh.toLocaleTimeString()}
+            </span>
           )}
+          <Button
+            onClick={handleRefreshAll}
+            disabled={isLoading}
+            variant="outline"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh All
+          </Button>
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          <strong>Error:</strong> {error}
-        </div>
-      )}
+      {/* Health Indicator */}
+      <GP51HealthIndicator />
 
-      {/* Health Status */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">System Health</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className={`text-2xl font-bold ${safeHealthStatus.isHealthy ? 'text-green-600' : 'text-red-600'}`}>
-              {safeHealthStatus.status.toUpperCase()}
+      {/* Quick Stats */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Devices</CardTitle>
+            <Database className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{devices?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Registered devices
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Devices</CardTitle>
+            <Activity className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {metrics ? (metrics.deviceCount || metrics.activeDevices || 0) : 0}
             </div>
-            <div className="text-sm text-gray-500">Connection Status</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{safeHealthStatus.activeDevices}</div>
-            <div className="text-sm text-gray-500">Active Devices</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-600">
-              {safeHealthStatus.responseTime || 0}ms
+            <p className="text-xs text-muted-foreground">
+              Currently active
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Moving Vehicles</CardTitle>
+            <Car className="h-4 w-4 text-blue-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {metrics ? (metrics.movingVehicles || 0) : 0}
             </div>
-            <div className="text-sm text-gray-500">Response Time</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {safeHealthStatus.lastCheck.toLocaleTimeString()}
-            </div>
-            <div className="text-sm text-gray-500">Last Check</div>
-          </div>
-        </div>
+            <p className="text-xs text-muted-foreground">
+              In motion
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Groups</CardTitle>
+            <Users className="h-4 w-4 text-purple-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">{groups?.length || 0}</div>
+            <p className="text-xs text-muted-foreground">
+              Device groups
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Performance Metrics */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Performance Metrics</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{safePerformanceMetrics.deviceCount}</div>
-            <div className="text-sm text-gray-500">Total Devices</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{safePerformanceMetrics.movingVehicles}</div>
-            <div className="text-sm text-gray-500">Moving Vehicles</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-yellow-600">
-              {(safePerformanceMetrics.errorRate * 100).toFixed(1)}%
-            </div>
-            <div className="text-sm text-gray-500">Error Rate</div>
-          </div>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {safePerformanceMetrics.averageResponseTime}ms
-            </div>
-            <div className="text-sm text-gray-500">Avg Response Time</div>
-          </div>
-        </div>
-      </div>
+      {/* Main Content Tabs */}
+      <Tabs defaultValue="devices" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="devices">Devices</TabsTrigger>
+          <TabsTrigger value="groups">Groups</TabsTrigger>
+          <TabsTrigger value="health">System Health</TabsTrigger>
+        </TabsList>
 
-      {/* Devices Table */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Connected Devices ({devices.length})</h2>
-        <div className="overflow-x-auto">
-          <table className="min-w-full table-auto">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-4 py-2 text-left">Device ID</th>
-                <th className="px-4 py-2 text-left">Name</th>
-                <th className="px-4 py-2 text-left">Status</th>
-                <th className="px-4 py-2 text-left">Last Active</th>
-              </tr>
-            </thead>
-            <tbody>
-              {devices.map((device) => (
-                <tr key={device.deviceId} className="border-t">
-                  <td className="px-4 py-2 font-mono text-sm">{device.deviceId}</td>
-                  <td className="px-4 py-2">{device.deviceName}</td>
-                  <td className="px-4 py-2">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      device.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                      {device.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-500">
-                    {device.lastActiveTime ? new Date(device.lastActiveTime).toLocaleString() : 'Never'}
-                  </td>
-                </tr>
+        <TabsContent value="devices" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium">Device Management</h3>
+            <Button onClick={handleRefreshDevices} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh Devices
+            </Button>
+          </div>
+
+          {devices && devices.length > 0 ? (
+            <div className="grid gap-4">
+              {devices.slice(0, 10).map((device) => (
+                <Card key={device.deviceid}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">{device.devicename}</h4>
+                        <p className="text-sm text-muted-foreground">ID: {device.deviceid}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Type: {device.devicetype}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant={device.isActive ? "default" : "secondary"}>
+                          {device.isActive ? 'Active' : 'Inactive'}
+                        </Badge>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Last seen: {device.lastactivetime ? 
+                            new Date(device.lastactivetime).toLocaleString() : 'Never'}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
-            </tbody>
-          </table>
-          {devices.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No devices found. {session ? 'Try refreshing the data.' : 'Please connect first.'}
+              {devices.length > 10 && (
+                <p className="text-sm text-muted-foreground text-center">
+                  Showing 10 of {devices.length} devices
+                </p>
+              )}
             </div>
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No devices found</p>
+                <Button onClick={handleRefreshDevices} className="mt-4" variant="outline">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Refresh Devices
+                </Button>
+              </CardContent>
+            </Card>
           )}
-        </div>
-      </div>
+        </TabsContent>
 
-      {/* Groups */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Vehicle Groups ({groups.length})</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {groups.map((group) => (
-            <div key={group.id} className="border rounded-lg p-4">
-              <h3 className="font-semibold text-lg">{group.group_name}</h3>
-              <div className="mt-2">
-                <span className="text-sm text-gray-500">
-                  {group.device_count} devices
-                </span>
-              </div>
+        <TabsContent value="groups" className="space-y-4">
+          <h3 className="text-lg font-medium">Device Groups</h3>
+          
+          {groups && groups.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {groups.map((group) => (
+                <Card key={group.groupid}>
+                  <CardHeader>
+                    <CardTitle className="text-base">{group.groupname}</CardTitle>
+                    <CardDescription>
+                      Group ID: {group.groupid}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Devices:</span>
+                      <Badge variant="outline">{group.devices?.length || 0}</Badge>
+                    </div>
+                    {group.remark && (
+                      <p className="text-sm text-muted-foreground mt-2">{group.remark}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          ))}
-          {groups.length === 0 && (
-            <div className="col-span-full text-center py-8 text-gray-500">
-              No groups found.
-            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No groups found</p>
+              </CardContent>
+            </Card>
           )}
-        </div>
-      </div>
+        </TabsContent>
+
+        <TabsContent value="health" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium">System Health</h3>
+            <Button onClick={handleHealthCheck} variant="outline" size="sm">
+              <Activity className="h-4 w-4 mr-2" />
+              Check Health
+            </Button>
+          </div>
+
+          {healthStatus ? (
+            <div className="grid gap-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    {healthStatus.isHealthy ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <AlertTriangle className="h-5 w-5 text-red-600" />
+                    )}
+                    Connection Status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm font-medium">Status:</span>
+                      <Badge className="ml-2" variant={healthStatus.isHealthy ? "default" : "destructive"}>
+                        {healthStatus.status}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">Connected:</span>
+                      <Badge className="ml-2" variant={healthStatus.isConnected ? "default" : "secondary"}>
+                        {healthStatus.isConnected ? 'Yes' : 'No'}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">Session Valid:</span>
+                      <Badge className="ml-2" variant={healthStatus.sessionValid ? "default" : "secondary"}>
+                        {healthStatus.sessionValid ? 'Yes' : 'No'}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">Active Devices:</span>
+                      <span className="ml-2 font-mono">{healthStatus.activeDevices}</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <span className="text-sm font-medium">Last Check:</span>
+                    <span className="ml-2 text-sm text-muted-foreground">
+                      {healthStatus.lastCheck.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {healthStatus.errorMessage && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>{healthStatus.errorMessage}</AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+
+              {metrics && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Performance Metrics</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium">Response Time:</span>
+                        <span className="ml-2">{metrics.averageResponseTime}ms</span>
+                      </div>
+                      <div>
+                        <span className="font-medium">Error Rate:</span>
+                        <span className="ml-2">{(metrics.errorRate * 100).toFixed(2)}%</span>
+                      </div>
+                      <div>
+                        <span className="font-medium">Data Quality:</span>
+                        <span className="ml-2">{(metrics.dataQuality * 100).toFixed(1)}%</span>
+                      </div>
+                      <div>
+                        <span className="font-medium">Utilization:</span>
+                        <span className="ml-2">{metrics.utilizationRate}%</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="p-6 text-center">
+                <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">No health data available</p>
+                <Button onClick={handleHealthCheck} className="mt-4" variant="outline">
+                  <Activity className="h-4 w-4 mr-2" />
+                  Check Health
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

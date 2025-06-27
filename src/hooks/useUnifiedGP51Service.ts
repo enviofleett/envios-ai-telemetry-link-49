@@ -6,7 +6,8 @@ import type {
   GP51Position,
   GP51PerformanceMetrics,
   GP51ConnectionTestResult,
-  GP51Group
+  GP51Group,
+  GP51AuthResponse
 } from '@/types/gp51-unified';
 import { GP51PropertyMapper } from '@/types/gp51-unified';
 import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
@@ -18,6 +19,7 @@ export const useUnifiedGP51Service = () => {
   const [metrics, setMetrics] = useState<GP51PerformanceMetrics | null>(null);
   const [groups, setGroups] = useState<GP51Group[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -34,6 +36,7 @@ export const useUnifiedGP51Service = () => {
 
   const authenticate = async (username: string, password: string) => {
     setLoading(true);
+    setIsLoading(true);
     setError(null);
     
     try {
@@ -44,7 +47,7 @@ export const useUnifiedGP51Service = () => {
         return { success: true };
       } else {
         setError(result.cause);
-        return { success: false, error: result.cause };
+        return { success: false, error: result.cause, cause: result.cause };
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
@@ -52,6 +55,7 @@ export const useUnifiedGP51Service = () => {
       return { success: false, error: errorMessage };
     } finally {
       setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -122,6 +126,20 @@ export const useUnifiedGP51Service = () => {
     return await unifiedGP51Service.connect();
   };
 
+  const refreshAllData = async () => {
+    setIsLoading(true);
+    try {
+      await Promise.all([
+        fetchDevices(),
+        getConnectionHealth()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const isConnected = isAuthenticated && session;
 
   return {
@@ -131,6 +149,7 @@ export const useUnifiedGP51Service = () => {
     metrics,
     groups,
     loading,
+    isLoading,
     devicesLoading,
     error,
     isAuthenticated,
@@ -143,6 +162,7 @@ export const useUnifiedGP51Service = () => {
     disconnect,
     getConnectionHealth,
     fetchDevices,
-    connect
+    connect,
+    refreshAllData
   };
 };
