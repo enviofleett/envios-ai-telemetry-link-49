@@ -4,13 +4,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
 
-// Import GP51 components - using conditional imports to avoid errors if components don't exist
+// Import GP51 components - using conditional imports with proper named export handling
 const GP51Settings = React.lazy(() => 
   import('../GP51Settings').catch(() => ({ default: () => <div>GP51 Settings component not found</div> }))
 );
 
 const GP51ConnectionTester = React.lazy(() => 
-  import('../GP51ConnectionTester').catch(() => ({ default: () => <div>GP51 Connection Tester component not found</div> }))
+  import('../GP51ConnectionTester').then(module => ({ default: module.GP51ConnectionTester })).catch(() => ({ default: () => <div>GP51 Connection Tester component not found</div> }))
 );
 
 const GP51DiagnosticsPanel = React.lazy(() => 
