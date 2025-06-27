@@ -4,8 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, AlertCircle, XCircle, RefreshCw } from 'lucide-react';
 import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
+import type { GP51HealthIndicatorProps } from '@/types/gp51-unified';
 
-const GP51HealthIndicator: React.FC = () => {
+const GP51HealthIndicator: React.FC<GP51HealthIndicatorProps> = ({ 
+  compact = false, 
+  onStatusChange 
+}) => {
   const { healthStatus, getConnectionHealth, loading } = useUnifiedGP51Service();
 
   useEffect(() => {
@@ -19,6 +23,13 @@ const GP51HealthIndicator: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [getConnectionHealth]);
+
+  // Call onStatusChange when health status changes
+  useEffect(() => {
+    if (onStatusChange && healthStatus) {
+      onStatusChange(healthStatus);
+    }
+  }, [healthStatus, onStatusChange]);
 
   const getStatusIcon = () => {
     if (loading) return <RefreshCw className="h-4 w-4 animate-spin" />;
@@ -50,6 +61,17 @@ const GP51HealthIndicator: React.FC = () => {
         return 'secondary';
     }
   };
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2">
+        {getStatusIcon()}
+        <Badge variant={getStatusVariant()}>
+          {healthStatus?.status || 'Unknown'}
+        </Badge>
+      </div>
+    );
+  }
 
   return (
     <Card>

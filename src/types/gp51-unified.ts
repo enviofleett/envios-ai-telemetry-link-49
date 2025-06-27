@@ -60,10 +60,23 @@ export interface GP51Device {
   timestamp?: Date;
   isActive?: boolean;
   remark?: string;
+  
+  // Additional properties for compatibility
+  connectionStatus?: 'online' | 'offline' | 'unknown';
+  position?: GP51Position;
+  lastSeen?: Date;
+  alerts?: GP51Alert[];
 }
 
 // Alias for backwards compatibility
 export interface GP51DeviceData extends GP51Device {}
+
+export interface GP51Alert {
+  id: string;
+  type: 'warning' | 'error' | 'info';
+  message: string;
+  timestamp: Date;
+}
 
 export interface GP51Group {
   groupid: string;
@@ -71,6 +84,10 @@ export interface GP51Group {
   parentid: string;
   devices?: GP51Device[];
   remark?: string;
+  
+  // Additional properties
+  deviceCount?: number;
+  onlineCount?: number;
 }
 
 export interface GP51DeviceTreeResponse {
@@ -123,6 +140,10 @@ export interface GP51Position {
   loadstatus: number;
   weight: number;
   reportmode: number;
+  
+  // Add missing coordinate properties for compatibility
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface GP51ProcessedPosition {
@@ -244,41 +265,46 @@ interface ActivityData {
 }
 
 export interface RealAnalyticsData {
+  // Required core properties
   totalUsers: number;
   activeUsers: number;
   totalVehicles: number;
   activeVehicles: number;
-  vehicleStatus: {
+  
+  // Required activity data
+  recentActivity: ActivityData[];
+  
+  // Optional detailed breakdowns
+  vehicleStatus?: {
     total: number;
     online: number;
     offline: number;
     moving: number;
     parked: number;
   };
-  fleetUtilization: {
+  fleetUtilization?: {
     activeVehicles: number;
     totalVehicles: number;
     utilizationRate: number;
   };
-  systemHealth: {
+  systemHealth?: {
     apiStatus: 'healthy' | 'degraded' | 'down';
     lastUpdate: Date;
     responseTime: number;
   };
-  recentActivity: ActivityData[];
-  performance: {
+  performance?: {
     averageSpeed: number;
     totalDistance: number;
     fuelEfficiency?: number;
     alertCount: number;
   };
-  growth: {
+  growth?: {
     newUsers: number;
     newVehicles: number;
     period: string;
     percentageChange: number;
   };
-  sync: {
+  sync?: {
     importedUsers: number;
     importedVehicles: number;
     lastSync: Date;
@@ -303,6 +329,7 @@ export interface GP51FleetDataOptions {
   includePositions?: boolean;
   forceRefresh?: boolean;
   includeInactive?: boolean;
+  groupFilter?: string[];
 }
 
 export interface GP51LiveData {
@@ -322,4 +349,14 @@ export interface AnalyticsHookReturn {
   error: string | null;
   lastUpdated: Date;
   refreshData: () => void;
+}
+
+// Component prop interfaces
+export interface GP51HealthIndicatorProps {
+  compact?: boolean;
+  onStatusChange?: (status: any) => void;
+}
+
+export interface GP51ConnectionTesterProps {
+  onStatusChange?: (status: any) => void;
 }

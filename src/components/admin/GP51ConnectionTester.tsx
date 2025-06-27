@@ -14,9 +14,11 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useUnifiedGP51Service } from '@/hooks/useUnifiedGP51Service';
-import type { GP51ConnectionTestResult } from '@/types/gp51-unified';
+import type { GP51ConnectionTestResult, GP51ConnectionTesterProps } from '@/types/gp51-unified';
 
-export const GP51ConnectionTester: React.FC = () => {
+export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({ 
+  onStatusChange 
+}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [testResult, setTestResult] = useState<GP51ConnectionTestResult | null>(null);
   const { toast } = useToast();
@@ -40,6 +42,11 @@ export const GP51ConnectionTester: React.FC = () => {
 
       setTestResult(connectionTestResult);
 
+      // Call onStatusChange if provided
+      if (onStatusChange) {
+        onStatusChange(connectionTestResult);
+      }
+
       toast({
         title: result.success ? "Connection Successful" : "Connection Failed",
         description: result.message,
@@ -55,6 +62,10 @@ export const GP51ConnectionTester: React.FC = () => {
       };
       
       setTestResult(errorResult);
+
+      if (onStatusChange) {
+        onStatusChange(errorResult);
+      }
 
       toast({
         title: "Test Failed",

@@ -1,3 +1,4 @@
+
 import type {
   GP51HealthStatus,
   GP51Device as GP51DeviceData,
@@ -77,7 +78,6 @@ export class GP51UnifiedDataService {
 
       const movingVehicles = positions.filter(p => p.moving === 1).length;
 
-      // Fix: Remove invalid properties and use correct status values
       const recentActivity = [
         {
           type: "vehicle_online" as const,
@@ -95,6 +95,16 @@ export class GP51UnifiedDataService {
       ];
 
       return {
+        // Required core properties
+        totalUsers: 150,
+        activeUsers: 45,
+        totalVehicles: totalVehicles,
+        activeVehicles: onlineVehicles,
+        
+        // Required activity data
+        recentActivity,
+        
+        // Optional detailed breakdowns
         vehicleStatus: {
           total: totalVehicles,
           online: onlineVehicles,
@@ -112,7 +122,6 @@ export class GP51UnifiedDataService {
           lastUpdate: new Date(),
           responseTime: healthStatus.responseTime || 150
         },
-        recentActivity,
         performance: {
           averageSpeed: positions.reduce((sum, p) => sum + p.speed, 0) / Math.max(positions.length, 1),
           totalDistance: positions.reduce((sum, p) => sum + p.totaldistance, 0),
@@ -135,7 +144,6 @@ export class GP51UnifiedDataService {
     } catch (error) {
       console.error('Error getting analytics data:', error);
       
-      // Fix: Remove invalid properties and use correct status values
       const errorActivity = [
         {
           type: "alert" as const,
@@ -146,6 +154,16 @@ export class GP51UnifiedDataService {
       ];
 
       return {
+        // Required core properties
+        totalUsers: 0,
+        activeUsers: 0,
+        totalVehicles: 0,
+        activeVehicles: 0,
+        
+        // Required activity data
+        recentActivity: errorActivity,
+        
+        // Optional detailed breakdowns
         vehicleStatus: { total: 0, online: 0, offline: 0, moving: 0, parked: 0 },
         fleetUtilization: { activeVehicles: 0, totalVehicles: 0, utilizationRate: 0 },
         systemHealth: { 
@@ -153,7 +171,6 @@ export class GP51UnifiedDataService {
           lastUpdate: new Date(), 
           responseTime: 0 
         },
-        recentActivity: errorActivity,
         performance: { averageSpeed: 0, totalDistance: 0, alertCount: 1 },
         growth: { newUsers: 0, newVehicles: 0, period: 'This month', percentageChange: 0 },
         sync: { importedUsers: 0, importedVehicles: 0, lastSync: new Date(), status: 'error' as const }

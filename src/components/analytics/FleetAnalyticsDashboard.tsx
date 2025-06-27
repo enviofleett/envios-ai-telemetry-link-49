@@ -3,6 +3,7 @@ import React from 'react';
 import type { RealAnalyticsData } from '@/types/gp51-unified';
 import DashboardMetricCard from './DashboardMetricCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Users, Car, Activity, AlertTriangle } from 'lucide-react';
 
 interface FleetAnalyticsDashboardProps {
   analyticsData?: RealAnalyticsData;
@@ -63,33 +64,46 @@ export const FleetAnalyticsDashboard: React.FC<FleetAnalyticsDashboardProps> = (
     }
   };
 
+  // Fix icon assignments - use actual Lucide icon components
+  const statsCards = [
+    {
+      title: "Total Users",
+      value: mockData.totalUsers,
+      icon: Users,
+      change: 12
+    },
+    {
+      title: "Active Users", 
+      value: mockData.activeUsers,
+      icon: Car,
+      change: 5
+    },
+    {
+      title: "Total Vehicles",
+      value: mockData.totalVehicles,
+      icon: Activity,
+      change: 3
+    },
+    {
+      title: "Active Vehicles",
+      value: mockData.activeVehicles,
+      icon: AlertTriangle,
+      change: 2
+    }
+  ];
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <DashboardMetricCard
-          title="Total Users"
-          value={mockData.totalUsers}
-          change={mockData.growth.percentageChange}
-          icon="users"
-        />
-        <DashboardMetricCard
-          title="Active Users"
-          value={mockData.activeUsers}
-          change={5.2}
-          icon="user-check"
-        />
-        <DashboardMetricCard
-          title="Total Vehicles"
-          value={mockData.totalVehicles}
-          change={3.1}
-          icon="car"
-        />
-        <DashboardMetricCard
-          title="Active Vehicles"
-          value={mockData.activeVehicles}
-          change={2.8}
-          icon="activity"
-        />
+        {statsCards.map((card, index) => (
+          <DashboardMetricCard
+            key={index}
+            title={card.title}
+            value={card.value}
+            change={card.change}
+            icon={card.icon}
+          />
+        ))}
       </div>
 
       <Card>
@@ -103,15 +117,15 @@ export const FleetAnalyticsDashboard: React.FC<FleetAnalyticsDashboardProps> = (
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span>Online:</span>
-                  <span>{mockData.vehicleStatus.online}</span>
+                  <span>{mockData.vehicleStatus?.online || 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Offline:</span>
-                  <span>{mockData.vehicleStatus.offline}</span>
+                  <span>{mockData.vehicleStatus?.offline || 0}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Moving:</span>
-                  <span>{mockData.vehicleStatus.moving}</span>
+                  <span>{mockData.vehicleStatus?.moving || 0}</span>
                 </div>
               </div>
             </div>
@@ -120,11 +134,11 @@ export const FleetAnalyticsDashboard: React.FC<FleetAnalyticsDashboardProps> = (
               <div className="space-y-1">
                 <div className="flex justify-between text-sm">
                   <span>API Status:</span>
-                  <span className="capitalize">{mockData.systemHealth.apiStatus}</span>
+                  <span className="capitalize">{mockData.systemHealth?.apiStatus || 'Unknown'}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Response Time:</span>
-                  <span>{mockData.systemHealth.responseTime}ms</span>
+                  <span>{mockData.systemHealth?.responseTime || 0}ms</span>
                 </div>
               </div>
             </div>

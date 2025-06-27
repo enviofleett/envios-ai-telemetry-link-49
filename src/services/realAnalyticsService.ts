@@ -54,6 +54,30 @@ class RealAnalyticsService {
       const newVehicles = vehicles?.filter(v => new Date(v.created_at) > lastMonth).length || 0;
 
       const analyticsData: RealAnalyticsData = {
+        // Required core properties
+        totalUsers,
+        activeUsers,
+        totalVehicles,
+        activeVehicles: Math.floor(totalVehicles * 0.8),
+        
+        // Required activity data
+        recentActivity: [
+          {
+            type: 'vehicle_online',
+            message: 'Vehicle ABC123 came online',
+            timestamp: new Date(),
+            vehicleId: 'ABC123',
+            percentageChange: 5.2
+          },
+          {
+            type: 'alert',
+            message: 'System performance is optimal',
+            timestamp: new Date(),
+            percentageChange: 0
+          }
+        ],
+        
+        // Optional detailed breakdowns
         vehicleStatus: {
           total: totalVehicles,
           online: Math.floor(totalVehicles * 0.8),
@@ -71,21 +95,6 @@ class RealAnalyticsService {
           lastUpdate: new Date(),
           responseTime: healthStatus.responseTime || 150
         },
-        recentActivity: [
-          {
-            type: 'vehicle_online',
-            message: 'Vehicle ABC123 came online',
-            timestamp: new Date(),
-            vehicleId: 'ABC123',
-            percentageChange: 5.2
-          },
-          {
-            type: 'alert',
-            message: 'System performance is optimal',
-            timestamp: new Date(),
-            percentageChange: 0
-          }
-        ],
         performance: {
           averageSpeed: 45.2,
           totalDistance: 12750,
@@ -114,17 +123,26 @@ class RealAnalyticsService {
     } catch (error) {
       console.error('Error in getAnalyticsData:', error);
       
-      // Return fallback data
+      // Return fallback data with all required properties
       return {
-        vehicleStatus: { total: 0, online: 0, offline: 0, moving: 0, parked: 0 },
-        fleetUtilization: { activeVehicles: 0, totalVehicles: 0, utilizationRate: 0 },
-        systemHealth: { apiStatus: 'down', lastUpdate: new Date(), responseTime: 0 },
+        // Required core properties
+        totalUsers: 0,
+        activeUsers: 0,
+        totalVehicles: 0,
+        activeVehicles: 0,
+        
+        // Required activity data
         recentActivity: [{
           type: 'alert',
           message: 'Unable to fetch analytics data',
           timestamp: new Date(),
           percentageChange: 0
         }],
+        
+        // Optional detailed breakdowns
+        vehicleStatus: { total: 0, online: 0, offline: 0, moving: 0, parked: 0 },
+        fleetUtilization: { activeVehicles: 0, totalVehicles: 0, utilizationRate: 0 },
+        systemHealth: { apiStatus: 'down', lastUpdate: new Date(), responseTime: 0 },
         performance: { averageSpeed: 0, totalDistance: 0, alertCount: 1 },
         growth: { newUsers: 0, newVehicles: 0, period: 'This month', percentageChange: 0 },
         sync: { importedUsers: 0, importedVehicles: 0, lastSync: new Date(), status: 'error' }
