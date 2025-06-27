@@ -11,8 +11,8 @@ import { Navigate } from 'react-router-dom';
 interface GP51HealthStatus {
   isConnected: boolean;
   lastChecked: Date;
-  deviceCount: number;
-  groupCount: number;
+  deviceCount?: number;
+  groupCount?: number;
   error?: string;
   apiResponseTime?: number;
 }
@@ -20,6 +20,10 @@ interface GP51HealthStatus {
 const AdminSetup: React.FC = () => {
   const { user, loading } = useUnifiedAuth();
   const [healthStatus, setHealthStatus] = useState<GP51HealthStatus | null>(null);
+
+  const handleStatusChange = (status: GP51HealthStatus) => {
+    setHealthStatus(status);
+  };
 
   if (loading) {
     return (
@@ -48,7 +52,7 @@ const AdminSetup: React.FC = () => {
             
             <GP51HealthIndicator 
               compact={true}
-              onStatusChange={setHealthStatus}
+              onStatusChange={handleStatusChange}
             />
           </div>
         </div>
@@ -107,7 +111,7 @@ const AdminSetup: React.FC = () => {
                   <p className="text-gray-600 mb-4">
                     Monitor the health and connectivity status of the GP51 integration.
                   </p>
-                  <GP51HealthIndicator onStatusChange={setHealthStatus} />
+                  <GP51HealthIndicator onStatusChange={handleStatusChange} />
                 </CardContent>
               </Card>
             </div>

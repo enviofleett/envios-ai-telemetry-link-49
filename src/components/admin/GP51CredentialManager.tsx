@@ -27,20 +27,20 @@ const GP51CredentialManager: React.FC = () => {
   const loadCredentials = async () => {
     setIsLoading(true);
     try {
-      // Try to get stored credentials from user profile or a secure table
+      // Try to get stored credentials from company_settings table instead
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data, error } = await supabase
-          .from('user_settings')
-          .select('gp51_username, gp51_api_url')
+          .from('company_settings')
+          .select('*')
           .eq('user_id', user.id)
           .single();
 
         if (!error && data) {
           setCredentials(prev => ({
             ...prev,
-            username: data.gp51_username || '',
-            apiUrl: data.gp51_api_url || 'https://www.gps51.com/webapi'
+            username: '', // Don't pre-fill username for security
+            apiUrl: 'https://www.gps51.com/webapi'
           }));
         }
       }
@@ -59,7 +59,7 @@ const GP51CredentialManager: React.FC = () => {
         throw new Error('User not authenticated');
       }
 
-      // Test credentials first
+      // Test credentials first using the gp51-secure-auth function
       const { data: testResult, error: testError } = await supabase.functions.invoke('gp51-secure-auth', {
         body: credentials
       });
@@ -68,23 +68,9 @@ const GP51CredentialManager: React.FC = () => {
         throw new Error(`Invalid credentials: ${testResult?.error || testError?.message}`);
       }
 
-      // Save credentials to user settings (username and API URL only - never store passwords)
-      const { error } = await supabase
-        .from('user_settings')
-        .upsert({
-          user_id: user.id,
-          gp51_username: credentials.username,
-          gp51_api_url: credentials.apiUrl,
-          updated_at: new Date().toISOString()
-        });
-
-      if (error) {
-        throw error;
-      }
-
       toast({
-        title: "Credentials Saved",
-        description: "GP51 credentials have been validated and saved successfully.",
+        title: "Credentials Tested",
+        description: "GP51 credentials have been validated successfully.",
       });
 
       // Clear password from state for security
@@ -216,12 +202,12 @@ const GP51CredentialManager: React.FC = () => {
             className="flex-1"
           >
             <Save className="h-4 w-4 mr-2" />
-            {isSaving ? 'Saving...' : 'Save & Test'}
+            {isSaving ? 'Testing...' : 'Test Credentials'}
           </Button>
         </div>
 
         <div className="text-xs text-gray-600 mt-4 p-2 bg-gray-50 rounded">
-          <strong>Security Note:</strong> Passwords are never stored. Only username and API URL are saved to your profile.
+          <strong>Security Note:</strong> Passwords are never stored. Only connection testing is performed.
           You'll need to re-enter your password each session.
         </div>
       </CardContent>
