@@ -1,12 +1,13 @@
 
 import { useState, useCallback, useEffect } from 'react';
-import { gp51UnifiedDataService } from '@/services/gp51/GP51UnifiedDataService';
+import { GP51EnhancedDataService } from '@/services/gp51/GP51EnhancedDataService';
 
 export const useGP51Fleet = (options: {
   autoRefresh?: boolean;
   refreshInterval?: number;
   includePositions?: boolean;
 } = {}) => {
+  const [dataService] = useState(() => new GP51EnhancedDataService());
   const [fleetData, setFleetData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +22,7 @@ export const useGP51Fleet = (options: {
     setError(null);
     
     try {
-      const result = await gp51UnifiedDataService.getCompleteFleetData({
+      const result = await dataService.getCompleteFleetData({
         includePositions: options.includePositions ?? true,
         forceRefresh
       });
@@ -36,16 +37,22 @@ export const useGP51Fleet = (options: {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, options.includePositions]);
+  }, [dataService, isAuthenticated, options.includePositions]);
 
   const authenticate = useCallback(async (username: string, password: string) => {
     setLoading(true);
     setError(null);
     
     try {
-      const result = await gp51UnifiedDataService.authenticate(username, password);
+      const result = await dataService.authenticate(username, password);
       if (result.status === 0) {
         setIsAuthenticated(true);
+        
+        // Start real-time updates if auto-refresh is enabled
+        if (options.autoRefresh) {
+          dataService.startRealTimeUpdates(options.refreshInterval || 30000);
+        }
+        
         await fetchFleetData();
         return { success: true };
       } else {
@@ -59,25 +66,26 @@ export const useGP51Fleet = (options: {
     } finally {
       setLoading(false);
     }
-  }, [fetchFleetData]);
+  }, [dataService, fetchFleetData, options.autoRefresh, options.refreshInterval]);
 
   const logout = useCallback(async () => {
-    await gp51UnifiedDataService.logout();
+    dataService.stopRealTimeUpdates();
+    await dataService.logout();
     setIsAuthenticated(false);
     setFleetData(null);
     setError(null);
-  }, []);
+  }, [dataService]);
 
-  // Auto-refresh functionality
+  // Auto-refresh functionality with enhanced service
   useEffect(() => {
-    if (options.autoRefresh && fleetData && isAuthenticated) {
+    if (options.autoRefresh && fleetData && isAuthenticated && !dataService.startRealTimeUpdates) {
       const interval = setInterval(() => {
         fetchFleetData();
       }, options.refreshInterval || 30000);
       
       return () => clearInterval(interval);
     }
-  }, [options.autoRefresh, options.refreshInterval, fleetData, isAuthenticated, fetchFleetData]);
+  }, [options.autoRefresh, options.refreshInterval, fleetData, isAuthenticated, fetchFleetData, dataService]);
 
   return {
     fleetData,
