@@ -1,79 +1,44 @@
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, TrendingDown, Minus, LucideIcon } from 'lucide-react';
-import { MetricWithGrowth } from '@/services/analyticsService';
+import { Card, CardContent } from '@/components/ui/card';
+import { LucideIcon } from 'lucide-react';
 
 interface DashboardMetricCardProps {
   title: string;
-  metric: MetricWithGrowth;
+  value: string | number;
+  change?: string | number;
   icon: LucideIcon;
-  iconColor: string;
-  isLoading?: boolean;
+  iconColor?: string;
+  description?: string;
 }
 
 const DashboardMetricCard: React.FC<DashboardMetricCardProps> = ({
   title,
-  metric,
+  value,
+  change,
   icon: Icon,
-  iconColor,
-  isLoading = false
+  iconColor = 'text-gray-500',
+  description
 }) => {
-  const getTrendIcon = () => {
-    switch (metric.trend) {
-      case 'up':
-        return <TrendingUp className="h-4 w-4 text-green-600" />;
-      case 'down':
-        return <TrendingDown className="h-4 w-4 text-red-600" />;
-      default:
-        return <Minus className="h-4 w-4 text-gray-400" />;
-    }
-  };
-
-  const getTrendColor = () => {
-    switch (metric.trend) {
-      case 'up':
-        return 'text-green-600';
-      case 'down':
-        return 'text-red-600';
-      default:
-        return 'text-gray-500';
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <Card className="bg-gradient-to-br from-white to-gray-50 border-l-4 border-l-blue-500">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
-          <div className="animate-pulse bg-gray-200 rounded-full w-8 h-8"></div>
-        </CardHeader>
-        <CardContent>
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-24"></div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card className="bg-gradient-to-br from-white to-gray-50 border-l-4 border-l-blue-500 hover:shadow-lg transition-all duration-200">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
-        <Icon className={`h-6 w-6 ${iconColor}`} />
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-gray-900 mb-2">
-          {metric.current.toLocaleString()}
-        </div>
-        <div className="flex items-center space-x-2">
-          {getTrendIcon()}
-          <span className={`text-sm font-medium ${getTrendColor()}`}>
-            {Math.abs(metric.growth)}%
-          </span>
-          <span className="text-sm text-gray-500">vs last month</span>
+    <Card className="metric-card">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
+            <p className="text-2xl font-bold text-gray-900">{value}</p>
+            {description && (
+              <p className="text-xs text-gray-500 mt-1">{description}</p>
+            )}
+            {change && (
+              <p className="text-sm text-gray-500 mt-1">
+                {change}
+              </p>
+            )}
+          </div>
+          <div className={`flex-shrink-0 ${iconColor}`}>
+            <Icon className="h-6 w-6" />
+          </div>
         </div>
       </CardContent>
     </Card>

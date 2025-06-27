@@ -1,4 +1,3 @@
-
 export interface GP51AuthResponse {
   status: number;
   cause: string;
@@ -329,7 +328,12 @@ export interface GP51FleetDataOptions {
   includePositions?: boolean;
   forceRefresh?: boolean;
   includeInactive?: boolean;
-  groupFilter?: string[];
+  groupFilter?: (number | string)[];  // Accept both types
+  deviceFilter?: string[];
+  timeRange?: {
+    start: Date;
+    end: Date;
+  };
 }
 
 export interface GP51LiveData {
