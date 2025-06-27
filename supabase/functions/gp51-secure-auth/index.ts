@@ -1,21 +1,13 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { md5_for_gp51_only } from '../_shared/crypto_utils.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-
-// Proper MD5 implementation for GP51 compatibility
-async function md5Hash(message: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(message);
-  const hashBuffer = await crypto.subtle.digest('MD5', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').toLowerCase();
-}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -76,8 +68,9 @@ serve(async (req) => {
 
     console.log('🔐 GP51 authentication for user:', username);
 
-    // Hash password for GP51 API
-    const hashedPassword = await md5Hash(password);
+    // Hash password using the working MD5 implementation
+    const hashedPassword = await md5_for_gp51_only(password);
+    console.log('✅ MD5 hash generated successfully');
 
     // Build GP51 API URL
     const gp51Url = new URL(apiUrl);
