@@ -14,21 +14,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Info } from 'lucide-react';
 
-// Safe array helper - prevents "map is not a function" errors
-function safeArray(value: any): any[] {
-  if (Array.isArray(value)) return value;
-  if (value === null || value === undefined) return [];
-  console.warn('Expected array but got:', typeof value, value);
-  return [];
-}
-
 const GP51IntegrationTab: React.FC = () => {
   return (
     <div className="space-y-6">
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>New Unified Dashboard Available!</strong> The new unified GP51 dashboard consolidates all functionality into a single interface. Legacy components remain available for compatibility.
+          <strong>GP51 Fleet Management Integration</strong> - Manage your GP51 device connections, import data, and monitor system health.
         </AlertDescription>
       </Alert>
 
@@ -36,7 +28,7 @@ const GP51IntegrationTab: React.FC = () => {
       
       <Tabs defaultValue="unified" className="w-full">
         <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="unified">Unified Dashboard</TabsTrigger>
+          <TabsTrigger value="unified">Dashboard</TabsTrigger>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="historical">Historical Data</TabsTrigger>

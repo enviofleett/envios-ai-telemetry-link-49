@@ -15,7 +15,8 @@ import {
   Navigation,
   CreditCard,
   UserCheck,
-  TrendingUp
+  TrendingUp,
+  Radio
 } from "lucide-react"
 
 export interface MenuItem {
@@ -61,6 +62,12 @@ export const menuItems: MenuItem[] = [
     url: "/users",
     icon: Users,
     featureId: "user_management"
+  },
+  {
+    title: "GP51 Integration",
+    url: "/gp51-integration",
+    icon: Radio,
+    featureId: "gp51_integration"
   },
   {
     title: "Reports",
@@ -120,37 +127,32 @@ export const menuItems: MenuItem[] = [
     title: "Settings",
     url: "/settings",
     icon: Settings,
-  }
-]
-
-export const agentMenuItems: MenuItem[] = [
-  {
-    title: "Dashboard",
-    url: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Referral Management",
-    url: "/referral-agents",
-    icon: UserPlus,
-  },
-  {
-    title: "Analytics",
-    url: "/admin/analytics",
-    icon: TrendingUp,
+    featureId: "admin_settings"
   },
   {
     title: "Merchant Application",
     url: "/merchant-application",
-    icon: CreditCard,
-  }
+    icon: UserPlus,
+    featureId: "merchant_app"
+  },
+  {
+    title: "Referral Agents",
+    url: "/referral-agents",
+    icon: UserCheck,
+    featureId: "referral_management"
+  },
 ]
 
-export const quickActions: QuickAction[] = [
+export const quickActionsData: QuickAction[] = [
   {
-    title: "Add User",
-    url: "/users?action=add",
-    icon: UserPlus,
+    title: "Add Vehicle",
+    url: "/vehicles/add",
+    icon: Car,
+  },
+  {
+    title: "Create User",
+    url: "/users/create",
+    icon: Users,
   },
   {
     title: "View Reports",
@@ -158,8 +160,8 @@ export const quickActions: QuickAction[] = [
     icon: FileText,
   },
   {
-    title: "System Health",
-    url: "/settings?tab=health",
-    icon: Activity,
-  }
+    title: "GP51 Setup",
+    url: "/gp51-integration",
+    icon: Radio,
+  },
 ]

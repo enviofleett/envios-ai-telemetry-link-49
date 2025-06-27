@@ -41,6 +41,9 @@ import ActiveServices from '@/pages/ActiveServices';
 import MerchantApplication from '@/pages/MerchantApplication';
 import ReferralAgents from '@/pages/ReferralAgents';
 
+// GP51 Integration Page
+import GP51IntegrationPage from '@/pages/GP51IntegrationPage';
+
 export const AppRouter: React.FC = () => {
   return (
     <Routes>
@@ -138,6 +141,19 @@ export const AppRouter: React.FC = () => {
           </ProtectedRoute>
         }
       />
+      
+      {/* GP51 Integration Route */}
+      <Route
+        path="/gp51-integration"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <GP51IntegrationPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
       <Route
         path="/system-import"
         element={
