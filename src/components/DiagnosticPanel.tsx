@@ -12,7 +12,9 @@ import type { GP51TestResult } from '@/types/gp51-unified';
 const createTestResult = (name: string, success: boolean, data?: any, error?: string): GP51TestResult => ({
   name,
   success,
+  testType: 'connection',
   message: success ? `${name} completed successfully` : `${name} failed`,
+  duration: Date.now(),
   responseTime: Date.now(),
   timestamp: new Date(),
   data,

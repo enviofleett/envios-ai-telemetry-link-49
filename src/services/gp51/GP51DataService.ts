@@ -26,13 +26,32 @@ export class GP51DataService {
   }
 
   async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
+    const now = new Date();
     return {
+      // Core metrics
+      responseTime: 150,
+      success: true,
+      requestStartTime: now.toISOString(),
+      timestamp: now.toISOString(),
+      
+      // Count metrics
+      deviceCount: 25,
+      groupCount: 5,
+      apiCallCount: 100,
+      
+      // Performance metrics
+      errorRate: 0.02,
+      averageResponseTime: 150,
+      
+      // Vehicle metrics
       totalVehicles: 25,
       activeVehicles: 20,
       activeDevices: 20,
-      lastUpdateTime: new Date(),
-      averageResponseTime: 150,
-      errorRate: 0.02,
+      movingVehicles: 8,
+      stoppedVehicles: 12,
+      
+      // Additional metrics
+      lastUpdateTime: now,
       dataQuality: 0.95,
       onlinePercentage: 80,
       utilizationRate: 75
