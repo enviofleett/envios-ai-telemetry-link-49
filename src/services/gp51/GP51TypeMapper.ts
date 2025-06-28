@@ -16,7 +16,19 @@ export class GP51TypeMapper {
       lastactivetime: apiDevice.lastactivetime || apiDevice.last_active_time || new Date().toISOString(),
       isOnline: apiDevice.isOnline || apiDevice.is_online || false,
       vehicleInfo: apiDevice.vehicleInfo || apiDevice.vehicle_info || null,
-      isActive: apiDevice.isActive || apiDevice.is_active || false
+      isActive: apiDevice.isActive || apiDevice.is_active || false,
+      // Additional properties for compatibility
+      simnum: apiDevice.simnum || apiDevice.sim_card_no || '',
+      overduetime: apiDevice.overduetime || 0,
+      expirenotifytime: apiDevice.expirenotifytime || 0,
+      remark: apiDevice.remark || '',
+      creater: apiDevice.creater || '',
+      videochannelcount: apiDevice.videochannelcount || 0,
+      isfree: apiDevice.isfree || 0,
+      allowedit: apiDevice.allowedit || 0,
+      icon: apiDevice.icon || 0,
+      stared: apiDevice.stared || 0,
+      loginame: apiDevice.loginame || ''
     };
   }
 
@@ -70,7 +82,9 @@ export class GP51TypeMapper {
       parentgroupid: apiGroup.parentgroupid || apiGroup.parent_group_id || '',
       level: apiGroup.level || 0,
       devicecount: apiGroup.devicecount || apiGroup.device_count || 0,
-      children: apiGroup.children || []
+      children: apiGroup.children || [],
+      remark: apiGroup.remark || '',
+      devices: apiGroup.devices || []
     };
   }
 }

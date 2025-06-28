@@ -1,3 +1,4 @@
+
 export interface GP51HealthStatus {
   status: 'healthy' | 'unhealthy' | 'degraded' | 'connected' | 'disconnected' | 'error' | 'testing';
   isHealthy: boolean;
@@ -17,6 +18,7 @@ export interface GP51HealthStatus {
   md5TestPassed?: boolean;
   success?: boolean;
   error?: string;
+  message?: string; // Added for compatibility
 }
 
 export interface GP51Device {
@@ -24,7 +26,7 @@ export interface GP51Device {
   devicename: string;
   devicetype: string;
   groupid: string;
-  groupname: string; // Added for compatibility
+  groupname: string;
   imei: string;
   simcardno: string;
   status: number;
@@ -33,6 +35,18 @@ export interface GP51Device {
   isOnline: boolean;
   vehicleInfo?: any;
   isActive?: boolean;
+  // Additional properties for compatibility
+  simnum?: string;
+  overduetime?: number;
+  expirenotifytime?: number;
+  remark?: string;
+  creater?: string;
+  videochannelcount?: number;
+  isfree?: number;
+  allowedit?: number;
+  icon?: number;
+  stared?: number;
+  loginame?: string;
 }
 
 export interface GP51Position {
@@ -43,13 +57,13 @@ export interface GP51Position {
   course: number;
   altitude: number;
   devicetime: string;
-  servertime: string; // Added for compatibility
+  servertime: string;
   status: number;
   moving: boolean;
   gotsrc: number;
-  battery: number; // Added for compatibility
-  signal: number; // Added for compatibility
-  satellites: number; // Added for compatibility
+  battery: number;
+  signal: number;
+  satellites: number;
   totaldistance: number;
   strstatus: string;
   strstatusen: string;
@@ -80,10 +94,13 @@ export interface GP51Position {
 export interface GP51Group {
   groupid: string;
   groupname: string;
-  parentgroupid: string; // Added for compatibility
+  parentgroupid: string;
   level: number;
   devicecount: number;
   children: any[];
+  // Additional properties for compatibility
+  remark?: string;
+  devices?: GP51Device[];
 }
 
 export interface GP51AuthResponse {
@@ -95,6 +112,7 @@ export interface GP51AuthResponse {
   sessionId?: string;
   username?: string;
   loginTime?: string;
+  error?: string; // Added for compatibility
 }
 
 export interface GP51Session {
@@ -152,6 +170,9 @@ export interface GP51TestResult {
   message?: string;
   error?: string;
   data?: any;
+  name?: string; // Added for compatibility
+  responseTime?: number; // Added for compatibility
+  timestamp: Date; // Added for compatibility
 }
 
 export interface GP51LiveVehiclesResponse {
@@ -182,6 +203,13 @@ export interface GP51ProcessedPosition {
   speed: number;
   course: number;
   lastUpdate: Date;
+  // Additional properties for compatibility
+  isOnline?: boolean;
+  isMoving?: boolean;
+  timestamp?: Date;
+  latitude?: number;
+  longitude?: number;
+  deviceName?: string;
 }
 
 export interface GP51PerformanceMetrics {
@@ -191,6 +219,17 @@ export interface GP51PerformanceMetrics {
   errorRate: number;
   lastUpdate: Date;
   uptime: number;
+  // Additional properties for compatibility
+  averageResponseTime?: number;
+  dataQuality?: number;
+  onlinePercentage?: number;
+  totalVehicles?: number;
+  activeVehicles?: number;
+  activeDevices?: number;
+  utilizationRate?: number;
+  deviceCount?: number;
+  movingVehicles?: number;
+  lastUpdateTime?: Date;
 }
 
 export interface GP51FleetData {
@@ -220,6 +259,7 @@ export interface GP51FleetDataOptions {
     endDate: Date;
   };
   includeInactive?: boolean;
+  includePositions?: boolean; // Added for compatibility
 }
 
 export interface GP51LiveData {
@@ -286,6 +326,25 @@ export interface GP51ConnectionTestResult {
   timestamp: Date;
 }
 
+// Additional interfaces for compatibility
+export interface GP51ConnectionTesterProps {
+  onTestComplete?: (result: GP51ConnectionTestResult) => void;
+}
+
+export interface GP51DeviceData {
+  deviceid: string;
+  devicename: string;
+  status: string;
+  lastUpdate: Date;
+}
+
+export interface AnalyticsHookReturn {
+  data: RealAnalyticsData | null;
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => void;
+}
+
 export class GP51PropertyMapper {
   static enhancePosition(position: GP51Position): GP51ProcessedPosition {
     return {
@@ -296,7 +355,25 @@ export class GP51PropertyMapper {
       },
       speed: position.speed,
       course: position.course,
-      lastUpdate: new Date(position.updatetime || position.servertime || Date.now())
+      lastUpdate: new Date(position.updatetime || position.servertime || Date.now()),
+      isOnline: position.moving,
+      isMoving: position.moving,
+      timestamp: new Date(position.updatetime || position.servertime || Date.now()),
+      latitude: position.callat,
+      longitude: position.callon,
+      deviceName: position.deviceid
     };
+  }
+
+  static enhanceGroup(group: GP51Group): GP51Group {
+    return {
+      ...group,
+      devices: group.devices || [],
+      remark: group.remark || ''
+    };
+  }
+
+  static mapPosition(position: GP51Position): GP51ProcessedPosition {
+    return this.enhancePosition(position);
   }
 }

@@ -62,8 +62,8 @@ export class SupabaseGP51DataService {
         // Transform GP51 format to internal format
         return livePositions.map(pos => ({
           deviceid: pos.deviceid,
-          callat: pos.callat, // GP51 latitude field
-          callon: pos.callon, // GP51 longitude field
+          callat: pos.callat,
+          callon: pos.callon,
           speed: pos.speed,
           course: pos.course,
           altitude: pos.altitude,

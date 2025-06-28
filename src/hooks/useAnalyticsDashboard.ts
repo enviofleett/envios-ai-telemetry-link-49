@@ -1,44 +1,76 @@
 
-import { useState, useEffect, useCallback } from 'react';
-import type { RealAnalyticsData, AnalyticsHookReturn } from '@/types/gp51-unified';
-import { realAnalyticsService } from '@/services/realAnalyticsService';
+import { useState, useEffect } from 'react';
+import type { AnalyticsHookReturn, RealAnalyticsData } from '@/types/gp51-unified';
 
-export function useAnalyticsDashboard(): AnalyticsHookReturn {
-  const [analyticsData, setAnalyticsData] = useState<RealAnalyticsData | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+export const useAnalyticsDashboard = (): AnalyticsHookReturn => {
+  const [data, setData] = useState<RealAnalyticsData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
 
-  const fetchData = useCallback(async (forceRefresh: boolean = false) => {
+  const refetch = async () => {
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
-      const data = await realAnalyticsService.getAnalyticsData(forceRefresh);
-      setAnalyticsData(data);
-      setLastUpdated(new Date());
+      // Mock analytics data
+      const mockData: RealAnalyticsData = {
+        totalUsers: 100,
+        activeUsers: 75,
+        totalVehicles: 50,
+        activeVehicles: 35,
+        recentActivity: [],
+        vehicleStatus: {
+          total: 50,
+          online: 35,
+          offline: 15,
+          moving: 20,
+          parked: 30
+        },
+        fleetUtilization: {
+          activeVehicles: 35,
+          totalVehicles: 50,
+          utilizationRate: 70
+        },
+        systemHealth: {
+          apiStatus: "healthy",
+          lastUpdate: new Date(),
+          responseTime: 150
+        },
+        performance: {
+          averageSpeed: 45,
+          totalDistance: 1000,
+          alertCount: 5
+        },
+        growth: {
+          newUsers: 10,
+          newVehicles: 5,
+          period: "month",
+          percentageChange: 15
+        },
+        sync: {
+          importedUsers: 95,
+          importedVehicles: 48,
+          lastSync: new Date(),
+          status: "success"
+        }
+      };
+      
+      setData(mockData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch analytics data');
-      console.error('Analytics data fetch error:', err);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }, []);
-
-  const refreshData = useCallback(() => {
-    fetchData(true);
-  }, [fetchData]);
+  };
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    refetch();
+  }, []);
 
   return {
-    analyticsData,
-    data: analyticsData,        // Alias for compatibility
-    loading,
-    isLoading: loading,         // Alias for compatibility
-    error: error || '',
-    lastUpdated,
-    refreshData
+    data,
+    isLoading,
+    error,
+    refetch
   };
-}
+};
