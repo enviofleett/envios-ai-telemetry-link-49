@@ -18,9 +18,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     const breadcrumbs = [{ name: 'Dashboard', path: '/' }];
     
     const routeNames: { [key: string]: string } = {
+      'gps51': 'GPS51 Platform',
+      'tracking': 'Live Tracking',
+      'devices': 'Device Management',
+      'history': 'Trip History',
+      'analytics': 'Route Analytics',
+      'geofences': 'Geofencing',
+      'reports': 'Reports',
+      'dashboard': 'Dashboard',
       'fleet': 'Fleet Management',
       'vehicles': 'Vehicle Management',
-      'tracking': 'Live Tracking',
       'users': 'User Management',
       'settings': 'Settings',
       'system-import': 'System Import',
@@ -28,7 +35,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       'maintenance': 'Maintenance',
       'workshop-management': 'Workshop Management',
       'marketplace': 'Workshop Marketplace',
-      'reports': 'Reports & Analytics',
       'packages': 'Package Management',
       'services': 'Active Services'
     };
@@ -46,13 +52,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="min-h-screen flex w-full bg-gray-900">
         <AppSidebar />
         <SidebarInset className="flex-1">
           {/* Header with breadcrumb and logout button */}
-          <header className="h-16 flex items-center justify-between gap-4 bg-background border-b border-border px-6 shadow-sm">
+          <header className="h-16 flex items-center justify-between gap-4 bg-gray-800 border-b border-gray-700 px-6 shadow-sm">
             <div className="flex items-center gap-4 flex-1">
-              <SidebarTrigger className="w-10 h-10 p-2 rounded hover:bg-accent text-foreground" />
+              <SidebarTrigger className="w-10 h-10 p-2 rounded hover:bg-gray-700 text-gray-300" />
               
               <Breadcrumb>
                 <BreadcrumbList className="text-sm">
@@ -60,13 +66,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <React.Fragment key={breadcrumb.path}>
                       <BreadcrumbItem>
                         {index === breadcrumbs.length - 1 ? (
-                          <BreadcrumbPage className="text-foreground font-semibold text-lg">
+                          <BreadcrumbPage className="text-white font-semibold text-lg">
                             {breadcrumb.name}
                           </BreadcrumbPage>
                         ) : (
                           <BreadcrumbLink 
                             href={breadcrumb.path}
-                            className="text-muted-foreground hover:text-foreground font-medium"
+                            className="text-gray-400 hover:text-white font-medium"
                           >
                             {breadcrumb.name}
                           </BreadcrumbLink>
@@ -74,7 +80,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                       </BreadcrumbItem>
                       {index < breadcrumbs.length - 1 && (
                         <BreadcrumbSeparator className="mx-2">
-                          <span className="text-muted-foreground">›</span>
+                          <span className="text-gray-500">›</span>
                         </BreadcrumbSeparator>
                       )}
                     </React.Fragment>
@@ -88,7 +94,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </header>
           
           {/* Main content area with full width and consistent padding */}
-          <main className="flex-1 bg-background min-h-[calc(100vh-4rem)]">
+          <main className="flex-1 bg-gray-900 min-h-[calc(100vh-4rem)]">
             <div className="w-full h-full p-6">
               {children}
             </div>
