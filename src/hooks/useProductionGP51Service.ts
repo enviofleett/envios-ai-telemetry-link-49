@@ -7,7 +7,7 @@ export interface UseProductionGP51ServiceReturn {
   syncDevices: (devices: GP51DeviceData[]) => Promise<GP51ProcessResult>;
   isLoading: boolean;
   error: string | null;
-  getPerformanceMetrics: () => GP51PerformanceMetrics; // Fixed: Added missing method
+  getPerformanceMetrics: () => GP51PerformanceMetrics;
 }
 
 export function useProductionGP51Service(): UseProductionGP51ServiceReturn {
@@ -21,30 +21,33 @@ export function useProductionGP51Service(): UseProductionGP51ServiceReturn {
     try {
       console.log(`🔄 Syncing ${devices.length} devices...`);
       
-      // Simulate device sync processing
       let created = 0;
       let errors = 0;
       const errorDetails: string[] = [];
 
       for (const device of devices) {
         try {
-          // Validate device data
-          if (!device.deviceId && !device.deviceid) {
+          // Use correct property names with fallbacks
+          const deviceId = device.deviceid || device.deviceId;
+          const deviceName = device.devicename || device.deviceName;
+          
+          if (!deviceId) {
             errors++;
             errorDetails.push(`Device missing ID: ${JSON.stringify(device)}`);
             continue;
           }
 
-          if (!device.deviceName && !device.devicename) {
+          if (!deviceName) {
             errors++;
-            errorDetails.push(`Device missing name: ${device.deviceId || device.deviceid}`);
+            errorDetails.push(`Device missing name: ${deviceId}`);
             continue;
           }
 
           created++;
         } catch (err) {
           errors++;
-          errorDetails.push(`Error processing device ${device.deviceId || device.deviceid}: ${err}`);
+          const deviceId = device.deviceid || device.deviceId || 'unknown';
+          errorDetails.push(`Error processing device ${deviceId}: ${err}`);
         }
       }
 
@@ -79,7 +82,6 @@ export function useProductionGP51Service(): UseProductionGP51ServiceReturn {
     }
   }, []);
 
-  // Fixed: Added getPerformanceMetrics method
   const getPerformanceMetrics = useCallback((): GP51PerformanceMetrics => {
     const metrics = createDefaultPerformanceMetrics();
     
