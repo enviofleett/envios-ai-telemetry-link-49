@@ -1,3 +1,4 @@
+
 import {
   LayoutDashboard,
   Users,
@@ -15,7 +16,8 @@ import {
   CreditCard,
   UserCheck,
   TrendingUp,
-  Radio
+  Radio,
+  Satellite
 } from "lucide-react"
 
 export interface MenuItem {
@@ -67,6 +69,12 @@ export const menuItems: MenuItem[] = [
     url: "/gp51-integration",
     icon: Radio,
     featureId: "gp51_integration"
+  },
+  {
+    title: "GPS51 Integration",
+    url: "/gps51",
+    icon: Satellite,
+    featureId: "gps51_integration"
   },
   {
     title: "Reports",

@@ -1,206 +1,111 @@
 
-import React, { useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Zap, Settings, Activity, Truck, MapPin } from 'lucide-react';
-import { useGPS51Integration } from '@/hooks/useGPS51Integration';
+import React from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Navigate } from 'react-router-dom';
+import Layout from '@/components/Layout';
 import GPS51AuthenticationForm from './GPS51AuthenticationForm';
-import GPS51MD5TestPanel from './GPS51MD5TestPanel';
-import GPS51SecurityDashboard from './GPS51SecurityDashboard';
-import GPS51ConnectionStatus from './GPS51ConnectionStatus';
 import FleetManagementPage from './FleetManagementPage';
+import { useGPS51Integration } from '@/hooks/useGPS51Integration';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Shield, Car, BarChart3 } from 'lucide-react';
 
 const GPS51IntegrationPage: React.FC = () => {
-  const {
-    isAuthenticated,
-    isLoading,
-    error,
-    md5TestResults,
-    securityStats,
-    refreshSecurityStats,
-    runMD5Tests
-  } = useGPS51Integration();
+  const { user } = useAuth();
+  const { isAuthenticated } = useGPS51Integration();
 
-  useEffect(() => {
-    // Run initial MD5 tests and refresh security stats
-    runMD5Tests();
-    refreshSecurityStats();
-  }, [runMD5Tests, refreshSecurityStats]);
-
-  // If authenticated, show the Fleet Management interface
-  if (isAuthenticated) {
-    return <FleetManagementPage />;
+  if (!user) {
+    return <Navigate to="/auth" replace />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold text-white flex items-center justify-center gap-3">
-            <Zap className="h-10 w-10 text-blue-400" />
-            GPS51 Fleet Integration
-          </h1>
-          <p className="text-gray-400 text-lg">
-            Secure fleet tracking integration with advanced security monitoring
-          </p>
+    <Layout>
+      <div className="container mx-auto px-4 py-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">GPS51 Integration</h1>
+          <p className="text-gray-600">Manage your GPS51 fleet tracking integration and monitor your vehicles in real-time</p>
         </div>
 
-        {/* Status Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Connection</p>
-                  <Badge variant={isAuthenticated ? "default" : "destructive"} className="mt-1">
-                    {isAuthenticated ? "Connected" : "Disconnected"}
-                  </Badge>
-                </div>
-                <Activity className={`h-8 w-8 ${isAuthenticated ? 'text-green-400' : 'text-red-400'}`} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">MD5 Tests</p>
-                  <Badge variant={md5TestResults?.summary.passed ? "default" : "destructive"} className="mt-1">
-                    {md5TestResults?.summary.passed ? "All Passed" : "Failed"}
-                  </Badge>
-                </div>
-                <Shield className={`h-8 w-8 ${md5TestResults?.summary.passed ? 'text-green-400' : 'text-red-400'}`} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Security</p>
-                  <Badge variant={securityStats?.lockedAccounts > 0 ? "destructive" : "default"} className="mt-1">
-                    {securityStats?.lockedAccounts || 0} Locked
-                  </Badge>
-                </div>
-                <Shield className={`h-8 w-8 ${securityStats?.lockedAccounts > 0 ? 'text-red-400' : 'text-green-400'}`} />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Status</p>
-                  <Badge variant={isLoading ? "secondary" : "outline"} className="mt-1">
-                    {isLoading ? "Processing" : "Ready"}
-                  </Badge>
-                </div>
-                <Settings className={`h-8 w-8 ${isLoading ? 'text-yellow-400 animate-spin' : 'text-blue-400'}`} />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <Card className="bg-red-900/20 border-red-700">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-red-400">
-                <Shield className="h-5 w-5" />
-                <span className="font-medium">Error:</span>
-                <span>{error}</span>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Fleet Management Preview */}
-        <Card className="bg-gradient-to-r from-blue-900/20 to-green-900/20 border-blue-700">
-          <CardContent className="p-6">
-            <div className="text-center space-y-4">
-              <div className="flex items-center justify-center gap-3">
-                <Truck className="h-12 w-12 text-blue-400" />
-                <MapPin className="h-12 w-12 text-green-400" />
-              </div>
-              <h3 className="text-2xl font-bold text-white">Advanced Fleet Management</h3>
-              <p className="text-gray-300 max-w-2xl mx-auto">
-                Once authenticated, access comprehensive fleet tracking features including real-time monitoring, 
-                historical data analysis, interactive maps, and advanced analytics.
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                <div className="text-center">
-                  <div className="text-blue-400 font-bold text-lg">Real-time</div>
-                  <div className="text-gray-400 text-sm">Live Tracking</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-green-400 font-bold text-lg">Interactive</div>
-                  <div className="text-gray-400 text-sm">Maps & Routes</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-purple-400 font-bold text-lg">Historical</div>
-                  <div className="text-gray-400 text-sm">Data & Playback</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-yellow-400 font-bold text-lg">Analytics</div>
-                  <div className="text-gray-400 text-sm">Reports & Insights</div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="connection" className="space-y-6">
-          <TabsList className="grid grid-cols-4 w-full bg-gray-800 border-gray-700">
-            <TabsTrigger value="connection" className="data-[state=active]:bg-blue-600">
-              Connection
+        <Tabs defaultValue="authentication" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="authentication" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Authentication
             </TabsTrigger>
-            <TabsTrigger value="md5" className="data-[state=active]:bg-blue-600">
-              MD5 Testing
+            <TabsTrigger value="fleet" className="flex items-center gap-2" disabled={!isAuthenticated}>
+              <Car className="h-4 w-4" />
+              Fleet Management
             </TabsTrigger>
-            <TabsTrigger value="security" className="data-[state=active]:bg-blue-600">
-              Security
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="data-[state=active]:bg-blue-600">
-              Settings
+            <TabsTrigger value="analytics" className="flex items-center gap-2" disabled={!isAuthenticated}>
+              <BarChart3 className="h-4 w-4" />
+              Analytics
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="connection" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <GPS51ConnectionStatus />
-              <GPS51AuthenticationForm />
-            </div>
+          <TabsContent value="authentication" className="space-y-6">
+            <GPS51AuthenticationForm />
+            
+            {!isAuthenticated && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Getting Started</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4 text-sm text-gray-600">
+                    <p>To get started with GPS51 integration:</p>
+                    <ol className="list-decimal list-inside space-y-2">
+                      <li>Enter your GPS51 username and password above</li>
+                      <li>Click "Connect to GPS51" to authenticate</li>
+                      <li>Once connected, you can access fleet management and analytics</li>
+                    </ol>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
-          <TabsContent value="md5" className="space-y-6">
-            <GPS51MD5TestPanel />
+          <TabsContent value="fleet" className="space-y-6">
+            {isAuthenticated ? (
+              <FleetManagementPage />
+            ) : (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center text-gray-500">
+                    <Shield className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p>Please authenticate with GPS51 first to access fleet management features.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
-          <TabsContent value="security" className="space-y-6">
-            <GPS51SecurityDashboard />
-          </TabsContent>
-
-          <TabsContent value="settings" className="space-y-6">
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white">Configuration Settings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-400">
-                  Advanced configuration options will be available here.
-                </p>
-              </CardContent>
-            </Card>
+          <TabsContent value="analytics" className="space-y-6">
+            {isAuthenticated ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Fleet Analytics</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center text-gray-500 py-8">
+                    <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p>Analytics dashboard coming soon...</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center text-gray-500">
+                    <Shield className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                    <p>Please authenticate with GPS51 first to access analytics.</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </Layout>
   );
 };
 
