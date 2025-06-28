@@ -1,216 +1,192 @@
 
-// MD5 implementation for GP51 authentication only
-// This is specifically for GP51 which requires MD5 hashed passwords
-
-export async function md5_for_gp51_only(message: string): Promise<string> {
-  // Use Web Crypto API's digest with legacy support
-  const msgUint8 = new TextEncoder().encode(message);
+// Improved MD5 implementation for GP51 compatibility
+export function md5_sync(input: string): string {
+  console.log(`🔐 [CRYPTO] Computing MD5 for input length: ${input.length}`);
   
   try {
-    // Try modern approach first
-    const hashBuffer = await crypto.subtle.digest('MD5', msgUint8);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    const hash = md5Pure(input);
+    console.log(`✅ [CRYPTO] MD5 computed successfully: ${hash.substring(0, 8)}...`);
+    return hash;
   } catch (error) {
-    // Fallback to manual MD5 implementation for environments without MD5 support
-    console.warn('⚠️ [crypto_utils] Native MD5 not available, using fallback implementation');
-    return fallbackMD5(message);
+    console.error('❌ [CRYPTO] MD5 computation failed:', error);
+    throw new Error('MD5 hash computation failed');
   }
 }
 
-// Input sanitization function for security
-export function sanitizeInput(input: string): string {
-  if (!input || typeof input !== 'string') {
-    return '';
-  }
-  
-  // Trim whitespace
-  let sanitized = input.trim();
-  
-  // Remove null bytes and control characters
-  sanitized = sanitized.replace(/[\x00-\x1f\x7f-\x9f]/g, '');
-  
-  // Limit length to prevent excessive input
-  if (sanitized.length > 1000) {
-    sanitized = sanitized.substring(0, 1000);
-  }
-  
-  return sanitized;
+export async function md5_for_gp51_only(input: string): Promise<string> {
+  return md5_sync(input);
 }
 
-// Rate limiting helper
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+// Pure JavaScript MD5 implementation compatible with GP51
+function md5Pure(input: string): string {
+  // MD5 constants
+  const K = [
+    0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
+    0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
+    0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa, 0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8,
+    0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
+    0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
+    0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
+    0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
+    0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391
+  ];
 
-export function checkRateLimit(clientId: string, maxRequests: number, windowMs: number): boolean {
+  const S = [
+    7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+    5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+    4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+    6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+  ];
+
+  // Convert string to UTF-8 bytes
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(input);
+  
+  // Pre-processing: adding padding bits
+  const msgLength = bytes.length;
+  const bitLength = msgLength * 8;
+  
+  // Append the '1' bit (plus zero padding to eight bits)
+  const paddedBytes = new Uint8Array(Math.ceil((msgLength + 9) / 64) * 64);
+  paddedBytes.set(bytes, 0);
+  paddedBytes[msgLength] = 0x80;
+  
+  // Append original length in bits mod 2^64 to message (little-endian)
+  const lengthView = new DataView(paddedBytes.buffer);
+  lengthView.setUint32(paddedBytes.length - 8, bitLength, true);
+  lengthView.setUint32(paddedBytes.length - 4, Math.floor(bitLength / 0x100000000), true);
+  
+  // Initialize MD5 buffer
+  let h0 = 0x67452301;
+  let h1 = 0xefcdab89;
+  let h2 = 0x98badcfe;
+  let h3 = 0x10325476;
+  
+  // Process the message in 512-bit chunks
+  for (let offset = 0; offset < paddedBytes.length; offset += 64) {
+    const chunk = new DataView(paddedBytes.buffer, offset, 64);
+    const w = new Array(16);
+    
+    // Break chunk into sixteen 32-bit little-endian words
+    for (let i = 0; i < 16; i++) {
+      w[i] = chunk.getUint32(i * 4, true);
+    }
+    
+    // Initialize hash value for this chunk
+    let a = h0, b = h1, c = h2, d = h3;
+    
+    // Main loop
+    for (let i = 0; i < 64; i++) {
+      let f, g;
+      
+      if (i < 16) {
+        f = (b & c) | (~b & d);
+        g = i;
+      } else if (i < 32) {
+        f = (d & b) | (~d & c);
+        g = (5 * i + 1) % 16;
+      } else if (i < 48) {
+        f = b ^ c ^ d;
+        g = (3 * i + 5) % 16;
+      } else {
+        f = c ^ (b | ~d);
+        g = (7 * i) % 16;
+      }
+      
+      const temp = d;
+      d = c;
+      c = b;
+      b = addMod32(b, leftRotate(addMod32(addMod32(a, f), addMod32(K[i], w[g])), S[i]));
+      a = temp;
+    }
+    
+    // Add this chunk's hash to result so far
+    h0 = addMod32(h0, a);
+    h1 = addMod32(h1, b);
+    h2 = addMod32(h2, c);
+    h3 = addMod32(h3, d);
+  }
+  
+  // Produce the final hash value as a 128-bit hex string (little-endian)
+  return [h0, h1, h2, h3].map(h => {
+    return [
+      h & 0xff,
+      (h >>> 8) & 0xff,
+      (h >>> 16) & 0xff,
+      (h >>> 24) & 0xff
+    ].map(b => b.toString(16).padStart(2, '0')).join('');
+  }).join('');
+}
+
+function addMod32(a: number, b: number): number {
+  return ((a + b) & 0xffffffff) >>> 0;
+}
+
+function leftRotate(value: number, amount: number): number {
+  return ((value << amount) | (value >>> (32 - amount))) >>> 0;
+}
+
+// Rate limiting implementation
+const rateLimitMap = new Map<string, { count: number; timestamp: number }>();
+
+export function checkRateLimit(identifier: string, maxRequests: number, windowMs: number): boolean {
   const now = Date.now();
-  const clientData = rateLimitStore.get(clientId);
+  const entry = rateLimitMap.get(identifier);
   
-  if (!clientData || now > clientData.resetTime) {
-    // Reset or initialize rate limit for client
-    rateLimitStore.set(clientId, { count: 1, resetTime: now + windowMs });
+  if (!entry || now - entry.timestamp > windowMs) {
+    rateLimitMap.set(identifier, { count: 1, timestamp: now });
     return true;
   }
   
-  if (clientData.count >= maxRequests) {
-    return false; // Rate limit exceeded
+  if (entry.count >= maxRequests) {
+    return false;
   }
   
-  clientData.count++;
+  entry.count++;
   return true;
 }
 
-// Fallback MD5 implementation
-function fallbackMD5(message: string): string {
-  // Simple MD5 implementation for GP51 compatibility
-  // This is a basic implementation - in production, consider using a proper crypto library
-  
-  function md5cycle(x: number[], k: number[]): void {
-    let a = x[0], b = x[1], c = x[2], d = x[3];
-    
-    a = ff(a, b, c, d, k[0], 7, -680876936);
-    d = ff(d, a, b, c, k[1], 12, -389564586);
-    c = ff(c, d, a, b, k[2], 17, 606105819);
-    b = ff(b, c, d, a, k[3], 22, -1044525330);
-    a = ff(a, b, c, d, k[4], 7, -176418897);
-    d = ff(d, a, b, c, k[5], 12, 1200080426);
-    c = ff(c, d, a, b, k[6], 17, -1473231341);
-    b = ff(b, c, d, a, k[7], 22, -45705983);
-    a = ff(a, b, c, d, k[8], 7, 1770035416);
-    d = ff(d, a, b, c, k[9], 12, -1958414417);
-    c = ff(c, d, a, b, k[10], 17, -42063);
-    b = ff(b, c, d, a, k[11], 22, -1990404162);
-    a = ff(a, b, c, d, k[12], 7, 1804603682);
-    d = ff(d, a, b, c, k[13], 12, -40341101);
-    c = ff(c, d, a, b, k[14], 17, -1502002290);
-    b = ff(b, c, d, a, k[15], 22, 1236535329);
-
-    a = gg(a, b, c, d, k[1], 5, -165796510);
-    d = gg(d, a, b, c, k[6], 9, -1069501632);
-    c = gg(c, d, a, b, k[11], 14, 643717713);
-    b = gg(b, c, d, a, k[0], 20, -373897302);
-    a = gg(a, b, c, d, k[5], 5, -701558691);
-    d = gg(d, a, b, c, k[10], 9, 38016083);
-    c = gg(c, d, a, b, k[15], 14, -660478335);
-    b = gg(b, c, d, a, k[4], 20, -405537848);
-    a = gg(a, b, c, d, k[9], 5, 568446438);
-    d = gg(d, a, b, c, k[14], 9, -1019803690);
-    c = gg(c, d, a, b, k[3], 14, -187363961);
-    b = gg(b, c, d, a, k[8], 20, 1163531501);
-    a = gg(a, b, c, d, k[13], 5, -1444681467);
-    d = gg(d, a, b, c, k[2], 9, -51403784);
-    c = gg(c, d, a, b, k[7], 14, 1735328473);
-    b = gg(b, c, d, a, k[12], 20, -1926607734);
-
-    a = hh(a, b, c, d, k[5], 4, -378558);
-    d = hh(d, a, b, c, k[8], 11, -2022574463);
-    c = hh(c, d, a, b, k[11], 16, 1839030562);
-    b = hh(b, c, d, a, k[14], 23, -35309556);
-    a = hh(a, b, c, d, k[1], 4, -1530992060);
-    d = hh(d, a, b, c, k[4], 11, 1272893353);
-    c = hh(c, d, a, b, k[7], 16, -155497632);
-    b = hh(b, c, d, a, k[10], 23, -1094730640);
-    a = hh(a, b, c, d, k[13], 4, 681279174);
-    d = hh(d, a, b, c, k[0], 11, -358537222);
-    c = hh(c, d, a, b, k[3], 16, -722521979);
-    b = hh(b, c, d, a, k[6], 23, 76029189);
-    a = hh(a, b, c, d, k[9], 4, -640364487);
-    d = hh(d, a, b, c, k[12], 11, -421815835);
-    c = hh(c, d, a, b, k[15], 16, 530742520);
-    b = hh(b, c, d, a, k[2], 23, -995338651);
-
-    a = ii(a, b, c, d, k[0], 6, -198630844);
-    d = ii(d, a, b, c, k[7], 10, 1126891415);
-    c = ii(c, d, a, b, k[14], 15, -1416354905);
-    b = ii(b, c, d, a, k[5], 21, -57434055);
-    a = ii(a, b, c, d, k[12], 6, 1700485571);
-    d = ii(d, a, b, c, k[3], 10, -1894986606);
-    c = ii(c, d, a, b, k[10], 15, -1051523);
-    b = ii(b, c, d, a, k[1], 21, -2054922799);
-    a = ii(a, b, c, d, k[8], 6, 1873313359);
-    d = ii(d, a, b, c, k[15], 10, -30611744);
-    c = ii(c, d, a, b, k[6], 15, -1560198380);
-    b = ii(b, c, d, a, k[13], 21, 1309151649);
-    a = ii(a, b, c, d, k[4], 6, -145523070);
-    d = ii(d, a, b, c, k[11], 10, -1120210379);
-    c = ii(c, d, a, b, k[2], 15, 718787259);
-    b = ii(b, c, d, a, k[9], 21, -343485551);
-
-    x[0] = add32(a, x[0]);
-    x[1] = add32(b, x[1]);
-    x[2] = add32(c, x[2]);
-    x[3] = add32(d, x[3]);
-  }
-
-  function cmn(q: number, a: number, b: number, x: number, s: number, t: number): number {
-    a = add32(add32(a, q), add32(x, t));
-    return add32((a << s) | (a >>> (32 - s)), b);
-  }
-
-  function ff(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
-    return cmn((b & c) | ((~b) & d), a, b, x, s, t);
-  }
-
-  function gg(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
-    return cmn((b & d) | (c & (~d)), a, b, x, s, t);
-  }
-
-  function hh(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
-    return cmn(b ^ c ^ d, a, b, x, s, t);
-  }
-
-  function ii(a: number, b: number, c: number, d: number, x: number, s: number, t: number): number {
-    return cmn(c ^ (b | (~d)), a, b, x, s, t);
-  }
-
-  function add32(a: number, b: number): number {
-    return (a + b) & 0xFFFFFFFF;
-  }
-
-  function md51(s: string): number[] {
-    const n = s.length;
-    const state = [1732584193, -271733879, -1732584194, 271733878];
-    let i;
-    for (i = 64; i <= s.length; i += 64) {
-      md5cycle(state, md5blk(s.substring(i - 64, i)));
-    }
-    s = s.substring(i - 64);
-    const tail = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    for (i = 0; i < s.length; i++) {
-      tail[i >> 2] |= s.charCodeAt(i) << ((i % 4) << 3);
-    }
-    tail[i >> 2] |= 0x80 << ((i % 4) << 3);
-    if (i > 55) {
-      md5cycle(state, tail);
-      for (i = 0; i < 16; i++) tail[i] = 0;
-    }
-    tail[14] = n * 8;
-    md5cycle(state, tail);
-    return state;
-  }
-
-  function md5blk(s: string): number[] {
-    const md5blks = [];
-    for (let i = 0; i < 64; i += 4) {
-      md5blks[i >> 2] = s.charCodeAt(i)
-        + (s.charCodeAt(i + 1) << 8)
-        + (s.charCodeAt(i + 2) << 16)
-        + (s.charCodeAt(i + 3) << 24);
-    }
-    return md5blks;
-  }
-
-  function rhex(n: number): string {
-    let s = '';
-    for (let j = 0; j < 4; j++) {
-      s += hex_chr[(n >> (j * 8 + 4)) & 0x0F] + hex_chr[(n >> (j * 8)) & 0x0F];
-    }
-    return s;
-  }
-
-  const hex_chr = '0123456789abcdef'.split('');
-  const state = md51(message);
-  return state.map(rhex).join('');
+// Secure hash generation
+export async function secureHash(input: string, salt?: string): Promise<string> {
+  const actualSalt = salt || crypto.getRandomValues(new Uint8Array(16)).toString();
+  const encoder = new TextEncoder();
+  const data = encoder.encode(input + actualSalt);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${actualSalt}:${hashHex}`;
 }
 
-// THIS IS THE CRUCIAL FIX: Export synchronous md5_sync function
-export const md5_sync = (input: string): string => fallbackMD5(input);
+export async function verifySecureHash(input: string, storedHash: string): Promise<boolean> {
+  try {
+    const [salt, hash] = storedHash.split(':');
+    const computedHash = await secureHash(input, salt);
+    return computedHash === storedHash;
+  } catch {
+    return false;
+  }
+}
+
+// Test MD5 implementation
+console.log('🧪 Testing MD5 implementation...');
+const testCases = [
+  { input: 'test', expected: '098f6bcd4621d373cade4e832627b4f6' },
+  { input: 'password', expected: '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8' },
+  { input: '123456', expected: 'e10adc3949ba59abbe56e057f20f883e' },
+  { input: 'hello', expected: '5d41402abc4b2a76b9719d911017c592' }
+];
+
+let passedTests = 0;
+for (const test of testCases) {
+  const result = md5Pure(test.input);
+  const passed = result === test.expected;
+  console.log(`📝 Test "${test.input}": ${passed ? '✅' : '❌'}`);
+  if (passed) passedTests++;
+}
+
+console.log(`📊 MD5 Tests: ${passedTests === testCases.length ? '✅ ALL PASSED' : '❌ SOME FAILED'}`);
+
+// Test with a known GP51 password
+const testPassword = 'your_test_password_here';
+const hashedPassword = md5Pure(testPassword);
+console.log(`🔐 Your password hash: ${hashedPassword}`);

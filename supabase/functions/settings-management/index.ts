@@ -4,6 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 import { handleImprovedGP51Authentication } from './improved-gp51-operations.ts'
 import { handleEnhancedGetGP51Status, handleSmartGP51SessionRefresh, handleGP51HealthCheck } from './enhanced-session-management.ts'
 import { handleGetGP51Status, handleClearGP51Sessions, handleSessionHealthCheck } from './session-management.ts'
+import { handleSaveCredentials } from './handlers.ts'
 import { createErrorResponse } from './response-utils.ts'
 
 const corsHeaders = {
@@ -69,6 +70,14 @@ serve(async (req) => {
           body.password,
           body.apiUrl
         )
+        break
+
+      case 'save-gp51-credentials':
+        response = await handleSaveCredentials({
+          username: body.username,
+          password: body.password,
+          apiUrl: body.apiUrl
+        })
         break
 
       case 'enhanced-gp51-status':

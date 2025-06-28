@@ -1,5 +1,4 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,6 +14,7 @@ interface GP51StatusIndicatorState {
   consecutiveFailures: number;
   latency?: number;
   isConnected: boolean;
+  sessionId?: string;
 }
 
 export const GP51StatusIndicator: React.FC = () => {
@@ -38,7 +38,8 @@ export const GP51StatusIndicator: React.FC = () => {
         lastCheck: authState.lastValidated || new Date(),
         errorMessage: authState.error,
         consecutiveFailures: authState.error ? 1 : 0,
-        isConnected: authState.isAuthenticated
+        isConnected: authState.isAuthenticated,
+        sessionId: authState.sessionId
       };
 
       console.log('🔄 [StatusIndicator] Auth state updated:', newStatus);
@@ -49,7 +50,7 @@ export const GP51StatusIndicator: React.FC = () => {
     return unsubscribe;
   }, []);
 
-  const performHealthCheck = async () => {
+  const performHealthCheck = useCallback(async () => {
     // Don't perform health check if authentication is in progress
     if (gp51AuthStateManager.isLocked()) {
       console.log('🔒 [StatusIndicator] Skipping health check - auth in progress');
@@ -58,26 +59,48 @@ export const GP51StatusIndicator: React.FC = () => {
 
     setIsLoading(true);
     
-    // Just trigger a refresh of the auth state
-    const currentState = gp51AuthStateManager.getState();
-    console.log('🏥 [StatusIndicator] Health check - current state:', currentState);
-    
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-  };
+    try {
+      // Perform safe status check through the auth manager
+      const result = await gp51AuthStateManager.safeStatusCheck(async () => {
+        console.log('🏥 [StatusIndicator] Performing health check...');
+        
+        // Simple health check that doesn't interfere with auth state
+        const currentState = gp51AuthStateManager.getState();
+        return {
+          success: currentState.isAuthenticated,
+          username: currentState.username,
+          sessionId: currentState.sessionId
+        };
+      });
+      
+      console.log('🏥 [StatusIndicator] Health check result:', result);
+    } catch (error) {
+      console.error('❌ [StatusIndicator] Health check failed:', error);
+    } finally {
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 1000);
+    }
+  }, []);
 
-  const attemptReconnection = async () => {
+  const attemptReconnection = useCallback(async () => {
     console.log('🔄 [StatusIndicator] Attempting reconnection...');
     setIsLoading(true);
     
-    // For now, just clear the error and suggest re-authentication
-    gp51AuthStateManager.clearError();
-    
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
-  };
+    try {
+      // Clear any existing error
+      gp51AuthStateManager.clearError();
+      
+      // Trigger a session validation
+      await gp51AuthStateManager.validateSession();
+    } catch (error) {
+      console.error('❌ [StatusIndicator] Reconnection failed:', error);
+    } finally {
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 1000);
+    }
+  }, []);
 
   const getStatusIcon = () => {
     if (isLoading) return <RefreshCw className="h-5 w-5 animate-spin text-blue-600" />;
@@ -132,6 +155,15 @@ export const GP51StatusIndicator: React.FC = () => {
               <span className="text-sm text-muted-foreground">{status.username}</span>
             </div>
           )}
+
+          {status.sessionId && (
+            <div className="flex justify-between">
+              <span className="text-sm font-medium">Session:</span>
+              <span className="text-sm text-muted-foreground font-mono">
+                {status.sessionId.substring(0, 8)}...
+              </span>
+            </div>
+          )}
           
           {status.expiresAt && (
             <div className="flex justify-between">
@@ -179,7 +211,7 @@ export const GP51StatusIndicator: React.FC = () => {
         <div className="flex gap-2 pt-4">
           <Button
             onClick={performHealthCheck}
-            disabled={isLoading}
+            disabled={isLoading || gp51AuthStateManager.isLocked()}
             variant="outline"
             size="sm"
           >
@@ -190,18 +222,21 @@ export const GP51StatusIndicator: React.FC = () => {
           {(status.status === 'disconnected' || status.status === 'auth_error') && (
             <Button
               onClick={attemptReconnection}
-              disabled={isLoading}
+              disabled={isLoading || gp51AuthStateManager.isLocked()}
               variant="outline"
               size="sm"
             >
               <Activity className="h-4 w-4 mr-2" />
-              Clear Error
+              Reconnect
             </Button>
           )}
         </div>
 
         <div className="text-xs text-muted-foreground">
-          Centralized Auth State • Last updated: {status.lastCheck.toLocaleTimeString()}
+          Enhanced Auth State • Last updated: {status.lastCheck.toLocaleTimeString()}
+          {gp51AuthStateManager.isLocked() && (
+            <span className="ml-2 text-blue-600">🔒 Auth in progress</span>
+          )}
         </div>
       </CardContent>
     </Card>
