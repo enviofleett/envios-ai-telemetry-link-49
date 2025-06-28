@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -8,7 +9,6 @@ import {
   DialogFooter
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast"
 import { useProductionGP51Service } from '@/hooks/useProductionGP51Service';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
@@ -19,27 +19,6 @@ interface GP51ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-// Transform GP51Device to GP51DeviceData for compatibility
-const transformDeviceData = (device: GP51Device): GP51DeviceData => ({
-  deviceid: device.deviceid,
-  devicename: device.devicename,
-  devicetype: typeof device.devicetype === 'string' ? parseInt(device.devicetype) || 0 : (device.devicetype || 0),
-  isfree: device.isfree || 0,
-  lastactivetime: typeof device.lastactivetime === 'string' 
-    ? new Date(device.lastactivetime).getTime() 
-    : (device.lastactivetime || 0),
-  lastUpdate: device.lastactivetime 
-    ? (typeof device.lastactivetime === 'string' 
-        ? device.lastactivetime 
-        : new Date(device.lastactivetime).toISOString())
-    : new Date().toISOString(),
-  simnum: device.simnum || device.simcardno,
-  groupid: typeof device.groupid === 'string' ? parseInt(device.groupid) || 0 : device.groupid,
-  groupname: device.groupname,
-  status: device.isfree === 1 ? 'active' : 'inactive',
-  online: Boolean(device.isOnline || device.isActive)
-});
 
 const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -54,29 +33,10 @@ const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) =>
 
       console.log(`🔄 Processing ${devices.length} devices...`);
       
-      // Fix: Ensure all required properties are present
-      const transformedDevices = devices.map(device => ({
-        deviceid: device.deviceid,
-        devicename: device.devicename,
-        devicetype: device.devicetype || 0,
-        isfree: device.isfree,
-        lastactivetime: device.lastactivetime || Date.now(), // Ensure required property
-        lastUpdate: device.lastactivetime ? 
-          new Date(device.lastactivetime).toISOString() : 
-          new Date().toISOString(),
-        simnum: device.simnum,
-        groupid: device.groupid,
-        groupname: device.groupname,
-        status: device.isfree === 1 ? 'active' : 'inactive',
-        online: Boolean(device.lastactivetime && (Date.now() - device.lastactivetime) < 300000),
-        remark: device.remark,
-        creater: device.creater,
-        videochannelcount: device.videochannelcount,
-        allowedit: device.allowedit,
-        icon: device.icon,
-        stared: device.stared,
-        loginame: device.loginame
-      }));
+      // Fixed: Use proper conversion function to ensure correct types
+      const transformedDevices: GP51DeviceData[] = devices.map(device => 
+        convertGP51DeviceToDeviceData(device)
+      );
       
       const result = await syncDevices(transformedDevices);
 

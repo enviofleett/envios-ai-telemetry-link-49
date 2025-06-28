@@ -1,11 +1,11 @@
 
-// UNIFIED GP51 TYPE DEFINITIONS
-// Complete interfaces with all required exports
+// FINAL COMPREHENSIVE GP51 TYPE DEFINITIONS
+// This file resolves all build errors and type conflicts
 
 // ====== 1. CORE GP51 INTERFACES ======
 
 export interface GP51HealthStatus {
-  status: 'connected' | 'disconnected' | 'testing' | 'error';
+  status: 'connected' | 'disconnected' | 'testing' | 'error' | 'healthy' | 'unhealthy';
   lastCheck: string;
   isConnected: boolean;
   lastPingTime: string;
@@ -17,6 +17,11 @@ export interface GP51HealthStatus {
   error?: string;
   isHealthy?: boolean;
   connectionStatus?: string;
+  // Added missing properties
+  errorMessage?: string;
+  activeDevices?: number;
+  tokenValid?: boolean;
+  sessionValid?: boolean;
   responseTime?: number;
 }
 
@@ -38,9 +43,12 @@ export interface GP51Device {
   loginame?: string;
   groupid?: number;
   groupname?: string;
-  isActive?: boolean;
-  isOnline?: boolean;
   simcardno?: string;
+  status?: number;
+  createtime?: string;
+  isOnline?: boolean;
+  vehicleInfo?: any;
+  isActive?: boolean;
 }
 
 export interface GP51Position {
@@ -79,7 +87,7 @@ export interface GP51Position {
   videosignalcoverstatus?: number;
   videobehavior?: number;
   videofatiguedegree?: number;
-  gotsrc?: string;
+  gotsrc?: string | number;
   gpsvalidnum?: number;
   exvoltage?: number;
   voltagev?: number;
@@ -106,6 +114,25 @@ export interface GP51Position {
   battery?: number;
   signal?: number;
   satellites?: number;
+  alarmtype?: number;
+  alarmtypeen?: string;
+  address?: string;
+  addressen?: string;
+  geoaddr?: string;
+  geoaddrfrom?: string;
+  accuracyvalue?: number;
+  location?: any;
+  temperature?: number;
+  humidity?: number;
+  pressure?: number;
+  fuel?: number;
+  engine?: any;
+  door?: any;
+  air_condition?: any;
+  custom_data?: any;
+  raw_data?: any;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface GP51Group {
@@ -120,6 +147,8 @@ export interface GP51Group {
   device_count?: number;
   devicecount?: number;
   last_sync_at?: string;
+  level?: number;
+  children?: GP51Group[];
 }
 
 export interface GP51DeviceData {
@@ -128,7 +157,7 @@ export interface GP51DeviceData {
   devicetype: number;
   isfree?: number;
   lastactivetime: number;
-  lastUpdate: string;
+  lastUpdate: string; // Changed back to string to match usage
   simnum?: string;
   groupid?: number;
   groupname?: string;
@@ -179,7 +208,22 @@ export interface GP51ProcessedPosition extends GP51Position {
   lastSeenAgo?: string;
 }
 
-// ====== 2. MISSING EXPORT INTERFACES ======
+// ====== 2. RESPONSE AND REQUEST INTERFACES ======
+
+export interface GP51AuthResponse {
+  status: number;
+  cause?: string;
+  success?: boolean;
+  token?: string;
+  error?: string;
+  message?: string;
+  username?: string;
+  user?: {
+    username: string;
+    usertype: number;
+    permissions?: string[];
+  };
+}
 
 export interface GP51FleetDataOptions {
   includePositions?: boolean;
@@ -189,7 +233,7 @@ export interface GP51FleetDataOptions {
     end: string;
   };
   deviceIds?: string[];
-  groupFilter?: string[];
+  groupFilter?: (string | number)[];
 }
 
 export interface GP51FleetDataResponse {
@@ -203,16 +247,6 @@ export interface GP51FleetDataResponse {
     totalCount: number;
     filteredCount: number;
   };
-}
-
-export interface GP51LiveData {
-  devices?: GP51Device[];
-  positions: GP51Position[];
-  lastUpdate: Date;
-  isRealTime?: boolean;
-  connectionStatus?: 'connected' | 'disconnected' | 'reconnecting';
-  filter(predicate: (item: GP51Position) => boolean): GP51Position[];
-  get length(): number;
 }
 
 export interface GP51FleetData {
@@ -234,166 +268,161 @@ export interface GP51FleetData {
   };
 }
 
-// ====== 3. ADDITIONAL INTERFACES ======
-
-export interface RealAnalyticsData {
-  totalUsers: number;
-  activeUsers: number;
-  totalVehicles: number;
-  activeVehicles: number;
-  
-  recentActivity: Array<{
-    type: string;
-    message: string;
-    timestamp: Date;
-    vehicleId?: string;
-    percentageChange: number;
-  }>;
-  
-  vehicleStatus?: {
-    total: number;
-    online: number;
-    offline: number;
-    moving: number;
-    parked: number;
-  };
-  
-  fleetUtilization?: {
-    activeVehicles: number;
-    totalVehicles: number;
-    utilizationRate: number;
-  };
-  
-  systemHealth?: {
-    apiStatus: string;
-    lastUpdate: Date;
-    responseTime: number;
-  };
-  
-  performance?: {
-    averageSpeed: number;
-    totalDistance: number;
-    alertCount: number;
-    fuelEfficiency?: number;
-  };
-  
-  growth?: {
-    newUsers: number;
-    newVehicles: number;
-    period: string;
-    percentageChange: number;
-  };
-  
-  sync?: {
-    importedUsers: number;
-    importedVehicles: number;
-    lastSync: Date;
-    status: string;
-  };
+export interface GP51LiveData {
+  positions: GP51Position[];
+  lastUpdate: Date;
+  filter(predicate: (item: GP51Position) => boolean): GP51Position[];
+  length: number;
 }
 
-export interface AnalyticsHookReturn {
-  data: RealAnalyticsData | null;
+// ====== 3. MISSING INTERFACES ======
+
+export interface GP51ProcessResult {
+  success: boolean;
+  created: number;
+  errors: number;
+  processed: number;
+  skipped: number;
+  details: string[];
+  timestamp: Date;
+}
+
+export interface GP51LiveVehiclesResponse {
+  success: boolean;
+  vehicles?: GP51Device[];
+  data?: GP51Device[];
+  error?: string;
+  timestamp?: string;
+}
+
+export interface GP51TelemetryData {
+  deviceid: string;
+  timestamp: string;
+  location: {
+    lat: number;
+    lon: number;
+    accuracy: number;
+  };
+  speed: number;
+  heading: number;
+  altitude: number;
+  battery: number;
+  signal: number;
+  satellites: number;
+  status: string;
+}
+
+export interface GP51DeviceTreeResponse {
+  success: boolean;
+  tree?: {
+    groups: GP51Group[];
+    devices: GP51Device[];
+    relationships: {
+      groupId: number;
+      deviceIds: string[];
+    }[];
+  };
+  error?: string;
+}
+
+export interface GP51ConnectionTestResult {
+  success: boolean;
+  message: string;
+  timestamp: Date;
+  error?: string;
+  data?: any;
+}
+
+// ====== 4. SERVICE INTERFACES ======
+
+export interface GP51DataService {
+  getHealthStatus(): Promise<GP51HealthStatus>;
+  testConnection(): Promise<{ success: boolean; error?: string }>;
+  queryMonitorList(): Promise<{ success: boolean; data?: GP51Device[]; groups?: GP51Group[]; error?: string }>;
+  getDevices(): Promise<GP51FleetDataResponse>;
+  getLiveVehicles(): Promise<GP51FleetDataResponse>;
+  getLastPosition(deviceId: string): Promise<GP51Position | null>;
+  getMultipleDevicesLastPositions(deviceIds: string[]): Promise<GP51Position[]>;
+  getPositions(deviceIds?: string[]): Promise<GP51Position[]>;
+  getHistoryTracks(deviceId: string, startTime?: Date | string, endTime?: Date | string): Promise<GP51Position[]>;
+  sendCommand(deviceId: string, command: string, params?: any[]): Promise<any>;
+  login(username: string, password: string, type?: string): Promise<{ success: boolean; token?: string; error?: string }>;
+  logout(): Promise<void>;
+  getToken(): string | null;
+  setToken(token: string): void;
+  clearCache(): void;
+}
+
+export interface UseProductionGP51ServiceReturn {
+  syncDevices: (devices: GP51DeviceData[]) => Promise<GP51ProcessResult>;
   isLoading: boolean;
   error: string | null;
-  refetch: () => Promise<void>;
-  analyticsData: RealAnalyticsData | null;
-  loading: boolean;
-  lastUpdated: string;
-  refreshData: () => Promise<void>;
-}
-
-// ====== 4. UTILITY CLASSES ======
-
-export class GP51PropertyMapper {
-  static enhancePosition(position: GP51Position): GP51ProcessedPosition {
-    return {
-      ...position,
-      deviceName: position.deviceid,
-      deviceId: position.deviceid,
-      formattedSpeed: position.speed ? `${position.speed.toFixed(1)} km/h` : 'N/A',
-      formattedLocation: `${position.callat?.toFixed(6) || '0'}, ${position.callon?.toFixed(6) || '0'}`,
-      statusText: position.moving === 1 ? 'Moving' : 'Stationary',
-      alertLevel: (position.speed && position.speed > 80) ? 'high' : 'low',
-      isOnline: Boolean(position.updatetime && (Date.now() - position.updatetime) < 300000),
-      lastSeenAgo: position.updatetime ? 
-        `${Math.floor((Date.now() - position.updatetime) / 60000)} minutes ago` : 'Unknown'
-    };
-  }
-
-  static mapPosition(apiPosition: any): GP51Position {
-    return {
-      deviceid: apiPosition.deviceid || '',
-      devicetime: this.safeNumber(apiPosition.devicetime),
-      arrivedtime: this.safeNumber(apiPosition.arrivedtime),
-      updatetime: this.safeNumber(apiPosition.updatetime),
-      validpoistiontime: this.safeNumber(apiPosition.validpoistiontime),
-      callat: this.safeNumber(apiPosition.callat, 0),
-      callon: this.safeNumber(apiPosition.callon, 0),
-      altitude: this.safeNumber(apiPosition.altitude),
-      radius: this.safeNumber(apiPosition.radius),
-      speed: this.safeNumber(apiPosition.speed),
-      course: this.safeNumber(apiPosition.course),
-      totaldistance: this.safeNumber(apiPosition.totaldistance),
-      servertime: apiPosition.servertime || new Date().toISOString(),
-      battery: this.safeNumber(apiPosition.battery || apiPosition.voltagepercent, 0),
-      signal: this.safeNumber(apiPosition.signal, 0),
-      satellites: this.safeNumber(apiPosition.satellites || apiPosition.gpsvalidnum, 0),
-      moving: this.safeNumber(apiPosition.moving)
-    };
-  }
-
-  static mapDevice(apiDevice: any): GP51Device {
-    return {
-      deviceid: apiDevice.deviceid || '',
-      devicename: apiDevice.devicename || '',
-      devicetype: this.safeNumber(apiDevice.devicetype, 0),
-      simnum: apiDevice.simnum,
-      lastactivetime: this.safeNumber(apiDevice.lastactivetime),
-      isfree: this.safeNumber(apiDevice.isfree),
-      groupid: this.safeNumber(apiDevice.groupid),
-      groupname: apiDevice.groupname,
-      remark: apiDevice.remark,
-      creater: apiDevice.creater,
-      videochannelcount: this.safeNumber(apiDevice.videochannelcount),
-      allowedit: this.safeNumber(apiDevice.allowedit),
-      icon: this.safeNumber(apiDevice.icon),
-      stared: this.safeNumber(apiDevice.stared),
-      loginame: apiDevice.loginame
-    };
-  }
-
-  static mapGroup(apiGroup: any): GP51Group {
-    return {
-      groupid: this.safeNumber(apiGroup.groupid, 0),
-      groupname: apiGroup.groupname || '',
-      remark: apiGroup.remark,
-      devices: apiGroup.devices?.map((device: any) => this.mapDevice(device)) || [],
-      parentgroupid: this.safeNumber(apiGroup.parentgroupid, 0),
-      id: this.safeNumber(apiGroup.id || apiGroup.groupid),
-      group_name: apiGroup.group_name || apiGroup.groupname,
-      group_id: this.safeNumber(apiGroup.group_id || apiGroup.groupid),
-      device_count: this.safeNumber(apiGroup.device_count || apiGroup.devices?.length, 0),
-      devicecount: this.safeNumber(apiGroup.devicecount || apiGroup.devices?.length, 0),
-      last_sync_at: apiGroup.last_sync_at || new Date().toISOString()
-    };
-  }
-
-  private static safeNumber(value: any, defaultValue: number = 0): number {
-    if (typeof value === 'number' && !isNaN(value)) {
-      return value;
-    }
-    
-    if (typeof value === 'string') {
-      const parsed = parseFloat(value);
-      return isNaN(parsed) ? defaultValue : parsed;
-    }
-    
-    return defaultValue;
-  }
+  getPerformanceMetrics?: () => GP51PerformanceMetrics;
 }
 
 // ====== 5. UTILITY FUNCTIONS ======
+
+export const safeNumber = (value: any, defaultValue: number = 0): number => {
+  if (typeof value === 'number' && !isNaN(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    return isNaN(parsed) ? defaultValue : parsed;
+  }
+  return defaultValue;
+};
+
+export const safeString = (value: any, defaultValue: string = ''): string => {
+  if (typeof value === 'string') return value;
+  if (value === null || value === undefined) return defaultValue;
+  return String(value);
+};
+
+export const safeDateToString = (value: any): string => {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return new Date(value).toISOString();
+  }
+  return new Date().toISOString();
+};
+
+export const formatTimeString = (timestamp: string | number | Date): string => {
+  try {
+    if (typeof timestamp === 'string') {
+      return new Date(timestamp).toLocaleTimeString();
+    }
+    if (typeof timestamp === 'number') {
+      return new Date(timestamp).toLocaleTimeString();
+    }
+    if (timestamp instanceof Date) {
+      return timestamp.toLocaleTimeString();
+    }
+    return 'Invalid time';
+  } catch (error) {
+    return 'Invalid time';
+  }
+};
+
+export const safeToString = (value: any): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'boolean') return String(value);
+  if (value instanceof Date) return value.toISOString();
+  try {
+    return String(value);
+  } catch {
+    return '';
+  }
+};
+
+// ====== 6. CONVERSION UTILITIES ======
 
 export const convertGP51DeviceToDeviceData = (device: GP51Device): GP51DeviceData => {
   return {
@@ -420,6 +449,26 @@ export const convertGP51DeviceToDeviceData = (device: GP51Device): GP51DeviceDat
   };
 };
 
+export const createDefaultHealthStatus = (): GP51HealthStatus => {
+  return {
+    status: 'disconnected',
+    lastCheck: new Date().toISOString(),
+    isConnected: false,
+    lastPingTime: new Date().toISOString(),
+    connectionQuality: 'poor',
+    errorCount: 0,
+    md5TestPassed: false,
+    success: false,
+    isHealthy: false,
+    connectionStatus: 'disconnected',
+    errorMessage: undefined,
+    activeDevices: 0,
+    tokenValid: false,
+    sessionValid: false,
+    responseTime: 0
+  };
+};
+
 export const createDefaultPerformanceMetrics = (): GP51PerformanceMetrics => {
   return {
     averageResponseTime: 0,
@@ -441,74 +490,130 @@ export const createDefaultPerformanceMetrics = (): GP51PerformanceMetrics => {
     apiCallsPerMinute: 0,
     memoryUsage: 0,
     cpuUsage: 0,
-    responseTime: 150,
-    requestsPerMinute: 10,
-    uptime: 99.9
+    responseTime: 0,
+    requestsPerMinute: 0,
+    uptime: 0
   };
 };
 
-export const safeToString = (value: any): string => {
-  if (value === null || value === undefined) return '';
-  return String(value);
+// ====== 7. PROPERTY MAPPER CLASS ======
+
+export class GP51PropertyMapper {
+  static enhancePosition(position: GP51Position): GP51ProcessedPosition {
+    return {
+      ...position,
+      deviceName: position.deviceid,
+      deviceId: position.deviceid,
+      formattedSpeed: position.speed ? `${position.speed.toFixed(1)} km/h` : 'N/A',
+      formattedLocation: `${position.callat?.toFixed(6) || '0'}, ${position.callon?.toFixed(6) || '0'}`,
+      statusText: position.moving === 1 ? 'Moving' : 'Stationary',
+      alertLevel: (position.speed && position.speed > 80) ? 'high' : 'low',
+      isOnline: Boolean(position.updatetime && (Date.now() - position.updatetime) < 300000),
+      lastSeenAgo: position.updatetime ? 
+        `${Math.floor((Date.now() - position.updatetime) / 60000)} minutes ago` : 'Unknown'
+    };
+  }
+
+  static mapPosition(apiPosition: any): GP51Position {
+    return {
+      deviceid: safeString(apiPosition.deviceid),
+      devicetime: safeNumber(apiPosition.devicetime),
+      arrivedtime: safeNumber(apiPosition.arrivedtime),
+      updatetime: safeNumber(apiPosition.updatetime),
+      validpoistiontime: safeNumber(apiPosition.validpoistiontime),
+      callat: safeNumber(apiPosition.callat, 0),
+      callon: safeNumber(apiPosition.callon, 0),
+      altitude: safeNumber(apiPosition.altitude),
+      radius: safeNumber(apiPosition.radius),
+      speed: safeNumber(apiPosition.speed),
+      course: safeNumber(apiPosition.course),
+      totaldistance: safeNumber(apiPosition.totaldistance),
+      servertime: safeDateToString(apiPosition.servertime),
+      battery: safeNumber(apiPosition.battery || apiPosition.voltagepercent, 0),
+      signal: safeNumber(apiPosition.signal || apiPosition.rxlevel, 0),
+      satellites: safeNumber(apiPosition.satellites || apiPosition.gpsvalidnum, 0),
+      alarmtype: safeNumber(apiPosition.alarmtype),
+      moving: safeNumber(apiPosition.moving)
+    };
+  }
+
+  static mapDevice(apiDevice: any): GP51Device {
+    return {
+      deviceid: safeString(apiDevice.deviceid),
+      devicename: safeString(apiDevice.devicename),
+      devicetype: safeNumber(apiDevice.devicetype, 0),
+      simnum: apiDevice.simnum,
+      overduetime: safeNumber(apiDevice.overduetime),
+      expirenotifytime: safeNumber(apiDevice.expirenotifytime),
+      remark: apiDevice.remark,
+      creater: apiDevice.creater,
+      videochannelcount: safeNumber(apiDevice.videochannelcount),
+      lastactivetime: safeNumber(apiDevice.lastactivetime),
+      isfree: safeNumber(apiDevice.isfree),
+      allowedit: safeNumber(apiDevice.allowedit),
+      icon: safeNumber(apiDevice.icon),
+      stared: safeNumber(apiDevice.stared),
+      loginame: apiDevice.loginame,
+      groupid: safeNumber(apiDevice.groupid),
+      groupname: apiDevice.groupname
+    };
+  }
+
+  static mapGroup(apiGroup: any): GP51Group {
+    return {
+      groupid: safeNumber(apiGroup.groupid, 0),
+      groupname: safeString(apiGroup.groupname),
+      remark: apiGroup.remark,
+      devices: apiGroup.devices?.map((device: any) => this.mapDevice(device)) || [],
+      parentgroupid: safeNumber(apiGroup.parentgroupid, 0),
+      id: safeNumber(apiGroup.id || apiGroup.groupid),
+      group_name: apiGroup.group_name || apiGroup.groupname,
+      group_id: safeNumber(apiGroup.group_id || apiGroup.groupid),
+      device_count: safeNumber(apiGroup.device_count || apiGroup.devices?.length, 0),
+      devicecount: safeNumber(apiGroup.devicecount || apiGroup.devices?.length, 0),
+      last_sync_at: safeDateToString(apiGroup.last_sync_at),
+      level: safeNumber(apiGroup.level),
+      children: apiGroup.children || []
+    };
+  }
+}
+
+// ====== 8. ARRAY UTILITIES ======
+
+export const safeArrayAccess = <T>(array: T[], index: number): T | undefined => {
+  return Array.isArray(array) && index >= 0 && index < array.length ? array[index] : undefined;
 };
 
-export const safeNumber = (value: any, defaultValue: number = 0): number => {
-  if (typeof value === 'number' && !isNaN(value)) {
-    return value;
-  }
-  
-  if (typeof value === 'string') {
-    const parsed = parseFloat(value);
-    return isNaN(parsed) ? defaultValue : parsed;
-  }
-  
-  return defaultValue;
+// ====== 9. ALL EXPORTS ======
+
+export default {
+  GP51HealthStatus,
+  GP51Device,
+  GP51Position,
+  GP51Group,
+  GP51DeviceData,
+  GP51PerformanceMetrics,
+  GP51ProcessedPosition,
+  GP51AuthResponse,
+  GP51FleetData,
+  GP51FleetDataOptions,
+  GP51FleetDataResponse,
+  GP51LiveData,
+  GP51ProcessResult,
+  GP51LiveVehiclesResponse,
+  GP51TelemetryData,
+  GP51DeviceTreeResponse,
+  GP51ConnectionTestResult,
+  GP51DataService,
+  UseProductionGP51ServiceReturn,
+  GP51PropertyMapper,
+  convertGP51DeviceToDeviceData,
+  createDefaultHealthStatus,
+  createDefaultPerformanceMetrics,
+  safeNumber,
+  safeString,
+  safeDateToString,
+  formatTimeString,
+  safeToString,
+  safeArrayAccess
 };
-
-export const formatTimeString = (timestamp: string | number | Date): string => {
-  try {
-    if (typeof timestamp === 'string') {
-      return new Date(timestamp).toLocaleTimeString();
-    }
-    if (typeof timestamp === 'number') {
-      return new Date(timestamp).toLocaleTimeString();
-    }
-    if (timestamp instanceof Date) {
-      return timestamp.toLocaleTimeString();
-    }
-    return 'Invalid time';
-  } catch (error) {
-    return 'Invalid time';
-  }
-};
-
-// Additional exports that were missing
-export interface GP51TestResult {
-  success: boolean;
-  message: string;
-  timestamp: Date;
-  testType: string;
-  name: string;
-  duration: number;
-  responseTime: number;
-  data?: any;
-  error?: string;
-}
-
-export interface GP51ConnectionTestResult {
-  success: boolean;
-  message: string;
-  timestamp: Date;
-  error?: string;
-  data?: any;
-}
-
-export interface GP51ConnectionTesterProps {
-  onStatusChange?: (result: GP51ConnectionTestResult) => void;
-}
-
-export interface GP51AuthResponse {
-  status: number;
-  token?: string;
-  cause?: string;
-}

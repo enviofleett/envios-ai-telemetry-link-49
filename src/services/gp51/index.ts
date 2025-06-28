@@ -3,18 +3,18 @@
 export type {
   GP51AuthResponse,
   GP51Device as GP51DeviceData,
-  GP51ProcessResult,
-  GP51TestResult,
-  GP51LiveVehiclesResponse,
-  GP51TelemetryData,
-  GP51ProcessedPosition,
-  GP51Group,
-  GP51Position,
-  GP51DeviceTreeResponse as GP51ServiceResponse,
   GP51HealthStatus,
   GP51PerformanceMetrics,
+  GP51Group,
+  GP51Position,
+  GP51FleetDataResponse as GP51ServiceResponse,
+  // Fixed: Export the correct interfaces that exist
+  GP51ProcessedPosition,
+  GP51FleetData,
+  GP51DeviceData,
+  GP51LiveData,
+  GP51ConnectionTestResult,
   // Legacy aliases
-  GP51TestResult as GPS51TestResult,
   GP51Device as GPS51Device,
   GP51Group as GPS51Group,
   GP51Position as GPS51Position

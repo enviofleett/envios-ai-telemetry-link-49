@@ -1,3 +1,4 @@
+
 import type { 
   GP51HealthStatus,
   GP51Device,
@@ -9,6 +10,7 @@ import type {
   GP51LiveData
 } from '@/types/gp51-unified';
 import { gp51DataService } from './GP51DataService';
+import { safeToString } from '@/types/gp51-unified';
 
 interface GeoBounds {
   north: number;
@@ -25,15 +27,7 @@ export class GP51CompleteAPIController {
   }
 
   async getPerformanceMetrics(): Promise<GP51PerformanceMetrics> {
-    // Return default performance metrics
-    return {
-      responseTime: 150,
-      successRate: 95,
-      requestsPerMinute: 10,
-      errorRate: 5,
-      lastUpdate: new Date(),
-      uptime: 99.9
-    };
+    return gp51DataService.getPerformanceMetrics();
   }
 
   async queryMonitorList(): Promise<{
@@ -93,7 +87,7 @@ export class GP51CompleteAPIController {
       let filteredDevices = devicesResult.data || [];
       if (options?.groupFilter) {
         const groupFilterStrings = options.groupFilter.map(id => 
-          typeof id === 'number' ? id.toString() : id
+          safeToString(id) // Fixed: use safeToString utility
         );
         // Apply group filtering logic here if needed
       }
@@ -107,13 +101,13 @@ export class GP51CompleteAPIController {
           activeDevices: filteredDevices.filter(d => d.isActive).length,
           totalGroups: (devicesResult.groups || []).length
         },
-        lastUpdate: new Date(),
+        lastUpdate: new Date(), // Fixed: return Date object
         metadata: {
           requestId: Math.random().toString(36).substring(7),
           responseTime: Date.now() - startTime,
           dataVersion: "1.0",
           source: "GP51API",
-          fetchTime: new Date()
+          fetchTime: new Date() // Fixed: return Date object
         }
       };
 

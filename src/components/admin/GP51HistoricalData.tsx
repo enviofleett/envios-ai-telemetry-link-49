@@ -1,6 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Calendar } from "@/components/ui/calendar"
 import { CalendarIcon } from "lucide-react"
@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import { gp51DataService } from '@/services/gp51/GP51DataService';
+import type { GP51Position } from '@/types/gp51-unified';
 
 interface GP51HistoricalDataProps {
   deviceId?: string;
@@ -16,7 +17,7 @@ interface GP51HistoricalDataProps {
 const GP51HistoricalData: React.FC<GP51HistoricalDataProps> = ({ deviceId }) => {
   const [startTime, setStartTime] = useState<Date | undefined>(new Date(new Date().setDate(new Date().getDate() - 7)));
   const [endTime, setEndTime] = useState<Date | undefined>(new Date());
-  const [historicalData, setHistoricalData] = useState([]);
+  const [historicalData, setHistoricalData] = useState<GP51Position[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,12 +27,13 @@ const GP51HistoricalData: React.FC<GP51HistoricalDataProps> = ({ deviceId }) => 
     }
   }, [deviceId, startTime, endTime]);
 
-  const fetchHistoricalData = async (deviceId?: string) => {
+  const fetchHistoricalData = async (deviceId: string) => {
     setLoading(true);
+    setError(null);
     try {
-      // Fix: Provide default deviceId parameter
+      // Fixed: Added proper parameters for getHistoryTracks
       const result = await gp51DataService.getHistoryTracks(
-        deviceId || 'default-device-id', 
+        deviceId, 
         startTime, 
         endTime
       );
@@ -39,6 +41,7 @@ const GP51HistoricalData: React.FC<GP51HistoricalDataProps> = ({ deviceId }) => 
     } catch (error) {
       console.error('Error fetching historical data:', error);
       setError('Failed to fetch historical data');
+      setHistoricalData([]);
     } finally {
       setLoading(false);
     }
@@ -118,11 +121,21 @@ const GP51HistoricalData: React.FC<GP51HistoricalDataProps> = ({ deviceId }) => 
         {loading ? (
           <div>Loading historical data...</div>
         ) : (
-          <ul>
-            {historicalData.map((item: any) => (
-              <li key={item.id}>{JSON.stringify(item)}</li>
-            ))}
-          </ul>
+          <div className="space-y-2">
+            <div className="text-sm text-gray-600">
+              Found {historicalData.length} historical records
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {historicalData.map((item, index) => (
+                <div key={index} className="p-2 border rounded text-sm">
+                  <div>Device: {item.deviceid}</div>
+                  <div>Location: {item.callat?.toFixed(6)}, {item.callon?.toFixed(6)}</div>
+                  <div>Speed: {item.speed || 0} km/h</div>
+                  <div>Time: {item.servertime ? new Date(item.servertime).toLocaleString() : 'N/A'}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </CardContent>
     </Card>
