@@ -1,4 +1,3 @@
-
 import {
   LayoutDashboard,
   Users,
@@ -71,9 +70,33 @@ export const menuItems: MenuItem[] = [
     featureId: "gp51_integration"
   },
   {
-    title: "GPS51 Integration",
+    title: "GPS51 Platform",
     url: "/gps51",
     icon: Satellite,
+    featureId: "gps51_integration"
+  },
+  {
+    title: "GPS51 Dashboard",
+    url: "/gps51/dashboard",
+    icon: LayoutDashboard,
+    featureId: "gps51_integration"
+  },
+  {
+    title: "GPS51 Live Tracking",
+    url: "/gps51/tracking",
+    icon: MapPin,
+    featureId: "gps51_integration"
+  },
+  {
+    title: "GPS51 Devices",
+    url: "/gps51/devices",
+    icon: Settings,
+    featureId: "gps51_integration"
+  },
+  {
+    title: "GPS51 Analytics",
+    url: "/gps51/analytics",
+    icon: BarChart3,
     featureId: "gps51_integration"
   },
   {
@@ -204,6 +227,30 @@ export const quickActions: QuickAction[] = [
     title: "GP51 Setup",
     url: "/gp51-integration",
     icon: Radio,
+  },
+]
+
+// Add GPS51-specific quick actions
+export const gps51QuickActions: QuickAction[] = [
+  {
+    title: "Live Tracking",
+    url: "/gps51/tracking",
+    icon: MapPin,
+  },
+  {
+    title: "Device Status",
+    url: "/gps51/devices",
+    icon: Settings,
+  },
+  {
+    title: "Trip History",
+    url: "/gps51/history",
+    icon: FileText,
+  },
+  {
+    title: "Analytics",
+    url: "/gps51/analytics",
+    icon: BarChart3,
   },
 ]
 

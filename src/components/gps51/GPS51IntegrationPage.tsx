@@ -1,14 +1,15 @@
 
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, Link } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import GPS51AuthenticationForm from './GPS51AuthenticationForm';
 import FleetManagementPage from './FleetManagementPage';
 import { useGPS51Integration } from '@/hooks/useGPS51Integration';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Car, BarChart3 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Shield, Car, BarChart3, LayoutDashboard } from 'lucide-react';
 
 const GPS51IntegrationPage: React.FC = () => {
   const { user } = useAuth();
@@ -21,9 +22,19 @@ const GPS51IntegrationPage: React.FC = () => {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">GPS51 Integration</h1>
-          <p className="text-gray-600">Manage your GPS51 fleet tracking integration and monitor your vehicles in real-time</p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">GPS51 Integration</h1>
+            <p className="text-gray-600">Manage your GPS51 fleet tracking integration and monitor your vehicles in real-time</p>
+          </div>
+          {isAuthenticated && (
+            <Link to="/gps51/dashboard">
+              <Button>
+                <LayoutDashboard className="h-4 w-4 mr-2" />
+                Open GPS51 Dashboard
+              </Button>
+            </Link>
+          )}
         </div>
 
         <Tabs defaultValue="authentication" className="space-y-6">
@@ -57,7 +68,27 @@ const GPS51IntegrationPage: React.FC = () => {
                       <li>Enter your GPS51 username and password above</li>
                       <li>Click "Connect to GPS51" to authenticate</li>
                       <li>Once connected, you can access fleet management and analytics</li>
+                      <li>Visit the GPS51 Dashboard for full platform access</li>
                     </ol>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {isAuthenticated && (
+              <Card className="bg-green-50 border-green-200">
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-green-800">GPS51 Connected Successfully!</h3>
+                      <p className="text-sm text-green-600">You now have access to all GPS51 features.</p>
+                    </div>
+                    <Link to="/gps51/dashboard">
+                      <Button>
+                        <LayoutDashboard className="h-4 w-4 mr-2" />
+                        Open Dashboard
+                      </Button>
+                    </Link>
                   </div>
                 </CardContent>
               </Card>
@@ -89,6 +120,13 @@ const GPS51IntegrationPage: React.FC = () => {
                   <div className="text-center text-gray-500 py-8">
                     <BarChart3 className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                     <p>Analytics dashboard coming soon...</p>
+                    <div className="mt-4">
+                      <Link to="/gps51/analytics">
+                        <Button variant="outline">
+                          Visit GPS51 Analytics
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
