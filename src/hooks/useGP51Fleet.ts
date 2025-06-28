@@ -1,6 +1,8 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { GP51EnhancedDataService } from '@/services/gp51/GP51EnhancedDataService';
+import type { GP51FleetData, GP51FleetDataOptions, GP51Device } from '@/types/gp51-unified';
+import { createDefaultFleetData, ensureFleetDataResponse } from '@/types/gp51-unified';
 
 export const useGP51Fleet = (options: {
   autoRefresh?: boolean;
@@ -8,7 +10,7 @@ export const useGP51Fleet = (options: {
   includePositions?: boolean;
 } = {}) => {
   const [dataService] = useState(() => new GP51EnhancedDataService());
-  const [fleetData, setFleetData] = useState<any>(null);
+  const [fleetData, setFleetData] = useState<GP51FleetData>(createDefaultFleetData());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -22,15 +24,29 @@ export const useGP51Fleet = (options: {
     setError(null);
     
     try {
-      const result = await dataService.getCompleteFleetData({
+      const fetchOptions: GP51FleetDataOptions = {
         includePositions: options.includePositions ?? true,
-        forceRefresh
-      });
+        forceRefresh: forceRefresh // Now valid with updated interface
+      };
       
-      if (result.success) {
-        setFleetData(result.data);
+      const result = await dataService.getCompleteFleetData(fetchOptions);
+      
+      // Ensure response properties exist
+      const safeFleetData = ensureFleetDataResponse(result);
+      
+      // Handle both response formats
+      const success = safeFleetData.success ?? true;
+      const deviceData = safeFleetData.data || safeFleetData.devices || [];
+      const errorMsg = safeFleetData.error;
+      
+      if (success && !errorMsg) {
+        const updatedFleetData = {
+          ...safeFleetData,
+          devices: deviceData
+        };
+        setFleetData(updatedFleetData);
       } else {
-        setError(result.error || 'Failed to fetch fleet data');
+        setError(errorMsg || 'Failed to fetch fleet data');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -45,19 +61,19 @@ export const useGP51Fleet = (options: {
     
     try {
       const result = await dataService.authenticate(username, password);
-      if (result.status === 0) {
+      if (result.success) {
         setIsAuthenticated(true);
         
-        // Start real-time updates if auto-refresh is enabled
+        // Start real-time updates if auto-refresh is enabled (no arguments)
         if (options.autoRefresh) {
-          dataService.startRealTimeUpdates(options.refreshInterval || 30000);
+          dataService.startRealTimeUpdates(); // Fixed - removed invalid arguments
         }
         
         await fetchFleetData();
         return { success: true };
       } else {
-        setError(result.cause);
-        return { success: false, error: result.cause };
+        setError(result.error || 'Authentication failed');
+        return { success: false, error: result.error };
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Authentication failed';
@@ -66,26 +82,26 @@ export const useGP51Fleet = (options: {
     } finally {
       setLoading(false);
     }
-  }, [dataService, fetchFleetData, options.autoRefresh, options.refreshInterval]);
+  }, [dataService, fetchFleetData, options.autoRefresh]);
 
   const logout = useCallback(async () => {
     dataService.stopRealTimeUpdates();
     await dataService.logout();
     setIsAuthenticated(false);
-    setFleetData(null);
+    setFleetData(createDefaultFleetData());
     setError(null);
   }, [dataService]);
 
   // Auto-refresh functionality with enhanced service
   useEffect(() => {
-    if (options.autoRefresh && fleetData && isAuthenticated && !dataService.startRealTimeUpdates) {
+    if (options.autoRefresh && isAuthenticated) {
       const interval = setInterval(() => {
         fetchFleetData();
       }, options.refreshInterval || 30000);
       
       return () => clearInterval(interval);
     }
-  }, [options.autoRefresh, options.refreshInterval, fleetData, isAuthenticated, fetchFleetData, dataService]);
+  }, [options.autoRefresh, options.refreshInterval, isAuthenticated, fetchFleetData]);
 
   return {
     fleetData,

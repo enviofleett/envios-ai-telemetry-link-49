@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import { gp51DataService } from '@/services/gp51/GP51DataService';
 import type { GP51Position } from '@/types/gp51-unified';
+import { dateToGP51String } from '@/types/gp51-unified';
 
 interface GP51HistoricalDataProps {
   deviceId?: string;
@@ -31,11 +31,14 @@ const GP51HistoricalData: React.FC<GP51HistoricalDataProps> = ({ deviceId }) => 
     setLoading(true);
     setError(null);
     try {
-      // Fixed: Added proper parameters for getHistoryTracks
+      // Convert Date objects to GP51 string format
+      const startTimeString = startTime ? dateToGP51String(startTime) : dateToGP51String(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000));
+      const endTimeString = endTime ? dateToGP51String(endTime) : dateToGP51String(new Date());
+      
       const result = await gp51DataService.getHistoryTracks(
         deviceId, 
-        startTime, 
-        endTime
+        startTimeString, 
+        endTimeString
       );
       setHistoricalData(result);
     } catch (error) {

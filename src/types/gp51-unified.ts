@@ -1,4 +1,3 @@
-
 // CORRECTED UNIFIED GP51 TYPES WITH ALL MISSING PROPERTIES AND METHODS
 // This file fixes all export issues and missing interfaces
 
@@ -296,7 +295,8 @@ export interface GP51FleetDataOptions {
     end: string;
   };
   deviceIds?: string[];
-  groupFilter?: string[]; // ADDED - fixes GP51CompleteAPIController error
+  groupFilter?: string[];
+  forceRefresh?: boolean; // ADDED - fixes useGP51Fleet error
 }
 
 export interface GP51FleetDataSummary {
@@ -318,11 +318,12 @@ export interface GP51FleetData {
     timestamp: string;
     source: string;
     version: string;
-    requestId?: string; // ADDED - fixes GP51CompleteAPIController error
-    responseTime?: number;
-    dataVersion?: string;
-    fetchTime?: string;
+    requestId?: string;
   };
+  // ADDED - fixes useGP51Fleet errors
+  success?: boolean;
+  data?: GP51Device[]; // Alternative access to devices
+  error?: string;
 }
 
 export interface GP51FleetDataResponse {
@@ -568,19 +569,19 @@ export const createDefaultFleetData = (): GP51FleetData => {
       onlineDevices: 0,
       movingDevices: 0,
       alertCount: 0,
-      activeDevices: 0,
-      totalGroups: 0
+      activeDevices: 0
     },
     lastUpdate: new Date().toISOString(),
     metadata: {
       timestamp: new Date().toISOString(),
       source: 'GP51',
       version: '1.0',
-      requestId: `req_${Date.now()}`,
-      responseTime: 0,
-      dataVersion: '1.0',
-      fetchTime: new Date().toISOString()
-    }
+      requestId: `req_${Date.now()}`
+    },
+    // Include response properties for compatibility
+    success: true,
+    data: [], // Will be same as devices
+    error: undefined
   };
 };
 
@@ -762,3 +763,42 @@ export class GP51PropertyMapper {
     };
   }
 }
+
+// Date conversion utilities
+export const dateToGP51String = (date: Date | string | number): string => {
+  let dateObj: Date;
+  
+  if (date instanceof Date) {
+    dateObj = date;
+  } else if (typeof date === 'string') {
+    dateObj = new Date(date);
+  } else if (typeof date === 'number') {
+    dateObj = new Date(date);
+  } else {
+    dateObj = new Date();
+  }
+  
+  // Convert to GP51 expected format: yyyy-MM-dd HH:mm:ss
+  return dateObj.toISOString().slice(0, 19).replace('T', ' ');
+};
+
+// Get date range for history queries
+export const getDateRange = (hours: number = 24): { start: string; end: string } => {
+  const end = new Date();
+  const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
+  
+  return {
+    start: dateToGP51String(start),
+    end: dateToGP51String(end)
+  };
+};
+
+// Utility to ensure fleet data has response properties
+export const ensureFleetDataResponse = (fleetData: GP51FleetData): GP51FleetData => {
+  return {
+    ...fleetData,
+    success: fleetData.success ?? true,
+    data: fleetData.data || fleetData.devices,
+    error: fleetData.error
+  };
+};
