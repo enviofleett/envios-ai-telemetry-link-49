@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { optimizedQueryService } from '@/services/database/OptimizedQueryService';
+import { queryOptimizationService } from '@/services/database/QueryOptimizationService';
 import { databaseCacheManager } from '@/services/caching/DatabaseCacheManager';
 
 interface DatabaseMetrics {
@@ -11,10 +11,10 @@ interface DatabaseMetrics {
     totalQueries: number;
   };
   cacheStats: {
+    totalEntries: number;
     hitRate: number;
     missRate: number;
-    totalRequests: number;
-    cacheSize: number;
+    averageAccessTime: number;
     memoryUsage: number;
   };
   optimizationSuggestions: string[];
@@ -29,10 +29,10 @@ export function useDatabaseOptimization() {
       totalQueries: 0
     },
     cacheStats: {
+      totalEntries: 0,
       hitRate: 0,
       missRate: 0,
-      totalRequests: 0,
-      cacheSize: 0,
+      averageAccessTime: 0,
       memoryUsage: 0
     },
     optimizationSuggestions: []
@@ -41,31 +41,42 @@ export function useDatabaseOptimization() {
   const [isOptimizing, setIsOptimizing] = useState(false);
 
   const refreshMetrics = useCallback(() => {
-    const queryPerformance = optimizedQueryService.getPerformanceMetrics();
+    const optimizationReport = queryOptimizationService.getOptimizationReport();
     const cacheStats = databaseCacheManager.getStats();
     
     // Generate optimization suggestions
     const suggestions: string[] = [];
     
-    if (queryPerformance.averageExecutionTime > 500) {
+    if (optimizationReport.performanceReport.averageExecutionTime > 500) {
       suggestions.push('Average query time is high. Consider optimizing slow queries.');
     }
     
-    if (queryPerformance.cacheHitRate < 60) {
+    if (cacheStats.hitRate < 60) {
       suggestions.push('Cache hit rate is low. Consider increasing cache TTL or warming cache.');
     }
     
-    if (cacheStats.memoryUsage > 100 * 1024) { // 100MB
+    if (cacheStats.memoryUsage > 100 * 1024) { // 100KB
       suggestions.push('Cache memory usage is high. Consider reducing cache size or TTL.');
     }
     
-    if (queryPerformance.slowQueries.length > 5) {
-      suggestions.push('Multiple slow queries detected. Review and optimize database indexes.');
+    if (optimizationReport.performanceReport.errorRate > 5) {
+      suggestions.push('High error rate detected. Review query logic and error handling.');
     }
 
     setMetrics({
-      queryPerformance,
-      cacheStats,
+      queryPerformance: {
+        averageExecutionTime: optimizationReport.performanceReport.averageExecutionTime,
+        cacheHitRate: optimizationReport.cacheStats.hitRate,
+        slowQueries: optimizationReport.performanceReport.slowestQueries,
+        totalQueries: optimizationReport.performanceReport.totalQueries
+      },
+      cacheStats: {
+        totalEntries: cacheStats.totalEntries,
+        hitRate: cacheStats.hitRate,
+        missRate: cacheStats.missRate,
+        averageAccessTime: cacheStats.averageAccessTime,
+        memoryUsage: cacheStats.memoryUsage
+      },
       optimizationSuggestions: suggestions
     });
   }, []);
@@ -76,11 +87,10 @@ export function useDatabaseOptimization() {
     try {
       console.log('🚀 Starting database optimization...');
       
-      // Clear cache and warmup
+      // Clear cache for fresh start
       databaseCacheManager.clear();
-      await optimizedQueryService.warmupCache();
       
-      // Refresh metrics
+      // Refresh metrics after clearing cache
       setTimeout(refreshMetrics, 1000);
       
       console.log('✅ Database optimization completed');
