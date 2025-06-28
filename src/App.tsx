@@ -3,47 +3,30 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { BrowserRouter } from "react-router-dom";
-import { UnifiedAuthProvider } from "@/contexts/UnifiedAuthContext";
-import { BrandingProvider } from "@/contexts/BrandingContext";
-import { CurrencyProvider } from "@/contexts/CurrencyContext";
-import { ThemeProvider } from "@/contexts/ThemeContext";
-import { AppRouter } from "@/components/routing/AppRouter";
-import { StableErrorBoundary } from "@/components/StableErrorBoundary";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import Index from "./pages/Index";
+import GP51IntegrationPage from "./pages/GP51IntegrationPage";
+import GPS51IntegrationPage from "./components/gps51/GPS51IntegrationPage";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+const queryClient = new QueryClient();
 
-const App = () => {
-  return (
-    <StableErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider>
-          <UnifiedAuthProvider>
-            <BrandingProvider>
-              <CurrencyProvider>
-                <TooltipProvider>
-                  <BrowserRouter>
-                    <AppRouter />
-                  </BrowserRouter>
-                  <Toaster />
-                  <Sonner />
-                  <ReactQueryDevtools initialIsOpen={false} />
-                </TooltipProvider>
-              </CurrencyProvider>
-            </BrandingProvider>
-          </UnifiedAuthProvider>
-        </ThemeProvider>
-      </QueryClientProvider>
-    </StableErrorBoundary>
-  );
-};
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/gp51" element={<GP51IntegrationPage />} />
+            <Route path="/gps51" element={<GPS51IntegrationPage />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </TooltipProvider>
+  </QueryClientProvider>
+);
 
 export default App;

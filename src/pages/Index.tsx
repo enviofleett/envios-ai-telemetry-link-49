@@ -1,195 +1,133 @@
 
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
-import { 
-  MapPin, 
-  Car, 
-  Users, 
-  Settings,
-  Package,
-  ShoppingCart,
-  Wrench,
-  Calendar,
-  BarChart3,
-  TrendingUp,
-  Bell,
-  CheckCircle
-} from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Navigation, Shield, Zap, Activity } from "lucide-react";
+import { Link } from "react-router-dom";
 
-const Index: React.FC = () => {
-  const quickActions = [
-    {
-      title: 'Live Tracking',
-      description: 'Monitor your fleet in real-time',
-      icon: MapPin,
-      href: '/tracking',
-      color: 'bg-blue-50 text-blue-600'
-    },
-    {
-      title: 'Vehicle Management',
-      description: 'Manage your vehicle fleet',
-      icon: Car,
-      href: '/vehicles',
-      color: 'bg-green-50 text-green-600'
-    },
-    {
-      title: 'Active Services',
-      description: 'Manage your subscriptions',
-      icon: Package,
-      href: '/services',
-      color: 'bg-purple-50 text-purple-600'
-    },
-    {
-      title: 'Marketplace',
-      description: 'Browse products and services',
-      icon: ShoppingCart,
-      href: '/marketplace',
-      color: 'bg-orange-50 text-orange-600'
-    },
-    {
-      title: 'Workshop Management',
-      description: 'Connect with workshops',
-      icon: Wrench,
-      href: '/workshop-management',
-      color: 'bg-red-50 text-red-600'
-    },
-    {
-      title: 'Maintenance',
-      description: 'Schedule and track maintenance',
-      icon: Calendar,
-      href: '/maintenance',
-      color: 'bg-yellow-50 text-yellow-600'
-    },
-    {
-      title: 'Analytics',
-      description: 'View detailed reports',
-      icon: BarChart3,
-      href: '/reports',
-      color: 'bg-indigo-50 text-indigo-600'
-    },
-    {
-      title: 'Settings',
-      description: 'Configure your system',
-      icon: Settings,
-      href: '/settings',
-      color: 'bg-gray-50 text-gray-600'
-    }
-  ];
-
-  const recentActivity = [
-    { 
-      icon: CheckCircle, 
-      title: 'Vehicle ABC123 maintenance completed',
-      time: '2 hours ago',
-      type: 'success'
-    },
-    { 
-      icon: Bell, 
-      title: 'New workshop connection approved',
-      time: '4 hours ago',
-      type: 'info'
-    },
-    { 
-      icon: TrendingUp, 
-      title: 'Monthly analytics report generated',
-      time: '1 day ago',
-      type: 'info'
-    }
-  ];
-
+const Index = () => {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Welcome to your fleet management dashboard</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
+      <div className="container mx-auto px-4 py-16">
+        <div className="text-center mb-12">
+          <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
+            Fleet Telemetry Hub
+          </h1>
+          <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+            Advanced GPS tracking and fleet management integration platform with enterprise-grade security
+          </p>
+        </div>
 
-      {/* Quick Actions Grid */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {quickActions.map((action) => {
-            const Icon = action.icon;
-            return (
-              <Link key={action.title} to={action.href}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                  <CardContent className="p-6">
-                    <div className="flex items-center space-x-4">
-                      <div className={`p-3 rounded-full ${action.color}`}>
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">{action.title}</h3>
-                        <p className="text-sm text-gray-600">{action.description}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+          {/* GPS51 Integration */}
+          <Card className="bg-gray-800/50 border-gray-700 hover:bg-gray-800/70 transition-all duration-300">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-white">
+                  <Navigation className="h-6 w-6 text-blue-400" />
+                  GPS51 Integration
+                </CardTitle>
+                <Badge variant="default" className="bg-blue-600">New</Badge>
+              </div>
+              <CardDescription className="text-gray-400">
+                Secure fleet tracking with advanced MD5 authentication and real-time monitoring
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <Shield className="h-4 w-4 text-green-400" />
+                  <span>Enterprise Security</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <Zap className="h-4 w-4 text-yellow-400" />
+                  <span>Real-time Testing</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-300">
+                  <Activity className="h-4 w-4 text-blue-400" />
+                  <span>Live Monitoring</span>
+                </div>
+              </div>
+              
+              <Link to="/gps51">
+                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                  Access GPS51 Hub
+                </Button>
               </Link>
-            );
-          })}
+            </CardContent>
+          </Card>
+
+          {/* Legacy GP51 Integration */}
+          <Card className="bg-gray-800/50 border-gray-700 hover:bg-gray-800/70 transition-all duration-300">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-white">
+                <Navigation className="h-6 w-6 text-gray-400" />
+                GP51 Legacy
+              </CardTitle>
+              <CardDescription className="text-gray-400">
+                Original GP51 integration interface
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link to="/gp51">
+                <Button variant="outline" className="w-full border-gray-600 text-gray-300 hover:bg-gray-700">
+                  Access Legacy Interface
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Features Card */}
+          <Card className="bg-gray-800/50 border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-white">Security Features</CardTitle>
+              <CardDescription className="text-gray-400">
+                Built-in protection and monitoring
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">MD5 Validation:</span>
+                  <span className="text-green-400">✓ Active</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Rate Limiting:</span>
+                  <span className="text-green-400">✓ Active</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Input Validation:</span>
+                  <span className="text-green-400">✓ Active</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Real-time Tests:</span>
+                  <span className="text-green-400">✓ Active</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
+          <div className="text-center">
+            <div className="text-3xl font-bold text-blue-400">32</div>
+            <div className="text-sm text-gray-400">Character Hash</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-green-400">5</div>
+            <div className="text-sm text-gray-400">Max Attempts</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-yellow-400">15</div>
+            <div className="text-sm text-gray-400">Minute Lockout</div>
+          </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-purple-400">4</div>
+            <div className="text-sm text-gray-400">Test Cases</div>
+          </div>
         </div>
       </div>
-
-      {/* Recent Activity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentActivity.map((activity, index) => {
-              const Icon = activity.icon;
-              return (
-                <div key={index} className="flex items-center space-x-3">
-                  <div className={`p-2 rounded-full ${
-                    activity.type === 'success' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
-                  }`}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{activity.title}</p>
-                    <p className="text-sm text-gray-600">{activity.time}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Getting Started */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Getting Started</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="p-4 border rounded-lg">
-                <h4 className="font-semibold mb-2">Set Up Your Fleet</h4>
-                <p className="text-sm text-gray-600 mb-3">
-                  Add your vehicles and start tracking them in real-time.
-                </p>
-                <Link to="/tracking">
-                  <Button size="sm">Start Tracking</Button>
-                </Link>
-              </div>
-              <div className="p-4 border rounded-lg">
-                <h4 className="font-semibold mb-2">Connect Workshops</h4>
-                <p className="text-sm text-gray-600 mb-3">
-                  Find and connect with local workshops for maintenance services.
-                </p>
-                <Link to="/workshop-management">
-                  <Button size="sm" variant="outline">Find Workshops</Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
