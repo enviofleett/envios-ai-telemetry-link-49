@@ -153,9 +153,14 @@ export class OptimizedQueryService {
       }
     }
 
-    // Update cache hit rate
-    const cacheStats = databaseCacheManager.getStats();
-    this.performanceMetrics.cacheHitRate = cacheStats.hitRate;
+    // Update cache hit rate - simplified to avoid type recursion
+    try {
+      const cacheStats = databaseCacheManager.getStats();
+      this.performanceMetrics.cacheHitRate = cacheStats?.hitRate || 0;
+    } catch (error) {
+      // Fallback if cache stats cause issues
+      this.performanceMetrics.cacheHitRate = 0;
+    }
   }
 
   getPerformanceMetrics(): QueryPerformanceMetrics {
