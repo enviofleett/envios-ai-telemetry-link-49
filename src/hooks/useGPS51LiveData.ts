@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { gps51LiveDataService, GPS51Position, GPS51Device } from '@/services/gps51/GPS51LiveDataService';
-import { gps51SessionManager } from '@/services/gps51/GPS51SessionManager';
+import { useGPS51SessionBridge } from '@/hooks/useGPS51SessionBridge';
 
 export interface LiveDataOptions {
   deviceIds?: string[];
@@ -34,6 +34,8 @@ export const useGPS51LiveData = (options: LiveDataOptions = {}) => {
   const [metrics, setMetrics] = useState<FleetMetrics | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  const { hasValidSession, isSessionReady, error: sessionError } = useGPS51SessionBridge();
+
   // Query for device list
   const {
     data: devicesData,
@@ -43,7 +45,7 @@ export const useGPS51LiveData = (options: LiveDataOptions = {}) => {
   } = useQuery({
     queryKey: ['gps51-devices'],
     queryFn: () => gps51LiveDataService.getDeviceList(),
-    enabled: enabled && gps51SessionManager.isSessionValid(),
+    enabled: enabled && hasValidSession && isSessionReady,
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2
   });
@@ -57,7 +59,7 @@ export const useGPS51LiveData = (options: LiveDataOptions = {}) => {
   } = useQuery({
     queryKey: ['gps51-positions', deviceIds],
     queryFn: () => gps51LiveDataService.getLastPositions(deviceIds),
-    enabled: enabled && isLiveTracking && gps51SessionManager.isSessionValid(),
+    enabled: enabled && isLiveTracking && hasValidSession && isSessionReady,
     refetchInterval: isLiveTracking ? refreshInterval : false,
     staleTime: 15000, // 15 seconds
     retry: 2
@@ -121,9 +123,14 @@ export const useGPS51LiveData = (options: LiveDataOptions = {}) => {
 
   // Start live tracking
   const startLiveTracking = useCallback(() => {
+    if (!hasValidSession) {
+      console.warn('⚠️ Cannot start live tracking: No valid GPS51 session');
+      return;
+    }
+    
     console.log('🎯 Starting GPS51 live tracking...');
     setIsLiveTracking(true);
-  }, []);
+  }, [hasValidSession]);
 
   // Stop live tracking
   const stopLiveTracking = useCallback(() => {
@@ -137,12 +144,17 @@ export const useGPS51LiveData = (options: LiveDataOptions = {}) => {
 
   // Manual refresh
   const refreshData = useCallback(async () => {
+    if (!hasValidSession) {
+      console.warn('⚠️ Cannot refresh data: No valid GPS51 session');
+      return;
+    }
+    
     console.log('🔄 Manually refreshing GPS51 data...');
     await Promise.all([
       refetchDevices(),
       refetchPositions()
     ]);
-  }, [refetchDevices, refetchPositions]);
+  }, [refetchDevices, refetchPositions, hasValidSession]);
 
   // Get position for specific device
   const getDevicePosition = useCallback((deviceId: string): GPS51Position | undefined => {
@@ -174,6 +186,9 @@ export const useGPS51LiveData = (options: LiveDataOptions = {}) => {
     };
   }, []);
 
+  // Determine the overall error state
+  const error = sessionError || devicesError || positionsError;
+
   return {
     // Data
     devices,
@@ -182,14 +197,19 @@ export const useGPS51LiveData = (options: LiveDataOptions = {}) => {
     metrics,
 
     // Loading states
-    isLoading: devicesLoading || positionsLoading,
+    isLoading: !isSessionReady || devicesLoading || positionsLoading,
     devicesLoading,
     positionsLoading,
 
     // Error states
-    error: devicesError || positionsError,
+    error: error ? (typeof error === 'string' ? error : error.message || 'Unknown error') : null,
     devicesError,
     positionsError,
+    sessionError,
+
+    // Session state
+    hasValidSession,
+    isSessionReady,
 
     // Tracking state
     isLiveTracking,

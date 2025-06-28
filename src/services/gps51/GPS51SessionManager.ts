@@ -13,6 +13,7 @@ export interface GPS51SessionData {
 export class GPS51SessionManager {
   private static instance: GPS51SessionManager;
   private currentSession: GPS51SessionData | null = null;
+  private isInitialized: boolean = false;
 
   static getInstance(): GPS51SessionManager {
     if (!GPS51SessionManager.instance) {
@@ -21,9 +22,66 @@ export class GPS51SessionManager {
     return GPS51SessionManager.instance;
   }
 
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return;
+    
+    try {
+      await this.restoreSessionFromDatabase();
+      this.isInitialized = true;
+      console.log('🔐 GPS51SessionManager initialized');
+    } catch (error) {
+      console.error('❌ Failed to initialize GPS51SessionManager:', error);
+    }
+  }
+
+  private async restoreSessionFromDatabase(): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('gp51_sessions')
+        .select('*')
+        .eq('envio_user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ Database error restoring session:', error);
+        return;
+      }
+
+      if (data && data.gp51_token) {
+        const expiresAt = new Date(data.token_expires_at);
+        
+        if (expiresAt > new Date()) {
+          this.currentSession = {
+            id: data.id || `session_${Date.now()}`,
+            username: data.username,
+            token: data.gp51_token,
+            expiresAt,
+            isValid: true,
+            lastActivity: new Date()
+          };
+          
+          console.log('✅ GPS51 session restored from database');
+        } else {
+          console.log('🔒 Stored session expired, clearing...');
+          await this.clearSession();
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error restoring session from database:', error);
+    }
+  }
+
   async validateSession(): Promise<boolean> {
+    await this.initialize();
+    
     try {
       if (!this.currentSession) {
+        console.log('🔒 No GPS51 session available');
         return false;
       }
 
@@ -35,9 +93,10 @@ export class GPS51SessionManager {
       }
 
       // Validate with backend
-      const { data, error } = await supabase.functions.invoke('settings-management', {
+      const { data, error } = await supabase.functions.invoke('gp51-service', {
         body: {
-          action: 'session-health-check'
+          action: 'session-health-check',
+          token: this.currentSession.token
         }
       });
 
@@ -56,14 +115,17 @@ export class GPS51SessionManager {
   }
 
   async refreshSession(): Promise<boolean> {
+    await this.initialize();
+    
     try {
       if (!this.currentSession) {
         return false;
       }
 
-      const { data, error } = await supabase.functions.invoke('settings-management', {
+      const { data, error } = await supabase.functions.invoke('gp51-service', {
         body: {
-          action: 'smart-session-refresh'
+          action: 'smart-session-refresh',
+          token: this.currentSession.token
         }
       });
 
@@ -76,11 +138,55 @@ export class GPS51SessionManager {
       this.currentSession.expiresAt = new Date(Date.now() + 23 * 60 * 60 * 1000);
       this.currentSession.lastActivity = new Date();
 
+      // Update in database
+      await this.persistSessionToDatabase();
+
       console.log('🔄 GPS51 session refreshed successfully');
       return true;
     } catch (error) {
       console.error('❌ Session refresh error:', error);
       return false;
+    }
+  }
+
+  async setSessionFromAuth(username: string, token: string): Promise<void> {
+    const expiresAt = new Date(Date.now() + 23 * 60 * 60 * 1000);
+    
+    this.currentSession = {
+      id: `session_${Date.now()}`,
+      username,
+      token,
+      expiresAt,
+      isValid: true,
+      lastActivity: new Date()
+    };
+
+    await this.persistSessionToDatabase();
+    console.log('✅ GPS51 session set from authentication');
+  }
+
+  private async persistSessionToDatabase(): Promise<void> {
+    if (!this.currentSession) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('gp51_sessions')
+        .upsert({
+          envio_user_id: user.id,
+          username: this.currentSession.username,
+          gp51_token: this.currentSession.token,
+          token_expires_at: this.currentSession.expiresAt.toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error('❌ Failed to persist session to database:', error);
+      }
+    } catch (error) {
+      console.error('❌ Error persisting session:', error);
     }
   }
 
@@ -99,7 +205,19 @@ export class GPS51SessionManager {
     return this.currentSession;
   }
 
-  clearSession(): void {
+  async clearSession(): Promise<void> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('gp51_sessions')
+          .delete()
+          .eq('envio_user_id', user.id);
+      }
+    } catch (error) {
+      console.error('❌ Error clearing session from database:', error);
+    }
+    
     this.currentSession = null;
   }
 
