@@ -3,12 +3,13 @@ import React, { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Zap, Settings, Activity } from 'lucide-react';
+import { Shield, Zap, Settings, Activity, Truck, MapPin } from 'lucide-react';
 import { useGPS51Integration } from '@/hooks/useGPS51Integration';
 import GPS51AuthenticationForm from './GPS51AuthenticationForm';
 import GPS51MD5TestPanel from './GPS51MD5TestPanel';
 import GPS51SecurityDashboard from './GPS51SecurityDashboard';
 import GPS51ConnectionStatus from './GPS51ConnectionStatus';
+import FleetManagementPage from './FleetManagementPage';
 
 const GPS51IntegrationPage: React.FC = () => {
   const {
@@ -26,6 +27,11 @@ const GPS51IntegrationPage: React.FC = () => {
     runMD5Tests();
     refreshSecurityStats();
   }, [runMD5Tests, refreshSecurityStats]);
+
+  // If authenticated, show the Fleet Management interface
+  if (isAuthenticated) {
+    return <FleetManagementPage />;
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-6">
@@ -112,6 +118,41 @@ const GPS51IntegrationPage: React.FC = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Fleet Management Preview */}
+        <Card className="bg-gradient-to-r from-blue-900/20 to-green-900/20 border-blue-700">
+          <CardContent className="p-6">
+            <div className="text-center space-y-4">
+              <div className="flex items-center justify-center gap-3">
+                <Truck className="h-12 w-12 text-blue-400" />
+                <MapPin className="h-12 w-12 text-green-400" />
+              </div>
+              <h3 className="text-2xl font-bold text-white">Advanced Fleet Management</h3>
+              <p className="text-gray-300 max-w-2xl mx-auto">
+                Once authenticated, access comprehensive fleet tracking features including real-time monitoring, 
+                historical data analysis, interactive maps, and advanced analytics.
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                <div className="text-center">
+                  <div className="text-blue-400 font-bold text-lg">Real-time</div>
+                  <div className="text-gray-400 text-sm">Live Tracking</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-green-400 font-bold text-lg">Interactive</div>
+                  <div className="text-gray-400 text-sm">Maps & Routes</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-purple-400 font-bold text-lg">Historical</div>
+                  <div className="text-gray-400 text-sm">Data & Playback</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-yellow-400 font-bold text-lg">Analytics</div>
+                  <div className="text-gray-400 text-sm">Reports & Insights</div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="connection" className="space-y-6">
