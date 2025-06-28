@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { gp51SessionManager } from '@/services/gp51/sessionManager';
-import { gps51ProductionService } from '@/services/gps51/GPS51ProductionService';
+import { gps51ProductionService } from '@/services/gp51/GPS51ProductionService';
 
 export interface GPS51SecurityStats {
   totalLogins: number;
@@ -11,6 +11,15 @@ export interface GPS51SecurityStats {
   lastLoginTime: string | null;
   activeConnections: number;
   securityLevel: 'low' | 'medium' | 'high';
+  // Added missing properties to fix build errors
+  totalConnections: number;
+  failedAttempts: number;
+  totalEvents: number;
+  recentFailedAttempts: number;
+  lastSuccessfulConnection: string | null;
+  lockedAccounts: number;
+  rateLimitExceeded: number;
+  lastEventTime: string | null;
 }
 
 export interface UseGPS51IntegrationReturn {
@@ -33,7 +42,15 @@ const defaultSecurityStats: GPS51SecurityStats = {
   sessionDuration: 0,
   lastLoginTime: null,
   activeConnections: 0,
-  securityLevel: 'low'
+  securityLevel: 'low',
+  totalConnections: 0,
+  failedAttempts: 0,
+  totalEvents: 0,
+  recentFailedAttempts: 0,
+  lastSuccessfulConnection: null,
+  lockedAccounts: 0,
+  rateLimitExceeded: 0,
+  lastEventTime: null
 };
 
 export function useGPS51Integration(): UseGPS51IntegrationReturn {
@@ -51,7 +68,7 @@ export function useGPS51Integration(): UseGPS51IntegrationReturn {
   const refreshSecurityStats = useCallback(async () => {
     try {
       // Get basic session info
-      const activeSession = await gp51SessionManager.getActiveSession();
+      const activeSession = await gp51SessionManager.getInstance().getSession();
       
       if (activeSession) {
         setSecurityStats({
@@ -60,7 +77,15 @@ export function useGPS51Integration(): UseGPS51IntegrationReturn {
           sessionDuration: Math.floor((Date.now() - new Date(activeSession.created_at).getTime()) / 1000),
           lastLoginTime: activeSession.created_at,
           activeConnections: 1,
-          securityLevel: 'medium'
+          securityLevel: 'medium',
+          totalConnections: 1,
+          failedAttempts: 0,
+          totalEvents: 1,
+          recentFailedAttempts: 0,
+          lastSuccessfulConnection: activeSession.created_at,
+          lockedAccounts: 0,
+          rateLimitExceeded: 0,
+          lastEventTime: activeSession.created_at
         });
       } else {
         setSecurityStats(defaultSecurityStats);
@@ -121,7 +146,7 @@ export function useGPS51Integration(): UseGPS51IntegrationReturn {
   const logout = useCallback(async (): Promise<boolean> => {
     try {
       setIsLoading(true);
-      await gp51SessionManager.clearAllSessions();
+      await gp51SessionManager.getInstance().clearAllSessions();
       
       setIsAuthenticated(false);
       setUsername('');
@@ -184,7 +209,7 @@ export function useGPS51Integration(): UseGPS51IntegrationReturn {
 
   const refreshSession = useCallback(async (): Promise<boolean> => {
     try {
-      const validation = await gp51SessionManager.validateSession();
+      const validation = await gp51SessionManager.getInstance().validateSession();
       
       if (validation.valid && validation.session) {
         setIsAuthenticated(true);

@@ -1,52 +1,48 @@
 import { supabase } from '@/integrations/supabase/client';
 
-export interface RealTimeDeviceData {
-  deviceId: string;
-  deviceName: string;
-  position: {
-    latitude: number;
-    longitude: number;
-    speed: number;
-    course: number;
-    altitude?: number;
-    timestamp: Date;
-    isMoving: boolean;
-  };
-  status: {
-    online: boolean;
-    battery?: number;
-    signal?: number;
-    satellites?: number;
-  };
-  analytics: {
-    totalDistance: number;
-    averageSpeed: number;
-    maxSpeed: number;
-    idleTime: number;
-    drivingTime: number;
-  };
+interface QueuedPosition {
+  device_id: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  course: number;
+  altitude: number;
+  position_timestamp: string;
+  server_timestamp: string;
+  status_code: number;
+  is_moving: boolean;
+  voltage?: number;
+  fuel_level?: number;
+  temperature?: number;
+  signal_strength?: number;
+  gps_satellite_count?: number;
+  priority: 'high' | 'medium' | 'low';
+  retryCount: number;
 }
 
-export interface ProcessingMetrics {
-  processedCount: number;
-  errorCount: number;
+interface ProcessingMetrics {
+  totalProcessed: number;
+  successfulInserts: number;
+  failedInserts: number;
   averageProcessingTime: number;
+  queueSize: number;
   lastProcessedAt: Date;
-  throughputPerMinute: number;
 }
 
 export class RealTimeDataProcessor {
   private static instance: RealTimeDataProcessor;
-  private processingQueue: Map<string, any[]> = new Map();
-  private metrics: ProcessingMetrics = {
-    processedCount: 0,
-    errorCount: 0,
-    averageProcessingTime: 0,
-    lastProcessedAt: new Date(),
-    throughputPerMinute: 0
-  };
+  private processingQueue: QueuedPosition[] = [];
   private isProcessing = false;
-  private processingInterval: NodeJS.Timeout | null = null;
+  private metrics: ProcessingMetrics = {
+    totalProcessed: 0,
+    successfulInserts: 0,
+    failedInserts: 0,
+    averageProcessingTime: 0,
+    queueSize: 0,
+    lastProcessedAt: new Date()
+  };
+  private processingTimes: number[] = [];
+  private subscribers: Array<(metrics: ProcessingMetrics) => void> = [];
 
   static getInstance(): RealTimeDataProcessor {
     if (!RealTimeDataProcessor.instance) {
@@ -55,258 +51,243 @@ export class RealTimeDataProcessor {
     return RealTimeDataProcessor.instance;
   }
 
-  async startProcessing(intervalMs: number = 5000): Promise<void> {
-    if (this.isProcessing) {
-      console.log('⚠️ Real-time processing already active');
-      return;
-    }
-
-    this.isProcessing = true;
-    console.log('🚀 Starting real-time data processing...');
-
-    this.processingInterval = setInterval(async () => {
-      await this.processQueuedData();
-    }, intervalMs);
+  private constructor() {
+    this.startProcessor();
+    this.startMetricsUpdater();
   }
 
-  stopProcessing(): void {
-    if (this.processingInterval) {
-      clearInterval(this.processingInterval);
-      this.processingInterval = null;
-    }
-    this.isProcessing = false;
-    console.log('⏸️ Real-time processing stopped');
-  }
-
-  queueDeviceData(deviceId: string, rawData: any): void {
-    if (!this.processingQueue.has(deviceId)) {
-      this.processingQueue.set(deviceId, []);
-    }
-    
-    const queue = this.processingQueue.get(deviceId)!;
-    queue.push({
-      ...rawData,
-      queuedAt: new Date()
-    });
-
-    // Keep queue size manageable
-    if (queue.length > 100) {
-      queue.splice(0, queue.length - 100);
-    }
-  }
-
-  private async processQueuedData(): Promise<void> {
-    if (this.processingQueue.size === 0) {
-      return;
-    }
-
-    const startTime = Date.now();
-    let processedInBatch = 0;
-    let errorsInBatch = 0;
-
-    console.log(`📊 Processing ${this.processingQueue.size} device queues...`);
-
-    for (const [deviceId, dataQueue] of this.processingQueue.entries()) {
-      if (dataQueue.length === 0) continue;
-
-      try {
-        const processedData = await this.transformRawData(deviceId, dataQueue);
-        await this.storeProcessedData(processedData);
-        
-        processedInBatch += dataQueue.length;
-        dataQueue.length = 0; // Clear processed data
-      } catch (error) {
-        console.error(`❌ Error processing data for device ${deviceId}:`, error);
-        errorsInBatch++;
-        
-        // Keep only recent failed data to retry later
-        if (dataQueue.length > 10) {
-          dataQueue.splice(0, dataQueue.length - 10);
-        }
-      }
-    }
-
-    // Update metrics
-    const processingTime = Date.now() - startTime;
-    this.updateMetrics(processedInBatch, errorsInBatch, processingTime);
-
-    if (processedInBatch > 0) {
-      console.log(`✅ Processed ${processedInBatch} records in ${processingTime}ms`);
-    }
-  }
-
-  private async transformRawData(deviceId: string, rawDataArray: any[]): Promise<RealTimeDeviceData> {
-    const latestData = rawDataArray[rawDataArray.length - 1];
-    
-    // Calculate analytics from the data array
-    const speeds = rawDataArray.map(d => d.speed || 0).filter(s => s > 0);
-    const totalDistance = this.calculateTotalDistance(rawDataArray);
-    const { idleTime, drivingTime } = this.calculateTimeDurations(rawDataArray);
-
-    return {
-      deviceId,
-      deviceName: latestData.devicename || latestData.deviceName || `Device ${deviceId}`,
-      position: {
-        latitude: parseFloat(latestData.latitude || latestData.lat || 0),
-        longitude: parseFloat(latestData.longitude || latestData.lng || 0),
-        speed: parseFloat(latestData.speed || 0),
-        course: parseInt(latestData.course || latestData.heading || 0),
-        altitude: latestData.altitude ? parseFloat(latestData.altitude) : undefined,
-        timestamp: new Date(latestData.devicetime || latestData.timestamp || Date.now()),
-        isMoving: (latestData.speed || 0) > 2 // Consider moving if speed > 2 km/h
-      },
-      status: {
-        online: latestData.status === 0 || latestData.online === true,
-        battery: latestData.battery ? parseInt(latestData.battery) : undefined,
-        signal: latestData.signal ? parseInt(latestData.signal) : undefined,
-        satellites: latestData.satellites ? parseInt(latestData.satellites) : undefined
-      },
-      analytics: {
-        totalDistance,
-        averageSpeed: speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0,
-        maxSpeed: speeds.length > 0 ? Math.max(...speeds) : 0,
-        idleTime,
-        drivingTime
-      }
+  addToQueue(positionData: any, priority: 'high' | 'medium' | 'low' = 'medium'): void {
+    const queuedPosition: QueuedPosition = {
+      device_id: positionData.deviceId || positionData.device_id,
+      latitude: positionData.latitude,
+      longitude: positionData.longitude,
+      speed: positionData.speed,
+      course: positionData.course || 0,
+      altitude: positionData.altitude || 0,
+      position_timestamp: positionData.timestamp || new Date().toISOString(),
+      server_timestamp: new Date().toISOString(),
+      status_code: positionData.status || 0,
+      is_moving: positionData.isMoving || positionData.speed > 0,
+      voltage: positionData.voltage,
+      fuel_level: positionData.fuelLevel,
+      temperature: positionData.temperature,
+      signal_strength: positionData.signalStrength,
+      gps_satellite_count: positionData.satellites,
+      priority,
+      retryCount: 0
     };
-  }
 
-  private calculateTotalDistance(dataArray: any[]): number {
-    let totalDistance = 0;
-    
-    for (let i = 1; i < dataArray.length; i++) {
-      const prev = dataArray[i - 1];
-      const curr = dataArray[i];
-      
-      if (prev.latitude && prev.longitude && curr.latitude && curr.longitude) {
-        const distance = this.haversineDistance(
-          prev.latitude, prev.longitude,
-          curr.latitude, curr.longitude
-        );
-        totalDistance += distance;
-      }
+    // Insert based on priority
+    if (priority === 'high') {
+      this.processingQueue.unshift(queuedPosition);
+    } else {
+      this.processingQueue.push(queuedPosition);
     }
-    
-    return totalDistance;
+
+    this.updateMetrics();
   }
 
-  private calculateTimeDurations(dataArray: any[]): { idleTime: number; drivingTime: number } {
-    let idleTime = 0;
-    let drivingTime = 0;
-    
-    for (let i = 1; i < dataArray.length; i++) {
-      const prev = dataArray[i - 1];
-      const curr = dataArray[i];
-      
-      const timeDiff = new Date(curr.devicetime || curr.timestamp).getTime() - 
-                      new Date(prev.devicetime || prev.timestamp).getTime();
-      
-      if (timeDiff > 0 && timeDiff < 5 * 60 * 1000) { // Only count if less than 5 minutes
-        const timeInMinutes = timeDiff / (1000 * 60);
-        
-        if ((curr.speed || 0) > 2) {
-          drivingTime += timeInMinutes;
-        } else {
-          idleTime += timeInMinutes;
-        }
-      }
+  batchAddToQueue(positionsData: any[], priority: 'high' | 'medium' | 'low' = 'medium'): void {
+    const queuedPositions: QueuedPosition[] = positionsData.map(positionData => ({
+      device_id: positionData.deviceId || positionData.device_id,
+      latitude: positionData.latitude,
+      longitude: positionData.longitude,
+      speed: positionData.speed,
+      course: positionData.course || 0,
+      altitude: positionData.altitude || 0,
+      position_timestamp: positionData.timestamp || new Date().toISOString(),
+      server_timestamp: new Date().toISOString(),
+      status_code: positionData.status || 0,
+      is_moving: positionData.isMoving || positionData.speed > 0,
+      voltage: positionData.voltage,
+      fuel_level: positionData.fuelLevel,
+      temperature: positionData.temperature,
+      signal_strength: positionData.signalStrength,
+      gps_satellite_count: positionData.satellites,
+      priority,
+      retryCount: 0
+    }));
+
+    if (priority === 'high') {
+      this.processingQueue.unshift(...queuedPositions);
+    } else {
+      this.processingQueue.push(...queuedPositions);
     }
-    
-    return { idleTime, drivingTime };
+
+    this.updateMetrics();
   }
 
-  private haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = this.toRadians(lat2 - lat1);
-    const dLon = this.toRadians(lon2 - lon1);
-    
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(this.toRadians(lat1)) * Math.cos(this.toRadians(lat2)) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    
-    return R * c;
+  private async startProcessor(): Promise<void> {
+    setInterval(async () => {
+      if (!this.isProcessing && this.processingQueue.length > 0) {
+        await this.processQueue();
+      }
+    }, 1000); // Process every second
   }
 
-  private toRadians(degrees: number): number {
-    return degrees * (Math.PI / 180);
-  }
+  private async processQueue(): Promise<void> {
+    if (this.isProcessing) return;
+    
+    this.isProcessing = true;
+    const startTime = Date.now();
 
-  private async storeProcessedData(data: RealTimeDeviceData): Promise<void> {
     try {
-      // Store in live_positions table
-      const { error: positionError } = await supabase
+      const batchSize = Math.min(50, this.processingQueue.length);
+      const batch = this.processingQueue.splice(0, batchSize);
+      
+      if (batch.length === 0) {
+        this.isProcessing = false;
+        return;
+      }
+
+      // Process batch
+      const results = await this.processBatch(batch);
+      
+      // Update metrics
+      this.metrics.totalProcessed += batch.length;
+      this.metrics.successfulInserts += results.successCount;
+      this.metrics.failedInserts += results.failureCount;
+      
+      // Handle failed items - retry up to 3 times
+      results.failed.forEach(item => {
+        if (item.retryCount < 3) {
+          item.retryCount++;
+          this.processingQueue.push(item);
+        }
+      });
+
+      const processingTime = Date.now() - startTime;
+      this.processingTimes.push(processingTime);
+      
+      // Keep only last 100 processing times for average calculation
+      if (this.processingTimes.length > 100) {
+        this.processingTimes = this.processingTimes.slice(-100);
+      }
+
+      this.metrics.averageProcessingTime = 
+        this.processingTimes.reduce((sum, time) => sum + time, 0) / this.processingTimes.length;
+      this.metrics.lastProcessedAt = new Date();
+
+      console.log(`✅ Processed batch: ${results.successCount} success, ${results.failureCount} failed`);
+      
+    } catch (error) {
+      console.error('❌ Queue processing error:', error);
+    } finally {
+      this.isProcessing = false;
+      this.updateMetrics();
+    }
+  }
+
+  private async processBatch(batch: QueuedPosition[]): Promise<{
+    successCount: number;
+    failureCount: number;
+    failed: QueuedPosition[];
+  }> {
+    const results = {
+      successCount: 0,
+      failureCount: 0,
+      failed: [] as QueuedPosition[]
+    };
+
+    try {
+      // Transform data for live_positions table
+      const positionData = batch.map(item => ({
+        device_id: item.device_id,
+        latitude: item.latitude,
+        longitude: item.longitude,
+        speed: item.speed,
+        course: item.course,
+        altitude: item.altitude,
+        position_timestamp: item.position_timestamp,
+        server_timestamp: item.server_timestamp,
+        status_code: item.status_code,
+        is_moving: item.is_moving,
+        voltage: item.voltage,
+        fuel_level: item.fuel_level,
+        temperature: item.temperature,
+        signal_strength: item.signal_strength,
+        gps_satellite_count: item.gps_satellite_count
+      }));
+
+      const { data, error } = await supabase
         .from('live_positions')
-        .upsert({
-          device_id: data.deviceId,
-          latitude: data.position.latitude,
-          longitude: data.position.longitude,
-          speed: data.position.speed,
-          course: data.position.course,
-          altitude: data.position.altitude,
-          position_timestamp: data.position.timestamp.toISOString(),
-          is_moving: data.position.isMoving,
-          status_code: data.status.online ? 0 : 1,
-          battery_level: data.status.battery,
-          signal_strength: data.status.signal,
-          satellite_count: data.status.satellites,
-          total_distance: data.analytics.totalDistance,
-          average_speed: data.analytics.averageSpeed,
-          max_speed: data.analytics.maxSpeed,
-          idle_time_minutes: data.analytics.idleTime,
-          driving_time_minutes: data.analytics.drivingTime
-        }, {
-          onConflict: 'device_id'
+        .upsert(positionData, { 
+          onConflict: 'device_id',
+          ignoreDuplicates: false 
         });
 
-      if (positionError) {
-        throw positionError;
-      }
-
-      // Update device status
-      const { error: deviceError } = await supabase
-        .from('gp51_devices')
-        .update({
-          last_position_time: data.position.timestamp.toISOString(),
-          is_online: data.status.online,
-          last_active_time: new Date().toISOString()
-        })
-        .eq('device_id', data.deviceId);
-
-      if (deviceError) {
-        console.error('Error updating device status:', deviceError);
+      if (error) {
+        console.error('Batch insert error:', error);
+        results.failureCount = batch.length;
+        results.failed = batch;
+      } else {
+        results.successCount = batch.length;
       }
 
     } catch (error) {
-      console.error('Error storing processed data:', error);
-      throw error;
+      console.error('Batch processing error:', error);
+      results.failureCount = batch.length;
+      results.failed = batch;
     }
+
+    return results;
   }
 
-  private updateMetrics(processed: number, errors: number, processingTime: number): void {
-    this.metrics.processedCount += processed;
-    this.metrics.errorCount += errors;
-    this.metrics.lastProcessedAt = new Date();
+  private updateMetrics(): void {
+    this.metrics.queueSize = this.processingQueue.length;
+    this.notifySubscribers();
+  }
+
+  private startMetricsUpdater(): void {
+    setInterval(() => {
+      this.notifySubscribers();
+    }, 5000); // Update metrics every 5 seconds
+  }
+
+  private notifySubscribers(): void {
+    this.subscribers.forEach(callback => {
+      try {
+        callback({ ...this.metrics });
+      } catch (error) {
+        console.error('Error notifying metrics subscriber:', error);
+      }
+    });
+  }
+
+  subscribeToMetrics(callback: (metrics: ProcessingMetrics) => void): () => void {
+    this.subscribers.push(callback);
     
-    // Update average processing time (simple moving average)
-    const currentAvg = this.metrics.averageProcessingTime;
-    this.metrics.averageProcessingTime = currentAvg === 0 ? 
-      processingTime : (currentAvg + processingTime) / 2;
+    // Immediately send current metrics
+    callback({ ...this.metrics });
     
-    // Calculate throughput (processed records per minute)
-    this.metrics.throughputPerMinute = processed / (processingTime / 60000);
+    // Return unsubscribe function
+    return () => {
+      const index = this.subscribers.indexOf(callback);
+      if (index > -1) {
+        this.subscribers.splice(index, 1);
+      }
+    };
   }
 
   getMetrics(): ProcessingMetrics {
     return { ...this.metrics };
   }
 
-  getQueueStatus(): { deviceId: string; queueSize: number }[] {
-    return Array.from(this.processingQueue.entries()).map(([deviceId, queue]) => ({
-      deviceId,
-      queueSize: queue.length
-    }));
+  getQueueSize(): number {
+    return this.processingQueue.length;
+  }
+
+  clearQueue(): void {
+    this.processingQueue = [];
+    this.updateMetrics();
+  }
+
+  pause(): void {
+    this.isProcessing = true; // This will prevent new processing
+  }
+
+  resume(): void {
+    this.isProcessing = false;
   }
 }
 
