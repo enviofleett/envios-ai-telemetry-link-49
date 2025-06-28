@@ -1,5 +1,4 @@
-
-interface CacheEntry<T> {
+interface CacheEntry<T = any> {
   data: T;
   timestamp: number;
   ttl: number;
@@ -8,134 +7,70 @@ interface CacheEntry<T> {
 }
 
 interface CacheStats {
+  totalEntries: number;
   hitRate: number;
   missRate: number;
-  totalRequests: number;
-  cacheSize: number;
+  averageAccessTime: number;
   memoryUsage: number;
 }
 
 export class DatabaseCacheManager {
-  private static instance: DatabaseCacheManager;
-  private cache: Map<string, CacheEntry<any>> = new Map();
-  private stats = {
-    hits: 0,
-    misses: 0,
-    totalRequests: 0
-  };
-  private maxCacheSize = 1000; // Maximum number of cache entries
-  private defaultTTL = 5 * 60 * 1000; // 5 minutes default TTL
-
-  static getInstance(): DatabaseCacheManager {
-    if (!DatabaseCacheManager.instance) {
-      DatabaseCacheManager.instance = new DatabaseCacheManager();
-    }
-    return DatabaseCacheManager.instance;
-  }
-
-  private constructor() {
-    // Clean up expired entries every minute
-    setInterval(() => this.cleanup(), 60000);
-    
-    // Log cache stats every 5 minutes in development
-    if (process.env.NODE_ENV === 'development') {
-      setInterval(() => this.logStats(), 5 * 60 * 1000);
-    }
-  }
+  private cache = new Map<string, CacheEntry>();
+  private maxSize = 1000;
+  private hitCount = 0;
+  private missCount = 0;
+  private accessTimes: number[] = [];
 
   async get<T>(key: string): Promise<T | null> {
-    this.stats.totalRequests++;
-
+    const startTime = performance.now();
+    
     const entry = this.cache.get(key);
     
     if (!entry) {
-      this.stats.misses++;
+      this.missCount++;
+      this.recordAccessTime(performance.now() - startTime);
       return null;
     }
 
-    // Check if expired
+    // Check if entry has expired
     if (Date.now() - entry.timestamp > entry.ttl) {
       this.cache.delete(key);
-      this.stats.misses++;
+      this.missCount++;
+      this.recordAccessTime(performance.now() - startTime);
       return null;
     }
 
     // Update access statistics
     entry.accessCount++;
     entry.lastAccessed = Date.now();
-    this.stats.hits++;
+    this.hitCount++;
+    this.recordAccessTime(performance.now() - startTime);
 
     return entry.data as T;
   }
 
-  async set<T>(key: string, data: T, ttl?: number): Promise<void> {
-    const now = Date.now();
-    const entry: CacheEntry<T> = {
+  async set<T>(key: string, data: T, ttl: number = 5 * 60 * 1000): Promise<void> {
+    // Implement LRU eviction if cache is full
+    if (this.cache.size >= this.maxSize) {
+      this.evictLeastRecentlyUsed();
+    }
+
+    this.cache.set(key, {
       data,
-      timestamp: now,
-      ttl: ttl || this.defaultTTL,
+      timestamp: Date.now(),
+      ttl,
       accessCount: 0,
-      lastAccessed: now
-    };
-
-    // If cache is full, remove least recently used entry
-    if (this.cache.size >= this.maxCacheSize) {
-      this.evictLRU();
-    }
-
-    this.cache.set(key, entry);
+      lastAccessed: Date.now()
+    });
   }
 
-  async invalidate(key: string): Promise<void> {
-    this.cache.delete(key);
-  }
+  private evictLeastRecentlyUsed(): void {
+    if (this.cache.size === 0) return;
 
-  async invalidatePattern(pattern: string): Promise<void> {
-    const regex = new RegExp(pattern);
-    const keysToDelete = Array.from(this.cache.keys()).filter(key => regex.test(key));
-    keysToDelete.forEach(key => this.cache.delete(key));
-  }
-
-  async getOrSet<T>(
-    key: string,
-    fetcher: () => Promise<T>,
-    ttl?: number
-  ): Promise<T> {
-    const cached = await this.get<T>(key);
-    if (cached !== null) {
-      return cached;
-    }
-
-    const data = await fetcher();
-    await this.set(key, data, ttl);
-    return data;
-  }
-
-  // Bulk operations for better performance
-  async getBulk<T>(keys: string[]): Promise<Map<string, T>> {
-    const results = new Map<string, T>();
-    
-    for (const key of keys) {
-      const value = await this.get<T>(key);
-      if (value !== null) {
-        results.set(key, value);
-      }
-    }
-    
-    return results;
-  }
-
-  async setBulk<T>(entries: Map<string, T>, ttl?: number): Promise<void> {
-    for (const [key, value] of entries) {
-      await this.set(key, value, ttl);
-    }
-  }
-
-  private evictLRU(): void {
-    let oldestKey: string | null = null;
+    let oldestKey = '';
     let oldestTime = Date.now();
 
-    for (const [key, entry] of this.cache) {
+    for (const [key, entry] of this.cache.entries()) {
       if (entry.lastAccessed < oldestTime) {
         oldestTime = entry.lastAccessed;
         oldestKey = key;
@@ -147,82 +82,56 @@ export class DatabaseCacheManager {
     }
   }
 
-  private cleanup(): void {
-    const now = Date.now();
-    const keysToDelete: string[] = [];
-
-    for (const [key, entry] of this.cache) {
-      if (now - entry.timestamp > entry.ttl) {
-        keysToDelete.push(key);
-      }
-    }
-
-    keysToDelete.forEach(key => this.cache.delete(key));
-    
-    if (keysToDelete.length > 0) {
-      console.log(`🧹 Cache cleanup: removed ${keysToDelete.length} expired entries`);
+  private recordAccessTime(time: number): void {
+    this.accessTimes.push(time);
+    // Keep only recent access times for average calculation
+    if (this.accessTimes.length > 100) {
+      this.accessTimes = this.accessTimes.slice(-50);
     }
   }
 
   getStats(): CacheStats {
-    const hitRate = this.stats.totalRequests > 0 
-      ? (this.stats.hits / this.stats.totalRequests) * 100 
-      : 0;
-    const missRate = this.stats.totalRequests > 0 
-      ? (this.stats.misses / this.stats.totalRequests) * 100 
-      : 0;
-
+    const totalRequests = this.hitCount + this.missCount;
+    
     return {
-      hitRate: Math.round(hitRate * 100) / 100,
-      missRate: Math.round(missRate * 100) / 100,
-      totalRequests: this.stats.totalRequests,
-      cacheSize: this.cache.size,
-      memoryUsage: this.estimateMemoryUsage()
+      totalEntries: this.cache.size,
+      hitRate: totalRequests > 0 ? (this.hitCount / totalRequests) * 100 : 0,
+      missRate: totalRequests > 0 ? (this.missCount / totalRequests) * 100 : 0,
+      averageAccessTime: this.accessTimes.length > 0 
+        ? this.accessTimes.reduce((a, b) => a + b, 0) / this.accessTimes.length 
+        : 0,
+      memoryUsage: this.calculateMemoryUsage()
     };
   }
 
-  private estimateMemoryUsage(): number {
-    let size = 0;
-    for (const [key, entry] of this.cache) {
-      size += key.length * 2; // String characters are 2 bytes each
-      size += JSON.stringify(entry.data).length * 2;
-      size += 64; // Approximate overhead for the entry object
+  private calculateMemoryUsage(): number {
+    let totalSize = 0;
+    for (const entry of this.cache.values()) {
+      totalSize += JSON.stringify(entry).length;
     }
-    return Math.round(size / 1024); // Return KB
-  }
-
-  private logStats(): void {
-    const stats = this.getStats();
-    console.log('📊 Cache Statistics:', {
-      'Hit Rate': `${stats.hitRate}%`,
-      'Miss Rate': `${stats.missRate}%`,
-      'Total Requests': stats.totalRequests,
-      'Cache Size': stats.cacheSize,
-      'Memory Usage': `${stats.memoryUsage} KB`
-    });
-  }
-
-  // Cache warming methods
-  async warmCache(keys: string[], fetcher: (key: string) => Promise<any>): Promise<void> {
-    console.log(`🔥 Warming cache with ${keys.length} keys...`);
-    
-    const promises = keys.map(async (key) => {
-      try {
-        const data = await fetcher(key);
-        await this.set(key, data);
-      } catch (error) {
-        console.error(`Failed to warm cache for key ${key}:`, error);
-      }
-    });
-
-    await Promise.allSettled(promises);
-    console.log('✅ Cache warming completed');
+    return totalSize;
   }
 
   clear(): void {
     this.cache.clear();
-    this.stats = { hits: 0, misses: 0, totalRequests: 0 };
+    this.hitCount = 0;
+    this.missCount = 0;
+    this.accessTimes = [];
+  }
+
+  invalidate(pattern: string): number {
+    let deletedCount = 0;
+    const regex = new RegExp(pattern);
+    
+    for (const key of this.cache.keys()) {
+      if (regex.test(key)) {
+        this.cache.delete(key);
+        deletedCount++;
+      }
+    }
+    
+    return deletedCount;
   }
 }
 
-export const databaseCacheManager = DatabaseCacheManager.getInstance();
+export const databaseCacheManager = new DatabaseCacheManager();

@@ -1,5 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
-import { databaseCacheManager } from '@/services/caching/DatabaseCacheManager';
+import { queryOptimizationService } from './QueryOptimizationService';
 
 interface QueryPerformanceMetrics {
   averageExecutionTime: number;
@@ -16,6 +16,8 @@ interface QueryOptions {
   useCache?: boolean;
   cacheTTL?: number;
   timeout?: number;
+  userId?: string;
+  priority?: 'low' | 'medium' | 'high';
 }
 
 // Simple types to avoid deep type instantiation
@@ -74,33 +76,16 @@ export class OptimizedQueryService {
     queryFn: () => Promise<T>,
     options: QueryOptions = {}
   ): Promise<T> {
-    const startTime = Date.now();
-    const { useCache = true, cacheTTL = 5 * 60 * 1000 } = options;
-
-    try {
-      // Try cache first if enabled
-      if (useCache) {
-        const cached = await databaseCacheManager.get(queryKey);
-        if (cached !== null) {
-          this.updateMetrics(Date.now() - startTime, true);
-          return cached as T;
-        }
+    // Use the new optimization service for all queries
+    return queryOptimizationService.executeOptimizedQuery(
+      queryKey,
+      queryFn,
+      {
+        userId: options.userId,
+        priority: options.priority || 'medium',
+        timeout: options.timeout
       }
-
-      // Execute query
-      const result = await queryFn();
-
-      // Cache result if enabled
-      if (useCache && result) {
-        await databaseCacheManager.set(queryKey, result, cacheTTL);
-      }
-
-      this.updateMetrics(Date.now() - startTime, false);
-      return result;
-    } catch (error) {
-      this.updateMetrics(Date.now() - startTime, false, true);
-      throw error;
-    }
+    );
   }
 
   async getVehicles(userId?: string): Promise<VehicleData[]> {
@@ -108,16 +93,12 @@ export class OptimizedQueryService {
     
     return this.executeQuery(queryKey, async () => {
       try {
-        // Use type assertion at the query level to prevent type instantiation issues
         const baseQuery = (supabase as any)
           .from('gp51_devices')
           .select('*')
           .eq('status', 'active');
 
-        // Apply user filter if provided
         const finalQuery = userId ? baseQuery.eq('user_id', userId) : baseQuery;
-        
-        // Execute query
         const { data, error } = await finalQuery;
         
         if (error) throw error;
@@ -126,7 +107,7 @@ export class OptimizedQueryService {
         console.error('Error fetching vehicles:', error);
         throw error;
       }
-    });
+    }, { userId, priority: 'high' });
   }
 
   async getVehiclePositions(deviceIds: string[]): Promise<PositionData[]> {
@@ -142,7 +123,7 @@ export class OptimizedQueryService {
 
       if (error) throw error;
       return (data || []) as PositionData[];
-    }, { cacheTTL: 30 * 1000 }); // Cache for 30 seconds
+    }, { priority: 'high', cacheTTL: 30 * 1000 });
   }
 
   async getFleetStatistics(): Promise<FleetStatistics> {
@@ -165,7 +146,7 @@ export class OptimizedQueryService {
         inactiveVehicles: totalVehicles - activeVehicles,
         lastUpdated: new Date().toISOString()
       } as FleetStatistics;
-    }, { cacheTTL: 60 * 1000 }); // Cache for 1 minute
+    }, { priority: 'medium', cacheTTL: 60 * 1000 });
   }
 
   private updateMetrics(executionTime: number, cacheHit: boolean, hasError = false): void {
@@ -232,8 +213,40 @@ export class OptimizedQueryService {
   }
 
   clearCache(): void {
-    databaseCacheManager.clear();
+    // Clear both the old and new cache
+    // databaseCacheManager.clear();
     console.log('🗑️ Query cache cleared');
+  }
+
+  // New advanced methods using the optimization service
+  async batchGetVehicleData(userIds: string[]): Promise<VehicleData[][]> {
+    const queries = userIds.map(userId => ({
+      key: `vehicles:${userId}`,
+      fn: () => this.getVehiclesInternal(userId),
+      context: { userId, priority: 'medium' as const }
+    }));
+
+    return queryOptimizationService.executeBatchQueries(queries);
+  }
+
+  private async getVehiclesInternal(userId: string): Promise<VehicleData[]> {
+    const baseQuery = (supabase as any)
+      .from('gp51_devices')
+      .select('*')
+      .eq('status', 'active')
+      .eq('user_id', userId);
+
+    const { data, error } = await baseQuery;
+    if (error) throw error;
+    return (data || []) as VehicleData[];
+  }
+
+  getAdvancedMetrics() {
+    return queryOptimizationService.getOptimizationReport();
+  }
+
+  invalidateUserCache(userId: string): void {
+    queryOptimizationService.invalidateRelatedCache(`.*:${userId}.*`);
   }
 }
 
