@@ -1,19 +1,22 @@
 
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { useDatabaseOptimization } from '@/hooks/useDatabaseOptimization';
 import { 
   Database, 
   Zap, 
-  Clock, 
   TrendingUp, 
-  AlertTriangle,
+  Clock, 
+  HardDrive, 
   RefreshCw,
-  Trash2
+  AlertTriangle,
+  CheckCircle,
+  Activity
 } from 'lucide-react';
-import { useDatabaseOptimization } from '@/hooks/useDatabaseOptimization';
 
 const DatabaseOptimizationPanel: React.FC = () => {
   const { 
@@ -24,115 +27,198 @@ const DatabaseOptimizationPanel: React.FC = () => {
     refreshMetrics 
   } = useDatabaseOptimization();
 
-  const getCacheHitRateColor = (rate: number) => {
-    if (rate >= 80) return 'text-green-600';
-    if (rate >= 60) return 'text-yellow-600';
-    return 'text-red-600';
+  if (!metrics) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <Database className="h-6 w-6" />
+            Database Optimization
+          </h2>
+          <Button onClick={refreshMetrics} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Loading metrics...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getPerformanceColor = (time: number) => {
-    if (time <= 200) return 'text-green-600';
-    if (time <= 500) return 'text-yellow-600';
-    return 'text-red-600';
+  const formatTime = (ms: number) => {
+    if (ms < 1000) return `${ms.toFixed(1)}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+        <h2 className="text-2xl font-bold flex items-center gap-2">
           <Database className="h-6 w-6" />
-          <h2 className="text-2xl font-bold">Database Optimization</h2>
-        </div>
-        
+          Database Optimization
+        </h2>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={refreshMetrics}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
+          <Button onClick={refreshMetrics} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
-          
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={clearCache}
-            className="flex items-center gap-2"
-          >
-            <Trash2 className="h-4 w-4" />
+          <Button onClick={clearCache} variant="outline" size="sm">
+            <HardDrive className="h-4 w-4 mr-2" />
             Clear Cache
           </Button>
-          
-          <Button
-            onClick={optimizeDatabase}
+          <Button 
+            onClick={optimizeDatabase} 
             disabled={isOptimizing}
-            className="flex items-center gap-2"
+            size="sm"
           >
-            <Zap className="h-4 w-4" />
-            {isOptimizing ? 'Optimizing...' : 'Optimize Now'}
+            <Zap className="h-4 w-4 mr-2" />
+            {isOptimizing ? 'Optimizing...' : 'Optimize'}
           </Button>
         </div>
       </div>
 
-      {/* Performance Metrics */}
+      {/* Performance Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Query Time</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${getPerformanceColor(metrics.queryPerformance.averageExecutionTime)}`}>
-              {metrics.queryPerformance.averageExecutionTime}ms
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Avg Query Time</p>
+                <p className="text-2xl font-bold">
+                  {formatTime(metrics.queryPerformance.averageExecutionTime)}
+                </p>
+              </div>
+              <Clock className="h-8 w-8 text-blue-500" />
             </div>
-            <p className="text-xs text-muted-foreground">
-              {metrics.queryPerformance.totalQueries} total queries
-            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cache Hit Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${getCacheHitRateColor(metrics.cacheStats.hitRate)}`}>
-              {metrics.cacheStats.hitRate}%
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Cache Hit Rate</p>
+                <p className="text-2xl font-bold">{metrics.cacheStats.hitRate.toFixed(1)}%</p>
+              </div>
+              <TrendingUp className="h-8 w-8 text-green-500" />
             </div>
             <Progress value={metrics.cacheStats.hitRate} className="mt-2" />
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cache Size</CardTitle>
-            <Database className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {metrics.cacheStats.cacheSize}
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Queries</p>
+                <p className="text-2xl font-bold">{metrics.queryPerformance.totalQueries}</p>
+              </div>
+              <Activity className="h-8 w-8 text-purple-500" />
             </div>
-            <p className="text-xs text-muted-foreground">
-              {metrics.cacheStats.memoryUsage} KB memory
-            </p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Requests</CardTitle>
-            <RefreshCw className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {metrics.cacheStats.totalRequests}
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Cache Entries</p>
+                <p className="text-2xl font-bold">{metrics.cacheStats.totalEntries}</p>
+              </div>
+              <HardDrive className="h-8 w-8 text-orange-500" />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Cache requests handled
-            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Detailed Cache Statistics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <HardDrive className="h-5 w-5" />
+              Cache Statistics
+            </CardTitle>
+            <CardDescription>
+              Current cache performance and usage metrics
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Hit Rate</p>
+                <p className="text-xl font-bold text-green-600">
+                  {metrics.cacheStats.hitRate.toFixed(1)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Miss Rate</p>
+                <p className="text-xl font-bold text-red-600">
+                  {metrics.cacheStats.missRate.toFixed(1)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Memory Usage</p>
+                <p className="text-xl font-bold">
+                  {formatBytes(metrics.cacheStats.memoryUsage)}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Avg Access Time</p>
+                <p className="text-xl font-bold">
+                  {formatTime(metrics.cacheStats.averageAccessTime)}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Query Performance
+            </CardTitle>
+            <CardDescription>
+              Database query execution statistics
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Queries</p>
+                <p className="text-xl font-bold">{metrics.queryPerformance.totalQueries}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Cache Hit Rate</p>
+                <p className="text-xl font-bold text-green-600">
+                  {metrics.queryPerformance.cacheHitRate.toFixed(1)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Slow Queries</p>
+                <p className="text-xl font-bold text-orange-600">
+                  {metrics.queryPerformance.slowQueries.length}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Avg Time</p>
+                <p className="text-xl font-bold">
+                  {formatTime(metrics.queryPerformance.averageExecutionTime)}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -145,14 +231,17 @@ const DatabaseOptimizationPanel: React.FC = () => {
               <AlertTriangle className="h-5 w-5 text-yellow-500" />
               Optimization Suggestions
             </CardTitle>
+            <CardDescription>
+              Recommendations to improve database performance
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {metrics.optimizationSuggestions.map((suggestion, index) => (
-                <div key={index} className="flex items-start gap-2 p-3 bg-yellow-50 rounded-lg">
-                  <AlertTriangle className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
-                  <span className="text-sm">{suggestion}</span>
-                </div>
+                <Alert key={index}>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{suggestion}</AlertDescription>
+                </Alert>
               ))}
             </div>
           </CardContent>
@@ -163,21 +252,32 @@ const DatabaseOptimizationPanel: React.FC = () => {
       {metrics.queryPerformance.slowQueries.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Slow Queries</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-red-500" />
+              Slow Queries
+            </CardTitle>
+            <CardDescription>
+              Queries that are taking longer than expected
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {metrics.queryPerformance.slowQueries.map((query, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                  <div>
-                    <div className="font-medium">{query.query}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {query.resultCount} results • {new Date(query.timestamp).toLocaleTimeString()}
-                    </div>
+            <div className="space-y-3">
+              {metrics.queryPerformance.slowQueries.slice(0, 5).map((query, index) => (
+                <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex-1">
+                    <p className="font-medium">{query.queryKey}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Executed at: {new Date(query.timestamp).toLocaleString()}
+                    </p>
                   </div>
-                  <Badge variant="destructive">
-                    {query.executionTime}ms
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={query.executionTime > 2000 ? "destructive" : "secondary"}>
+                      {formatTime(query.executionTime)}
+                    </Badge>
+                    {query.cacheHit && (
+                      <Badge variant="outline">Cache Hit</Badge>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -185,40 +285,14 @@ const DatabaseOptimizationPanel: React.FC = () => {
         </Card>
       )}
 
-      {/* Cache Statistics Details */}
+      {/* Status Indicator */}
       <Card>
-        <CardHeader>
-          <CardTitle>Cache Performance Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {metrics.cacheStats.hitRate}%
-              </div>
-              <div className="text-sm text-muted-foreground">Hit Rate</div>
-            </div>
-            
-            <div className="text-center">
-              <div className="text-2xl font-bold text-red-600">
-                {metrics.cacheStats.missRate}%
-              </div>
-              <div className="text-sm text-muted-foreground">Miss Rate</div>
-            </div>
-            
-            <div className="text-center">
-              <div className="text-2xl font-bold">
-                {metrics.cacheStats.cacheSize}
-              </div>
-              <div className="text-sm text-muted-foreground">Entries</div>
-            </div>
-            
-            <div className="text-center">
-              <div className="text-2xl font-bold">
-                {(metrics.cacheStats.memoryUsage / 1024).toFixed(1)}MB
-              </div>
-              <div className="text-sm text-muted-foreground">Memory</div>
-            </div>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-500" />
+            <p className="text-sm text-muted-foreground">
+              Database optimization system is running smoothly
+            </p>
           </div>
         </CardContent>
       </Card>
