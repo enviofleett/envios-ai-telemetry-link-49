@@ -84,8 +84,10 @@ export class GPS51AuthService {
     if (!session) return 'disconnected';
     
     const now = Date.now();
-    const isExpired = now >= session.expiresAt;
-    const isStale = (now - session.lastActivity) > (30 * 60 * 1000); // 30 minutes
+    const expiresAtTime = session.expiresAt.getTime();
+    const lastActivityTime = session.lastActivity.getTime();
+    const isExpired = now >= expiresAtTime;
+    const isStale = (now - lastActivityTime) > (30 * 60 * 1000); // 30 minutes
     
     if (isExpired || isStale) return 'disconnected';
     return 'connected';

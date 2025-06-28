@@ -31,6 +31,21 @@ export interface GPS51DeviceGroup {
   devices: GPS51Device[];
 }
 
+export interface FleetMetrics {
+  totalDevices: number;
+  activeDevices: number;
+  movingVehicles: number;
+  parkedDevices: number;
+  offlineVehicles: number;
+  lastUpdate: Date;
+}
+
+export interface LiveDataOptions {
+  enabled?: boolean;
+  pollingInterval?: number;
+  deviceIds?: string[];
+}
+
 export class GPS51LiveDataService {
   private static instance: GPS51LiveDataService;
   private pollingInterval: NodeJS.Timeout | null = null;
@@ -225,6 +240,23 @@ export class GPS51LiveDataService {
 
   isCurrentlyPolling(): boolean {
     return this.isPolling;
+  }
+
+  calculateFleetMetrics(positions: GPS51Position[], devices: GPS51Device[]): FleetMetrics {
+    const totalDevices = devices.length;
+    const activeDevices = positions.length;
+    const movingVehicles = positions.filter(p => p.moving === 1).length;
+    const parkedDevices = positions.filter(p => p.moving === 0).length;
+    const offlineVehicles = totalDevices - activeDevices;
+
+    return {
+      totalDevices,
+      activeDevices,
+      movingVehicles,
+      parkedDevices,
+      offlineVehicles,
+      lastUpdate: new Date()
+    };
   }
 }
 

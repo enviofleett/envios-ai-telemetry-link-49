@@ -11,18 +11,10 @@ export interface GPS51SessionData {
   lastActivity: Date;
 }
 
-export interface GPS51LoginResult {
-  success: boolean;
-  token?: string;
-  error?: string;
-}
-
 export class GPS51SessionManager {
   private static instance: GPS51SessionManager;
   private currentSession: GPS51SessionData | null = null;
   private isInitialized: boolean = false;
-  private readonly API_BASE_URL = 'https://www.gps51.com/webapi';
-  private readonly SESSION_TIMEOUT = 23 * 60 * 60 * 1000; // 23 hours
 
   static getInstance(): GPS51SessionManager {
     if (!GPS51SessionManager.instance) {
@@ -32,185 +24,153 @@ export class GPS51SessionManager {
   }
 
   async initialize(): Promise<boolean> {
-    if (this.isInitialized) return this.isSessionValid();
+    if (this.isInitialized) return true;
     
     try {
-      console.log('🔄 Initializing GPS51SessionManager...');
       await this.restoreSessionFromDatabase();
       this.isInitialized = true;
-      
-      const isValid = this.isSessionValid();
-      console.log(`🔐 GPS51SessionManager initialized - Valid: ${isValid}`);
-      return isValid;
+      console.log('🔐 GPS51SessionManager initialized');
+      return true;
     } catch (error) {
       console.error('❌ Failed to initialize GPS51SessionManager:', error);
       return false;
     }
   }
 
-  async login(username: string, password: string): Promise<GPS51LoginResult> {
+  async login(username: string, password: string): Promise<{ success: boolean; error?: string }> {
     try {
       console.log(`🔐 GPS51 login attempt for: ${username}`);
       
-      // Hash password using MD5 as required by GPS51 API
-      const hashedPassword = md5(password);
+      // Create MD5 hash of password
+      const passwordHash = md5.hex(password);
       
-      const response = await fetch(`${this.API_BASE_URL}?action=login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: username,
-          password: hashedPassword,
-          from: 'WEB',
-          type: 'USER'
-        })
+      // Make login request to GPS51 API
+      const response = await this.makeAuthenticatedRequest('login', {
+        username,
+        password: passwordHash
       });
-
-      const data = await response.json();
       
-      if (data.status === 0 && data.token) {
-        // Create session object
-        const expiresAt = new Date(Date.now() + this.SESSION_TIMEOUT);
-        
-        this.currentSession = {
-          id: `session_${Date.now()}`,
-          username,
-          token: data.token,
-          expiresAt,
-          isValid: true,
-          lastActivity: new Date()
-        };
-
-        // Store in database
-        await this.persistSessionToDatabase(hashedPassword);
-        
+      if (response.status === 0 && response.token) {
+        // Store session
+        await this.setSessionFromAuth(username, response.token);
         console.log('✅ GPS51 login successful');
-        return {
-          success: true,
-          token: data.token
-        };
-      } else {
-        console.error('❌ GPS51 login failed:', data.cause || 'Unknown error');
-        return {
-          success: false,
-          error: data.cause || 'Login failed'
-        };
+        return { success: true };
       }
+      
+      return { success: false, error: response.cause || 'Login failed' };
     } catch (error) {
       console.error('❌ GPS51 login error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Login failed'
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Login failed' 
       };
     }
   }
 
-  async validateSession(): Promise<boolean> {
-    if (!this.currentSession) {
-      console.log('🔒 No GPS51 session to validate');
-      return false;
-    }
-
-    // Check if session is expired
-    if (this.currentSession.expiresAt <= new Date()) {
-      console.log('🔒 GPS51 session expired');
-      await this.clearSession();
-      return false;
-    }
-
+  async logout(): Promise<void> {
     try {
-      // Test session with a simple API call
+      console.log('👋 GPS51 logout initiated');
+      await this.clearSession();
+      console.log('✅ GPS51 logout completed');
+    } catch (error) {
+      console.error('❌ GPS51 logout error:', error);
+    }
+  }
+
+  async validateSession(): Promise<boolean> {
+    await this.initialize();
+    
+    try {
+      if (!this.currentSession) {
+        console.log('🔒 No GPS51 session available');
+        return false;
+      }
+
+      // Check if session is expired
+      if (this.currentSession.expiresAt <= new Date()) {
+        console.log('🔒 GPS51 session expired');
+        await this.clearSession();
+        return false;
+      }
+
+      // Validate with GPS51 API
       const response = await this.makeAuthenticatedRequest('querymonitorlist', {});
       
       if (response.status === 0) {
         console.log('✅ GPS51 session validated successfully');
-        await this.updateLastActivity();
         return true;
-      } else {
-        console.log('🔒 GPS51 session validation failed');
-        await this.clearSession();
-        return false;
       }
-    } catch (error) {
-      console.error('❌ GPS51 session validation error:', error);
+      
+      console.log('🔒 GPS51 session validation failed with API');
       await this.clearSession();
+      return false;
+    } catch (error) {
+      console.error('❌ Session validation error:', error);
       return false;
     }
   }
 
   async refreshSession(): Promise<boolean> {
-    if (!this.currentSession) {
-      console.log('🔄 No session to refresh');
-      return false;
-    }
+    await this.initialize();
     
     try {
-      // For now, just extend the expiry time and update activity
-      // In a full implementation, you might need to re-authenticate
-      this.currentSession.expiresAt = new Date(Date.now() + this.SESSION_TIMEOUT);
+      if (!this.currentSession) {
+        console.log('🔄 No session to refresh');
+        return false;
+      }
+
+      // For now, just extend the expiry time
+      // In a real implementation, you'd re-authenticate with stored credentials
+      const newExpiry = new Date(Date.now() + 23 * 60 * 60 * 1000);
+      this.currentSession.expiresAt = newExpiry;
       this.currentSession.lastActivity = new Date();
-      
+
       // Update in database
-      await this.updateSessionInDatabase();
-      
+      await this.persistSessionToDatabase();
+
       console.log('🔄 GPS51 session refreshed successfully');
       return true;
     } catch (error) {
-      console.error('❌ GPS51 session refresh error:', error);
+      console.error('❌ Session refresh error:', error);
       return false;
     }
   }
 
-  async makeAuthenticatedRequest(action: string, params: any): Promise<any> {
-    if (!this.currentSession?.token) {
-      throw new Error('No valid GPS51 session available');
+  async makeAuthenticatedRequest(action: string, params: any = {}): Promise<any> {
+    if (!this.currentSession) {
+      throw new Error('No active session for authenticated request');
     }
 
-    const url = `${this.API_BASE_URL}?action=${action}&token=${this.currentSession.token}`;
-    
-    const response = await fetch(url, {
+    const requestBody = {
+      action,
+      token: this.currentSession.token,
+      ...params
+    };
+
+    const response = await fetch('https://www.gps51.com/webapi', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(params)
+      body: JSON.stringify(requestBody)
     });
 
-    const data = await response.json();
-    
-    // Update last activity on successful request
-    if (data.status === 0) {
-      await this.updateLastActivity();
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
-    return data;
-  }
 
-  getSession(): GPS51SessionData | null {
-    return this.currentSession;
-  }
-
-  isSessionValid(): boolean {
-    return this.currentSession !== null && 
-           this.currentSession.isValid && 
-           this.currentSession.expiresAt > new Date();
+    return response.json();
   }
 
   private async restoreSessionFromDatabase(): Promise<void> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log('No authenticated user for session restoration');
-        return;
-      }
+      if (!user) return;
 
       const { data, error } = await supabase
         .from('gp51_sessions')
         .select('*')
         .eq('envio_user_id', user.id)
-        .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -220,7 +180,7 @@ export class GPS51SessionManager {
         return;
       }
 
-      if (data && data.gp51_token && data.token_expires_at) {
+      if (data && data.gp51_token) {
         const expiresAt = new Date(data.token_expires_at);
         
         if (expiresAt > new Date()) {
@@ -230,13 +190,13 @@ export class GPS51SessionManager {
             token: data.gp51_token,
             expiresAt,
             isValid: true,
-            lastActivity: new Date(data.last_activity_at || data.created_at)
+            lastActivity: new Date()
           };
           
           console.log('✅ GPS51 session restored from database');
         } else {
           console.log('🔒 Stored session expired, clearing...');
-          await this.clearSessionFromDatabase();
+          await this.clearSession();
         }
       }
     } catch (error) {
@@ -244,33 +204,41 @@ export class GPS51SessionManager {
     }
   }
 
-  private async persistSessionToDatabase(passwordHash: string): Promise<void> {
+  async setSessionFromAuth(username: string, token: string): Promise<void> {
+    const expiresAt = new Date(Date.now() + 23 * 60 * 60 * 1000);
+    
+    this.currentSession = {
+      id: `session_${Date.now()}`,
+      username,
+      token,
+      expiresAt,
+      isValid: true,
+      lastActivity: new Date()
+    };
+
+    await this.persistSessionToDatabase();
+    console.log('✅ GPS51 session set from authentication');
+  }
+
+  private async persistSessionToDatabase(): Promise<void> {
     if (!this.currentSession) return;
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.error('No authenticated user for session persistence');
-        return;
-      }
+      if (!user) return;
 
-      // Clear any existing active sessions first
-      await supabase
-        .from('gp51_sessions')
-        .update({ is_active: false })
-        .eq('envio_user_id', user.id);
-
-      // Insert new session
       const { error } = await supabase
         .from('gp51_sessions')
-        .insert({
+        .upsert({
           envio_user_id: user.id,
           username: this.currentSession.username,
-          password_hash: passwordHash, // Required field
+          password_hash: 'session_managed',
           gp51_token: this.currentSession.token,
           token_expires_at: this.currentSession.expiresAt.toISOString(),
           is_active: true,
-          last_activity_at: this.currentSession.lastActivity.toISOString()
+          last_activity_at: new Date().toISOString()
+        }, {
+          onConflict: 'envio_user_id'
         });
 
       if (error) {
@@ -283,73 +251,41 @@ export class GPS51SessionManager {
     }
   }
 
-  private async updateSessionInDatabase(): Promise<void> {
-    if (!this.currentSession) return;
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { error } = await supabase
-        .from('gp51_sessions')
-        .update({
-          token_expires_at: this.currentSession.expiresAt.toISOString(),
-          last_activity_at: this.currentSession.lastActivity.toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .eq('envio_user_id', user.id)
-        .eq('is_active', true);
-
-      if (error) {
-        console.error('❌ Failed to update session in database:', error);
-      }
-    } catch (error) {
-      console.error('❌ Error updating session:', error);
-    }
+  setSession(sessionData: Partial<GPS51SessionData>): void {
+    this.currentSession = {
+      id: sessionData.id || `session_${Date.now()}`,
+      username: sessionData.username || '',
+      token: sessionData.token || '',
+      expiresAt: sessionData.expiresAt || new Date(Date.now() + 23 * 60 * 60 * 1000),
+      isValid: sessionData.isValid ?? true,
+      lastActivity: new Date()
+    };
   }
 
-  private async updateLastActivity(): Promise<void> {
-    if (this.currentSession) {
-      this.currentSession.lastActivity = new Date();
-      await this.updateSessionInDatabase();
-    }
+  getSession(): GPS51SessionData | null {
+    return this.currentSession;
   }
 
   async clearSession(): Promise<void> {
-    try {
-      await this.clearSessionFromDatabase();
-      this.currentSession = null;
-      console.log('🗑️ GPS51 session cleared');
-    } catch (error) {
-      console.error('❌ Error clearing session:', error);
-    }
-  }
-
-  private async clearSessionFromDatabase(): Promise<void> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         await supabase
           .from('gp51_sessions')
-          .update({ is_active: false })
+          .delete()
           .eq('envio_user_id', user.id);
       }
     } catch (error) {
       console.error('❌ Error clearing session from database:', error);
     }
+    
+    this.currentSession = null;
   }
 
-  async logout(): Promise<void> {
-    try {
-      if (this.currentSession?.token) {
-        // Try to logout from GPS51 API
-        await this.makeAuthenticatedRequest('logout', {});
-      }
-    } catch (error) {
-      console.error('❌ GPS51 logout API error:', error);
-    } finally {
-      await this.clearSession();
-    }
+  isSessionValid(): boolean {
+    return this.currentSession !== null && 
+           this.currentSession.isValid && 
+           this.currentSession.expiresAt > new Date();
   }
 }
 

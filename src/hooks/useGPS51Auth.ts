@@ -24,12 +24,12 @@ export const useGPS51Auth = () => {
 
   const updateAuthState = useCallback(async () => {
     const connectionStatus = gps51AuthService.getConnectionStatus();
-    const username = await gps51AuthService.getCurrentUser(); // Await the Promise
+    const username = await gps51AuthService.getCurrentUser();
     
     setAuthState(prev => ({
       ...prev,
       connectionStatus,
-      username, // Now it's a string, not a Promise
+      username,
     }));
   }, []);
 
