@@ -1,3 +1,4 @@
+
 import {
   LayoutDashboard,
   Users,
@@ -16,7 +17,11 @@ import {
   UserCheck,
   TrendingUp,
   Radio,
-  Satellite
+  Satellite,
+  Monitor,
+  History,
+  Map,
+  Shield
 } from "lucide-react"
 
 export interface MenuItem {
@@ -24,6 +29,7 @@ export interface MenuItem {
   url: string
   icon: any
   featureId?: string
+  children?: MenuItem[]
 }
 
 export interface QuickAction {
@@ -73,31 +79,57 @@ export const menuItems: MenuItem[] = [
     title: "GPS51 Platform",
     url: "/gps51",
     icon: Satellite,
-    featureId: "gps51_integration"
-  },
-  {
-    title: "GPS51 Dashboard",
-    url: "/gps51/dashboard",
-    icon: LayoutDashboard,
-    featureId: "gps51_integration"
-  },
-  {
-    title: "GPS51 Live Tracking",
-    url: "/gps51/tracking",
-    icon: MapPin,
-    featureId: "gps51_integration"
-  },
-  {
-    title: "GPS51 Devices",
-    url: "/gps51/devices",
-    icon: Settings,
-    featureId: "gps51_integration"
-  },
-  {
-    title: "GPS51 Analytics",
-    url: "/gps51/analytics",
-    icon: BarChart3,
-    featureId: "gps51_integration"
+    featureId: "gps51_integration",
+    children: [
+      {
+        title: "Dashboard",
+        url: "/gps51/dashboard",
+        icon: LayoutDashboard,
+        featureId: "gps51_integration"
+      },
+      {
+        title: "Live Tracking",
+        url: "/gps51/tracking",
+        icon: MapPin,
+        featureId: "gps51_integration"
+      },
+      {
+        title: "Device Management",
+        url: "/gps51/devices",
+        icon: Monitor,
+        featureId: "gps51_integration"
+      },
+      {
+        title: "Trip History",
+        url: "/gps51/history",
+        icon: History,
+        featureId: "gps51_integration"
+      },
+      {
+        title: "Route Analytics",
+        url: "/gps51/analytics",
+        icon: BarChart3,
+        featureId: "gps51_integration"
+      },
+      {
+        title: "Geofencing",
+        url: "/gps51/geofences",
+        icon: Map,
+        featureId: "gps51_integration"
+      },
+      {
+        title: "Reports",
+        url: "/gps51/reports",
+        icon: FileText,
+        featureId: "gps51_integration"
+      },
+      {
+        title: "Setup & Config",
+        url: "/gps51/setup",
+        icon: Settings,
+        featureId: "gps51_integration"
+      }
+    ]
   },
   {
     title: "Reports",
@@ -173,7 +205,6 @@ export const menuItems: MenuItem[] = [
   },
 ]
 
-// Add the missing agentMenuItems export (can be same as menuItems or a subset)
 export const agentMenuItems: MenuItem[] = [
   {
     title: "Dashboard",
@@ -199,6 +230,26 @@ export const agentMenuItems: MenuItem[] = [
     featureId: "gp51_integration"
   },
   {
+    title: "GPS51 Platform",
+    url: "/gps51",
+    icon: Satellite,
+    featureId: "gps51_integration",
+    children: [
+      {
+        title: "Live Tracking",
+        url: "/gps51/tracking",
+        icon: MapPin,
+        featureId: "gps51_integration"
+      },
+      {
+        title: "Device Management",
+        url: "/gps51/devices",
+        icon: Monitor,
+        featureId: "gps51_integration"
+      }
+    ]
+  },
+  {
     title: "Reports",
     url: "/reports",
     icon: FileText,
@@ -206,7 +257,6 @@ export const agentMenuItems: MenuItem[] = [
   },
 ]
 
-// Add the missing quickActions export (renamed from quickActionsData)
 export const quickActions: QuickAction[] = [
   {
     title: "Add Vehicle",
@@ -230,7 +280,6 @@ export const quickActions: QuickAction[] = [
   },
 ]
 
-// Add GPS51-specific quick actions
 export const gps51QuickActions: QuickAction[] = [
   {
     title: "Live Tracking",
@@ -254,5 +303,4 @@ export const gps51QuickActions: QuickAction[] = [
   },
 ]
 
-// Keep the old export for backward compatibility
 export const quickActionsData: QuickAction[] = quickActions

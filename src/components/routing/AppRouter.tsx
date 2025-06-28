@@ -26,7 +26,7 @@ import StableAdminSettings from '@/pages/StableAdminSettings';
 import SystemImport from '@/pages/SystemImport';
 import DeviceConfiguration from '@/pages/DeviceConfiguration';
 
-// Operations - Now with full functionality
+// Operations
 import Maintenance from '@/pages/Maintenance';
 import WorkshopManagement from '@/pages/WorkshopManagement';
 import Marketplace from '@/pages/Marketplace';
@@ -35,7 +35,7 @@ import Marketplace from '@/pages/Marketplace';
 import Reports from '@/pages/Reports';
 import AdminAnalytics from '@/pages/AdminAnalytics';
 
-// Business Management - Now with full functionality
+// Business Management
 import PackageManagement from '@/pages/PackageManagement';
 import ActiveServices from '@/pages/ActiveServices';
 import MerchantApplication from '@/pages/MerchantApplication';
@@ -43,6 +43,16 @@ import ReferralAgents from '@/pages/ReferralAgents';
 
 // GP51 Integration Page
 import GP51IntegrationPage from '@/pages/GP51IntegrationPage';
+
+// GPS51 Pages - FIXED ROUTES
+import GPS51Dashboard from '@/pages/GPS51Dashboard';
+import GPS51LiveTracking from '@/pages/GPS51LiveTracking';
+import GPS51DeviceManagement from '@/pages/GPS51DeviceManagement';
+import GPS51TripHistory from '@/pages/GPS51TripHistory';
+import GPS51RouteAnalytics from '@/pages/GPS51RouteAnalytics';
+import GPS51Geofencing from '@/pages/GPS51Geofencing';
+import GPS51Reports from '@/pages/GPS51Reports';
+import GPS51IntegrationPage from '@/components/gps51/GPS51IntegrationPage';
 
 export const AppRouter: React.FC = () => {
   return (
@@ -149,6 +159,106 @@ export const AppRouter: React.FC = () => {
           <ProtectedRoute>
             <Layout>
               <GP51IntegrationPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      {/* GPS51 Routes - RESTRUCTURED */}
+      <Route
+        path="/gps51"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <GPS51Dashboard />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/gps51/setup"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <GPS51IntegrationPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/gps51/dashboard"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <GPS51Dashboard />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/gps51/tracking"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <GPS51LiveTracking />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/gps51/devices"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <GPS51DeviceManagement />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/gps51/history"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <GPS51TripHistory />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/gps51/analytics"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <GPS51RouteAnalytics />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/gps51/geofences"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <GPS51Geofencing />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/gps51/reports"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <GPS51Reports />
             </Layout>
           </ProtectedRoute>
         }
