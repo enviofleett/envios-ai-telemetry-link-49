@@ -1,276 +1,237 @@
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { gps51LiveDataService, GPS51Position, GPS51Device, GPS51DeviceGroup } from '@/services/gp51/GPS51LiveDataService';
 import { gps51SessionManager } from '@/services/gp51/GPS51SessionManager';
 
+export interface FleetMetrics {
+  totalVehicles: number;
+  onlineVehicles: number;
+  movingVehicles: number;
+  idleVehicles: number;
+  offlineVehicles: number;
+}
+
 export interface LiveDataOptions {
   deviceIds?: string[];
-  autoStart?: boolean;
-  enablePolling?: boolean;
+  autoRefresh?: boolean;
+  refreshInterval?: number;
 }
 
-export interface FleetMetrics {
-  totalDevices: number;
-  activeDevices: number;
-  movingDevices: number;
-  parkedDevices: number;
-  offlineDevices: number;
-  lastUpdate: Date;
-}
-
-export const useGPS51LiveData = (options: LiveDataOptions = {}) => {
-  const {
-    deviceIds = [],
-    autoStart = true,
-    enablePolling = true
-  } = options;
-
-  const [positions, setPositions] = useState<Map<string, GPS51Position>>(new Map());
+export function useGPS51LiveData(options: LiveDataOptions = {}) {
+  const { deviceIds = [], autoRefresh = true } = options;
+  
+  const [positions, setPositions] = useState<GPS51Position[]>([]);
   const [deviceGroups, setDeviceGroups] = useState<GPS51DeviceGroup[]>([]);
+  const [devices, setDevices] = useState<GPS51Device[]>([]);
+  const [metrics, setMetrics] = useState<FleetMetrics>({
+    totalVehicles: 0,
+    onlineVehicles: 0,
+    movingVehicles: 0,
+    idleVehicles: 0,
+    offlineVehicles: 0
+  });
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
-  const [metrics, setMetrics] = useState<FleetMetrics | null>(null);
-  
-  const initializationRef = useRef(false);
+  const [isLiveTracking, setIsLiveTracking] = useState(false);
 
-  // Calculate fleet metrics whenever positions or devices change
-  const calculateMetrics = useCallback((currentPositions: Map<string, GPS51Position>, groups: GPS51DeviceGroup[]) => {
-    const allDevices: GPS51Device[] = groups.flatMap(group => group.devices || []);
-    const totalDevices = allDevices.length;
-    
-    let activeDevices = 0;
-    let movingDevices = 0;
-    let parkedDevices = 0;
-    let offlineDevices = 0;
+  // Calculate fleet metrics from positions and devices
+  const calculateMetrics = useCallback((allDevices: GPS51Device[], allPositions: GPS51Position[]): FleetMetrics => {
+    const totalVehicles = allDevices.length;
+    let onlineVehicles = 0;
+    let movingVehicles = 0;
+    let idleVehicles = 0;
 
     allDevices.forEach(device => {
-      const position = currentPositions.get(device.deviceid);
+      const position = allPositions.find(p => p.deviceId === device.deviceid);
       
       if (position) {
-        activeDevices++;
-        if (position.moving === 1 || position.speed > 0) {
-          movingDevices++;
+        onlineVehicles++;
+        if (position.moving === 1) {
+          movingVehicles++;
         } else {
-          parkedDevices++;
+          idleVehicles++;
         }
-      } else {
-        offlineDevices++;
       }
     });
 
     return {
-      totalDevices,
-      activeDevices,
-      movingDevices,
-      parkedDevices,
-      offlineDevices,
-      lastUpdate: new Date()
+      totalVehicles,
+      onlineVehicles,
+      movingVehicles,
+      idleVehicles,
+      offlineVehicles: totalVehicles - onlineVehicles
     };
   }, []);
 
   // Handle real-time position updates
   useEffect(() => {
     const handlePositionUpdate = (event: CustomEvent) => {
-      const { positions: newPositions, timestamp } = event.detail;
+      const { positions: newPositions } = event.detail;
       
       setPositions(prev => {
-        const updated = new Map(prev);
-        newPositions.forEach((pos: GPS51Position) => {
-          updated.set(pos.deviceid, pos);
+        const merged = [...prev];
+        newPositions.forEach((newPos: GPS51Position) => {
+          const index = merged.findIndex(p => p.deviceId === newPos.deviceId);
+          if (index >= 0) {
+            merged[index] = newPos;
+          } else {
+            merged.push(newPos);
+          }
         });
-        return updated;
+        return merged;
       });
       
-      setLastUpdate(new Date(timestamp));
-      setError(null); // Clear any previous errors on successful update
+      setLastUpdate(new Date());
     };
 
     const handleDeviceListUpdate = (event: CustomEvent) => {
       const { groups } = event.detail;
       setDeviceGroups(groups);
+      
+      const allDevices = groups.flatMap((group: GPS51DeviceGroup) => group.devices || []);
+      setDevices(allDevices);
     };
 
-    const handleConnectionLost = () => {
-      setIsConnected(false);
-      setError('Connection to GPS51 lost');
-    };
-
-    // Add event listeners
     window.addEventListener('gps51PositionUpdate', handlePositionUpdate as EventListener);
     window.addEventListener('gps51DeviceListUpdate', handleDeviceListUpdate as EventListener);
-    window.addEventListener('gps51ConnectionLost', handleConnectionLost as EventListener);
     
     return () => {
       window.removeEventListener('gps51PositionUpdate', handlePositionUpdate as EventListener);
       window.removeEventListener('gps51DeviceListUpdate', handleDeviceListUpdate as EventListener);
-      window.removeEventListener('gps51ConnectionLost', handleConnectionLost as EventListener);
     };
   }, []);
 
-  // Update metrics when positions or device groups change
+  // Update metrics whenever positions or devices change
   useEffect(() => {
-    if (deviceGroups.length > 0) {
-      const newMetrics = calculateMetrics(positions, deviceGroups);
-      setMetrics(newMetrics);
-    }
-  }, [positions, deviceGroups, calculateMetrics]);
+    const newMetrics = calculateMetrics(devices, positions);
+    setMetrics(newMetrics);
+  }, [devices, positions, calculateMetrics]);
 
-  // Initialize service and start polling
+  // Initialize session and fetch initial data
   useEffect(() => {
-    if (initializationRef.current) return;
-    initializationRef.current = true;
-
     const initializeService = async () => {
-      if (!autoStart) {
-        setIsLoading(false);
-        return;
-      }
-
       setIsLoading(true);
       setError(null);
 
       try {
-        console.log('🚀 Initializing GPS51 live data service...');
-
         // Initialize session manager
-        const sessionInitialized = await gps51SessionManager.initialize();
-        if (!sessionInitialized) {
-          throw new Error('No valid GPS51 session found. Please authenticate first.');
+        const sessionValid = await gps51SessionManager.initialize();
+        if (!sessionValid) {
+          // Try to validate existing session
+          const isValid = await gps51SessionManager.validateSession();
+          if (!isValid) {
+            throw new Error('No valid GPS51 session found. Please authenticate first.');
+          }
         }
 
-        // Get device list first
+        // Get device list
         const groups = await gps51LiveDataService.getDeviceList();
         setDeviceGroups(groups);
-
-        // Start real-time polling if enabled
-        if (enablePolling) {
-          await gps51LiveDataService.startRealTimePolling(deviceIds);
-          console.log('✅ Real-time polling started');
-        }
         
+        const allDevices = groups.flatMap((group: GPS51DeviceGroup) => group.devices || []);
+        setDevices(allDevices);
+
+        // Get initial positions
+        const initialPositions = await gps51LiveDataService.pollLatestPositions(deviceIds);
+        setPositions(initialPositions);
+
         setIsConnected(true);
-        setError(null);
+        console.log('✅ GPS51 Live Data service initialized successfully');
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to initialize GPS51 service';
-        console.error('❌ GPS51 initialization failed:', errorMessage);
         setError(errorMessage);
         setIsConnected(false);
+        console.error('❌ GPS51 Live Data initialization failed:', errorMessage);
       } finally {
         setIsLoading(false);
       }
     };
 
     initializeService();
+  }, [deviceIds]);
 
-    // Cleanup on unmount
+  // Start/stop live tracking
+  const startLiveTracking = useCallback(async () => {
+    try {
+      setError(null);
+      await gps51LiveDataService.startRealTimePolling(deviceIds);
+      setIsLiveTracking(true);
+      console.log('🚀 Live tracking started');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start live tracking';
+      setError(errorMessage);
+      console.error('❌ Failed to start live tracking:', errorMessage);
+    }
+  }, [deviceIds]);
+
+  const stopLiveTracking = useCallback(() => {
+    gps51LiveDataService.stopPolling();
+    setIsLiveTracking(false);
+    console.log('⏹️ Live tracking stopped');
+  }, []);
+
+  // Auto-start live tracking if enabled
+  useEffect(() => {
+    if (autoRefresh && isConnected && !isLiveTracking) {
+      startLiveTracking();
+    }
+
     return () => {
-      if (enablePolling) {
-        gps51LiveDataService.stopPolling();
+      if (isLiveTracking) {
+        stopLiveTracking();
       }
     };
-  }, []); // Empty dependency array for one-time initialization
+  }, [autoRefresh, isConnected, isLiveTracking, startLiveTracking, stopLiveTracking]);
 
-  // Manual refresh function
-  const refresh = useCallback(async () => {
+  // Manual refresh
+  const refreshData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      console.log('🔄 Manually refreshing GPS51 data...');
-      
-      // Refresh device list
-      const groups = await gps51LiveDataService.getDeviceList();
-      setDeviceGroups(groups);
-      
-      // Get fresh positions
-      const freshPositions = await gps51LiveDataService.pollLatestPositions(deviceIds);
-      
-      // Update positions map
-      setPositions(prev => {
-        const updated = new Map(prev);
-        freshPositions.forEach(pos => {
-          updated.set(pos.deviceid, pos);
-        });
-        return updated;
-      });
-      
+      const newPositions = await gps51LiveDataService.pollLatestPositions(deviceIds);
+      setPositions(newPositions);
       setLastUpdate(new Date());
-      setIsConnected(true);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to refresh data';
       setError(errorMessage);
-      console.error('❌ Refresh failed:', errorMessage);
     } finally {
       setIsLoading(false);
     }
   }, [deviceIds]);
 
-  // Start polling manually
-  const startPolling = useCallback(async () => {
-    try {
-      await gps51LiveDataService.startRealTimePolling(deviceIds);
-      setIsConnected(true);
-      setError(null);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to start polling';
-      setError(errorMessage);
-      setIsConnected(false);
-    }
-  }, [deviceIds]);
-
-  // Stop polling manually
-  const stopPolling = useCallback(() => {
-    gps51LiveDataService.stopPolling();
-    setIsConnected(false);
-  }, []);
-
   // Get device by ID
-  const getDevice = useCallback((deviceId: string): GPS51Device | undefined => {
-    for (const group of deviceGroups) {
-      const device = group.devices?.find(d => d.deviceid === deviceId);
-      if (device) return device;
-    }
-    return undefined;
-  }, [deviceGroups]);
+  const getDevice = useCallback((deviceId: string) => {
+    return devices.find(d => d.deviceid === deviceId);
+  }, [devices]);
 
   // Get position by device ID
-  const getPosition = useCallback((deviceId: string): GPS51Position | undefined => {
-    return positions.get(deviceid);
+  const getPosition = useCallback((deviceId: string) => {
+    return positions.find(p => p.deviceId === deviceId);
   }, [positions]);
 
-  // Get all devices flattened
-  const getAllDevices = useCallback((): GPS51Device[] => {
-    return deviceGroups.flatMap(group => group.devices || []);
-  }, [deviceGroups]);
-
-  // Get all positions as array
-  const getAllPositions = useCallback((): GPS51Position[] => {
-    return Array.from(positions.values());
-  }, [positions]);
+  // Get device position (alias for backward compatibility)
+  const getDevicePosition = useCallback((deviceId: string) => {
+    return getPosition(deviceId);
+  }, [getPosition]);
 
   return {
-    // Data
-    positions: getAllPositions(),
+    positions,
     deviceGroups,
-    devices: getAllDevices(),
+    devices,
     metrics,
-    
-    // Status
     isConnected,
     isLoading,
     error,
     lastUpdate,
-    isPolling: gps51LiveDataService.isCurrentlyPolling(),
-    
-    // Actions
-    refresh,
-    startPolling,
-    stopPolling,
-    
-    // Utilities
+    isLiveTracking,
+    startLiveTracking,
+    stopLiveTracking,
+    refreshData,
     getDevice,
-    getPosition
+    getPosition,
+    getDevicePosition
   };
-};
+}
