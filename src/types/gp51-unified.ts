@@ -319,10 +319,13 @@ export interface GP51FleetData {
     source: string;
     version: string;
     requestId?: string;
+    responseTime?: number; // ADDED - fixes GP51CompleteAPIController error
+    fetchTime?: string;
+    dataVersion?: string;
   };
-  // ADDED - fixes useGP51Fleet errors
+  // Response compatibility properties
   success?: boolean;
-  data?: GP51Device[]; // Alternative access to devices
+  data?: GP51Device[];
   error?: string;
 }
 
