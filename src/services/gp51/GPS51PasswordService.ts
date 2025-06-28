@@ -19,7 +19,8 @@ export class GPS51PasswordService {
 
   /**
    * Create MD5 hash for GPS51 password authentication
-   * GPS51 API requires: "32 digits and small letter"
+   * GPS51 API requires: "32 digits and small letter" (lowercase hex)
+   * This is the CRITICAL fix for the authentication issue
    */
   static createPasswordHash(password: string): PasswordHashResult {
     try {
@@ -31,15 +32,25 @@ export class GPS51PasswordService {
         };
       }
 
-      // Ensure clean string input with UTF-8 encoding
+      // Clean password - trim whitespace as per GPS51 requirements
       const cleanPassword = String(password).trim();
       
       // Create MD5 hash using crypto-js for browser compatibility
+      // GPS51 specifically requires MD5, 32 digits, lowercase
       const hash = CryptoJS.MD5(cleanPassword)
         .toString(CryptoJS.enc.Hex)
         .toLowerCase();
       
-      // Validate hash format
+      console.log('🔐 MD5 Hash Generation:', {
+        input: `"${cleanPassword}"`,
+        inputLength: cleanPassword.length,
+        hash: hash,
+        hashLength: hash.length,
+        isLowercase: hash === hash.toLowerCase(),
+        isValid: this.HEX_PATTERN.test(hash)
+      });
+      
+      // Validate hash format matches GPS51 requirements exactly
       if (hash.length !== this.MD5_LENGTH) {
         return {
           hash: '',
@@ -61,6 +72,7 @@ export class GPS51PasswordService {
         isValid: true
       };
     } catch (error) {
+      console.error('❌ MD5 Hash Generation Error:', error);
       return {
         hash: '',
         isValid: false,
@@ -71,6 +83,7 @@ export class GPS51PasswordService {
 
   /**
    * Test MD5 implementation against known values
+   * These are the exact test cases that must pass for GPS51 compatibility
    */
   static getTestCases(): MD5TestCase[] {
     return [
@@ -93,18 +106,33 @@ export class GPS51PasswordService {
         input: "hello",
         expected: "5d41402abc4b2a76b9719d911017c592",
         description: "Short text password"
+      },
+      {
+        input: "admin",
+        expected: "21232f297a57a5a743894a0e4a801fc3",
+        description: "Admin password test"
       }
     ];
   }
 
   /**
    * Run all MD5 tests and return results
+   * This validates that our MD5 implementation matches GPS51 requirements
    */
   static runAllTests() {
+    console.log('🧪 Running GPS51 MD5 Tests...');
+    
     const testCases = this.getTestCases();
     const results = testCases.map(testCase => {
       const hashResult = this.createPasswordHash(testCase.input);
       const isMatch = hashResult.isValid && hashResult.hash === testCase.expected.toLowerCase();
+      
+      console.log(`📝 Test "${testCase.input}": ${isMatch ? '✅' : '❌'}`, {
+        expected: testCase.expected,
+        actual: hashResult.hash,
+        match: isMatch,
+        error: hashResult.error
+      });
       
       return {
         ...testCase,
@@ -116,11 +144,18 @@ export class GPS51PasswordService {
 
     const passCount = results.filter(r => r.isMatch).length;
     const totalCount = results.length;
+    const allPassed = passCount === totalCount;
+    
+    console.log(`📊 MD5 Tests: ${allPassed ? '✅ ALL PASSED' : '❌ SOME FAILED'}`, {
+      passed: passCount,
+      total: totalCount,
+      percentage: Math.round((passCount / totalCount) * 100)
+    });
     
     return {
       results,
       summary: {
-        passed: passCount === totalCount,
+        passed: allPassed,
         passCount,
         totalCount,
         message: `${passCount}/${totalCount} tests passed`

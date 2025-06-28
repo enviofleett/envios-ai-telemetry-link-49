@@ -45,10 +45,21 @@ export const useGPS51Integration = (): UseGPS51IntegrationReturn => {
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     if (isLoading) return false;
     
+    console.log('🚀 Starting GPS51 authentication process...');
+    
     setIsLoading(true);
     setError(null);
 
     try {
+      // First, run MD5 tests to ensure our implementation is correct
+      console.log('🧪 Running MD5 validation tests...');
+      const testResults = GPS51PasswordService.runAllTests();
+      setMD5TestResults(testResults);
+      
+      if (!testResults.summary.passed) {
+        throw new Error('MD5 implementation validation failed. Cannot proceed with authentication.');
+      }
+
       // Check if account is locked
       if (GPS51SecurityService.isAccountLocked(username)) {
         const remainingTime = GPS51SecurityService.getLockoutTimeRemaining(username);
@@ -57,15 +68,17 @@ export const useGPS51Integration = (): UseGPS51IntegrationReturn => {
       }
 
       const loginRequest: GPS51LoginRequest = {
-        username,
-        password,
+        username: username.trim(),
+        password: password,
         from: 'WEB',
         type: 'USER'
       };
 
+      console.log('📡 Attempting GPS51 login...');
       const result = await apiClient.login(loginRequest);
       
       if (result.status === 0) {
+        console.log('✅ GPS51 authentication successful');
         setIsAuthenticated(true);
         toast({
           title: "Login Successful",
@@ -73,10 +86,11 @@ export const useGPS51Integration = (): UseGPS51IntegrationReturn => {
         });
         return true;
       } else {
-        throw new Error(result.cause || 'Login failed');
+        throw new Error(result.cause || `GPS51 authentication failed (status: ${result.status})`);
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      console.error('❌ GPS51 authentication failed:', errorMessage);
       setError(errorMessage);
       
       toast({
@@ -85,7 +99,6 @@ export const useGPS51Integration = (): UseGPS51IntegrationReturn => {
         variant: "destructive",
       });
       
-      console.error('GPS51 login error:', err);
       return false;
     } finally {
       setIsLoading(false);
@@ -97,6 +110,7 @@ export const useGPS51Integration = (): UseGPS51IntegrationReturn => {
     setIsAuthenticated(false);
     setError(null);
     
+    console.log('👤 GPS51 logout successful');
     toast({
       title: "Logged Out",
       description: "Successfully disconnected from GPS51",
@@ -108,9 +122,11 @@ export const useGPS51Integration = (): UseGPS51IntegrationReturn => {
     setError(null);
 
     try {
+      console.log('🔌 Testing GPS51 connection...');
       const result = await apiClient.testConnection();
       
       if (result.success) {
+        console.log('✅ GPS51 connection test successful');
         toast({
           title: "Connection Successful",
           description: `GPS51 server responded in ${result.responseTime}ms`,
@@ -121,6 +137,7 @@ export const useGPS51Integration = (): UseGPS51IntegrationReturn => {
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Connection test failed';
+      console.error('❌ GPS51 connection test failed:', errorMessage);
       setError(errorMessage);
       
       toast({
@@ -137,6 +154,7 @@ export const useGPS51Integration = (): UseGPS51IntegrationReturn => {
 
   const runMD5Tests = useCallback(() => {
     try {
+      console.log('🧪 Running MD5 tests from UI...');
       const results = GPS51PasswordService.runAllTests();
       setMD5TestResults(results);
       
@@ -153,7 +171,7 @@ export const useGPS51Integration = (): UseGPS51IntegrationReturn => {
         });
       }
     } catch (err) {
-      console.error('MD5 test error:', err);
+      console.error('❌ MD5 test error:', err);
       toast({
         title: "MD5 Test Error",
         description: "Failed to run MD5 tests",
