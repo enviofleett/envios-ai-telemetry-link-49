@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { gps51ProductionService } from '@/services/gps51/GPS51ProductionService';
-import { gps51SessionManager } from '@/services/gp51/sessionManager';
+import { useToast } from '@/hooks/use-toast';
+import { GP51SessionManager } from '@/services/gp51/sessionManager';
+import { gps51ProductionService } from '@/services/gp51/GPS51ProductionService';
 
 export interface GPS51AuthState {
   isAuthenticated: boolean;
@@ -46,6 +47,10 @@ export const useGPS51Integration = () => {
     rateLimitExceeded: 0,
     lastEventTime: null
   });
+
+  const clearError = useCallback(() => {
+    setError('');
+  }, []);
 
   // Initialize and check existing session
   useEffect(() => {
@@ -152,7 +157,7 @@ export const useGPS51Integration = () => {
       console.log('👋 [GPS51-INTEGRATION] Logging out...');
       
       // Clear session from database
-      await gps51SessionManager.clearAllSessions();
+      await GP51SessionManager.clearAllSessions();
       
       // Reset state
       setIsAuthenticated(false);
@@ -214,7 +219,7 @@ export const useGPS51Integration = () => {
   }, []);
 
   const refreshSecurityStats = useCallback(async () => {
-    const session = gps51SessionManager.getSession();
+    const session = GP51SessionManager.getSession();
     if (session) {
       const sessionDuration = Date.now() - session.lastActivity.getTime();
       setSecurityStats(prev => ({
@@ -260,6 +265,7 @@ export const useGPS51Integration = () => {
     logout,
     testConnection,
     refreshSecurityStats,
-    refreshSession
+    refreshSession,
+    clearError
   };
 };
