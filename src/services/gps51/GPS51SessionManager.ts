@@ -172,18 +172,20 @@ export class GPS51SessionManager {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase
-        .from('gp51_sessions')
-        .upsert({
-          envio_user_id: user.id,
-          username: this.currentSession.username,
-          gp51_token: this.currentSession.token,
-          token_expires_at: this.currentSession.expiresAt.toISOString(),
-          updated_at: new Date().toISOString()
-        });
+      // Use the upsert_gp51_session function which handles the password_hash requirement
+      const { data, error } = await supabase.rpc('upsert_gp51_session', {
+        p_envio_user_id: user.id,
+        p_username: this.currentSession.username,
+        p_password_hash: 'session_managed', // Placeholder since this is session-based
+        p_gp51_token: this.currentSession.token,
+        p_api_url: 'https://www.gps51.com',
+        p_token_expires_at: this.currentSession.expiresAt.toISOString()
+      });
 
       if (error) {
         console.error('❌ Failed to persist session to database:', error);
+      } else {
+        console.log('✅ Session persisted to database via RPC');
       }
     } catch (error) {
       console.error('❌ Error persisting session:', error);
