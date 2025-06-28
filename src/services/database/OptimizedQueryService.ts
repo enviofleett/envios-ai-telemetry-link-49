@@ -35,7 +35,7 @@ export class OptimizedQueryService {
     return OptimizedQueryService.instance;
   }
 
-  async executeQuery<T>(
+  async executeQuery<T = any>(
     queryKey: string,
     queryFn: () => Promise<T>,
     options: QueryOptions = {}
@@ -104,7 +104,7 @@ export class OptimizedQueryService {
     }, { cacheTTL: 30 * 1000 }); // Cache for 30 seconds
   }
 
-  async getFleetStatistics(): Promise<{ [key: string]: any }> {
+  async getFleetStatistics(): Promise<any> {
     const queryKey = 'fleet:statistics';
     
     return this.executeQuery(queryKey, async () => {
