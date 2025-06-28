@@ -15,6 +15,11 @@ export interface UseGPS51IntegrationReturn {
     failedAttempts: number;
     lastSuccessfulConnection: Date | null;
     securityLevel: 'high' | 'medium' | 'low';
+    recentFailedAttempts: number;
+    lockedAccounts: number;
+    rateLimitExceeded: number;
+    totalEvents: number;
+    lastEventTime: Date | null;
   };
   refreshSecurityStats: () => Promise<void>;
 }
@@ -27,7 +32,12 @@ export function useGPS51Integration(): UseGPS51IntegrationReturn {
     totalConnections: 0,
     failedAttempts: 0,
     lastSuccessfulConnection: null as Date | null,
-    securityLevel: 'medium' as 'high' | 'medium' | 'low'
+    securityLevel: 'medium' as 'high' | 'medium' | 'low',
+    recentFailedAttempts: 0,
+    lockedAccounts: 0,
+    rateLimitExceeded: 0,
+    totalEvents: 0,
+    lastEventTime: null as Date | null
   });
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
@@ -44,7 +54,9 @@ export function useGPS51Integration(): UseGPS51IntegrationReturn {
         ...prev,
         totalConnections: prev.totalConnections + 1,
         lastSuccessfulConnection: new Date(),
-        securityLevel: 'high'
+        securityLevel: 'high',
+        totalEvents: prev.totalEvents + 1,
+        lastEventTime: new Date()
       }));
       return true;
     } catch (err) {
@@ -53,7 +65,10 @@ export function useGPS51Integration(): UseGPS51IntegrationReturn {
       setSecurityStats(prev => ({
         ...prev,
         failedAttempts: prev.failedAttempts + 1,
-        securityLevel: prev.failedAttempts > 3 ? 'low' : 'medium'
+        recentFailedAttempts: prev.recentFailedAttempts + 1,
+        securityLevel: prev.failedAttempts > 3 ? 'low' : 'medium',
+        totalEvents: prev.totalEvents + 1,
+        lastEventTime: new Date()
       }));
       return false;
     } finally {
@@ -102,7 +117,12 @@ export function useGPS51Integration(): UseGPS51IntegrationReturn {
         ...prev,
         totalConnections: Math.floor(Math.random() * 100) + prev.totalConnections,
         failedAttempts: Math.floor(Math.random() * 10),
-        securityLevel: Math.random() > 0.5 ? 'high' : 'medium'
+        recentFailedAttempts: Math.floor(Math.random() * 5),
+        lockedAccounts: Math.floor(Math.random() * 3),
+        rateLimitExceeded: Math.floor(Math.random() * 2),
+        totalEvents: prev.totalEvents + Math.floor(Math.random() * 20),
+        securityLevel: Math.random() > 0.5 ? 'high' : 'medium',
+        lastEventTime: new Date()
       }));
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to refresh security stats';
