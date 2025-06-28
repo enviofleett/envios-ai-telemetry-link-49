@@ -3,9 +3,7 @@ import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Navigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MapPin, Activity, Clock, Zap } from 'lucide-react';
-import FleetManagementPage from '@/components/gps51/FleetManagementPage';
+import GPS51LiveTrackingEnhanced from './GPS51LiveTrackingEnhanced';
 import { useGPS51Integration } from '@/hooks/useGPS51Integration';
 
 const GPS51LiveTracking: React.FC = () => {
@@ -20,14 +18,16 @@ const GPS51LiveTracking: React.FC = () => {
     return (
       <Layout>
         <div className="container mx-auto px-4 py-6">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center text-gray-500">
-                <MapPin className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                <p>Please authenticate with GPS51 first to access live tracking features.</p>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="text-center text-gray-500 bg-gray-800 rounded-lg p-8">
+            <h2 className="text-xl font-semibold text-gray-300 mb-4">GPS51 Authentication Required</h2>
+            <p className="text-gray-400 mb-4">Please authenticate with GPS51 first to access live tracking features.</p>
+            <a 
+              href="/gps51/setup" 
+              className="text-blue-400 hover:text-blue-300 underline"
+            >
+              Go to GPS51 Setup →
+            </a>
+          </div>
         </div>
       </Layout>
     );
@@ -35,13 +35,7 @@ const GPS51LiveTracking: React.FC = () => {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-6">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Live Vehicle Tracking</h1>
-          <p className="text-gray-600">Real-time GPS51 fleet monitoring and vehicle status</p>
-        </div>
-        <FleetManagementPage />
-      </div>
+      <GPS51LiveTrackingEnhanced />
     </Layout>
   );
 };
