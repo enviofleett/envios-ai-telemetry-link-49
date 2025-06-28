@@ -35,18 +35,18 @@ export class OptimizedQueryService {
     return OptimizedQueryService.instance;
   }
 
-  async executeQuery<T = any>(
+  async executeQuery(
     queryKey: string,
-    queryFn: () => Promise<T>,
+    queryFn: () => Promise<any>,
     options: QueryOptions = {}
-  ): Promise<T> {
+  ): Promise<any> {
     const startTime = Date.now();
     const { useCache = true, cacheTTL = 5 * 60 * 1000 } = options;
 
     try {
       // Try cache first if enabled
       if (useCache) {
-        const cached = await databaseCacheManager.get<T>(queryKey);
+        const cached = await databaseCacheManager.get(queryKey);
         if (cached !== null) {
           this.updateMetrics(Date.now() - startTime, true);
           return cached;
@@ -69,7 +69,7 @@ export class OptimizedQueryService {
     }
   }
 
-  async getVehicles(userId?: string): Promise<any[]> {
+  async getVehicles(userId?: string) {
     const queryKey = `vehicles:${userId || 'all'}`;
     
     return this.executeQuery(queryKey, async () => {
@@ -88,7 +88,7 @@ export class OptimizedQueryService {
     });
   }
 
-  async getVehiclePositions(deviceIds: string[]): Promise<any[]> {
+  async getVehiclePositions(deviceIds: string[]) {
     const queryKey = `positions:${deviceIds.sort().join(',')}`;
     
     return this.executeQuery(queryKey, async () => {
@@ -104,7 +104,7 @@ export class OptimizedQueryService {
     }, { cacheTTL: 30 * 1000 }); // Cache for 30 seconds
   }
 
-  async getFleetStatistics(): Promise<any> {
+  async getFleetStatistics() {
     const queryKey = 'fleet:statistics';
     
     return this.executeQuery(queryKey, async () => {
@@ -131,12 +131,16 @@ export class OptimizedQueryService {
     this.performanceMetrics.totalQueries++;
     
     if (!cacheHit) {
-      const currentAvg = this.performanceMetrics.averageExecutionTime;
-      const totalNonCachedQueries = this.performanceMetrics.totalQueries - 
-        Math.floor(this.performanceMetrics.totalQueries * (this.performanceMetrics.cacheHitRate / 100));
+      const currentTotal = this.performanceMetrics.totalQueries;
+      const previousAvg = this.performanceMetrics.averageExecutionTime;
       
-      this.performanceMetrics.averageExecutionTime = 
-        (currentAvg * (totalNonCachedQueries - 1) + executionTime) / totalNonCachedQueries;
+      // Simple running average calculation
+      if (currentTotal === 1) {
+        this.performanceMetrics.averageExecutionTime = executionTime;
+      } else {
+        this.performanceMetrics.averageExecutionTime = 
+          ((previousAvg * (currentTotal - 1)) + executionTime) / currentTotal;
+      }
 
       // Track slow queries (>1 second)
       if (executionTime > 1000) {
@@ -156,10 +160,9 @@ export class OptimizedQueryService {
     // Calculate cache hit rate
     const totalQueries = this.performanceMetrics.totalQueries;
     if (totalQueries > 0) {
-      const currentHitRate = this.performanceMetrics.cacheHitRate;
-      const previousHits = Math.floor((totalQueries - 1) * (currentHitRate / 100));
-      const newHits = cacheHit ? previousHits + 1 : previousHits;
-      this.performanceMetrics.cacheHitRate = (newHits / totalQueries) * 100;
+      const currentHitCount = Math.floor(this.performanceMetrics.cacheHitRate * (totalQueries - 1) / 100);
+      const newHitCount = cacheHit ? currentHitCount + 1 : currentHitCount;
+      this.performanceMetrics.cacheHitRate = (newHitCount / totalQueries) * 100;
     }
   }
 
