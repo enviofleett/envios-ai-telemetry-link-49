@@ -11,11 +11,25 @@ export interface GPS51AuthState {
   sessionData?: any;
 }
 
+export interface GPS51SecurityStats {
+  lastAuthentication: Date | null;
+  sessionDuration: number;
+  failedAttempts: number;
+  lastValidation: Date | null;
+}
+
 export const useGPS51Integration = () => {
   const [authState, setAuthState] = useState<GPS51AuthState>({
     isAuthenticated: false,
     isLoading: true,
     error: null
+  });
+
+  const [securityStats, setSecurityStats] = useState<GPS51SecurityStats>({
+    lastAuthentication: null,
+    sessionDuration: 0,
+    failedAttempts: 0,
+    lastValidation: null
   });
 
   // Initialize and check existing session
@@ -39,6 +53,14 @@ export const useGPS51Integration = () => {
             username: sessionData?.username,
             sessionData
           });
+          
+          // Update security stats
+          setSecurityStats(prev => ({
+            ...prev,
+            lastAuthentication: sessionData?.lastActivity || null,
+            lastValidation: new Date()
+          }));
+          
           console.log('✅ GPS51 session restored successfully');
         } else {
           setAuthState({
@@ -93,6 +115,15 @@ export const useGPS51Integration = () => {
         sessionData: data
       });
 
+      // Update security stats
+      setSecurityStats(prev => ({
+        ...prev,
+        lastAuthentication: new Date(),
+        sessionDuration: 0,
+        failedAttempts: 0,
+        lastValidation: new Date()
+      }));
+
       return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
@@ -103,6 +134,12 @@ export const useGPS51Integration = () => {
         isLoading: false,
         error: errorMessage
       });
+
+      // Update failed attempts
+      setSecurityStats(prev => ({
+        ...prev,
+        failedAttempts: prev.failedAttempts + 1
+      }));
       
       return false;
     }
@@ -119,16 +156,106 @@ export const useGPS51Integration = () => {
         error: null
       });
       
+      // Reset security stats
+      setSecurityStats({
+        lastAuthentication: null,
+        sessionDuration: 0,
+        failedAttempts: 0,
+        lastValidation: null
+      });
+      
       console.log('✅ GPS51 logout successful');
     } catch (error) {
       console.error('❌ GPS51 logout error:', error);
     }
   }, []);
 
+  const clearError = useCallback(() => {
+    setAuthState(prev => ({ ...prev, error: null }));
+  }, []);
+
+  const testConnection = useCallback(async (): Promise<boolean> => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true }));
+      
+      const session = gps51SessionManager.getSession();
+      if (!session || !session.token) {
+        throw new Error('No GPS51 session available for testing');
+      }
+
+      // Test connection using the gp51-service edge function
+      const { data, error } = await supabase.functions.invoke('gp51-service', {
+        body: {
+          action: 'querymonitorlist',
+          token: session.token
+        }
+      });
+
+      if (error || data.status !== 0) {
+        throw new Error(data?.cause || error?.message || 'Connection test failed');
+      }
+
+      console.log('✅ GPS51 connection test successful');
+      
+      // Update security stats
+      setSecurityStats(prev => ({
+        ...prev,
+        lastValidation: new Date()
+      }));
+
+      return true;
+    } catch (error) {
+      console.error('❌ GPS51 connection test failed:', error);
+      return false;
+    } finally {
+      setAuthState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, []);
+
+  const refreshSecurityStats = useCallback(async () => {
+    const session = gp51SessionManager.getSession();
+    if (session) {
+      const sessionDuration = Date.now() - session.lastActivity.getTime();
+      setSecurityStats(prev => ({
+        ...prev,
+        sessionDuration: Math.floor(sessionDuration / 1000), // in seconds
+        lastValidation: new Date()
+      }));
+    }
+  }, []);
+
+  const refreshSession = useCallback(async (): Promise<boolean> => {
+    try {
+      const refreshed = await gps51SessionManager.refreshSession();
+      if (refreshed) {
+        const sessionData = gps51SessionManager.getSession();
+        setAuthState(prev => ({
+          ...prev,
+          sessionData,
+          error: null
+        }));
+
+        // Update security stats
+        setSecurityStats(prev => ({
+          ...prev,
+          lastValidation: new Date()
+        }));
+      }
+      return refreshed;
+    } catch (error) {
+      console.error('❌ Session refresh failed:', error);
+      return false;
+    }
+  }, []);
+
   return {
     ...authState,
+    securityStats,
     login,
     logout,
-    refreshSession: () => gps51SessionManager.refreshSession()
+    clearError,
+    testConnection,
+    refreshSecurityStats,
+    refreshSession
   };
 };
