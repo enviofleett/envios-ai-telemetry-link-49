@@ -1,5 +1,4 @@
-
-import { GPS51ApiClient } from './GPS51ApiClient';
+import { GPS51ApiClient, GPS51LoginRequest, GPS51LoginResponse } from './GPS51ApiClient';
 
 export interface Device {
   deviceid: string;

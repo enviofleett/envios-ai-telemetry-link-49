@@ -1,414 +1,321 @@
-
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
 import { 
   MapPin, 
   Navigation, 
-  Gauge, 
   Clock, 
-  Wifi,
-  WifiOff,
-  Play,
-  Pause,
-  RefreshCw,
-  Map as MapIcon,
+  Zap, 
+  RefreshCw, 
+  Settings,
+  Car,
+  Truck,
   Activity
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { gps51TrackingService, Device, DevicePosition } from '@/services/gps51/GPS51TrackingService';
-import DeviceListPanel from './DeviceListPanel';
-import MapTilerMap from '@/components/map/MapTilerMap';
+import { GPS51TrackingService, Device, DevicePosition } from '@/services/gps51/GPS51TrackingService';
 
-interface LiveTrackingDashboardProps {
-  className?: string;
+interface LastPositionResult {
+  positions: DevicePosition[];
 }
 
-const LiveTrackingDashboard: React.FC<LiveTrackingDashboardProps> = ({
-  className = ''
-}) => {
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [isLiveTracking, setIsLiveTracking] = useState(false);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([-74.006, 40.7128]);
-  const [mapZoom, setMapZoom] = useState(10);
+interface DeviceListResult {
+  devices: Device[];
+}
 
-  // Fetch devices
-  const {
-    data: deviceData,
-    isLoading: devicesLoading,
-    error: devicesError
+const LiveTrackingDashboard: React.FC = () => {
+  const [selectedDevices, setSelectedDevices] = useState<string[]>([]);
+  const [mapCenter, setMapCenter] = useState({ lat: 40.7128, lng: -74.0060 });
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  const trackingService = new GPS51TrackingService();
+
+  const { 
+    data: devices, 
+    isLoading: devicesLoading, 
+    error: devicesError,
+    refetch: refetchDevices
   } = useQuery({
-    queryKey: ['gps51-devices'],
-    queryFn: () => gps51TrackingService.queryDeviceList(),
-    refetchInterval: 60000
+    queryKey: ['devices'],
+    queryFn: () => trackingService.queryDeviceList(),
+    refetchInterval: 30000, // 30 seconds
   });
 
-  // Fetch live positions
-  const {
-    data: positionData,
-    isLoading: positionsLoading,
+  const { 
+    data: positions, 
+    isLoading: positionsLoading, 
     refetch: refetchPositions
   } = useQuery({
-    queryKey: ['gps51-positions', selectedDevice?.deviceid],
-    queryFn: () => gps51TrackingService.getLastPositions(
-      selectedDevice ? [selectedDevice.deviceid] : undefined
-    ),
-    enabled: !!selectedDevice || isLiveTracking,
-    refetchInterval: isLiveTracking ? 30000 : false, // 30 seconds when live tracking
-    staleTime: 15000
+    queryKey: ['positions', selectedDevices],
+    queryFn: () => trackingService.getLastPositions(selectedDevices),
+    enabled: selectedDevices.length > 0,
+    refetchInterval: 15000, // 15 seconds
   });
 
-  const devices = deviceData?.devices || [];
-  const positions = positionData?.positions || [];
-  const currentPosition = selectedDevice 
-    ? positions.find(p => p.deviceid === selectedDevice.deviceid)
-    : null;
-
-  // Update map center when device is selected
-  useEffect(() => {
-    if (currentPosition) {
-      setMapCenter([currentPosition.lon, currentPosition.lat]);
-      setMapZoom(15);
-    }
-  }, [currentPosition]);
-
-  const handleDeviceSelect = (device: Device) => {
-    setSelectedDevice(device);
-    console.log('Selected device for tracking:', device.devicename);
+  const getDeviceName = (deviceId: string) => {
+    const device = devices?.devices?.find(d => d.deviceid === deviceId);
+    return device?.devicename || deviceId;
   };
 
-  const toggleLiveTracking = () => {
-    setIsLiveTracking(!isLiveTracking);
-    if (!isLiveTracking) {
+  const getDeviceStatusBadge = (device: Device) => {
+    const isActive = device.status === 'active';
+    return (
+      <Badge variant={isActive ? 'default' : 'destructive'}>
+        {isActive ? 'Active' : 'Inactive'}
+      </Badge>
+    );
+  };
+
+  const getPositionStatusBadge = (position: DevicePosition) => {
+    const isMoving = position.speed > 5;
+    return (
+      <Badge variant={isMoving ? 'default' : 'secondary'}>
+        {isMoving ? 'Moving' : 'Stopped'}
+      </Badge>
+    );
+  };
+
+  const getSpeedBadge = (speed: number) => {
+    const isFast = speed > 80;
+    return (
+      <Badge variant={isFast ? 'destructive' : 'outline'}>
+        {speed} km/h
+      </Badge>
+    );
+  };
+
+  const formatLastSeen = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+
+    if (minutes < 60) {
+      return `${minutes} minutes ago`;
+    } else if (minutes < 1440) {
+      return `${Math.floor(minutes / 60)} hours ago`;
+    } else {
+      return `${Math.floor(minutes / 1440)} days ago`;
+    }
+  };
+
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+  };
+
+  const toggleDeviceSelection = (deviceId: string) => {
+    setSelectedDevices((prev) => {
+      if (prev.includes(deviceId)) {
+        return prev.filter((id) => id !== deviceId);
+      } else {
+        return [...prev, deviceId];
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (positions?.positions && positions.positions.length > 0) {
+      const firstPosition = positions.positions[0];
+      setMapCenter({ lat: firstPosition.lat, lng: firstPosition.lon });
+    }
+  }, [positions]);
+
+  const handleRefresh = () => {
+    refetchDevices();
+    if (selectedDevices.length > 0) {
       refetchPositions();
     }
   };
 
-  const formatSpeed = (speed: number) => {
-    return `${Math.round(speed)} km/h`;
-  };
+  if (devicesLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center gap-2 text-gray-400">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          Loading devices...
+        </div>
+      </div>
+    );
+  }
 
-  const formatCoordinate = (coord: number, type: 'lat' | 'lon') => {
-    const direction = type === 'lat' ? (coord >= 0 ? 'N' : 'S') : (coord >= 0 ? 'E' : 'W');
-    return `${Math.abs(coord).toFixed(6)}° ${direction}`;
-  };
-
-  const getDeviceStatusColor = (status: string) => {
-    switch (status) {
-      case 'moving': return 'text-green-400';
-      case 'parked': return 'text-yellow-400';
-      case 'online': return 'text-blue-400';
-      case 'offline': return 'text-red-400';
-      default: return 'text-gray-400';
-    }
-  };
-
-  // Prepare vehicles for map
-  const mapVehicles = devices.map(device => {
-    const position = positions.find(p => p.deviceid === device.deviceid);
-    return {
-      device_id: device.deviceid,
-      device_name: device.devicename,
-      last_position: position ? {
-        latitude: position.lat,
-        longitude: position.lon
-      } : undefined,
-      status: device.status
-    };
-  }).filter(v => v.last_position);
-
-  const selectedMapVehicle = selectedDevice ? {
-    device_id: selectedDevice.deviceid,
-    device_name: selectedDevice.devicename,
-    last_position: currentPosition ? {
-      latitude: currentPosition.lat,
-      longitude: currentPosition.lon
-    } : undefined
-  } : null;
+  if (devicesError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="text-red-400 mb-2">Failed to load devices</div>
+          <Button onClick={handleRefresh} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className={`space-y-6 ${className}`}>
-      {/* Header */}
+    <div className="space-y-6">
+      {/* Header Controls */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-white">Live Fleet Tracking</h2>
-          <p className="text-gray-400 mt-1">
-            Real-time vehicle monitoring and location tracking
-          </p>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold text-white">Live Tracking</h2>
+          <Badge variant="outline" className="border-blue-500 text-blue-400">
+            {devices?.devices?.length || 0} Devices
+          </Badge>
         </div>
         
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            {isLiveTracking ? (
-              <Wifi className="h-5 w-5 text-green-400" />
-            ) : (
-              <WifiOff className="h-5 w-5 text-gray-400" />
-            )}
-            <span className="text-sm text-gray-300">
-              {isLiveTracking ? 'Live Tracking' : 'Paused'}
-            </span>
-          </div>
-          
+        <div className="flex items-center gap-2">
           <Button
-            onClick={toggleLiveTracking}
-            variant={isLiveTracking ? "destructive" : "default"}
-            className="flex items-center gap-2"
+            onClick={handleRefresh}
+            variant="outline"
+            size="sm"
+            disabled={devicesLoading || positionsLoading}
+            className="border-gray-600 text-gray-300 hover:bg-gray-700"
           >
-            {isLiveTracking ? (
-              <>
-                <Pause className="h-4 w-4" />
-                Pause Tracking
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4" />
-                Start Live Tracking
-              </>
-            )}
+            <RefreshCw className={`h-4 w-4 mr-2 ${(devicesLoading || positionsLoading) ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          
+          <Button variant="ghost" size="sm" className="text-gray-400 hover:text-white">
+            <Settings className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Device List Sidebar */}
-        <div className="lg:col-span-1">
-          <DeviceListPanel
-            onDeviceSelect={handleDeviceSelect}
-            selectedDeviceId={selectedDevice?.deviceid}
-            className="h-fit"
-          />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Device List */}
+        <div className="lg:col-span-1 space-y-4">
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-white flex items-center gap-2">
+                <Car className="h-5 w-5 text-blue-400" />
+                Fleet Devices
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {devices?.devices?.map((device) => (
+                <div
+                  key={device.deviceid}
+                  className={`p-3 rounded-lg border transition-all cursor-pointer ${
+                    selectedDevices.includes(device.deviceid)
+                      ? 'border-blue-500 bg-blue-900/20'
+                      : 'border-gray-600 bg-gray-700/50 hover:bg-gray-700'
+                  }`}
+                  onClick={() => toggleDeviceSelection(device.deviceid)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-white truncate">
+                      {device.devicename || device.deviceid}
+                    </span>
+                    {getDeviceStatusBadge(device)}
+                  </div>
+                  
+                  <div className="flex items-center gap-4 text-sm text-gray-400">
+                    <div className="flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      <span>GPS</span>
+                    </div>
+                    {device.lastactivetime && (
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        <span>{formatLastSeen(device.lastactivetime)}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {device.simnum && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      SIM: {device.simnum}
+                    </div>
+                  )}
+                </div>
+              ))}
+              
+              {(!devices?.devices || devices.devices.length === 0) && (
+                <div className="text-center py-8 text-gray-400">
+                  <Car className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No devices found</p>
+                  <p className="text-sm">Add devices to start tracking</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* Map and Details */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Interactive Map */}
+        <div className="lg:col-span-2 space-y-4">
+          {/* Map Placeholder */}
           <Card className="bg-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-white">
-                <MapIcon className="h-5 w-5 text-blue-400" />
-                Fleet Map
-                {isLiveTracking && (
-                  <Badge className="bg-green-600 text-white animate-pulse">
-                    LIVE
-                  </Badge>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-96 rounded-lg overflow-hidden">
-                <MapTilerMap
-                  center={mapCenter}
-                  zoom={mapZoom}
-                  vehicles={mapVehicles}
-                  selectedVehicle={selectedMapVehicle}
-                  onVehicleSelect={(vehicle) => {
-                    const device = devices.find(d => d.deviceid === vehicle.device_id);
-                    if (device) {
-                      handleDeviceSelect(device);
-                    }
-                  }}
-                  autoFitBounds={!selectedDevice && mapVehicles.length > 1}
-                  className="w-full h-full"
-                />
+            <CardContent className="p-0">
+              <div className="h-96 bg-gray-900 rounded-lg flex items-center justify-center">
+                <div className="text-center text-gray-400">
+                  <MapPin className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg font-medium mb-2">Interactive Map</p>
+                  <p className="text-sm">Real-time device positions will be displayed here</p>
+                  {selectedDevices.length === 0 && (
+                    <p className="text-xs mt-2">Select devices from the list to view their locations</p>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Device Information Panel */}
-          {selectedDevice && (
+          {/* Selected Device Details */}
+          {selectedDevices.length > 0 && (
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-white">
-                  <Activity className="h-5 w-5 text-blue-400" />
-                  {selectedDevice.devicename} - Live Information
-                  <Badge className={getDeviceStatusColor(selectedDevice.status)}>
-                    {selectedDevice.status.toUpperCase()}
-                  </Badge>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-green-400" />
+                  Device Information
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <Tabs defaultValue="current" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3 bg-gray-700">
-                    <TabsTrigger value="current" className="data-[state=active]:bg-blue-600">
-                      Current Status
-                    </TabsTrigger>
-                    <TabsTrigger value="location" className="data-[state=active]:bg-blue-600">
-                      Location
-                    </TabsTrigger>
-                    <TabsTrigger value="details" className="data-[state=active]:bg-blue-600">
-                      Details
-                    </TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="current" className="mt-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-gray-700 p-4 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Gauge className="h-5 w-5 text-blue-400" />
-                          <span className="text-sm text-gray-400">Speed</span>
-                        </div>
-                        <div className="text-xl font-bold text-white">
-                          {currentPosition ? formatSpeed(currentPosition.speed) : 'N/A'}
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-700 p-4 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Navigation className="h-5 w-5 text-green-400" />
-                          <span className="text-sm text-gray-400">Heading</span>
-                        </div>
-                        <div className="text-xl font-bold text-white">
-                          {currentPosition ? `${Math.round(currentPosition.course)}°` : 'N/A'}
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-700 p-4 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                          <MapPin className="h-5 w-5 text-purple-400" />
-                          <span className="text-sm text-gray-400">Altitude</span>
-                        </div>
-                        <div className="text-xl font-bold text-white">
-                          {currentPosition ? `${Math.round(currentPosition.altitude)}m` : 'N/A'}
-                        </div>
-                      </div>
-
-                      <div className="bg-gray-700 p-4 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Clock className="h-5 w-5 text-orange-400" />
-                          <span className="text-sm text-gray-400">Last Update</span>
-                        </div>
-                        <div className="text-sm font-medium text-white">
-                          {currentPosition 
-                            ? new Date(currentPosition.timestamp).toLocaleTimeString()
-                            : 'N/A'
-                          }
-                        </div>
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent value="location" className="mt-4">
-                    {currentPosition ? (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="bg-gray-700 p-4 rounded-lg">
-                            <h4 className="text-sm font-medium text-gray-400 mb-2">Coordinates</h4>
-                            <div className="space-y-1">
-                              <p className="text-white font-mono">
-                                Lat: {formatCoordinate(currentPosition.lat, 'lat')}
-                              </p>
-                              <p className="text-white font-mono">
-                                Lon: {formatCoordinate(currentPosition.lon, 'lon')}
-                              </p>
-                            </div>
+                {positionsLoading ? (
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Loading positions...
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {positions?.positions?.map((position) => (
+                      <div key={position.deviceid} className="border-b border-gray-700 pb-4 last:border-b-0">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-white">
+                            {getDeviceName(position.deviceid)}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {getSpeedBadge(position.speed)}
+                            {getPositionStatusBadge(position)}
                           </div>
-
-                          <div className="bg-gray-700 p-4 rounded-lg">
-                            <h4 className="text-sm font-medium text-gray-400 mb-2">Address</h4>
-                            <p className="text-white">
-                              {currentPosition.address || 'Address not available'}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-400">Location:</span>
+                            <p className="text-white">{position.address || 'Unknown'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Coordinates:</span>
+                            <p className="text-white font-mono text-xs">
+                              {position.lat.toFixed(6)}, {position.lon.toFixed(6)}
                             </p>
                           </div>
-                        </div>
-
-                        <div className="bg-gray-700 p-4 rounded-lg">
-                          <h4 className="text-sm font-medium text-gray-400 mb-2">Quick Actions</h4>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                const url = `https://www.google.com/maps?q=${currentPosition.lat},${currentPosition.lon}`;
-                                window.open(url, '_blank');
-                              }}
-                              className="border-gray-600 text-gray-300 hover:bg-gray-600"
-                            >
-                              <MapPin className="h-4 w-4 mr-2" />
-                              View on Google Maps
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={refetchPositions}
-                              disabled={positionsLoading}
-                              className="border-gray-600 text-gray-300 hover:bg-gray-600"
-                            >
-                              <RefreshCw className={`h-4 w-4 mr-2 ${positionsLoading ? 'animate-spin' : ''}`} />
-                              Refresh
-                            </Button>
+                          <div>
+                            <span className="text-gray-400">Speed:</span>
+                            <p className="text-white">{position.speed} km/h</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Last Update:</span>
+                            <p className="text-white">{formatTimestamp(position.timestamp)}</p>
                           </div>
                         </div>
                       </div>
-                    ) : (
-                      <div className="text-center py-8 text-gray-400">
-                        <MapPin className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>No location data available</p>
-                        <p className="text-sm mt-1">
-                          {positionsLoading ? 'Loading position...' : 'Device may be offline'}
-                        </p>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="details" className="mt-4">
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-gray-700 p-4 rounded-lg">
-                          <h4 className="text-sm font-medium text-gray-400 mb-2">Device Information</h4>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">Device ID:</span>
-                              <span className="text-white font-mono">{selectedDevice.deviceid}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">Device Name:</span>
-                              <span className="text-white">{selectedDevice.devicename}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">Device Type:</span>
-                              <span className="text-white">{selectedDevice.devicetype}</span>
-                            </div>
-                            {selectedDevice.simnum && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-400">SIM Number:</span>
-                                <span className="text-white font-mono">{selectedDevice.simnum}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="bg-gray-700 p-4 rounded-lg">
-                          <h4 className="text-sm font-medium text-gray-400 mb-2">Status Information</h4>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-gray-400">Current Status:</span>
-                              <Badge className={getDeviceStatusColor(selectedDevice.status)}>
-                                {selectedDevice.status.toUpperCase()}
-                              </Badge>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">Account Status:</span>
-                              <span className="text-white">
-                                {selectedDevice.isfree === 1 ? 'Normal' : 'Limited'}
-                              </span>
-                            </div>
-                            {selectedDevice.lastactivetime > 0 && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-400">Last Active:</span>
-                                <span className="text-white">
-                                  {new Date(selectedDevice.lastactivetime * 1000).toLocaleString()}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
