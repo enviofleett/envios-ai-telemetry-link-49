@@ -19,6 +19,41 @@ interface QueryOptions {
   timeout?: number;
 }
 
+// Simple types to avoid deep type instantiation
+interface FleetStatistics {
+  totalVehicles: number;
+  activeVehicles: number;
+  inactiveVehicles: number;
+  lastUpdated: string;
+}
+
+interface VehicleData {
+  device_id: string;
+  device_name: string;
+  user_id?: string;
+  status: string;
+  is_online: boolean;
+}
+
+interface PositionData {
+  device_id: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  course: number;
+  altitude: number;
+  device_time: string;
+  server_time: string;
+  status: number;
+  moving: number;
+  gps_source: string;
+  battery: number;
+  signal: number;
+  satellites: number;
+  created_at: string;
+  raw_data: any;
+}
+
 export class OptimizedQueryService {
   private static instance: OptimizedQueryService;
   private performanceMetrics: QueryPerformanceMetrics = {
@@ -35,11 +70,11 @@ export class OptimizedQueryService {
     return OptimizedQueryService.instance;
   }
 
-  async executeQuery(
+  async executeQuery<T = unknown>(
     queryKey: string,
-    queryFn: () => Promise<any>,
+    queryFn: () => Promise<T>,
     options: QueryOptions = {}
-  ): Promise<any> {
+  ): Promise<T> {
     const startTime = Date.now();
     const { useCache = true, cacheTTL = 5 * 60 * 1000 } = options;
 
@@ -49,7 +84,7 @@ export class OptimizedQueryService {
         const cached = await databaseCacheManager.get(queryKey);
         if (cached !== null) {
           this.updateMetrics(Date.now() - startTime, true);
-          return cached;
+          return cached as T;
         }
       }
 
@@ -69,7 +104,7 @@ export class OptimizedQueryService {
     }
   }
 
-  async getVehicles(userId?: string) {
+  async getVehicles(userId?: string): Promise<VehicleData[]> {
     const queryKey = `vehicles:${userId || 'all'}`;
     
     return this.executeQuery(queryKey, async () => {
@@ -84,11 +119,11 @@ export class OptimizedQueryService {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      return (data || []) as VehicleData[];
     });
   }
 
-  async getVehiclePositions(deviceIds: string[]) {
+  async getVehiclePositions(deviceIds: string[]): Promise<PositionData[]> {
     const queryKey = `positions:${deviceIds.sort().join(',')}`;
     
     return this.executeQuery(queryKey, async () => {
@@ -100,11 +135,11 @@ export class OptimizedQueryService {
         .limit(deviceIds.length);
 
       if (error) throw error;
-      return data || [];
+      return (data || []) as PositionData[];
     }, { cacheTTL: 30 * 1000 }); // Cache for 30 seconds
   }
 
-  async getFleetStatistics() {
+  async getFleetStatistics(): Promise<FleetStatistics> {
     const queryKey = 'fleet:statistics';
     
     return this.executeQuery(queryKey, async () => {
@@ -123,7 +158,7 @@ export class OptimizedQueryService {
         activeVehicles,
         inactiveVehicles: totalVehicles - activeVehicles,
         lastUpdated: new Date().toISOString()
-      };
+      } as FleetStatistics;
     }, { cacheTTL: 60 * 1000 }); // Cache for 1 minute
   }
 
