@@ -1,9 +1,8 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { useRealTimePositions } from './useRealTimePositions';
 import { livePositionService } from '@/services/gp51/LivePositionService';
 import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
-import { gps51ProductionService } from '@/services/gp51ProductionService';
+import { GP51ProductionService } from '@/services/gp51ProductionService';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GP51DeviceStatus {
@@ -20,6 +19,17 @@ export interface GP51DeviceStatus {
   };
 }
 
+export interface SecurityStats {
+  totalConnections: number;
+  failedAttempts: number;
+  lastUpdate: Date;
+  securityEvents: Array<{
+    type: string;
+    timestamp: Date;
+    description: string;
+  }>;
+}
+
 export interface UseGP51IntegrationReturn {
   devices: GP51DeviceStatus[];
   positions: Map<string, any>;
@@ -27,6 +37,7 @@ export interface UseGP51IntegrationReturn {
   isLoading: boolean;
   error: string | null;
   isAuthenticated: boolean;
+  securityStats: SecurityStats;
   startTracking: () => Promise<void>;
   stopTracking: () => void;
   refreshDevices: () => Promise<void>;
@@ -34,6 +45,9 @@ export interface UseGP51IntegrationReturn {
   authenticateWithGP51: (username: string, password: string) => Promise<boolean>;
   testConnection: () => Promise<boolean>;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  clearError: () => void;
+  refreshSecurityStats: () => Promise<void>;
 }
 
 export function useGPS51Integration(): UseGP51IntegrationReturn {
@@ -42,6 +56,12 @@ export function useGPS51Integration(): UseGP51IntegrationReturn {
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
+  const [securityStats, setSecurityStats] = useState<SecurityStats>({
+    totalConnections: 0,
+    failedAttempts: 0,
+    lastUpdate: new Date(),
+    securityEvents: []
+  });
 
   const { 
     positions, 
@@ -86,6 +106,21 @@ export function useGPS51Integration(): UseGP51IntegrationReturn {
     return { success, error: success ? undefined : error || 'Authentication failed' };
   }, [authenticateWithGP51, error]);
 
+  const logout = useCallback(async () => {
+    try {
+      setIsAuthenticated(false);
+      setError(null);
+      stopTracking();
+      console.log('👋 GP51 logout completed');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  }, []);
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
   const testConnection = useCallback(async (): Promise<boolean> => {
     try {
       const health = await unifiedGP51Service.getConnectionHealth();
@@ -93,6 +128,26 @@ export function useGPS51Integration(): UseGP51IntegrationReturn {
     } catch (err) {
       console.error('Connection test failed:', err);
       return false;
+    }
+  }, []);
+
+  const refreshSecurityStats = useCallback(async () => {
+    try {
+      // Mock security stats - in production this would fetch from GP51 API
+      setSecurityStats({
+        totalConnections: Math.floor(Math.random() * 100),
+        failedAttempts: Math.floor(Math.random() * 10),
+        lastUpdate: new Date(),
+        securityEvents: [
+          {
+            type: 'authentication',
+            timestamp: new Date(),
+            description: 'Successful login attempt'
+          }
+        ]
+      });
+    } catch (err) {
+      console.error('Failed to refresh security stats:', err);
     }
   }, []);
 
@@ -216,7 +271,8 @@ export function useGPS51Integration(): UseGP51IntegrationReturn {
 
   useEffect(() => {
     loadDevicesFromDatabase();
-  }, [loadDevicesFromDatabase]);
+    refreshSecurityStats();
+  }, [loadDevicesFromDatabase, refreshSecurityStats]);
 
   useEffect(() => {
     const loadExistingSession = async () => {
@@ -243,13 +299,17 @@ export function useGPS51Integration(): UseGP51IntegrationReturn {
     isLoading,
     error,
     isAuthenticated,
+    securityStats,
     startTracking,
     stopTracking,
     refreshDevices,
     syncWithGP51,
     authenticateWithGP51,
     testConnection,
-    login
+    login,
+    logout,
+    clearError,
+    refreshSecurityStats
   };
 }
 

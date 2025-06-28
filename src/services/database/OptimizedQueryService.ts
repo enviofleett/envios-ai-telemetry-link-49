@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 import { databaseCacheManager } from '@/services/caching/DatabaseCacheManager';
 
@@ -103,7 +104,7 @@ export class OptimizedQueryService {
     }, { cacheTTL: 30 * 1000 }); // Cache for 30 seconds
   }
 
-  async getFleetStatistics(): Promise<any> {
+  async getFleetStatistics(): Promise<Record<string, any>> {
     const queryKey = 'fleet:statistics';
     
     return this.executeQuery(queryKey, async () => {
