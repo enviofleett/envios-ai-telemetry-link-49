@@ -34,7 +34,7 @@ export class OptimizedQueryService {
     return OptimizedQueryService.instance;
   }
 
-  async executeQuery<T = any>(
+  async executeQuery<T>(
     queryKey: string,
     queryFn: () => Promise<T>,
     options: QueryOptions = {}

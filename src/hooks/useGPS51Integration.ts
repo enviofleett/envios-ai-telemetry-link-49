@@ -1,8 +1,9 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { useRealTimePositions } from './useRealTimePositions';
 import { livePositionService } from '@/services/gp51/LivePositionService';
 import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
-import { gps51ProductionService } from '@/services/gp51/GPS51ProductionService';
+import { gps51ProductionService } from '@/services/gp51ProductionService';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface GP51DeviceStatus {
@@ -19,23 +20,27 @@ export interface GP51DeviceStatus {
   };
 }
 
-export interface UseEnhancedGP51IntegrationReturn {
+export interface UseGP51IntegrationReturn {
   devices: GP51DeviceStatus[];
   positions: Map<string, any>;
   isConnected: boolean;
   isLoading: boolean;
   error: string | null;
+  isAuthenticated: boolean;
   startTracking: () => Promise<void>;
   stopTracking: () => void;
   refreshDevices: () => Promise<void>;
   syncWithGP51: () => Promise<void>;
   authenticateWithGP51: (username: string, password: string) => Promise<boolean>;
+  testConnection: () => Promise<boolean>;
+  login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
 }
 
-export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
+export function useGPS51Integration(): UseGP51IntegrationReturn {
   const [devices, setDevices] = useState<GP51DeviceStatus[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
 
   const { 
@@ -56,20 +61,38 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
       
       if (response.status === 0) {
         console.log('✅ GP51 authentication successful');
+        setIsAuthenticated(true);
         return true;
       } else {
         const errorMsg = response.cause || 'Authentication failed';
         console.error('❌ GP51 authentication failed:', errorMsg);
         setError(errorMsg);
+        setIsAuthenticated(false);
         return false;
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Authentication error';
       console.error('❌ GP51 authentication error:', errorMsg);
       setError(errorMsg);
+      setIsAuthenticated(false);
       return false;
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  const login = useCallback(async (username: string, password: string) => {
+    const success = await authenticateWithGP51(username, password);
+    return { success, error: success ? undefined : error || 'Authentication failed' };
+  }, [authenticateWithGP51, error]);
+
+  const testConnection = useCallback(async (): Promise<boolean> => {
+    try {
+      const health = await unifiedGP51Service.getConnectionHealth();
+      return health.isConnected;
+    } catch (err) {
+      console.error('Connection test failed:', err);
+      return false;
     }
   }, []);
 
@@ -202,6 +225,7 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
         const sessionLoaded = await service.loadExistingSession();
         if (sessionLoaded) {
           console.log('✅ Loaded existing GP51 session');
+          setIsAuthenticated(true);
           await loadDevicesFromDatabase();
         }
       } catch (err) {
@@ -218,10 +242,16 @@ export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
     isConnected: isConnected && unifiedGP51Service.isAuthenticated,
     isLoading,
     error,
+    isAuthenticated,
     startTracking,
     stopTracking,
     refreshDevices,
     syncWithGP51,
-    authenticateWithGP51
+    authenticateWithGP51,
+    testConnection,
+    login
   };
 }
+
+// Export both for compatibility
+export const useEnhancedGP51Integration = useGPS51Integration;
