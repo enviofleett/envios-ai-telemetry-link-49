@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { databaseCacheManager } from '@/services/caching/DatabaseCacheManager';
 
@@ -35,7 +34,7 @@ export class OptimizedQueryService {
     return OptimizedQueryService.instance;
   }
 
-  async executeQuery<T>(
+  async executeQuery<T = unknown>(
     queryKey: string,
     queryFn: () => Promise<T>,
     options: QueryOptions = {}
@@ -104,12 +103,7 @@ export class OptimizedQueryService {
     }, { cacheTTL: 30 * 1000 }); // Cache for 30 seconds
   }
 
-  async getFleetStatistics(): Promise<{
-    totalVehicles: number;
-    activeVehicles: number;
-    inactiveVehicles: number;
-    lastUpdated: string;
-  }> {
+  async getFleetStatistics() {
     const queryKey = 'fleet:statistics';
     
     return this.executeQuery(queryKey, async () => {
@@ -158,10 +152,12 @@ export class OptimizedQueryService {
       }
     }
 
-    // Update cache hit rate with simple calculation
-    const hitCount = Math.floor(this.performanceMetrics.totalQueries * (this.performanceMetrics.cacheHitRate / 100));
-    const newHitCount = cacheHit ? hitCount + 1 : hitCount;
-    this.performanceMetrics.cacheHitRate = (newHitCount / this.performanceMetrics.totalQueries) * 100;
+    // Simple cache hit rate calculation to avoid type recursion
+    const totalQueries = this.performanceMetrics.totalQueries;
+    const currentHitRate = this.performanceMetrics.cacheHitRate;
+    const currentHits = Math.floor((totalQueries - 1) * (currentHitRate / 100));
+    const newHits = cacheHit ? currentHits + 1 : currentHits;
+    this.performanceMetrics.cacheHitRate = totalQueries > 0 ? (newHits / totalQueries) * 100 : 0;
   }
 
   getPerformanceMetrics(): QueryPerformanceMetrics {
