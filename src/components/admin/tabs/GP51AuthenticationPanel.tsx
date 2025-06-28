@@ -1,228 +1,166 @@
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import { Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import { useGP51AuthConsolidated } from '@/hooks/useGP51AuthConsolidated';
-import { Loader2, Key, CheckCircle, XCircle, RefreshCw, LogOut } from 'lucide-react';
 
 const GP51AuthenticationPanel: React.FC = () => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isCheckingConnection, setIsCheckingConnection] = useState(false);
+
   const {
     isAuthenticated,
-    username,
-    tokenExpiresAt,
     isLoading,
     error,
-    isCheckingStatus,
+    username: authenticatedUsername,
     login,
     logout,
-    refreshStatus,
+    checkConnection,
     clearError
   } = useGP51AuthConsolidated();
 
-  const [formData, setFormData] = useState({
-    username: '',
-    password: ''
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const { toast } = useToast();
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    if (error) clearError();
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!formData.username.trim() || !formData.password.trim()) {
-      toast({
-        title: "Validation Error",
-        description: "Please enter both username and password",
-        variant: "destructive",
-      });
+  const handleLogin = async () => {
+    if (!username.trim() || !password.trim()) {
       return;
     }
 
-    const result = await login(formData.username, formData.password);
-    
+    const result = await login(username, password);
     if (result.success) {
-      setFormData({ username: '', password: '' });
+      setPassword(''); // Clear password on successful login
+    }
+  };
+
+  const handleRefreshStatus = async () => {
+    setIsCheckingConnection(true);
+    try {
+      await checkConnection();
+    } finally {
+      setIsCheckingConnection(false);
     }
   };
 
   const handleLogout = async () => {
     await logout();
-  };
-
-  const formatExpirationTime = (expiresAt: Date) => {
-    const now = new Date();
-    const timeLeft = expiresAt.getTime() - now.getTime();
-    
-    if (timeLeft <= 0) {
-      return 'Expired';
-    }
-    
-    const hours = Math.floor(timeLeft / (1000 * 60 * 60));
-    const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${hours}h ${minutes}m remaining`;
+    setUsername('');
+    setPassword('');
   };
 
   return (
-    <Card>
+    <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Key className="h-5 w-5" />
-          GP51 Authentication
+          <span>GP51 Authentication</span>
+          {isAuthenticated ? (
+            <CheckCircle className="h-5 w-5 text-green-500" />
+          ) : (
+            <XCircle className="h-5 w-5 text-red-500" />
+          )}
         </CardTitle>
-        <CardDescription>
-          Authenticate with GP51 telemetry system to enable vehicle tracking and management
-        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
-        
-        {/* Status Display */}
-        <div className="p-4 border rounded-lg bg-muted/30">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="font-medium">Connection Status</h4>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={refreshStatus}
-              disabled={isCheckingStatus}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isCheckingStatus ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-          </div>
-
-          {isCheckingStatus ? (
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Checking status...
-            </div>
-          ) : isAuthenticated ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-green-500" />
-                <Badge variant="default" className="bg-green-100 text-green-800">
-                  Connected
-                </Badge>
-              </div>
-              {username && (
-                <p className="text-sm text-muted-foreground">
-                  <strong>User:</strong> {username}
-                </p>
-              )}
-              {tokenExpiresAt && (
-                <p className="text-sm text-muted-foreground">
-                  <strong>Session:</strong> {formatExpirationTime(tokenExpiresAt)}
-                </p>
-              )}
+      <CardContent className="space-y-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription className="flex items-center justify-between">
+              <span>{error}</span>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
+                onClick={clearError}
+                className="h-auto p-1"
+              >
+                ×
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isAuthenticated ? (
+          <div className="space-y-4">
+            <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm text-green-800">
+                ✅ Connected to GP51 as: <strong>{authenticatedUsername}</strong>
+              </p>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                onClick={handleRefreshStatus}
+                disabled={isCheckingConnection}
+                variant="outline"
+                className="flex-1"
+              >
+                {isCheckingConnection ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Refresh Status
+              </Button>
+              
+              <Button
                 onClick={handleLogout}
                 disabled={isLoading}
-                className="mt-2"
+                variant="destructive"
               >
-                <LogOut className="h-4 w-4 mr-2" />
-                Disconnect
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : null}
+                Logout
               </Button>
             </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-red-500" />
-              <Badge variant="secondary" className="bg-red-100 text-red-800">
-                Not Connected
-              </Badge>
-            </div>
-          )}
-        </div>
-
-        {/* Authentication Form */}
-        {!isAuthenticated && (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="gp51-username">GP51 Username</Label>
-                <Input
-                  id="gp51-username"
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => handleInputChange('username', e.target.value)}
-                  placeholder="Enter your GP51 username"
-                  disabled={isLoading}
-                  autoComplete="username"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Enter your GP51 telemetry system username (not email)
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="gp51-password">GP51 Password</Label>
-                <div className="relative">
-                  <Input
-                    id="gp51-password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={formData.password}
-                    onChange={(e) => handleInputChange('password', e.target.value)}
-                    placeholder="Enter your GP51 password"
-                    disabled={isLoading}
-                    autoComplete="current-password"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? '👁️' : '👁️‍🗨️'}
-                  </Button>
-                </div>
-              </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Enter GP51 username"
+                disabled={isLoading}
+              />
             </div>
 
-            {error && (
-              <Alert variant="destructive">
-                <XCircle className="h-4 w-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter GP51 password"
+                disabled={isLoading}
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleLogin();
+                  }
+                }}
+              />
+            </div>
 
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={isLoading || !formData.username.trim() || !formData.password.trim()}
+            <Button
+              onClick={handleLogin}
+              disabled={isLoading || !username.trim() || !password.trim()}
+              className="w-full"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   Authenticating...
                 </>
               ) : (
-                <>
-                  <Key className="mr-2 h-4 w-4" />
-                  Connect to GP51
-                </>
+                'Connect to GP51'
               )}
             </Button>
-          </form>
+          </div>
         )}
-
-        <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-md">
-          <strong>Note:</strong> This authentication connects to the GP51 telemetry system 
-          using your existing GP51 credentials. Once connected, the system can sync vehicle 
-          data and provide real-time tracking capabilities.
-        </div>
       </CardContent>
     </Card>
   );
