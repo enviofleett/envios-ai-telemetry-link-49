@@ -36,6 +36,7 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
       const connectionTestResult: GP51ConnectionTestResult = {
         success: result.success,
         message: result.message,
+        timestamp: new Date(),
         error: result.success ? undefined : result.message,
         data: result.success ? { message: 'Connection successful' } : undefined
       };
@@ -58,6 +59,7 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
       const errorResult: GP51ConnectionTestResult = {
         success: false,
         message: `Test failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date(),
         error: error instanceof Error ? error.message : 'Connection test failed'
       };
       
@@ -130,7 +132,7 @@ export const GP51ConnectionTester: React.FC<GP51ConnectionTesterProps> = ({
               <p className="font-medium">{getStatusText()}</p>
               {testResult && (
                 <p className="text-sm text-muted-foreground">
-                  Last tested: {new Date().toLocaleTimeString()}
+                  Last tested: {testResult.timestamp.toLocaleTimeString()}
                 </p>
               )}
             </div>

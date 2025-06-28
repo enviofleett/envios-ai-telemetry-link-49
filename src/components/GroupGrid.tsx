@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Search, RefreshCw, MapPin, Car } from 'lucide-react';
 import type { GP51Group } from '@/types/gp51-unified';
-import { GP51PropertyMapper } from '@/types/gp51-unified';
 
 interface GroupGridProps {
   groups: GP51Group[];
@@ -18,10 +17,11 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredGroups = groups.filter(group => {
-    const enhancedGroup = GP51PropertyMapper.enhanceGroup(group);
+    const groupName = group.groupname || group.group_name || '';
+    const remark = group.remark || '';
     return (
-      enhancedGroup.group_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (enhancedGroup.remark || '').toLowerCase().includes(searchTerm.toLowerCase())
+      groupName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      remark.toLowerCase().includes(searchTerm.toLowerCase())
     );
   });
 
@@ -31,6 +31,22 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
     // Safe date conversion
     const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
     return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleString();
+  };
+
+  const getGroupName = (group: GP51Group): string => {
+    return group.groupname || group.group_name || '';
+  };
+
+  const getGroupId = (group: GP51Group): number => {
+    return group.groupid || group.group_id || group.id || 0;
+  };
+
+  const getDeviceCount = (group: GP51Group): number => {
+    return group.devices?.length || group.device_count || group.devicecount || 0;
+  };
+
+  const getLastSyncAt = (group: GP51Group): string => {
+    return group.last_sync_at || new Date().toISOString();
   };
 
   return (
@@ -79,20 +95,24 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredGroups.map((group) => {
-              const enhancedGroup = GP51PropertyMapper.enhanceGroup(group);
+              const groupName = getGroupName(group);
+              const groupId = getGroupId(group);
+              const deviceCount = getDeviceCount(group);
+              const lastSyncAt = getLastSyncAt(group);
+              
               return (
-                <Card key={enhancedGroup.id} className="hover:shadow-md transition-shadow">
+                <Card key={groupId} className="hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg">{enhancedGroup.group_name}</CardTitle>
+                      <CardTitle className="text-lg">{groupName}</CardTitle>
                       <Badge variant="outline" className="flex items-center gap-1">
                         <Car className="h-3 w-3" />
-                        {enhancedGroup.device_count}
+                        {deviceCount}
                       </Badge>
                     </div>
-                    {enhancedGroup.remark && (
+                    {group.remark && (
                       <CardDescription className="line-clamp-2">
-                        {enhancedGroup.remark}
+                        {group.remark}
                       </CardDescription>
                     )}
                   </CardHeader>
@@ -100,11 +120,11 @@ const GroupGrid: React.FC<GroupGridProps> = ({ groups, loading, onRefresh }) => 
                     <div className="space-y-2 text-sm text-muted-foreground">
                       <div className="flex justify-between">
                         <span>Group ID:</span>
-                        <span className="font-mono">{enhancedGroup.group_id}</span>
+                        <span className="font-mono">{groupId}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>Last Sync:</span>
-                        <span>{formatDate(enhancedGroup.last_sync_at)}</span>
+                        <span>{formatDate(lastSyncAt)}</span>
                       </div>
                     </div>
                   </CardContent>

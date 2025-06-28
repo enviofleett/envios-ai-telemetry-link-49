@@ -13,22 +13,32 @@ import { toast } from "sonner";
 import { useToast } from "@/hooks/use-toast"
 import { useProductionGP51Service } from '@/hooks/useProductionGP51Service';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
-import type { GP51DeviceData } from '@/types/gp51-unified';
+import type { GP51DeviceData, GP51Device } from '@/types/gp51-unified';
 
 interface GP51ImportModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-// Transform unified type to legacy type for compatibility
-const transformDeviceData = (device: GP51DeviceData): any => ({
+// Transform GP51Device to GP51DeviceData for compatibility
+const transformDeviceData = (device: GP51Device): GP51DeviceData => ({
   deviceid: device.deviceid,
   devicename: device.devicename,
-  devicetype: device.devicetype || 'unknown',
+  devicetype: typeof device.devicetype === 'string' ? parseInt(device.devicetype) || 0 : (device.devicetype || 0),
+  isfree: device.isfree || 0,
+  lastactivetime: typeof device.lastactivetime === 'string' 
+    ? new Date(device.lastactivetime).getTime() 
+    : (device.lastactivetime || 0),
+  lastUpdate: device.lastactivetime 
+    ? (typeof device.lastactivetime === 'string' 
+        ? device.lastactivetime 
+        : new Date(device.lastactivetime).toISOString())
+    : new Date().toISOString(),
+  simnum: device.simnum || device.simcardno,
+  groupid: typeof device.groupid === 'string' ? parseInt(device.groupid) || 0 : device.groupid,
+  groupname: device.groupname,
   status: device.isfree === 1 ? 'active' : 'inactive',
-  lastactivetime: device.lastactivetime 
-    ? new Date(device.lastactivetime).toISOString()
-    : new Date().toISOString()
+  online: Boolean(device.isOnline || device.isActive)
 });
 
 const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) => {
@@ -37,7 +47,7 @@ const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) =>
   const { toast } = useToast();
   const { syncDevices } = useProductionGP51Service();
 
-  const processDevices = async (devices: GP51DeviceData[]) => {
+  const processDevices = async (devices: GP51Device[]) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -80,7 +90,7 @@ const GP51ImportModal: React.FC<GP51ImportModalProps> = ({ isOpen, onClose }) =>
       const response = await gp51DataService.getLiveVehicles();
       
       // Handle different response structures
-      let devices: GP51DeviceData[] = [];
+      let devices: GP51Device[] = [];
       if (Array.isArray(response)) {
         devices = response;
       } else if (response && 'vehicles' in response && Array.isArray(response.vehicles)) {

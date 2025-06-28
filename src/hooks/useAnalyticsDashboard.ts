@@ -71,6 +71,12 @@ export const useAnalyticsDashboard = (): AnalyticsHookReturn => {
     data,
     isLoading,
     error,
-    refetch
+    refetch,
+    
+    // Additional properties for compatibility
+    analyticsData: data,
+    loading: isLoading,
+    lastUpdated: data ? new Date().toISOString() : '',
+    refreshData: refetch
   };
 };

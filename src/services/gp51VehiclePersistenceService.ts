@@ -4,7 +4,7 @@ import type { GP51ProcessedPosition, GP51Position } from '@/types/gp51-unified';
 import { GP51PropertyMapper } from '@/types/gp51-unified';
 
 export class GP51VehiclePersistenceService {
-  private static instance: GP51VehiclePersistenceService;
+  private positions: GP51Position[] = [];
 
   private constructor() {}
 
@@ -120,6 +120,22 @@ export class GP51VehiclePersistenceService {
       throw error;
     }
   }
+
+  getPositionAtIndex(index: number): GP51Position | undefined {
+    return this.positions && this.positions.length > index ? this.positions[index] : undefined;
+  }
+
+  getAllPositions(): GP51Position[] {
+    return this.positions;
+  }
+
+  addPosition(position: GP51Position): void {
+    this.positions.push(position);
+  }
+
+  clearPositions(): void {
+    this.positions = [];
+  }
 }
 
-export const gp51VehiclePersistenceService = GP51VehiclePersistenceService.getInstance();
+export const gp51VehiclePersistenceService = new GP51VehiclePersistenceService();
