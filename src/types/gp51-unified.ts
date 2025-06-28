@@ -1,38 +1,157 @@
+export interface GP51HealthStatus {
+  status: 'healthy' | 'unhealthy' | 'degraded' | 'connected' | 'disconnected' | 'error' | 'testing';
+  isHealthy: boolean;
+  connectionStatus: string;
+  isConnected: boolean;
+  lastPingTime: Date;
+  responseTime: number;
+  tokenValid: boolean;
+  sessionValid: boolean;
+  activeDevices: number;
+  errorMessage?: string;
+  lastCheck: Date;
+  // Additional properties for compatibility
+  connectionQuality?: 'excellent' | 'good' | 'poor';
+  errorCount?: number;
+  lastError?: string;
+  md5TestPassed?: boolean;
+  success?: boolean;
+  error?: string;
+}
+
+export interface GP51Device {
+  deviceid: string;
+  devicename: string;
+  devicetype: string;
+  groupid: string;
+  groupname: string; // Added for compatibility
+  imei: string;
+  simcardno: string;
+  status: number;
+  createtime: string;
+  lastactivetime: string;
+  isOnline: boolean;
+  vehicleInfo?: any;
+  isActive?: boolean;
+}
+
+export interface GP51Position {
+  deviceid: string;
+  callat: number;
+  callon: number;
+  speed: number;
+  course: number;
+  altitude: number;
+  devicetime: string;
+  servertime: string; // Added for compatibility
+  status: number;
+  moving: boolean;
+  gotsrc: number;
+  battery: number; // Added for compatibility
+  signal: number; // Added for compatibility
+  satellites: number; // Added for compatibility
+  totaldistance: number;
+  strstatus: string;
+  strstatusen: string;
+  alarm: number;
+  alarmtype: string;
+  alarmtypeen: string;
+  address: string;
+  addressen: string;
+  geoaddr: string;
+  geoaddrfrom: string;
+  accuracyvalue: number;
+  location?: any;
+  temperature?: number;
+  humidity?: number;
+  pressure?: number;
+  fuel?: number;
+  engine?: any;
+  door?: any;
+  air_condition?: any;
+  custom_data?: any;
+  raw_data?: any;
+  // Additional properties for compatibility
+  latitude?: number;
+  longitude?: number;
+  updatetime?: string;
+}
+
+export interface GP51Group {
+  groupid: string;
+  groupname: string;
+  parentgroupid: string; // Added for compatibility
+  level: number;
+  devicecount: number;
+  children: any[];
+}
+
 export interface GP51AuthResponse {
   status: number;
   cause: string;
-  token?: string;
   success: boolean;
-  error?: string;
+  token?: string;
+  expiresAt?: string;
+  sessionId?: string;
+  username?: string;
+  loginTime?: string;
+}
+
+export interface GP51Session {
+  id: string;
+  user_id: string;
+  gp51_token: string;
+  gp51_username: string;
+  created_at: string;
+  expires_at: string;
+  is_active: boolean;
+}
+
+export interface GP51SessionRPCResponse {
+  id: string;
+  user_id: string;
+  gp51_token: string;
+  gp51_username: string;
+  created_at: string;
+  expires_at: string;
+  is_active: boolean;
+}
+
+export interface GP51PositionRPCResponse {
+  device_id: string;
+  latitude: number;
+  longitude: number;
+  speed: number;
+  course: number;
+  altitude: number;
+  device_time: string;
+  server_time: string;
+  status: number;
+  moving: boolean;
+  gps_source: number;
+  battery: number;
+  signal: number;
+  satellites: number;
+  raw_data: any;
+}
+
+export interface GP51DeviceTreeResponse {
+  status: number;
+  cause: string;
+  groups: any[];
 }
 
 export interface GP51ProcessResult {
   success: boolean;
-  message: string;
+  message?: string;
   data?: any;
-  error?: string;
 }
 
 export interface GP51TestResult {
-  name: string;
   success: boolean;
-  testType: string;
-  message: string;
-  duration: number;
-  responseTime: number;
-  timestamp: Date;
-  error?: string;
-  errors?: string[];
-  data?: any;
-}
-
-export interface GP51ConnectionTestResult {
-  success: boolean;
-  message: string;
+  message?: string;
   error?: string;
   data?: any;
-  responseTime?: number;
-  timestamp?: Date;
 }
 
 export interface GP51LiveVehiclesResponse {
@@ -42,276 +161,38 @@ export interface GP51LiveVehiclesResponse {
   error?: string;
 }
 
-export interface GP51Device {
-  deviceid: string;
-  devicename: string;
-  devicetype: string;
-  isfree: number;
-  lastactivetime: string;
-  icon?: string;
-  groupid?: string;
-  isOnline?: boolean;
-  isMoving?: boolean;
-  latitude?: number;
-  longitude?: number;
-  speed?: number;
-  course?: number;
-  timestamp?: Date;
-  isActive?: boolean;
-  remark?: string;
-  
-  // Additional properties for compatibility
-  connectionStatus?: 'online' | 'offline' | 'unknown';
-  position?: GP51Position;
-  lastSeen?: Date;
-  alerts?: GP51Alert[];
-}
-
-// Alias for backwards compatibility
-export interface GP51DeviceData extends GP51Device {}
-
-export interface GP51Alert {
-  id: string;
-  type: 'warning' | 'error' | 'info';
-  message: string;
+export interface GP51TelemetryData {
   timestamp: Date;
-}
-
-export interface GP51Group {
-  groupid: string;
-  groupname: string;
-  parentid: string;
-  devices?: GP51Device[];
-  remark?: string;
-  
-  // Additional properties
-  deviceCount?: number;
-  onlineCount?: number;
-}
-
-export interface GP51DeviceTreeResponse {
-  success: boolean;
-  data: GP51Device[];
-  groups: GP51Group[];
-  error?: string;
-}
-
-// Alias for backwards compatibility
-export interface GP51ServiceResponse extends GP51DeviceTreeResponse {}
-
-export interface GP51Position {
-  deviceid: string;
-  devicetime: number;
-  arrivedtime: number;
-  updatetime: number;
-  validpoistiontime: number;
-  callat: number;
-  callon: number;
-  altitude: number;
-  radius: number;
+  deviceId: string;
+  latitude: number;
+  longitude: number;
   speed: number;
-  course: number;
-  totaldistance: number;
-  status: number;
-  strstatus: string;
-  strstatusen: string;
-  alarm: number;
-  stralarm: string;
-  stralarmsen: string;
-  gotsrc: string;
-  rxlevel: number;
-  gpsvalidnum: number;
-  exvoltage: number;
-  voltagev: number;
-  voltagepercent: number;
-  moving: number;
-  parklat: number;
-  parklon: number;
-  parktime: number;
-  parkduration: number;
-  temp1: number;
-  temp2: number;
-  temp3: number;
-  temp4: number;
-  iostatus: number;
-  currentoverspeedstate: number;
-  rotatestatus: number;
-  loadstatus: number;
-  weight: number;
-  reportmode: number;
-  
-  // Add missing coordinate properties for compatibility
-  latitude?: number;
-  longitude?: number;
+  heading: number;
+  altitude: number;
+  batteryLevel: number;
+  signalStrength: number;
 }
 
 export interface GP51ProcessedPosition {
   deviceId: string;
-  deviceName?: string;
-  latitude: number;
-  longitude: number;
+  position: {
+    latitude: number;
+    longitude: number;
+  };
   speed: number;
   course: number;
-  timestamp: Date;
-  isOnline: boolean;
-  isMoving: boolean;
-}
-
-export interface GP51TelemetryData {
-  deviceid: string;
-  devicetime: number;
-  speed: number;
-  course: number;
-  latitude: number;
-  longitude: number;
-  altitude: number;
-  temperature: number;
-  fuelLevel: number;
-  batteryVoltage: number;
-}
-
-export interface GP51HealthStatus {
-  status: string;
-  lastCheck: Date;
-  responseTime?: number;
-  isConnected: boolean;
-  lastPingTime: Date;
-  tokenValid: boolean;
-  sessionValid: boolean;
-  activeDevices: number;
-  errorMessage?: string;
-  isHealthy: boolean;
-  connectionStatus: string;
-  isReallyConnected?: boolean;
+  lastUpdate: Date;
 }
 
 export interface GP51PerformanceMetrics {
-  // Core metrics
   responseTime: number;
-  success: boolean;
-  requestStartTime: string;
-  timestamp: string;
-  
-  // Count metrics
-  deviceCount: number;
-  groupCount: number;
-  apiCallCount: number;
-  
-  // Performance metrics
+  successRate: number;
+  requestsPerMinute: number;
   errorRate: number;
-  averageResponseTime: number;
-  
-  // Vehicle metrics
-  totalVehicles: number;
-  activeVehicles: number;
-  activeDevices: number;
-  movingVehicles: number;
-  stoppedVehicles: number;
-  
-  // Additional metrics
-  lastUpdateTime: Date;
-  dataQuality: number;
-  onlinePercentage: number;
-  utilizationRate: number;
+  lastUpdate: Date;
+  uptime: number;
 }
 
-export class GP51PropertyMapper {
-  static mapPosition(position: GP51Position): GP51ProcessedPosition {
-    return {
-      deviceId: position.deviceid,
-      latitude: position.callat,
-      longitude: position.callon,
-      speed: position.speed,
-      course: position.course,
-      timestamp: new Date(position.devicetime),
-      isOnline: position.status === 1,
-      isMoving: position.moving === 1
-    };
-  }
-
-  static enhancePosition(position: GP51Position): GP51ProcessedPosition {
-    const processed = GP51PropertyMapper.mapPosition(position);
-    return {
-      ...processed,
-      deviceName: position.deviceid,
-    };
-  }
-
-  static enhanceGroup(group: GP51Group): GP51Group & {
-    id: string;
-    group_name: string;
-    group_id: string;
-    device_count: number;
-    last_sync_at: Date;
-  } {
-    return {
-      ...group,
-      id: group.groupid,
-      group_name: group.groupname,
-      group_id: group.groupid,
-      device_count: group.devices?.length || 0,
-      last_sync_at: new Date()
-    };
-  }
-}
-
-interface ActivityData {
-  type: "vehicle_online" | "vehicle_offline" | "alert" | "maintenance";
-  message: string;
-  timestamp: Date;
-  vehicleId?: string;
-  percentageChange?: number;
-}
-
-export interface RealAnalyticsData {
-  // Required core properties
-  totalUsers: number;
-  activeUsers: number;
-  totalVehicles: number;
-  activeVehicles: number;
-  
-  // Required activity data
-  recentActivity: ActivityData[];
-  
-  // Optional detailed breakdowns
-  vehicleStatus?: {
-    total: number;
-    online: number;
-    offline: number;
-    moving: number;
-    parked: number;
-  };
-  fleetUtilization?: {
-    activeVehicles: number;
-    totalVehicles: number;
-    utilizationRate: number;
-  };
-  systemHealth?: {
-    apiStatus: 'healthy' | 'degraded' | 'down';
-    lastUpdate: Date;
-    responseTime: number;
-  };
-  performance?: {
-    averageSpeed: number;
-    totalDistance: number;
-    fuelEfficiency?: number;
-    alertCount: number;
-  };
-  growth?: {
-    newUsers: number;
-    newVehicles: number;
-    period: string;
-    percentageChange: number;
-  };
-  sync?: {
-    importedUsers: number;
-    importedVehicles: number;
-    lastSync: Date;
-    status: 'success' | 'pending' | 'error';
-  };
-}
-
-// Fleet data interfaces
 export interface GP51FleetData {
   devices: GP51Device[];
   positions: GP51Position[];
@@ -322,60 +203,100 @@ export interface GP51FleetData {
     totalGroups: number;
   };
   lastUpdate: Date;
-  metadata?: {
-    requestId?: string;
-    responseTime?: number;
-    dataVersion?: string;
-    source?: string;
-    filters?: any;
-    pagination?: {
-      page: number;
-      limit: number;
-      total: number;
-    };
-    options?: GP51FleetDataOptions;
-    fetchTime?: Date;
-    [key: string]: any;
+  metadata: {
+    requestId: string;
+    responseTime: number;
+    dataVersion: string;
+    source: string;
+    options?: any;
+    fetchTime: Date;
   };
 }
 
 export interface GP51FleetDataOptions {
-  includePositions?: boolean;
-  forceRefresh?: boolean;
-  includeInactive?: boolean;
-  groupFilter?: (number | string)[];  // Accept both types
-  deviceFilter?: string[];
-  timeRange?: {
-    start: Date;
-    end: Date;
+  groupFilter?: (string | number)[];
+  dateRange?: {
+    startDate: Date;
+    endDate: Date;
   };
+  includeInactive?: boolean;
 }
 
 export interface GP51LiveData {
   positions: GP51Position[];
   lastUpdate: Date;
-  
   filter(predicate: (item: GP51Position) => boolean): GP51Position[];
-  get length(): number;
+  readonly length: number;
 }
 
-// Analytics hook return type
-export interface AnalyticsHookReturn {
-  analyticsData: RealAnalyticsData | null;
-  data: RealAnalyticsData | null;
-  loading: boolean;
-  isLoading: boolean;
-  error: string | null;
-  lastUpdated: Date;
-  refreshData: () => void;
+export interface RealAnalyticsData {
+  totalUsers: number;
+  activeUsers: number;
+  totalVehicles: number;
+  activeVehicles: number;
+  recentActivity: {
+    type: "vehicle_online" | "alert";
+    message: string;
+    timestamp: Date;
+    vehicleId?: string;
+    percentageChange?: number;
+  }[];
+  vehicleStatus: {
+    total: number;
+    online: number;
+    offline: number;
+    moving: number;
+    parked: number;
+  };
+  fleetUtilization: {
+    activeVehicles: number;
+    totalVehicles: number;
+    utilizationRate: number;
+  };
+  systemHealth: {
+    apiStatus: "healthy" | "down";
+    lastUpdate: Date;
+    responseTime: number;
+  };
+  performance: {
+    averageSpeed: number;
+    totalDistance: number;
+    fuelEfficiency?: number;
+    alertCount: number;
+  };
+  growth: {
+    newUsers: number;
+    newVehicles: number;
+    period: string;
+    percentageChange: number;
+  };
+  sync: {
+    importedUsers: number;
+    importedVehicles: number;
+    lastSync: Date;
+    status: "success" | "error";
+  };
 }
 
-// Component prop interfaces
-export interface GP51HealthIndicatorProps {
-  compact?: boolean;
-  onStatusChange?: (status: any) => void;
+export interface GP51ConnectionTestResult {
+  success: boolean;
+  message: string;
+  error?: string;
+  data?: GP51HealthStatus;
+  timestamp: Date;
 }
 
-export interface GP51ConnectionTesterProps {
-  onStatusChange?: (status: any) => void;
+export class GP51PropertyMapper {
+  static enhancePosition(position: GP51Position): GP51ProcessedPosition {
+    return {
+      deviceId: position.deviceid,
+      position: {
+        latitude: position.callat,
+        longitude: position.callon
+      },
+      speed: position.speed,
+      course: position.course,
+      lastUpdate: new Date(position.updatetime || position.servertime || Date.now())
+    };
+  }
 }

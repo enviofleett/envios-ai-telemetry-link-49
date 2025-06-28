@@ -15,7 +15,8 @@ export class GP51TypeMapper {
       createtime: apiDevice.createtime || apiDevice.create_time || new Date().toISOString(),
       lastactivetime: apiDevice.lastactivetime || apiDevice.last_active_time || new Date().toISOString(),
       isOnline: apiDevice.isOnline || apiDevice.is_online || false,
-      vehicleInfo: apiDevice.vehicleInfo || apiDevice.vehicle_info || null
+      vehicleInfo: apiDevice.vehicleInfo || apiDevice.vehicle_info || null,
+      isActive: apiDevice.isActive || apiDevice.is_active || false
     };
   }
 
@@ -32,9 +33,9 @@ export class GP51TypeMapper {
       status: apiPosition.status || 0,
       moving: apiPosition.moving || false,
       gotsrc: apiPosition.gotsrc || apiPosition.gps_source || 0,
-      battery: apiPosition.battery || 0,
-      signal: apiPosition.signal || 0,
-      satellites: apiPosition.satellites || 0,
+      battery: apiPosition.battery || apiPosition.voltagepercent || 0,
+      signal: apiPosition.signal || apiPosition.rxlevel || 0,
+      satellites: apiPosition.satellites || apiPosition.gpsvalidnum || 0,
       totaldistance: apiPosition.totaldistance || apiPosition.total_distance || 0,
       strstatus: apiPosition.strstatus || apiPosition.str_status || '',
       strstatusen: apiPosition.strstatusen || apiPosition.str_status_en || '',
@@ -55,7 +56,10 @@ export class GP51TypeMapper {
       door: apiPosition.door || null,
       air_condition: apiPosition.air_condition || null,
       custom_data: apiPosition.custom_data || null,
-      raw_data: apiPosition.raw_data || null
+      raw_data: apiPosition.raw_data || null,
+      latitude: apiPosition.callat || apiPosition.latitude || 0,
+      longitude: apiPosition.callon || apiPosition.longitude || 0,
+      updatetime: apiPosition.updatetime || apiPosition.servertime || new Date().toISOString()
     };
   }
 

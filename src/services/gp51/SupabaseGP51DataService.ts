@@ -68,13 +68,13 @@ export class SupabaseGP51DataService {
           course: pos.course,
           altitude: pos.altitude,
           devicetime: pos.devicetime,
-          servertime: pos.servertime,
+          servertime: pos.servertime || new Date().toISOString(),
           status: pos.status,
           moving: pos.moving,
           gotsrc: pos.gotsrc,
-          battery: pos.battery,
-          signal: pos.signal,
-          satellites: pos.satellites
+          battery: pos.battery || 0,
+          signal: pos.signal || 0,
+          satellites: pos.satellites || 0
         }));
       }
 
@@ -110,13 +110,13 @@ export class SupabaseGP51DataService {
         course: pos.course,
         altitude: pos.altitude,
         devicetime: pos.device_time,
-        servertime: pos.server_time,
+        servertime: pos.server_time || new Date().toISOString(),
         status: pos.status,
         moving: pos.moving,
         gotsrc: pos.gps_source,
-        battery: pos.battery,
-        signal: pos.signal,
-        satellites: pos.satellites,
+        battery: pos.battery || 0,
+        signal: pos.signal || 0,
+        satellites: pos.satellites || 0,
         raw_data: pos.raw_data
       }));
 

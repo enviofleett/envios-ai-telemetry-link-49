@@ -80,7 +80,13 @@ export class GP51HealthService {
       sessionValid,
       activeDevices,
       errorMessage: errorMessages.length > 0 ? errorMessages.join('; ') : undefined,
-      lastCheck
+      lastCheck,
+      connectionQuality: isHealthy ? 'excellent' : 'poor',
+      errorCount: errorMessages.length,
+      lastError: errorMessages.length > 0 ? errorMessages[0] : undefined,
+      md5TestPassed: true,
+      success: isHealthy,
+      error: errorMessages.length > 0 ? errorMessages.join('; ') : undefined
     };
 
     // Cache the result

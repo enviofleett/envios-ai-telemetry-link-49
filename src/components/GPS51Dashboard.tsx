@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, Activity, Zap, Wifi, WifiOff, Users } from 'lucide-react';
 import { gp51DataService } from '@/services/gp51/GP51DataService';
-import type { GP51HealthStatus, GP51ServiceResponse } from '@/types/gp51-unified';
+import type { GP51HealthStatus } from '@/types/gp51-unified';
 
 const GPS51Dashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +21,7 @@ const GPS51Dashboard: React.FC = () => {
   const checkConnection = async () => {
     setIsLoading(true);
     try {
-      const status = await gp51DataService.testConnection();
+      const status = await gp51DataService.getHealthStatus();
       setHealthStatus(status);
       
       if (status.isConnected) {
@@ -60,7 +60,7 @@ const GPS51Dashboard: React.FC = () => {
     switch (status) {
       case 'healthy': return 'bg-green-100 text-green-800';
       case 'degraded': return 'bg-yellow-100 text-yellow-800';
-      case 'failed': return 'bg-red-100 text-red-800';
+      case 'unhealthy': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -69,7 +69,7 @@ const GPS51Dashboard: React.FC = () => {
     switch (status) {
       case 'healthy': return <Wifi className="h-4 w-4" />;
       case 'degraded': return <Activity className="h-4 w-4" />;
-      case 'failed': return <WifiOff className="h-4 w-4" />;
+      case 'unhealthy': return <WifiOff className="h-4 w-4" />;
       default: return <WifiOff className="h-4 w-4" />;
     }
   };
