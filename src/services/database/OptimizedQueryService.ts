@@ -108,18 +108,25 @@ export class OptimizedQueryService {
     const queryKey = `vehicles:${userId || 'all'}`;
     
     return this.executeQuery(queryKey, async () => {
-      let query = supabase
-        .from('gp51_devices')
-        .select('*')
-        .eq('status', 'active');
+      try {
+        // Use simple, explicit query to avoid type instantiation issues
+        const query = supabase
+          .from('gp51_devices')
+          .select('*')
+          .eq('status', 'active');
 
-      if (userId) {
-        query = query.eq('user_id', userId);
+        // Apply user filter if provided
+        const finalQuery = userId ? query.eq('user_id', userId) : query;
+        
+        // Execute with explicit type assertion
+        const result = await finalQuery as any;
+        
+        if (result.error) throw result.error;
+        return (result.data || []) as VehicleData[];
+      } catch (error) {
+        console.error('Error fetching vehicles:', error);
+        throw error;
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as VehicleData[];
     });
   }
 
@@ -132,7 +139,7 @@ export class OptimizedQueryService {
         .select('*')
         .in('device_id', deviceIds)
         .order('created_at', { ascending: false })
-        .limit(deviceIds.length);
+        .limit(deviceIds.length) as any;
 
       if (error) throw error;
       return (data || []) as PositionData[];
@@ -146,12 +153,12 @@ export class OptimizedQueryService {
       const { data: devices, error: devicesError } = await supabase
         .from('gp51_devices')
         .select('device_id, is_online, status')
-        .eq('status', 'active');
+        .eq('status', 'active') as any;
 
       if (devicesError) throw devicesError;
 
       const totalVehicles = devices?.length || 0;
-      const activeVehicles = devices?.filter(d => d.is_online).length || 0;
+      const activeVehicles = devices?.filter((d: any) => d.is_online).length || 0;
 
       return {
         totalVehicles,
@@ -192,12 +199,16 @@ export class OptimizedQueryService {
       }
     }
 
-    // Calculate cache hit rate
+    // Calculate cache hit rate - simplified calculation
     const totalQueries = this.performanceMetrics.totalQueries;
     if (totalQueries > 0) {
-      const currentHitCount = Math.floor(this.performanceMetrics.cacheHitRate * (totalQueries - 1) / 100);
-      const newHitCount = cacheHit ? currentHitCount + 1 : currentHitCount;
-      this.performanceMetrics.cacheHitRate = (newHitCount / totalQueries) * 100;
+      // Simple approximation to avoid complex calculations
+      if (cacheHit) {
+        this.performanceMetrics.cacheHitRate = Math.min(
+          this.performanceMetrics.cacheHitRate + (100 / totalQueries), 
+          100
+        );
+      }
     }
   }
 
