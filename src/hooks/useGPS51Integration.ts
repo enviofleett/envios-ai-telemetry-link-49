@@ -1,264 +1,227 @@
-
 import { useState, useEffect, useCallback } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { gp51SessionManager } from '@/services/gp51/sessionManager';
+import { useRealTimePositions } from './useRealTimePositions';
+import { livePositionService } from '@/services/gp51/LivePositionService';
+import { unifiedGP51Service } from '@/services/gp51/UnifiedGP51Service';
 import { gps51ProductionService } from '@/services/gp51/GPS51ProductionService';
+import { supabase } from '@/integrations/supabase/client';
 
-export interface GPS51SecurityStats {
-  totalLogins: number;
-  failedLogins: number;
-  sessionDuration: number;
-  lastLoginTime: string | null;
-  activeConnections: number;
-  securityLevel: 'low' | 'medium' | 'high';
-  // Added missing properties to fix build errors
-  totalConnections: number;
-  failedAttempts: number;
-  totalEvents: number;
-  recentFailedAttempts: number;
-  lastSuccessfulConnection: string | null;
-  lockedAccounts: number;
-  rateLimitExceeded: number;
-  lastEventTime: string | null;
+export interface GP51DeviceStatus {
+  deviceId: string;
+  deviceName: string;
+  isOnline: boolean;
+  lastSeen: Date;
+  position?: {
+    latitude: number;
+    longitude: number;
+    speed: number;
+    course: number;
+    timestamp: Date;
+  };
 }
 
-export interface UseGPS51IntegrationReturn {
-  isAuthenticated: boolean;
+export interface UseEnhancedGP51IntegrationReturn {
+  devices: GP51DeviceStatus[];
+  positions: Map<string, any>;
+  isConnected: boolean;
   isLoading: boolean;
-  error: string;
-  username: string;
-  securityStats: GPS51SecurityStats;
-  login: (username: string, password: string) => Promise<boolean>;
-  logout: () => Promise<boolean>;
-  testConnection: () => Promise<boolean>;
-  refreshSecurityStats: () => Promise<void>;
-  refreshSession: () => Promise<boolean>;
-  clearError: () => void;
+  error: string | null;
+  startTracking: () => Promise<void>;
+  stopTracking: () => void;
+  refreshDevices: () => Promise<void>;
+  syncWithGP51: () => Promise<void>;
+  authenticateWithGP51: (username: string, password: string) => Promise<boolean>;
 }
 
-const defaultSecurityStats: GPS51SecurityStats = {
-  totalLogins: 0,
-  failedLogins: 0,
-  sessionDuration: 0,
-  lastLoginTime: null,
-  activeConnections: 0,
-  securityLevel: 'low',
-  totalConnections: 0,
-  failedAttempts: 0,
-  totalEvents: 0,
-  recentFailedAttempts: 0,
-  lastSuccessfulConnection: null,
-  lockedAccounts: 0,
-  rateLimitExceeded: 0,
-  lastEventTime: null
-};
-
-export function useGPS51Integration(): UseGPS51IntegrationReturn {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+export function useEnhancedGP51Integration(): UseEnhancedGP51IntegrationReturn {
+  const [devices, setDevices] = useState<GP51DeviceStatus[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [username, setUsername] = useState('');
-  const [securityStats, setSecurityStats] = useState<GPS51SecurityStats>(defaultSecurityStats);
-  const { toast } = useToast();
+  const [error, setError] = useState<string | null>(null);
+  const [isTracking, setIsTracking] = useState(false);
 
-  const clearError = useCallback(() => {
-    setError('');
-  }, []);
+  const { 
+    positions, 
+    subscribe, 
+    unsubscribe, 
+    isConnected 
+  } = useRealTimePositions();
 
-  const refreshSecurityStats = useCallback(async () => {
-    try {
-      // Get basic session info
-      const activeSession = await gp51SessionManager.getInstance().getSession();
-      
-      if (activeSession) {
-        setSecurityStats({
-          totalLogins: 1,
-          failedLogins: 0,
-          sessionDuration: Math.floor((Date.now() - new Date(activeSession.created_at).getTime()) / 1000),
-          lastLoginTime: activeSession.created_at,
-          activeConnections: 1,
-          securityLevel: 'medium',
-          totalConnections: 1,
-          failedAttempts: 0,
-          totalEvents: 1,
-          recentFailedAttempts: 0,
-          lastSuccessfulConnection: activeSession.created_at,
-          lockedAccounts: 0,
-          rateLimitExceeded: 0,
-          lastEventTime: activeSession.created_at
-        });
-      } else {
-        setSecurityStats(defaultSecurityStats);
-      }
-    } catch (err) {
-      console.error('Error refreshing security stats:', err);
-      setSecurityStats(defaultSecurityStats);
-    }
-  }, []);
-
-  const login = useCallback(async (usernameInput: string, password: string): Promise<boolean> => {
+  const authenticateWithGP51 = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
-      setError('');
+      setError(null);
+
+      console.log(`🔐 Authenticating with GP51 as: ${username}`);
       
-      console.log('🔐 Initiating GP51 authentication...');
+      const response = await unifiedGP51Service.authenticate(username, password);
       
-      const result = await gps51ProductionService.authenticate(usernameInput, password);
-      
-      if (result.success && result.token) {
-        setIsAuthenticated(true);
-        setUsername(result.username || usernameInput);
-        await refreshSecurityStats();
-        
-        toast({
-          title: "Authentication Successful",
-          description: `Welcome back, ${result.username || usernameInput}!`,
-        });
-        
+      if (response.status === 0) {
         console.log('✅ GP51 authentication successful');
         return true;
       } else {
-        const errorMsg = result.error || 'Authentication failed';
-        setError(errorMsg);
-        toast({
-          title: "Authentication Failed",
-          description: errorMsg,
-          variant: "destructive"
-        });
+        const errorMsg = response.cause || 'Authentication failed';
         console.error('❌ GP51 authentication failed:', errorMsg);
+        setError(errorMsg);
         return false;
       }
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Authentication error';
+      console.error('❌ GP51 authentication error:', errorMsg);
       setError(errorMsg);
-      toast({
-        title: "Authentication Error",
-        description: errorMsg,
-        variant: "destructive"
-      });
-      console.error('❌ GP51 authentication error:', err);
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, [toast, refreshSecurityStats]);
+  }, []);
 
-  const logout = useCallback(async (): Promise<boolean> => {
+  const loadDevicesFromDatabase = useCallback(async () => {
     try {
-      setIsLoading(true);
-      await gp51SessionManager.getInstance().clearAllSessions();
-      
-      setIsAuthenticated(false);
-      setUsername('');
-      setSecurityStats(defaultSecurityStats);
-      setError('');
-      
-      toast({
-        title: "Logged Out",
-        description: "Successfully logged out of GP51",
-      });
-      
-      console.log('👋 GP51 logout successful');
-      return true;
-    } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Logout failed';
-      setError(errorMsg);
-      console.error('❌ GP51 logout error:', err);
-      return false;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [toast]);
+      const { data, error } = await supabase
+        .from('gp51_devices')
+        .select(`
+          device_id,
+          device_name,
+          is_online,
+          last_active_time,
+          status
+        `)
+        .eq('status', 'active');
 
-  const testConnection = useCallback(async (): Promise<boolean> => {
-    try {
-      setIsLoading(true);
-      setError('');
-      
-      const result = await gps51ProductionService.testConnection();
-      
-      if (result.success) {
-        toast({
-          title: "Connection Test Successful",
-          description: "GP51 service is responding correctly",
-        });
-        return true;
-      } else {
-        const errorMsg = result.error || 'Connection test failed';
-        setError(errorMsg);
-        toast({
-          title: "Connection Test Failed",
-          description: errorMsg,
-          variant: "destructive"
-        });
-        return false;
+      if (error) {
+        console.error('Error loading devices from database:', error);
+        throw error;
       }
+
+      const deviceStatuses: GP51DeviceStatus[] = (data || []).map(device => ({
+        deviceId: device.device_id,
+        deviceName: device.device_name,
+        isOnline: device.is_online || false,
+        lastSeen: device.last_active_time ? new Date(device.last_active_time) : new Date()
+      }));
+
+      setDevices(deviceStatuses);
+      return deviceStatuses;
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Connection test error';
-      setError(errorMsg);
-      toast({
-        title: "Connection Test Error",
-        description: errorMsg,
-        variant: "destructive"
-      });
-      return false;
+      console.error('Error loading devices:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load devices');
+      return [];
+    }
+  }, []);
+
+  const syncWithGP51 = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      if (!unifiedGP51Service.isAuthenticated) {
+        throw new Error('Not authenticated with GP51. Please authenticate first.');
+      }
+
+      console.log('🔄 Syncing devices from GP51...');
+
+      const monitorResponse = await unifiedGP51Service.queryMonitorList();
+      
+      if (!monitorResponse.success) {
+        throw new Error(monitorResponse.error || 'Failed to fetch monitor list');
+      }
+
+      await loadDevicesFromDatabase();
+
+      console.log(`✅ GP51 sync completed`);
+    } catch (err) {
+      console.error('Error syncing with GP51:', err);
+      setError(err instanceof Error ? err.message : 'Sync failed');
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [loadDevicesFromDatabase]);
 
-  const refreshSession = useCallback(async (): Promise<boolean> => {
+  const startTracking = useCallback(async () => {
     try {
-      const validation = await gp51SessionManager.getInstance().validateSession();
-      
-      if (validation.valid && validation.session) {
-        setIsAuthenticated(true);
-        setUsername(validation.session.username);
-        await refreshSecurityStats();
-        return true;
-      } else {
-        setIsAuthenticated(false);
-        setUsername('');
-        setSecurityStats(defaultSecurityStats);
-        if (validation.error) {
-          setError(validation.error);
+      if (devices.length === 0) {
+        await loadDevicesFromDatabase();
+      }
+
+      const deviceIds = devices.map(d => d.deviceId);
+      if (deviceIds.length > 0) {
+        if (unifiedGP51Service.isAuthenticated) {
+          console.log('🎯 Starting real-time position tracking...');
+          
+          const positionsResponse = await unifiedGP51Service.getPositions(deviceIds);
+          
+          if (Array.isArray(positionsResponse) && positionsResponse.length > 0) {
+            console.log(`📍 Retrieved positions for ${positionsResponse.length} devices`);
+          }
         }
-        return false;
+
+        await subscribe(deviceIds);
+        setIsTracking(true);
+        setError(null);
       }
     } catch (err) {
-      console.error('❌ Session refresh error:', err);
-      setIsAuthenticated(false);
-      return false;
+      console.error('Error starting tracking:', err);
+      setError(err instanceof Error ? err.message : 'Failed to start tracking');
     }
-  }, [refreshSecurityStats]);
+  }, [devices, subscribe, loadDevicesFromDatabase]);
 
-  // Initialize session state on mount
+  const stopTracking = useCallback(() => {
+    unsubscribe();
+    setIsTracking(false);
+  }, [unsubscribe]);
+
+  const refreshDevices = useCallback(async () => {
+    await loadDevicesFromDatabase();
+  }, [loadDevicesFromDatabase]);
+
   useEffect(() => {
-    const initializeSession = async () => {
-      setIsLoading(true);
+    if (positions.size > 0) {
+      setDevices(prevDevices => 
+        prevDevices.map(device => {
+          const positionUpdate = positions.get(device.deviceId);
+          if (positionUpdate) {
+            return {
+              ...device,
+              position: positionUpdate.position,
+              isOnline: true,
+              lastSeen: positionUpdate.lastUpdate
+            };
+          }
+          return device;
+        })
+      );
+    }
+  }, [positions]);
+
+  useEffect(() => {
+    loadDevicesFromDatabase();
+  }, [loadDevicesFromDatabase]);
+
+  useEffect(() => {
+    const loadExistingSession = async () => {
       try {
-        await refreshSession();
+        const service = unifiedGP51Service;
+        const sessionLoaded = await service.loadExistingSession();
+        if (sessionLoaded) {
+          console.log('✅ Loaded existing GP51 session');
+          await loadDevicesFromDatabase();
+        }
       } catch (err) {
-        console.error('Session initialization error:', err);
-      } finally {
-        setIsLoading(false);
+        console.log('ℹ️ No existing GP51 session found');
       }
     };
 
-    initializeSession();
-  }, [refreshSession]);
+    loadExistingSession();
+  }, [loadDevicesFromDatabase]);
 
   return {
-    isAuthenticated,
+    devices,
+    positions,
+    isConnected: isConnected && unifiedGP51Service.isAuthenticated,
     isLoading,
     error,
-    username,
-    securityStats,
-    login,
-    logout,
-    testConnection,
-    refreshSecurityStats,
-    refreshSession,
-    clearError
+    startTracking,
+    stopTracking,
+    refreshDevices,
+    syncWithGP51,
+    authenticateWithGP51
   };
 }

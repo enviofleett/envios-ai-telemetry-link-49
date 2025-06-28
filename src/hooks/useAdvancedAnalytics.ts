@@ -2,257 +2,222 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-export interface FleetMetrics {
-  totalVehicles: number;
-  activeVehicles: number;
-  totalDistance: number;
-  averageSpeed: number;
-  fuelConsumption: number;
-  maintenanceAlerts: number;
-}
-
-export interface VehiclePerformance {
-  deviceId: string;
-  deviceName: string;
-  totalDistance: number;
-  averageSpeed: number;
-  fuelEfficiency: number;
-  uptime: number;
-  alertCount: number;
-}
-
-export interface TrendData {
-  date: string;
-  value: number;
-  metric: string;
-}
-
 export interface AdvancedAnalyticsData {
-  fleetMetrics: FleetMetrics;
-  vehiclePerformance: VehiclePerformance[];
-  trends: {
-    distance: TrendData[];
-    speed: TrendData[];
-    fuel: TrendData[];
-    alerts: TrendData[];
-  };
-  realTimeStats: {
+  fleetAnalytics: {
+    totalVehicles: number;
     activeVehicles: number;
-    totalAlerts: number;
+    inactiveVehicles: number;
     averageSpeed: number;
-    lastUpdated: Date;
+    totalDistance: number;
+    fuelEfficiency: number;
+  };
+  vehiclePerformance: {
+    topPerformers: Array<{
+      deviceId: string;
+      deviceName: string;
+      score: number;
+      metrics: {
+        uptime: number;
+        efficiency: number;
+        alerts: number;
+      };
+    }>;
+    averagePerformance: number;
+  };
+  trendData: {
+    daily: Array<{
+      date: string;
+      activeVehicles: number;
+      totalDistance: number;
+      alerts: number;
+    }>;
+    weekly: Array<{
+      week: string;
+      metrics: {
+        utilization: number;
+        efficiency: number;
+        incidents: number;
+      };
+    }>;
   };
 }
 
-export function useAdvancedAnalytics() {
+export interface UseAdvancedAnalyticsReturn {
+  data: AdvancedAnalyticsData;
+  isLoading: boolean;
+  error: string;
+  refreshData: () => Promise<void>;
+  refreshAnalytics: () => Promise<void>;
+  generateReport: () => Promise<void>;
+}
+
+export function useAdvancedAnalytics(): UseAdvancedAnalyticsReturn {
   const [data, setData] = useState<AdvancedAnalyticsData>({
-    fleetMetrics: {
+    fleetAnalytics: {
       totalVehicles: 0,
       activeVehicles: 0,
+      inactiveVehicles: 0,
+      averageSpeed: 0,
       totalDistance: 0,
-      averageSpeed: 0,
-      fuelConsumption: 0,
-      maintenanceAlerts: 0
+      fuelEfficiency: 0
     },
-    vehiclePerformance: [],
-    trends: {
-      distance: [],
-      speed: [],
-      fuel: [],
-      alerts: []
+    vehiclePerformance: {
+      topPerformers: [],
+      averagePerformance: 0
     },
-    realTimeStats: {
-      activeVehicles: 0,
-      totalAlerts: 0,
-      averageSpeed: 0,
-      lastUpdated: new Date()
+    trendData: {
+      daily: [],
+      weekly: []
     }
   });
   
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
-  const calculateFleetMetrics = useCallback(async (): Promise<FleetMetrics> => {
-    const { data: vehicles, error: vehiclesError } = await supabase
-      .from('gp51_devices')
-      .select('*');
+  const fetchFleetAnalytics = useCallback(async () => {
+    try {
+      const { data: devices, error: devicesError } = await supabase
+        .from('gp51_devices')
+        .select('device_id, device_name, is_online, status')
+        .eq('status', 'active');
 
-    if (vehiclesError) throw vehiclesError;
+      if (devicesError) throw devicesError;
 
-    const { data: positions, error: positionsError } = await supabase
-      .from('gp51_positions')
-      .select('*')
-      .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+      const { data: positions, error: positionsError } = await supabase
+        .from('gp51_positions')
+        .select('device_id, speed, latitude, longitude, created_at')
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
-    if (positionsError) throw positionsError;
+      if (positionsError) throw positionsError;
 
-    const totalVehicles = vehicles?.length || 0;
-    const activeVehicles = vehicles?.filter(v => v.is_active)?.length || 0;
-    
-    // Calculate metrics from available position data
-    const totalDistance = positions?.reduce((sum, pos) => sum + (pos.total_distance || 0), 0) || 0;
-    const averageSpeed = positions?.length 
-      ? positions.reduce((sum, pos) => sum + (pos.speed || 0), 0) / positions.length 
-      : 0;
+      const totalVehicles = devices?.length || 0;
+      const activeVehicles = devices?.filter(d => d.is_online).length || 0;
+      const inactiveVehicles = totalVehicles - activeVehicles;
 
-    return {
-      totalVehicles,
-      activeVehicles,
-      totalDistance,
-      averageSpeed,
-      fuelConsumption: 0, // Placeholder - would need fuel data
-      maintenanceAlerts: 0 // Placeholder - would need maintenance data
-    };
-  }, []);
-
-  const calculateVehiclePerformance = useCallback(async (): Promise<VehiclePerformance[]> => {
-    const { data: positions, error } = await supabase
-      .from('gp51_positions')
-      .select(`
-        *,
-        gp51_devices!inner(*)
-      `)
-      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-
-    if (error) throw error;
-
-    const vehicleMap = new Map<string, {
-      deviceId: string;
-      deviceName: string;
-      positions: any[];
-    }>();
-
-    positions?.forEach(pos => {
-      const deviceId = pos.device_id;
-      if (!vehicleMap.has(deviceId)) {
-        vehicleMap.set(deviceId, {
-          deviceId,
-          deviceName: pos.gp51_devices?.device_name || deviceId,
-          positions: []
-        });
-      }
-      vehicleMap.get(deviceId)?.positions.push(pos);
-    });
-
-    return Array.from(vehicleMap.values()).map(vehicle => {
-      const totalDistance = vehicle.positions.reduce((sum, pos) => sum + (pos.total_distance || 0), 0);
-      const averageSpeed = vehicle.positions.length 
-        ? vehicle.positions.reduce((sum, pos) => sum + (pos.speed || 0), 0) / vehicle.positions.length 
-        : 0;
+      const speeds = positions?.map(p => p.speed || 0) || [];
+      const averageSpeed = speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0;
 
       return {
-        deviceId: vehicle.deviceId,
-        deviceName: vehicle.deviceName,
-        totalDistance,
-        averageSpeed,
-        fuelEfficiency: 0, // Placeholder
-        uptime: 85, // Placeholder percentage
-        alertCount: vehicle.positions.filter(pos => pos.alarm_code > 0).length
+        totalVehicles,
+        activeVehicles,
+        inactiveVehicles,
+        averageSpeed: Math.round(averageSpeed * 100) / 100,
+        totalDistance: 0, // Placeholder - would need calculation
+        fuelEfficiency: 0 // Placeholder - would need fuel data
       };
-    });
+    } catch (err) {
+      console.error('Error fetching fleet analytics:', err);
+      throw err;
+    }
   }, []);
 
-  const calculateTrends = useCallback(async () => {
-    const { data: positions, error } = await supabase
-      .from('gp51_positions')
-      .select('*')
-      .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .order('created_at', { ascending: true });
+  const fetchVehiclePerformance = useCallback(async () => {
+    try {
+      const { data: devices, error } = await supabase
+        .from('gp51_devices')
+        .select('device_id, device_name, is_online')
+        .eq('status', 'active')
+        .limit(10);
 
-    if (error) throw error;
+      if (error) throw error;
 
-    const dailyData = new Map<string, {
-      totalDistance: number;
-      totalSpeed: number;
-      speedCount: number;
-      alertCount: number;
-    }>();
+      const topPerformers = (devices || []).map(device => ({
+        deviceId: device.device_id,
+        deviceName: device.device_name,
+        score: Math.random() * 100, // Mock score
+        metrics: {
+          uptime: Math.random() * 100,
+          efficiency: Math.random() * 100,
+          alerts: Math.floor(Math.random() * 10)
+        }
+      }));
 
-    positions?.forEach(pos => {
-      const date = new Date(pos.created_at).toISOString().split('T')[0];
-      if (!dailyData.has(date)) {
-        dailyData.set(date, {
-          totalDistance: 0,
-          totalSpeed: 0,
-          speedCount: 0,
-          alertCount: 0
-        });
-      }
-      
-      const dayData = dailyData.get(date)!;
-      dayData.totalDistance += pos.total_distance || 0;
-      dayData.totalSpeed += pos.speed || 0;
-      dayData.speedCount += 1;
-      if (pos.alarm_code > 0) dayData.alertCount += 1;
-    });
+      return {
+        topPerformers,
+        averagePerformance: topPerformers.reduce((sum, p) => sum + p.score, 0) / topPerformers.length || 0
+      };
+    } catch (err) {
+      console.error('Error fetching vehicle performance:', err);
+      throw err;
+    }
+  }, []);
 
-    return {
-      distance: Array.from(dailyData.entries()).map(([date, data]) => ({
-        date,
-        value: data.totalDistance,
-        metric: 'distance'
-      })),
-      speed: Array.from(dailyData.entries()).map(([date, data]) => ({
-        date,
-        value: data.speedCount > 0 ? data.totalSpeed / data.speedCount : 0,
-        metric: 'speed'
-      })),
-      fuel: Array.from(dailyData.entries()).map(([date]) => ({
-        date,
-        value: Math.random() * 100, // Placeholder data
-        metric: 'fuel'
-      })),
-      alerts: Array.from(dailyData.entries()).map(([date, data]) => ({
-        date,
-        value: data.alertCount,
-        metric: 'alerts'
-      }))
-    };
+  const fetchTrendData = useCallback(async () => {
+    try {
+      // Generate mock trend data for the last 7 days
+      const daily = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        return {
+          date: date.toISOString().split('T')[0],
+          activeVehicles: Math.floor(Math.random() * 50) + 10,
+          totalDistance: Math.floor(Math.random() * 1000) + 100,
+          alerts: Math.floor(Math.random() * 20)
+        };
+      }).reverse();
+
+      // Generate mock weekly data
+      const weekly = Array.from({ length: 4 }, (_, i) => ({
+        week: `Week ${i + 1}`,
+        metrics: {
+          utilization: Math.random() * 100,
+          efficiency: Math.random() * 100,
+          incidents: Math.floor(Math.random() * 5)
+        }
+      }));
+
+      return { daily, weekly };
+    } catch (err) {
+      console.error('Error fetching trend data:', err);
+      throw err;
+    }
   }, []);
 
   const refreshData = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
-    
+    setError('');
+
     try {
-      const [fleetMetrics, vehiclePerformance, trends] = await Promise.all([
-        calculateFleetMetrics(),
-        calculateVehiclePerformance(),
-        calculateTrends()
+      const [fleetAnalytics, vehiclePerformance, trendData] = await Promise.all([
+        fetchFleetAnalytics(),
+        fetchVehiclePerformance(),
+        fetchTrendData()
       ]);
 
       setData({
-        fleetMetrics,
+        fleetAnalytics,
         vehiclePerformance,
-        trends,
-        realTimeStats: {
-          activeVehicles: fleetMetrics.activeVehicles,
-          totalAlerts: vehiclePerformance.reduce((sum, v) => sum + v.alertCount, 0),
-          averageSpeed: fleetMetrics.averageSpeed,
-          lastUpdated: new Date()
-        }
+        trendData
       });
     } catch (err) {
-      console.error('Error refreshing analytics data:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load analytics data');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch analytics data';
+      setError(errorMessage);
+      console.error('Error refreshing analytics data:', errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [calculateFleetMetrics, calculateVehiclePerformance, calculateTrends]);
+  }, [fetchFleetAnalytics, fetchVehiclePerformance, fetchTrendData]);
+
+  const refreshAnalytics = useCallback(async () => {
+    await refreshData();
+  }, [refreshData]);
+
+  const generateReport = useCallback(async () => {
+    console.log('Generating analytics report...');
+    // Implementation would generate and download report
+  }, []);
 
   useEffect(() => {
     refreshData();
-    
-    // Set up periodic refresh every 5 minutes
-    const interval = setInterval(refreshData, 5 * 60 * 1000);
-    
-    return () => clearInterval(interval);
   }, [refreshData]);
 
   return {
     data,
     isLoading,
     error,
-    refreshData
+    refreshData,
+    refreshAnalytics,
+    generateReport
   };
 }

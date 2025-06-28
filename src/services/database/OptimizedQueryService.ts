@@ -1,25 +1,31 @@
 import { supabase } from '@/integrations/supabase/client';
-import { databaseCacheManager } from '../caching/DatabaseCacheManager';
+import { databaseCacheManager } from '@/services/caching/DatabaseCacheManager';
+
+interface QueryPerformanceMetrics {
+  averageExecutionTime: number;
+  cacheHitRate: number;
+  slowQueries: Array<{
+    query: string;
+    executionTime: number;
+    timestamp: Date;
+  }>;
+  totalQueries: number;
+}
 
 interface QueryOptions {
   useCache?: boolean;
   cacheTTL?: number;
-  forceRefresh?: boolean;
   timeout?: number;
-}
-
-interface QueryPerformanceMetrics {
-  query: string;
-  executionTime: number;
-  cacheHit: boolean;
-  resultCount: number;
-  timestamp: Date;
 }
 
 export class OptimizedQueryService {
   private static instance: OptimizedQueryService;
-  private queryMetrics: QueryPerformanceMetrics[] = [];
-  private activeQueries = new Map<string, Promise<any>>();
+  private performanceMetrics: QueryPerformanceMetrics = {
+    averageExecutionTime: 0,
+    cacheHitRate: 0,
+    slowQueries: [],
+    totalQueries: 0
+  };
 
   static getInstance(): OptimizedQueryService {
     if (!OptimizedQueryService.instance) {
@@ -28,267 +34,152 @@ export class OptimizedQueryService {
     return OptimizedQueryService.instance;
   }
 
-  // Optimized vehicle positions query with caching
-  async getVehiclePositions(
-    deviceIds?: string[],
-    options: QueryOptions = {}
-  ): Promise<any[]> {
-    const cacheKey = `positions:${deviceIds?.join(',') || 'all'}`;
-    const startTime = Date.now();
-
-    if (options.useCache !== false && !options.forceRefresh) {
-      const cached = await databaseCacheManager.get<any[]>(cacheKey);
-      if (cached) {
-        this.recordMetric({
-          query: 'getVehiclePositions',
-          executionTime: Date.now() - startTime,
-          cacheHit: true,
-          resultCount: cached.length,
-          timestamp: new Date()
-        });
-        return cached;
-      }
-    }
-
-    let query = supabase
-      .from('gp51_positions')
-      .select(`
-        device_id,
-        latitude,
-        longitude,
-        speed,
-        course,
-        altitude,
-        device_time,
-        server_time,
-        status,
-        moving,
-        gps_source,
-        battery,
-        signal,
-        satellites,
-        created_at,
-        raw_data
-      `)
-      .order('created_at', { ascending: false });
-
-    if (deviceIds && deviceIds.length > 0) {
-      query = query.in('device_id', deviceIds);
-    }
-
-    const { data, error } = await query.limit(1000);
-
-    if (error) throw error;
-
-    const result = data || [];
-    
-    // Cache the result
-    if (options.useCache !== false) {
-      await databaseCacheManager.set(
-        cacheKey, 
-        result, 
-        options.cacheTTL || 2 * 60 * 1000 // 2 minutes default
-      );
-    }
-
-    this.recordMetric({
-      query: 'getVehiclePositions',
-      executionTime: Date.now() - startTime,
-      cacheHit: false,
-      resultCount: result.length,
-      timestamp: new Date()
-    });
-
-    return result;
-  }
-
-  // Optimized device list query
-  async getDeviceList(options: QueryOptions = {}): Promise<any[]> {
-    const cacheKey = 'devices:list';
-    const startTime = Date.now();
-
-    if (options.useCache !== false && !options.forceRefresh) {
-      const cached = await databaseCacheManager.get<any[]>(cacheKey);
-      if (cached) {
-        this.recordMetric({
-          query: 'getDeviceList',
-          executionTime: Date.now() - startTime,
-          cacheHit: true,
-          resultCount: cached.length,
-          timestamp: new Date()
-        });
-        return cached;
-      }
-    }
-
-    const { data, error } = await supabase
-      .from('gp51_devices')
-      .select(`
-        device_id,
-        device_name,
-        device_type,
-        group_id,
-        group_name,
-        is_free,
-        last_active_time,
-        status,
-        user_id,
-        created_at,
-        updated_at
-      `)
-      .eq('is_active', true)
-      .order('device_name', { ascending: true });
-
-    if (error) throw error;
-
-    const result = data || [];
-    
-    // Cache for 10 minutes
-    if (options.useCache !== false) {
-      await databaseCacheManager.set(
-        cacheKey, 
-        result, 
-        options.cacheTTL || 10 * 60 * 1000
-      );
-    }
-
-    this.recordMetric({
-      query: 'getDeviceList',
-      executionTime: Date.now() - startTime,
-      cacheHit: false,
-      resultCount: result.length,
-      timestamp: new Date()
-    });
-
-    return result;
-  }
-
-  // Batch position updates for better performance
-  async batchUpdatePositions(positions: any[]): Promise<void> {
-    const startTime = Date.now();
-
-    if (positions.length === 0) return;
-
-    // Group positions by device for efficient processing
-    const deviceGroups = new Map<string, any[]>();
-    positions.forEach(pos => {
-      const deviceId = pos.device_id;
-      if (!deviceGroups.has(deviceId)) {
-        deviceGroups.set(deviceId, []);
-      }
-      deviceGroups.get(deviceId)?.push(pos);
-    });
-
-    // Process in smaller batches to avoid timeout
-    const batchSize = 50;
-    const batches = Array.from(deviceGroups.values()).reduce((acc, positions) => {
-      for (let i = 0; i < positions.length; i += batchSize) {
-        acc.push(positions.slice(i, i + batchSize));
-      }
-      return acc;
-    }, [] as any[][]);
-
-    const promises = batches.map(batch => 
-      supabase
-        .from('gp51_positions')
-        .upsert(batch, { onConflict: 'device_id,device_time' })
-    );
-
-    const results = await Promise.allSettled(promises);
-    
-    // Log any failures
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        console.error(`Batch ${index} failed:`, result.reason);
-      }
-    });
-
-    // Invalidate related cache entries
-    await databaseCacheManager.invalidatePattern('positions:');
-
-    this.recordMetric({
-      query: 'batchUpdatePositions',
-      executionTime: Date.now() - startTime,
-      cacheHit: false,
-      resultCount: positions.length,
-      timestamp: new Date()
-    });
-  }
-
-  // Query deduplication to prevent multiple identical queries
-  async executeWithDeduplication<T>(
+  async executeQuery<T = any>(
     queryKey: string,
-    queryFn: () => Promise<T>
+    queryFn: () => Promise<T>,
+    options: QueryOptions = {}
   ): Promise<T> {
-    // Check if query is already running
-    if (this.activeQueries.has(queryKey)) {
-      return this.activeQueries.get(queryKey) as Promise<T>;
+    const startTime = Date.now();
+    const { useCache = true, cacheTTL = 5 * 60 * 1000 } = options;
+
+    try {
+      // Try cache first if enabled
+      if (useCache) {
+        const cached = await databaseCacheManager.get<T>(queryKey);
+        if (cached !== null) {
+          this.updateMetrics(Date.now() - startTime, true);
+          return cached;
+        }
+      }
+
+      // Execute query
+      const result = await queryFn();
+
+      // Cache result if enabled
+      if (useCache && result) {
+        await databaseCacheManager.set(queryKey, result, cacheTTL);
+      }
+
+      this.updateMetrics(Date.now() - startTime, false);
+      return result;
+    } catch (error) {
+      this.updateMetrics(Date.now() - startTime, false, true);
+      throw error;
     }
-
-    // Execute query and store promise
-    const queryPromise = queryFn().finally(() => {
-      this.activeQueries.delete(queryKey);
-    });
-
-    this.activeQueries.set(queryKey, queryPromise);
-    return queryPromise;
   }
 
-  // Performance analytics
-  private recordMetric(metric: QueryPerformanceMetrics): void {
-    this.queryMetrics.push(metric);
+  async getVehicles(userId?: string): Promise<any[]> {
+    const queryKey = `vehicles:${userId || 'all'}`;
     
-    // Keep only last 1000 metrics
-    if (this.queryMetrics.length > 1000) {
-      this.queryMetrics = this.queryMetrics.slice(-1000);
-    }
+    return this.executeQuery(queryKey, async () => {
+      let query = supabase
+        .from('gp51_devices')
+        .select('*')
+        .eq('status', 'active');
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    });
   }
 
-  getPerformanceMetrics(): {
-    averageExecutionTime: number;
-    cacheHitRate: number;
-    slowQueries: QueryPerformanceMetrics[];
-    totalQueries: number;
-  } {
-    if (this.queryMetrics.length === 0) {
+  async getVehiclePositions(deviceIds: string[]): Promise<any[]> {
+    const queryKey = `positions:${deviceIds.sort().join(',')}`;
+    
+    return this.executeQuery(queryKey, async () => {
+      const { data, error } = await supabase
+        .from('gp51_positions')
+        .select('*')
+        .in('device_id', deviceIds)
+        .order('created_at', { ascending: false })
+        .limit(deviceIds.length);
+
+      if (error) throw error;
+      return data || [];
+    }, { cacheTTL: 30 * 1000 }); // Cache for 30 seconds
+  }
+
+  async getFleetStatistics(): Promise<any> {
+    const queryKey = 'fleet:statistics';
+    
+    return this.executeQuery(queryKey, async () => {
+      const { data: devices, error: devicesError } = await supabase
+        .from('gp51_devices')
+        .select('device_id, is_online, status')
+        .eq('status', 'active');
+
+      if (devicesError) throw devicesError;
+
+      const totalVehicles = devices?.length || 0;
+      const activeVehicles = devices?.filter(d => d.is_online).length || 0;
+
       return {
-        averageExecutionTime: 0,
-        cacheHitRate: 0,
-        slowQueries: [],
-        totalQueries: 0
+        totalVehicles,
+        activeVehicles,
+        inactiveVehicles: totalVehicles - activeVehicles,
+        lastUpdated: new Date().toISOString()
       };
-    }
-
-    const totalTime = this.queryMetrics.reduce((sum, m) => sum + m.executionTime, 0);
-    const cacheHits = this.queryMetrics.filter(m => m.cacheHit).length;
-    const slowQueries = this.queryMetrics
-      .filter(m => m.executionTime > 1000) // > 1 second
-      .sort((a, b) => b.executionTime - a.executionTime)
-      .slice(0, 10);
-
-    return {
-      averageExecutionTime: Math.round(totalTime / this.queryMetrics.length),
-      cacheHitRate: Math.round((cacheHits / this.queryMetrics.length) * 100),
-      slowQueries,
-      totalQueries: this.queryMetrics.length
-    };
+    }, { cacheTTL: 60 * 1000 }); // Cache for 1 minute
   }
 
-  // Preload commonly accessed data
+  private updateMetrics(executionTime: number, cacheHit: boolean, hasError = false): void {
+    this.performanceMetrics.totalQueries++;
+    
+    if (!cacheHit) {
+      const currentAvg = this.performanceMetrics.averageExecutionTime;
+      const totalNonCachedQueries = this.performanceMetrics.totalQueries - 
+        Math.floor(this.performanceMetrics.totalQueries * (this.performanceMetrics.cacheHitRate / 100));
+      
+      this.performanceMetrics.averageExecutionTime = 
+        (currentAvg * (totalNonCachedQueries - 1) + executionTime) / totalNonCachedQueries;
+
+      // Track slow queries (>1 second)
+      if (executionTime > 1000) {
+        this.performanceMetrics.slowQueries.push({
+          query: 'database-query',
+          executionTime,
+          timestamp: new Date()
+        });
+
+        // Keep only last 10 slow queries
+        if (this.performanceMetrics.slowQueries.length > 10) {
+          this.performanceMetrics.slowQueries = this.performanceMetrics.slowQueries.slice(-10);
+        }
+      }
+    }
+
+    // Update cache hit rate
+    const cacheStats = databaseCacheManager.getStats();
+    this.performanceMetrics.cacheHitRate = cacheStats.hitRate;
+  }
+
+  getPerformanceMetrics(): QueryPerformanceMetrics {
+    return { ...this.performanceMetrics };
+  }
+
   async warmupCache(): Promise<void> {
-    console.log('🔥 Starting database cache warmup...');
+    console.log('🔥 Starting cache warmup...');
     
     try {
-      // Warmup device list
-      await this.getDeviceList({ useCache: false });
+      // Warmup common queries
+      await Promise.allSettled([
+        this.getFleetStatistics(),
+        this.getVehicles(),
+      ]);
       
-      // Warmup recent positions
-      await this.getVehiclePositions(undefined, { useCache: false });
-      
-      console.log('✅ Database cache warmup completed');
+      console.log('✅ Cache warmup completed');
     } catch (error) {
       console.error('❌ Cache warmup failed:', error);
     }
+  }
+
+  clearCache(): void {
+    databaseCacheManager.clear();
+    console.log('🗑️ Query cache cleared');
   }
 }
 
