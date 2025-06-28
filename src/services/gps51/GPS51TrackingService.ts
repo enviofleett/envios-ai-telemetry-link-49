@@ -1,4 +1,4 @@
-import { GPS51ApiClient, GPS51LoginRequest, GPS51LoginResponse } from './GPS51ApiClient';
+import { GPS51ApiClient, GPS51LoginRequest } from '../gp51/GPS51ApiClient';
 
 export interface Device {
   deviceid: string;
@@ -17,37 +17,36 @@ export interface Device {
 }
 
 export interface LastPositionResult {
-  success: boolean;
-  positions: DevicePosition[];
-  error?: string;
+  status: number;
+  cause?: string;
+  devices: Array<{
+    deviceid: string;
+    lat: number;
+    lon: number;
+    speed: number;
+    course: number;
+    updatetime: number;
+    address?: string;
+  }>;
 }
 
-export interface DevicePosition {
-  deviceid: string;
-  lat: number;
-  lon: number;
-  speed: number;
-  course: number;
-  altitude: number;
-  timestamp: number;
-  address: string;
-  status: string;
+export interface DeviceListResult {
+  status: number;
+  cause?: string;
+  devices: Device[];
 }
 
 export interface HistoricalTracksResult {
-  success: boolean;
-  tracks: TrackPoint[];
-  error?: string;
-}
-
-export interface TrackPoint {
-  lat: number;
-  lon: number;
-  timestamp: number;
-  speed: number;
-  altitude: number;
-  address: string;
-  status: string;
+  status: number;
+  cause?: string;
+  tracks: Array<{
+    lat: number;
+    lon: number;
+    timestamp: number;
+    speed: number;
+    altitude: number;
+    address: string;
+  }>;
 }
 
 export interface TripData {
@@ -59,15 +58,14 @@ export interface TripData {
   maxspeed: number;
   averagespeed: number;
   totaltime: number;
-  fuelconsumption?: number;
-  route: TrackPoint[];
-}
-
-export interface DeviceListResult {
-  success: boolean;
-  devices: Device[];
-  groups?: any[];
-  error?: string;
+  route: Array<{
+    lat: number;
+    lon: number;
+    timestamp: number;
+    speed: number;
+    altitude: number;
+    address: string;
+  }>;
 }
 
 export class GPS51TrackingService {
@@ -81,21 +79,19 @@ export class GPS51TrackingService {
    * Query all devices for authenticated user
    */
   async queryDeviceList(): Promise<DeviceListResult> {
+    if (!this.apiClient.isAuthenticated()) {
+      throw new Error('GPS51 client is not authenticated');
+    }
+
     try {
-      if (!this.apiClient.isAuthenticated()) {
-        throw new Error('Not authenticated with GPS51');
-      }
-
-      console.log('🚗 Fetching device list from GPS51...');
-
-      const response = await fetch(`https://www.gps51.com/webapi?action=querymonitorlist&token=${this.apiClient.getToken()}`, {
+      const response = await fetch('https://www.gps51.com/webapi?action=querymonitorlist', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Authorization': `Bearer ${this.apiClient.getToken()}`
         },
         body: JSON.stringify({
-          username: 'user' // Will be replaced with actual username
+          username: 'user' // This should be the actual username
         })
       });
 
@@ -104,46 +100,19 @@ export class GPS51TrackingService {
       }
 
       const result = await response.json();
-
-      if (result.status !== 0) {
-        throw new Error(result.cause || 'Failed to fetch device list');
+      
+      // Transform the response to match our interface
+      if (result.status === 0 && result.devices) {
+        result.devices = result.devices.map((device: any) => ({
+          ...device,
+          status: this.determineDeviceStatus(device)
+        }));
       }
 
-      // Process groups and extract devices
-      const groups = result.groups || [];
-      const devices: Device[] = [];
-
-      groups.forEach((group: any) => {
-        if (group.devices) {
-          group.devices.forEach((device: any) => {
-            devices.push({
-              deviceid: device.deviceid,
-              devicename: device.devicename,
-              devicetype: device.devicetype || 0,
-              simnum: device.simnum || '',
-              lastactivetime: device.lastactivetime || 0,
-              isfree: device.isfree || 1,
-              status: this.determineDeviceStatus(device)
-            });
-          });
-        }
-      });
-
-      console.log(`✅ Retrieved ${devices.length} devices from GPS51`);
-
-      return {
-        success: true,
-        devices,
-        groups
-      };
-
+      return result;
     } catch (error) {
-      console.error('❌ Error fetching device list:', error);
-      return {
-        success: false,
-        devices: [],
-        error: error instanceof Error ? error.message : 'Failed to fetch devices'
-      };
+      console.error('Error querying device list:', error);
+      throw error;
     }
   }
 
@@ -151,23 +120,24 @@ export class GPS51TrackingService {
    * Get last known position for devices
    */
   async getLastPositions(deviceIds?: string[]): Promise<LastPositionResult> {
+    if (!this.apiClient.isAuthenticated()) {
+      throw new Error('GPS51 client is not authenticated');
+    }
+
     try {
-      if (!this.apiClient.isAuthenticated()) {
-        throw new Error('Not authenticated with GPS51');
-      }
-
-      console.log('📍 Fetching last positions from GPS51...');
-
-      const requestBody = {
-        deviceids: deviceIds || [],
+      const requestBody: any = {
         lastquerypositiontime: 0
       };
 
-      const response = await fetch(`https://www.gps51.com/webapi?action=lastposition&token=${this.apiClient.getToken()}`, {
+      if (deviceIds && deviceIds.length > 0) {
+        requestBody.deviceids = deviceIds;
+      }
+
+      const response = await fetch('https://www.gps51.com/webapi?action=lastposition', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Authorization': `Bearer ${this.apiClient.getToken()}`
         },
         body: JSON.stringify(requestBody)
       });
@@ -176,205 +146,116 @@ export class GPS51TrackingService {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result = await response.json();
-
-      if (result.status !== 0) {
-        throw new Error(result.cause || 'Failed to fetch positions');
-      }
-
-      const positions: DevicePosition[] = (result.records || []).map((record: any) => ({
-        deviceid: record.deviceid,
-        lat: record.lat,
-        lon: record.lon,
-        speed: record.speed || 0,
-        course: record.course || 0,
-        altitude: record.altitude || 0,
-        timestamp: record.utc || Date.now(),
-        address: record.address || '',
-        status: record.status || 'unknown'
-      }));
-
-      console.log(`✅ Retrieved positions for ${positions.length} devices`);
-
-      return {
-        success: true,
-        positions
-      };
-
+      return await response.json();
     } catch (error) {
-      console.error('❌ Error fetching positions:', error);
-      return {
-        success: false,
-        positions: [],
-        error: error instanceof Error ? error.message : 'Failed to fetch positions'
-      };
+      console.error('Error getting last positions:', error);
+      throw error;
     }
   }
 
   /**
-   * Query historical tracks for a device
+   * Query historical tracks
    */
-  async getHistoricalTracks(deviceId: string, startTime: Date, endTime: Date): Promise<HistoricalTracksResult> {
+  async getHistoricalTracks(
+    deviceId: string, 
+    startTime: Date, 
+    endTime: Date
+  ): Promise<HistoricalTracksResult> {
+    if (!this.apiClient.isAuthenticated()) {
+      throw new Error('GPS51 client is not authenticated');
+    }
+
     try {
-      if (!this.apiClient.isAuthenticated()) {
-        throw new Error('Not authenticated with GPS51');
-      }
-
-      console.log(`📊 Fetching historical tracks for device ${deviceId}...`);
-
-      const requestBody = {
-        deviceid: deviceId,
-        begintime: this.formatDateForAPI(startTime),
-        endtime: this.formatDateForAPI(endTime),
-        timezone: 8 // Default timezone
-      };
-
-      const response = await fetch(`https://www.gps51.com/webapi?action=querytracks&token=${this.apiClient.getToken()}`, {
+      const response = await fetch('https://www.gps51.com/webapi?action=querytracks', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Authorization': `Bearer ${this.apiClient.getToken()}`
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({
+          deviceid: deviceId,
+          begintime: this.formatDateTime(startTime),
+          endtime: this.formatDateTime(endTime),
+          timezone: 8 // Default timezone offset
+        })
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result = await response.json();
-
-      if (result.status !== 0) {
-        throw new Error(result.cause || 'Failed to fetch historical tracks');
-      }
-
-      const tracks: TrackPoint[] = (result.records || []).map((record: any) => ({
-        lat: record.lat,
-        lon: record.lon,
-        timestamp: record.utc || Date.now(),
-        speed: record.speed || 0,
-        altitude: record.altitude || 0,
-        address: record.address || '',
-        status: record.status || 'unknown'
-      }));
-
-      console.log(`✅ Retrieved ${tracks.length} track points for device ${deviceId}`);
-
-      return {
-        success: true,
-        tracks
-      };
-
+      return await response.json();
     } catch (error) {
-      console.error('❌ Error fetching historical tracks:', error);
-      return {
-        success: false,
-        tracks: [],
-        error: error instanceof Error ? error.message : 'Failed to fetch tracks'
-      };
+      console.error('Error getting historical tracks:', error);
+      throw error;
     }
   }
 
   /**
-   * Get trip data for analysis
+   * Query trip data
    */
-  async getTripData(deviceId: string, startTime: Date, endTime: Date): Promise<{ success: boolean; trips: TripData[]; error?: string }> {
+  async getTripData(
+    deviceId: string, 
+    startTime: Date, 
+    endTime: Date
+  ): Promise<{ status: number; cause?: string; trips: TripData[] }> {
+    if (!this.apiClient.isAuthenticated()) {
+      throw new Error('GPS51 client is not authenticated');
+    }
+
     try {
-      if (!this.apiClient.isAuthenticated()) {
-        throw new Error('Not authenticated with GPS51');
-      }
-
-      console.log(`🚛 Fetching trip data for device ${deviceId}...`);
-
-      const requestBody = {
-        deviceid: deviceId,
-        begintime: this.formatDateForAPI(startTime),
-        endtime: this.formatDateForAPI(endTime),
-        timezone: 8
-      };
-
-      const response = await fetch(`https://www.gps51.com/webapi?action=querytrips&token=${this.apiClient.getToken()}`, {
+      const response = await fetch('https://www.gps51.com/webapi?action=querytrips', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Authorization': `Bearer ${this.apiClient.getToken()}`
         },
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify({
+          deviceid: deviceId,
+          begintime: this.formatDateTime(startTime),
+          endtime: this.formatDateTime(endTime),
+          timezone: 8
+        })
       });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result = await response.json();
-
-      if (result.status !== 0) {
-        throw new Error(result.cause || 'Failed to fetch trip data');
-      }
-
-      const trips: TripData[] = (result.records || []).map((record: any) => ({
-        tripid: record.tripid || Date.now().toString(),
-        deviceid: deviceId,
-        starttime: record.starttime || 0,
-        endtime: record.endtime || 0,
-        totaldistance: record.totaldistance || 0,
-        maxspeed: record.maxspeed || 0,
-        averagespeed: record.averagespeed || 0,
-        totaltime: record.totaltime || 0,
-        fuelconsumption: record.fuelconsumption,
-        route: record.route || []
-      }));
-
-      console.log(`✅ Retrieved ${trips.length} trips for device ${deviceId}`);
-
-      return {
-        success: true,
-        trips
-      };
-
+      return await response.json();
     } catch (error) {
-      console.error('❌ Error fetching trip data:', error);
-      return {
-        success: false,
-        trips: [],
-        error: error instanceof Error ? error.message : 'Failed to fetch trips'
-      };
+      console.error('Error getting trip data:', error);
+      throw error;
     }
   }
 
   /**
-   * Determine device status based on data
+   * Determine device status based on GPS51 data
    */
   private determineDeviceStatus(device: any): 'online' | 'offline' | 'moving' | 'parked' {
-    const now = Date.now();
-    const lastActive = device.lastactivetime * 1000; // Convert to milliseconds
-    const timeDiff = now - lastActive;
-
-    // If last active more than 10 minutes ago, consider offline
-    if (timeDiff > 10 * 60 * 1000) {
+    // Logic to determine status based on lastactivetime, isfree, etc.
+    const now = Date.now() / 1000;
+    const timeDiff = now - device.lastactivetime;
+    
+    // If device hasn't been active in last 5 minutes, consider offline
+    if (timeDiff > 300) {
       return 'offline';
     }
-
-    // If device has speed data, determine if moving
-    if (device.speed !== undefined) {
-      return device.speed > 5 ? 'moving' : 'parked';
+    
+    // If device is free (status 1) and recently active
+    if (device.isfree === 1) {
+      // You could add speed check here if available
+      return 'online';
     }
-
-    return 'online';
+    
+    return 'parked';
   }
 
   /**
    * Format date for GPS51 API
    */
-  private formatDateForAPI(date: Date): string {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    const seconds = String(date.getSeconds()).padStart(2, '0');
-    
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  private formatDateTime(date: Date): string {
+    return date.toISOString().replace('T', ' ').substring(0, 19);
   }
 
   /**
