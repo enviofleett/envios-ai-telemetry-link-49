@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { databaseCacheManager } from '@/services/caching/DatabaseCacheManager';
 
@@ -109,20 +108,20 @@ export class OptimizedQueryService {
     
     return this.executeQuery(queryKey, async () => {
       try {
-        // Use simple, explicit query to avoid type instantiation issues
-        const query = supabase
+        // Use type assertion at the query level to prevent type instantiation issues
+        const baseQuery = (supabase as any)
           .from('gp51_devices')
           .select('*')
           .eq('status', 'active');
 
         // Apply user filter if provided
-        const finalQuery = userId ? query.eq('user_id', userId) : query;
+        const finalQuery = userId ? baseQuery.eq('user_id', userId) : baseQuery;
         
-        // Execute with explicit type assertion
-        const result = await finalQuery as any;
+        // Execute query
+        const { data, error } = await finalQuery;
         
-        if (result.error) throw result.error;
-        return (result.data || []) as VehicleData[];
+        if (error) throw error;
+        return (data || []) as VehicleData[];
       } catch (error) {
         console.error('Error fetching vehicles:', error);
         throw error;
@@ -134,12 +133,12 @@ export class OptimizedQueryService {
     const queryKey = `positions:${deviceIds.sort().join(',')}`;
     
     return this.executeQuery(queryKey, async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('gp51_positions')
         .select('*')
         .in('device_id', deviceIds)
         .order('created_at', { ascending: false })
-        .limit(deviceIds.length) as any;
+        .limit(deviceIds.length);
 
       if (error) throw error;
       return (data || []) as PositionData[];
@@ -150,10 +149,10 @@ export class OptimizedQueryService {
     const queryKey = 'fleet:statistics';
     
     return this.executeQuery(queryKey, async () => {
-      const { data: devices, error: devicesError } = await supabase
+      const { data: devices, error: devicesError } = await (supabase as any)
         .from('gp51_devices')
         .select('device_id, is_online, status')
-        .eq('status', 'active') as any;
+        .eq('status', 'active');
 
       if (devicesError) throw devicesError;
 
